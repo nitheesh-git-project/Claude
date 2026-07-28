@@ -29,9 +29,6 @@ alter table profiles enable row level security;
 alter table appointments enable row level security;
 
 -- Profiles: a user can read and create their own profile row.
--- NOTE: "approved" is intentionally left out of the update policy below —
--- until the admin portal (Phase 7) exists, flip it manually in the
--- Supabase Table Editor to approve a therapist.
 drop policy if exists "profiles_select_own" on profiles;
 create policy "profiles_select_own" on profiles
   for select using (auth.uid() = id);
@@ -40,9 +37,49 @@ drop policy if exists "profiles_insert_own" on profiles;
 create policy "profiles_insert_own" on profiles
   for insert with check (auth.uid() = id);
 
+-- Auto-create the profile row when a new auth user signs up. This runs as
+-- a database trigger (not client-side) so it works even before the user
+-- has an active session — e.g. if "Confirm email" is on in Supabase Auth
+-- settings, signUp() does not return a session until the email is
+-- confirmed, and a client-side insert would fail the RLS check above.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.profiles (id, role, full_name, email, phone, credentials, approved)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'role', 'patient'),
+    coalesce(new.raw_user_meta_data->>'full_name', ''),
+    new.email,
+    new.raw_user_meta_data->>'phone',
+    new.raw_user_meta_data->>'credentials',
+    (coalesce(new.raw_user_meta_data->>'role', 'patient') = 'patient')
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
 drop policy if exists "profiles_update_own" on profiles;
 create policy "profiles_update_own" on profiles
   for update using (auth.uid() = id);
+
+-- A row-level policy only controls *which rows* a user can touch, not
+-- *which columns* — without this, any signed-in user could open their
+-- browser console and set their own "approved" to true or "role" to
+-- 'therapist', bypassing the entire approval gate. Column-level grants
+-- close that: "role" and "approved" can only be changed by an admin
+-- (via the Supabase Table Editor / service role) or the signup trigger
+-- above, which runs with elevated privileges and isn't subject to grants.
+revoke update on profiles from authenticated;
+grant update (full_name, phone, timezone, credentials) on profiles to authenticated;
 
 -- Appointments: patients and their assigned therapist can see/manage a booking.
 drop policy if exists "appointments_select_own" on appointments;

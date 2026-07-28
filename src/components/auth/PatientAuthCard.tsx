@@ -8,12 +8,14 @@ export default function PatientAuthCard() {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     const { error } = await supabase.auth.signInWithPassword({
@@ -32,6 +34,7 @@ export default function PatientAuthCard() {
   async function handleRegister(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     const email = formData.get("email") as string;
@@ -39,30 +42,25 @@ export default function PatientAuthCard() {
     const fullName = formData.get("fullName") as string;
     const phone = formData.get("phone") as string;
 
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { role: "patient", full_name: fullName, phone },
+      },
+    });
+    setLoading(false);
     if (error) {
-      setLoading(false);
       setError(error.message);
       return;
     }
 
-    if (data.user) {
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: data.user.id,
-        role: "patient",
-        full_name: fullName,
-        email,
-        phone,
-        approved: true,
-      });
-      if (profileError) {
-        setLoading(false);
-        setError(profileError.message);
-        return;
-      }
+    if (!data.session) {
+      setInfo("Account created! Check your email to confirm it, then sign in.");
+      setTab("login");
+      return;
     }
 
-    setLoading(false);
     router.push("/patient/dashboard");
     router.refresh();
   }
@@ -103,6 +101,11 @@ export default function PatientAuthCard() {
         {error && (
           <div className="mb-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
             {error}
+          </div>
+        )}
+        {info && (
+          <div className="mb-4 text-xs text-teal-800 bg-teal-50 border border-teal-200 rounded-lg p-3">
+            {info}
           </div>
         )}
 
