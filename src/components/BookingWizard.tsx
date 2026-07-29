@@ -3,26 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-
-declare global {
-  interface Window {
-    Razorpay: new (options: Record<string, unknown>) => { open: () => void };
-  }
-}
-
-function loadRazorpayScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (window.Razorpay) {
-      resolve();
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Could not load the payment gateway."));
-    document.body.appendChild(script);
-  });
-}
+import { payForAppointment } from "@/lib/razorpay";
 
 const CONCERNS = [
   "Lower Back Stiffness / Sciatica",
@@ -180,63 +161,24 @@ export default function BookingWizard() {
   async function startPayment(id: string) {
     setError(null);
     setLoading(true);
-
-    try {
-      await loadRazorpayScript();
-
-      const res = await fetch("/api/razorpay/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appointmentId: id }),
-      });
-      const orderData = await res.json();
-      setLoading(false);
-
-      if (!res.ok) {
-        setError(orderData.error ?? "Could not start payment. Please try again.");
-        return;
-      }
-
-      const razorpay = new window.Razorpay({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        order_id: orderData.orderId,
-        name: "Dr. Pooja's Physio",
-        description: concern,
-        prefill: { name: fullName, email },
-        theme: { color: "#0f766e" },
-        handler: async (response: {
-          razorpay_order_id: string;
-          razorpay_payment_id: string;
-          razorpay_signature: string;
-        }) => {
-          setLoading(true);
-          const verifyRes = await fetch("/api/razorpay/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ appointmentId: id, ...response }),
-          });
-          setLoading(false);
-          if (verifyRes.ok) {
-            setDone(true);
-          } else {
-            setError(
-              `Payment received but verification failed. Please contact us with payment ID ${response.razorpay_payment_id}.`
-            );
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            setError("Payment was not completed. You can try again below.");
-          },
-        },
-      });
-      razorpay.open();
-    } catch {
-      setLoading(false);
-      setError("Could not load the payment gateway. Please check your connection and try again.");
-    }
+    await payForAppointment({
+      appointmentId: id,
+      name: fullName,
+      email,
+      description: concern,
+      onSuccess: () => {
+        setLoading(false);
+        setDone(true);
+      },
+      onError: (message) => {
+        setLoading(false);
+        setError(message);
+      },
+      onDismiss: () => {
+        setLoading(false);
+        setError("Payment was not completed. You can try again below.");
+      },
+    });
   }
 
   const header = (

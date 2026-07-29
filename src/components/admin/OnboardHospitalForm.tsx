@@ -31,6 +31,7 @@ export default function OnboardHospitalForm({
         email: formData.get("email"),
         organizationName: formData.get("organizationName"),
         fullName: formData.get("fullName"),
+        revenueSharePercent: formData.get("revenueSharePercent"),
       }),
     });
     const data = await res.json();
@@ -111,6 +112,24 @@ export default function OnboardHospitalForm({
         <input
           name="organizationName"
           defaultValue={lead.org_details ?? ""}
+          required
+          className="w-full p-2 rounded-lg border border-slate-300"
+        />
+      </div>
+      <div>
+        <label className="block font-semibold mb-1">
+          Hospital&apos;s Revenue Share (%)
+          <span className="font-normal text-slate-400">
+            {" "}
+            — the rest goes to the company
+          </span>
+        </label>
+        <input
+          type="number"
+          name="revenueSharePercent"
+          min={0}
+          max={100}
+          step="0.01"
           required
           className="w-full p-2 rounded-lg border border-slate-300"
         />

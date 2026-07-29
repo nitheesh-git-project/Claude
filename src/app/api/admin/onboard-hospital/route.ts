@@ -17,10 +17,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { leadId, email, organizationName, fullName } = await request.json();
-  if (!email || !organizationName || !fullName) {
+  const { leadId, email, organizationName, fullName, revenueSharePercent } =
+    await request.json();
+  if (!email || !organizationName || !fullName || revenueSharePercent === undefined) {
     return NextResponse.json(
-      { error: "Missing email, organizationName, or fullName" },
+      {
+        error:
+          "Missing email, organizationName, fullName, or revenueSharePercent",
+      },
+      { status: 400 }
+    );
+  }
+
+  const sharePercent = Number(revenueSharePercent);
+  if (Number.isNaN(sharePercent) || sharePercent < 0 || sharePercent > 100) {
+    return NextResponse.json(
+      { error: "Revenue share must be a number between 0 and 100" },
       { status: 400 }
     );
   }
@@ -48,6 +60,7 @@ export async function POST(request: NextRequest) {
     .update({
       organization_name: organizationName,
       referral_code: referralCode,
+      revenue_share_percent: sharePercent,
       approved: true,
     })
     .eq("id", created.user.id);

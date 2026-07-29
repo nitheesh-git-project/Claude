@@ -43,20 +43,32 @@ export async function POST(request: NextRequest) {
     .update({ referred_by_hospital_id: referral.hospital_id })
     .eq("id", created.user.id);
 
-  await admin.from("appointments").insert({
-    patient_id: created.user.id,
-    therapist_id: referral.assigned_therapist_id,
-    slot_time: referral.assigned_slot_time,
-    concern: referral.medical_issue,
-    notes: referral.treatment_needed,
-    status: "confirmed",
-    referral_id: referral.id,
-  });
+  // Left as "requested"/unpaid on purpose — the therapist and slot are
+  // already arranged, but the session isn't confirmed until the patient
+  // actually pays. Payment verification (see /api/razorpay/verify) flips
+  // this to "confirmed" once payment_status is set to "paid".
+  const { data: appointment } = await admin
+    .from("appointments")
+    .insert({
+      patient_id: created.user.id,
+      therapist_id: referral.assigned_therapist_id,
+      slot_time: referral.assigned_slot_time,
+      concern: referral.medical_issue,
+      notes: referral.treatment_needed,
+      status: "requested",
+      referral_id: referral.id,
+    })
+    .select("id")
+    .single();
 
   await admin
     .from("patient_referrals")
     .update({ status: "converted", converted_patient_id: created.user.id })
     .eq("id", referral.id);
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    appointmentId: appointment?.id,
+    concern: referral.medical_issue,
+  });
 }

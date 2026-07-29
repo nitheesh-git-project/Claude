@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/auth/SignOutButton";
+import PayNowButton from "@/components/PayNowButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 
 export const metadata: Metadata = {
@@ -20,13 +21,13 @@ export default async function PatientDashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name")
+    .select("full_name, email")
     .eq("id", user.id)
     .single();
 
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, slot_time, timezone, concern, status")
+    .select("id, slot_time, timezone, concern, status, payment_status")
     .eq("patient_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -75,9 +76,23 @@ export default async function PatientDashboardPage() {
                     {formatSlotTime(a.slot_time, a.timezone)}
                   </p>
                 </div>
-                <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
-                  {a.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
+                    {a.status}
+                  </span>
+                  {a.payment_status === "unpaid" ? (
+                    <PayNowButton
+                      appointmentId={a.id}
+                      name={profile?.full_name ?? ""}
+                      email={profile?.email ?? ""}
+                      description={a.concern ?? "Virtual Physical Therapy Session"}
+                    />
+                  ) : (
+                    <span className="font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full">
+                      Paid
+                    </span>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
