@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/auth/SignOutButton";
+import { formatSlotTime } from "@/lib/formatSlotTime";
 
 export const metadata: Metadata = {
   title: "Therapist Dashboard | Dr. Pooja's Physio",
@@ -61,9 +62,7 @@ export default async function TherapistDashboardPage() {
                     {a.concern ?? "General Consultation"}
                   </p>
                   <p className="text-slate-500 mt-1">
-                    {a.slot_time
-                      ? new Date(a.slot_time).toLocaleString()
-                      : "Slot to be confirmed"}
+                    {formatSlotTime(a.slot_time, a.timezone)}
                   </p>
                 </div>
                 <span className="capitalize font-semibold text-purple-700 bg-purple-50 px-3 py-1 rounded-full">
