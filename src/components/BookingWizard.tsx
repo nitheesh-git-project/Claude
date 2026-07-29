@@ -56,6 +56,7 @@ export default function BookingWizard() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [concern, setConcern] = useState(CONCERNS[0]);
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(true);
@@ -130,7 +131,13 @@ export default function BookingWizard() {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { role: "patient", full_name: fullName } },
+        options: {
+          data: {
+            role: "patient",
+            full_name: fullName,
+            referral_code: referralCode.trim() || undefined,
+          },
+        },
       });
       if (signUpError) {
         setLoading(false);
@@ -387,6 +394,21 @@ export default function BookingWizard() {
                     className="w-full p-3 rounded-xl border border-slate-300"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block font-semibold mb-1.5 text-slate-900">
+                  Referral Code{" "}
+                  <span className="font-normal text-slate-500 text-xs">
+                    (optional)
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value)}
+                  placeholder="e.g. from your hospital/clinic"
+                  className="w-full p-3 rounded-xl border border-slate-300"
+                />
               </div>
               <p className="text-[11px] text-slate-400">
                 Already have an account?{" "}

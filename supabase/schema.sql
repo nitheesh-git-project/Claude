@@ -32,11 +32,78 @@ alter table appointments add column if not exists razorpay_order_id text;
 alter table appointments add column if not exists razorpay_payment_id text;
 alter table appointments add column if not exists payment_status text not null default 'unpaid' check (payment_status in ('unpaid', 'paid', 'failed'));
 
--- Allow 'admin' as a role for accounts that already existed before this
--- was added. There's no self-signup path for admin — promote an account
--- by hand in the Table Editor after it's signed up normally as a patient.
+-- Allow 'admin' and 'hospital' as roles for accounts that already existed
+-- before these were added. Neither has a self-signup path — admin is
+-- promoted by hand in the Table Editor; hospital accounts are provisioned
+-- by the admin (see the B2B section below).
+--
+-- Hospital accounts carry an org name + a referral code patients can
+-- optionally quote at signup. referred_by_hospital_id is set on the
+-- *patient's* profile, either automatically (invite-link referrals) or by
+-- looking up a typed referral code (self-serve referrals) — one field
+-- answers attribution for both channels.
 alter table profiles drop constraint if exists profiles_role_check;
-alter table profiles add constraint profiles_role_check check (role in ('patient', 'therapist', 'admin'));
+alter table profiles add constraint profiles_role_check check (role in ('patient', 'therapist', 'admin', 'hospital'));
+alter table profiles add column if not exists organization_name text;
+alter table profiles add column if not exists referral_code text;
+alter table profiles add column if not exists referred_by_hospital_id uuid references profiles(id);
+create unique index if not exists profiles_referral_code_unique_idx
+  on profiles (referral_code) where referral_code is not null;
+
+-- Inbound B2B inquiries from the Hospitals page form. Submitted by
+-- anonymous visitors (no login), so INSERT is open to the public but
+-- nothing can read them back except the admin (via the service role).
+create table if not exists b2b_leads (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  phone text not null,
+  source text not null check (source in ('Ads', 'Friends', 'Hospitals', 'Other')),
+  org_details text,
+  status text not null default 'new' check (status in ('new', 'contacted', 'onboarded', 'declined')),
+  created_at timestamptz not null default now()
+);
+
+alter table b2b_leads enable row level security;
+drop policy if exists "b2b_leads_insert_public" on b2b_leads;
+create policy "b2b_leads_insert_public" on b2b_leads
+  for insert with check (true);
+grant insert on b2b_leads to anon, authenticated;
+
+-- A hospital's referral of a specific patient, submitted from their own
+-- dashboard. No client-side UPDATE — assigning a therapist/slot and
+-- generating the invite link are admin-only actions via the service role.
+create table if not exists patient_referrals (
+  id uuid primary key default gen_random_uuid(),
+  hospital_id uuid not null references profiles(id) on delete cascade,
+  patient_name text not null,
+  address text,
+  preferred_language text,
+  medical_issue text,
+  treatment_needed text,
+  status text not null default 'pending_review' check (status in ('pending_review', 'therapist_assigned', 'invite_sent', 'converted', 'declined')),
+  assigned_therapist_id uuid references profiles(id),
+  assigned_slot_time timestamptz,
+  invite_token uuid unique,
+  converted_patient_id uuid references profiles(id),
+  created_at timestamptz not null default now()
+);
+
+alter table patient_referrals enable row level security;
+
+drop policy if exists "patient_referrals_select_own" on patient_referrals;
+create policy "patient_referrals_select_own" on patient_referrals
+  for select using (auth.uid() = hospital_id);
+
+drop policy if exists "patient_referrals_insert_own" on patient_referrals;
+create policy "patient_referrals_insert_own" on patient_referrals
+  for insert with check (auth.uid() = hospital_id);
+
+revoke update on patient_referrals from authenticated;
+
+-- Links a patient's first appointment back to the referral that led to
+-- it (white-glove channel only — self-serve code bookings have no
+-- referral row, just the profile-level referred_by_hospital_id).
+alter table appointments add column if not exists referral_id uuid references patient_referrals(id);
 
 alter table profiles enable row level security;
 alter table appointments enable row level security;
@@ -60,8 +127,19 @@ returns trigger
 language plpgsql
 security definer set search_path = public
 as $$
+declare
+  v_referred_by uuid;
 begin
-  insert into public.profiles (id, role, full_name, email, phone, credentials, approved)
+  -- Self-serve referral: if the signup form passed a hospital's referral
+  -- code, resolve it to that hospital's profile id. An unknown/blank code
+  -- just leaves this null rather than failing the signup.
+  if new.raw_user_meta_data->>'referral_code' is not null then
+    select id into v_referred_by from public.profiles
+      where referral_code = new.raw_user_meta_data->>'referral_code'
+      and role = 'hospital';
+  end if;
+
+  insert into public.profiles (id, role, full_name, email, phone, credentials, approved, referred_by_hospital_id)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'role', 'patient'),
@@ -69,7 +147,8 @@ begin
     new.email,
     new.raw_user_meta_data->>'phone',
     new.raw_user_meta_data->>'credentials',
-    (coalesce(new.raw_user_meta_data->>'role', 'patient') = 'patient')
+    (coalesce(new.raw_user_meta_data->>'role', 'patient') = 'patient'),
+    v_referred_by
   );
   return new;
 end;

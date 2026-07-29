@@ -41,12 +41,18 @@ export default function PatientAuthCard() {
     const password = formData.get("password") as string;
     const fullName = formData.get("fullName") as string;
     const phone = formData.get("phone") as string;
+    const referralCode = (formData.get("referralCode") as string)?.trim();
 
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { role: "patient", full_name: fullName, phone },
+        data: {
+          role: "patient",
+          full_name: fullName,
+          phone,
+          referral_code: referralCode || undefined,
+        },
       },
     });
     setLoading(false);
@@ -174,6 +180,18 @@ export default function PatientAuthCard() {
                 name="password"
                 required
                 minLength={6}
+                className="w-full p-3 rounded-xl border border-slate-300"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold mb-1">
+                Referral Code{" "}
+                <span className="font-normal text-slate-400">(optional)</span>
+              </label>
+              <input
+                type="text"
+                name="referralCode"
+                placeholder="e.g. from your hospital/clinic"
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
