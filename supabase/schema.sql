@@ -3,7 +3,7 @@
 
 create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  role text not null check (role in ('patient', 'therapist')),
+  role text not null check (role in ('patient', 'therapist', 'admin')),
   full_name text not null,
   email text not null,
   phone text,
@@ -31,6 +31,12 @@ create table if not exists appointments (
 alter table appointments add column if not exists razorpay_order_id text;
 alter table appointments add column if not exists razorpay_payment_id text;
 alter table appointments add column if not exists payment_status text not null default 'unpaid' check (payment_status in ('unpaid', 'paid', 'failed'));
+
+-- Allow 'admin' as a role for accounts that already existed before this
+-- was added. There's no self-signup path for admin — promote an account
+-- by hand in the Table Editor after it's signed up normally as a patient.
+alter table profiles drop constraint if exists profiles_role_check;
+alter table profiles add constraint profiles_role_check check (role in ('patient', 'therapist', 'admin'));
 
 alter table profiles enable row level security;
 alter table appointments enable row level security;

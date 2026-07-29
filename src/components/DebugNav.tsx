@@ -15,6 +15,8 @@ const routes = [
   { value: "/therapist/login", label: "9. Therapist Login / Apply" },
   { value: "/therapist/dashboard", label: "9b. Therapist Dashboard (protected)" },
   { value: "/pending-approval", label: "10. Pending Approval" },
+  { value: "/admin/login", label: "11. Admin Login" },
+  { value: "/admin/dashboard", label: "11b. Admin Dashboard (protected)" },
 ];
 
 export default function DebugNav() {
