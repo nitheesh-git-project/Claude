@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   const { data: appointment } = await admin
     .from("appointments")
-    .select("status, duration_minutes")
+    .select("status, duration_minutes, therapist_id, therapist_payout_paid_at")
     .eq("id", appointmentId)
     .single();
 
@@ -39,6 +39,20 @@ export async function POST(request: NextRequest) {
   if (appointment.status === "completed" || appointment.status === "cancelled") {
     return NextResponse.json(
       { error: "This session is already over and can't be modified" },
+      { status: 400 }
+    );
+  }
+  // Reassigning to a different therapist after this session's payout has
+  // already been settled would silently orphan the payout record — the
+  // original therapist's Payout History would lose a session they were
+  // genuinely already paid for, and the new therapist's would show one
+  // they never received. Time-only reschedules (same therapist) are fine.
+  if (appointment.therapist_payout_paid_at && appointment.therapist_id !== therapistId) {
+    return NextResponse.json(
+      {
+        error:
+          "This session's payout has already been settled and can't be reassigned to a different therapist.",
+      },
       { status: 400 }
     );
   }
