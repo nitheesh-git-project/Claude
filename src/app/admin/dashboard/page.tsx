@@ -17,6 +17,8 @@ import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
+import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
+import AdminSessionStoryTab from "@/components/admin/AdminSessionStoryTab";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
@@ -62,7 +64,7 @@ export default async function AdminDashboardPage() {
   const { data: appointments } = await admin
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, therapist_rating, therapist_feedback"
     )
     .order("created_at", { ascending: false });
 
@@ -620,6 +622,32 @@ export default async function AdminDashboardPage() {
     </div>
   );
 
+  const allPeople = (allProfiles ?? []).map((p) => ({ id: p.id, full_name: p.full_name }));
+  const categoriesForReassign = (treatmentCategories ?? []).map((c) => ({
+    id: c.id,
+    title: c.title,
+    price_paise: c.price_paise,
+    duration_minutes: c.duration_minutes,
+  }));
+
+  const calendarTab = (
+    <AdminCalendarTab
+      appointments={appointments ?? []}
+      people={allPeople}
+      categories={categoriesForReassign}
+      therapists={approvedTherapists ?? []}
+    />
+  );
+
+  const sessionStoryTab = (
+    <AdminSessionStoryTab
+      appointments={appointments ?? []}
+      people={allPeople}
+      categories={categoriesForReassign}
+      therapists={approvedTherapists ?? []}
+    />
+  );
+
   const b2bBadgeCount =
     (b2bLeads?.filter((l) => l.status === "new").length ?? 0) +
     (referrals?.filter((r) => r.status === "pending_review").length ?? 0);
@@ -727,6 +755,8 @@ export default async function AdminDashboardPage() {
         b2bBadgeCount={b2bBadgeCount}
         patients={patientsTab}
         therapists={therapistsTab}
+        calendar={calendarTab}
+        sessionStory={sessionStoryTab}
         siteContent={siteContent}
       />
     </section>

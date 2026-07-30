@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import SignOutButton from "@/components/auth/SignOutButton";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import CompleteSessionButton from "@/components/CompleteSessionButton";
+import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
@@ -36,7 +37,9 @@ export default async function TherapistDashboardPage() {
 
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id")
+    .select(
+      "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback"
+    )
     .eq("therapist_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -137,6 +140,14 @@ export default async function TherapistDashboardPage() {
                   )}
                   {a.status === "confirmed" && (
                     <CompleteSessionButton appointmentId={a.id} />
+                  )}
+                  {a.status === "completed" && (
+                    <SessionFeedbackForm
+                      appointmentId={a.id}
+                      role="therapist"
+                      existingRating={a.therapist_rating}
+                      existingFeedback={a.therapist_feedback}
+                    />
                   )}
                 </li>
               );
