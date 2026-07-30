@@ -176,6 +176,23 @@ drop policy if exists "profiles_update_own" on profiles;
 create policy "profiles_update_own" on profiles
   for update using (auth.uid() = id);
 
+-- Patient + therapist editable profile fields — added here, before the
+-- grant below that references them, since a GRANT UPDATE naming a column
+-- that doesn't exist yet fails outright (this file runs top to bottom).
+-- avatar_url and the fields below are instant-save; full_name and
+-- credentials are approval-required (see profile_change_requests further
+-- down).
+alter table profiles add column if not exists avatar_url text;
+alter table profiles add column if not exists date_of_birth date;
+alter table profiles add column if not exists gender text;
+alter table profiles add column if not exists emergency_contact_name text;
+alter table profiles add column if not exists emergency_contact_phone text;
+alter table profiles add column if not exists preferred_language text;
+alter table profiles add column if not exists specialization text;
+alter table profiles add column if not exists years_experience integer;
+alter table profiles add column if not exists bio text;
+alter table profiles add column if not exists languages text;
+
 -- A row-level policy only controls *which rows* a user can touch, not
 -- *which columns* — without this, any signed-in user could open their
 -- browser console and set their own "approved" to true or "role" to
@@ -357,20 +374,6 @@ begin
   update treatment_categories set display_order = order_a where id = id_b;
 end;
 $$;
-
--- Patient + therapist editable profile fields. avatar_url and the fields
--- below are instant-save (see the profiles grant above); full_name and
--- credentials are approval-required (see profile_change_requests below).
-alter table profiles add column if not exists avatar_url text;
-alter table profiles add column if not exists date_of_birth date;
-alter table profiles add column if not exists gender text;
-alter table profiles add column if not exists emergency_contact_name text;
-alter table profiles add column if not exists emergency_contact_phone text;
-alter table profiles add column if not exists preferred_language text;
-alter table profiles add column if not exists specialization text;
-alter table profiles add column if not exists years_experience integer;
-alter table profiles add column if not exists bio text;
-alter table profiles add column if not exists languages text;
 
 -- A patient or therapist requesting a change to an identity/trust-sensitive
 -- field (full name, DOB, gender, credentials, specialization, years of
