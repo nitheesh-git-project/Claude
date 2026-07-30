@@ -285,11 +285,38 @@ alter table appointments add column if not exists duration_minutes integer;
 -- Once categories became admin-curated (rather than a free-text "Other"
 -- option), a patient whose issue doesn't match any listed condition had
 -- no way to book at all. Guarantees a standing fallback exists — admin
--- can edit its price/description/order like any other category, but this
--- keeps re-seeding itself if it's ever deleted entirely, so booking never
--- silently dead-ends.
-insert into treatment_categories (title, description, points, price_paise, duration_minutes, cta_label, display_order)
+-- can edit its title/price/description/order like any other category,
+-- but this keeps re-seeding itself if it's ever deleted entirely, so
+-- booking never silently dead-ends.
+--
+-- Identified by a fixed id, not by title — checking "where title =
+-- 'General Consultation'" would re-insert a duplicate the next time this
+-- file is re-run if the admin ever renamed it. The id never changes even
+-- if the title does, so this stays a no-op once the row exists under any
+-- name, and only re-creates it if the row is gone entirely.
+--
+-- One-time backfill: an earlier version of this migration matched by
+-- title instead and would have inserted the row under a random id. Adopt
+-- the fixed id for that row instead of inserting a second one.
+do $$
+begin
+  if exists (select 1 from treatment_categories where title = 'General Consultation')
+     and not exists (select 1 from treatment_categories where id = '00000000-0000-0000-0000-000000000001'::uuid)
+  then
+    update treatment_categories
+    set id = '00000000-0000-0000-0000-000000000001'::uuid
+    where id = (
+      select id from treatment_categories
+      where title = 'General Consultation'
+      order by created_at asc
+      limit 1
+    );
+  end if;
+end $$;
+
+insert into treatment_categories (id, title, description, points, price_paise, duration_minutes, cta_label, display_order)
 select
+  '00000000-0000-0000-0000-000000000001'::uuid,
   'General Consultation',
   'Not sure which category fits? Book a general assessment and we''ll guide you from there.',
   '[]'::jsonb,
@@ -297,7 +324,9 @@ select
   60,
   'Book General Consultation',
   999
-where not exists (select 1 from treatment_categories where title = 'General Consultation');
+where not exists (
+  select 1 from treatment_categories where id = '00000000-0000-0000-0000-000000000001'::uuid
+);
 
 -- Runs both halves of a category-order swap in a single transaction —
 -- called by the admin Move Up/Down controls instead of two independent

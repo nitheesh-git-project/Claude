@@ -47,7 +47,8 @@ export async function POST(request: NextRequest) {
     admin,
     therapistId,
     new Date(slotDateTime).toISOString(),
-    BASE_DURATION_MINUTES
+    BASE_DURATION_MINUTES,
+    { excludeReferralId: referralId }
   );
   if (conflict) {
     return NextResponse.json(
