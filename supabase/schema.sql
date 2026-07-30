@@ -214,6 +214,21 @@ grant update (
   bio, languages
 ) on profiles to authenticated;
 
+-- Public-safe subset of approved therapists, for the marketing /team page.
+-- A plain RLS policy only controls *which rows* are visible — anon still
+-- has table-level SELECT on profiles, so a broad "therapist rows are
+-- public" policy would let anyone query email/phone/dates directly with
+-- the anon key. This view hard-codes both the row filter and the column
+-- allowlist, and (as a view owned by the table owner) applies that filter
+-- itself rather than relying on RLS, so it's safe to expose in full.
+drop view if exists public_therapist_profiles;
+create view public_therapist_profiles as
+select id, full_name, credentials, specialization, years_experience, bio, avatar_url
+from profiles
+where role = 'therapist' and approved = true;
+
+grant select on public_therapist_profiles to anon, authenticated;
+
 -- Appointments: patients and their assigned therapist can see/manage a booking.
 drop policy if exists "appointments_select_own" on appointments;
 create policy "appointments_select_own" on appointments
@@ -408,6 +423,13 @@ create policy "profile_change_requests_insert_own" on profile_change_requests
 -- through the admin API routes using the service role, same reasoning as
 -- appointments having no client update policy.
 revoke update on profile_change_requests from authenticated;
+
+-- A user can withdraw their own request while it's still pending (changed
+-- their mind, made a typo) — but not one already reviewed, so the record
+-- of what was approved/declined and why stays intact.
+drop policy if exists "profile_change_requests_delete_own_pending" on profile_change_requests;
+create policy "profile_change_requests_delete_own_pending" on profile_change_requests
+  for delete using (auth.uid() = user_id and status = 'pending');
 
 -- Avatar storage: a public bucket (profile pictures aren't sensitive data
 -- and are simplest to serve as plain public URLs) where each user may only

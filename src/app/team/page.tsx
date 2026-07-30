@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { createPublicClient } from "@/lib/supabase/public";
+import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 
 export const metadata: Metadata = {
   title: "Specialist Team | Dr. Pooja's Physio",
@@ -6,26 +8,19 @@ export const metadata: Metadata = {
     "Meet our licensed clinical specialists — certified physical therapy professionals dedicated to global virtual care.",
 };
 
-const team = [
-  {
-    initials: "DP",
-    name: "Dr. Pooja (PT)",
-    cred: "BPT, MPT (Musculoskeletal)",
-    reg: "Council Reg: PT-802194",
-    bio: "8+ years clinical experience treating 1,000+ international and Indian patients with a focus on virtual spine care.",
-    founder: true,
-  },
-  {
-    initials: "RK",
-    name: "Dr. Rajesh Kumar (PT)",
-    cred: "MPT (Neurology & Rehab)",
-    reg: "Council Reg: PT-104928",
-    bio: "Specialized in sports impingements, knee rehabilitation, and post-surgical mobility recovery.",
-    founder: false,
-  },
-];
+// No per-user content on this page — cache and revalidate on a timer
+// instead of hitting Supabase on every single visit. Reads from the
+// public_therapist_profiles view, which already excludes anything
+// non-public (email, phone, etc.) — see schema.sql.
+export const revalidate = 300;
 
-export default function TeamPage() {
+export default async function TeamPage() {
+  const supabase = createPublicClient();
+  const { data: therapists } = await supabase
+    .from("public_therapist_profiles")
+    .select("id, full_name, credentials, specialization, years_experience, bio, avatar_url")
+    .order("full_name", { ascending: true });
+
   return (
     <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="text-center max-w-2xl mx-auto mb-12">
@@ -37,37 +32,45 @@ export default function TeamPage() {
           virtual care.
         </p>
       </div>
-      <div className="grid md:grid-cols-3 gap-8">
-        {team.map((member) => (
-          <div
-            key={member.name}
-            className={
-              member.founder
-                ? "bg-white rounded-2xl border-2 border-teal-600 p-6 shadow-md relative overflow-hidden"
-                : "bg-white rounded-2xl border border-slate-200 p-6 shadow-sm"
-            }
-          >
-            {member.founder && (
-              <span className="absolute top-4 right-4 bg-teal-100 text-teal-800 text-[10px] font-bold uppercase px-2.5 py-1 rounded-full">
-                Lead Founder
-              </span>
-            )}
+
+      {!therapists || therapists.length === 0 ? (
+        <p className="text-center text-sm text-slate-500 py-12">
+          Our specialist roster is being updated — check back shortly.
+        </p>
+      ) : (
+        <div className="grid md:grid-cols-3 gap-8">
+          {therapists.map((t) => (
             <div
-              className={`w-20 h-20 ${
-                member.founder ? "bg-teal-700" : "bg-slate-700"
-              } text-white rounded-full flex items-center justify-center text-2xl font-bold mb-4 shadow`}
+              key={t.id}
+              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm"
             >
-              {member.initials}
+              <AvatarThumbnail
+                url={t.avatar_url}
+                name={t.full_name ?? "Therapist"}
+                size={80}
+                className="mb-4"
+              />
+              <h3 className="text-xl font-bold text-slate-900">{t.full_name}</h3>
+              {t.credentials && (
+                <p className="text-xs font-semibold text-teal-700 mt-1">{t.credentials}</p>
+              )}
+              {t.specialization && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Specialist in {t.specialization}
+                </p>
+              )}
+              {t.years_experience !== null && t.years_experience !== undefined && (
+                <p className="text-xs text-slate-500 mt-1">
+                  {t.years_experience}+ years of experience
+                </p>
+              )}
+              {t.bio && (
+                <p className="text-xs text-slate-600 mt-3 leading-relaxed">{t.bio}</p>
+              )}
             </div>
-            <h3 className="text-xl font-bold text-slate-900">{member.name}</h3>
-            <p className="text-xs font-semibold text-teal-700">{member.cred}</p>
-            <p className="text-xs text-slate-500 mt-1">{member.reg}</p>
-            <p className="text-xs text-slate-600 mt-3 leading-relaxed">
-              {member.bio}
-            </p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

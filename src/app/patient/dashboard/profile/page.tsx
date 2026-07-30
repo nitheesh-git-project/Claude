@@ -5,6 +5,7 @@ import SignOutButton from "@/components/auth/SignOutButton";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import InstantProfileFields from "@/components/profile/InstantProfileFields";
 import GatedProfileFields from "@/components/profile/GatedProfileFields";
+import { computeFieldStatus } from "@/lib/computeFieldStatus";
 
 export const metadata: Metadata = {
   title: "Edit Profile | Dr. Pooja's Physio",
@@ -28,21 +29,12 @@ export default async function PatientProfilePage() {
     .eq("id", user.id)
     .single();
 
-  const { data: latestRequest } = await supabase
+  const { data: changeRequests } = await supabase
     .from("profile_change_requests")
-    .select("id, status, admin_notes, changes")
+    .select("id, status, admin_notes, changes, created_at")
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const initials = String(profile?.full_name ?? "P")
-    .split(" ")
-    .filter(Boolean)
-    .map((s: string) => s[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+    .order("created_at", { ascending: false });
+  const fieldStatus = computeFieldStatus(changeRequests ?? []);
 
   return (
     <section className="py-8 max-w-2xl mx-auto px-4">
@@ -63,7 +55,7 @@ export default async function PatientProfilePage() {
         <AvatarUpload
           userId={user.id}
           currentUrl={profile?.avatar_url ?? null}
-          fallbackInitials={initials}
+          name={profile?.full_name ?? "P"}
         />
       </div>
 
@@ -95,7 +87,12 @@ export default async function PatientProfilePage() {
           userId={user.id}
           fields={[
             { name: "full_name", label: "Full Name", type: "text" },
-            { name: "date_of_birth", label: "Date of Birth", type: "date" },
+            {
+              name: "date_of_birth",
+              label: "Date of Birth",
+              type: "date",
+              max: new Date().toISOString().slice(0, 10),
+            },
             {
               name: "gender",
               label: "Gender",
@@ -108,7 +105,7 @@ export default async function PatientProfilePage() {
             date_of_birth: profile?.date_of_birth ?? "",
             gender: profile?.gender ?? "",
           }}
-          latestRequest={latestRequest ?? null}
+          fieldStatus={fieldStatus}
         />
       </div>
     </section>
