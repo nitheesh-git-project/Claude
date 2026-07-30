@@ -7,6 +7,7 @@ import PatientActiveToggle from "@/components/admin/PatientActiveToggle";
 import PatientContactEditForm from "@/components/admin/PatientContactEditForm";
 import PatientNotesForm from "@/components/admin/PatientNotesForm";
 import ResetPatientPasswordButton from "@/components/admin/ResetPatientPasswordButton";
+import EditBookingForm from "@/components/admin/EditBookingForm";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -46,7 +47,7 @@ export default async function AdminPatientDetailPage({
       admin
         .from("appointments")
         .select(
-          "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at"
+          "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, therapist_id, razorpay_payment_id, paid_at"
         )
         .eq("patient_id", id)
         .order("created_at", { ascending: false }),
@@ -75,6 +76,31 @@ export default async function AdminPatientDetailPage({
           .in("id", categoryIds as string[])
       : { data: [] as { id: string; title: string; price_paise: number; duration_minutes: number }[] };
   const categoryMap = new Map((categories ?? []).map((c) => [c.id, c]));
+
+  const therapistIds = [
+    ...new Set((appointments ?? []).map((a) => a.therapist_id).filter(Boolean)),
+  ];
+  const [{ data: sessionTherapists }, { data: approvedTherapists }] = await Promise.all([
+    therapistIds.length > 0
+      ? admin
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", therapistIds as string[])
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    admin
+      .from("profiles")
+      .select("id, full_name")
+      .eq("role", "therapist")
+      .eq("approved", true)
+      .order("full_name"),
+  ]);
+  const therapistMap = new Map((sessionTherapists ?? []).map((t) => [t.id, t]));
+
+  const paidAppointments = (appointments ?? []).filter((a) => a.payment_status === "paid");
+  const totalPaidPaise = paidAppointments.reduce(
+    (sum, a) => sum + (a.amount_paid_paise ?? SESSION_FEE_PAISE),
+    0
+  );
 
   return (
     <section className="py-8 max-w-4xl mx-auto px-4">
@@ -154,6 +180,12 @@ export default async function AdminPatientDetailPage({
               const feePaise = a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE;
               const durationMinutes =
                 a.duration_minutes ?? category?.duration_minutes ?? BASE_DURATION_MINUTES;
+              const therapist = a.therapist_id ? therapistMap.get(a.therapist_id) : null;
+              const isUpcoming =
+                a.status !== "completed" &&
+                a.status !== "cancelled" &&
+                !!a.slot_time &&
+                new Date(a.slot_time).getTime() > Date.now();
               return (
                 <li key={a.id} className="p-4 rounded-xl border border-slate-200 space-y-1.5">
                   <div className="flex items-center justify-between flex-wrap gap-2">
@@ -177,10 +209,57 @@ export default async function AdminPatientDetailPage({
                     {formatSlotTime(a.slot_time, a.timezone)} • {durationMinutes} min • ₹
                     {(feePaise / 100).toLocaleString("en-IN")}
                   </p>
+                  <p className="text-slate-500">
+                    Therapist:{" "}
+                    <strong>{therapist?.full_name ?? "Not yet assigned"}</strong>
+                  </p>
                   {a.notes && (
                     <p className="text-slate-500">
                       <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
                     </p>
+                  )}
+                  {isUpcoming && (
+                    <EditBookingForm
+                      appointmentId={a.id}
+                      currentTherapistId={a.therapist_id}
+                      currentSlotTime={a.slot_time}
+                      therapists={approvedTherapists ?? []}
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold text-sm text-slate-800">Payment History</h2>
+          <p className="text-xs text-slate-500">
+            Total Paid: <strong className="text-teal-700">₹{(totalPaidPaise / 100).toLocaleString("en-IN")}</strong>
+          </p>
+        </div>
+        {paidAppointments.length === 0 ? (
+          <p className="text-xs text-slate-500 py-4 text-center">No payments recorded yet.</p>
+        ) : (
+          <ul className="space-y-3 text-xs">
+            {paidAppointments.map((a) => {
+              const therapist = a.therapist_id ? therapistMap.get(a.therapist_id) : null;
+              return (
+                <li key={a.id} className="p-4 rounded-xl border border-slate-200 space-y-1">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <strong className="text-slate-900">{a.concern ?? "General Consultation"}</strong>
+                    <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
+                      ₹{((a.amount_paid_paise ?? SESSION_FEE_PAISE) / 100).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <p className="text-slate-500">
+                    Paid {a.paid_at ? new Date(a.paid_at).toLocaleString("en-IN") : "date unknown"}
+                    {therapist && <> • Therapist: {therapist.full_name}</>}
+                  </p>
+                  {a.razorpay_payment_id && (
+                    <p className="text-slate-400 font-mono">{a.razorpay_payment_id}</p>
                   )}
                 </li>
               );

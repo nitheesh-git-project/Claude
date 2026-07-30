@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
     .update({
       payment_status: "paid",
       razorpay_payment_id,
+      paid_at: new Date().toISOString(),
       ...(shouldAutoConfirm ? { status: "confirmed" } : {}),
     })
     .eq("id", appointmentId);
