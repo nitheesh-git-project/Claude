@@ -12,6 +12,7 @@ import DeclineReferralButton from "@/components/admin/DeclineReferralButton";
 import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswordButton";
 import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
+import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
@@ -73,6 +74,13 @@ export default async function AdminDashboardPage() {
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
+
+  const { data: treatmentCategories } = await admin
+    .from("treatment_categories")
+    .select(
+      "id, title, description, points, price_paise, duration_minutes, cta_label, display_order, active"
+    )
+    .order("display_order", { ascending: true });
 
   // Revenue rollup per hospital: every paid session belonging to a patient
   // this hospital referred (either channel — invite-link or self-serve
@@ -416,6 +424,24 @@ export default async function AdminDashboardPage() {
     (b2bLeads?.filter((l) => l.status === "new").length ?? 0) +
     (referrals?.filter((r) => r.status === "pending_review").length ?? 0);
 
+  const siteContent = (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <h2 className="font-bold text-lg text-slate-800 mb-1">
+        Conditions Treated — Categories
+      </h2>
+      <p className="text-xs text-slate-500 mb-4">
+        Controls what shows on the public /conditions page, and what
+        patients can pick (and get charged) in the booking wizard.
+      </p>
+      <TreatmentCategoryManager
+        categories={(treatmentCategories ?? []).map((c) => ({
+          ...c,
+          points: Array.isArray(c.points) ? (c.points as string[]) : [],
+        }))}
+      />
+    </div>
+  );
+
   return (
     <section className="py-8 max-w-6xl mx-auto px-4">
       <div className="flex items-center justify-between mb-8">
@@ -432,6 +458,7 @@ export default async function AdminDashboardPage() {
         overview={overview}
         b2bPartners={b2bPartners}
         b2bBadgeCount={b2bBadgeCount}
+        siteContent={siteContent}
       />
     </section>
   );

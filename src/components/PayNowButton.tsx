@@ -9,11 +9,13 @@ export default function PayNowButton({
   name,
   email,
   description,
+  amountPaise,
 }: {
   appointmentId: string;
   name: string;
   email: string;
   description: string;
+  amountPaise: number;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +50,9 @@ export default function PayNowButton({
         disabled={loading}
         className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
       >
-        {loading ? "Please wait..." : "Pay Now"}
+        {loading
+          ? "Please wait..."
+          : `Pay ₹${(amountPaise / 100).toLocaleString("en-IN")} Now`}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
     </div>

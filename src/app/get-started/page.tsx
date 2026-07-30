@@ -46,7 +46,7 @@ export default function GetStartedPage() {
               </li>
               <li className="flex items-center gap-2">
                 <i className="fa-solid fa-check text-teal-600"></i> Instant
-                Razorpay UPI payment (₹1,999 INR)
+                Razorpay UPI payment
               </li>
               <li className="flex items-center gap-2">
                 <i className="fa-solid fa-check text-teal-600"></i> Medical
@@ -58,7 +58,7 @@ export default function GetStartedPage() {
             href="/book"
             className="mt-6 w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 px-4 rounded-xl text-xs transition shadow flex items-center justify-center gap-2"
           >
-            Book Consultation Now (₹1,999 INR){" "}
+            Book Consultation Now{" "}
             <i className="fa-solid fa-arrow-right"></i>
           </Link>
         </div>

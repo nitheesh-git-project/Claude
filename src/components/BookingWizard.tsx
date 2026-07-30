@@ -2,17 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 
-const CONCERNS = [
-  "Lower Back Stiffness / Sciatica",
-  "Post-Op Knee Replacement",
-  "Shoulder Impingement",
-  "Sports Injury",
-  "Other",
-];
+type Category = {
+  id: string;
+  title: string;
+  price_paise: number;
+  duration_minutes: number;
+};
 
 function minDateTimeLocal(hoursAhead: number) {
   const d = new Date(Date.now() + hoursAhead * 60 * 60 * 1000);
@@ -23,7 +23,12 @@ function minDateTimeLocal(hoursAhead: number) {
   )}:${pad(d.getMinutes())}`;
 }
 
+function formatInr(paise: number) {
+  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+}
+
 export default function BookingWizard() {
+  const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -43,11 +48,14 @@ export default function BookingWizard() {
   const [referralCheck, setReferralCheck] = useState<ReferralCodeCheck>({
     status: "idle",
   });
-  const [concern, setConcern] = useState(CONCERNS[0]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+  const [categoryId, setCategoryId] = useState("");
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
 
   const supabase = createClient();
+  const selectedCategory = categories.find((c) => c.id === categoryId);
 
   useEffect(() => {
     // Reads the browser's detected timezone, which is only known once
@@ -75,6 +83,20 @@ export default function BookingWizard() {
         // Not logged in / session check failed — proceed as a guest booking.
       })
       .finally(() => setCheckingAuth(false));
+
+    (async () => {
+      const { data } = await supabase
+        .from("treatment_categories")
+        .select("id, title, price_paise, duration_minutes")
+        .eq("active", true)
+        .order("display_order", { ascending: true });
+      const list = data ?? [];
+      setCategories(list);
+      const fromQuery = searchParams.get("category");
+      const preselect = list.find((c) => c.id === fromQuery);
+      setCategoryId(preselect?.id ?? list[0]?.id ?? "");
+      setCategoriesLoaded(true);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -108,6 +130,10 @@ export default function BookingWizard() {
         );
         return;
       }
+    }
+    if (!categoryId) {
+      setError("Please select what you'd like help with.");
+      return;
     }
     if (!consent) {
       setError("Please agree to the telehealth consent terms to continue.");
@@ -163,7 +189,8 @@ export default function BookingWizard() {
         patient_id: userId,
         slot_time: new Date(slotDateTime).toISOString(),
         timezone,
-        concern,
+        concern: selectedCategory?.title ?? "General Consultation",
+        category_id: categoryId || null,
         notes,
         status: "requested",
       })
@@ -187,7 +214,7 @@ export default function BookingWizard() {
       appointmentId: id,
       name: fullName,
       email,
-      description: concern,
+      description: selectedCategory?.title ?? "Virtual Physical Therapy Session",
       onSuccess: () => {
         setLoading(false);
         setDone(true);
@@ -212,7 +239,11 @@ export default function BookingWizard() {
         Book Virtual Physical Therapy Session
       </h1>
       <p className="text-xs text-slate-300 mt-1">
-        ₹1,999 INR • 1-Hour HD Video Call & Custom Rehab Plan
+        {selectedCategory
+          ? `${formatInr(selectedCategory.price_paise)} INR • ${
+              selectedCategory.duration_minutes
+            }-Min HD Video Call & Custom Rehab Plan`
+          : "HD Video Call & Custom Rehab Plan — pricing shown once you pick a concern"}
       </p>
     </div>
   );
@@ -424,17 +455,26 @@ export default function BookingWizard() {
 
           <div>
             <label className="block font-semibold mb-1.5 text-slate-900">
-              Primary Concern
+              What would you like help with?
             </label>
-            <select
-              value={concern}
-              onChange={(e) => setConcern(e.target.value)}
-              className="w-full p-3 rounded-xl border border-slate-300 bg-white"
-            >
-              {CONCERNS.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
+            {categoriesLoaded && categories.length === 0 ? (
+              <p className="text-xs text-red-600">
+                No condition categories are available right now — please
+                contact us directly to book.
+              </p>
+            ) : (
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-300 bg-white"
+              >
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title} — {formatInr(c.price_paise)} / {c.duration_minutes} min
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
@@ -503,11 +543,15 @@ export default function BookingWizard() {
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">Concern</span>
-              <span className="font-bold text-slate-900">{concern}</span>
+              <span className="font-bold text-slate-900">
+                {selectedCategory?.title}
+              </span>
             </div>
             <div className="flex justify-between text-xs pt-3 border-t border-teal-100">
               <span className="text-slate-500">Session Fee</span>
-              <span className="font-bold text-slate-900">₹1,999 INR</span>
+              <span className="font-bold text-slate-900">
+                {selectedCategory ? `${formatInr(selectedCategory.price_paise)} INR` : "—"}
+              </span>
             </div>
           </div>
           <p className="text-xs text-slate-500">
@@ -531,7 +575,7 @@ export default function BookingWizard() {
               {loading
                 ? "Please wait..."
                 : appointmentId
-                ? "Pay ₹1,999 Now"
+                ? `Pay ${selectedCategory ? formatInr(selectedCategory.price_paise) : ""} Now`
                 : "Request Booking"}
             </button>
           </div>

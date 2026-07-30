@@ -214,3 +214,63 @@ alter table appointments add column if not exists amount_paid_paise integer;
 -- Structured contact email captured directly on the public inquiry form,
 -- so onboarding doesn't rely on retyping it from free-text notes.
 alter table b2b_leads add column if not exists email text;
+
+-- Admin-editable condition categories shown on the public /conditions
+-- page. Each one carries its own real price and session length, which
+-- drives what /api/razorpay/create-order actually charges when a patient
+-- books that specific condition — not a single fixed platform-wide fee.
+create table if not exists treatment_categories (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  points jsonb not null default '[]'::jsonb,
+  price_paise integer not null,
+  duration_minutes integer not null default 60,
+  cta_label text not null default 'Book Assessment',
+  display_order integer not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table treatment_categories enable row level security;
+
+-- The public Conditions page and the booking wizard's concern picker both
+-- read this with the regular (non-admin) client, so active categories
+-- need to be publicly readable. All writes go through service-role admin
+-- API routes only — no client insert/update/delete policy exists.
+drop policy if exists "treatment_categories_select_active" on treatment_categories;
+create policy "treatment_categories_select_active" on treatment_categories
+  for select using (active = true);
+
+-- Seed the two categories that existed as hardcoded content before this
+-- table existed, at the platform's original flat fee/duration, so the
+-- Conditions page and booking wizard keep working unchanged the moment
+-- this migration runs — only guarded to avoid re-seeding on every re-run.
+insert into treatment_categories (title, description, points, price_paise, duration_minutes, cta_label, display_order)
+select * from (values
+  (
+    'Spine & Posture Rehabilitation',
+    null::text,
+    '["Sciatica & radiating leg pain protocols", "Lumbar disc herniation management", "Desk worker neck & upper back decompression"]'::jsonb,
+    199900,
+    60,
+    'Book Spine Assessment',
+    1
+  ),
+  (
+    'Post-Surgical Rehabilitation',
+    null::text,
+    '["ACL & knee ligament recovery milestones", "Total knee and hip replacement follow-ups", "Rotator cuff post-op range of motion restoration"]'::jsonb,
+    199900,
+    60,
+    'Book Post-Op Consultation',
+    2
+  )
+) as seed(title, description, points, price_paise, duration_minutes, cta_label, display_order)
+where not exists (select 1 from treatment_categories);
+
+-- Links a booking to the condition category picked in the wizard, so its
+-- price is known at payment time. Null for older bookings and for
+-- hospital-referred bookings (those describe a free-text medical issue,
+-- not a category, and charge the flat base session fee).
+alter table appointments add column if not exists category_id uuid references treatment_categories(id);

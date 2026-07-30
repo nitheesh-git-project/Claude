@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
 export async function POST(request: NextRequest) {
   const {
@@ -60,16 +59,16 @@ export async function POST(request: NextRequest) {
   // "requested" waiting for a separate admin action.
   const shouldAutoConfirm = appointment.therapist_id && appointment.status === "requested";
 
+  // amount_paid_paise is already set by /api/razorpay/create-order at the
+  // moment the order was created (resolved from the appointment's category
+  // price, or the flat base fee) — that's the real amount this specific
+  // order charged, so it's not re-derived or overwritten here.
   const admin = createAdminClient();
   const { error: updateError } = await admin
     .from("appointments")
     .update({
       payment_status: "paid",
       razorpay_payment_id,
-      // The fee actually charged for this session, frozen at the moment of
-      // payment — revenue-share payouts read this instead of re-deriving it
-      // from the (possibly since-changed) current session fee constant.
-      amount_paid_paise: SESSION_FEE_PAISE,
       ...(shouldAutoConfirm ? { status: "confirmed" } : {}),
     })
     .eq("id", appointmentId);
