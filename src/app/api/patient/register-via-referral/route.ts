@@ -38,16 +38,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await admin
+  const { error: attributionError } = await admin
     .from("profiles")
     .update({ referred_by_hospital_id: referral.hospital_id })
     .eq("id", created.user.id);
+  if (attributionError) {
+    // Not fatal to the patient's flow, but would silently break revenue
+    // attribution for this hospital if it happened — worth knowing about.
+    console.error("Failed to set referred_by_hospital_id for", created.user.id, attributionError);
+  }
 
   // Left as "requested"/unpaid on purpose — the therapist and slot are
   // already arranged, but the session isn't confirmed until the patient
   // actually pays. Payment verification (see /api/razorpay/verify) flips
   // this to "confirmed" once payment_status is set to "paid".
-  const { data: appointment } = await admin
+  const { data: appointment, error: appointmentError } = await admin
     .from("appointments")
     .insert({
       patient_id: created.user.id,
@@ -61,14 +66,31 @@ export async function POST(request: NextRequest) {
     .select("id")
     .single();
 
-  await admin
+  if (appointmentError || !appointment) {
+    // The account was already created at this point, so don't leave the
+    // patient stuck with no explanation — they can sign in and contact
+    // support even though there's nothing to pay for yet.
+    console.error("Failed to create appointment for referral", referral.id, appointmentError);
+    return NextResponse.json(
+      {
+        error:
+          "Your account was created, but we couldn't set up your booking. Please sign in and contact us.",
+      },
+      { status: 500 }
+    );
+  }
+
+  const { error: referralUpdateError } = await admin
     .from("patient_referrals")
     .update({ status: "converted", converted_patient_id: created.user.id })
     .eq("id", referral.id);
+  if (referralUpdateError) {
+    console.error("Failed to mark referral converted", referral.id, referralUpdateError);
+  }
 
   return NextResponse.json({
     success: true,
-    appointmentId: appointment?.id,
+    appointmentId: appointment.id,
     concern: referral.medical_issue,
   });
 }

@@ -49,10 +49,21 @@ export async function POST(request: NextRequest) {
   });
 
   const admin = createAdminClient();
-  await admin
+  const { error: updateError } = await admin
     .from("appointments")
     .update({ razorpay_order_id: order.id })
     .eq("id", appointmentId);
+
+  if (updateError) {
+    // If this doesn't save, /api/razorpay/verify's order-id match check
+    // would reject an otherwise-legitimate payment later — fail now,
+    // before the patient is sent to checkout, rather than after they pay.
+    console.error("Failed to save razorpay_order_id for appointment", appointmentId, updateError);
+    return NextResponse.json(
+      { error: "Could not start payment. Please try again." },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
     orderId: order.id,
