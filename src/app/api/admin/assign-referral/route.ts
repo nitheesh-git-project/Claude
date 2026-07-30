@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { findTherapistConflict } from "@/lib/checkTherapistConflict";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
@@ -37,6 +39,19 @@ export async function POST(request: NextRequest) {
   if (!therapist) {
     return NextResponse.json(
       { error: "That therapist is not an approved therapist" },
+      { status: 400 }
+    );
+  }
+
+  const conflict = await findTherapistConflict(
+    admin,
+    therapistId,
+    new Date(slotDateTime).toISOString(),
+    BASE_DURATION_MINUTES
+  );
+  if (conflict) {
+    return NextResponse.json(
+      { error: "This therapist already has another session that overlaps this time slot." },
       { status: 400 }
     );
   }

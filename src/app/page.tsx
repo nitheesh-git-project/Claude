@@ -1,11 +1,15 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import { SESSION_FEE_INR } from "@/lib/pricing";
 
 const ICON_ROTATION = ["fa-bone", "fa-user-injured", "fa-person-running", "fa-laptop-house"];
 
+// This page has no per-user content — it can be cached and revalidated
+// on a timer instead of hitting Supabase on every single visit.
+export const revalidate = 300;
+
 export default async function Home() {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data: categories } = await supabase
     .from("treatment_categories")
     .select("id, title, description, points")

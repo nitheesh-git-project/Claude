@@ -41,22 +41,16 @@ export async function POST(request: NextRequest) {
   const current = ordered[index];
   const swapWith = ordered[swapIndex];
 
-  const [{ error: error1 }, { error: error2 }] = await Promise.all([
-    admin
-      .from("treatment_categories")
-      .update({ display_order: swapWith.display_order })
-      .eq("id", current.id),
-    admin
-      .from("treatment_categories")
-      .update({ display_order: current.display_order })
-      .eq("id", swapWith.id),
-  ]);
+  // Runs both halves of the swap inside a single Postgres transaction (see
+  // schema.sql) instead of two independent updates, so a failure partway
+  // through can't leave two categories sharing the same display_order.
+  const { error } = await admin.rpc("swap_treatment_category_order", {
+    id_a: current.id,
+    id_b: swapWith.id,
+  });
 
-  if (error1 || error2) {
-    return NextResponse.json(
-      { error: error1?.message ?? error2?.message },
-      { status: 500 }
-    );
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

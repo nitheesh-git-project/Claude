@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { findTherapistConflict } from "@/lib/checkTherapistConflict";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
@@ -35,12 +37,28 @@ export async function POST(request: NextRequest) {
 
   const { data: appointment } = await admin
     .from("appointments")
-    .select("payment_status")
+    .select("payment_status, slot_time, duration_minutes")
     .eq("id", appointmentId)
     .single();
 
   if (!appointment) {
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+  }
+
+  if (appointment.slot_time) {
+    const conflict = await findTherapistConflict(
+      admin,
+      therapistId,
+      appointment.slot_time,
+      appointment.duration_minutes ?? BASE_DURATION_MINUTES,
+      appointmentId
+    );
+    if (conflict) {
+      return NextResponse.json(
+        { error: "This therapist already has another session that overlaps this time slot." },
+        { status: 400 }
+      );
+    }
   }
 
   // Only flip to "confirmed" once the patient has actually paid — otherwise
