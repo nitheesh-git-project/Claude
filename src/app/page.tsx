@@ -17,6 +17,14 @@ export default async function Home() {
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
 
+  const { data: testimonials } = await supabase
+    .from("testimonials")
+    .select("id, patient_name, quote, rating, condition_label")
+    .eq("active", true)
+    .order("display_order", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(6);
+
   return (
     <>
       {/* HERO */}
@@ -139,6 +147,53 @@ export default async function Home() {
                 </Link>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* TESTIMONIALS */}
+      {testimonials && testimonials.length > 0 && (
+        <div className="py-16 bg-slate-50 border-y border-slate-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-2xl mx-auto mb-12">
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">
+                What Our Patients Say
+              </h2>
+              <p className="text-slate-600 mt-2 text-sm">
+                Real recoveries from real patients, guided remotely by our
+                licensed specialists.
+              </p>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {testimonials.map((t) => (
+                <div
+                  key={t.id}
+                  className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col"
+                >
+                  {t.rating && (
+                    <div className="text-amber-500 text-sm mb-3">
+                      {"★".repeat(t.rating)}
+                      <span className="text-slate-300">
+                        {"★".repeat(5 - t.rating)}
+                      </span>
+                    </div>
+                  )}
+                  <p className="text-slate-700 text-sm leading-relaxed flex-1">
+                    &quot;{t.quote}&quot;
+                  </p>
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <p className="font-bold text-sm text-slate-900">
+                      {t.patient_name}
+                    </p>
+                    {t.condition_label && (
+                      <p className="text-xs text-teal-700 mt-0.5">
+                        {t.condition_label}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
