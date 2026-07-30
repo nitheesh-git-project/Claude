@@ -6,14 +6,18 @@ export default function AdminTabs({
   overview,
   b2bPartners,
   b2bBadgeCount,
+  patients,
   siteContent,
 }: {
   overview: ReactNode;
   b2bPartners: ReactNode;
   b2bBadgeCount: number;
+  patients: ReactNode;
   siteContent: ReactNode;
 }) {
-  const [tab, setTab] = useState<"overview" | "b2b" | "content">("overview");
+  const [tab, setTab] = useState<"overview" | "b2b" | "patients" | "content">(
+    "overview"
+  );
 
   return (
     <div>
@@ -44,6 +48,16 @@ export default function AdminTabs({
           )}
         </button>
         <button
+          onClick={() => setTab("patients")}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition ${
+            tab === "patients"
+              ? "border-teal-700 text-teal-700"
+              : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          Patients
+        </button>
+        <button
           onClick={() => setTab("content")}
           className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition ${
             tab === "content"
@@ -57,6 +71,7 @@ export default function AdminTabs({
 
       <div className={tab === "overview" ? "" : "hidden"}>{overview}</div>
       <div className={tab === "b2b" ? "" : "hidden"}>{b2bPartners}</div>
+      <div className={tab === "patients" ? "" : "hidden"}>{patients}</div>
       <div className={tab === "content" ? "" : "hidden"}>{siteContent}</div>
     </div>
   );

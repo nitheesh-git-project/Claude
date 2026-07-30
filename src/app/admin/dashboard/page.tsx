@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import SignOutButton from "@/components/auth/SignOutButton";
@@ -18,15 +19,7 @@ import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
-
-const PROFILE_FIELD_LABELS: Record<string, string> = {
-  full_name: "Full Name",
-  date_of_birth: "Date of Birth",
-  gender: "Gender",
-  credentials: "Credentials / License",
-  specialization: "Specialist In",
-  years_experience: "Years of Experience",
-};
+import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Dr. Pooja's Physio",
@@ -86,11 +79,16 @@ export default async function AdminDashboardPage() {
   const { data: allProfiles } = await admin
     .from("profiles")
     .select(
-      "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id, avatar_url, date_of_birth, gender, credentials, specialization, years_experience"
+      "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id, avatar_url, date_of_birth, gender, credentials, specialization, years_experience, active, phone, created_at"
     );
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
+  const patients = (allProfiles ?? [])
+    .filter((p) => p.role === "patient")
+    .sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
 
   const { data: treatmentCategories } = await admin
     .from("treatment_categories")
@@ -546,6 +544,43 @@ export default async function AdminDashboardPage() {
     </>
   );
 
+  const patientsTab = (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <h2 className="font-bold text-lg text-slate-800 mb-4">
+        Patients
+        <span className="ml-2 text-xs font-normal text-slate-400">
+          {patients.length} total
+        </span>
+      </h2>
+      {patients.length === 0 ? (
+        <p className="text-xs text-slate-500 py-4 text-center">
+          No patients have signed up yet.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          {patients.map((p) => (
+            <Link
+              key={p.id}
+              href={`/admin/dashboard/patients/${p.id}`}
+              className="flex flex-col items-center text-center p-4 rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-sm transition relative"
+            >
+              {!p.active && (
+                <span className="absolute top-2 right-2 text-[9px] font-bold uppercase text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">
+                  Suspended
+                </span>
+              )}
+              <AvatarThumbnail url={p.avatar_url} name={p.full_name ?? "P"} size={56} />
+              <p className="font-bold text-slate-900 text-xs mt-2 line-clamp-1">
+                {p.full_name}
+              </p>
+              <p className="text-slate-500 text-[11px] line-clamp-1">{p.email}</p>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   const b2bBadgeCount =
     (b2bLeads?.filter((l) => l.status === "new").length ?? 0) +
     (referrals?.filter((r) => r.status === "pending_review").length ?? 0);
@@ -635,6 +670,7 @@ export default async function AdminDashboardPage() {
         overview={overview}
         b2bPartners={b2bPartners}
         b2bBadgeCount={b2bBadgeCount}
+        patients={patientsTab}
         siteContent={siteContent}
       />
     </section>

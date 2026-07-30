@@ -56,7 +56,7 @@ export async function updateSession(request: NextRequest) {
   ) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, approved")
+      .select("role, approved, active")
       .eq("id", user.id)
       .single();
 
@@ -69,8 +69,13 @@ export async function updateSession(request: NextRequest) {
       }
     }
 
-    if (path.startsWith("/patient/dashboard") && profile?.role !== "patient") {
-      return NextResponse.redirect(new URL("/get-started", request.url));
+    if (path.startsWith("/patient/dashboard")) {
+      if (profile?.role !== "patient") {
+        return NextResponse.redirect(new URL("/get-started", request.url));
+      }
+      if (!profile.active) {
+        return NextResponse.redirect(new URL("/account-suspended", request.url));
+      }
     }
 
     if (path.startsWith("/admin/dashboard") && profile?.role !== "admin") {
