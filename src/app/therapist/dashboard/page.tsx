@@ -22,7 +22,7 @@ export default async function TherapistDashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, credentials, avatar_url")
+    .select("full_name, credentials, avatar_url, revenue_share_percent")
     .eq("id", user.id)
     .single();
 
@@ -62,6 +62,13 @@ export default async function TherapistDashboardPage() {
               Welcome, {profile?.full_name ?? "there"}
             </h1>
             <p className="text-xs text-slate-500 mt-1">{profile?.credentials}</p>
+            {profile?.revenue_share_percent !== null &&
+              profile?.revenue_share_percent !== undefined && (
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Your Revenue Share:{" "}
+                  <strong className="text-slate-600">{profile.revenue_share_percent}%</strong>
+                </p>
+              )}
           </div>
         </div>
         <div className="flex items-center gap-4">

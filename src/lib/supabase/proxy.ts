@@ -67,6 +67,9 @@ export async function updateSession(request: NextRequest) {
       if (!profile.approved) {
         return NextResponse.redirect(new URL("/pending-approval", request.url));
       }
+      if (!profile.active) {
+        return NextResponse.redirect(new URL("/account-suspended", request.url));
+      }
     }
 
     if (path.startsWith("/patient/dashboard")) {
