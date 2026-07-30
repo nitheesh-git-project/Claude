@@ -9,15 +9,24 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  const { data: referral } = await admin
+  // Atomically claim the referral by flipping its status in the same
+  // statement that checks it's still "invite_sent" — the update's WHERE
+  // clause is evaluated and applied under a row lock in Postgres, so if
+  // the same link is submitted twice at once (e.g. opened in two tabs),
+  // only one request can win this update; the other gets 0 rows back
+  // here instead of both racing past a separate SELECT check and each
+  // creating their own account/appointment for the same referral.
+  const { data: referral, error: claimError } = await admin
     .from("patient_referrals")
-    .select(
-      "id, hospital_id, assigned_therapist_id, assigned_slot_time, medical_issue, treatment_needed, status"
-    )
+    .update({ status: "converted" })
     .eq("invite_token", token)
-    .single();
+    .eq("status", "invite_sent")
+    .select(
+      "id, hospital_id, assigned_therapist_id, assigned_slot_time, medical_issue, treatment_needed"
+    )
+    .maybeSingle();
 
-  if (!referral || referral.status !== "invite_sent") {
+  if (claimError || !referral) {
     return NextResponse.json(
       { error: "This invite link is invalid or has already been used." },
       { status: 400 }
@@ -32,6 +41,12 @@ export async function POST(request: NextRequest) {
   });
 
   if (createError || !created.user) {
+    // Account creation failed after the claim — release it so the same
+    // link can be retried instead of being permanently burned.
+    await admin
+      .from("patient_referrals")
+      .update({ status: "invite_sent" })
+      .eq("id", referral.id);
     return NextResponse.json(
       { error: createError?.message ?? "Could not create account" },
       { status: 500 }
@@ -82,10 +97,10 @@ export async function POST(request: NextRequest) {
 
   const { error: referralUpdateError } = await admin
     .from("patient_referrals")
-    .update({ status: "converted", converted_patient_id: created.user.id })
+    .update({ converted_patient_id: created.user.id })
     .eq("id", referral.id);
   if (referralUpdateError) {
-    console.error("Failed to mark referral converted", referral.id, referralUpdateError);
+    console.error("Failed to record converted_patient_id", referral.id, referralUpdateError);
   }
 
   return NextResponse.json({
