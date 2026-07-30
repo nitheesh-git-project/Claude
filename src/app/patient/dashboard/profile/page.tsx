@@ -82,11 +82,13 @@ export default async function PatientProfilePage() {
               type: "select",
               options: ["Female", "Male", "Other", "Prefer not to say"],
             },
+            { name: "phone", label: "WhatsApp / Phone", type: "tel" },
           ]}
           currentValues={{
             full_name: profile?.full_name ?? "",
             date_of_birth: profile?.date_of_birth ?? "",
             gender: profile?.gender ?? "",
+            phone: profile?.phone ?? "",
           }}
           fieldStatus={fieldStatus}
         />
@@ -97,7 +99,6 @@ export default async function PatientProfilePage() {
         <InstantProfileFields
           userId={user.id}
           fields={[
-            { name: "phone", label: "WhatsApp / Phone", type: "tel" },
             {
               name: "preferred_language",
               label: "Preferred Language",
@@ -108,7 +109,6 @@ export default async function PatientProfilePage() {
             { name: "emergency_contact_phone", label: "Emergency Contact Phone", type: "tel" },
           ]}
           currentValues={{
-            phone: profile?.phone ?? "",
             preferred_language: profile?.preferred_language ?? "",
             emergency_contact_name: profile?.emergency_contact_name ?? "",
             emergency_contact_phone: profile?.emergency_contact_phone ?? "",

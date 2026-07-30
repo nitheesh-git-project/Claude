@@ -119,10 +119,7 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
           <div className="hidden md:flex items-center space-x-3">
             {authUser && dashboardHref ? (
               <>
-                <Link
-                  href={dashboardHref}
-                  className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-full hover:bg-slate-100 transition"
-                >
+                <div className="flex items-center gap-2.5 pl-1">
                   <AvatarThumbnail
                     url={authUser.avatarUrl}
                     name={authUser.fullName || "U"}
@@ -131,6 +128,12 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
                   <span className="text-sm font-semibold text-slate-700">
                     Welcome, {firstName}
                   </span>
+                </div>
+                <Link
+                  href={dashboardHref}
+                  className="text-sm font-semibold text-teal-700 hover:text-teal-800 hover:bg-teal-50 px-3 py-2 rounded-lg transition"
+                >
+                  Dashboard
                 </Link>
                 <span className="w-px h-5 bg-slate-200"></span>
                 <SignOutButton />
@@ -175,20 +178,25 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
               </Link>
             ))}
             {authUser && dashboardHref ? (
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <Link
-                  href={dashboardHref}
-                  onClick={() => setOpen(false)}
-                  className="flex items-center gap-2.5 py-2 font-semibold text-slate-800"
-                >
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center gap-2.5 py-2 font-semibold text-slate-800">
                   <AvatarThumbnail
                     url={authUser.avatarUrl}
                     name={authUser.fullName || "U"}
                     size={32}
                   />
-                  Welcome, {firstName} — Go to Dashboard
-                </Link>
-                <SignOutButton />
+                  Welcome, {firstName}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Link
+                    href={dashboardHref}
+                    onClick={() => setOpen(false)}
+                    className="text-teal-700 font-semibold py-2"
+                  >
+                    Dashboard
+                  </Link>
+                  <SignOutButton />
+                </div>
               </div>
             ) : (
               <>

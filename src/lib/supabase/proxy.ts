@@ -54,11 +54,24 @@ export async function updateSession(request: NextRequest) {
       path.startsWith("/admin/dashboard") ||
       path.startsWith("/hospital/dashboard"))
   ) {
-    const { data: profile } = await supabase
+    let { data: profile } = await supabase
       .from("profiles")
       .select("role, approved, active")
       .eq("id", user.id)
       .single();
+
+    // The signup trigger guarantees a profiles row exists for every
+    // authenticated user, so a null result here right after sign-in is a
+    // transient read (not a real "no such profile") — worth one retry
+    // before treating it as a genuine role mismatch and bouncing an
+    // already-valid user out to /get-started.
+    if (!profile) {
+      ({ data: profile } = await supabase
+        .from("profiles")
+        .select("role, approved, active")
+        .eq("id", user.id)
+        .single());
+    }
 
     if (path.startsWith("/therapist/dashboard")) {
       if (profile?.role !== "therapist") {

@@ -31,7 +31,7 @@ export default async function PatientDashboardPage() {
   const { data: appointments } = await supabase
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id, duration_minutes"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id, duration_minutes, therapist_id"
     )
     .eq("patient_id", user.id)
     .order("created_at", { ascending: false });
@@ -56,6 +56,20 @@ export default async function PatientDashboardPage() {
   const categoryPriceMap = new Map(
     (categoryPrices ?? []).map((c) => [c.id, c.price_paise])
   );
+
+  // A patient can read their own appointment rows via RLS, but not the
+  // linked therapist's profile (that policy only allows a user to read
+  // their own row) — so the assigned therapist's name has to be looked up
+  // here via the admin client, same pattern as the therapist dashboard
+  // looking up its patients' names.
+  const therapistIds = [
+    ...new Set((appointments ?? []).map((a) => a.therapist_id).filter(Boolean)),
+  ];
+  const { data: therapists } =
+    therapistIds.length > 0
+      ? await admin.from("profiles").select("id, full_name").in("id", therapistIds as string[])
+      : { data: [] as { id: string; full_name: string }[] };
+  const therapistMap = new Map((therapists ?? []).map((t) => [t.id, t.full_name]));
 
   return (
     <section className="py-8 max-w-5xl mx-auto px-4">
@@ -116,6 +130,14 @@ export default async function PatientDashboardPage() {
                   <p className="text-slate-500 mt-1">
                     {formatSlotTime(a.slot_time, a.timezone)}
                     {a.duration_minutes && ` • ${a.duration_minutes} min`}
+                  </p>
+                  <p className="text-slate-500 mt-1">
+                    Therapist:{" "}
+                    <strong className="text-slate-700">
+                      {a.therapist_id
+                        ? therapistMap.get(a.therapist_id) ?? "Unknown"
+                        : "Not yet assigned"}
+                    </strong>
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
