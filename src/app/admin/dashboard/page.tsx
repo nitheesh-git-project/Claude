@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import SignOutButton from "@/components/auth/SignOutButton";
@@ -17,6 +16,7 @@ import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManage
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
+import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
@@ -576,26 +576,17 @@ export default async function AdminDashboardPage() {
           No patients have signed up yet.
         </p>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {patients.map((p) => (
-            <Link
-              key={p.id}
-              href={`/admin/dashboard/patients/${p.id}`}
-              className="flex flex-col items-center text-center p-4 rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-sm transition relative"
-            >
-              {!p.active && (
-                <span className="absolute top-2 right-2 text-[9px] font-bold uppercase text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">
-                  Suspended
-                </span>
-              )}
-              <AvatarThumbnail url={p.avatar_url} name={p.full_name ?? "P"} size={56} />
-              <p className="font-bold text-slate-900 text-xs mt-2 line-clamp-1">
-                {p.full_name}
-              </p>
-              <p className="text-slate-500 text-[11px] line-clamp-1">{p.email}</p>
-            </Link>
-          ))}
-        </div>
+        <AdminPeopleDirectory
+          basePath="/admin/dashboard/patients"
+          people={patients.map((p) => ({
+            id: p.id,
+            full_name: p.full_name,
+            subtitle: p.email,
+            avatar_url: p.avatar_url,
+            active: p.active,
+            created_at: p.created_at,
+          }))}
+        />
       )}
     </div>
   );
@@ -613,30 +604,18 @@ export default async function AdminDashboardPage() {
           No therapists have applied yet.
         </p>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {allTherapists.map((t) => (
-            <Link
-              key={t.id}
-              href={`/admin/dashboard/therapists/${t.id}`}
-              className="flex flex-col items-center text-center p-4 rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-sm transition relative"
-            >
-              {!t.active ? (
-                <span className="absolute top-2 right-2 text-[9px] font-bold uppercase text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">
-                  Suspended
-                </span>
-              ) : !t.approved ? (
-                <span className="absolute top-2 right-2 text-[9px] font-bold uppercase text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
-                  Pending
-                </span>
-              ) : null}
-              <AvatarThumbnail url={t.avatar_url} name={t.full_name ?? "T"} size={56} />
-              <p className="font-bold text-slate-900 text-xs mt-2 line-clamp-1">
-                {t.full_name}
-              </p>
-              <p className="text-slate-500 text-[11px] line-clamp-1">{t.credentials}</p>
-            </Link>
-          ))}
-        </div>
+        <AdminPeopleDirectory
+          basePath="/admin/dashboard/therapists"
+          people={allTherapists.map((t) => ({
+            id: t.id,
+            full_name: t.full_name,
+            subtitle: t.credentials,
+            avatar_url: t.avatar_url,
+            active: t.active,
+            approved: t.approved,
+            created_at: t.created_at,
+          }))}
+        />
       )}
     </div>
   );

@@ -11,6 +11,7 @@ import TherapistRevenueShareForm from "@/components/admin/TherapistRevenueShareF
 import ResetTherapistPasswordButton from "@/components/admin/ResetTherapistPasswordButton";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import EditBookingForm from "@/components/admin/EditBookingForm";
+import CompleteSessionButton from "@/components/CompleteSessionButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -43,7 +44,7 @@ export default async function AdminTherapistDetailPage({
   const [{ data: note }, { data: appointments }, { data: changeRequests }] = await Promise.all([
     admin
       .from("therapist_admin_notes")
-      .select("note")
+      .select("note, temp_password, temp_password_set_at")
       .eq("therapist_id", id)
       .maybeSingle(),
     admin
@@ -167,7 +168,11 @@ export default async function AdminTherapistDetailPage({
             {therapist.bio && <p className="text-slate-600">{therapist.bio}</p>}
           </div>
           <div className="mt-4 pt-4 border-t border-slate-100">
-            <ResetTherapistPasswordButton therapistId={therapist.id} />
+            <ResetTherapistPasswordButton
+              therapistId={therapist.id}
+              currentPassword={note?.temp_password}
+              currentPasswordSetAt={note?.temp_password_set_at}
+            />
           </div>
         </div>
 
@@ -247,6 +252,9 @@ export default async function AdminTherapistDetailPage({
                       currentSlotTime={a.slot_time}
                       therapists={approvedTherapists ?? []}
                     />
+                  )}
+                  {a.status === "confirmed" && (
+                    <CompleteSessionButton appointmentId={a.id} />
                   )}
                 </li>
               );

@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function HospitalLoginCard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
   const supabase = createClient();
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
@@ -24,8 +22,9 @@ export default function HospitalLoginCard() {
       setError(error.message);
       return;
     }
-    router.push("/hospital/dashboard");
-    router.refresh();
+    // Hard navigation so the fresh cookies set by signInWithPassword are
+    // guaranteed to be sent with the very next request to the proxy.
+    window.location.href = "/hospital/dashboard";
   }
 
   return (
@@ -54,6 +53,7 @@ export default function HospitalLoginCard() {
               type="email"
               name="email"
               required
+              maxLength={254}
               className="w-full p-3 rounded-xl border border-slate-300"
             />
           </div>
@@ -63,6 +63,7 @@ export default function HospitalLoginCard() {
               type="password"
               name="password"
               required
+              maxLength={72}
               className="w-full p-3 rounded-xl border border-slate-300"
             />
           </div>

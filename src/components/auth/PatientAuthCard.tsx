@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 
@@ -13,7 +12,9 @@ export default function PatientAuthCard() {
   const [referralCheck, setReferralCheck] = useState<ReferralCodeCheck>({
     status: "idle",
   });
-  const router = useRouter();
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
   const supabase = createClient();
 
   async function handleReferralCodeBlur(e: React.FocusEvent<HTMLInputElement>) {
@@ -41,8 +42,25 @@ export default function PatientAuthCard() {
       setError(error.message);
       return;
     }
-    router.push("/patient/dashboard");
-    router.refresh();
+    // Hard navigation so the fresh cookies set by signInWithPassword are
+    // guaranteed to be sent with the very next request to the proxy —
+    // a client-side soft nav can race the cookie write.
+    window.location.href = "/patient/dashboard";
+  }
+
+  async function handleForgotPassword(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setForgotSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setForgotSubmitting(false);
+    // Always show the same confirmation regardless of whether the email is
+    // registered, so this can't be used to probe which emails have accounts.
+    setForgotSent(true);
   }
 
   async function handleRegister(e: React.FormEvent<HTMLFormElement>) {
@@ -96,8 +114,7 @@ export default function PatientAuthCard() {
       return;
     }
 
-    router.push("/patient/dashboard");
-    router.refresh();
+    window.location.href = "/patient/dashboard";
   }
 
   return (
@@ -112,7 +129,10 @@ export default function PatientAuthCard() {
 
         <div className="flex border-b border-slate-200 mt-6 mb-6">
           <button
-            onClick={() => setTab("login")}
+            onClick={() => {
+              setTab("login");
+              setForgotMode(false);
+            }}
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "login"
                 ? "text-teal-700 border-b-2 border-teal-700"
@@ -122,7 +142,10 @@ export default function PatientAuthCard() {
             Sign In
           </button>
           <button
-            onClick={() => setTab("register")}
+            onClick={() => {
+              setTab("register");
+              setForgotMode(false);
+            }}
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "register"
                 ? "text-teal-700 border-b-2 border-teal-700"
@@ -144,7 +167,56 @@ export default function PatientAuthCard() {
           </div>
         )}
 
-        {tab === "login" ? (
+        {tab === "login" && forgotMode ? (
+          forgotSent ? (
+            <div className="text-xs space-y-4">
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-teal-800">
+                If an account exists for that email, we&apos;ve sent a
+                password reset link. Check your inbox (and spam folder).
+              </div>
+              <button
+                onClick={() => {
+                  setForgotMode(false);
+                  setForgotSent(false);
+                }}
+                className="text-teal-700 font-semibold hover:underline"
+              >
+                ← Back to Sign In
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotPassword} className="space-y-4 text-xs">
+              <p className="text-slate-500">
+                Enter your account email and we&apos;ll send you a link to
+                reset your password.
+              </p>
+              <div>
+                <label className="block font-semibold mb-1">Email Address</label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  maxLength={254}
+                  className="w-full p-3 rounded-xl border border-slate-300"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={forgotSubmitting}
+                className="w-full bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
+              >
+                {forgotSubmitting ? "Sending..." : "Send Reset Link"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setForgotMode(false)}
+                className="w-full text-slate-500 font-semibold"
+              >
+                ← Back to Sign In
+              </button>
+            </form>
+          )
+        ) : tab === "login" ? (
           <form onSubmit={handleLogin} className="space-y-4 text-xs">
             <div>
               <label className="block font-semibold mb-1">Email Address</label>
@@ -152,6 +224,7 @@ export default function PatientAuthCard() {
                 type="email"
                 name="email"
                 required
+                maxLength={254}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
@@ -161,8 +234,16 @@ export default function PatientAuthCard() {
                 type="password"
                 name="password"
                 required
+                maxLength={72}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
+              <button
+                type="button"
+                onClick={() => setForgotMode(true)}
+                className="text-teal-700 font-semibold mt-1.5 hover:underline"
+              >
+                Forgot password?
+              </button>
             </div>
             <button
               type="submit"
@@ -180,6 +261,7 @@ export default function PatientAuthCard() {
                 type="text"
                 name="fullName"
                 required
+                maxLength={120}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
@@ -189,6 +271,7 @@ export default function PatientAuthCard() {
                 type="email"
                 name="email"
                 required
+                maxLength={254}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
@@ -199,6 +282,14 @@ export default function PatientAuthCard() {
               <input
                 type="tel"
                 name="phone"
+                inputMode="tel"
+                maxLength={20}
+                onInput={(e) => {
+                  e.currentTarget.value = e.currentTarget.value.replace(
+                    /[^0-9+\-\s()]/g,
+                    ""
+                  );
+                }}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
@@ -214,6 +305,7 @@ export default function PatientAuthCard() {
                 name="password"
                 required
                 minLength={6}
+                maxLength={72}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
@@ -226,6 +318,7 @@ export default function PatientAuthCard() {
                 name="confirmPassword"
                 required
                 minLength={6}
+                maxLength={72}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
@@ -238,6 +331,7 @@ export default function PatientAuthCard() {
                 type="text"
                 name="referralCode"
                 placeholder="e.g. from your hospital/clinic"
+                maxLength={40}
                 onChange={() => setReferralCheck({ status: "idle" })}
                 onBlur={handleReferralCodeBlur}
                 className="w-full p-3 rounded-xl border border-slate-300"

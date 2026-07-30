@@ -11,15 +11,14 @@ export default function TherapistNotesForm({
   currentNote: string;
 }) {
   const [note, setNote] = useState(currentNote);
+  const [savedNote, setSavedNote] = useState(currentNote);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const router = useRouter();
 
   async function handleSave() {
     setLoading(true);
     setError(null);
-    setSaved(false);
     const res = await fetch("/api/admin/update-therapist-notes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -31,20 +30,16 @@ export default function TherapistNotesForm({
       setError(data.error ?? "Could not save. Please try again.");
       return;
     }
-    setSaved(true);
+    setSavedNote(note);
     router.refresh();
   }
 
   return (
     <div className="text-xs space-y-2">
       {error && <p className="text-red-600">{error}</p>}
-      {saved && <p className="text-teal-700">Saved.</p>}
       <textarea
         value={note}
-        onChange={(e) => {
-          setNote(e.target.value);
-          setSaved(false);
-        }}
+        onChange={(e) => setNote(e.target.value)}
         rows={4}
         placeholder="Private notes about this therapist — never shown to them."
         className="w-full p-2.5 rounded-lg border border-slate-300"
@@ -56,6 +51,13 @@ export default function TherapistNotesForm({
       >
         {loading ? "Saving..." : "Save Notes"}
       </button>
+      {savedNote ? (
+        <p className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 whitespace-pre-wrap">
+          {savedNote}
+        </p>
+      ) : (
+        <p className="text-slate-400">No notes saved yet.</p>
+      )}
     </div>
   );
 }

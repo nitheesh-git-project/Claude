@@ -4,7 +4,15 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import SignOutButton from "@/components/auth/SignOutButton";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
+import CompleteSessionButton from "@/components/CompleteSessionButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
+
+const STATUS_BADGE_STYLES: Record<string, string> = {
+  requested: "text-amber-700 bg-amber-50",
+  confirmed: "text-purple-700 bg-purple-50",
+  completed: "text-teal-700 bg-teal-50",
+  cancelled: "text-red-700 bg-red-50",
+};
 
 export const metadata: Metadata = {
   title: "Therapist Dashboard | Dr. Pooja's Physio",
@@ -109,7 +117,11 @@ export default async function TherapistDashboardPage() {
                         {patient?.phone || patient?.email || "No contact on file"}
                       </p>
                     </div>
-                    <span className="capitalize font-semibold text-purple-700 bg-purple-50 px-3 py-1 rounded-full">
+                    <span
+                      className={`capitalize font-semibold px-3 py-1 rounded-full ${
+                        STATUS_BADGE_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
+                      }`}
+                    >
                       {a.status}
                     </span>
                   </div>
@@ -122,6 +134,9 @@ export default async function TherapistDashboardPage() {
                     <p className="text-slate-500">
                       <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
                     </p>
+                  )}
+                  {a.status === "confirmed" && (
+                    <CompleteSessionButton appointmentId={a.id} />
                   )}
                 </li>
               );

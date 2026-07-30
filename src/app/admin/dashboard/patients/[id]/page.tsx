@@ -8,6 +8,7 @@ import PatientContactEditForm from "@/components/admin/PatientContactEditForm";
 import PatientNotesForm from "@/components/admin/PatientNotesForm";
 import ResetPatientPasswordButton from "@/components/admin/ResetPatientPasswordButton";
 import EditBookingForm from "@/components/admin/EditBookingForm";
+import CompleteSessionButton from "@/components/CompleteSessionButton";
 import PatientProfitChart from "@/components/admin/PatientProfitChart";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
@@ -42,7 +43,7 @@ export default async function AdminPatientDetailPage({
     await Promise.all([
       admin
         .from("patient_admin_notes")
-        .select("note")
+        .select("note, temp_password, temp_password_set_at")
         .eq("patient_id", id)
         .maybeSingle(),
       admin
@@ -200,7 +201,11 @@ export default async function AdminPatientDetailPage({
             )}
           </div>
           <div className="mt-4 pt-4 border-t border-slate-100">
-            <ResetPatientPasswordButton patientId={patient.id} />
+            <ResetPatientPasswordButton
+              patientId={patient.id}
+              currentPassword={note?.temp_password}
+              currentPasswordSetAt={note?.temp_password_set_at}
+            />
           </div>
         </div>
 
@@ -276,6 +281,9 @@ export default async function AdminPatientDetailPage({
                       currentSlotTime={a.slot_time}
                       therapists={approvedTherapists ?? []}
                     />
+                  )}
+                  {a.status === "confirmed" && (
+                    <CompleteSessionButton appointmentId={a.id} />
                   )}
                 </li>
               );

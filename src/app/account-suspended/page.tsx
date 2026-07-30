@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import SignOutButton from "@/components/auth/SignOutButton";
+import { SUPPORT_EMAIL } from "@/lib/siteContact";
 
 export const metadata: Metadata = {
   title: "Account Suspended | Dr. Pooja's Physio",
@@ -16,7 +17,11 @@ export default function AccountSuspendedPage() {
         <h1 className="text-xl font-bold text-slate-900">Account Suspended</h1>
         <p className="text-xs text-slate-500 mt-2 leading-relaxed">
           Your account access has been suspended. If you believe this is a
-          mistake, please contact us directly to resolve it.
+          mistake, please contact us directly at{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-teal-700 font-semibold hover:underline">
+            {SUPPORT_EMAIL}
+          </a>{" "}
+          to resolve it.
         </p>
         <Link
           href="/"

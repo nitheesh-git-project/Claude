@@ -1,18 +1,19 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignOutButton() {
-  const router = useRouter();
   const supabase = createClient();
 
   return (
     <button
       onClick={async () => {
         await supabase.auth.signOut();
-        router.push("/");
-        router.refresh();
+        // A hard navigation (not router.push) so the browser sends a fresh
+        // request that's guaranteed to carry the now-cleared auth cookies —
+        // a client-side soft nav can race the cookie write and briefly show
+        // stale logged-in state.
+        window.location.href = "/?farewell=1";
       }}
       className="text-xs font-semibold text-slate-500 hover:text-red-600 transition flex items-center gap-1.5"
     >
