@@ -53,6 +53,51 @@ function DeleteButton({ id }: { id: string }) {
   );
 }
 
+function MoveButtons({
+  id,
+  isFirst,
+  isLast,
+}: {
+  id: string;
+  isFirst: boolean;
+  isLast: boolean;
+}) {
+  const [loading, setLoading] = useState<"up" | "down" | null>(null);
+  const router = useRouter();
+
+  async function move(direction: "up" | "down") {
+    setLoading(direction);
+    await fetch("/api/admin/reorder-treatment-category", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, direction }),
+    });
+    setLoading(null);
+    router.refresh();
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => move("up")}
+        disabled={isFirst || loading !== null}
+        title="Move up"
+        className="w-6 h-6 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+      >
+        <i className="fa-solid fa-chevron-up text-[10px]"></i>
+      </button>
+      <button
+        onClick={() => move("down")}
+        disabled={isLast || loading !== null}
+        title="Move down"
+        className="w-6 h-6 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+      >
+        <i className="fa-solid fa-chevron-down text-[10px]"></i>
+      </button>
+    </div>
+  );
+}
+
 export default function TreatmentCategoryManager({
   categories,
 }: {
@@ -60,6 +105,22 @@ export default function TreatmentCategoryManager({
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addingNew, setAddingNew] = useState(false);
+  const [duplicateFrom, setDuplicateFrom] = useState<Category | null>(null);
+
+  function startAddNew() {
+    setDuplicateFrom(null);
+    setAddingNew(true);
+  }
+
+  function startDuplicate(cat: Category) {
+    setDuplicateFrom(cat);
+    setAddingNew(true);
+  }
+
+  function closeAddNew() {
+    setAddingNew(false);
+    setDuplicateFrom(null);
+  }
 
   return (
     <div className="space-y-3">
@@ -69,7 +130,7 @@ export default function TreatmentCategoryManager({
         </p>
       ) : (
         <ul className="space-y-3">
-          {categories.map((cat) =>
+          {categories.map((cat, i) =>
             editingId === cat.id ? (
               <li key={cat.id}>
                 <TreatmentCategoryForm
@@ -83,16 +144,18 @@ export default function TreatmentCategoryManager({
                 className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
               >
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <p className="font-bold text-slate-900">
-                      {cat.title}{" "}
-                      <span className="text-slate-400 font-normal">
-                        (Order {cat.display_order})
-                      </span>
-                    </p>
-                    {cat.description && (
-                      <p className="text-slate-500 mt-0.5">{cat.description}</p>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <MoveButtons
+                      id={cat.id}
+                      isFirst={i === 0}
+                      isLast={i === categories.length - 1}
+                    />
+                    <div>
+                      <p className="font-bold text-slate-900">{cat.title}</p>
+                      {cat.description && (
+                        <p className="text-slate-500 mt-0.5">{cat.description}</p>
+                      )}
+                    </div>
                   </div>
                   <span
                     className={`font-semibold px-2.5 py-1 rounded-full ${
@@ -118,6 +181,12 @@ export default function TreatmentCategoryManager({
                   </p>
                   <div className="flex items-center gap-3">
                     <button
+                      onClick={() => startDuplicate(cat)}
+                      className="text-[11px] text-slate-600 font-semibold hover:underline"
+                    >
+                      Duplicate
+                    </button>
+                    <button
                       onClick={() => setEditingId(cat.id)}
                       className="text-[11px] text-teal-700 font-semibold hover:underline"
                     >
@@ -133,10 +202,26 @@ export default function TreatmentCategoryManager({
       )}
 
       {addingNew ? (
-        <TreatmentCategoryForm onCancel={() => setAddingNew(false)} />
+        <TreatmentCategoryForm
+          onCancel={closeAddNew}
+          initialValues={
+            duplicateFrom
+              ? {
+                  title: `${duplicateFrom.title} (Copy)`,
+                  description: duplicateFrom.description,
+                  points: duplicateFrom.points,
+                  price_paise: duplicateFrom.price_paise,
+                  duration_minutes: duplicateFrom.duration_minutes,
+                  cta_label: duplicateFrom.cta_label,
+                  display_order: duplicateFrom.display_order + 1,
+                  active: false,
+                }
+              : undefined
+          }
+        />
       ) : (
         <button
-          onClick={() => setAddingNew(true)}
+          onClick={startAddNew}
           className="bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"
         >
           + Add Category

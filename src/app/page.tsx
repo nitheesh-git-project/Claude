@@ -1,30 +1,18 @@
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
 import { SESSION_FEE_INR } from "@/lib/pricing";
 
-const conditions = [
-  {
-    icon: "fa-bone",
-    title: "Spine & Posture Care",
-    desc: "Sciatica, herniated discs, lower back stiffness, neck strain, and WFH ergonomic posture alignment.",
-  },
-  {
-    icon: "fa-user-injured",
-    title: "Post-Op Rehab",
-    desc: "ACL reconstruction follow-up, total knee/hip replacement rehab, and rotator cuff post-surgical care.",
-  },
-  {
-    icon: "fa-person-running",
-    title: "Sports Injuries",
-    desc: "Ankle sprains, tennis elbow, shoulder impingements, runner's knee, and joint stability training.",
-  },
-  {
-    icon: "fa-laptop-house",
-    title: "Desk Worker Care",
-    desc: "Repetitive strain injuries (RSI), wrist pain, upper back tightness, and daily 10-minute mobility resets.",
-  },
-];
+const ICON_ROTATION = ["fa-bone", "fa-user-injured", "fa-person-running", "fa-laptop-house"];
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient();
+  const { data: categories } = await supabase
+    .from("treatment_categories")
+    .select("id, title, description, points")
+    .eq("active", true)
+    .order("display_order", { ascending: true })
+    .order("id", { ascending: true });
+
   return (
     <>
       {/* HERO */}
@@ -116,33 +104,40 @@ export default function Home() {
       </div>
 
       {/* CONDITIONS GRID OVERVIEW */}
-      <div className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">
-            Conditions We Treat Virtually
-          </h2>
-          <p className="text-slate-600 mt-2 text-sm">
-            Targeted, evidence-based rehabilitation protocols for acute and
-            chronic musculoskeletal pain.
-          </p>
+      {categories && categories.length > 0 && (
+        <div className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">
+              Conditions We Treat Virtually
+            </h2>
+            <p className="text-slate-600 mt-2 text-sm">
+              Targeted, evidence-based rehabilitation protocols for acute and
+              chronic musculoskeletal pain.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {categories.map((c, i) => {
+              const points = Array.isArray(c.points) ? (c.points as string[]) : [];
+              const desc = c.description || points[0] || "Learn more about this program.";
+              return (
+                <Link
+                  key={c.id}
+                  href={`/book?category=${c.id}`}
+                  className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition block"
+                >
+                  <div className="w-12 h-12 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center text-xl mb-4">
+                    <i className={`fa-solid ${ICON_ROTATION[i % ICON_ROTATION.length]}`}></i>
+                  </div>
+                  <h3 className="font-bold text-lg text-slate-800">{c.title}</h3>
+                  <p className="text-slate-600 text-xs mt-2 leading-relaxed">
+                    {desc}
+                  </p>
+                </Link>
+              );
+            })}
+          </div>
         </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {conditions.map((c) => (
-            <div
-              key={c.title}
-              className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition"
-            >
-              <div className="w-12 h-12 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center text-xl mb-4">
-                <i className={`fa-solid ${c.icon}`}></i>
-              </div>
-              <h3 className="font-bold text-lg text-slate-800">{c.title}</h3>
-              <p className="text-slate-600 text-xs mt-2 leading-relaxed">
-                {c.desc}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </>
   );
 }

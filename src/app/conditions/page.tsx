@@ -14,7 +14,8 @@ export default async function ConditionsPage() {
     .from("treatment_categories")
     .select("id, title, description, points, price_paise, duration_minutes, cta_label")
     .eq("active", true)
-    .order("display_order", { ascending: true });
+    .order("display_order", { ascending: true })
+    .order("id", { ascending: true });
 
   return (
     <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

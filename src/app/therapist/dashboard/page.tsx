@@ -25,7 +25,7 @@ export default async function TherapistDashboardPage() {
 
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, slot_time, timezone, concern, status")
+    .select("id, slot_time, timezone, concern, status, duration_minutes")
     .eq("therapist_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -63,6 +63,7 @@ export default async function TherapistDashboardPage() {
                   </p>
                   <p className="text-slate-500 mt-1">
                     {formatSlotTime(a.slot_time, a.timezone)}
+                    {a.duration_minutes && ` • ${a.duration_minutes} min`}
                   </p>
                 </div>
                 <span className="capitalize font-semibold text-purple-700 bg-purple-50 px-3 py-1 rounded-full">

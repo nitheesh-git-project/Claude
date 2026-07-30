@@ -15,28 +15,34 @@ type Category = {
   active: boolean;
 };
 
+type NewCategoryValues = Omit<Category, "id">;
+
 export default function TreatmentCategoryForm({
   category,
+  initialValues,
   onCancel,
 }: {
   category?: Category;
+  /** Prefills a new (non-edit) form, e.g. when duplicating an existing category. */
+  initialValues?: NewCategoryValues;
   onCancel?: () => void;
 }) {
   const isEdit = !!category;
-  const [title, setTitle] = useState(category?.title ?? "");
-  const [description, setDescription] = useState(category?.description ?? "");
-  const [pointsText, setPointsText] = useState((category?.points ?? []).join("\n"));
+  const defaults = category ?? initialValues;
+  const [title, setTitle] = useState(defaults?.title ?? "");
+  const [description, setDescription] = useState(defaults?.description ?? "");
+  const [pointsText, setPointsText] = useState((defaults?.points ?? []).join("\n"));
   const [priceInr, setPriceInr] = useState(
-    category ? String(category.price_paise / 100) : ""
+    defaults ? String(defaults.price_paise / 100) : ""
   );
   const [durationMinutes, setDurationMinutes] = useState(
-    category ? String(category.duration_minutes) : "60"
+    defaults ? String(defaults.duration_minutes) : "60"
   );
-  const [ctaLabel, setCtaLabel] = useState(category?.cta_label ?? "Book Assessment");
+  const [ctaLabel, setCtaLabel] = useState(defaults?.cta_label ?? "Book Assessment");
   const [displayOrder, setDisplayOrder] = useState(
-    category ? String(category.display_order) : "0"
+    defaults ? String(defaults.display_order) : "0"
   );
-  const [active, setActive] = useState(category?.active ?? true);
+  const [active, setActive] = useState(defaults?.active ?? true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
