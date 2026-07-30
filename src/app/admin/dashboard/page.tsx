@@ -67,7 +67,7 @@ export default async function AdminDashboardPage() {
   const { data: appointments } = await admin
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, created_at"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at"
     )
     .order("created_at", { ascending: false });
 
@@ -305,6 +305,11 @@ export default async function AdminDashboardPage() {
                       <span className="text-slate-400"> (estimated)</span>
                     )}
                   </p>
+                  {a.notes && (
+                    <p className="text-slate-500">
+                      <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
+                    </p>
+                  )}
                   {therapist ? (
                     <p className="text-slate-500">
                       Assigned to: <strong>{therapist.full_name}</strong>

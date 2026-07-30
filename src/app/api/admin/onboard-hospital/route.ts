@@ -55,9 +55,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // role is set here, not trusted from signUp's user_metadata — the
+  // handle_new_user trigger deliberately ignores anything but 'therapist'
+  // there (self-serve signups can't grant themselves 'hospital'), so this
+  // service-role update is what actually promotes the new account.
   const { error: updateError } = await admin
     .from("profiles")
     .update({
+      role: "hospital",
       organization_name: organizationName,
       referral_code: referralCode,
       revenue_share_percent: sharePercent,

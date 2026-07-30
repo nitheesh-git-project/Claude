@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import SignOutButton from "@/components/auth/SignOutButton";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -27,9 +28,25 @@ export default async function TherapistDashboardPage() {
 
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, slot_time, timezone, concern, status, duration_minutes")
+    .select("id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id")
     .eq("therapist_id", user.id)
     .order("created_at", { ascending: false });
+
+  // A therapist can read their own appointment rows via RLS, but not the
+  // linked patients' profiles (that policy only allows a user to read
+  // their own row) — so their patients' names/contact info have to be
+  // looked up here via the admin client, scoped to just the columns
+  // needed to actually run the session.
+  const patientIds = [...new Set((appointments ?? []).map((a) => a.patient_id))];
+  const admin = createAdminClient();
+  const { data: patients } =
+    patientIds.length > 0
+      ? await admin
+          .from("profiles")
+          .select("id, full_name, phone, email")
+          .in("id", patientIds)
+      : { data: [] as { id: string; full_name: string; phone: string | null; email: string }[] };
+  const patientMap = new Map((patients ?? []).map((p) => [p.id, p]));
 
   return (
     <section className="py-8 max-w-5xl mx-auto px-4">
@@ -69,25 +86,39 @@ export default async function TherapistDashboardPage() {
           </p>
         ) : (
           <ul className="space-y-3">
-            {appointments.map((a) => (
-              <li
-                key={a.id}
-                className="flex items-center justify-between p-4 rounded-xl border border-slate-200 text-xs"
-              >
-                <div>
-                  <p className="font-bold text-slate-900">
-                    {a.concern ?? "General Consultation"}
-                  </p>
-                  <p className="text-slate-500 mt-1">
+            {appointments.map((a) => {
+              const patient = patientMap.get(a.patient_id);
+              return (
+                <li
+                  key={a.id}
+                  className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div>
+                      <p className="font-bold text-slate-900">
+                        {patient?.full_name ?? "Unknown patient"}
+                      </p>
+                      <p className="text-slate-500">
+                        {patient?.phone || patient?.email || "No contact on file"}
+                      </p>
+                    </div>
+                    <span className="capitalize font-semibold text-purple-700 bg-purple-50 px-3 py-1 rounded-full">
+                      {a.status}
+                    </span>
+                  </div>
+                  <p className="text-slate-600">
+                    <strong>{a.concern ?? "General Consultation"}</strong> —{" "}
                     {formatSlotTime(a.slot_time, a.timezone)}
                     {a.duration_minutes && ` • ${a.duration_minutes} min`}
                   </p>
-                </div>
-                <span className="capitalize font-semibold text-purple-700 bg-purple-50 px-3 py-1 rounded-full">
-                  {a.status}
-                </span>
-              </li>
-            ))}
+                  {a.notes && (
+                    <p className="text-slate-500">
+                      <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
