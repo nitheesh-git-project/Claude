@@ -414,9 +414,15 @@ drop policy if exists "profile_change_requests_select_own" on profile_change_req
 create policy "profile_change_requests_select_own" on profile_change_requests
   for select using (auth.uid() = user_id);
 
+-- status = 'pending' is required here too, not just as a column default —
+-- otherwise a client could insert a row with status already 'approved' or
+-- 'declined', faking a reviewed-looking entry in their own history (it
+-- can't actually change profiles, since only the admin routes do that and
+-- both refuse anything whose status isn't already 'pending', but it would
+-- leave a bogus, never-actually-reviewed row behind).
 drop policy if exists "profile_change_requests_insert_own" on profile_change_requests;
 create policy "profile_change_requests_insert_own" on profile_change_requests
-  for insert with check (auth.uid() = user_id);
+  for insert with check (auth.uid() = user_id and status = 'pending');
 
 -- No client-side UPDATE policy — approving or declining a request (and
 -- actually applying an approved change to profiles) only ever happens
