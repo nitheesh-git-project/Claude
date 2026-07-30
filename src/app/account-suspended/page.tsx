@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import SignOutButton from "@/components/auth/SignOutButton";
 
 export const metadata: Metadata = {
   title: "Account Suspended | Dr. Pooja's Physio",
@@ -16,6 +18,15 @@ export default function AccountSuspendedPage() {
           Your account access has been suspended. If you believe this is a
           mistake, please contact us directly to resolve it.
         </p>
+        <Link
+          href="/"
+          className="mt-6 inline-block w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-xl text-xs transition shadow"
+        >
+          Back to Home
+        </Link>
+        <div className="mt-4">
+          <SignOutButton />
+        </div>
       </div>
     </section>
   );

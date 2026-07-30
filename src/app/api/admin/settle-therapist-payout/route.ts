@@ -64,10 +64,12 @@ export async function POST(request: NextRequest) {
   }
 
   const paidAt = new Date().toISOString();
+  let totalSettledPaise = 0;
   const results = await Promise.all(
     unsettled.map((a) => {
       const paidPaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
       const payoutPaise = Math.round((paidPaise * therapist.revenue_share_percent!) / 100);
+      totalSettledPaise += payoutPaise;
       return admin
         .from("appointments")
         .update({
@@ -85,5 +87,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: failed.error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, settledCount: unsettled.length });
+  // The client's confirm dialog shows the balance as of page load, which
+  // can be stale by the time this actually runs (e.g. a new payment landed
+  // in between) — this route always settles whatever is *actually*
+  // unsettled right now, so the amount it reports back is what genuinely
+  // got paid, not just an echo of what the client asked for.
+  return NextResponse.json({
+    success: true,
+    settledCount: unsettled.length,
+    settledAmountPaise: totalSettledPaise,
+  });
 }

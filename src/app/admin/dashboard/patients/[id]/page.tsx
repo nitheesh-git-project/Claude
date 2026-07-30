@@ -99,7 +99,16 @@ export default async function AdminPatientDetailPage({
   ]);
   const therapistMap = new Map((sessionTherapists ?? []).map((t) => [t.id, t]));
 
-  const paidAppointments = (appointments ?? []).filter((a) => a.payment_status === "paid");
+  // Sorted by when payment actually cleared, not booking-creation order —
+  // a patient can book well before (or after) they pay, so the two orders
+  // can diverge; a "payment history" should read newest-payment-first.
+  const paidAppointments = (appointments ?? [])
+    .filter((a) => a.payment_status === "paid")
+    .sort((a, b) => {
+      const at = a.paid_at ? new Date(a.paid_at).getTime() : new Date(a.created_at).getTime();
+      const bt = b.paid_at ? new Date(b.paid_at).getTime() : new Date(b.created_at).getTime();
+      return bt - at;
+    });
   const totalPaidPaise = paidAppointments.reduce(
     (sum, a) => sum + (a.amount_paid_paise ?? SESSION_FEE_PAISE),
     0
@@ -244,7 +253,16 @@ export default async function AdminPatientDetailPage({
                   </p>
                   <p className="text-slate-500">
                     Therapist:{" "}
-                    <strong>{therapist?.full_name ?? "Not yet assigned"}</strong>
+                    {a.therapist_id ? (
+                      <Link
+                        href={`/admin/dashboard/therapists/${a.therapist_id}`}
+                        className="font-bold text-slate-700 hover:text-teal-700 hover:underline transition"
+                      >
+                        {therapist?.full_name ?? "Unknown"}
+                      </Link>
+                    ) : (
+                      <strong>Not yet assigned</strong>
+                    )}
                   </p>
                   {a.notes && (
                     <p className="text-slate-500">
@@ -289,7 +307,18 @@ export default async function AdminPatientDetailPage({
                   </div>
                   <p className="text-slate-500">
                     Paid {a.paid_at ? new Date(a.paid_at).toLocaleString("en-IN") : "date unknown"}
-                    {therapist && <> • Therapist: {therapist.full_name}</>}
+                    {therapist && a.therapist_id && (
+                      <>
+                        {" "}
+                        • Therapist:{" "}
+                        <Link
+                          href={`/admin/dashboard/therapists/${a.therapist_id}`}
+                          className="font-semibold text-slate-700 hover:text-teal-700 hover:underline transition"
+                        >
+                          {therapist.full_name}
+                        </Link>
+                      </>
+                    )}
                   </p>
                   {a.razorpay_payment_id && (
                     <p className="text-slate-400 font-mono">{a.razorpay_payment_id}</p>
