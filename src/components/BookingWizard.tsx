@@ -40,11 +40,14 @@ export default function BookingWizard() {
   const [referralCode, setReferralCode] = useState("");
   const [concern, setConcern] = useState(CONCERNS[0]);
   const [notes, setNotes] = useState("");
-  const [consent, setConsent] = useState(true);
+  const [consent, setConsent] = useState(false);
 
   const supabase = createClient();
 
   useEffect(() => {
+    // Reads the browser's detected timezone, which is only known once
+    // mounted on the client — there's no way to get this during render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
     supabase.auth
@@ -84,6 +87,10 @@ export default function BookingWizard() {
     if (!isLoggedIn) {
       if (!fullName || !email || password.length < 6) {
         setError("Please fill in your name, email, and a password (min 6 characters).");
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setError("Please enter a valid email address.");
         return;
       }
     }

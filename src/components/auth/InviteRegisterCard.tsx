@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
 
@@ -17,7 +17,6 @@ export default function InviteRegisterCard() {
   const [done, setDone] = useState(false);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
   const [concern, setConcern] = useState("");
-  const router = useRouter();
   const supabase = createClient();
 
   if (!token) {
