@@ -8,6 +8,7 @@ import PatientContactEditForm from "@/components/admin/PatientContactEditForm";
 import PatientNotesForm from "@/components/admin/PatientNotesForm";
 import ResetPatientPasswordButton from "@/components/admin/ResetPatientPasswordButton";
 import EditBookingForm from "@/components/admin/EditBookingForm";
+import PatientProfitChart from "@/components/admin/PatientProfitChart";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -84,9 +85,11 @@ export default async function AdminPatientDetailPage({
     therapistIds.length > 0
       ? admin
           .from("profiles")
-          .select("id, full_name")
+          .select("id, full_name, revenue_share_percent")
           .in("id", therapistIds as string[])
-      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+      : Promise.resolve({
+          data: [] as { id: string; full_name: string; revenue_share_percent: number | null }[],
+        }),
     admin
       .from("profiles")
       .select("id, full_name")
@@ -101,6 +104,35 @@ export default async function AdminPatientDetailPage({
     (sum, a) => sum + (a.amount_paid_paise ?? SESSION_FEE_PAISE),
     0
   );
+
+  // Profit only exists where the session's therapist has a revenue share
+  // set — without it there's no way to know their cut, so those sessions
+  // are counted in Total Paid above but excluded from this breakdown
+  // (PatientProfitChart surfaces how many were skipped, so it's never a
+  // silent gap).
+  const profitSessions = paidAppointments
+    .filter((a) => {
+      const therapist = a.therapist_id ? therapistMap.get(a.therapist_id) : null;
+      return therapist?.revenue_share_percent !== null && therapist?.revenue_share_percent !== undefined;
+    })
+    .map((a) => {
+      const therapist = therapistMap.get(a.therapist_id as string)!;
+      const paidPaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
+      const payoutPaise = Math.round((paidPaise * (therapist.revenue_share_percent as number)) / 100);
+      return {
+        id: a.id,
+        label: a.paid_at
+          ? new Date(a.paid_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+          : "—",
+        paidPaise,
+        payoutPaise,
+        profitPaise: paidPaise - payoutPaise,
+      };
+    })
+    .reverse(); // paidAppointments is newest-first; the chart reads left-to-right chronologically
+  const totalProfitPayoutPaise = profitSessions.reduce((sum, s) => sum + s.payoutPaise, 0);
+  const totalProfitProfitPaise = profitSessions.reduce((sum, s) => sum + s.profitPaise, 0);
+  const totalProfitPaidPaise = profitSessions.reduce((sum, s) => sum + s.paidPaise, 0);
 
   return (
     <section className="py-8 max-w-4xl mx-auto px-4">
@@ -266,6 +298,17 @@ export default async function AdminPatientDetailPage({
             })}
           </ul>
         )}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+        <h2 className="font-bold text-sm text-slate-800 mb-3">Profit Breakdown</h2>
+        <PatientProfitChart
+          sessions={profitSessions}
+          totalPaidPaise={totalProfitPaidPaise}
+          totalPayoutPaise={totalProfitPayoutPaise}
+          totalProfitPaise={totalProfitProfitPaise}
+          excludedCount={paidAppointments.length - profitSessions.length}
+        />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
