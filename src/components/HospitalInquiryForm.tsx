@@ -20,6 +20,7 @@ export default function HospitalInquiryForm() {
     const { error } = await supabase.from("b2b_leads").insert({
       name: formData.get("name") as string,
       phone: formData.get("phone") as string,
+      email: formData.get("email") as string,
       source: formData.get("source") as string,
       org_details: (formData.get("org_details") as string) || null,
     });
@@ -73,6 +74,16 @@ export default function HospitalInquiryForm() {
             type="tel"
             name="phone"
             placeholder="+91 98765 43210"
+            required
+            className="w-full p-2.5 rounded-lg border border-slate-300"
+          />
+        </div>
+        <div>
+          <label className="block font-semibold mb-1">Email Address</label>
+          <input
+            type="email"
+            name="email"
+            placeholder="dr.sharma@hospital.com"
             required
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />

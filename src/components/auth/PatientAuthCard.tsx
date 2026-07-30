@@ -3,14 +3,28 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 
 export default function PatientAuthCard() {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [referralCheck, setReferralCheck] = useState<ReferralCodeCheck>({
+    status: "idle",
+  });
   const router = useRouter();
   const supabase = createClient();
+
+  async function handleReferralCodeBlur(e: React.FocusEvent<HTMLInputElement>) {
+    const code = e.target.value;
+    if (!code.trim()) {
+      setReferralCheck({ status: "idle" });
+      return;
+    }
+    setReferralCheck({ status: "checking" });
+    setReferralCheck(await checkReferralCode(code));
+  }
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -47,6 +61,14 @@ export default function PatientAuthCard() {
     if (password !== confirmPassword) {
       setLoading(false);
       setError("Passwords do not match. Please re-enter them.");
+      return;
+    }
+
+    if (referralCheck.status === "invalid") {
+      setLoading(false);
+      setError(
+        "That referral code isn't recognized. Please double-check it or clear the field to continue without one."
+      );
       return;
     }
 
@@ -216,8 +238,25 @@ export default function PatientAuthCard() {
                 type="text"
                 name="referralCode"
                 placeholder="e.g. from your hospital/clinic"
+                onChange={() => setReferralCheck({ status: "idle" })}
+                onBlur={handleReferralCodeBlur}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
+              {referralCheck.status === "checking" && (
+                <p className="text-slate-400 mt-1">Checking code...</p>
+              )}
+              {referralCheck.status === "valid" && (
+                <p className="text-teal-700 font-semibold mt-1">
+                  <i className="fa-solid fa-circle-check mr-1"></i>
+                  Valid — referred by {referralCheck.hospitalName ?? "your partner hospital"}
+                </p>
+              )}
+              {referralCheck.status === "invalid" && (
+                <p className="text-red-600 font-semibold mt-1">
+                  <i className="fa-solid fa-circle-exclamation mr-1"></i>
+                  Code not recognized — double-check it or leave blank
+                </p>
+              )}
             </div>
             <button
               type="submit"

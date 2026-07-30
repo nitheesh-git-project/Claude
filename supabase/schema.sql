@@ -204,3 +204,13 @@ create policy "appointments_insert_own" on appointments
 -- same way the profile self-approval hole worked before it was fixed.
 drop policy if exists "appointments_update_own" on appointments;
 revoke update on appointments from authenticated;
+
+-- Records the exact amount actually paid (in paise) at the time of each
+-- payment, so hospital revenue-share payouts are computed from what was
+-- really charged rather than recalculated later against whatever the
+-- session fee constant happens to be at query time.
+alter table appointments add column if not exists amount_paid_paise integer;
+
+-- Structured contact email captured directly on the public inquiry form,
+-- so onboarding doesn't rely on retyping it from free-text notes.
+alter table b2b_leads add column if not exists email text;

@@ -17,6 +17,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (new Date(slotDateTime).getTime() <= Date.now()) {
+    return NextResponse.json(
+      { error: "The assigned slot must be in the future" },
+      { status: 400 }
+    );
+  }
+
   const admin = createAdminClient();
 
   const { data: therapist } = await admin

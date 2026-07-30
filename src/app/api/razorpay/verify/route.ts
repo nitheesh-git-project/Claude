@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
 export async function POST(request: NextRequest) {
   const {
@@ -65,6 +66,10 @@ export async function POST(request: NextRequest) {
     .update({
       payment_status: "paid",
       razorpay_payment_id,
+      // The fee actually charged for this session, frozen at the moment of
+      // payment — revenue-share payouts read this instead of re-deriving it
+      // from the (possibly since-changed) current session fee constant.
+      amount_paid_paise: SESSION_FEE_PAISE,
       ...(shouldAutoConfirm ? { status: "confirmed" } : {}),
     })
     .eq("id", appointmentId);

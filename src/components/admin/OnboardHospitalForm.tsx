@@ -6,11 +6,12 @@ import { useRouter } from "next/navigation";
 export default function OnboardHospitalForm({
   lead,
 }: {
-  lead: { id: string; name: string; org_details: string | null };
+  lead: { id: string; name: string; email: string | null; org_details: string | null };
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [result, setResult] = useState<{
     email: string;
     password: string;
@@ -62,12 +63,25 @@ export default function OnboardHospitalForm({
           <span className="text-slate-500">Referral Code:</span>{" "}
           <strong>{result.referralCode}</strong>
         </p>
-        <button
-          onClick={() => router.refresh()}
-          className="mt-2 bg-teal-700 hover:bg-teal-800 text-white font-semibold px-3 py-1.5 rounded-lg transition"
-        >
-          Done
-        </button>
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(
+                `Email: ${result.email}\nPassword: ${result.password}\nReferral Code: ${result.referralCode}`
+              );
+              setCopied(true);
+            }}
+            className="bg-teal-700 hover:bg-teal-800 text-white font-semibold px-3 py-1.5 rounded-lg transition"
+          >
+            {copied ? "Copied!" : "Copy All"}
+          </button>
+          <button
+            onClick={() => router.refresh()}
+            className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold px-3 py-1.5 rounded-lg transition"
+          >
+            Done
+          </button>
+        </div>
       </div>
     );
   }
@@ -103,6 +117,7 @@ export default function OnboardHospitalForm({
         <input
           type="email"
           name="email"
+          defaultValue={lead.email ?? ""}
           required
           className="w-full p-2 rounded-lg border border-slate-300"
         />

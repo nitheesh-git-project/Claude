@@ -5,7 +5,7 @@ import SignOutButton from "@/components/auth/SignOutButton";
 import SubmitReferralForm from "@/components/hospital/SubmitReferralForm";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
-import { SESSION_FEE_INR } from "@/lib/pricing";
+import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Partner Dashboard | Dr. Pooja's Physio",
@@ -51,7 +51,9 @@ export default async function HospitalDashboardPage() {
     referredPatientIds.length > 0
       ? await admin
           .from("appointments")
-          .select("id, concern, slot_time, timezone, status, payment_status, patient_id, created_at")
+          .select(
+            "id, concern, slot_time, timezone, status, payment_status, amount_paid_paise, patient_id, created_at"
+          )
           .in("patient_id", referredPatientIds)
           .order("created_at", { ascending: false })
       : { data: [] as never[] };
@@ -60,7 +62,13 @@ export default async function HospitalDashboardPage() {
   const paidSessions = (referredSessions ?? []).filter(
     (s) => s.payment_status === "paid"
   );
-  const totalRevenue = paidSessions.length * SESSION_FEE_INR;
+  // Sums what was actually charged per session rather than recalculating
+  // against the current session fee, so this stays correct even if pricing
+  // changes later.
+  const totalRevenue = paidSessions.reduce(
+    (sum, s) => sum + (s.amount_paid_paise ?? SESSION_FEE_PAISE) / 100,
+    0
+  );
   const sharePercent = profile?.revenue_share_percent ?? 0;
   const hospitalCut = (totalRevenue * sharePercent) / 100;
   const companyCut = totalRevenue - hospitalCut;
