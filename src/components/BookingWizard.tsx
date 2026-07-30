@@ -37,6 +37,7 @@ export default function BookingWizard() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [concern, setConcern] = useState(CONCERNS[0]);
   const [notes, setNotes] = useState("");
@@ -91,6 +92,10 @@ export default function BookingWizard() {
       }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         setError("Please enter a valid email address.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords do not match. Please re-enter them.");
         return;
       }
     }
@@ -330,7 +335,7 @@ export default function BookingWizard() {
                 </div>
                 <div>
                   <label className="block font-semibold mb-1.5 text-slate-900">
-                    Password{" "}
+                    Create Password{" "}
                     <span className="font-normal text-slate-500 text-xs">
                       (for portal access)
                     </span>
@@ -343,6 +348,18 @@ export default function BookingWizard() {
                     className="w-full p-3 rounded-xl border border-slate-300"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block font-semibold mb-1.5 text-slate-900">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  minLength={6}
+                  className="w-full p-3 rounded-xl border border-slate-300"
+                />
               </div>
               <div>
                 <label className="block font-semibold mb-1.5 text-slate-900">
