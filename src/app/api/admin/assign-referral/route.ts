@@ -49,6 +49,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // The route previously wrote straight to this id with no existence
+  // check at all — a bad/stale referralId would silently "succeed" with
+  // nothing actually written. Reading it first (and using its captured
+  // fields to roll back below if needed) closes that too.
+  const { data: referral } = await admin
+    .from("patient_referrals")
+    .select("id, assigned_therapist_id, assigned_slot_time, invite_token, status")
+    .eq("id", referralId)
+    .single();
+
+  if (!referral) {
+    return NextResponse.json({ error: "Referral not found" }, { status: 404 });
+  }
+
   const conflict = await findTherapistConflict(
     admin,
     therapistId,
@@ -77,6 +91,38 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Re-check for a conflict now that the write has landed — the earlier
+  // check and this write aren't atomic, so two concurrent assignments of
+  // the same therapist to overlapping slots could both pass the earlier
+  // check before either write committed. Whichever request's write lands
+  // second will see the other's now-committed row here and can roll its
+  // own assignment back instead of leaving a real double-booking in place.
+  const conflictAfterWrite = await findTherapistConflict(
+    admin,
+    therapistId,
+    new Date(slotDateTime).toISOString(),
+    BASE_DURATION_MINUTES,
+    { excludeReferralId: referralId }
+  );
+  if (conflictAfterWrite) {
+    await admin
+      .from("patient_referrals")
+      .update({
+        assigned_therapist_id: referral.assigned_therapist_id,
+        assigned_slot_time: referral.assigned_slot_time,
+        invite_token: referral.invite_token,
+        status: referral.status,
+      })
+      .eq("id", referralId);
+    return NextResponse.json(
+      {
+        error:
+          "This therapist was just double-booked by a concurrent assignment — please try again or pick a different therapist/time.",
+      },
+      { status: 409 }
+    );
   }
 
   return NextResponse.json({ inviteToken });

@@ -26,6 +26,11 @@ export default function DeclineReferralButton({
     } else {
       const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Could not decline. Please try again.");
+      // Either way this fails, it means the referral's real status is no
+      // longer what this page's snapshot showed (an invite went out,
+      // possibly moments ago) — refresh so the stale "Decline" option
+      // stops being offered.
+      router.refresh();
     }
   }
 
