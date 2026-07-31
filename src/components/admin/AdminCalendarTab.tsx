@@ -56,10 +56,15 @@ export default function AdminCalendarTab({
     null
   );
 
+  // Cancelled sessions are excluded from the dot count — the dot means
+  // "something's still actually happening this day", not "something was
+  // once booked". They still show up in the day's session list below with
+  // their cancelled badge, since that's still useful context once you've
+  // drilled into a specific date.
   const countByDate = useMemo(() => {
     const map = new Map<string, number>();
     for (const a of appointments) {
-      if (!a.slot_time) continue;
+      if (!a.slot_time || a.status === "cancelled") continue;
       const key = istDateKey(a.slot_time);
       map.set(key, (map.get(key) ?? 0) + 1);
     }

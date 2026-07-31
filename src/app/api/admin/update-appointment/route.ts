@@ -15,7 +15,9 @@ export async function POST(request: NextRequest) {
     appointmentId?: string;
     therapistId?: string;
     slotDateTime?: string;
-    categoryId?: string;
+    // undefined = leave category unchanged, null = explicitly clear it,
+    // a real id = change to that category.
+    categoryId?: string | null;
   }>(request);
   if (parseError) return parseError;
   const { appointmentId, therapistId, slotDateTime, categoryId } = body;
@@ -92,8 +94,11 @@ export async function POST(request: NextRequest) {
   // and retroactively adjusting it would need refund/upcharge handling
   // this route doesn't do.
   let durationMinutes = appointment.duration_minutes ?? BASE_DURATION_MINUTES;
-  let resolvedCategoryId = appointment.category_id;
-  if (categoryId && categoryId !== appointment.category_id) {
+  let resolvedCategoryId: string | null = appointment.category_id;
+  if (categoryId === null) {
+    resolvedCategoryId = null;
+    durationMinutes = BASE_DURATION_MINUTES;
+  } else if (categoryId && categoryId !== appointment.category_id) {
     const { data: category } = await admin
       .from("treatment_categories")
       .select("id, duration_minutes")
@@ -142,7 +147,7 @@ export async function POST(request: NextRequest) {
   const slotChanged = appointment.slot_time !== newSlotIso;
   const categoryChanged = appointment.category_id !== resolvedCategoryId;
   if (therapistChanged || slotChanged || categoryChanged) {
-    await admin.from("appointment_reassignment_log").insert({
+    const { error: logError } = await admin.from("appointment_reassignment_log").insert({
       appointment_id: appointmentId,
       changed_by: adminUser.id,
       old_therapist_id: appointment.therapist_id,
@@ -152,6 +157,9 @@ export async function POST(request: NextRequest) {
       old_category_id: appointment.category_id,
       new_category_id: resolvedCategoryId,
     });
+    if (logError) {
+      console.error("Failed to record appointment_reassignment_log entry:", logError);
+    }
   }
 
   return NextResponse.json({ success: true });
