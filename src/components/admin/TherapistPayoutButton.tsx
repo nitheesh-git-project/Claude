@@ -38,6 +38,12 @@ export default function TherapistPayoutButton({
     setLoading(false);
     if (!res.ok) {
       setError(data.error ?? "Could not record the payout. Please try again.");
+      if (res.status === 409) {
+        // Someone else (another tab, or another admin) already settled this
+        // — refresh so the owed balance reflects that instead of still
+        // inviting a second cash payout for the same sessions.
+        router.refresh();
+      }
       return;
     }
     // Show what the server actually settled, not the owedPaise this
