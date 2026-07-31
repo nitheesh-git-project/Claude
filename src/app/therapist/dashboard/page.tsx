@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import SignOutButton from "@/components/auth/SignOutButton";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import CompleteSessionButton from "@/components/CompleteSessionButton";
+import MarkNoShowButton from "@/components/MarkNoShowButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 
@@ -139,7 +140,10 @@ export default async function TherapistDashboardPage() {
                     </p>
                   )}
                   {a.status === "confirmed" && (
-                    <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+                    <div className="flex items-center gap-2">
+                      <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+                      <MarkNoShowButton appointmentId={a.id} />
+                    </div>
                   )}
                   {a.status === "completed" && (
                     <SessionFeedbackForm

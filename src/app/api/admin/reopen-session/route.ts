@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
     .from("appointments")
     .update({
       status: "confirmed",
+      no_show: false,
       patient_rating: null,
       patient_feedback: null,
       patient_feedback_at: null,

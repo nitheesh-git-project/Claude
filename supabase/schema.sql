@@ -344,6 +344,14 @@ alter table appointments add column if not exists therapist_payout_amount_paise 
 alter table appointments add column if not exists therapist_payout_method text check (therapist_payout_method is null or therapist_payout_method in ('cash', 'online'));
 alter table appointments add column if not exists therapist_payout_note text;
 
+-- Set alongside status='completed' by the same "Done" action — a no-show is
+-- still a closed-out session (the therapist held the slot, payout eligibility
+-- is unchanged), this just records that the patient didn't attend. Deliberately
+-- not a new `status` value: everything that already branches on status
+-- (payout queries, conflict checks, cancellation guards, dashboards) would
+-- otherwise need auditing for a case that doesn't change any of that logic.
+alter table appointments add column if not exists no_show boolean not null default false;
+
 -- Post-session ratings/feedback, captured independently from each side once
 -- a session is marked completed (the therapist's "Done" action). Rating is
 -- required when submitting, feedback is optional free text — enforced in

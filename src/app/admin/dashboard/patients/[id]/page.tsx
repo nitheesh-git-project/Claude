@@ -9,6 +9,7 @@ import PatientNotesForm from "@/components/admin/PatientNotesForm";
 import ResetPatientPasswordButton from "@/components/admin/ResetPatientPasswordButton";
 import EditBookingForm from "@/components/admin/EditBookingForm";
 import CompleteSessionButton from "@/components/CompleteSessionButton";
+import MarkNoShowButton from "@/components/MarkNoShowButton";
 import PatientProfitChart from "@/components/admin/PatientProfitChart";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
@@ -283,7 +284,10 @@ export default async function AdminPatientDetailPage({
                     />
                   )}
                   {a.status === "confirmed" && (
-                    <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+                    <div className="flex items-center gap-2">
+                      <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+                      <MarkNoShowButton appointmentId={a.id} />
+                    </div>
                   )}
                 </li>
               );
