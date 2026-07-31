@@ -17,14 +17,19 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin
+  const { data: updated, error } = await admin
     .from("profiles")
     .update({ active })
     .eq("id", therapistId)
-    .eq("role", "therapist");
+    .eq("role", "therapist")
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!updated) {
+    return NextResponse.json({ error: "Therapist not found" }, { status: 404 });
   }
 
   return NextResponse.json({ success: true, active });
