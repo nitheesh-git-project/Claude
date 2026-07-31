@@ -13,7 +13,12 @@ export default function MarkNoShowButton({
   const router = useRouter();
 
   async function handleMarkNoShow() {
-    if (!window.confirm("Mark this session as a no-show? The patient didn't attend.")) return;
+    if (
+      !window.confirm(
+        "Mark this session as a no-show? The patient didn't attend. This won't change payout eligibility — the therapist still held the slot, same as a completed session."
+      )
+    )
+      return;
     setLoading(true);
     setError(null);
     const res = await fetch("/api/appointments/complete-session", {
