@@ -115,11 +115,30 @@ export async function POST(request: NextRequest) {
 
   if (insertError || !appointment) {
     // Give the claimed session back — the patient didn't actually get a
-    // booking out of it.
-    await admin
+    // booking out of it. Re-read the current count and CAS-decrement it
+    // (same pattern as the restore in cancelAppointment.ts) rather than
+    // blindly overwriting with the pre-claim value, which could clobber
+    // a concurrent cancellation/refund on this same package that landed
+    // in between the claim above and this rollback.
+    const { data: current } = await admin
       .from("patient_package_purchases")
-      .update({ sessions_used: purchase.sessions_used })
-      .eq("id", purchase.id);
+      .select("sessions_used")
+      .eq("id", purchase.id)
+      .single();
+    if (current && current.sessions_used > 0) {
+      const { error: revertError } = await admin
+        .from("patient_package_purchases")
+        .update({ sessions_used: current.sessions_used - 1 })
+        .eq("id", purchase.id)
+        .eq("sessions_used", current.sessions_used);
+      if (revertError) {
+        console.error(
+          "Failed to revert claimed package session for purchase",
+          purchase.id,
+          revertError
+        );
+      }
+    }
     return NextResponse.json(
       { error: insertError?.message ?? "Could not book this session. Please try again." },
       { status: 500 }
