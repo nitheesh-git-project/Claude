@@ -274,15 +274,16 @@ alter table profiles add column if not exists languages text;
 -- (via the Supabase Table Editor / service role) or the signup trigger
 -- above, which runs with elevated privileges and isn't subject to grants.
 --
--- full_name and credentials are deliberately NOT in this list even though
--- they were originally — both are identity/trust-sensitive (credentials
--- especially, since patients see it as a therapist's license claim), so
--- changing either now goes through profile_change_requests + admin
--- approval instead of being directly writable. Everything else here is
--- low-risk enough to save immediately.
+-- full_name, credentials, and phone are deliberately NOT in this list even
+-- though phone was originally included by mistake — all three are
+-- identity/trust-sensitive (credentials especially, since patients see it
+-- as a therapist's license claim; phone is gated per
+-- src/lib/gatedProfileFields.ts), so changing any of them goes through
+-- profile_change_requests + admin approval instead of being directly
+-- writable. Everything else here is low-risk enough to save immediately.
 revoke update on profiles from authenticated;
 grant update (
-  phone, timezone, avatar_url,
+  timezone, avatar_url,
   emergency_contact_name, emergency_contact_phone, preferred_language,
   bio, languages
 ) on profiles to authenticated;
