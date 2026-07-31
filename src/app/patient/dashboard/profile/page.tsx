@@ -82,7 +82,7 @@ export default async function PatientProfilePage() {
               type: "select",
               options: ["Female", "Male", "Other", "Prefer not to say"],
             },
-            { name: "phone", label: "WhatsApp / Phone", type: "tel" },
+            { name: "phone", label: "Phone Number", type: "phone" },
           ]}
           currentValues={{
             full_name: profile?.full_name ?? "",
@@ -106,7 +106,7 @@ export default async function PatientProfilePage() {
               options: LANGUAGE_OPTIONS,
             },
             { name: "emergency_contact_name", label: "Emergency Contact Name", type: "text" },
-            { name: "emergency_contact_phone", label: "Emergency Contact Phone", type: "tel" },
+            { name: "emergency_contact_phone", label: "Emergency Contact Phone", type: "phone" },
           ]}
           currentValues={{
             preferred_language: profile?.preferred_language ?? "",

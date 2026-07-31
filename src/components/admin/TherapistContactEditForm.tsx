@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { sanitizePhoneInput } from "@/lib/phoneInput";
+import PhoneNumberField from "@/components/PhoneNumberField";
 
 export default function TherapistContactEditForm({
   therapistId,
@@ -81,17 +81,7 @@ export default function TherapistContactEditForm({
           Changing this also changes their sign-in email.
         </p>
       </div>
-      <div>
-        <label className="block font-semibold mb-1">Phone</label>
-        <input
-          type="tel"
-          value={phone}
-          inputMode="tel"
-          onInput={sanitizePhoneInput}
-          onChange={(e) => setPhone(e.target.value)}
-          className="w-full p-2 rounded-lg border border-slate-300"
-        />
-      </div>
+      <PhoneNumberField value={phone} onChange={setPhone} label="Phone" />
       <div className="flex gap-2">
         <button
           onClick={() => setEditing(false)}

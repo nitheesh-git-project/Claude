@@ -4,7 +4,8 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { isValidEmail } from "@/lib/validateEmail";
-import { sanitizePhoneInput } from "@/lib/phoneInput";
+import { isValidStoredPhone } from "@/lib/phoneNumber";
+import PhoneNumberField from "@/components/PhoneNumberField";
 import ConfirmPasswordField from "./ConfirmPasswordField";
 
 export default function PatientAuthCard() {
@@ -12,6 +13,7 @@ export default function PatientAuthCard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [registerPhone, setRegisterPhone] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
   const [referralCheck, setReferralCheck] = useState<ReferralCodeCheck>({
@@ -87,9 +89,9 @@ export default function PatientAuthCard() {
       return;
     }
 
-    if (!phone.trim()) {
+    if (!isValidStoredPhone(phone)) {
       setLoading(false);
-      setError("Please enter your WhatsApp / Phone number.");
+      setError("Please enter a valid phone number.");
       return;
     }
 
@@ -149,6 +151,7 @@ export default function PatientAuthCard() {
             onClick={() => {
               setTab("login");
               setForgotMode(false);
+              setRegisterPhone("");
               setRegisterPassword("");
               setRegisterConfirmPassword("");
             }}
@@ -164,6 +167,7 @@ export default function PatientAuthCard() {
             onClick={() => {
               setTab("register");
               setForgotMode(false);
+              setRegisterPhone("");
               setRegisterPassword("");
               setRegisterConfirmPassword("");
             }}
@@ -296,20 +300,7 @@ export default function PatientAuthCard() {
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
-            <div>
-              <label className="block font-semibold mb-1">
-                WhatsApp / Phone
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                required
-                inputMode="tel"
-                maxLength={20}
-                onInput={sanitizePhoneInput}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
-            </div>
+            <PhoneNumberField value={registerPhone} onChange={setRegisterPhone} required />
             <div>
               <label className="block font-semibold mb-1">
                 Create Password{" "}

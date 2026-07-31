@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isValidEmail } from "@/lib/validateEmail";
-import { sanitizePhoneInput } from "@/lib/phoneInput";
+import { isValidStoredPhone } from "@/lib/phoneNumber";
+import PhoneNumberField from "@/components/PhoneNumberField";
 import ConfirmPasswordField from "./ConfirmPasswordField";
 
 export default function TherapistAuthCard() {
@@ -11,6 +12,7 @@ export default function TherapistAuthCard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [registerPhone, setRegisterPhone] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
   const [forgotMode, setForgotMode] = useState(false);
@@ -70,9 +72,9 @@ export default function TherapistAuthCard() {
       return;
     }
 
-    if (!phone.trim()) {
+    if (!isValidStoredPhone(phone)) {
       setLoading(false);
-      setError("Please enter your WhatsApp / Phone number.");
+      setError("Please enter a valid phone number.");
       return;
     }
 
@@ -119,6 +121,7 @@ export default function TherapistAuthCard() {
             onClick={() => {
               setTab("login");
               setForgotMode(false);
+              setRegisterPhone("");
               setRegisterPassword("");
               setRegisterConfirmPassword("");
             }}
@@ -134,6 +137,7 @@ export default function TherapistAuthCard() {
             onClick={() => {
               setTab("register");
               setForgotMode(false);
+              setRegisterPhone("");
               setRegisterPassword("");
               setRegisterConfirmPassword("");
             }}
@@ -266,20 +270,7 @@ export default function TherapistAuthCard() {
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
-            <div>
-              <label className="block font-semibold mb-1">
-                WhatsApp / Phone
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                required
-                inputMode="tel"
-                maxLength={20}
-                onInput={sanitizePhoneInput}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
-            </div>
+            <PhoneNumberField value={registerPhone} onChange={setRegisterPhone} required />
             <div>
               <label className="block font-semibold mb-1">
                 Qualifications & License / Council Reg No.

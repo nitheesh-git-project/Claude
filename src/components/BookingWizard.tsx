@@ -7,7 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
-import { sanitizePhoneInput } from "@/lib/phoneInput";
+import { isValidStoredPhone } from "@/lib/phoneNumber";
+import PhoneNumberField from "@/components/PhoneNumberField";
 import ConfirmPasswordField from "@/components/auth/ConfirmPasswordField";
 
 type Category = {
@@ -141,8 +142,8 @@ export default function BookingWizard() {
         setError("Please enter a valid email address.");
         return;
       }
-      if (!phone.trim()) {
-        setError("Please enter your WhatsApp / Phone number.");
+      if (!isValidStoredPhone(phone)) {
+        setError("Please enter a valid phone number.");
         return;
       }
       if (password !== confirmPassword) {
@@ -418,20 +419,11 @@ export default function BookingWizard() {
                   />
                 </div>
               </div>
-              <div>
-                <label className="block font-semibold mb-1.5 text-slate-900">
-                  WhatsApp / Phone
-                </label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  onInput={sanitizePhoneInput}
-                  inputMode="tel"
-                  maxLength={20}
-                  className="w-full p-3 rounded-xl border border-slate-300"
-                />
-              </div>
+              <PhoneNumberField
+                value={phone}
+                onChange={setPhone}
+                labelClassName="block font-semibold mb-1.5 text-slate-900"
+              />
               <ConfirmPasswordField
                 password={password}
                 value={confirmPassword}
