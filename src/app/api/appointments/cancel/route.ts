@@ -49,5 +49,9 @@ export async function POST(request: NextRequest) {
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
-  return NextResponse.json({ success: true, refunded: result.refunded });
+  return NextResponse.json({
+    success: true,
+    refunded: result.refunded,
+    refundFailed: result.refundFailed ?? false,
+  });
 }
