@@ -68,6 +68,13 @@ export default async function AdminDashboardPage() {
     )
     .order("created_at", { ascending: false });
 
+  const { data: reassignmentLogs } = await admin
+    .from("appointment_reassignment_log")
+    .select(
+      "id, appointment_id, changed_at, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
+    )
+    .order("changed_at", { ascending: false });
+
   const { data: b2bLeads } = await admin
     .from("b2b_leads")
     .select("id, name, phone, email, source, org_details, status, created_at")
@@ -628,6 +635,7 @@ export default async function AdminDashboardPage() {
     title: c.title,
     price_paise: c.price_paise,
     duration_minutes: c.duration_minutes,
+    active: c.active,
   }));
 
   const calendarTab = (
@@ -636,6 +644,7 @@ export default async function AdminDashboardPage() {
       people={allPeople}
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
+      reassignmentLogs={reassignmentLogs ?? []}
     />
   );
 
@@ -645,6 +654,7 @@ export default async function AdminDashboardPage() {
       people={allPeople}
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
+      reassignmentLogs={reassignmentLogs ?? []}
     />
   );
 

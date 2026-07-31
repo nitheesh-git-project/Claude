@@ -27,13 +27,15 @@ export default function EditBookingForm({
   currentCategoryId,
   therapists,
   categories,
+  onSaved,
 }: {
   appointmentId: string;
   currentTherapistId: string | null;
   currentSlotTime: string | null;
   currentCategoryId?: string | null;
   therapists: { id: string; full_name: string }[];
-  categories?: { id: string; title: string }[];
+  categories?: { id: string; title: string; active?: boolean }[];
+  onSaved?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [therapistId, setTherapistId] = useState(
@@ -70,6 +72,12 @@ export default function EditBookingForm({
     }
     setOpen(false);
     router.refresh();
+    // Lets a parent (e.g. the session detail drawer) close itself or clear
+    // its own snapshot of this appointment instead of continuing to show
+    // stale pre-reassignment data after router.refresh() re-renders behind
+    // it — refresh() alone doesn't reconcile client-side state that was
+    // captured at click-time.
+    onSaved?.();
   }
 
   if (therapists.length === 0) return null;
@@ -121,6 +129,7 @@ export default function EditBookingForm({
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.title}
+                {c.active === false ? " (inactive)" : ""}
               </option>
             ))}
           </select>

@@ -29,7 +29,9 @@ export async function POST(request: NextRequest) {
 
   const { data: appointment } = await admin
     .from("appointments")
-    .select("status, duration_minutes, category_id, therapist_id, therapist_payout_paid_at")
+    .select(
+      "status, slot_time, duration_minutes, category_id, therapist_id, therapist_payout_paid_at"
+    )
     .eq("id", appointmentId)
     .single();
 
@@ -106,11 +108,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const newSlotIso = new Date(slotDateTime).toISOString();
   const { error } = await admin
     .from("appointments")
     .update({
       therapist_id: therapistId,
-      slot_time: new Date(slotDateTime).toISOString(),
+      slot_time: newSlotIso,
       category_id: resolvedCategoryId,
       duration_minutes: durationMinutes,
     })
@@ -118,6 +121,25 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Best-effort audit trail — logged only when something actually changed,
+  // so a no-op "save" (e.g. picking the same therapist/time again) doesn't
+  // clutter the session's history with an empty entry.
+  const therapistChanged = appointment.therapist_id !== therapistId;
+  const slotChanged = appointment.slot_time !== newSlotIso;
+  const categoryChanged = appointment.category_id !== resolvedCategoryId;
+  if (therapistChanged || slotChanged || categoryChanged) {
+    await admin.from("appointment_reassignment_log").insert({
+      appointment_id: appointmentId,
+      changed_by: adminUser.id,
+      old_therapist_id: appointment.therapist_id,
+      new_therapist_id: therapistId,
+      old_slot_time: appointment.slot_time,
+      new_slot_time: newSlotIso,
+      old_category_id: appointment.category_id,
+      new_category_id: resolvedCategoryId,
+    });
   }
 
   return NextResponse.json({ success: true });

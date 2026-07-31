@@ -1,12 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import SessionDetailDrawer, { type SessionDetailAppointment } from "@/components/admin/SessionDetailDrawer";
+import SessionDetailDrawer, {
+  type SessionDetailAppointment,
+  type ReassignmentLogEntry,
+} from "@/components/admin/SessionDetailDrawer";
 import { formatSlotRange, istDateKey } from "@/lib/formatSlotRange";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 
 type Person = { id: string; full_name: string | null };
-type Category = { id: string; title: string; price_paise: number; duration_minutes: number };
+type Category = {
+  id: string;
+  title: string;
+  price_paise: number;
+  duration_minutes: number;
+  active?: boolean;
+};
 
 const STATUS_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -24,11 +33,13 @@ export default function AdminCalendarTab({
   people,
   categories,
   therapists,
+  reassignmentLogs,
 }: {
   appointments: SessionDetailAppointment[];
   people: Person[];
   categories: Category[];
   therapists: { id: string; full_name: string }[];
+  reassignmentLogs: ReassignmentLogEntry[];
 }) {
   const peopleMap = useMemo(
     () => new Map(people.map((p) => [p.id, p.full_name ?? "Unknown"])),
@@ -65,6 +76,11 @@ export default function AdminCalendarTab({
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString("en-IN", {
+    month: "long",
+    year: "numeric",
+  });
+  const selectedDateLabel = new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-IN", {
+    day: "numeric",
     month: "long",
     year: "numeric",
   });
@@ -152,7 +168,15 @@ export default function AdminCalendarTab({
         })}
       </div>
 
-      <div className="mt-6 overflow-x-auto">
+      <p className="text-xs font-semibold text-slate-600 mt-6">
+        Showing sessions for {selectedDateLabel}
+        {(viewYear !== Number(selectedDate.split("-")[0]) ||
+          viewMonth !== Number(selectedDate.split("-")[1]) - 1) && (
+          <span className="text-slate-400 font-normal"> (not in the month shown above)</span>
+        )}
+      </p>
+
+      <div className="mt-2 overflow-x-auto">
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="text-left text-slate-500 border-b border-slate-200">
@@ -211,19 +235,11 @@ export default function AdminCalendarTab({
       {selectedAppointment && (
         <SessionDetailDrawer
           appointment={selectedAppointment}
-          patientName={peopleMap.get(selectedAppointment.patient_id) ?? "Unknown"}
-          therapistName={
-            selectedAppointment.therapist_id
-              ? peopleMap.get(selectedAppointment.therapist_id) ?? null
-              : null
-          }
-          categoryTitle={
-            selectedAppointment.category_id
-              ? categoryMap.get(selectedAppointment.category_id)?.title ?? null
-              : null
-          }
+          peopleMap={peopleMap}
+          categoryMap={categoryMap}
           therapists={therapists}
           categories={categories}
+          reassignmentLogs={reassignmentLogs}
           onClose={() => setSelectedAppointment(null)}
         />
       )}
