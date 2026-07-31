@@ -20,6 +20,7 @@ import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequest
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
 import AdminSessionStoryTab from "@/components/admin/AdminSessionStoryTab";
+import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
@@ -76,7 +77,7 @@ export default async function AdminDashboardPage() {
   const { data: appointments } = await admin
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, therapist_rating, therapist_feedback, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, therapist_rating, therapist_feedback, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, no_show"
     )
     .order("created_at", { ascending: false });
 
@@ -677,6 +678,14 @@ export default async function AdminDashboardPage() {
     />
   );
 
+  const metricsTab = (
+    <AdminMetricsTab
+      appointments={appointments ?? []}
+      therapists={allTherapists}
+      categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+    />
+  );
+
   const b2bBadgeCount =
     (b2bLeads?.filter((l) => l.status === "new").length ?? 0) +
     (referrals?.filter((r) => r.status === "pending_review").length ?? 0);
@@ -798,6 +807,7 @@ export default async function AdminDashboardPage() {
         therapists={therapistsTab}
         calendar={calendarTab}
         sessionStory={sessionStoryTab}
+        metrics={metricsTab}
         siteContent={siteContent}
       />
     </section>

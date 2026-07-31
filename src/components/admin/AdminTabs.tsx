@@ -10,6 +10,7 @@ export default function AdminTabs({
   therapists,
   calendar,
   sessionStory,
+  metrics,
   siteContent,
 }: {
   overview: ReactNode;
@@ -19,10 +20,18 @@ export default function AdminTabs({
   therapists: ReactNode;
   calendar: ReactNode;
   sessionStory: ReactNode;
+  metrics: ReactNode;
   siteContent: ReactNode;
 }) {
   const [tab, setTab] = useState<
-    "overview" | "b2b" | "patients" | "therapists" | "calendar" | "sessionStory" | "content"
+    | "overview"
+    | "b2b"
+    | "patients"
+    | "therapists"
+    | "calendar"
+    | "sessionStory"
+    | "metrics"
+    | "content"
   >("overview");
 
   const tabs: { key: typeof tab; label: string; badge?: number }[] = [
@@ -32,6 +41,7 @@ export default function AdminTabs({
     { key: "therapists", label: "Therapists" },
     { key: "calendar", label: "Calendar" },
     { key: "sessionStory", label: "Session Story" },
+    { key: "metrics", label: "Metrics" },
     { key: "content", label: "Site Content" },
   ];
 
@@ -64,6 +74,7 @@ export default function AdminTabs({
       <div className={tab === "therapists" ? "" : "hidden"}>{therapists}</div>
       <div className={tab === "calendar" ? "" : "hidden"}>{calendar}</div>
       <div className={tab === "sessionStory" ? "" : "hidden"}>{sessionStory}</div>
+      <div className={tab === "metrics" ? "" : "hidden"}>{metrics}</div>
       <div className={tab === "content" ? "" : "hidden"}>{siteContent}</div>
     </div>
   );
