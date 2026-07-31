@@ -53,27 +53,33 @@ export function filterBySlotRange(
 export function buildBuckets(fromMs: number, toMs: number): PeriodBucket[] {
   const spanDays = (toMs - fromMs) / 86_400_000;
   const buckets: PeriodBucket[] = [];
+  // Bucket boundaries and their display labels are both pinned to UTC.
+  // fromMs/toMs are already UTC-anchored by the caller; Date's local-time
+  // methods (setHours, setMonth, toLocaleDateString without a timeZone)
+  // would otherwise snap to whatever timezone is reading them, which
+  // differs between server (SSR) and the admin's browser (hydration) and
+  // can shift a bucket's calendar date depending on which one rendered.
   if (spanDays > 45) {
     const cursor = new Date(fromMs);
-    cursor.setDate(1);
-    cursor.setHours(0, 0, 0, 0);
+    cursor.setUTCDate(1);
+    cursor.setUTCHours(0, 0, 0, 0);
     while (cursor.getTime() <= toMs) {
       const start = cursor.getTime();
       const next = new Date(cursor);
-      next.setMonth(next.getMonth() + 1);
+      next.setUTCMonth(next.getUTCMonth() + 1);
       buckets.push({
-        label: cursor.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
+        label: cursor.toLocaleDateString("en-IN", { month: "short", year: "2-digit", timeZone: "UTC" }),
         startMs: start,
         endMs: next.getTime(),
       });
-      cursor.setMonth(cursor.getMonth() + 1);
+      cursor.setUTCMonth(cursor.getUTCMonth() + 1);
     }
   } else {
     let start = fromMs;
     while (start <= toMs) {
       const end = start + 7 * 86_400_000;
       buckets.push({
-        label: new Date(start).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+        label: new Date(start).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" }),
         startMs: start,
         endMs: end,
       });
