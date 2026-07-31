@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 
 type CancelResult =
-  | { error: string; status: number }
+  | { error: string; status: number; payoutSettled?: boolean }
   | { success: true; refunded: boolean; refundFailed?: boolean };
 
 /**
@@ -20,7 +20,20 @@ export async function cancelAppointmentAndRefund(
     appointmentId,
     cancelledBy,
     reason,
-  }: { appointmentId: string; cancelledBy: string; reason?: string | null }
+    overridePayoutSettled,
+  }: {
+    appointmentId: string;
+    cancelledBy: string;
+    reason?: string | null;
+    // Admin-only escape hatch (see /api/admin/cancel-appointment) for the
+    // rare case where a session was marked completed, its cash payout was
+    // settled, and then it was reopened by mistake — cancelling it can't
+    // touch cash that's already left the building, so this doesn't attempt
+    // to reconcile therapist_payout_*; it just lets the admin free the slot
+    // and record the cancellation, on the understanding that recovering the
+    // payout (if warranted) is a manual, out-of-band step.
+    overridePayoutSettled?: boolean;
+  }
 ): Promise<CancelResult> {
   const { data: appointment } = await admin
     .from("appointments")
@@ -38,12 +51,15 @@ export async function cancelAppointmentAndRefund(
   }
   // Same reasoning as update-appointment's reassignment guard: refunding a
   // session whose payout to the therapist was already settled would leave
-  // the books inconsistent with no automated way to reconcile it.
-  if (appointment.therapist_payout_paid_at) {
+  // the books inconsistent with no automated way to reconcile it. Blocked
+  // by default; the admin route can pass overridePayoutSettled after an
+  // explicit confirmation, since only a human can decide whether the cash
+  // payout needs manual recovery.
+  if (appointment.therapist_payout_paid_at && !overridePayoutSettled) {
     return {
-      error:
-        "This session's payout has already been settled — please contact the clinic to cancel it.",
+      error: "This session's payout has already been settled — please contact the clinic to cancel it.",
       status: 400,
+      payoutSettled: true,
     };
   }
 

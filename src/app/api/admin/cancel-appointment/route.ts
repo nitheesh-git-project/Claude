@@ -15,9 +15,10 @@ export async function POST(request: NextRequest) {
   const { data: body, error: parseError } = await parseJsonBody<{
     appointmentId?: string;
     reason?: string;
+    overridePayoutSettled?: boolean;
   }>(request);
   if (parseError) return parseError;
-  const { appointmentId, reason } = body;
+  const { appointmentId, reason, overridePayoutSettled } = body;
   if (!appointmentId) {
     return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
   }
@@ -33,9 +34,13 @@ export async function POST(request: NextRequest) {
     appointmentId,
     cancelledBy: adminUser.id,
     reason,
+    overridePayoutSettled,
   });
   if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json(
+      { error: result.error, payoutSettled: result.payoutSettled ?? false },
+      { status: result.status }
+    );
   }
   return NextResponse.json({
     success: true,
