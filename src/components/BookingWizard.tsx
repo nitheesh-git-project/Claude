@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { sanitizePhoneInput } from "@/lib/phoneInput";
 
 type Category = {
   id: string;
@@ -43,8 +44,12 @@ export default function BookingWizard() {
   const [slotDateTime, setSlotDateTime] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
+  const passwordsMismatched =
+    confirmPasswordTouched && confirmPassword.length > 0 && password !== confirmPassword;
   const [referralCode, setReferralCode] = useState("");
   const [referralCheck, setReferralCheck] = useState<ReferralCodeCheck>({
     status: "idle",
@@ -138,6 +143,10 @@ export default function BookingWizard() {
         setError("Please enter a valid email address.");
         return;
       }
+      if (!phone.trim()) {
+        setError("Please enter your WhatsApp / Phone number.");
+        return;
+      }
       if (password !== confirmPassword) {
         setError("Passwords do not match. Please re-enter them.");
         return;
@@ -182,6 +191,7 @@ export default function BookingWizard() {
           data: {
             role: "patient",
             full_name: fullName,
+            phone,
             referral_code: referralCode.trim() || undefined,
           },
         },
@@ -412,15 +422,38 @@ export default function BookingWizard() {
               </div>
               <div>
                 <label className="block font-semibold mb-1.5 text-slate-900">
+                  WhatsApp / Phone
+                </label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  onInput={sanitizePhoneInput}
+                  inputMode="tel"
+                  maxLength={20}
+                  className="w-full p-3 rounded-xl border border-slate-300"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1.5 text-slate-900">
                   Confirm Password
                 </label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
+                  onBlur={() => setConfirmPasswordTouched(true)}
                   minLength={6}
-                  className="w-full p-3 rounded-xl border border-slate-300"
+                  className={`w-full p-3 rounded-xl border ${
+                    passwordsMismatched ? "border-red-400" : "border-slate-300"
+                  }`}
                 />
+                {passwordsMismatched && (
+                  <p className="text-red-600 font-semibold text-xs mt-1">
+                    <i className="fa-solid fa-circle-exclamation mr-1"></i>
+                    Passwords do not match
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block font-semibold mb-1.5 text-slate-900">
