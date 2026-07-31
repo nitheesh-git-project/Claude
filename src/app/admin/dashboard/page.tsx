@@ -74,12 +74,20 @@ export default async function AdminDashboardPage() {
     (t) => t.active !== false
   );
 
-  const { data: appointments } = await admin
+  const { data: appointments, error: appointmentsError } = await admin
     .from("appointments")
     .select(
       "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, therapist_rating, therapist_feedback, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, no_show"
     )
     .order("created_at", { ascending: false });
+  // This single query feeds Overview, Calendar, Session Story, and Metrics
+  // all at once — if it fails (e.g. a column referenced here doesn't exist
+  // yet because a schema.sql update wasn't re-run), every one of those tabs
+  // would otherwise silently render as "no bookings" with no indication
+  // anything is actually wrong. Log it loudly instead of swallowing it.
+  if (appointmentsError) {
+    console.error("Admin dashboard: failed to load appointments", appointmentsError);
+  }
 
   const { data: reassignmentLogs } = await admin
     .from("appointment_reassignment_log")
@@ -292,7 +300,14 @@ export default async function AdminDashboardPage() {
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-4">All Bookings</h2>
-        {!appointments || appointments.length === 0 ? (
+        {appointmentsError ? (
+          <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+            Couldn&apos;t load bookings right now — this usually means the database
+            schema is out of date. Try re-running supabase/schema.sql, then
+            refresh this page. (Calendar, Session Story, and Metrics are
+            affected too, since they share this same data.)
+          </p>
+        ) : !appointments || appointments.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">
             No bookings yet.
           </p>
