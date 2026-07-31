@@ -199,6 +199,12 @@ create trigger on_auth_user_created
 -- therapist whose approval gets revoked.
 alter table profiles add column if not exists active boolean not null default true;
 
+-- Independent of `active`: a therapist can be fully active (can log in, get
+-- assigned bookings) but still be hidden from the public /team page — on
+-- leave, fully booked, or not ready to be publicly featured yet. Admin-only,
+-- defaults to visible so nothing changes for existing therapists.
+alter table profiles add column if not exists visible_on_team boolean not null default true;
+
 -- Private admin notes about a patient (e.g. "prefers evening slots",
 -- "payment dispute resolved 3/15") — deliberately its own table, not a
 -- column on profiles, because profiles_select_own lets a patient read
@@ -675,7 +681,10 @@ left join (
 -- active = true wasn't checked before this migration either, which meant a
 -- suspended therapist still showed up on the public /team page — folded
 -- into this same view rewrite since it's the same file/view.
-where p.role = 'therapist' and p.approved = true and p.active = true;
+-- visible_on_team is a separate, admin-only control: a therapist can stay
+-- active (can log in, take bookings) while being hidden from this public
+-- page, e.g. on leave or fully booked.
+where p.role = 'therapist' and p.approved = true and p.active = true and p.visible_on_team = true;
 
 grant select on public_therapist_profiles to anon, authenticated;
 
