@@ -6,11 +6,17 @@ import { useRouter } from "next/navigation";
 export default function AssignTherapistForm({
   appointmentId,
   therapists,
+  preferredTherapistId,
 }: {
   appointmentId: string;
   therapists: { id: string; full_name: string }[];
+  preferredTherapistId?: string | null;
 }) {
-  const [therapistId, setTherapistId] = useState(therapists[0]?.id ?? "");
+  const preferredIsAvailable =
+    !!preferredTherapistId && therapists.some((t) => t.id === preferredTherapistId);
+  const [therapistId, setTherapistId] = useState(
+    (preferredIsAvailable ? preferredTherapistId : null) ?? therapists[0]?.id ?? ""
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -43,6 +49,11 @@ export default function AssignTherapistForm({
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
+      {preferredTherapistId && (
+        <span className="text-[11px] text-teal-700 font-semibold">
+          {preferredIsAvailable ? "Patient requested this therapist" : "Patient's requested therapist isn't available"}
+        </span>
+      )}
       <select
         value={therapistId}
         onChange={(e) => setTherapistId(e.target.value)}
@@ -51,6 +62,7 @@ export default function AssignTherapistForm({
         {therapists.map((t) => (
           <option key={t.id} value={t.id}>
             {t.full_name}
+            {t.id === preferredTherapistId ? " (requested)" : ""}
           </option>
         ))}
       </select>

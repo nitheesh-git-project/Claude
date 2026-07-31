@@ -13,6 +13,7 @@ import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswor
 import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
+import PackageManager from "@/components/admin/PackageManager";
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
@@ -75,7 +76,7 @@ export default async function AdminDashboardPage() {
   const { data: appointments } = await admin
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, therapist_rating, therapist_feedback"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, therapist_rating, therapist_feedback, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id"
     )
     .order("created_at", { ascending: false });
 
@@ -122,6 +123,12 @@ export default async function AdminDashboardPage() {
     .select(
       "id, title, description, points, price_paise, duration_minutes, cta_label, display_order, active"
     )
+    .order("display_order", { ascending: true })
+    .order("id", { ascending: true });
+
+  const { data: packages } = await admin
+    .from("treatment_category_packages")
+    .select("id, category_id, title, session_count, price_paise, display_order, active")
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
 
@@ -355,6 +362,7 @@ export default async function AdminDashboardPage() {
                     <AssignTherapistForm
                       appointmentId={a.id}
                       therapists={activeApprovedTherapists}
+                      preferredTherapistId={a.preferred_therapist_id}
                     />
                   )}
                 </li>
@@ -737,6 +745,18 @@ export default async function AdminDashboardPage() {
             ...c,
             points: Array.isArray(c.points) ? (c.points as string[]) : [],
           }))}
+        />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Session Packages</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          Bundles of sessions a patient can buy upfront at a bundle price,
+          then use one at a time when booking — shown on their dashboard.
+        </p>
+        <PackageManager
+          packages={packages ?? []}
+          categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
         />
       </div>
 

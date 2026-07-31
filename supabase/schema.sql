@@ -625,3 +625,130 @@ alter table faqs enable row level security;
 drop policy if exists "faqs_select_active" on faqs;
 create policy "faqs_select_active" on faqs
   for select using (active = true);
+
+-- Cancellation + refund. A patient or admin can cancel an upcoming
+-- ('requested'/'confirmed') session; if it was paid, the amount actually
+-- charged is refunded via Razorpay as part of the same action (see
+-- src/lib/cancelAppointment.ts) — these columns just record what happened,
+-- same "server records the outcome" pattern as therapist_payout_* above.
+alter table appointments add column if not exists cancelled_at timestamptz;
+alter table appointments add column if not exists cancelled_by uuid references profiles(id);
+alter table appointments add column if not exists cancellation_reason text;
+alter table appointments add column if not exists refund_id text;
+alter table appointments add column if not exists refund_status text check (refund_status is null or refund_status in ('processed', 'failed'));
+alter table appointments add column if not exists refund_amount_paise integer;
+
+-- Lets a patient express "book with the same therapist as before" at
+-- booking time. Purely a hint for the admin's assignment screen (which
+-- still runs its normal conflict check) — never auto-assigns, since the
+-- preferred therapist might not actually be available for the requested
+-- slot.
+alter table appointments add column if not exists preferred_therapist_id uuid references profiles(id);
+
+-- Real, aggregated (never per-review) rating data exposed publicly.
+-- Deliberately exposes only numbers, never individual patient names or
+-- feedback text — publishing real patient reviews/names without an
+-- explicit consent step is a separate, bigger decision than this platform
+-- currently has a mechanism for; the existing hand-curated `testimonials`
+-- table (implied consent obtained manually before an admin types a quote
+-- in) remains the only source of individually-attributed public reviews.
+drop view if exists public_therapist_profiles;
+create view public_therapist_profiles as
+select
+  p.id, p.full_name, p.credentials, p.specialization, p.years_experience, p.bio, p.avatar_url,
+  r.avg_rating, r.rating_count
+from profiles p
+left join (
+  select therapist_id, avg(patient_rating)::numeric(3,2) as avg_rating, count(*) as rating_count
+  from appointments
+  where patient_rating is not null
+  group by therapist_id
+) r on r.therapist_id = p.id
+-- active = true wasn't checked before this migration either, which meant a
+-- suspended therapist still showed up on the public /team page — folded
+-- into this same view rewrite since it's the same file/view.
+where p.role = 'therapist' and p.approved = true and p.active = true;
+
+grant select on public_therapist_profiles to anon, authenticated;
+
+drop view if exists public_rating_summary;
+create view public_rating_summary as
+select
+  avg(patient_rating)::numeric(3,2) as avg_rating,
+  count(*) as rating_count
+from appointments
+where patient_rating is not null;
+
+grant select on public_rating_summary to anon, authenticated;
+
+-- Session packages: a bundle of N sessions in one category at one price,
+-- bought upfront. Same public-when-active / service-role-write pattern as
+-- treatment_categories.
+create table if not exists treatment_category_packages (
+  id uuid primary key default gen_random_uuid(),
+  category_id uuid not null references treatment_categories(id) on delete cascade,
+  title text not null,
+  session_count integer not null check (session_count >= 2),
+  price_paise integer not null check (price_paise > 0),
+  display_order integer not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table treatment_category_packages enable row level security;
+
+drop policy if exists "treatment_category_packages_select_active" on treatment_category_packages;
+create policy "treatment_category_packages_select_active" on treatment_category_packages
+  for select using (active = true);
+
+-- What a patient actually bought. No client insert/update policy at all —
+-- unlike appointments (which starts as a real 'requested'/'unpaid' row a
+-- patient legitimately owns before paying), a package purchase only ever
+-- makes sense already-paid, so it's created entirely by
+-- /api/packages/create-order + /api/packages/verify using the service
+-- role, the same way payment fields on appointments are service-role-only.
+create table if not exists patient_package_purchases (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  package_id uuid not null references treatment_category_packages(id),
+  category_id uuid not null references treatment_categories(id),
+  session_count integer not null,
+  sessions_used integer not null default 0,
+  amount_paid_paise integer,
+  payment_status text not null default 'unpaid' check (payment_status in ('unpaid', 'paid', 'failed')),
+  razorpay_order_id text,
+  razorpay_payment_id text,
+  paid_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table patient_package_purchases enable row level security;
+
+drop policy if exists "package_purchases_select_own" on patient_package_purchases;
+create policy "package_purchases_select_own" on patient_package_purchases
+  for select using (auth.uid() = patient_id);
+
+-- Links a session that was covered by a package instead of paid for
+-- individually — set only by /api/appointments/book-with-package (service
+-- role), never by the client-side booking-wizard insert.
+alter table appointments add column if not exists package_purchase_id uuid references patient_package_purchases(id);
+
+-- Security fix: the original insert policy only checked patient_id
+-- ownership, not the values being inserted — an authenticated patient
+-- could craft a raw insert (bypassing the booking wizard entirely) with
+-- status: 'confirmed' and payment_status: 'paid' and get a free session,
+-- since nothing stopped them from setting those columns themselves at
+-- insert time. The booking wizard never sets them to anything but
+-- 'requested'/'unpaid'/no-package anyway, so this tightens the check to
+-- match actual usage without changing any real behavior. Defined down here
+-- (not next to the original policy near the top of the file) because it
+-- references package_purchase_id, which doesn't exist as a column until
+-- the alter table above runs.
+drop policy if exists "appointments_insert_own" on appointments;
+create policy "appointments_insert_own" on appointments
+  for insert with check (
+    auth.uid() = patient_id
+    and status = 'requested'
+    and payment_status = 'unpaid'
+    and package_purchase_id is null
+  );
