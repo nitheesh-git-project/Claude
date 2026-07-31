@@ -31,6 +31,7 @@ export type ReassignmentLogEntry = {
   id: string;
   appointment_id: string;
   changed_at: string;
+  changed_by: string | null;
   old_therapist_id: string | null;
   new_therapist_id: string | null;
   old_slot_time: string | null;
@@ -318,7 +319,7 @@ export default function SessionDetailDrawer({
                       {new Date(h.changed_at).toLocaleString("en-IN", {
                         timeZone: "Asia/Kolkata",
                       })}{" "}
-                      IST —{" "}
+                      IST{h.changed_by && ` by ${nameOrUnassigned(h.changed_by)}`} —{" "}
                     </span>
                     {h.old_therapist_id !== h.new_therapist_id && (
                       <span className="block">

@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
   const { data: appointment } = await admin
     .from("appointments")
-    .select("payment_status, slot_time, duration_minutes")
+    .select("payment_status, slot_time, duration_minutes, therapist_id")
     .eq("id", appointmentId)
     .single();
 
@@ -77,6 +77,15 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (appointment.therapist_id !== therapistId) {
+    await admin.from("appointment_reassignment_log").insert({
+      appointment_id: appointmentId,
+      changed_by: adminUser.id,
+      old_therapist_id: appointment.therapist_id,
+      new_therapist_id: therapistId,
+    });
   }
 
   return NextResponse.json({ success: true });
