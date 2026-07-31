@@ -4,12 +4,15 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isValidEmail } from "@/lib/validateEmail";
 import { sanitizePhoneInput } from "@/lib/phoneInput";
+import ConfirmPasswordField from "./ConfirmPasswordField";
 
 export default function TherapistAuthCard() {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
@@ -116,6 +119,8 @@ export default function TherapistAuthCard() {
             onClick={() => {
               setTab("login");
               setForgotMode(false);
+              setRegisterPassword("");
+              setRegisterConfirmPassword("");
             }}
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "login"
@@ -129,6 +134,8 @@ export default function TherapistAuthCard() {
             onClick={() => {
               setTab("register");
               setForgotMode(false);
+              setRegisterPassword("");
+              setRegisterConfirmPassword("");
             }}
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "register"
@@ -299,22 +306,16 @@ export default function TherapistAuthCard() {
                 required
                 minLength={6}
                 maxLength={72}
+                value={registerPassword}
+                onChange={(e) => setRegisterPassword(e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
-            <div>
-              <label className="block font-semibold mb-1">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                name="confirmPassword"
-                required
-                minLength={6}
-                maxLength={72}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
-            </div>
+            <ConfirmPasswordField
+              password={registerPassword}
+              value={registerConfirmPassword}
+              onChange={setRegisterConfirmPassword}
+            />
             <button
               type="submit"
               disabled={loading}
