@@ -48,8 +48,15 @@ export default function BookingWizard() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
+  // Shows as soon as either: the field has been tapped away from (blur), or
+  // enough has been typed into it to fully compare against the password —
+  // the latter means a full wrong retype surfaces the error immediately as
+  // you finish typing it, without waiting on a blur event that a tap
+  // straight onto the submit button can race with.
   const passwordsMismatched =
-    confirmPasswordTouched && confirmPassword.length > 0 && password !== confirmPassword;
+    confirmPassword.length > 0 &&
+    password !== confirmPassword &&
+    (confirmPasswordTouched || confirmPassword.length >= password.length);
   const [referralCode, setReferralCode] = useState("");
   const [referralCheck, setReferralCheck] = useState<ReferralCodeCheck>({
     status: "idle",
