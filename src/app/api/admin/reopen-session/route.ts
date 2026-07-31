@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // Reverts a mistakenly (or prematurely) completed session back to
 // "confirmed" — admin-only, deliberately not self-service for the
@@ -15,7 +16,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { appointmentId } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{ appointmentId?: string }>(
+    request
+  );
+  if (parseError) return parseError;
+  const { appointmentId } = body;
   if (!appointmentId) {
     return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
   }
