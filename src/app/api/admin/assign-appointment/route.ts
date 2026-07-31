@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
   const { data: therapist } = await admin
     .from("profiles")
-    .select("id")
+    .select("id, active")
     .eq("id", therapistId)
     .eq("role", "therapist")
     .eq("approved", true)
@@ -37,6 +37,16 @@ export async function POST(request: NextRequest) {
   if (!therapist) {
     return NextResponse.json(
       { error: "That therapist is not an approved therapist" },
+      { status: 400 }
+    );
+  }
+  // Always a fresh assignment (no existing state to preserve), so a
+  // suspended therapist is a hard block here — unlike update-appointment,
+  // which has to tolerate re-saving a session that's already assigned to
+  // one.
+  if (!therapist.active) {
+    return NextResponse.json(
+      { error: "That therapist is suspended and can't be assigned new sessions." },
       { status: 400 }
     );
   }

@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
   const { data: therapist } = await admin
     .from("profiles")
-    .select("id")
+    .select("id, active")
     .eq("id", therapistId)
     .eq("role", "therapist")
     .eq("approved", true)
@@ -84,6 +84,16 @@ export async function POST(request: NextRequest) {
   if (!therapist) {
     return NextResponse.json(
       { error: "That therapist is not an approved therapist" },
+      { status: 400 }
+    );
+  }
+  // Block reassigning TO a suspended therapist, but don't block re-saving
+  // an appointment that's already assigned to one — e.g. rescheduling just
+  // the time on a session whose therapist was suspended after the fact
+  // must still work.
+  if (!therapist.active && therapistId !== appointment.therapist_id) {
+    return NextResponse.json(
+      { error: "That therapist is suspended and can't be assigned to a different session." },
       { status: 400 }
     );
   }

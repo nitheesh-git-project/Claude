@@ -39,7 +39,7 @@ export default function EditBookingForm({
   currentTherapistId: string | null;
   currentSlotTime: string | null;
   currentCategoryId?: string | null;
-  therapists: { id: string; full_name: string }[];
+  therapists: { id: string; full_name: string; active?: boolean }[];
   categories?: { id: string; title: string; active?: boolean }[];
   onSaved?: () => void;
 }) {
@@ -115,6 +115,7 @@ export default function EditBookingForm({
           {therapists.map((t) => (
             <option key={t.id} value={t.id}>
               {t.full_name}
+              {t.active === false ? " (suspended)" : ""}
             </option>
           ))}
         </select>

@@ -73,7 +73,7 @@ export default function AdminSessionStoryTab({
   appointments: SessionDetailAppointment[];
   people: Person[];
   categories: Category[];
-  therapists: { id: string; full_name: string }[];
+  therapists: { id: string; full_name: string; active?: boolean }[];
   reassignmentLogs: ReassignmentLogEntry[];
 }) {
   const peopleMap = useMemo(
