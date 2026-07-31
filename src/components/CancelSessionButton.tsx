@@ -41,6 +41,12 @@ export default function CancelSessionButton({
     setLoading(false);
     if (!res.ok) {
       setError(data.error ?? "Could not cancel. Please try again.");
+      if (res.status === 409) {
+        // Someone else (another tab, or an admin) already cancelled this
+        // session — refresh so the page reflects that instead of still
+        // showing it as active.
+        router.refresh();
+      }
       return;
     }
     if (data.refundFailed) {

@@ -49,11 +49,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // status: 'completed' matters, not just payment_status: 'paid' — a
+  // still-upcoming session that happens to already be paid for hasn't been
+  // delivered yet, and settling its payout early would then block the
+  // patient from cancelling/refunding it (cancelAppointmentAndRefund
+  // refuses once a payout is settled, to avoid an inconsistent ledger).
   const { data: unsettled } = await admin
     .from("appointments")
     .select("id, amount_paid_paise")
     .eq("therapist_id", therapistId)
     .eq("payment_status", "paid")
+    .eq("status", "completed")
     .is("therapist_payout_paid_at", null);
 
   if (!unsettled || unsettled.length === 0) {

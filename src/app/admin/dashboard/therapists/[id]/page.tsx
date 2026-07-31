@@ -98,7 +98,13 @@ export default async function AdminTherapistDetailPage({
       return bt - at;
     });
   const sharePercent = therapist.revenue_share_percent;
-  const unsettledAppointments = paidAppointments.filter((a) => !a.therapist_payout_paid_at);
+  // Only a completed session is actually owed to the therapist — matches
+  // settle-therapist-payout's own filter, so this displayed balance is
+  // exactly what the payout button will settle, not a larger number that
+  // includes still-upcoming (paid but undelivered) sessions.
+  const unsettledAppointments = paidAppointments.filter(
+    (a) => !a.therapist_payout_paid_at && a.status === "completed"
+  );
   const owedPaise =
     sharePercent !== null
       ? unsettledAppointments.reduce(

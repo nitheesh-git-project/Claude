@@ -76,7 +76,7 @@ export default async function AdminDashboardPage() {
   const { data: appointments } = await admin
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, therapist_rating, therapist_feedback, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, therapist_rating, therapist_feedback, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id"
     )
     .order("created_at", { ascending: false });
 

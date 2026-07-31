@@ -28,6 +28,7 @@ export type SessionDetailAppointment = {
   cancellation_reason: string | null;
   refund_status: string | null;
   refund_amount_paise: number | null;
+  package_purchase_id: string | null;
 };
 
 export type ReassignmentLogEntry = {
@@ -152,6 +153,12 @@ export default function SessionDetailDrawer({
     setCancelling(false);
     if (!res.ok) {
       setActionError(data.error ?? "Could not cancel this session.");
+      if (res.status === 409) {
+        // Someone else (the patient, or another admin) already cancelled
+        // this session — refresh so the underlying list reflects that,
+        // even though this open drawer still shows the stale snapshot.
+        router.refresh();
+      }
       return;
     }
     router.refresh();
@@ -283,6 +290,12 @@ export default function SessionDetailDrawer({
               ₹{(feePaise / 100).toLocaleString("en-IN")}
               {a.payment_status !== "paid" && (
                 <span className="text-slate-400 font-normal"> (estimated)</span>
+              )}
+              {a.package_purchase_id && (
+                <span className="text-teal-700 font-normal">
+                  {" "}
+                  • paid via package (no separate Razorpay payment for this session)
+                </span>
               )}
               {a.paid_at && (
                 <span className="text-slate-400 font-normal">
