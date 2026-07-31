@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
 import { formatSlotRange } from "@/lib/formatSlotRange";
-import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 
 export type SessionDetailAppointment = {
   id: string;
@@ -129,8 +129,14 @@ export default function SessionDetailDrawer({
   }
 
   async function handleCancel() {
+    const hoursUntilSlot = a.slot_time
+      ? (new Date(a.slot_time).getTime() - Date.now()) / (1000 * 60 * 60)
+      : null;
+    const isLate = hoursUntilSlot !== null && hoursUntilSlot < CANCELLATION_FULL_REFUND_HOURS;
     const reason = window.prompt(
-      a.payment_status === "paid"
+      a.payment_status === "paid" && isLate
+        ? `Cancel this session? It's within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot, so the patient won't be refunded. Add a reason (optional):`
+        : a.payment_status === "paid"
         ? "Cancel this session and refund the payment? Add a reason (optional):"
         : "Cancel this session? Add a reason (optional):"
     );
@@ -291,6 +297,8 @@ export default function SessionDetailDrawer({
               <p className="text-slate-700">
                 {a.refund_status === "processed" && a.refund_amount_paise
                   ? `₹${(a.refund_amount_paise / 100).toLocaleString("en-IN")} refunded`
+                  : a.refund_status === "not_eligible"
+                  ? `No refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot)`
                   : "No payment to refund"}
               </p>
               {a.cancellation_reason && (

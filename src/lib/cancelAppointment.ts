@@ -1,5 +1,6 @@
 import Razorpay from "razorpay";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 
 type CancelResult =
   | { error: string; status: number }
@@ -23,7 +24,7 @@ export async function cancelAppointmentAndRefund(
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "id, status, payment_status, amount_paid_paise, razorpay_payment_id, therapist_payout_paid_at"
+      "id, status, slot_time, payment_status, amount_paid_paise, razorpay_payment_id, therapist_payout_paid_at"
     )
     .eq("id", appointmentId)
     .single();
@@ -46,9 +47,20 @@ export async function cancelAppointmentAndRefund(
   }
 
   const needsRefund = appointment.payment_status === "paid" && !!appointment.razorpay_payment_id;
+
+  // Missing slot_time shouldn't happen for a real, paid booking, but if it
+  // ever does there's no way to judge lateness — don't penalize for a data
+  // gap that isn't the patient's fault.
+  const hoursUntilSlot = appointment.slot_time
+    ? (new Date(appointment.slot_time).getTime() - Date.now()) / (1000 * 60 * 60)
+    : null;
+  const isLateCancellation =
+    needsRefund && hoursUntilSlot !== null && hoursUntilSlot < CANCELLATION_FULL_REFUND_HOURS;
+  const willRefund = needsRefund && !isLateCancellation;
+
   let refundId: string | null = null;
 
-  if (needsRefund) {
+  if (willRefund) {
     try {
       const razorpay = new Razorpay({
         key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
@@ -74,12 +86,14 @@ export async function cancelAppointmentAndRefund(
       cancelled_at: new Date().toISOString(),
       cancelled_by: cancelledBy,
       cancellation_reason: reason?.trim() ? reason.trim() : null,
-      ...(needsRefund
+      ...(willRefund
         ? {
             refund_id: refundId,
             refund_status: "processed",
             refund_amount_paise: appointment.amount_paid_paise,
           }
+        : isLateCancellation
+        ? { refund_status: "not_eligible", refund_amount_paise: 0 }
         : {}),
     })
     .eq("id", appointmentId);
@@ -93,12 +107,12 @@ export async function cancelAppointmentAndRefund(
       error
     );
     return {
-      error: needsRefund
+      error: willRefund
         ? "Refund was processed but the booking could not be updated. Please contact us."
         : error.message,
       status: 500,
     };
   }
 
-  return { success: true, refunded: needsRefund };
+  return { success: true, refunded: willRefund };
 }
