@@ -17,15 +17,18 @@ export default function AdminLoginCard() {
       email: formData.get("email") as string,
       password: formData.get("password") as string,
     });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       setError(error.message);
       return;
     }
-    // A hard navigation, not router.push — a client-side soft nav can race
-    // the just-set auth cookies, so the proxy's next check reads a stale
-    // session and bounces back to /admin/login without ever showing an
-    // error, leaving the button looking like it silently failed.
+    // Left in the loading state deliberately -- a hard navigation is about
+    // to replace this page, so resetting it first just flashes the button
+    // back to "Sign In" for however long that navigation takes. Hard nav,
+    // not router.push — a client-side soft nav can race the just-set auth
+    // cookies, so the proxy's next check reads a stale session and bounces
+    // back to /admin/login without ever showing an error, leaving the
+    // button looking like it silently failed.
     window.location.href = "/admin/dashboard";
   }
 

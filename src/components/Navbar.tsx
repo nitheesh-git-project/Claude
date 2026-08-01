@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
-import SignOutButton from "@/components/auth/SignOutButton";
 import { isDashboardShellRoute } from "@/lib/dashboardShellRoutes";
 
 const links = [
@@ -17,73 +15,40 @@ const links = [
   { href: "/hospitals", label: "For Hospitals (B2B)" },
 ];
 
-const DASHBOARD_HREF: Record<string, string> = {
-  patient: "/patient/dashboard",
-  therapist: "/therapist/dashboard",
-  admin: "/admin/dashboard",
-  hospital: "/hospital/dashboard",
-};
-
-type NavbarAuthUser = {
-  role: string;
-  fullName: string;
-  avatarUrl: string | null;
-} | null;
-
 export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [authUser, setAuthUser] = useState<NavbarAuthUser>(null);
+  // Just a boolean -- every role's dashboard is now its own app shell with
+  // its own profile card and Log Out control, so this nav no longer needs
+  // to know WHO is logged in (name/avatar/role), only whether to hide the
+  // Sign In / Get Started buttons.
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     // Read auth state on the client rather than in a Server Component, so
     // the marketing pages this nav sits on can stay statically generated /
-    // ISR-cached instead of every route being forced dynamic just to draw
-    // the logged-in state in the corner of the nav.
+    // ISR-cached instead of every route being forced dynamic just to know
+    // whether to hide the Sign In / Get Started buttons.
     const supabase = createClient();
     let active = true;
 
-    async function loadAuthUser() {
+    async function loadAuthState() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session?.user) {
-        if (active) setAuthUser(null);
-        return;
-      }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, full_name, avatar_url")
-        .eq("id", session.user.id)
-        .single();
-      if (active) {
-        setAuthUser(
-          profile
-            ? { role: profile.role, fullName: profile.full_name ?? "", avatarUrl: profile.avatar_url }
-            : null
-        );
-      }
+      if (active) setIsLoggedIn(!!session?.user);
     }
 
-    loadAuthUser();
+    loadAuthState();
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => loadAuthUser());
+    } = supabase.auth.onAuthStateChange(() => loadAuthState());
 
     return () => {
       active = false;
       subscription.unsubscribe();
     };
   }, []);
-
-  const dashboardHref = authUser ? DASHBOARD_HREF[authUser.role] : undefined;
-  // Admins see a role-based greeting rather than their profile's full_name
-  // (often just an internal/test name, not something meant to be shown as
-  // a personal greeting) — every other role greets by their first name.
-  const firstName =
-    authUser?.role === "admin"
-      ? "admin"
-      : authUser?.fullName?.trim().split(" ")[0] || "there";
 
   // Each of the 4 role dashboards is its own full-height dark app shell
   // (sidebar + content, no page scroll past the viewport) rather than a page
@@ -128,45 +93,22 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
             ))}
           </div>
 
-          <div className="hidden md:flex items-center space-x-3">
-            {authUser && dashboardHref ? (
-              <>
-                <div className="flex items-center gap-2.5 pl-1">
-                  <AvatarThumbnail
-                    url={authUser.avatarUrl}
-                    name={authUser.fullName || "U"}
-                    size={34}
-                  />
-                  <span className="text-sm font-semibold text-slate-700">
-                    Welcome, {firstName}
-                  </span>
-                </div>
-                <Link
-                  href={dashboardHref}
-                  className="text-sm font-semibold text-teal-700 hover:text-teal-800 hover:bg-teal-50 px-3 py-2 rounded-lg transition"
-                >
-                  Dashboard
-                </Link>
-                <span className="w-px h-5 bg-slate-200"></span>
-                <SignOutButton />
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/patient/login"
-                  className="text-sm font-semibold text-slate-700 hover:text-teal-700 px-3 py-2 transition"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  href="/get-started"
-                  className="bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5"
-                >
-                  Get Started <i className="fa-solid fa-arrow-right text-xs"></i>
-                </Link>
-              </>
-            )}
-          </div>
+          {!isLoggedIn && (
+            <div className="hidden md:flex items-center space-x-3">
+              <Link
+                href="/patient/login"
+                className="text-sm font-semibold text-slate-700 hover:text-teal-700 px-3 py-2 transition"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/get-started"
+                className="bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5"
+              >
+                Get Started <i className="fa-solid fa-arrow-right text-xs"></i>
+              </Link>
+            </div>
+          )}
 
           <button
             onClick={() => setOpen(!open)}
@@ -189,28 +131,7 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
                 {link.label}
               </Link>
             ))}
-            {authUser && dashboardHref ? (
-              <div className="mt-2 space-y-2">
-                <div className="flex items-center gap-2.5 py-2 font-semibold text-slate-800">
-                  <AvatarThumbnail
-                    url={authUser.avatarUrl}
-                    name={authUser.fullName || "U"}
-                    size={32}
-                  />
-                  Welcome, {firstName}
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <Link
-                    href={dashboardHref}
-                    onClick={() => setOpen(false)}
-                    className="text-teal-700 font-semibold py-2"
-                  >
-                    Dashboard
-                  </Link>
-                  <SignOutButton />
-                </div>
-              </div>
-            ) : (
+            {!isLoggedIn && (
               <>
                 <Link
                   href="/patient/login"

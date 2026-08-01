@@ -4,7 +4,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 
-export type ShellNavItem = { id: string; label: string; icon: string };
+// `href` marks a real page navigation (e.g. "Edit Profile") rather than a
+// same-page anchor -- it renders as a plain anchor instead of a scroll
+// button, is never scroll-spied (there's no section on this page to
+// observe), and isn't included in the IntersectionObserver targets below.
+export type ShellNavItem = { id: string; label: string; icon: string; href?: string };
 
 // Shared with the Admin Dashboard's own AdminTabs shell only in spirit, not
 // in code -- AdminTabs switches between real client-side tabs (11 separate
@@ -40,13 +44,18 @@ export default function DashboardShell({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(navItems[0]?.id ?? null);
+  const [activeId, setActiveId] = useState<string | null>(
+    navItems.find((item) => !item.href)?.id ?? null
+  );
 
   useEffect(() => {
-    if (navItems.length === 0) return;
     // Highlights whichever section is currently nearest the top of the
     // viewport -- real scroll-spy over the page's actual sections, not a
-    // fake "current tab" since there's no tab state here to read from.
+    // fake "current tab" since there's no tab state here to read from. Link
+    // items (Edit Profile) are excluded -- there's no on-page section for
+    // them to observe.
+    const anchorItems = navItems.filter((item) => !item.href);
+    if (anchorItems.length === 0) return;
     const observer = new IntersectionObserver(
       (entries) => {
         const visible = entries.filter((e) => e.isIntersecting);
@@ -58,7 +67,7 @@ export default function DashboardShell({
       },
       { rootMargin: "-112px 0px -70% 0px", threshold: 0 }
     );
-    const els = navItems
+    const els = anchorItems
       .map((item) => document.getElementById(item.id))
       .filter((el): el is HTMLElement => el !== null);
     els.forEach((el) => observer.observe(el));
@@ -87,6 +96,40 @@ export default function DashboardShell({
   // component type and there's nothing to remount every render.
   function renderNavItem(item: ShellNavItem, mini: boolean, onNavigate?: () => void) {
     const active = activeId === item.id;
+    const className = `group relative w-full flex items-center gap-3 rounded-xl transition ${
+      mini ? "justify-center px-0 py-3" : "px-3.5 py-2.5"
+    } ${active ? "bg-teal-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`;
+    const content = (
+      <>
+        <i className={`fa-solid ${item.icon} ${mini ? "text-base" : "w-4 text-center text-sm"}`}></i>
+        {!mini && <span className="flex-1 text-left text-sm font-semibold">{item.label}</span>}
+        {mini && (
+          <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 scale-95 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition group-hover:scale-100 group-hover:opacity-100">
+            {item.label}
+          </span>
+        )}
+      </>
+    );
+
+    if (item.href) {
+      return (
+        // A plain anchor (full page load), not next/link -- this crosses
+        // out of the dashboard shell into a differently-chromed page (the
+        // public Navbar/Footer come back), and a hard nav sidesteps any
+        // client-side-transition edge case the same way this codebase's own
+        // login handlers already do for cookie-sensitive navigations.
+        <a
+          key={item.id}
+          href={item.href}
+          onClick={() => onNavigate?.()}
+          title={mini ? item.label : undefined}
+          className={className}
+        >
+          {content}
+        </a>
+      );
+    }
+
     return (
       <button
         key={item.id}
@@ -96,17 +139,9 @@ export default function DashboardShell({
           onNavigate?.();
         }}
         title={mini ? item.label : undefined}
-        className={`group relative w-full flex items-center gap-3 rounded-xl transition ${
-          mini ? "justify-center px-0 py-3" : "px-3.5 py-2.5"
-        } ${active ? "bg-teal-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+        className={className}
       >
-        <i className={`fa-solid ${item.icon} ${mini ? "text-base" : "w-4 text-center text-sm"}`}></i>
-        {!mini && <span className="flex-1 text-left text-sm font-semibold">{item.label}</span>}
-        {mini && (
-          <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 scale-95 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition group-hover:scale-100 group-hover:opacity-100">
-            {item.label}
-          </span>
-        )}
+        {content}
       </button>
     );
   }
