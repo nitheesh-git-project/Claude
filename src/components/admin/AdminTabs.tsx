@@ -8,6 +8,7 @@ export default function AdminTabs({
   b2bBadgeCount,
   patients,
   therapists,
+  payouts,
   calendar,
   sessionStory,
   metrics,
@@ -18,6 +19,7 @@ export default function AdminTabs({
   b2bBadgeCount: number;
   patients: ReactNode;
   therapists: ReactNode;
+  payouts: ReactNode;
   calendar: ReactNode;
   sessionStory: ReactNode;
   metrics: ReactNode;
@@ -28,6 +30,7 @@ export default function AdminTabs({
     | "b2b"
     | "patients"
     | "therapists"
+    | "payouts"
     | "calendar"
     | "sessionStory"
     | "metrics"
@@ -39,6 +42,7 @@ export default function AdminTabs({
     { key: "b2b", label: "B2B Partners", badge: b2bBadgeCount },
     { key: "patients", label: "Patients" },
     { key: "therapists", label: "Therapists" },
+    { key: "payouts", label: "Payouts" },
     { key: "calendar", label: "Calendar" },
     { key: "sessionStory", label: "Session Story" },
     { key: "metrics", label: "Metrics" },
@@ -72,6 +76,7 @@ export default function AdminTabs({
       <div className={tab === "b2b" ? "" : "hidden"}>{b2bPartners}</div>
       <div className={tab === "patients" ? "" : "hidden"}>{patients}</div>
       <div className={tab === "therapists" ? "" : "hidden"}>{therapists}</div>
+      <div className={tab === "payouts" ? "" : "hidden"}>{payouts}</div>
       <div className={tab === "calendar" ? "" : "hidden"}>{calendar}</div>
       <div className={tab === "sessionStory" ? "" : "hidden"}>{sessionStory}</div>
       <div className={tab === "metrics" ? "" : "hidden"}>{metrics}</div>
