@@ -112,6 +112,13 @@ export default async function AdminDashboardPage() {
   const { data: availabilityOverrideRows } = await admin
     .from("therapist_availability_override")
     .select("therapist_id, date, hour, available, note");
+  // Deliberately its own query rather than folded into the allProfiles
+  // select below -- on_leave is new and migration-dependent same as the two
+  // tables above, and allProfiles feeds nearly every other tab on this page.
+  // An unknown-column error on one shared query would take all of them down;
+  // keeping it isolated means only the roster tab's on_leave badges degrade.
+  const { data: onLeaveRows } = await admin.from("profiles").select("id, on_leave");
+  const onLeaveMap = new Map((onLeaveRows ?? []).map((r) => [r.id, r.on_leave]));
   // This single query feeds Overview, Calendar, Session Story, and Metrics
   // all at once — if it fails (e.g. a column referenced here doesn't exist
   // yet because a schema.sql update wasn't re-run), every one of those tabs
@@ -814,6 +821,7 @@ export default async function AdminDashboardPage() {
         id: t.id,
         full_name: t.full_name,
         timezone: t.timezone,
+        on_leave: onLeaveMap.get(t.id) ?? false,
       }))}
       templateRows={availabilityTemplateRows ?? []}
       overrideRows={availabilityOverrideRows ?? []}

@@ -928,8 +928,21 @@ create table if not exists therapist_availability_override (
 );
 
 alter table therapist_availability_override enable row level security;
--- No select/insert/update/delete policy at all -- this table is only ever
--- read or written via the service-role admin client
--- (/api/admin/set-availability-override and the admin dashboard's own
--- server-side fetch), so it's locked down to every direct client request
--- by default rather than opened up for a read path nothing currently uses.
+
+-- Therapists can see date-specific overrides admin has set for them (e.g.
+-- "admin made you available this Tuesday even though you're not normally
+-- on the roster then") -- read-only, writes still only ever go through
+-- /api/admin/set-availability-override on the service-role client.
+drop policy if exists "availability_override_select_own" on therapist_availability_override;
+create policy "availability_override_select_own" on therapist_availability_override
+  for select using (auth.uid() = therapist_id);
+
+-- A therapist-controlled, date/hour-independent "I'm not available right
+-- now" flag -- distinct from the weekly template (which it does NOT clear
+-- or modify) and distinct from profiles.active (which gates login/account
+-- suspension entirely). Settable by the therapist themselves or by admin
+-- on their behalf; when true, every roster view should treat the
+-- therapist as unavailable regardless of what the template/overrides say,
+-- and flipping it back off simply resumes reading the template as normal
+-- -- there's nothing to "restore" since nothing was ever deleted.
+alter table profiles add column if not exists on_leave boolean not null default false;

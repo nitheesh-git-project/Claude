@@ -5,13 +5,18 @@ import { useRouter } from "next/navigation";
 import {
   AVAILABILITY_HOURS,
   computeDayAvailability,
-  formatHourLabel,
+  formatHourRange,
   type TemplateRow,
   type OverrideRow,
   type SlotState,
 } from "@/lib/therapistAvailability";
 
-type Therapist = { id: string; full_name: string | null; timezone: string | null };
+type Therapist = {
+  id: string;
+  full_name: string | null;
+  timezone: string | null;
+  on_leave: boolean;
+};
 
 function todayKey() {
   const d = new Date();
@@ -48,6 +53,7 @@ export default function AdminRosterTab({
   const [viewMonth, setViewMonth] = useState(Number(monthStr) - 1);
   const [selectedDate, setSelectedDate] = useState(initial);
   const [pending, setPending] = useState<string | null>(null);
+  const [pendingLeaveId, setPendingLeaveId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
@@ -106,6 +112,30 @@ export default function AdminRosterTab({
     const [y, m] = value.split("-");
     setViewYear(Number(y));
     setViewMonth(Number(m) - 1);
+  }
+
+  async function handleToggleOnLeave(therapistId: string, currentOnLeave: boolean) {
+    const next = !currentOnLeave;
+    if (next) {
+      const confirmed = window.confirm(
+        "Mark this therapist as not available? They'll show as unavailable for every slot until this is turned back off. Their saved weekly schedule stays intact underneath."
+      );
+      if (!confirmed) return;
+    }
+    setError(null);
+    setPendingLeaveId(therapistId);
+    const res = await fetch("/api/admin/set-therapist-on-leave", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ therapistId, onLeave: next }),
+    });
+    setPendingLeaveId(null);
+    if (res.ok) {
+      router.refresh();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Could not update that therapist's status. Please try again.");
+    }
   }
 
   async function handleCellClick(therapistId: string, hour: number, state: SlotState) {
@@ -232,31 +262,53 @@ export default function AdminRosterTab({
                 );
                 return (
                   <tr key={t.id}>
-                    <td className="pr-3 py-1.5 font-bold text-slate-900 whitespace-nowrap sticky left-0 bg-white">
+                    <td className="pr-3 py-1.5 align-top font-bold text-slate-900 whitespace-nowrap sticky left-0 bg-white">
                       {t.full_name ?? "Unknown"}
                       {t.timezone && (
                         <span className="block font-normal text-[10px] text-slate-400">
                           {t.timezone}
                         </span>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleOnLeave(t.id, t.on_leave)}
+                        disabled={pendingLeaveId === t.id}
+                        className={`mt-1 block font-semibold px-2 py-0.5 rounded-full text-[10px] disabled:opacity-50 ${
+                          t.on_leave
+                            ? "text-amber-800 bg-amber-100 hover:bg-amber-200"
+                            : "text-slate-400 bg-slate-100 hover:bg-slate-200"
+                        }`}
+                      >
+                        {t.on_leave ? "On Leave — click to restore" : "Mark Not Available"}
+                      </button>
                     </td>
-                    {AVAILABILITY_HOURS.map((hour) => {
-                      const state = dayState[hour];
-                      const key = `${t.id}-${hour}`;
-                      return (
-                        <td key={hour} className="p-0.5">
-                          <button
-                            type="button"
-                            disabled={pending === key}
-                            onClick={() => handleCellClick(t.id, hour, state)}
-                            title={STATE_TITLES[state]}
-                            className={`w-14 py-2 rounded-md text-[10px] font-semibold border transition whitespace-nowrap disabled:opacity-50 ${STATE_STYLES[state]}`}
-                          >
-                            {formatHourLabel(hour)}
-                          </button>
-                        </td>
-                      );
-                    })}
+                    {t.on_leave ? (
+                      <td
+                        colSpan={AVAILABILITY_HOURS.length}
+                        className="p-2 text-[10px] font-semibold text-amber-700 bg-amber-50 rounded-lg"
+                      >
+                        Marked not available by {t.full_name ?? "this therapist"} or admin — every
+                        slot is unavailable until this is turned off.
+                      </td>
+                    ) : (
+                      AVAILABILITY_HOURS.map((hour) => {
+                        const state = dayState[hour];
+                        const key = `${t.id}-${hour}`;
+                        return (
+                          <td key={hour} className="p-0.5">
+                            <button
+                              type="button"
+                              disabled={pending === key}
+                              onClick={() => handleCellClick(t.id, hour, state)}
+                              title={STATE_TITLES[state]}
+                              className={`w-24 py-2 rounded-md text-[10px] font-semibold border transition whitespace-nowrap disabled:opacity-50 ${STATE_STYLES[state]}`}
+                            >
+                              {formatHourRange(hour)}
+                            </button>
+                          </td>
+                        );
+                      })
+                    )}
                   </tr>
                 );
               })}

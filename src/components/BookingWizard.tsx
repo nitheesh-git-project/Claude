@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
-import { AVAILABILITY_HOURS, formatHourLabel } from "@/lib/therapistAvailability";
+import { AVAILABILITY_HOURS, formatHourRange } from "@/lib/therapistAvailability";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
 import ConfirmPasswordField from "@/components/auth/ConfirmPasswordField";
@@ -363,6 +363,7 @@ export default function BookingWizard() {
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
               <select
+                aria-label="Preferred time"
                 value={bookHour}
                 onChange={(e) => setBookHour(e.target.value ? Number(e.target.value) : "")}
                 className="w-full p-3 rounded-xl border border-slate-300 bg-white"
@@ -372,7 +373,7 @@ export default function BookingWizard() {
                 </option>
                 {AVAILABILITY_HOURS.map((hour) => (
                   <option key={hour} value={hour}>
-                    {formatHourLabel(hour)}
+                    {formatHourRange(hour)}
                   </option>
                 ))}
               </select>
