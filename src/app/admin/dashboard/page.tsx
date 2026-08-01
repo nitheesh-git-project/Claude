@@ -8,6 +8,7 @@ import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
 import AssignReferralForm from "@/components/admin/AssignReferralForm";
 import AdminTabs from "@/components/admin/AdminTabs";
 import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
+import AdminPaymentHistoryTab from "@/components/admin/AdminPaymentHistoryTab";
 import LeadStatusButtons from "@/components/admin/LeadStatusButtons";
 import DeclineReferralButton from "@/components/admin/DeclineReferralButton";
 import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswordButton";
@@ -87,9 +88,18 @@ export default async function AdminDashboardPage() {
   const { data: appointments, error: appointmentsError } = await admin
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note, no_show"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, razorpay_payment_id, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note, no_show"
     )
     .order("created_at", { ascending: false });
+
+  // Feeds the Payment History tab's Patient section -- a package purchase
+  // is its own real payment event (own razorpay_payment_id), separate from
+  // any individual session, so it needs its own fetch rather than being
+  // inferred from appointments.
+  const { data: packagePurchases } = await admin
+    .from("patient_package_purchases")
+    .select("id, patient_id, category_id, session_count, payment_status, amount_paid_paise, paid_at, razorpay_payment_id")
+    .order("paid_at", { ascending: false });
   // This single query feeds Overview, Calendar, Session Story, and Metrics
   // all at once — if it fails (e.g. a column referenced here doesn't exist
   // yet because a schema.sql update wasn't re-run), every one of those tabs
@@ -776,6 +786,16 @@ export default async function AdminDashboardPage() {
     />
   );
 
+  const paymentHistoryTab = (
+    <AdminPaymentHistoryTab
+      patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+      therapists={allTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
+      appointments={appointments ?? []}
+      packagePurchases={packagePurchases ?? []}
+      categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+    />
+  );
+
   const b2bBadgeCount =
     (b2bLeads?.filter((l) => l.status === "new").length ?? 0) +
     (referrals?.filter((r) => r.status === "pending_review").length ?? 0);
@@ -900,6 +920,7 @@ export default async function AdminDashboardPage() {
         patients={patientsTab}
         therapists={therapistsTab}
         payouts={payoutsTab}
+        paymentHistory={paymentHistoryTab}
         calendar={calendarTab}
         sessionStory={sessionStoryTab}
         metrics={metricsTab}
