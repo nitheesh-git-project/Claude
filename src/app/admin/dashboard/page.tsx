@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import SignOutButton from "@/components/auth/SignOutButton";
 import ApproveTherapistButton from "@/components/admin/ApproveTherapistButton";
 import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
 import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
@@ -185,6 +184,7 @@ export default async function AdminDashboardPage() {
       "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id, avatar_url, date_of_birth, gender, credentials, specialization, years_experience, active, phone, created_at, approved, timezone"
     );
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
+  const adminProfile = profileMap.get(user.id);
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
   const { data: hospitalNotes } = await admin
@@ -976,14 +976,11 @@ export default async function AdminDashboardPage() {
 
   return (
     <section className="py-8 max-w-6xl mx-auto px-4">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Manage approvals, bookings, and partner referrals
-          </p>
-        </div>
-        <SignOutButton />
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
+        <p className="text-xs text-slate-500 mt-1">
+          Manage approvals, bookings, and partner referrals
+        </p>
       </div>
 
       <AdminTabs
@@ -999,6 +996,9 @@ export default async function AdminDashboardPage() {
         payouts={payoutsTab}
         paymentHistory={paymentHistoryTab}
         siteContent={siteContent}
+        adminName={adminProfile?.full_name ?? "Admin"}
+        adminEmail={adminProfile?.email ?? user.email ?? ""}
+        adminAvatarUrl={adminProfile?.avatar_url ?? null}
       />
     </section>
   );
