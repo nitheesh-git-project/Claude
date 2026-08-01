@@ -35,6 +35,10 @@ export type PaymentAppointment = {
   timezone: string | null;
   refund_status: string | null;
   therapist_payout_batch_id: string | null;
+  // New/migration-dependent (see supabase/schema.sql's "Unique display IDs"
+  // section) -- optional so this type keeps compiling for any caller that
+  // hasn't started fetching it yet.
+  session_code?: string | null;
 };
 
 export type PackagePurchase = {
@@ -56,6 +60,9 @@ export type PatientTransaction = {
   amountPaise: number;
   purpose: string;
   status: "Successful";
+  // null for package-purchase transactions -- a package purchase isn't
+  // itself a single session, so there's no one session_code that fits.
+  sessionCode: string | null;
 };
 
 export type PatientPaymentSummary = {
@@ -85,6 +92,7 @@ export function buildPatientTransactions(
       amountPaise: a.amount_paid_paise ?? 0,
       purpose: a.concern ?? "General Consultation",
       status: "Successful" as const,
+      sessionCode: a.session_code ?? null,
     }));
 
   const packageTx: PatientTransaction[] = packagePurchases
@@ -101,6 +109,7 @@ export function buildPatientTransactions(
           : ""
       }`,
       status: "Successful" as const,
+      sessionCode: null,
     }));
 
   return [...sessionTx, ...packageTx].sort(
@@ -130,6 +139,7 @@ export type TherapistPayoutTransaction = {
   note: string | null;
   purpose: string;
   status: "Paid";
+  sessionCode: string | null;
 };
 
 export type TherapistPayoutHistorySummary = {
@@ -158,6 +168,7 @@ export function buildTherapistPayoutTransactions(
       note: a.therapist_payout_note,
       purpose: `${a.concern ?? "Session"} — ${patientNameById.get(a.patient_id) ?? "Unknown patient"}`,
       status: "Paid" as const,
+      sessionCode: a.session_code ?? null,
     }))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }

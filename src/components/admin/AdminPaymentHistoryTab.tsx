@@ -23,8 +23,8 @@ import {
 } from "@/lib/receipts";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 
-type Patient = { id: string; full_name: string | null };
-type Therapist = { id: string; full_name: string | null };
+type Patient = { id: string; full_name: string | null; code?: string | null };
+type Therapist = { id: string; full_name: string | null; code?: string | null };
 type Category = { id: string; title: string };
 
 function formatInr(paise: number) {
@@ -73,6 +73,10 @@ type AdminReceiptRow = {
   typeLabel: string;
   amountPaise: number | null;
   detail: PatientReceipt | PayoutReceipt;
+  // null for payout receipts -- a single settlement batch can cover many
+  // sessions, so there's no one session_code that fits (see each session's
+  // own code inside the payout detail modal instead).
+  sessionCode: string | null;
 };
 
 function PatientTransactionTable({ transactions }: { transactions: PatientTransaction[] }) {
@@ -85,6 +89,7 @@ function PatientTransactionTable({ transactions }: { transactions: PatientTransa
         <thead>
           <tr className="text-left text-slate-400 border-b border-slate-200">
             <th className="pb-2 pr-3 font-semibold">Date</th>
+            <th className="pb-2 pr-3 font-semibold">Session ID</th>
             <th className="pb-2 pr-3 font-semibold">Transaction ID</th>
             <th className="pb-2 pr-3 font-semibold">Mode of Payment</th>
             <th className="pb-2 pr-3 font-semibold text-right">Amount</th>
@@ -96,6 +101,7 @@ function PatientTransactionTable({ transactions }: { transactions: PatientTransa
           {transactions.map((t) => (
             <tr key={t.id} className="border-b border-slate-100">
               <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">{formatDateTime(t.date)}</td>
+              <td className="py-2.5 pr-3 text-slate-400 font-mono">{t.sessionCode ?? "—"}</td>
               <td className="py-2.5 pr-3 text-slate-500 font-mono">{t.transactionId ?? "—"}</td>
               <td className="py-2.5 pr-3 text-slate-700">{t.modeOfPayment}</td>
               <td className="py-2.5 pr-3 text-right font-semibold text-slate-900">{formatInr(t.amountPaise)}</td>
@@ -123,6 +129,7 @@ function TherapistTransactionTable({ transactions }: { transactions: TherapistPa
         <thead>
           <tr className="text-left text-slate-400 border-b border-slate-200">
             <th className="pb-2 pr-3 font-semibold">Date</th>
+            <th className="pb-2 pr-3 font-semibold">Session ID</th>
             <th className="pb-2 pr-3 font-semibold">Method</th>
             <th className="pb-2 pr-3 font-semibold text-right">Amount</th>
             <th className="pb-2 pr-3 font-semibold">Session / Purpose</th>
@@ -134,6 +141,7 @@ function TherapistTransactionTable({ transactions }: { transactions: TherapistPa
           {transactions.map((t) => (
             <tr key={t.id} className="border-b border-slate-100">
               <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">{formatDateTime(t.date)}</td>
+              <td className="py-2.5 pr-3 text-slate-400 font-mono">{t.sessionCode ?? "—"}</td>
               <td className="py-2.5 pr-3 text-slate-700">{t.method}</td>
               <td className="py-2.5 pr-3 text-right font-semibold text-slate-900">{formatInr(t.amountPaise)}</td>
               <td className="py-2.5 pr-3 text-slate-700">{t.purpose}</td>
@@ -174,11 +182,16 @@ export default function AdminPaymentHistoryTab({
   const [receiptTypeFilter, setReceiptTypeFilter] = useState<string>("all");
   const [receiptFromDate, setReceiptFromDate] = useState<string>("");
   const [receiptToDate, setReceiptToDate] = useState<string>("");
+  const [receiptSessionCodeFilter, setReceiptSessionCodeFilter] = useState<string>("");
   const [openReceipt, setOpenReceipt] = useState<AdminReceiptRow | null>(null);
 
   const categoryTitleById = useMemo(
     () => new Map(categories.map((c) => [c.id, c.title])),
     [categories]
+  );
+  const sessionCodeByAppointmentId = useMemo(
+    () => new Map(appointments.map((a) => [a.id, a.session_code ?? null])),
+    [appointments]
   );
   const patientNameById = useMemo(
     () => new Map(patients.map((p) => [p.id, p.full_name ?? "Unknown"])),
@@ -233,6 +246,7 @@ export default function AdminPaymentHistoryTab({
           typeLabel: r.kind === "booking" ? RECEIPT_STAGE_LABEL[r.stage] : "Payment Failed",
           amountPaise: r.kind === "booking" ? (r.isPackageCovered ? null : r.amountPaise) : r.amountPaise,
           detail: r,
+          sessionCode: r.appointmentId ? sessionCodeByAppointmentId.get(r.appointmentId) ?? null : null,
         });
       }
     }
@@ -252,11 +266,22 @@ export default function AdminPaymentHistoryTab({
           typeLabel: "Payout",
           amountPaise: r.amountPaise,
           detail: r,
+          sessionCode: null,
         });
       }
     }
     return rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [patients, therapists, appointments, packagePurchases, paymentFailures, payoutBatches, categoryTitleById, patientNameById]);
+  }, [
+    patients,
+    therapists,
+    appointments,
+    packagePurchases,
+    paymentFailures,
+    payoutBatches,
+    categoryTitleById,
+    patientNameById,
+    sessionCodeByAppointmentId,
+  ]);
 
   // Parsed with an explicit +05:30 offset, same reasoning as
   // AdminMetricsTab's own date-range filter -- a fixed zone (not the
@@ -270,12 +295,18 @@ export default function AdminPaymentHistoryTab({
     ? new Date(receiptToDate + "T00:00:00+05:30").getTime() + 86_400_000
     : null;
 
+  const trimmedReceiptSessionCodeFilter = receiptSessionCodeFilter.trim().toLowerCase();
   const filteredReceiptRows = allReceiptRows.filter((r) => {
     if (receiptPersonFilter !== "all") {
       const [role, id] = receiptPersonFilter.split(":");
       if (r.personRole !== role || r.personId !== id) return false;
     }
     if (receiptTypeFilter !== "all" && r.typeLabel !== receiptTypeFilter) return false;
+    if (
+      trimmedReceiptSessionCodeFilter &&
+      !(r.sessionCode ?? "").toLowerCase().includes(trimmedReceiptSessionCodeFilter)
+    )
+      return false;
     const ms = new Date(r.date).getTime();
     if (receiptFromMs !== null && ms < receiptFromMs) return false;
     if (receiptToMs !== null && ms >= receiptToMs) return false;
@@ -310,7 +341,7 @@ export default function AdminPaymentHistoryTab({
             <tbody>
               {patientRows.map(({ patient, summary }) => (
                 <tr key={patient.id} className="border-b border-slate-100">
-                  <td className="py-2.5 pr-3 text-slate-400 font-mono">{patient.id.slice(0, 8)}</td>
+                  <td className="py-2.5 pr-3 text-slate-400 font-mono">{patient.code ?? "—"}</td>
                   <td className="py-2.5 pr-3 font-bold text-slate-900">{patient.full_name ?? "Unknown"}</td>
                   <td className="py-2.5 pr-3 text-right text-slate-700">{formatInr(summary.totalSpentPaise)}</td>
                   <td className="py-2.5 pr-3 text-slate-700">
@@ -361,7 +392,7 @@ export default function AdminPaymentHistoryTab({
             <tbody>
               {therapistRows.map(({ therapist, summary }) => (
                 <tr key={therapist.id} className="border-b border-slate-100">
-                  <td className="py-2.5 pr-3 text-slate-400 font-mono">{therapist.id.slice(0, 8)}</td>
+                  <td className="py-2.5 pr-3 text-slate-400 font-mono">{therapist.code ?? "—"}</td>
                   <td className="py-2.5 pr-3 font-bold text-slate-900">{therapist.full_name ?? "Unknown"}</td>
                   <td className="py-2.5 pr-3 text-right text-slate-700">{formatInr(summary.totalPaidOutPaise)}</td>
                   <td className="py-2.5 pr-3 text-slate-700">
@@ -445,16 +476,26 @@ export default function AdminPaymentHistoryTab({
             aria-label="To date"
           />
 
+          <input
+            type="text"
+            value={receiptSessionCodeFilter}
+            onChange={(e) => setReceiptSessionCodeFilter(e.target.value)}
+            placeholder="Filter by Session ID"
+            className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-40"
+          />
+
           {(receiptPersonFilter !== "all" ||
             receiptTypeFilter !== "all" ||
             receiptFromDate ||
-            receiptToDate) && (
+            receiptToDate ||
+            receiptSessionCodeFilter) && (
             <button
               onClick={() => {
                 setReceiptPersonFilter("all");
                 setReceiptTypeFilter("all");
                 setReceiptFromDate("");
                 setReceiptToDate("");
+                setReceiptSessionCodeFilter("");
               }}
               className="text-slate-400 hover:text-slate-700 text-xs font-semibold"
             >
@@ -473,6 +514,7 @@ export default function AdminPaymentHistoryTab({
               <thead>
                 <tr className="text-left text-slate-400 border-b border-slate-200">
                   <th className="pb-2 pr-3 font-semibold">Date</th>
+                  <th className="pb-2 pr-3 font-semibold">Session ID</th>
                   <th className="pb-2 pr-3 font-semibold">Who</th>
                   <th className="pb-2 pr-3 font-semibold">Type</th>
                   <th className="pb-2 pr-3 font-semibold text-right">Amount</th>
@@ -485,6 +527,7 @@ export default function AdminPaymentHistoryTab({
                     <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">
                       {formatDateTime(r.date)}
                     </td>
+                    <td className="py-2.5 pr-3 text-slate-400 font-mono">{r.sessionCode ?? "—"}</td>
                     <td className="py-2.5 pr-3">
                       <span className="font-bold text-slate-900">{r.personName}</span>
                       <span className="text-slate-400 capitalize"> · {r.personRole}</span>

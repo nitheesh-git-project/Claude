@@ -28,8 +28,13 @@ function formatDateHeading(iso: string) {
 
 export default function TherapistPayoutReceiptsSection({
   receipts,
+  sessionCodeByAppointmentId,
 }: {
   receipts: PayoutReceipt[];
+  // Keyed by appointmentId -- session_code is new/migration-dependent (see
+  // supabase/schema.sql's "Unique display IDs" section) so it's kept out of
+  // the pure receipts.ts aggregation helpers and looked up here instead.
+  sessionCodeByAppointmentId?: Record<string, string | null>;
 }) {
   const [selected, setSelected] = useState<PayoutReceipt | null>(null);
 
@@ -121,7 +126,14 @@ export default function TherapistPayoutReceiptsSection({
                     className="p-3 rounded-lg bg-slate-50 flex items-center justify-between gap-2"
                   >
                     <div>
-                      <p className="font-semibold text-slate-800">{s.title}</p>
+                      <p className="font-semibold text-slate-800">
+                        {s.title}
+                        {sessionCodeByAppointmentId?.[s.appointmentId] && (
+                          <span className="ml-2 font-mono font-normal text-slate-400">
+                            {sessionCodeByAppointmentId[s.appointmentId]}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-slate-500 mt-0.5">
                         {s.patientName} • {formatSlotTime(s.slotTime, null)}
                       </p>

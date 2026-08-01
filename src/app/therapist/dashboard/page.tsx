@@ -13,6 +13,7 @@ import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { buildTherapistPayoutReceipts } from "@/lib/receipts";
+import { mergeSessionCodes } from "@/lib/sessionCode";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -46,6 +47,14 @@ export default async function TherapistDashboardPage() {
     .eq("id", user.id)
     .single();
 
+  // therapist_code is new/migration-dependent -- kept isolated for the same
+  // reason as onLeaveProfile below (see its own comment).
+  const { data: therapistCodeRow } = await supabase
+    .from("profiles")
+    .select("therapist_code")
+    .eq("id", user.id)
+    .maybeSingle();
+
   // Kept as its own query rather than folded into the select above --
   // on_leave is new and migration-dependent, and the query above feeds the
   // whole page header (name, credentials, rating). An unknown-column error
@@ -77,13 +86,24 @@ export default async function TherapistDashboardPage() {
     .eq("therapist_id", user.id)
     .gte("date", todayKey);
 
-  const { data: appointments } = await supabase
+  const { data: rawAppointments } = await supabase
     .from("appointments")
     .select(
       "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise"
     )
     .eq("therapist_id", user.id)
     .order("created_at", { ascending: false });
+
+  // session_code is also new/migration-dependent -- same isolation
+  // reasoning as therapistCodeRow above.
+  const { data: sessionCodeLinks } = await supabase
+    .from("appointments")
+    .select("id, session_code")
+    .eq("therapist_id", user.id);
+  const appointments = mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks);
+  const sessionCodeByAppointmentId = Object.fromEntries(
+    appointments.map((a) => [a.id, a.session_code])
+  );
 
   // Kept as its own query rather than folded into the select above for the
   // same reason as onLeaveProfile -- therapist_payout_batches is new and
@@ -152,6 +172,7 @@ export default async function TherapistDashboardPage() {
       userName={profile?.full_name ?? "Therapist"}
       userEmail={user.email ?? ""}
       userAvatarUrl={profile?.avatar_url ?? null}
+      userCode={therapistCodeRow?.therapist_code ?? null}
       offsetTop={showDebugNav}
       headerTitle={`Welcome, ${profile?.full_name ?? "there"}`}
       headerSubtitle={
@@ -239,6 +260,9 @@ export default async function TherapistDashboardPage() {
                     <strong>{a.concern ?? "General Consultation"}</strong> —{" "}
                     {formatSlotTime(a.slot_time, a.timezone)}
                     {a.duration_minutes && ` • ${a.duration_minutes} min`}
+                    {a.session_code && (
+                      <span className="ml-2 font-mono text-slate-400">{a.session_code}</span>
+                    )}
                   </p>
                   {a.notes && (
                     <p className="text-slate-500">
@@ -267,7 +291,10 @@ export default async function TherapistDashboardPage() {
       </div>
 
       <div id="receipts">
-        <TherapistPayoutReceiptsSection receipts={payoutReceipts} />
+        <TherapistPayoutReceiptsSection
+          receipts={payoutReceipts}
+          sessionCodeByAppointmentId={sessionCodeByAppointmentId}
+        />
       </div>
     </DashboardShell>
   );

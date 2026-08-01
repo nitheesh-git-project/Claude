@@ -6,6 +6,7 @@ import DashboardShell, { type ShellNavItem } from "@/components/dashboard/Dashbo
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { mergeSessionCodes } from "@/lib/sessionCode";
 
 export const metadata: Metadata = {
   title: "Partner Dashboard | Dr. Pooja's Physio",
@@ -27,6 +28,16 @@ export default async function HospitalDashboardPage() {
     .eq("id", user.id)
     .single();
 
+  // hospital_code is new/migration-dependent -- kept isolated (see
+  // sessionCode.ts's comment / this codebase's established convention) so
+  // an unknown-column error here only degrades this one badge, not the
+  // whole dashboard.
+  const { data: hospitalCodeRow } = await supabase
+    .from("profiles")
+    .select("hospital_code")
+    .eq("id", user.id)
+    .maybeSingle();
+
   const { data: referrals } = await supabase
     .from("patient_referrals")
     .select(
@@ -47,7 +58,7 @@ export default async function HospitalDashboardPage() {
     .eq("referred_by_hospital_id", user.id);
   const referredPatientIds = (referredPatients ?? []).map((p) => p.id);
 
-  const { data: referredSessions } =
+  const { data: rawReferredSessions } =
     referredPatientIds.length > 0
       ? await admin
           .from("appointments")
@@ -57,6 +68,17 @@ export default async function HospitalDashboardPage() {
           .in("patient_id", referredPatientIds)
           .order("created_at", { ascending: false })
       : { data: [] as never[] };
+
+  // session_code is also new/migration-dependent -- same isolation
+  // reasoning as hospitalCodeRow above.
+  const { data: sessionCodeLinks } =
+    referredPatientIds.length > 0
+      ? await admin
+          .from("appointments")
+          .select("id, session_code")
+          .in("patient_id", referredPatientIds)
+      : { data: [] as { id: string; session_code: string | null }[] };
+  const referredSessions = mergeSessionCodes(rawReferredSessions ?? [], sessionCodeLinks);
 
   const patientMap = new Map((referredPatients ?? []).map((p) => [p.id, p]));
   const paidSessions = (referredSessions ?? []).filter(
@@ -97,6 +119,7 @@ export default async function HospitalDashboardPage() {
       userName={profile?.full_name ?? "Partner"}
       userEmail={user.email ?? ""}
       userAvatarUrl={profile?.avatar_url ?? null}
+      userCode={hospitalCodeRow?.hospital_code ?? null}
       offsetTop={showDebugNav}
       headerTitle={`${profile?.organization_name ?? "Partner"} Dashboard`}
       headerSubtitle={`Welcome, ${profile?.full_name}`}
@@ -200,6 +223,9 @@ export default async function HospitalDashboardPage() {
                   </p>
                   <p className="text-slate-500">
                     {s.concern} — {formatSlotTime(s.slot_time, s.timezone)}
+                    {s.session_code && (
+                      <span className="ml-2 font-mono text-slate-400">{s.session_code}</span>
+                    )}
                   </p>
                 </div>
                 <span

@@ -191,6 +191,7 @@ export default function AdminCalendarTab({
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="text-left text-slate-500 border-b border-slate-200">
+              <th className="py-2 pr-3 font-semibold">Session ID</th>
               <th className="py-2 pr-3 font-semibold">Therapist</th>
               <th className="py-2 pr-3 font-semibold">Slot</th>
               <th className="py-2 pr-3 font-semibold">Patient</th>
@@ -201,7 +202,7 @@ export default function AdminCalendarTab({
           <tbody>
             {sessionsForSelectedDate.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-slate-400">
+                <td colSpan={6} className="py-6 text-center text-slate-400">
                   No sessions booked for this date.
                 </td>
               </tr>
@@ -212,6 +213,7 @@ export default function AdminCalendarTab({
                   onClick={() => setSelectedAppointment(a)}
                   className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
                 >
+                  <td className="py-2 pr-3 text-slate-400 font-mono">{a.session_code ?? "—"}</td>
                   <td className="py-2 pr-3 font-bold text-slate-900">
                     {a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : "Unassigned"}
                   </td>

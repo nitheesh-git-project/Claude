@@ -33,6 +33,10 @@ export type SessionDetailAppointment = {
   package_purchase_id: string | null;
   therapist_payout_paid_at: string | null;
   no_show: boolean;
+  // New/migration-dependent (see supabase/schema.sql's "Unique display IDs"
+  // section) -- optional so every existing caller of this shared type keeps
+  // compiling even before it starts fetching the column.
+  session_code?: string | null;
 };
 
 export type ReassignmentLogEntry = {
@@ -277,7 +281,12 @@ export default function SessionDetailDrawer({
         className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 text-xs"
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-lg text-slate-900">Session Details</h3>
+          <div>
+            <h3 className="font-bold text-lg text-slate-900">Session Details</h3>
+            {a.session_code && (
+              <p className="font-mono text-[11px] text-slate-400 mt-0.5">{a.session_code}</p>
+            )}
+          </div>
           <button
             onClick={onClose}
             aria-label="Close"
