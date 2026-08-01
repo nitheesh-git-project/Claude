@@ -117,6 +117,13 @@ export default async function AdminDashboardPage() {
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
+  const { data: hospitalNotes } = await admin
+    .from("hospital_admin_notes")
+    .select("hospital_id, temp_password, temp_password_set_at")
+    .in("hospital_id", hospitals.map((h) => h.id));
+  const hospitalNoteMap = new Map(
+    (hospitalNotes ?? []).map((n) => [n.hospital_id, n])
+  );
   const patients = (allProfiles ?? [])
     .filter((p) => p.role === "patient")
     .sort(
@@ -528,7 +535,13 @@ export default async function AdminDashboardPage() {
                     </div>
                   </div>
                   <div className="pt-2 border-t border-slate-100">
-                    <ResetHospitalPasswordButton hospitalId={h.id} />
+                    <ResetHospitalPasswordButton
+                      hospitalId={h.id}
+                      currentPassword={hospitalNoteMap.get(h.id)?.temp_password}
+                      currentPasswordSetAt={
+                        hospitalNoteMap.get(h.id)?.temp_password_set_at
+                      }
+                    />
                   </div>
                 </li>
               );
