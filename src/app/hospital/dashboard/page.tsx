@@ -92,6 +92,7 @@ export default async function HospitalDashboardPage() {
     <DashboardShell
       brandLabel="Partner Panel"
       brandIcon="fa-hospital"
+      basePath="/hospital/dashboard"
       navItems={navItems}
       userName={profile?.full_name ?? "Partner"}
       userEmail={user.email ?? ""}

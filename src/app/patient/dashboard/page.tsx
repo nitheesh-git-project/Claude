@@ -8,10 +8,11 @@ import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import BuyPackageButton from "@/components/BuyPackageButton";
 import BookWithPackageForm from "@/components/BookWithPackageForm";
 import ReceiptsSection from "@/components/ReceiptsSection";
-import DashboardShell, { type ShellNavItem } from "@/components/dashboard/DashboardShell";
+import DashboardShell from "@/components/dashboard/DashboardShell";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { buildPatientReceipts } from "@/lib/receipts";
+import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 
 export const metadata: Metadata = {
   title: "Patient Dashboard | Dr. Pooja's Physio",
@@ -138,17 +139,7 @@ export default async function PatientDashboardPage() {
   const hasOwnedPackages = !!ownedPackages && ownedPackages.length > 0;
   const hasAvailablePackages = !!availablePackages && availablePackages.length > 0;
 
-  const navItems: ShellNavItem[] = [
-    { id: "sessions", label: "Your Sessions", icon: "fa-calendar-check" },
-    ...(hasOwnedPackages
-      ? [{ id: "your-packages", label: "Your Packages", icon: "fa-box-open" }]
-      : []),
-    ...(hasAvailablePackages
-      ? [{ id: "session-packages", label: "Session Packages", icon: "fa-layer-group" }]
-      : []),
-    { id: "receipts", label: "Receipts", icon: "fa-receipt" },
-    { id: "edit-profile", label: "Edit Profile", icon: "fa-user-pen", href: "/patient/dashboard/profile" },
-  ];
+  const navItems = buildPatientNavItems({ hasOwnedPackages, hasAvailablePackages });
 
   // Same computation as the root layout's own showDebugNav -- duplicated
   // here (rather than threaded through props from a layout) because this
@@ -163,6 +154,7 @@ export default async function PatientDashboardPage() {
     <DashboardShell
       brandLabel="Patient Panel"
       brandIcon="fa-user-injured"
+      basePath="/patient/dashboard"
       navItems={navItems}
       userName={profile?.full_name ?? "Patient"}
       userEmail={profile?.email ?? user.email ?? ""}

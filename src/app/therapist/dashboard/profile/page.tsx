@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import SignOutButton from "@/components/auth/SignOutButton";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import InstantProfileFields from "@/components/profile/InstantProfileFields";
 import GatedProfileFields from "@/components/profile/GatedProfileFields";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
+import DashboardShell from "@/components/dashboard/DashboardShell";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
+import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
 
 export const metadata: Metadata = {
   title: "Edit Profile | Dr. Pooja's Physio",
@@ -37,21 +37,29 @@ export default async function TherapistProfilePage() {
     .order("created_at", { ascending: false });
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
 
-  return (
-    <section className="py-8 max-w-2xl mx-auto px-4">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Edit Profile</h1>
-          <Link
-            href="/therapist/dashboard"
-            className="text-xs text-purple-700 font-semibold mt-1 inline-block"
-          >
-            ← Back to Dashboard
-          </Link>
-        </div>
-        <SignOutButton />
-      </div>
+  // Same computation as the root layout's own showDebugNav -- duplicated
+  // here (rather than threaded through props from a layout) because this
+  // page hides the shared Navbar entirely and needs the same dev-only-bar
+  // offset for its own fixed sidebar. See DashboardShell's offsetTop prop.
+  const showDebugNav =
+    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
+    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
+      process.env.NODE_ENV !== "production");
 
+  return (
+    <DashboardShell
+      brandLabel="Therapist Panel"
+      brandIcon="fa-user-doctor"
+      basePath="/therapist/dashboard"
+      navItems={THERAPIST_NAV_ITEMS}
+      userName={profile?.full_name ?? "Therapist"}
+      userEmail={profile?.email ?? user.email ?? ""}
+      userAvatarUrl={profile?.avatar_url ?? null}
+      offsetTop={showDebugNav}
+      headerTitle="Edit Profile"
+      headerSubtitle="Update your public details, credentials, and account security."
+    >
+      <div className="max-w-2xl">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <AvatarUpload
           userId={user.id}
@@ -122,6 +130,7 @@ export default async function TherapistProfilePage() {
         </p>
         <AccountSecuritySection email={profile?.email ?? user.email ?? ""} />
       </div>
-    </section>
+      </div>
+    </DashboardShell>
   );
 }
