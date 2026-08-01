@@ -7,6 +7,7 @@ import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
 import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
 import AssignReferralForm from "@/components/admin/AssignReferralForm";
 import AdminTabs from "@/components/admin/AdminTabs";
+import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
 import LeadStatusButtons from "@/components/admin/LeadStatusButtons";
 import DeclineReferralButton from "@/components/admin/DeclineReferralButton";
 import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswordButton";
@@ -86,7 +87,7 @@ export default async function AdminDashboardPage() {
   const { data: appointments, error: appointmentsError } = await admin
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, no_show"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note, no_show"
     )
     .order("created_at", { ascending: false });
   // This single query feeds Overview, Calendar, Session Story, and Metrics
@@ -761,6 +762,20 @@ export default async function AdminDashboardPage() {
     />
   );
 
+  const payoutsTab = (
+    <AdminPayoutsTab
+      therapists={allTherapists.map((t) => ({
+        id: t.id,
+        full_name: t.full_name,
+        revenue_share_percent: t.revenue_share_percent,
+      }))}
+      appointments={appointments ?? []}
+      patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+      categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+      nowMs={nowTimestamp()}
+    />
+  );
+
   const b2bBadgeCount =
     (b2bLeads?.filter((l) => l.status === "new").length ?? 0) +
     (referrals?.filter((r) => r.status === "pending_review").length ?? 0);
@@ -884,6 +899,7 @@ export default async function AdminDashboardPage() {
         b2bBadgeCount={b2bBadgeCount}
         patients={patientsTab}
         therapists={therapistsTab}
+        payouts={payoutsTab}
         calendar={calendarTab}
         sessionStory={sessionStoryTab}
         metrics={metricsTab}
