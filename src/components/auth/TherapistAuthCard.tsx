@@ -178,6 +178,19 @@ export default function TherapistAuthCard() {
               >
                 ← Back to Sign In
               </button>
+              <p className="text-slate-500">
+                Not a member yet?{" "}
+                <button
+                  onClick={() => {
+                    setTab("register");
+                    setForgotMode(false);
+                    setForgotSent(false);
+                  }}
+                  className="text-purple-700 font-semibold hover:underline"
+                >
+                  Apply to Join
+                </button>
+              </p>
             </div>
           ) : (
             <form onSubmit={handleForgotPassword} className="space-y-4 text-xs">
@@ -209,6 +222,19 @@ export default function TherapistAuthCard() {
               >
                 ← Back to Sign In
               </button>
+              <p className="text-center text-slate-500">
+                Not a member yet?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab("register");
+                    setForgotMode(false);
+                  }}
+                  className="text-purple-700 font-semibold hover:underline"
+                >
+                  Apply to Join
+                </button>
+              </p>
             </form>
           )
         ) : tab === "login" ? (
