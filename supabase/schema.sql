@@ -778,3 +778,27 @@ create policy "appointments_insert_own" on appointments
     and payment_status = 'unpaid'
     and package_purchase_id is null
   );
+
+-- Security/integrity fix: the client-side booking wizard only enforces its
+-- "at least 12 hours from now" slot picker via the datetime input's `min`
+-- attribute -- pure UI, trivially bypassed by anyone crafting their own
+-- insert with devtools or a raw REST call (confirmed live: a patient could
+-- insert an appointment with slot_time set to days in the past, with the
+-- request accepted and no server-side rejection anywhere in the stack).
+-- book-with-package's route already guards this server-side for its own
+-- path; this closes the same hole for the direct client-side insert, the
+-- one path RLS is the only enforcement point for. Only requires slot_time
+-- to be in the future (not the full 12-hour minimum the UI advertises) --
+-- that stricter promise is specific to the guided booking-wizard copy, not
+-- a documented platform-wide rule, so it isn't imposed here on other
+-- insert paths that don't make that promise.
+drop policy if exists "appointments_insert_own" on appointments;
+create policy "appointments_insert_own" on appointments
+  for insert with check (
+    auth.uid() = patient_id
+    and status = 'requested'
+    and payment_status = 'unpaid'
+    and package_purchase_id is null
+    and slot_time is not null
+    and slot_time > now()
+  );
