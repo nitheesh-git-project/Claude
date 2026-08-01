@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import SignOutButton from "@/components/auth/SignOutButton";
@@ -29,6 +30,7 @@ type NavbarAuthUser = {
 } | null;
 
 export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [authUser, setAuthUser] = useState<NavbarAuthUser>(null);
 
@@ -81,6 +83,15 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
     authUser?.role === "admin"
       ? "admin"
       : authUser?.fullName?.trim().split(" ")[0] || "there";
+
+  // The Admin Dashboard is its own full-height dark app shell (sidebar +
+  // content, no page scroll past the viewport) rather than a page that sits
+  // below this marketing nav -- exact match only, so the admin therapist/
+  // patient detail sub-pages (which aren't part of that shell) keep this nav
+  // for navigation.
+  if (pathname === "/admin/dashboard") {
+    return null;
+  }
 
   return (
     <nav
