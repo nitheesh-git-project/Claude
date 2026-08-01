@@ -33,6 +33,11 @@ export async function POST() {
       .from("patient_admin_notes")
       .update({ temp_password: null, temp_password_set_at: null })
       .eq("patient_id", user.id);
+  } else if (profile?.role === "hospital") {
+    await admin
+      .from("hospital_admin_notes")
+      .update({ temp_password: null, temp_password_set_at: null })
+      .eq("hospital_id", user.id);
   }
 
   return NextResponse.json({ success: true });

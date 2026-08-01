@@ -80,14 +80,20 @@ export default function AdminCalendarTab({
   );
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  // Pinned to Asia/Kolkata (matching istDateKey, which selectedDate is
+  // keyed by) rather than left to the runtime's local timezone -- without
+  // an explicit zone, these can render a different calendar date on the
+  // server (SSR) vs the admin's browser (hydration).
   const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString("en-IN", {
     month: "long",
     year: "numeric",
+    timeZone: "Asia/Kolkata",
   });
-  const selectedDateLabel = new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-IN", {
+  const selectedDateLabel = new Date(`${selectedDate}T00:00:00+05:30`).toLocaleDateString("en-IN", {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: "Asia/Kolkata",
   });
 
   function goToMonth(offset: number) {

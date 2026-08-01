@@ -36,10 +36,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
   }
 
+  // A cleared, not-yet-resubmitted rating has nothing left to exclude --
+  // reset that side's excluded flag alongside the rating itself so it
+  // doesn't carry over onto whatever gets submitted next.
   const updates =
     role === "patient"
-      ? { patient_rating: null, patient_feedback: null, patient_feedback_at: null }
-      : { therapist_rating: null, therapist_feedback: null, therapist_feedback_at: null };
+      ? {
+          patient_rating: null,
+          patient_feedback: null,
+          patient_feedback_at: null,
+          patient_rating_excluded: false,
+        }
+      : {
+          therapist_rating: null,
+          therapist_feedback: null,
+          therapist_feedback_at: null,
+          therapist_rating_excluded: false,
+        };
 
   const { error } = await admin.from("appointments").update(updates).eq("id", appointmentId);
   if (error) {

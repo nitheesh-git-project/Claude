@@ -43,5 +43,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Kept visible to admins (not shown just once) so they can walk the
+  // hospital contact through logging in over a support call — matches the
+  // patient/therapist reset routes, which this one was missing before.
+  await admin.from("hospital_admin_notes").upsert({
+    hospital_id: hospitalId,
+    temp_password: password,
+    temp_password_set_at: new Date().toISOString(),
+  });
+
   return NextResponse.json({ email: hospital.email, password });
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createPublicClient } from "@/lib/supabase/public";
-import { SESSION_FEE_INR } from "@/lib/pricing";
+import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
 const ICON_ROTATION = ["fa-bone", "fa-user-injured", "fa-person-running", "fa-laptop-house"];
 
@@ -12,10 +12,18 @@ export default async function Home() {
   const supabase = createPublicClient();
   const { data: categories } = await supabase
     .from("treatment_categories")
-    .select("id, title, description, points")
+    .select("id, title, description, points, price_paise")
     .eq("active", true)
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
+
+  // "From ₹X" in the hero should track whatever admins actually configure
+  // in Site Content, not a stale constant — falls back to the flat fee
+  // only in the unlikely event no categories are active at all.
+  const startingPricePaise =
+    categories && categories.length > 0
+      ? Math.min(...categories.map((c) => c.price_paise))
+      : SESSION_FEE_PAISE;
 
   const { data: testimonials } = await supabase
     .from("testimonials")
@@ -132,7 +140,7 @@ export default async function Home() {
                 </div>
               </div>
               <span className="text-xs font-bold text-teal-800 bg-white px-2.5 py-1 rounded-lg border border-teal-200">
-                From ₹{SESSION_FEE_INR.toLocaleString("en-IN")} INR / Session
+                From ₹{(startingPricePaise / 100).toLocaleString("en-IN")} INR / Session
               </span>
             </div>
           </div>

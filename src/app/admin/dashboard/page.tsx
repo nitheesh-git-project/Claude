@@ -16,6 +16,7 @@ import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManage
 import PackageManager from "@/components/admin/PackageManager";
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
+import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
@@ -30,6 +31,14 @@ import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 export const metadata: Metadata = {
   title: "Admin Dashboard | Dr. Pooja's Physio",
 };
+
+// A plain module-level helper (not called inline in the component body) so
+// it can carry a single Date.now() read down to AdminMetricsTab as a prop --
+// see that component's nowMs comment for why the client side must not read
+// its own Date.now() for this.
+function nowTimestamp() {
+  return Date.now();
+}
 
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
@@ -77,7 +86,7 @@ export default async function AdminDashboardPage() {
   const { data: appointments, error: appointmentsError } = await admin
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, therapist_rating, therapist_feedback, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, no_show"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, no_show"
     )
     .order("created_at", { ascending: false });
   // This single query feeds Overview, Calendar, Session Story, and Metrics
@@ -116,6 +125,13 @@ export default async function AdminDashboardPage() {
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
+  const { data: hospitalNotes } = await admin
+    .from("hospital_admin_notes")
+    .select("hospital_id, temp_password, temp_password_set_at")
+    .in("hospital_id", hospitals.map((h) => h.id));
+  const hospitalNoteMap = new Map(
+    (hospitalNotes ?? []).map((n) => [n.hospital_id, n])
+  );
   const patients = (allProfiles ?? [])
     .filter((p) => p.role === "patient")
     .sort(
@@ -152,6 +168,12 @@ export default async function AdminDashboardPage() {
     .select("id, question, answer, display_order, active")
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
+
+  const { data: siteSettings } = await admin
+    .from("site_settings")
+    .select("ratings_visible_publicly")
+    .eq("id", true)
+    .single();
   const categoryMap = new Map((treatmentCategories ?? []).map((c) => [c.id, c]));
 
   // Revenue rollup per hospital: every paid session belonging to a patient
@@ -521,7 +543,13 @@ export default async function AdminDashboardPage() {
                     </div>
                   </div>
                   <div className="pt-2 border-t border-slate-100">
-                    <ResetHospitalPasswordButton hospitalId={h.id} />
+                    <ResetHospitalPasswordButton
+                      hospitalId={h.id}
+                      currentPassword={hospitalNoteMap.get(h.id)?.temp_password}
+                      currentPasswordSetAt={
+                        hospitalNoteMap.get(h.id)?.temp_password_set_at
+                      }
+                    />
                   </div>
                 </li>
               );
@@ -693,11 +721,43 @@ export default async function AdminDashboardPage() {
     />
   );
 
+  // therapistId -> revenue-share %, only where an admin has actually set
+  // one -- the Metrics tab's revenue breakdown treats a missing entry as
+  // "can't compute a split," never as 0%, matching PatientProfitChart's
+  // same rule for the identical reason (0% would understate a real payout
+  // that just hasn't been configured yet).
+  const therapistSharePercent = Object.fromEntries(
+    allTherapists
+      .filter((t) => t.revenue_share_percent !== null && t.revenue_share_percent !== undefined)
+      .map((t) => [t.id, t.revenue_share_percent as number])
+  );
+
+  // patientId -> the referring hospital's revenue-share %, only for
+  // patients actually referred by a hospital that has one set. Resolved
+  // here (not in the client component) since both `patients` and
+  // `hospitals` are already in scope from the same allProfiles fetch.
+  const hospitalSharePercentById = new Map(
+    hospitals
+      .filter((h) => h.revenue_share_percent !== null && h.revenue_share_percent !== undefined)
+      .map((h) => [h.id, h.revenue_share_percent as number])
+  );
+  const patientHospitalSharePercent = Object.fromEntries(
+    patients
+      .filter(
+        (p) => p.referred_by_hospital_id && hospitalSharePercentById.has(p.referred_by_hospital_id)
+      )
+      .map((p) => [p.id, hospitalSharePercentById.get(p.referred_by_hospital_id as string) as number])
+  );
+
   const metricsTab = (
     <AdminMetricsTab
       appointments={appointments ?? []}
       therapists={allTherapists}
       categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+      patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+      therapistSharePercent={therapistSharePercent}
+      patientHospitalSharePercent={patientHospitalSharePercent}
+      nowMs={nowTimestamp()}
     />
   );
 
@@ -707,6 +767,10 @@ export default async function AdminDashboardPage() {
 
   const siteContent = (
     <>
+      <SiteRatingsVisibilityToggle
+        visible={siteSettings?.ratings_visible_publicly ?? true}
+      />
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-bold text-lg text-slate-800 mb-4">
           Category Performance
