@@ -17,13 +17,16 @@ export default function HospitalLoginCard() {
       email: formData.get("email") as string,
       password: formData.get("password") as string,
     });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       setError(error.message);
       return;
     }
-    // Hard navigation so the fresh cookies set by signInWithPassword are
-    // guaranteed to be sent with the very next request to the proxy.
+    // Left in the loading state deliberately -- a hard navigation is about
+    // to replace this page, so resetting it first just flashes the button
+    // back to "Sign In" for however long that navigation takes. Hard nav so
+    // the fresh cookies set by signInWithPassword are guaranteed to be sent
+    // with the very next request to the proxy.
     window.location.href = "/hospital/dashboard";
   }
 
