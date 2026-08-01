@@ -1,6 +1,17 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export default function Footer() {
+  const pathname = usePathname();
+  // See Navbar's matching check -- the Admin Dashboard is its own full-height
+  // dark app shell with no page scroll, so a footer below it would never be
+  // reachable/visible anyway.
+  if (pathname === "/admin/dashboard") {
+    return null;
+  }
+
   return (
     <footer className="bg-slate-900 text-slate-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid sm:grid-cols-2 md:grid-cols-4 gap-8">

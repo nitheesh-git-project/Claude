@@ -35,6 +35,7 @@ export default function AdminTabs({
   adminName,
   adminEmail,
   adminAvatarUrl,
+  offsetTop,
 }: {
   // The at-a-glance landing tab -- the Metrics dashboard (cards/charts),
   // not the old approvals/bookings list. See approvalBookings below for
@@ -57,6 +58,12 @@ export default function AdminTabs({
   adminName: string;
   adminEmail: string;
   adminAvatarUrl: string | null;
+  // Whether the dev-only DebugNav bar is showing above everything on this
+  // page (same flag the root layout threads into Navbar as its own
+  // `offsetTop` prop) -- this page hides the public Navbar entirely, so its
+  // own fixed sidebar has to account for that offset itself instead of
+  // inheriting it for free from normal document flow.
+  offsetTop: boolean;
 }) {
   const [tab, setTab] = useState<TabKey>("overview");
   // Desktop full <-> mini collapse. Independent of the mobile drawer below --
@@ -168,18 +175,18 @@ export default function AdminTabs({
     );
   }
 
+  const contentPadClass = collapsed ? "lg:pl-[76px]" : "lg:pl-64";
+
   return (
-    // A plain block below lg (mobile top bar + off-canvas drawer), a row
-    // flex at lg+ (sidebar beside the content). Content is rendered exactly
-    // once either way -- only the nav chrome around it switches with the
-    // breakpoint/state -- since duplicating it into parallel trees would
-    // double-mount every tab's components (and any of their side
-    // effects/requests) at once.
-    <div className="lg:flex lg:gap-6 lg:items-start">
+    // Its own full-height dark app shell (fixed sidebar + a light content
+    // pane), not a card sitting inside the site's normal centered page
+    // column -- Navbar/Footer are hidden on this exact route (see their own
+    // pathname checks) so this component owns the entire viewport.
+    <div className="min-h-screen bg-slate-50">
       {/* Narrow screens: a compact dark top bar that opens an off-canvas
           drawer -- a fixed-width sidebar doesn't leave enough room for
           content on a phone/tablet. */}
-      <div className="mb-4 flex items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 lg:hidden">
+      <div className="flex items-center justify-between bg-slate-900 px-4 py-3 lg:hidden">
         {renderBrand(false)}
         <button
           type="button"
@@ -217,15 +224,21 @@ export default function AdminTabs({
         </div>
       )}
 
-      {/* lg and up: dark sidebar on the left, collapsible to an icon-only
-          rail with hover tooltips. */}
+      {/* lg and up: dark sidebar fixed flush against the left edge, spanning
+          the full viewport height, collapsible to an icon-only rail with
+          hover tooltips. offsetTop accounts for the dev-only DebugNav bar
+          the same way Navbar's own offsetTop prop does -- a fixed element
+          doesn't inherit that space from document flow the way Navbar
+          (sticky, still in flow) does. */}
       <nav
-        className={`sticky top-8 hidden max-h-[calc(100vh-4rem)] shrink-0 flex-col overflow-y-auto rounded-2xl bg-slate-900 p-3 transition-[width] duration-200 lg:flex ${
+        className={`fixed left-0 z-30 hidden flex-col bg-slate-900 p-3 transition-[width] duration-200 lg:flex ${
           collapsed ? "w-[76px]" : "w-64"
-        }`}
+        } ${offsetTop ? "top-[41px] h-[calc(100vh-41px)]" : "top-0 h-screen"}`}
       >
         {renderBrand(collapsed)}
-        <div className="mt-2 flex-1 space-y-1">{tabs.map((t) => renderNavItem(t, collapsed))}</div>
+        <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
+          {tabs.map((t) => renderNavItem(t, collapsed))}
+        </div>
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
@@ -239,18 +252,27 @@ export default function AdminTabs({
         {renderFooter(collapsed)}
       </nav>
 
-      <div className="min-w-0 flex-1">
-        <div className={tab === "overview" ? "" : "hidden"}>{overview}</div>
-        <div className={tab === "approvalBookings" ? "" : "hidden"}>{approvalBookings}</div>
-        <div className={tab === "sessionStory" ? "" : "hidden"}>{sessionStory}</div>
-        <div className={tab === "patients" ? "" : "hidden"}>{patients}</div>
-        <div className={tab === "therapists" ? "" : "hidden"}>{therapists}</div>
-        <div className={tab === "roster" ? "" : "hidden"}>{roster}</div>
-        <div className={tab === "calendar" ? "" : "hidden"}>{calendar}</div>
-        <div className={tab === "b2b" ? "" : "hidden"}>{b2bPartners}</div>
-        <div className={tab === "payouts" ? "" : "hidden"}>{payouts}</div>
-        <div className={tab === "paymentHistory" ? "" : "hidden"}>{paymentHistory}</div>
-        <div className={tab === "content" ? "" : "hidden"}>{siteContent}</div>
+      <div className={`transition-[padding] duration-200 ${contentPadClass}`}>
+        <div className="px-4 py-8 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
+            <p className="text-xs text-slate-500 mt-1">
+              Manage approvals, bookings, and partner referrals
+            </p>
+          </div>
+
+          <div className={tab === "overview" ? "" : "hidden"}>{overview}</div>
+          <div className={tab === "approvalBookings" ? "" : "hidden"}>{approvalBookings}</div>
+          <div className={tab === "sessionStory" ? "" : "hidden"}>{sessionStory}</div>
+          <div className={tab === "patients" ? "" : "hidden"}>{patients}</div>
+          <div className={tab === "therapists" ? "" : "hidden"}>{therapists}</div>
+          <div className={tab === "roster" ? "" : "hidden"}>{roster}</div>
+          <div className={tab === "calendar" ? "" : "hidden"}>{calendar}</div>
+          <div className={tab === "b2b" ? "" : "hidden"}>{b2bPartners}</div>
+          <div className={tab === "payouts" ? "" : "hidden"}>{payouts}</div>
+          <div className={tab === "paymentHistory" ? "" : "hidden"}>{paymentHistory}</div>
+          <div className={tab === "content" ? "" : "hidden"}>{siteContent}</div>
+        </div>
       </div>
     </div>
   );

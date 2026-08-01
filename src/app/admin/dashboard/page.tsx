@@ -974,32 +974,33 @@ export default async function AdminDashboardPage() {
     </>
   );
 
-  return (
-    <section className="py-8 max-w-6xl mx-auto px-4">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
-        <p className="text-xs text-slate-500 mt-1">
-          Manage approvals, bookings, and partner referrals
-        </p>
-      </div>
+  // Same computation as the root layout's own showDebugNav -- duplicated
+  // here (rather than threaded through props from a layout) because this
+  // page hides the shared Navbar entirely and needs the same dev-only-bar
+  // offset for its own fixed sidebar. See AdminTabs' offsetTop prop.
+  const showDebugNav =
+    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
+    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
+      process.env.NODE_ENV !== "production");
 
-      <AdminTabs
-        overview={metricsTab}
-        approvalBookings={approvalBookingsTab}
-        sessionStory={sessionStoryTab}
-        patients={patientsTab}
-        therapists={therapistsTab}
-        roster={rosterTab}
-        calendar={calendarTab}
-        b2bPartners={b2bPartners}
-        b2bBadgeCount={b2bBadgeCount}
-        payouts={payoutsTab}
-        paymentHistory={paymentHistoryTab}
-        siteContent={siteContent}
-        adminName={adminProfile?.full_name ?? "Admin"}
-        adminEmail={adminProfile?.email ?? user.email ?? ""}
-        adminAvatarUrl={adminProfile?.avatar_url ?? null}
-      />
-    </section>
+  return (
+    <AdminTabs
+      overview={metricsTab}
+      approvalBookings={approvalBookingsTab}
+      sessionStory={sessionStoryTab}
+      patients={patientsTab}
+      therapists={therapistsTab}
+      roster={rosterTab}
+      calendar={calendarTab}
+      b2bPartners={b2bPartners}
+      b2bBadgeCount={b2bBadgeCount}
+      payouts={payoutsTab}
+      paymentHistory={paymentHistoryTab}
+      siteContent={siteContent}
+      adminName={adminProfile?.full_name ?? "Admin"}
+      adminEmail={adminProfile?.email ?? user.email ?? ""}
+      adminAvatarUrl={adminProfile?.avatar_url ?? null}
+      offsetTop={showDebugNav}
+    />
   );
 }
