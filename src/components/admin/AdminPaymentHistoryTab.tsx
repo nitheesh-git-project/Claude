@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Modal from "@/components/admin/Modal";
 import {
   buildPatientTransactions,
@@ -12,6 +12,16 @@ import {
   type PatientTransaction,
   type TherapistPayoutTransaction,
 } from "@/lib/paymentHistory";
+import {
+  buildPatientReceipts,
+  buildTherapistPayoutReceipts,
+  type PatientReceipt,
+  type PayoutReceipt,
+  type BookingReceiptStage,
+  type PaymentFailureRow,
+  type PayoutBatchRow,
+} from "@/lib/receipts";
+import { formatSlotTime } from "@/lib/formatSlotTime";
 
 type Patient = { id: string; full_name: string | null };
 type Therapist = { id: string; full_name: string | null };
@@ -35,6 +45,35 @@ function formatDateTime(iso: string) {
     timeZone: "Asia/Kolkata",
   });
 }
+
+const RECEIPT_STAGE_LABEL: Record<BookingReceiptStage, string> = {
+  payment_confirmed: "Payment Confirmed",
+  service_completed: "Service Completed",
+  cancelled: "Cancelled",
+  refunded: "Refunded",
+  refund_failed: "Refund Failed",
+};
+
+const RECEIPT_TYPE_OPTIONS = [
+  "Payment Confirmed",
+  "Service Completed",
+  "Cancelled",
+  "Refunded",
+  "Refund Failed",
+  "Payment Failed",
+  "Payout",
+] as const;
+
+type AdminReceiptRow = {
+  key: string;
+  date: string;
+  personId: string;
+  personRole: "patient" | "therapist";
+  personName: string;
+  typeLabel: string;
+  amountPaise: number | null;
+  detail: PatientReceipt | PayoutReceipt;
+};
 
 function PatientTransactionTable({ transactions }: { transactions: PatientTransaction[] }) {
   if (transactions.length === 0) {
@@ -117,19 +156,34 @@ export default function AdminPaymentHistoryTab({
   therapists,
   appointments,
   packagePurchases,
+  paymentFailures,
+  payoutBatches,
   categories,
 }: {
   patients: Patient[];
   therapists: Therapist[];
   appointments: PaymentAppointment[];
   packagePurchases: PackagePurchase[];
+  paymentFailures: PaymentFailureRow[];
+  payoutBatches: PayoutBatchRow[];
   categories: Category[];
 }) {
   const [openPatientId, setOpenPatientId] = useState<string | null>(null);
   const [openTherapistId, setOpenTherapistId] = useState<string | null>(null);
+  const [receiptPersonFilter, setReceiptPersonFilter] = useState<string>("all");
+  const [receiptTypeFilter, setReceiptTypeFilter] = useState<string>("all");
+  const [receiptFromDate, setReceiptFromDate] = useState<string>("");
+  const [receiptToDate, setReceiptToDate] = useState<string>("");
+  const [openReceipt, setOpenReceipt] = useState<AdminReceiptRow | null>(null);
 
-  const categoryTitleById = new Map(categories.map((c) => [c.id, c.title]));
-  const patientNameById = new Map(patients.map((p) => [p.id, p.full_name ?? "Unknown"]));
+  const categoryTitleById = useMemo(
+    () => new Map(categories.map((c) => [c.id, c.title])),
+    [categories]
+  );
+  const patientNameById = useMemo(
+    () => new Map(patients.map((p) => [p.id, p.full_name ?? "Unknown"])),
+    [patients]
+  );
 
   const patientRows = patients
     .map((p) => {
@@ -159,6 +213,74 @@ export default function AdminPaymentHistoryTab({
 
   const totalPatientSpendPaise = patientRows.reduce((sum, r) => sum + r.summary.totalSpentPaise, 0);
   const totalTherapistPaidOutPaise = therapistRows.reduce((sum, r) => sum + r.summary.totalPaidOutPaise, 0);
+
+  const allReceiptRows: AdminReceiptRow[] = useMemo(() => {
+    const rows: AdminReceiptRow[] = [];
+    for (const p of patients) {
+      const receipts = buildPatientReceipts(
+        appointments.filter((a) => a.patient_id === p.id),
+        packagePurchases.filter((pp) => pp.patient_id === p.id),
+        paymentFailures.filter((f) => f.patient_id === p.id),
+        categoryTitleById
+      );
+      for (const r of receipts) {
+        rows.push({
+          key: `patient-${r.kind}-${r.id}`,
+          date: r.date,
+          personId: p.id,
+          personRole: "patient",
+          personName: p.full_name ?? "Unknown",
+          typeLabel: r.kind === "booking" ? RECEIPT_STAGE_LABEL[r.stage] : "Payment Failed",
+          amountPaise: r.kind === "booking" ? (r.isPackageCovered ? null : r.amountPaise) : r.amountPaise,
+          detail: r,
+        });
+      }
+    }
+    for (const t of therapists) {
+      const receipts = buildTherapistPayoutReceipts(
+        payoutBatches.filter((b) => b.therapist_id === t.id),
+        appointments.filter((a) => a.therapist_id === t.id),
+        patientNameById
+      );
+      for (const r of receipts) {
+        rows.push({
+          key: `therapist-payout-${r.id}`,
+          date: r.settledAt,
+          personId: t.id,
+          personRole: "therapist",
+          personName: t.full_name ?? "Unknown",
+          typeLabel: "Payout",
+          amountPaise: r.amountPaise,
+          detail: r,
+        });
+      }
+    }
+    return rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [patients, therapists, appointments, packagePurchases, paymentFailures, payoutBatches, categoryTitleById, patientNameById]);
+
+  // Parsed with an explicit +05:30 offset, same reasoning as
+  // AdminMetricsTab's own date-range filter -- a fixed zone (not the
+  // runtime's local one) avoids an SSR/hydration mismatch, and IST
+  // specifically (not just any fixed zone) matches every other date
+  // boundary on this dashboard.
+  const receiptFromMs = receiptFromDate
+    ? new Date(receiptFromDate + "T00:00:00+05:30").getTime()
+    : null;
+  const receiptToMs = receiptToDate
+    ? new Date(receiptToDate + "T00:00:00+05:30").getTime() + 86_400_000
+    : null;
+
+  const filteredReceiptRows = allReceiptRows.filter((r) => {
+    if (receiptPersonFilter !== "all") {
+      const [role, id] = receiptPersonFilter.split(":");
+      if (r.personRole !== role || r.personId !== id) return false;
+    }
+    if (receiptTypeFilter !== "all" && r.typeLabel !== receiptTypeFilter) return false;
+    const ms = new Date(r.date).getTime();
+    if (receiptFromMs !== null && ms < receiptFromMs) return false;
+    if (receiptToMs !== null && ms >= receiptToMs) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -264,6 +386,141 @@ export default function AdminPaymentHistoryTab({
         )}
       </div>
 
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Receipts</h2>
+        <p className="text-[11px] text-slate-400 mb-4">
+          Every receipt generated on the platform — patient payments, completed sessions, failed
+          payment attempts, and therapist payouts — in one filterable log.
+        </p>
+
+        <div className="flex items-center gap-3 flex-wrap mb-4">
+          <select
+            value={receiptPersonFilter}
+            onChange={(e) => setReceiptPersonFilter(e.target.value)}
+            className="p-2 rounded-lg border border-slate-300 text-xs"
+          >
+            <option value="all">All Patients &amp; Therapists</option>
+            <optgroup label="Patients">
+              {patients.map((p) => (
+                <option key={p.id} value={`patient:${p.id}`}>
+                  {p.full_name ?? "Unknown"}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Therapists">
+              {therapists.map((t) => (
+                <option key={t.id} value={`therapist:${t.id}`}>
+                  {t.full_name ?? "Unknown"}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+
+          <select
+            value={receiptTypeFilter}
+            onChange={(e) => setReceiptTypeFilter(e.target.value)}
+            className="p-2 rounded-lg border border-slate-300 text-xs"
+          >
+            <option value="all">All Types</option>
+            {RECEIPT_TYPE_OPTIONS.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="date"
+            value={receiptFromDate}
+            onChange={(e) => setReceiptFromDate(e.target.value)}
+            className="p-2 rounded-lg border border-slate-300 text-xs"
+            aria-label="From date"
+          />
+          <span className="text-slate-400 text-xs">to</span>
+          <input
+            type="date"
+            value={receiptToDate}
+            onChange={(e) => setReceiptToDate(e.target.value)}
+            className="p-2 rounded-lg border border-slate-300 text-xs"
+            aria-label="To date"
+          />
+
+          {(receiptPersonFilter !== "all" ||
+            receiptTypeFilter !== "all" ||
+            receiptFromDate ||
+            receiptToDate) && (
+            <button
+              onClick={() => {
+                setReceiptPersonFilter("all");
+                setReceiptTypeFilter("all");
+                setReceiptFromDate("");
+                setReceiptToDate("");
+              }}
+              className="text-slate-400 hover:text-slate-700 text-xs font-semibold"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+
+        {filteredReceiptRows.length === 0 ? (
+          <p className="text-xs text-slate-500 py-6 text-center">
+            {allReceiptRows.length === 0 ? "No receipts yet." : "No receipts match these filters."}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-slate-400 border-b border-slate-200">
+                  <th className="pb-2 pr-3 font-semibold">Date</th>
+                  <th className="pb-2 pr-3 font-semibold">Who</th>
+                  <th className="pb-2 pr-3 font-semibold">Type</th>
+                  <th className="pb-2 pr-3 font-semibold text-right">Amount</th>
+                  <th className="pb-2 font-semibold">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredReceiptRows.map((r) => (
+                  <tr key={r.key} className="border-b border-slate-100">
+                    <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">
+                      {formatDateTime(r.date)}
+                    </td>
+                    <td className="py-2.5 pr-3">
+                      <span className="font-bold text-slate-900">{r.personName}</span>
+                      <span className="text-slate-400 capitalize"> · {r.personRole}</span>
+                    </td>
+                    <td className="py-2.5 pr-3">
+                      <span
+                        className={`font-semibold px-2.5 py-1 rounded-full ${
+                          r.typeLabel === "Payment Failed" || r.typeLabel === "Refund Failed"
+                            ? "text-red-700 bg-red-50"
+                            : r.typeLabel === "Payout"
+                            ? "text-teal-700 bg-teal-50"
+                            : "text-slate-600 bg-slate-100"
+                        }`}
+                      >
+                        {r.typeLabel}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-3 text-right font-semibold text-slate-900">
+                      {r.amountPaise === null ? "—" : formatInr(r.amountPaise)}
+                    </td>
+                    <td className="py-2.5">
+                      <button
+                        onClick={() => setOpenReceipt(r)}
+                        className="text-teal-700 font-semibold hover:underline"
+                      >
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {openPatient && (
         <Modal
           title={`Payment History: ${openPatient.patient.full_name ?? "Unknown"}`}
@@ -283,6 +540,120 @@ export default function AdminPaymentHistoryTab({
           <TherapistTransactionTable transactions={openTherapist.transactions} />
         </Modal>
       )}
+
+      {openReceipt && (
+        <Modal
+          title={`${openReceipt.personName} — ${openReceipt.typeLabel}`}
+          subtitle={formatDateTime(openReceipt.date)}
+          onClose={() => setOpenReceipt(null)}
+        >
+          <ReceiptDetail row={openReceipt} />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function ReceiptDetail({ row }: { row: AdminReceiptRow }) {
+  const { detail } = row;
+
+  if (detail.kind === "booking") {
+    return (
+      <div className="space-y-3 text-xs">
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">Session / Purpose</span>
+          <span className="font-semibold text-slate-800">{detail.title}</span>
+        </div>
+        {detail.slotTime && (
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Session Time</span>
+            <span className="font-semibold text-slate-800">
+              {formatSlotTime(detail.slotTime, detail.slotTimezone)}
+            </span>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">Amount</span>
+          <span className="font-semibold text-slate-800">
+            {detail.isPackageCovered ? "Covered by package" : formatInr(detail.amountPaise)}
+          </span>
+        </div>
+        {detail.transactionId && (
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Transaction ID</span>
+            <span className="font-mono text-slate-600">{detail.transactionId}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (detail.kind === "payment_failed") {
+    return (
+      <div className="space-y-3 text-xs">
+        {detail.amountPaise !== null && (
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Amount Attempted</span>
+            <span className="font-semibold text-slate-800">{formatInr(detail.amountPaise)}</span>
+          </div>
+        )}
+        {detail.errorCode && (
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Error Code</span>
+            <span className="font-mono text-slate-600">{detail.errorCode}</span>
+          </div>
+        )}
+        {detail.errorReason && (
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Reason</span>
+            <span className="font-semibold text-slate-800">{detail.errorReason}</span>
+          </div>
+        )}
+        {detail.errorDescription && (
+          <p className="text-slate-600 pt-2 border-t border-slate-100">{detail.errorDescription}</p>
+        )}
+      </div>
+    );
+  }
+
+  // kind === "payout"
+  return (
+    <div className="space-y-3 text-xs">
+      <div className="flex items-center justify-between">
+        <span className="text-slate-500">Total Paid Out</span>
+        <span className="font-bold text-teal-700 text-sm">{formatInr(detail.amountPaise)}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-slate-500">Method</span>
+        <span className="font-semibold text-slate-800">{detail.method}</span>
+      </div>
+      {detail.note && (
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">Note</span>
+          <span className="font-semibold text-slate-800">{detail.note}</span>
+        </div>
+      )}
+      <div className="pt-3 border-t border-slate-100">
+        <p className="font-semibold text-slate-600 mb-2">
+          Sessions covered ({detail.sessionCount})
+        </p>
+        <ul className="space-y-2">
+          {detail.sessions.map((s) => (
+            <li
+              key={s.appointmentId}
+              className="p-3 rounded-lg bg-slate-50 flex items-center justify-between gap-2"
+            >
+              <div>
+                <p className="font-semibold text-slate-800">{s.title}</p>
+                <p className="text-slate-500 mt-0.5">
+                  {s.patientName} • {formatSlotTime(s.slotTime, null)}
+                </p>
+              </div>
+              <span className="font-semibold text-slate-700">{formatInr(s.amountPaise)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
