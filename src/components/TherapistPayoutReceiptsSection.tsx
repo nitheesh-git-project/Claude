@@ -9,10 +9,19 @@ function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
 }
 
-function formatDate(iso: string) {
+function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-IN", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Asia/Kolkata",
+  });
+}
+
+function formatDateHeading(iso: string) {
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
     timeZone: "Asia/Kolkata",
   });
 }
@@ -25,44 +34,66 @@ export default function TherapistPayoutReceiptsSection({
   const [selected, setSelected] = useState<PayoutReceipt | null>(null);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
+    <div className="mt-8">
       <h2 className="font-bold text-lg text-slate-800 mb-1">Payout Receipts</h2>
       <p className="text-xs text-slate-500 mb-4">
         A record of every settlement paid out to you, and exactly which sessions each one covered.
       </p>
 
       {receipts.length === 0 ? (
-        <p className="text-xs text-slate-500 py-8 text-center">
-          No payouts settled yet — this fills in once the clinic pays you out.
-        </p>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <p className="text-xs text-slate-500 py-8 text-center">
+            No payouts settled yet — this fills in once the clinic pays you out.
+          </p>
+        </div>
       ) : (
-        <ul className="space-y-2">
+        <div className="space-y-3">
           {receipts.map((r) => (
-            <li key={r.id}>
-              <button
-                type="button"
-                onClick={() => setSelected(r)}
-                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-teal-300 transition text-xs flex items-center justify-between gap-2 flex-wrap"
-              >
+            <div key={r.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
-                  <p className="font-bold text-slate-900">
-                    {r.sessionCount} session{r.sessionCount === 1 ? "" : "s"} settled
-                  </p>
-                  <p className="text-slate-500 mt-1">
-                    {formatDate(r.settledAt)} • {r.method}
-                  </p>
+                  <p className="text-[11px] text-slate-400">Payout Date</p>
+                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                    <p className="text-xl font-bold text-slate-900">{formatDateHeading(r.settledAt)}</p>
+                    <span className="font-semibold text-[11px] px-2.5 py-1 rounded-full text-teal-800 bg-teal-100">
+                      Paid
+                    </span>
+                  </div>
                 </div>
-                <span className="font-bold text-teal-700">{formatInr(r.amountPaise)}</span>
-              </button>
-            </li>
+                <div className="text-right">
+                  <p className="text-xl font-bold text-slate-900">{formatInr(r.amountPaise)}</p>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(r)}
+                    className="text-teal-700 font-semibold text-xs hover:underline"
+                  >
+                    See More <i className="fa-solid fa-chevron-down text-[10px] ml-0.5"></i>
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-500 mt-3">
+                {r.sessionCount} session{r.sessionCount === 1 ? "" : "s"} settled • {r.method}
+              </p>
+
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSelected(r)}
+                  className="text-teal-700 font-semibold text-xs hover:underline inline-flex items-center gap-1.5"
+                >
+                  View Payout Details <i className="fa-solid fa-circle-info"></i>
+                </button>
+              </div>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
 
       {selected && (
         <Modal
           title={`${selected.sessionCount} session${selected.sessionCount === 1 ? "" : "s"} settled`}
-          subtitle={formatDate(selected.settledAt)}
+          subtitle={formatDateTime(selected.settledAt)}
           onClose={() => setSelected(null)}
         >
           <div className="space-y-3 text-xs">
