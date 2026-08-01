@@ -9,10 +9,19 @@ function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
 }
 
-function formatDate(iso: string) {
+function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-IN", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Asia/Kolkata",
+  });
+}
+
+function formatDateHeading(iso: string) {
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
     timeZone: "Asia/Kolkata",
   });
 }
@@ -25,67 +34,94 @@ const STAGE_LABEL: Record<BookingReceiptStage, string> = {
   refund_failed: "Refund Failed",
 };
 
-const STAGE_STYLE: Record<BookingReceiptStage, string> = {
-  payment_confirmed: "text-teal-700 bg-teal-50",
-  service_completed: "text-blue-700 bg-blue-50",
+const STAGE_PILL_STYLE: Record<BookingReceiptStage, string> = {
+  payment_confirmed: "text-teal-800 bg-teal-100",
+  service_completed: "text-blue-800 bg-blue-100",
   cancelled: "text-slate-600 bg-slate-100",
   refunded: "text-slate-600 bg-slate-100",
-  refund_failed: "text-red-700 bg-red-50",
+  refund_failed: "text-red-800 bg-red-100",
 };
 
 export default function ReceiptsSection({ receipts }: { receipts: PatientReceipt[] }) {
   const [selected, setSelected] = useState<PatientReceipt | null>(null);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
+    <div className="mt-8">
       <h2 className="font-bold text-lg text-slate-800 mb-1">Receipts</h2>
       <p className="text-xs text-slate-500 mb-4">
         A record of every payment, completed session, and payment attempt on your account.
       </p>
 
       {receipts.length === 0 ? (
-        <p className="text-xs text-slate-500 py-8 text-center">
-          Nothing to show yet — receipts appear here once you make a payment.
-        </p>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <p className="text-xs text-slate-500 py-8 text-center">
+            Nothing to show yet — receipts appear here once you make a payment.
+          </p>
+        </div>
       ) : (
-        <ul className="space-y-2">
-          {receipts.map((r) => (
-            <li key={`${r.kind}-${r.id}`}>
-              <button
-                type="button"
-                onClick={() => setSelected(r)}
-                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-teal-300 transition text-xs flex items-center justify-between gap-2 flex-wrap"
+        <div className="space-y-3">
+          {receipts.map((r) => {
+            const pillLabel = r.kind === "booking" ? STAGE_LABEL[r.stage] : "Payment Failed";
+            const pillStyle =
+              r.kind === "booking" ? STAGE_PILL_STYLE[r.stage] : "text-red-800 bg-red-100";
+            const amountLabel =
+              r.kind === "booking"
+                ? r.isPackageCovered
+                  ? "Covered by package"
+                  : formatInr(r.amountPaise)
+                : r.amountPaise !== null
+                ? formatInr(r.amountPaise)
+                : "—";
+            return (
+              <div
+                key={`${r.kind}-${r.id}`}
+                className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"
               >
-                <div>
-                  <p className="font-bold text-slate-900">{r.title}</p>
-                  <p className="text-slate-500 mt-1">{formatDate(r.date)}</p>
-                </div>
-                {r.kind === "booking" ? (
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`font-semibold px-3 py-1 rounded-full ${STAGE_STYLE[r.stage]}`}
-                    >
-                      {STAGE_LABEL[r.stage]}
-                    </span>
-                    <span className="font-semibold text-slate-700">
-                      {r.isPackageCovered ? "Covered by package" : formatInr(r.amountPaise)}
-                    </span>
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-[11px] text-slate-400">
+                      {r.kind === "booking" ? "Session Date" : "Payment Attempted"}
+                    </p>
+                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                      <p className="text-xl font-bold text-slate-900">{formatDateHeading(r.date)}</p>
+                      <span className={`font-semibold text-[11px] px-2.5 py-1 rounded-full ${pillStyle}`}>
+                        {pillLabel}
+                      </span>
+                    </div>
                   </div>
-                ) : (
-                  <span className="font-semibold text-red-700 bg-red-50 px-3 py-1 rounded-full">
-                    Payment Failed
-                  </span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
+                  <div className="text-right">
+                    <p className="text-xl font-bold text-slate-900">{amountLabel}</p>
+                    <button
+                      type="button"
+                      onClick={() => setSelected(r)}
+                      className="text-teal-700 font-semibold text-xs hover:underline"
+                    >
+                      See More <i className="fa-solid fa-chevron-down text-[10px] ml-0.5"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-500 mt-3">{r.title}</p>
+
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setSelected(r)}
+                    className="text-teal-700 font-semibold text-xs hover:underline inline-flex items-center gap-1.5"
+                  >
+                    View Payment Details <i className="fa-solid fa-circle-info"></i>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {selected && (
         <Modal
           title={selected.title}
-          subtitle={formatDate(selected.date)}
+          subtitle={formatDateTime(selected.date)}
           onClose={() => setSelected(null)}
         >
           {selected.kind === "booking" ? (
@@ -93,7 +129,7 @@ export default function ReceiptsSection({ receipts }: { receipts: PatientReceipt
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Status</span>
                 <span
-                  className={`font-semibold px-3 py-1 rounded-full ${STAGE_STYLE[selected.stage]}`}
+                  className={`font-semibold px-3 py-1 rounded-full ${STAGE_PILL_STYLE[selected.stage]}`}
                 >
                   {STAGE_LABEL[selected.stage]}
                 </span>
@@ -130,7 +166,7 @@ export default function ReceiptsSection({ receipts }: { receipts: PatientReceipt
             <div className="space-y-3 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Status</span>
-                <span className="font-semibold text-red-700 bg-red-50 px-3 py-1 rounded-full">
+                <span className="font-semibold text-red-800 bg-red-100 px-3 py-1 rounded-full">
                   Failed
                 </span>
               </div>
