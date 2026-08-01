@@ -205,6 +205,14 @@ alter table profiles add column if not exists active boolean not null default tr
 -- defaults to visible so nothing changes for existing therapists.
 alter table profiles add column if not exists visible_on_team boolean not null default true;
 
+-- Independent of both `active` and `visible_on_team`: a therapist can stay
+-- fully visible on the team page while their rating number specifically
+-- stays hidden -- e.g. too new to have a representative average yet.
+-- Patient rows never use this (patient ratings are never public), but it
+-- lives on `profiles` rather than a therapist-only table for the same
+-- reason `visible_on_team` does -- one row per person, one place to look.
+alter table profiles add column if not exists rating_visible boolean not null default true;
+
 -- Private admin notes about a patient (e.g. "prefers evening slots",
 -- "payment dispute resolved 3/15") — deliberately its own table, not a
 -- column on profiles, because profiles_select_own lets a patient read
@@ -368,6 +376,15 @@ alter table appointments add column if not exists patient_feedback_at timestampt
 alter table appointments add column if not exists therapist_rating integer check (therapist_rating is null or (therapist_rating >= 1 and therapist_rating <= 5));
 alter table appointments add column if not exists therapist_feedback text;
 alter table appointments add column if not exists therapist_feedback_at timestamptz;
+
+-- Lets an admin exclude one specific session's rating from every computed
+-- average (public /team, admin profile pages, the rated party's own
+-- dashboard) without deleting it -- the rating and its feedback text stay
+-- fully visible on that session's own record, just outside the math. One
+-- flag per side so excluding a patient's rating on a session doesn't touch
+-- the therapist's rating on that same session, and vice versa.
+alter table appointments add column if not exists patient_rating_excluded boolean not null default false;
+alter table appointments add column if not exists therapist_rating_excluded boolean not null default false;
 
 -- Every reassignment (therapist/time/category change) made from the admin
 -- Calendar/Session Story views writes one row here recording what it was
@@ -668,6 +685,29 @@ alter table appointments add constraint appointments_refund_status_check
 -- slot.
 alter table appointments add column if not exists preferred_therapist_id uuid references profiles(id);
 
+-- Sitewide switch, separate from any individual therapist's own
+-- rating_visible flag: while the platform is young and real review volume
+-- is thin, admin can hide rating numbers from every public page at once
+-- (new visitors shouldn't see a handful of early reviews before there's
+-- enough volume to be representative) without touching each therapist's
+-- own setting, which stays intact underneath for whenever this is flipped
+-- back on. A real (Postgres has no boolean primary key type restriction
+-- beyond the check) singleton: the check constraint makes a second row
+-- physically impossible, so "the current settings" is always exactly one
+-- unambiguous row, no ORDER BY/LIMIT 1 guesswork anywhere it's read.
+create table if not exists site_settings (
+  id boolean primary key default true check (id = true),
+  ratings_visible_publicly boolean not null default true
+);
+insert into site_settings (id) values (true) on conflict (id) do nothing;
+
+alter table site_settings enable row level security;
+drop policy if exists "site_settings_select_public" on site_settings;
+create policy "site_settings_select_public" on site_settings for select using (true);
+grant select on site_settings to anon, authenticated;
+-- No client insert/update policy -- only the service-role
+-- set-ratings-visible-publicly route ever writes this row.
+
 -- Real, aggregated (never per-review) rating data exposed publicly.
 -- Deliberately exposes only numbers, never individual patient names or
 -- feedback text — publishing real patient reviews/names without an
@@ -675,16 +715,25 @@ alter table appointments add column if not exists preferred_therapist_id uuid re
 -- currently has a mechanism for; the existing hand-curated `testimonials`
 -- table (implied consent obtained manually before an admin types a quote
 -- in) remains the only source of individually-attributed public reviews.
+--
+-- A rating only ever surfaces here when BOTH the global site_settings
+-- switch and this specific therapist's own rating_visible flag are true --
+-- either one being off is enough to null the numbers out. excluded ratings
+-- (patient_rating_excluded) are dropped from the aggregation entirely, same
+-- as if they'd never been submitted, while staying intact on the
+-- appointment row itself for admin's own view.
 drop view if exists public_therapist_profiles;
 create view public_therapist_profiles as
 select
   p.id, p.full_name, p.credentials, p.specialization, p.years_experience, p.bio, p.avatar_url,
-  r.avg_rating, r.rating_count
+  case when s.ratings_visible_publicly and p.rating_visible then r.avg_rating else null end as avg_rating,
+  case when s.ratings_visible_publicly and p.rating_visible then r.rating_count else null end as rating_count
 from profiles p
+cross join site_settings s
 left join (
   select therapist_id, avg(patient_rating)::numeric(3,2) as avg_rating, count(*) as rating_count
   from appointments
-  where patient_rating is not null
+  where patient_rating is not null and patient_rating_excluded = false
   group by therapist_id
 ) r on r.therapist_id = p.id
 -- active = true wasn't checked before this migration either, which meant a
@@ -700,10 +749,14 @@ grant select on public_therapist_profiles to anon, authenticated;
 drop view if exists public_rating_summary;
 create view public_rating_summary as
 select
-  avg(patient_rating)::numeric(3,2) as avg_rating,
-  count(*) as rating_count
-from appointments
-where patient_rating is not null;
+  case when s.ratings_visible_publicly then agg.avg_rating else null end as avg_rating,
+  case when s.ratings_visible_publicly then agg.rating_count else null end as rating_count
+from site_settings s
+cross join (
+  select avg(patient_rating)::numeric(3,2) as avg_rating, count(*) as rating_count
+  from appointments
+  where patient_rating is not null and patient_rating_excluded = false
+) agg;
 
 grant select on public_rating_summary to anon, authenticated;
 
