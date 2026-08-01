@@ -721,11 +721,42 @@ export default async function AdminDashboardPage() {
     />
   );
 
+  // therapistId -> revenue-share %, only where an admin has actually set
+  // one -- the Metrics tab's revenue breakdown treats a missing entry as
+  // "can't compute a split," never as 0%, matching PatientProfitChart's
+  // same rule for the identical reason (0% would understate a real payout
+  // that just hasn't been configured yet).
+  const therapistSharePercent = Object.fromEntries(
+    allTherapists
+      .filter((t) => t.revenue_share_percent !== null && t.revenue_share_percent !== undefined)
+      .map((t) => [t.id, t.revenue_share_percent as number])
+  );
+
+  // patientId -> the referring hospital's revenue-share %, only for
+  // patients actually referred by a hospital that has one set. Resolved
+  // here (not in the client component) since both `patients` and
+  // `hospitals` are already in scope from the same allProfiles fetch.
+  const hospitalSharePercentById = new Map(
+    hospitals
+      .filter((h) => h.revenue_share_percent !== null && h.revenue_share_percent !== undefined)
+      .map((h) => [h.id, h.revenue_share_percent as number])
+  );
+  const patientHospitalSharePercent = Object.fromEntries(
+    patients
+      .filter(
+        (p) => p.referred_by_hospital_id && hospitalSharePercentById.has(p.referred_by_hospital_id)
+      )
+      .map((p) => [p.id, hospitalSharePercentById.get(p.referred_by_hospital_id as string) as number])
+  );
+
   const metricsTab = (
     <AdminMetricsTab
       appointments={appointments ?? []}
       therapists={allTherapists}
       categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+      patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+      therapistSharePercent={therapistSharePercent}
+      patientHospitalSharePercent={patientHospitalSharePercent}
       nowMs={nowTimestamp()}
     />
   );

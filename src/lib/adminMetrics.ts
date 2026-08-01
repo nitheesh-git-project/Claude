@@ -26,12 +26,14 @@ export type PeriodBucket = { label: string; startMs: number; endMs: number };
 export function filterByDimension(
   appointments: MetricsAppointment[],
   categoryFilter: string,
-  therapistFilter: string
+  therapistFilter: string,
+  patientFilter: string
 ): MetricsAppointment[] {
   return appointments.filter(
     (a) =>
       (categoryFilter === "all" || a.category_id === categoryFilter) &&
-      (therapistFilter === "all" || a.therapist_id === therapistFilter)
+      (therapistFilter === "all" || a.therapist_id === therapistFilter) &&
+      (patientFilter === "all" || a.patient_id === patientFilter)
   );
 }
 
@@ -105,18 +107,23 @@ export function sumByBucket<T>(
   return sums;
 }
 
+// Both bucketed by the session's own slot_time -- previously revenue was
+// bucketed by paid_at and bookings by created_at, two axes that disagree
+// with each other AND with the slot_time-based range everything else in
+// this tab (no-show rate, cancellation rate, therapist utilization) already
+// uses. Picking a From/To range should mean the same thing everywhere on
+// this tab: "sessions scheduled in this window" -- not "paid in this
+// window" for one chart and "booked in this window" for another. No
+// fromMs/toMs params needed here anymore either: `buckets` already spans
+// exactly [fromMs, toMs), so an item outside that range simply lands in no
+// bucket and sumByBucket drops it, without a separate range check.
 export function revenueByBucketFor(
   dimFiltered: MetricsAppointment[],
-  fromMs: number,
-  toMs: number,
   buckets: PeriodBucket[]
 ): number[] {
   return sumByBucket(
     dimFiltered.filter((a) => a.payment_status === "paid"),
-    (a) => {
-      const ms = new Date(a.paid_at ?? a.created_at).getTime();
-      return ms >= fromMs && ms < toMs ? ms : null;
-    },
+    (a) => (a.slot_time ? new Date(a.slot_time).getTime() : null),
     (a) => (a.amount_paid_paise ?? SESSION_FEE_PAISE) / 100,
     buckets
   );
@@ -124,19 +131,74 @@ export function revenueByBucketFor(
 
 export function bookingsByBucketFor(
   dimFiltered: MetricsAppointment[],
-  fromMs: number,
-  toMs: number,
   buckets: PeriodBucket[]
 ): number[] {
   return sumByBucket(
     dimFiltered,
-    (a) => {
-      const ms = new Date(a.created_at).getTime();
-      return ms >= fromMs && ms < toMs ? ms : null;
-    },
+    (a) => (a.slot_time ? new Date(a.slot_time).getTime() : null),
     () => 1,
     buckets
   );
+}
+
+export type MoneyByBucket = {
+  revenuePaise: number[];
+  therapistCutPaise: number[];
+  hospitalCutPaise: number[];
+  profitPaise: number[];
+  excludedCount: number;
+  excludedRevenuePaise: number;
+};
+
+// Same "only where the split is actually knowable" rule as
+// PatientProfitChart's per-patient breakdown: a paid session only enters
+// revenue/cuts/profit here if its therapist has a revenue-share % set --
+// otherwise there's no way to know the real split, and guessing would
+// misstate profit rather than just omit a number. Sessions skipped this way
+// are counted (and their revenue totalled) separately in
+// excludedCount/excludedRevenuePaise so it's a visible caveat, not a silent
+// gap -- this is why this section's own "Revenue" total can come in lower
+// than the "Revenue (range)" stat card above, which counts all paid revenue
+// regardless of whether a payout split is knowable.
+export function moneyByBucketFor(
+  dimFiltered: MetricsAppointment[],
+  buckets: PeriodBucket[],
+  therapistSharePercent: Record<string, number>,
+  patientHospitalSharePercent: Record<string, number>
+): MoneyByBucket {
+  const revenuePaise = buckets.map(() => 0);
+  const therapistCutPaise = buckets.map(() => 0);
+  const hospitalCutPaise = buckets.map(() => 0);
+  let excludedCount = 0;
+  let excludedRevenuePaise = 0;
+
+  for (const a of dimFiltered) {
+    if (a.payment_status !== "paid" || !a.slot_time) continue;
+    const ms = new Date(a.slot_time).getTime();
+    const idx = buckets.findIndex((b) => ms >= b.startMs && ms < b.endMs);
+    if (idx < 0) continue;
+
+    const paidPaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
+    const tShare = a.therapist_id ? therapistSharePercent[a.therapist_id] : undefined;
+    if (tShare === undefined) {
+      excludedCount += 1;
+      excludedRevenuePaise += paidPaise;
+      continue;
+    }
+
+    revenuePaise[idx] += paidPaise;
+    therapistCutPaise[idx] += Math.round((paidPaise * tShare) / 100);
+    const hShare = patientHospitalSharePercent[a.patient_id];
+    if (hShare !== undefined) {
+      hospitalCutPaise[idx] += Math.round((paidPaise * hShare) / 100);
+    }
+  }
+
+  const profitPaise = buckets.map(
+    (_, i) => revenuePaise[i] - therapistCutPaise[i] - hospitalCutPaise[i]
+  );
+
+  return { revenuePaise, therapistCutPaise, hospitalCutPaise, profitPaise, excludedCount, excludedRevenuePaise };
 }
 
 export function computeNoShowRate(completedInRange: MetricsAppointment[]): {
