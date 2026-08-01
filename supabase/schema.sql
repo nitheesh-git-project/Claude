@@ -970,3 +970,79 @@ create policy "availability_override_select_own" on therapist_availability_overr
 -- and flipping it back off simply resumes reading the template as normal
 -- -- there's nothing to "restore" since nothing was ever deleted.
 alter table profiles add column if not exists on_leave boolean not null default false;
+
+-- Receipts feature -----------------------------------------------------
+--
+-- A "receipt" for a payment or a completed session is never its own stored
+-- row -- it's just the existing appointments/patient_package_purchases row,
+-- rendered differently depending on its current status (payment confirmed
+-- -> service completed -> cancelled/refunded), matching this codebase's
+-- established "pure aggregation over already-fetched data" convention
+-- (see src/lib/paymentHistory.ts). Only two genuinely NEW pieces of state
+-- are needed to support the rest of the feature: a log of failed payment
+-- attempts (nothing captures these today at all) and a way to group the
+-- sessions a single payout settlement covered (today each settled
+-- appointment only carries its own copy of the same payout timestamp, with
+-- nothing tying them together as one event).
+
+-- Logs a failed Razorpay checkout attempt (declined card, bank timeout,
+-- etc.) so a patient has somewhere to see *why* a payment didn't go
+-- through instead of it just silently vanishing. Deliberately NOT a
+-- payment_status transition on appointments/patient_package_purchases --
+-- a failed attempt doesn't change the booking's real state (it's still
+-- unpaid, still payable via the existing Pay Now flow), it's a separate
+-- historical event, and a booking can accumulate more than one failed
+-- attempt before eventually succeeding.
+create table if not exists payment_failure_log (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id),
+  appointment_id uuid references appointments(id),
+  package_purchase_id uuid references patient_package_purchases(id),
+  amount_paise integer,
+  razorpay_order_id text,
+  razorpay_payment_id text,
+  error_code text,
+  error_reason text,
+  error_description text,
+  created_at timestamptz not null default now(),
+  constraint payment_failure_log_target_check check (
+    (appointment_id is not null and package_purchase_id is null)
+    or (appointment_id is null and package_purchase_id is not null)
+  )
+);
+
+alter table payment_failure_log enable row level security;
+
+drop policy if exists "payment_failure_log_select_own" on payment_failure_log;
+create policy "payment_failure_log_select_own" on payment_failure_log
+  for select using (auth.uid() = patient_id);
+
+-- No client insert/update/delete policy -- only the service-role
+-- /api/razorpay/log-payment-failure route writes these, after verifying
+-- the caller actually owns the appointment/package purchase they're
+-- reporting a failure against.
+
+-- Groups every appointment settled together in one
+-- /api/admin/settle-therapist-payout action, so a payout receipt can list
+-- exactly which sessions it covered instead of approximating it by
+-- matching timestamps.
+create table if not exists therapist_payout_batches (
+  id uuid primary key default gen_random_uuid(),
+  therapist_id uuid not null references profiles(id),
+  amount_paise integer not null,
+  method text not null,
+  note text,
+  settled_by uuid references profiles(id),
+  created_at timestamptz not null default now()
+);
+
+alter table therapist_payout_batches enable row level security;
+
+drop policy if exists "payout_batches_select_own" on therapist_payout_batches;
+create policy "payout_batches_select_own" on therapist_payout_batches
+  for select using (auth.uid() = therapist_id);
+
+-- No client insert/update/delete policy -- only settle-therapist-payout
+-- (service role) writes these.
+
+alter table appointments add column if not exists therapist_payout_batch_id uuid references therapist_payout_batches(id);

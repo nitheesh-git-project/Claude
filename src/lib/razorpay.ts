@@ -1,6 +1,9 @@
 declare global {
   interface Window {
-    Razorpay: new (options: Record<string, unknown>) => { open: () => void };
+    Razorpay: new (options: Record<string, unknown>) => {
+      open: () => void;
+      on: (event: "payment.failed", handler: (response: { error?: Record<string, unknown> }) => void) => void;
+    };
   }
 }
 
@@ -89,6 +92,33 @@ export async function payForAppointment({
         },
       },
     });
+
+    // Razorpay's own `payment.failed` event -- a genuine failure (declined
+    // card, bank timeout), not just the user closing the checkout modal
+    // (that's `ondismiss`, handled separately, and isn't logged as a
+    // failure since nothing was actually attempted). Razorpay's own
+    // checkout UI already communicates the failure to the patient in the
+    // moment, so this only needs to log it for the receipt -- not also
+    // call onError. Best-effort: the log call's own failure is swallowed
+    // rather than surfaced, since losing this notification should never
+    // block or confuse the payment flow itself.
+    razorpay.on("payment.failed", (response) => {
+      const err = response?.error ?? {};
+      fetch("/api/razorpay/log-payment-failure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appointmentId,
+          amountPaise: orderData.amount,
+          razorpayOrderId: err.metadata && (err.metadata as Record<string, unknown>).order_id,
+          razorpayPaymentId: err.metadata && (err.metadata as Record<string, unknown>).payment_id,
+          errorCode: err.code,
+          errorReason: err.reason,
+          errorDescription: err.description,
+        }),
+      }).catch(() => {});
+    });
+
     razorpay.open();
   } catch {
     onError(

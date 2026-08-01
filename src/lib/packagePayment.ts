@@ -74,6 +74,27 @@ export async function payForPackage({
         },
       },
     });
+
+    // See payForAppointment's matching comment in src/lib/razorpay.ts --
+    // same reasoning, just logged against the package purchase instead of
+    // an appointment.
+    razorpay.on("payment.failed", (response) => {
+      const err = response?.error ?? {};
+      fetch("/api/razorpay/log-payment-failure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          packagePurchaseId: orderData.packagePurchaseId,
+          amountPaise: orderData.amount,
+          razorpayOrderId: err.metadata && (err.metadata as Record<string, unknown>).order_id,
+          razorpayPaymentId: err.metadata && (err.metadata as Record<string, unknown>).payment_id,
+          errorCode: err.code,
+          errorReason: err.reason,
+          errorDescription: err.description,
+        }),
+      }).catch(() => {});
+    });
+
     razorpay.open();
   } catch {
     onError(

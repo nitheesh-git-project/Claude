@@ -9,8 +9,10 @@ import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import BuyPackageButton from "@/components/BuyPackageButton";
 import BookWithPackageForm from "@/components/BookWithPackageForm";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
+import ReceiptsSection from "@/components/ReceiptsSection";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { buildPatientReceipts } from "@/lib/receipts";
 
 export const metadata: Metadata = {
   title: "Patient Dashboard | Dr. Pooja's Physio",
@@ -49,7 +51,25 @@ export default async function PatientDashboardPage() {
   const { data: appointments } = await supabase
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id, no_show"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, paid_at, razorpay_payment_id, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id, no_show"
+    )
+    .eq("patient_id", user.id)
+    .order("created_at", { ascending: false });
+
+  // Full purchase history (not just currently-usable packages -- that's
+  // ownedPackages below, filtered to paid ones with sessions remaining) so
+  // the Receipts section can show a payment-confirmed receipt for every
+  // package ever bought, same as every other paid appointment.
+  const { data: allPackagePurchases } = await supabase
+    .from("patient_package_purchases")
+    .select("id, category_id, session_count, payment_status, amount_paid_paise, paid_at, razorpay_payment_id")
+    .eq("patient_id", user.id)
+    .order("created_at", { ascending: false });
+
+  const { data: paymentFailures } = await supabase
+    .from("payment_failure_log")
+    .select(
+      "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
     )
     .eq("patient_id", user.id)
     .order("created_at", { ascending: false });
@@ -59,21 +79,29 @@ export default async function PatientDashboardPage() {
   // category's price, or the flat base fee if there's no category. Looked
   // up via the admin client (not the active-only public policy) so this
   // always matches what /api/razorpay/create-order will actually charge,
-  // even for a category that's since been deactivated.
+  // even for a category that's since been deactivated. Also covers
+  // packages' category ids, so the Receipts section can show a package's
+  // category title even after it's been deactivated or renamed.
   const categoryIds = [
-    ...new Set((appointments ?? []).map((a) => a.category_id).filter(Boolean)),
+    ...new Set(
+      [
+        ...(appointments ?? []).map((a) => a.category_id),
+        ...(allPackagePurchases ?? []).map((p) => p.category_id),
+      ].filter(Boolean)
+    ),
   ];
   const admin = createAdminClient();
   const { data: categoryPrices } =
     categoryIds.length > 0
       ? await admin
           .from("treatment_categories")
-          .select("id, price_paise")
+          .select("id, price_paise, title")
           .in("id", categoryIds as string[])
-      : { data: [] as { id: string; price_paise: number }[] };
+      : { data: [] as { id: string; price_paise: number; title: string }[] };
   const categoryPriceMap = new Map(
     (categoryPrices ?? []).map((c) => [c.id, c.price_paise])
   );
+  const categoryTitleMap = new Map((categoryPrices ?? []).map((c) => [c.id, c.title]));
 
   // A patient can read their own appointment rows via RLS, but not the
   // linked therapist's profile (that policy only allows a user to read
@@ -313,6 +341,15 @@ export default async function PatientDashboardPage() {
           </ul>
         </div>
       )}
+
+      <ReceiptsSection
+        receipts={buildPatientReceipts(
+          appointments ?? [],
+          allPackagePurchases ?? [],
+          paymentFailures ?? [],
+          categoryTitleMap
+        )}
+      />
     </section>
   );
 }

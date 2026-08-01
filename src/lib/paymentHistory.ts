@@ -26,6 +26,15 @@ export type PaymentAppointment = {
   therapist_payout_amount_paise: number | null;
   therapist_payout_method: string | null;
   therapist_payout_note: string | null;
+  // Added for the admin Receipts section -- widened rather than given its
+  // own narrower type, same reasoning as adminMetrics.ts's
+  // MetricsAppointment: this is always the exact same `appointments` array
+  // page.tsx already passes to every other admin-dashboard tab.
+  status: string;
+  slot_time: string | null;
+  timezone: string | null;
+  refund_status: string | null;
+  therapist_payout_batch_id: string | null;
 };
 
 export type PackagePurchase = {

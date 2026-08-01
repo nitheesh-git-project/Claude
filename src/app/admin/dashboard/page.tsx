@@ -102,6 +102,38 @@ export default async function AdminDashboardPage() {
     .select("id, patient_id, category_id, session_count, payment_status, amount_paid_paise, paid_at, razorpay_payment_id")
     .order("paid_at", { ascending: false });
 
+  // Feeds the Payment History tab's new Receipts section. Both isolated
+  // from the queries above for the same reason as the roster tables --
+  // new, migration-dependent, and a missing migration should only empty
+  // out the Receipts section rather than take down the rest of this page.
+  const { data: paymentFailures } = await admin
+    .from("payment_failure_log")
+    .select(
+      "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
+    )
+    .order("created_at", { ascending: false });
+  const { data: payoutBatches } = await admin
+    .from("therapist_payout_batches")
+    .select("id, therapist_id, amount_paise, method, note, created_at")
+    .order("created_at", { ascending: false });
+
+  // therapist_payout_batch_id lives on appointments, but it's queried
+  // separately and merged in below rather than added to the big shared
+  // select above -- that select feeds Overview, Calendar, Session Story,
+  // and Metrics too, so a missing-column error there (before this
+  // migration runs) would blank all of those, not just the Receipts
+  // section. Same isolation reasoning as payoutBatches/paymentFailures.
+  const { data: payoutBatchLinks } = await admin
+    .from("appointments")
+    .select("id, therapist_payout_batch_id");
+  const payoutBatchIdByAppointmentId = new Map(
+    (payoutBatchLinks ?? []).map((a) => [a.id, a.therapist_payout_batch_id])
+  );
+  const appointmentsWithPayoutBatch = (appointments ?? []).map((a) => ({
+    ...a,
+    therapist_payout_batch_id: payoutBatchIdByAppointmentId.get(a.id) ?? null,
+  }));
+
   // Feeds the Manage Roster tab. Both queries can legitimately return
   // nothing (or error, if the migration hasn't been applied to this
   // database yet) -- the tab renders an empty-but-correct grid either way,
@@ -816,8 +848,10 @@ export default async function AdminDashboardPage() {
     <AdminPaymentHistoryTab
       patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
       therapists={allTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
-      appointments={appointments ?? []}
+      appointments={appointmentsWithPayoutBatch}
       packagePurchases={packagePurchases ?? []}
+      paymentFailures={paymentFailures ?? []}
+      payoutBatches={payoutBatches ?? []}
       categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
     />
   );
