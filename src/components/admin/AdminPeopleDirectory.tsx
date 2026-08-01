@@ -13,6 +13,10 @@ type Person = {
   active: boolean;
   approved?: boolean;
   created_at: string;
+  // New/migration-dependent PT0001/TH0001-style display ID (see
+  // supabase/schema.sql's "Unique display IDs" section) -- null until the
+  // migration backfilling it has run.
+  code?: string | null;
 };
 
 export default function AdminPeopleDirectory({
@@ -76,6 +80,7 @@ export default function AdminPeopleDirectory({
               {badge(p) && <span className="absolute top-2 right-2">{badge(p)}</span>}
               <AvatarThumbnail url={p.avatar_url} name={p.full_name ?? "U"} size={56} />
               <p className="font-bold text-slate-900 text-xs mt-2 line-clamp-1">{p.full_name}</p>
+              {p.code && <p className="text-slate-400 text-[10px] font-mono">{p.code}</p>}
               <p className="text-slate-500 text-[11px] line-clamp-1">{p.subtitle}</p>
               <p className="text-slate-400 text-[10px] mt-1">Joined {formatIST(p.created_at)}</p>
             </Link>
@@ -86,6 +91,7 @@ export default function AdminPeopleDirectory({
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr className="text-left text-slate-500 border-b border-slate-200">
+                <th className="py-2 pr-3 font-semibold">ID</th>
                 <th className="py-2 pr-3 font-semibold">Name</th>
                 <th className="py-2 pr-3 font-semibold">Details</th>
                 <th className="py-2 pr-3 font-semibold">Status</th>
@@ -95,6 +101,7 @@ export default function AdminPeopleDirectory({
             <tbody>
               {people.map((p) => (
                 <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
+                  <td className="py-2 pr-3 text-slate-400 font-mono">{p.code ?? "—"}</td>
                   <td className="py-2 pr-3">
                     <Link
                       href={`${basePath}/${p.id}`}

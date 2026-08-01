@@ -13,6 +13,7 @@ import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { buildPatientReceipts } from "@/lib/receipts";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
+import { mergeSessionCodes } from "@/lib/sessionCode";
 
 export const metadata: Metadata = {
   title: "Patient Dashboard | Dr. Pooja's Physio",
@@ -48,13 +49,31 @@ export default async function PatientDashboardPage() {
     .eq("id", user.id)
     .single();
 
-  const { data: appointments } = await supabase
+  // patient_code is new and migration-dependent -- its own isolated query
+  // (rather than folded into the select above) so a missing-column error
+  // before the migration runs only hides this one badge, not the whole
+  // profile fetch this page's header depends on.
+  const { data: patientCodeRow } = await supabase
+    .from("profiles")
+    .select("patient_code")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const { data: rawAppointments } = await supabase
     .from("appointments")
     .select(
       "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, paid_at, razorpay_payment_id, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id, no_show"
     )
     .eq("patient_id", user.id)
     .order("created_at", { ascending: false });
+
+  // session_code is also new/migration-dependent -- same isolation
+  // reasoning as patientCodeRow above.
+  const { data: sessionCodeLinks } = await supabase
+    .from("appointments")
+    .select("id, session_code")
+    .eq("patient_id", user.id);
+  const appointments = mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks);
 
   // Full purchase history (not just currently-usable packages -- that's
   // ownedPackages below, filtered to paid ones with sessions remaining) so
@@ -159,6 +178,7 @@ export default async function PatientDashboardPage() {
       userName={profile?.full_name ?? "Patient"}
       userEmail={profile?.email ?? user.email ?? ""}
       userAvatarUrl={profile?.avatar_url ?? null}
+      userCode={patientCodeRow?.patient_code ?? null}
       offsetTop={showDebugNav}
       headerTitle={`Welcome back, ${profile?.full_name ?? "there"}`}
       headerSubtitle="Your virtual physical therapy dashboard"
@@ -190,6 +210,11 @@ export default async function PatientDashboardPage() {
                   <div>
                     <p className="font-bold text-slate-900">
                       {a.concern ?? "General Consultation"}
+                      {a.session_code && (
+                        <span className="ml-2 font-mono font-normal text-[11px] text-slate-400">
+                          {a.session_code}
+                        </span>
+                      )}
                     </p>
                     <p className="text-slate-500 mt-1">
                       {formatSlotTime(a.slot_time, a.timezone)}
@@ -347,6 +372,9 @@ export default async function PatientDashboardPage() {
             allPackagePurchases ?? [],
             paymentFailures ?? [],
             categoryTitleMap
+          )}
+          sessionCodeByAppointmentId={Object.fromEntries(
+            appointments.map((a) => [a.id, a.session_code])
           )}
         />
       </div>

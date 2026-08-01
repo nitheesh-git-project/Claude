@@ -14,6 +14,7 @@ import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawe
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
+import { mergeSessionCodes } from "@/lib/sessionCode";
 
 export const metadata: Metadata = {
   title: "Patient Details | Dr. Pooja's Physio",
@@ -40,13 +41,17 @@ export default async function AdminPatientDetailPage({
     notFound();
   }
 
-  const [{ data: note }, { data: appointments }, { data: changeRequests }, { data: hospital }] =
+  // patient_code is new/migration-dependent -- kept isolated (see
+  // sessionCode.ts's comment) so an unknown-column error here only
+  // degrades this one badge, not the whole page.
+  const { data: patientCodeRow } = await admin
+    .from("profiles")
+    .select("patient_code")
+    .eq("id", id)
+    .maybeSingle();
+
+  const [{ data: rawAppointments }, { data: note }, { data: changeRequests }, { data: hospital }] =
     await Promise.all([
-      admin
-        .from("patient_admin_notes")
-        .select("note, temp_password, temp_password_set_at")
-        .eq("patient_id", id)
-        .maybeSingle(),
       admin
         .from("appointments")
         .select(
@@ -54,6 +59,11 @@ export default async function AdminPatientDetailPage({
         )
         .eq("patient_id", id)
         .order("created_at", { ascending: false }),
+      admin
+        .from("patient_admin_notes")
+        .select("note, temp_password, temp_password_set_at")
+        .eq("patient_id", id)
+        .maybeSingle(),
       admin
         .from("profile_change_requests")
         .select("id, status, admin_notes, changes, created_at")
@@ -67,6 +77,14 @@ export default async function AdminPatientDetailPage({
             .single()
         : Promise.resolve({ data: null }),
     ]);
+
+  // session_code is also new/migration-dependent -- same isolation
+  // reasoning as patientCodeRow above.
+  const { data: sessionCodeLinks } = await admin
+    .from("appointments")
+    .select("id, session_code")
+    .eq("patient_id", id);
+  const appointments = mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks);
 
   const categoryIds = [
     ...new Set((appointments ?? []).map((a) => a.category_id).filter(Boolean)),
@@ -195,6 +213,11 @@ export default async function AdminPatientDetailPage({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900">{patient.full_name}</h1>
+                {patientCodeRow?.patient_code && (
+                  <span className="text-[10px] font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                    {patientCodeRow.patient_code}
+                  </span>
+                )}
                 {!patient.active && (
                   <span className="text-[10px] font-bold uppercase text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
                     Suspended
@@ -293,7 +316,14 @@ export default async function AdminPatientDetailPage({
               return (
                 <li key={a.id} className="p-4 rounded-xl border border-slate-200 space-y-1">
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <strong className="text-slate-900">{a.concern ?? "General Consultation"}</strong>
+                    <strong className="text-slate-900">
+                      {a.concern ?? "General Consultation"}
+                      {a.session_code && (
+                        <span className="ml-2 font-mono font-normal text-[11px] text-slate-400">
+                          {a.session_code}
+                        </span>
+                      )}
+                    </strong>
                     <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
                       ₹{((a.amount_paid_paise ?? SESSION_FEE_PAISE) / 100).toLocaleString("en-IN")}
                     </span>

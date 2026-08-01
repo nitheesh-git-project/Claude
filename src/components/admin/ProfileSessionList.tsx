@@ -107,6 +107,9 @@ export default function ProfileSessionList({
                 {variant === "therapist" ? `${a.concern ?? "General Consultation"} • ` : ""}
                 {formatSlotTime(a.slot_time, a.timezone)} • {durationMinutes} min • ₹
                 {(feePaise / 100).toLocaleString("en-IN")}
+                {a.session_code && (
+                  <span className="ml-1 font-mono text-slate-400">• {a.session_code}</span>
+                )}
               </p>
               {variant === "patient" && (
                 <p className="text-slate-500">

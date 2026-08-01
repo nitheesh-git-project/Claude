@@ -42,7 +42,16 @@ const STAGE_PILL_STYLE: Record<BookingReceiptStage, string> = {
   refund_failed: "text-red-800 bg-red-100",
 };
 
-export default function ReceiptsSection({ receipts }: { receipts: PatientReceipt[] }) {
+export default function ReceiptsSection({
+  receipts,
+  sessionCodeByAppointmentId,
+}: {
+  receipts: PatientReceipt[];
+  // Keyed by appointmentId -- session_code is new/migration-dependent (see
+  // supabase/schema.sql's "Unique display IDs" section) so it's kept out of
+  // the pure receipts.ts aggregation helpers and looked up here instead.
+  sessionCodeByAppointmentId?: Record<string, string | null>;
+}) {
   const [selected, setSelected] = useState<PatientReceipt | null>(null);
 
   return (
@@ -64,6 +73,9 @@ export default function ReceiptsSection({ receipts }: { receipts: PatientReceipt
             const pillLabel = r.kind === "booking" ? STAGE_LABEL[r.stage] : "Payment Failed";
             const pillStyle =
               r.kind === "booking" ? STAGE_PILL_STYLE[r.stage] : "text-red-800 bg-red-100";
+            const sessionCode = r.appointmentId
+              ? sessionCodeByAppointmentId?.[r.appointmentId] ?? null
+              : null;
             const amountLabel =
               r.kind === "booking"
                 ? r.isPackageCovered
@@ -101,7 +113,12 @@ export default function ReceiptsSection({ receipts }: { receipts: PatientReceipt
                   </div>
                 </div>
 
-                <p className="text-xs text-slate-500 mt-3">{r.title}</p>
+                <p className="text-xs text-slate-500 mt-3">
+                  {r.title}
+                  {sessionCode && (
+                    <span className="ml-2 font-mono text-slate-400">{sessionCode}</span>
+                  )}
+                </p>
 
                 <div className="mt-3 pt-3 border-t border-slate-100">
                   <button
@@ -134,6 +151,14 @@ export default function ReceiptsSection({ receipts }: { receipts: PatientReceipt
                   {STAGE_LABEL[selected.stage]}
                 </span>
               </div>
+              {selected.appointmentId && sessionCodeByAppointmentId?.[selected.appointmentId] && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Session ID</span>
+                  <span className="font-mono text-slate-600">
+                    {sessionCodeByAppointmentId[selected.appointmentId]}
+                  </span>
+                </div>
+              )}
               {selected.slotTime && (
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500">Session Time</span>

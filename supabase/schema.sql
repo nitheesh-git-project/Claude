@@ -1046,3 +1046,118 @@ create policy "payout_batches_select_own" on therapist_payout_batches
 -- (service role) writes these.
 
 alter table appointments add column if not exists therapist_payout_batch_id uuid references therapist_payout_batches(id);
+
+-- Unique display IDs ------------------------------------------------------
+--
+-- Short, human-readable, sequential IDs for tracking a patient, therapist,
+-- hospital, or session in conversation/support/finance contexts, where a
+-- uuid is unusable. Format: <PREFIX><4+ digit zero-padded number>, e.g.
+-- PT0001, TH0001, BB0001, SS0001 -- assigned in the order each row was
+-- created (oldest = 0001), one independent counter per kind so a new
+-- patient never "uses up" a number from the therapist or session series.
+--
+-- Each is a plain generated value, not the row's primary key -- the uuid
+-- keeps being the real identity/foreign-key column everywhere; these are
+-- purely a friendlier label layered on top.
+
+create sequence if not exists patient_code_seq;
+create sequence if not exists therapist_code_seq;
+create sequence if not exists hospital_code_seq;
+create sequence if not exists session_code_seq;
+
+alter table profiles add column if not exists patient_code text;
+alter table profiles add column if not exists therapist_code text;
+alter table profiles add column if not exists hospital_code text;
+alter table appointments add column if not exists session_code text;
+
+-- Assigns the right code on INSERT based on the new row's role -- covers
+-- both the self-signup trigger (handle_new_user) and any admin-created
+-- profile, without either of those needing to know this scheme exists.
+create or replace function assign_profile_code() returns trigger as $$
+begin
+  if new.role = 'patient' and new.patient_code is null then
+    new.patient_code := 'PT' || lpad(nextval('patient_code_seq')::text, 4, '0');
+  elsif new.role = 'therapist' and new.therapist_code is null then
+    new.therapist_code := 'TH' || lpad(nextval('therapist_code_seq')::text, 4, '0');
+  elsif new.role = 'hospital' and new.hospital_code is null then
+    new.hospital_code := 'BB' || lpad(nextval('hospital_code_seq')::text, 4, '0');
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_assign_profile_code on profiles;
+create trigger trg_assign_profile_code
+  before insert on profiles
+  for each row execute function assign_profile_code();
+
+create or replace function assign_session_code() returns trigger as $$
+begin
+  if new.session_code is null then
+    new.session_code := 'SS' || lpad(nextval('session_code_seq')::text, 4, '0');
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_assign_session_code on appointments;
+create trigger trg_assign_session_code
+  before insert on appointments
+  for each row execute function assign_session_code();
+
+-- Backfill every row that predates these triggers, oldest first, then
+-- advance each sequence past what backfill just used so the next real
+-- INSERT continues the same series instead of colliding with it. Guarded by
+-- "is null" on both the update's source and the setval seed count, so this
+-- whole block is a no-op (and safe to leave in place) once it's run once.
+do $$
+begin
+  if exists (select 1 from profiles where role = 'patient' and patient_code is null) then
+    with ordered as (
+      select id, row_number() over (order by created_at asc, id asc) as rn
+      from profiles where role = 'patient' and patient_code is null
+    )
+    update profiles p set patient_code = 'PT' || lpad(ordered.rn::text, 4, '0')
+    from ordered where p.id = ordered.id;
+  end if;
+  perform setval('patient_code_seq', (select count(*) from profiles where role = 'patient'), true);
+
+  if exists (select 1 from profiles where role = 'therapist' and therapist_code is null) then
+    with ordered as (
+      select id, row_number() over (order by created_at asc, id asc) as rn
+      from profiles where role = 'therapist' and therapist_code is null
+    )
+    update profiles p set therapist_code = 'TH' || lpad(ordered.rn::text, 4, '0')
+    from ordered where p.id = ordered.id;
+  end if;
+  perform setval('therapist_code_seq', (select count(*) from profiles where role = 'therapist'), true);
+
+  if exists (select 1 from profiles where role = 'hospital' and hospital_code is null) then
+    with ordered as (
+      select id, row_number() over (order by created_at asc, id asc) as rn
+      from profiles where role = 'hospital' and hospital_code is null
+    )
+    update profiles p set hospital_code = 'BB' || lpad(ordered.rn::text, 4, '0')
+    from ordered where p.id = ordered.id;
+  end if;
+  perform setval('hospital_code_seq', (select count(*) from profiles where role = 'hospital'), true);
+
+  if exists (select 1 from appointments where session_code is null) then
+    with ordered as (
+      select id, row_number() over (order by created_at asc, id asc) as rn
+      from appointments where session_code is null
+    )
+    update appointments a set session_code = 'SS' || lpad(ordered.rn::text, 4, '0')
+    from ordered where a.id = ordered.id;
+  end if;
+  perform setval('session_code_seq', (select count(*) from appointments), true);
+end $$;
+
+create unique index if not exists profiles_patient_code_unique_idx
+  on profiles (patient_code) where patient_code is not null;
+create unique index if not exists profiles_therapist_code_unique_idx
+  on profiles (therapist_code) where therapist_code is not null;
+create unique index if not exists profiles_hospital_code_unique_idx
+  on profiles (hospital_code) where hospital_code is not null;
+create unique index if not exists appointments_session_code_unique_idx
+  on appointments (session_code) where session_code is not null;

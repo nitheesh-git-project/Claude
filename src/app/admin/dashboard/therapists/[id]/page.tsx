@@ -17,6 +17,7 @@ import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawe
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
+import { mergeSessionCodes } from "@/lib/sessionCode";
 
 export const metadata: Metadata = {
   title: "Therapist Details | Dr. Pooja's Physio",
@@ -43,7 +44,16 @@ export default async function AdminTherapistDetailPage({
     notFound();
   }
 
-  const [{ data: note }, { data: appointments }, { data: changeRequests }] = await Promise.all([
+  // therapist_code is new/migration-dependent -- kept isolated (see
+  // sessionCode.ts's comment) so an unknown-column error here only
+  // degrades this one badge, not the whole page.
+  const { data: therapistCodeRow } = await admin
+    .from("profiles")
+    .select("therapist_code")
+    .eq("id", id)
+    .maybeSingle();
+
+  const [{ data: note }, { data: rawAppointments }, { data: changeRequests }] = await Promise.all([
     admin
       .from("therapist_admin_notes")
       .select("note, temp_password, temp_password_set_at")
@@ -62,6 +72,14 @@ export default async function AdminTherapistDetailPage({
       .eq("user_id", id)
       .order("created_at", { ascending: false }),
   ]);
+
+  // session_code is also new/migration-dependent -- same isolation
+  // reasoning as therapistCodeRow above.
+  const { data: sessionCodeLinks } = await admin
+    .from("appointments")
+    .select("id, session_code")
+    .eq("therapist_id", id);
+  const appointments = mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks);
 
   const appointmentIds = (appointments ?? []).map((a) => a.id);
   const { data: reassignmentLogs } =
@@ -157,6 +175,11 @@ export default async function AdminTherapistDetailPage({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900">{therapist.full_name}</h1>
+                {therapistCodeRow?.therapist_code && (
+                  <span className="text-[10px] font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                    {therapistCodeRow.therapist_code}
+                  </span>
+                )}
                 {!therapist.active && (
                   <span className="text-[10px] font-bold uppercase text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
                     Suspended
@@ -303,6 +326,9 @@ export default async function AdminTherapistDetailPage({
                       </Link>
                     ) : (
                       <strong className="text-slate-900">Unknown patient</strong>
+                    )}
+                    {a.session_code && (
+                      <span className="font-mono text-[11px] text-slate-400">{a.session_code}</span>
                     )}
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">

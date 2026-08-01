@@ -29,6 +29,7 @@ export default function DashboardShell({
   userName,
   userEmail,
   userAvatarUrl,
+  userCode,
   offsetTop,
   headerTitle,
   headerSubtitle,
@@ -47,6 +48,12 @@ export default function DashboardShell({
   userName: string;
   userEmail: string;
   userAvatarUrl: string | null;
+  // This person's own PT0001/TH0001/BB0001-style display ID (see
+  // supabase/schema.sql's "Unique display IDs" section) -- null until the
+  // migration backfilling it has run, or while this page's own isolated
+  // fetch for it hasn't resolved. Shown in the profile card so it's always
+  // visible, not tucked away on a settings page.
+  userCode?: string | null;
   offsetTop: boolean;
   headerTitle: string;
   headerSubtitle?: ReactNode;
@@ -185,12 +192,18 @@ export default function DashboardShell({
   function renderFooter(mini: boolean) {
     return (
       <div className="mt-auto space-y-1 border-t border-slate-800 pt-3">
-        <div className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2 ${mini ? "justify-center" : ""}`}>
+        <div
+          className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2 ${mini ? "justify-center" : ""}`}
+          title={mini && userCode ? `${userName} · ${userCode}` : undefined}
+        >
           <AvatarThumbnail url={userAvatarUrl} name={userName} size={32} />
           {!mini && (
             <div className="min-w-0">
               <p className="truncate text-xs font-semibold text-white">{userName}</p>
               <p className="truncate text-[11px] text-slate-400">{userEmail}</p>
+              {userCode && (
+                <p className="truncate text-[10px] font-mono font-semibold text-slate-500">{userCode}</p>
+              )}
             </div>
           )}
         </div>
