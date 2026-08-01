@@ -8,7 +8,8 @@ import TherapistAvailabilityRoster from "@/components/TherapistAvailabilityRoste
 import TherapistOnLeaveToggle from "@/components/TherapistOnLeaveToggle";
 import TherapistUpcomingOverrides from "@/components/TherapistUpcomingOverrides";
 import TherapistPayoutReceiptsSection from "@/components/TherapistPayoutReceiptsSection";
-import DashboardShell, { type ShellNavItem } from "@/components/dashboard/DashboardShell";
+import DashboardShell from "@/components/dashboard/DashboardShell";
+import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { buildTherapistPayoutReceipts } from "@/lib/receipts";
@@ -131,12 +132,7 @@ export default async function TherapistDashboardPage() {
     patientNameById
   );
 
-  const navItems: ShellNavItem[] = [
-    { id: "availability", label: "Availability", icon: "fa-calendar-days" },
-    { id: "sessions", label: "Assigned Sessions", icon: "fa-clipboard-list" },
-    { id: "receipts", label: "Payout Receipts", icon: "fa-sack-dollar" },
-    { id: "edit-profile", label: "Edit Profile", icon: "fa-user-pen", href: "/therapist/dashboard/profile" },
-  ];
+  const navItems = THERAPIST_NAV_ITEMS;
 
   // Same computation as the root layout's own showDebugNav -- duplicated
   // here (rather than threaded through props from a layout) because this
@@ -151,6 +147,7 @@ export default async function TherapistDashboardPage() {
     <DashboardShell
       brandLabel="Therapist Panel"
       brandIcon="fa-user-doctor"
+      basePath="/therapist/dashboard"
       navItems={navItems}
       userName={profile?.full_name ?? "Therapist"}
       userEmail={user.email ?? ""}
