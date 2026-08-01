@@ -16,6 +16,9 @@ import {
   computeRepeatBookingRate,
   computeTherapistUtilization,
 } from "@/lib/adminMetrics";
+import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
+import Modal from "@/components/admin/Modal";
+import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 
 export type { MetricsAppointment };
 
@@ -43,6 +46,21 @@ function formatInr(paise: number) {
 
 function toDateInputValue(d: Date) {
   return d.toISOString().slice(0, 10);
+}
+
+// Pinned to a fixed timeZone (not left to the runtime's local zone) —
+// this component is always mounted server-side first, so an unpinned zone
+// can render a different date string on the server (SSR) vs the admin's
+// browser (hydration), the same hydration-mismatch class of bug already
+// fixed elsewhere in this codebase (e.g. AdminCalendarTab, AdminRosterTab).
+function formatShortDate(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  });
 }
 
 function daysAgo(n: number, fromMs: number) {
@@ -260,6 +278,8 @@ export default function AdminMetricsTab({
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [therapistFilter, setTherapistFilter] = useState<string>("all");
   const [patientFilter, setPatientFilter] = useState<string>("all");
+  const [selectedTherapistId, setSelectedTherapistId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
   function setQuickRange(days: number | null) {
     // A click handler only ever runs client-side, so a fresh timestamp here
@@ -316,9 +336,122 @@ export default function AdminMetricsTab({
   const totalBookings = bookingsByBucket.reduce((s, v) => s + v, 0);
 
   const totalMoneyRevenuePaise = money.revenuePaise.reduce((s, v) => s + v, 0);
-  const totalTherapistCutPaise = money.therapistCutPaise.reduce((s, v) => s + v, 0);
-  const totalHospitalCutPaise = money.hospitalCutPaise.reduce((s, v) => s + v, 0);
   const totalProfitPaise = money.profitPaise.reduce((s, v) => s + v, 0);
+
+  // Therapist Ledger — scoped to the same date range as everything else on
+  // this tab (a session counts here if its slot_time falls in range,
+  // regardless of when it was actually settled). Rows with zero activity
+  // in range are dropped so a 30-day view doesn't list every therapist
+  // who's ever existed at ₹0.
+  const rangeTherapistLedger = useMemo(() => {
+    return therapists
+      .map((t) => {
+        const own = inRangeBySlot.filter((a) => a.therapist_id === t.id);
+        const summary = computeTherapistPayoutSummary(
+          t.id,
+          therapistSharePercent[t.id] ?? null,
+          own,
+          nowMs
+        );
+        return { id: t.id, name: t.full_name ?? "Unknown", summary };
+      })
+      .filter((row) => row.summary.completedCount > 0)
+      .sort((a, b) => b.summary.owedPaise - a.summary.owedPaise);
+  }, [therapists, inRangeBySlot, therapistSharePercent, nowMs]);
+
+  const totalPaidToTherapistsPaise = rangeTherapistLedger.reduce(
+    (s, r) => s + r.summary.paidOutPaise,
+    0
+  );
+  const totalPendingOwedPaise = rangeTherapistLedger.reduce((s, r) => s + r.summary.owedPaise, 0);
+
+  // The real, unfiltered owed balance per therapist — deliberately computed
+  // over the FULL `appointments` array, not inRangeBySlot. settle-therapist-
+  // payout always settles a therapist's entire outstanding balance
+  // server-side (there's no date-scoped settlement); if the Pay button in
+  // the ledger modal below were fed the date-filtered owed amount instead,
+  // an admin could see "Pending: ₹X" for the selected range, click Pay, and
+  // have the server actually settle a larger all-time amount — the modal
+  // would have shown one number and charged another. Keeping this separate
+  // means the button here always tells the truth about what it's about to do.
+  const allTimeOwedByTherapist = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of therapists) {
+      const own = appointments.filter((a) => a.therapist_id === t.id);
+      const summary = computeTherapistPayoutSummary(
+        t.id,
+        therapistSharePercent[t.id] ?? null,
+        own,
+        nowMs
+      );
+      map.set(t.id, summary.owedPaise);
+    }
+    return map;
+  }, [therapists, appointments, therapistSharePercent, nowMs]);
+
+  // Patient Ledger — same date-range scoping, only counting sessions that
+  // were actually paid for (an unpaid/requested booking isn't spend yet).
+  const rangePatientLedger = useMemo(() => {
+    return patients
+      .map((p) => {
+        const own = inRangeBySlot.filter((a) => a.patient_id === p.id && a.payment_status === "paid");
+        const totalSpentPaise = own.reduce((s, a) => s + (a.amount_paid_paise ?? 0), 0);
+        const lastActive = own.reduce<string | null>((latest, a) => {
+          if (!a.paid_at) return latest;
+          if (!latest || new Date(a.paid_at).getTime() > new Date(latest).getTime()) return a.paid_at;
+          return latest;
+        }, null);
+        return { id: p.id, name: p.full_name ?? "Unknown", sessionCount: own.length, totalSpentPaise, lastActive };
+      })
+      .filter((row) => row.sessionCount > 0)
+      .sort((a, b) => b.totalSpentPaise - a.totalSpentPaise);
+  }, [patients, inRangeBySlot]);
+
+  const selectedTherapistRow = rangeTherapistLedger.find((r) => r.id === selectedTherapistId) ?? null;
+  const selectedTherapistSessions = useMemo(() => {
+    if (!selectedTherapistId) return [];
+    const patientNameById = new Map(patients.map((p) => [p.id, p.full_name ?? "Unknown"]));
+    return inRangeBySlot
+      .filter(
+        (a) =>
+          a.therapist_id === selectedTherapistId && a.status === "completed" && a.payment_status === "paid"
+      )
+      .map((a) => {
+        const share = therapistSharePercent[selectedTherapistId] ?? null;
+        const paidPaise = a.amount_paid_paise ?? 0;
+        const isSettled = !!a.therapist_payout_paid_at;
+        const owedPaise = isSettled
+          ? a.therapist_payout_amount_paise ?? 0
+          : share !== null
+          ? Math.round((paidPaise * share) / 100)
+          : 0;
+        return {
+          id: a.id,
+          date: a.slot_time,
+          patientName: patientNameById.get(a.patient_id) ?? "Unknown",
+          paidPaise,
+          owedPaise,
+          isSettled,
+        };
+      })
+      .sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
+  }, [selectedTherapistId, inRangeBySlot, patients, therapistSharePercent]);
+
+  const selectedPatientRow = rangePatientLedger.find((r) => r.id === selectedPatientId) ?? null;
+  const selectedPatientTransactions = useMemo(() => {
+    if (!selectedPatientId) return [];
+    const therapistNameById = new Map(therapists.map((t) => [t.id, t.full_name ?? "Unknown"]));
+    return inRangeBySlot
+      .filter((a) => a.patient_id === selectedPatientId && a.payment_status === "paid" && a.paid_at)
+      .map((a) => ({
+        id: a.id,
+        date: a.paid_at as string,
+        transactionId: a.razorpay_payment_id,
+        therapistName: a.therapist_id ? therapistNameById.get(a.therapist_id) ?? "Unknown" : "Unassigned",
+        amountPaise: a.amount_paid_paise ?? 0,
+      }))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [selectedPatientId, inRangeBySlot, therapists]);
 
   const completedInRange = useMemo(
     () => inRangeBySlot.filter((a) => a.status === "completed"),
@@ -433,6 +566,278 @@ export default function AdminMetricsTab({
         </div>
       </div>
 
+      <div>
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Financial Summary</h2>
+        <p className="text-[11px] text-slate-400 mb-3">
+          All four figures reflect the Filters above — Gross Revenue and Platform Margin count every
+          paid session with slot_time in range; Paid to Therapists and Pending Owed count what those
+          same in-range sessions have (or haven&apos;t yet) been settled for.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-sack-dollar text-teal-600"></i> Gross Revenue
+            </p>
+            <p className="text-2xl font-bold text-slate-900 mt-2">
+              {formatInr(totalMoneyRevenuePaise)}{" "}
+              <span className="text-xs font-semibold text-slate-400">INR</span>
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-hand-holding-dollar text-indigo-600"></i> Paid to Therapists
+            </p>
+            <p className="text-2xl font-bold text-slate-900 mt-2">
+              {formatInr(totalPaidToTherapistsPaise)}{" "}
+              <span className="text-xs font-semibold text-slate-400">INR</span>
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-chart-line text-teal-600"></i> Platform Margin (Profit)
+            </p>
+            <p className="text-2xl font-bold mt-2" style={{ color: PROFIT_COLOR }}>
+              {formatInr(totalProfitPaise)} <span className="text-xs font-semibold text-slate-400">INR</span>
+            </p>
+          </div>
+          <div
+            className={`bg-white rounded-2xl border shadow-sm p-5 ${
+              totalPendingOwedPaise > 0 ? "border-red-200" : "border-slate-200"
+            }`}
+          >
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-clock text-red-500"></i> Pending Owed
+            </p>
+            <p
+              className={`text-2xl font-bold mt-2 ${
+                totalPendingOwedPaise > 0 ? "text-red-600" : "text-slate-900"
+              }`}
+            >
+              {formatInr(totalPendingOwedPaise)}{" "}
+              <span className="text-xs font-semibold text-slate-400">INR</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h2 className="font-bold text-lg text-slate-800 mb-1">Therapist Ledger</h2>
+          <p className="text-[11px] text-slate-400 mb-4">
+            Click a row for the full session-by-session breakdown and to record a payout.
+          </p>
+          {rangeTherapistLedger.length === 0 ? (
+            <p className="text-xs text-slate-500 py-6 text-center">No therapist activity in this range.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="text-left text-slate-500 border-b border-slate-200">
+                    <th className="py-2 pr-3 font-semibold">Therapist</th>
+                    <th className="py-2 pr-3 font-semibold">Sessions</th>
+                    <th className="py-2 pr-3 font-semibold">Pending (₹)</th>
+                    <th className="py-2 pr-3 font-semibold">Total Paid (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rangeTherapistLedger.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => setSelectedTherapistId(row.id)}
+                      className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
+                    >
+                      <td className="py-2 pr-3 font-bold text-slate-900 whitespace-nowrap">{row.name}</td>
+                      <td className="py-2 pr-3 text-slate-600">{row.summary.completedCount}</td>
+                      <td className="py-2 pr-3">
+                        {row.summary.owedPaise > 0 ? (
+                          <span className="font-semibold text-red-600">
+                            {formatInr(row.summary.owedPaise)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">₹0</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3 font-semibold text-teal-700">
+                        {formatInr(row.summary.paidOutPaise)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h2 className="font-bold text-lg text-slate-800 mb-1">Patient Ledger</h2>
+          <p className="text-[11px] text-slate-400 mb-4">
+            Click a row to see this patient&apos;s paid transactions in range.
+          </p>
+          {rangePatientLedger.length === 0 ? (
+            <p className="text-xs text-slate-500 py-6 text-center">No patient activity in this range.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="text-left text-slate-500 border-b border-slate-200">
+                    <th className="py-2 pr-3 font-semibold">Patient Name</th>
+                    <th className="py-2 pr-3 font-semibold">Sessions</th>
+                    <th className="py-2 pr-3 font-semibold">Total Spent (₹)</th>
+                    <th className="py-2 pr-3 font-semibold">Last Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rangePatientLedger.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => setSelectedPatientId(row.id)}
+                      className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
+                    >
+                      <td className="py-2 pr-3 font-bold text-slate-900 whitespace-nowrap">{row.name}</td>
+                      <td className="py-2 pr-3 text-slate-600">{row.sessionCount}</td>
+                      <td className="py-2 pr-3 font-semibold text-teal-700">
+                        {formatInr(row.totalSpentPaise)}
+                      </td>
+                      <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">
+                        {formatShortDate(row.lastActive)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {selectedTherapistRow && (
+        <Modal
+          title={`Therapist Ledger: ${selectedTherapistRow.name}`}
+          subtitle={
+            selectedTherapistRow.summary.sharePercent !== null
+              ? `${selectedTherapistRow.summary.sharePercent}% Commission Split`
+              : "Revenue share not set"
+          }
+          onClose={() => setSelectedTherapistId(null)}
+        >
+          <div className="space-y-5">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <p className="text-xs font-bold text-slate-700">Record Payout</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5 max-w-sm">
+                    Settles this therapist&apos;s full outstanding balance across every unpaid
+                    session, not just the range shown below.
+                  </p>
+                </div>
+                <TherapistPayoutButton
+                  therapistId={selectedTherapistRow.id}
+                  owedPaise={allTimeOwedByTherapist.get(selectedTherapistRow.id) ?? 0}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <p className="text-xs font-bold text-slate-700">Patient Sessions Breakdown (this range)</p>
+                <span className="text-[11px] font-semibold text-red-600 bg-red-50 px-2 py-1 rounded-full">
+                  Pending in range: {formatInr(selectedTherapistRow.summary.owedPaise)}
+                </span>
+              </div>
+              {selectedTherapistSessions.length === 0 ? (
+                <p className="text-xs text-slate-500 py-4 text-center">
+                  No completed, paid sessions in this range.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="text-left text-slate-500 border-b border-slate-200">
+                        <th className="py-2 pr-3 font-semibold">Session Date</th>
+                        <th className="py-2 pr-3 font-semibold">Patient Name</th>
+                        <th className="py-2 pr-3 font-semibold">Patient Paid</th>
+                        <th className="py-2 pr-3 font-semibold">Owed to Therapist</th>
+                        <th className="py-2 pr-3 font-semibold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedTherapistSessions.map((s) => (
+                        <tr key={s.id} className="border-b border-slate-100">
+                          <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">
+                            {formatShortDate(s.date)}
+                          </td>
+                          <td className="py-2 pr-3 font-semibold text-slate-800">{s.patientName}</td>
+                          <td className="py-2 pr-3 text-slate-600">{formatInr(s.paidPaise)}</td>
+                          <td className="py-2 pr-3 font-semibold text-slate-800">
+                            {formatInr(s.owedPaise)}
+                          </td>
+                          <td className="py-2 pr-3">
+                            <span
+                              className={`font-semibold px-2 py-1 rounded-full ${
+                                s.isSettled ? "text-teal-700 bg-teal-50" : "text-amber-700 bg-amber-50"
+                              }`}
+                            >
+                              {s.isSettled ? "Paid" : "Pending"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {selectedPatientRow && (
+        <Modal
+          title={`Patient Ledger: ${selectedPatientRow.name}`}
+          subtitle={`Spent in this range: ${formatInr(selectedPatientRow.totalSpentPaise)}`}
+          onClose={() => setSelectedPatientId(null)}
+        >
+          {selectedPatientTransactions.length === 0 ? (
+            <p className="text-xs text-slate-500 py-4 text-center">No paid transactions in this range.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="text-left text-slate-500 border-b border-slate-200">
+                    <th className="py-2 pr-3 font-semibold">Session Date</th>
+                    <th className="py-2 pr-3 font-semibold">Transaction ID</th>
+                    <th className="py-2 pr-3 font-semibold">Assigned Therapist</th>
+                    <th className="py-2 pr-3 font-semibold">Amount</th>
+                    <th className="py-2 pr-3 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedPatientTransactions.map((t) => (
+                    <tr key={t.id} className="border-b border-slate-100">
+                      <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">
+                        {formatShortDate(t.date)}
+                      </td>
+                      <td className="py-2 pr-3 text-slate-500 font-mono text-[11px]">
+                        {t.transactionId ?? "—"}
+                      </td>
+                      <td className="py-2 pr-3 font-semibold text-slate-800">{t.therapistName}</td>
+                      <td className="py-2 pr-3 font-semibold text-slate-900">
+                        {formatInr(t.amountPaise)}
+                      </td>
+                      <td className="py-2 pr-3">
+                        <span className="font-semibold px-2 py-1 rounded-full text-teal-700 bg-teal-50">
+                          Successful
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Modal>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="bg-slate-50 rounded-xl p-3 text-center">
           <p className="text-[11px] text-slate-500">Revenue (range)</p>
@@ -483,35 +888,9 @@ export default function AdminMetricsTab({
         <h2 className="font-bold text-lg text-slate-800 mb-1">Revenue Breakdown</h2>
         <p className="text-[11px] text-slate-400 mb-4">
           Where paid revenue in this range actually goes — therapist payouts, hospital referral
-          shares, and what&apos;s left as profit.
+          shares, and what&apos;s left as profit. Revenue and Profit totals match the Gross Revenue
+          and Platform Margin cards at the top of this tab.
         </p>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-          <div className="bg-slate-50 rounded-xl p-3 text-center">
-            <p className="text-[11px] text-slate-500">Revenue</p>
-            <p className="text-base font-bold" style={{ color: REVENUE_COLOR }}>
-              {formatInr(totalMoneyRevenuePaise)}
-            </p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-3 text-center">
-            <p className="text-[11px] text-slate-500">Therapists&apos; Cut</p>
-            <p className="text-base font-bold" style={{ color: THERAPIST_CUT_COLOR }}>
-              {formatInr(totalTherapistCutPaise)}
-            </p>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-3 text-center">
-            <p className="text-[11px] text-slate-500">Hospitals&apos; Cut</p>
-            <p className="text-base font-bold" style={{ color: HOSPITAL_CUT_COLOR }}>
-              {formatInr(totalHospitalCutPaise)}
-            </p>
-          </div>
-          <div className="bg-teal-50 rounded-xl p-3 text-center">
-            <p className="text-[11px] text-slate-500">Overall Profit</p>
-            <p className="text-base font-bold" style={{ color: PROFIT_COLOR }}>
-              {formatInr(totalProfitPaise)}
-            </p>
-          </div>
-        </div>
 
         <TrendLineChart
           buckets={buckets}

@@ -9,6 +9,7 @@ import AssignReferralForm from "@/components/admin/AssignReferralForm";
 import AdminTabs from "@/components/admin/AdminTabs";
 import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
 import AdminPaymentHistoryTab from "@/components/admin/AdminPaymentHistoryTab";
+import AdminRosterTab from "@/components/admin/AdminRosterTab";
 import LeadStatusButtons from "@/components/admin/LeadStatusButtons";
 import DeclineReferralButton from "@/components/admin/DeclineReferralButton";
 import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswordButton";
@@ -100,6 +101,24 @@ export default async function AdminDashboardPage() {
     .from("patient_package_purchases")
     .select("id, patient_id, category_id, session_count, payment_status, amount_paid_paise, paid_at, razorpay_payment_id")
     .order("paid_at", { ascending: false });
+
+  // Feeds the Manage Roster tab. Both queries can legitimately return
+  // nothing (or error, if the migration hasn't been applied to this
+  // database yet) -- the tab renders an empty-but-correct grid either way,
+  // it never crashes the rest of the dashboard over this.
+  const { data: availabilityTemplateRows } = await admin
+    .from("therapist_availability_template")
+    .select("therapist_id, day_of_week, hour");
+  const { data: availabilityOverrideRows } = await admin
+    .from("therapist_availability_override")
+    .select("therapist_id, date, hour, available, note");
+  // Deliberately its own query rather than folded into the allProfiles
+  // select below -- on_leave is new and migration-dependent same as the two
+  // tables above, and allProfiles feeds nearly every other tab on this page.
+  // An unknown-column error on one shared query would take all of them down;
+  // keeping it isolated means only the roster tab's on_leave badges degrade.
+  const { data: onLeaveRows } = await admin.from("profiles").select("id, on_leave");
+  const onLeaveMap = new Map((onLeaveRows ?? []).map((r) => [r.id, r.on_leave]));
   // This single query feeds Overview, Calendar, Session Story, and Metrics
   // all at once — if it fails (e.g. a column referenced here doesn't exist
   // yet because a schema.sql update wasn't re-run), every one of those tabs
@@ -131,7 +150,7 @@ export default async function AdminDashboardPage() {
   const { data: allProfiles } = await admin
     .from("profiles")
     .select(
-      "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id, avatar_url, date_of_birth, gender, credentials, specialization, years_experience, active, phone, created_at, approved"
+      "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id, avatar_url, date_of_birth, gender, credentials, specialization, years_experience, active, phone, created_at, approved, timezone"
     );
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
 
@@ -796,6 +815,19 @@ export default async function AdminDashboardPage() {
     />
   );
 
+  const rosterTab = (
+    <AdminRosterTab
+      therapists={allTherapists.map((t) => ({
+        id: t.id,
+        full_name: t.full_name,
+        timezone: t.timezone,
+        on_leave: onLeaveMap.get(t.id) ?? false,
+      }))}
+      templateRows={availabilityTemplateRows ?? []}
+      overrideRows={availabilityOverrideRows ?? []}
+    />
+  );
+
   const b2bBadgeCount =
     (b2bLeads?.filter((l) => l.status === "new").length ?? 0) +
     (referrals?.filter((r) => r.status === "pending_review").length ?? 0);
@@ -921,6 +953,7 @@ export default async function AdminDashboardPage() {
         therapists={therapistsTab}
         payouts={payoutsTab}
         paymentHistory={paymentHistoryTab}
+        roster={rosterTab}
         calendar={calendarTab}
         sessionStory={sessionStoryTab}
         metrics={metricsTab}

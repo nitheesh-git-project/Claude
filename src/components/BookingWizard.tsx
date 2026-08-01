@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { AVAILABILITY_HOURS, formatHourRange } from "@/lib/therapistAvailability";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
 import ConfirmPasswordField from "@/components/auth/ConfirmPasswordField";
@@ -18,13 +19,10 @@ type Category = {
   duration_minutes: number;
 };
 
-function minDateTimeLocal(hoursAhead: number) {
-  const d = new Date(Date.now() + hoursAhead * 60 * 60 * 1000);
-  d.setSeconds(0, 0);
+function todayDateStr() {
+  const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function formatInr(paise: number) {
@@ -43,7 +41,10 @@ export default function BookingWizard() {
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
 
   const [timezone, setTimezone] = useState("");
-  const [slotDateTime, setSlotDateTime] = useState("");
+  const [bookDate, setBookDate] = useState("");
+  const [bookHour, setBookHour] = useState<number | "">("");
+  const slotDateTime =
+    bookDate && bookHour !== "" ? `${bookDate}T${String(bookHour).padStart(2, "0")}:00` : "";
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -124,8 +125,12 @@ export default function BookingWizard() {
 
   function goToStep2() {
     setError(null);
-    if (!slotDateTime) {
+    if (!bookDate || bookHour === "") {
       setError("Please select a preferred date and time.");
+      return;
+    }
+    if (new Date(slotDateTime).getTime() < Date.now() + 12 * 60 * 60 * 1000) {
+      setError("Please choose a time at least 12 hours from now.");
       return;
     }
     setStep(2);
@@ -349,13 +354,30 @@ export default function BookingWizard() {
                 (at least 12 hours from now)
               </span>
             </label>
-            <input
-              type="datetime-local"
-              value={slotDateTime}
-              min={minDateTimeLocal(12)}
-              onChange={(e) => setSlotDateTime(e.target.value)}
-              className="w-full p-3 rounded-xl border border-slate-300"
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="date"
+                value={bookDate}
+                min={todayDateStr()}
+                onChange={(e) => setBookDate(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-300"
+              />
+              <select
+                aria-label="Preferred time"
+                value={bookHour}
+                onChange={(e) => setBookHour(e.target.value ? Number(e.target.value) : "")}
+                className="w-full p-3 rounded-xl border border-slate-300 bg-white"
+              >
+                <option value="" disabled>
+                  — Time —
+                </option>
+                {AVAILABILITY_HOURS.map((hour) => (
+                  <option key={hour} value={hour}>
+                    {formatHourRange(hour)}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <p className="text-xs text-slate-400">
             This is your preferred time — we&apos;ll confirm the exact slot

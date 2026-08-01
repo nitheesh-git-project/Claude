@@ -869,3 +869,80 @@ create policy "appointments_insert_own" on appointments
     and slot_time is not null
     and slot_time > now()
   );
+
+-- Therapist Roster: a weekly recurring availability template a therapist
+-- declares for themselves ("every Monday 6-7AM I'm free"), used purely as
+-- an admin visibility tool for now -- it does not gate booking or
+-- assignment. A row's mere presence means that hour-of-week is enabled;
+-- there is no separate boolean, since the whole set is replaced wholesale
+-- on every Save (delete-all-then-insert-enabled from
+-- /api/therapist/save-availability), so there's never an ambiguous
+-- "not yet decided" state to represent.
+--
+-- hour is the slot's start hour (6-23, i.e. 6AM-7AM .. 11PM-12AM) in the
+-- therapist's OWN local time (profiles.timezone) -- deliberately not
+-- converted to any shared clock, since a therapist toggling "my Monday
+-- morning" means their actual local morning on a platform where
+-- therapists aren't all in one timezone.
+create table if not exists therapist_availability_template (
+  id uuid primary key default gen_random_uuid(),
+  therapist_id uuid not null references profiles(id) on delete cascade,
+  day_of_week smallint not null check (day_of_week between 0 and 6), -- 0=Sunday .. 6=Saturday, matches JS Date#getDay()
+  hour smallint not null check (hour between 6 and 23),
+  created_at timestamptz not null default now(),
+  unique (therapist_id, day_of_week, hour)
+);
+
+alter table therapist_availability_template enable row level security;
+
+drop policy if exists "availability_template_select_own" on therapist_availability_template;
+create policy "availability_template_select_own" on therapist_availability_template
+  for select using (auth.uid() = therapist_id);
+-- Admin reads via the service-role client (createAdminClient), same as
+-- every other admin-dashboard query in this app. No client insert/update/
+-- delete policy -- writes only go through /api/therapist/save-availability,
+-- which confirms auth.uid() against the therapist_id it writes, the same
+-- pattern therapist_payout_* columns use for admin-only writes.
+
+-- Date-specific exception on top of the template. Lets admin flip one
+-- date+hour to available or unavailable without touching the recurring
+-- pattern -- e.g. the therapist agreed to cover one Monday they're not
+-- normally on the roster for, or they're out sick one Tuesday they
+-- normally are. date is a plain calendar date (not a timestamp), on
+-- purpose: a calendar date already unambiguously implies a day-of-week in
+-- every timezone, so no conversion is needed to match it against the
+-- template above.
+--
+-- Admin-only for now (no therapist self-service path onto this table yet)
+-- -- matches this feature's "visibility tool first" scope.
+create table if not exists therapist_availability_override (
+  id uuid primary key default gen_random_uuid(),
+  therapist_id uuid not null references profiles(id) on delete cascade,
+  date date not null,
+  hour smallint not null check (hour between 6 and 23),
+  available boolean not null,
+  note text,
+  created_by uuid references profiles(id),
+  created_at timestamptz not null default now(),
+  unique (therapist_id, date, hour)
+);
+
+alter table therapist_availability_override enable row level security;
+
+-- Therapists can see date-specific overrides admin has set for them (e.g.
+-- "admin made you available this Tuesday even though you're not normally
+-- on the roster then") -- read-only, writes still only ever go through
+-- /api/admin/set-availability-override on the service-role client.
+drop policy if exists "availability_override_select_own" on therapist_availability_override;
+create policy "availability_override_select_own" on therapist_availability_override
+  for select using (auth.uid() = therapist_id);
+
+-- A therapist-controlled, date/hour-independent "I'm not available right
+-- now" flag -- distinct from the weekly template (which it does NOT clear
+-- or modify) and distinct from profiles.active (which gates login/account
+-- suspension entirely). Settable by the therapist themselves or by admin
+-- on their behalf; when true, every roster view should treat the
+-- therapist as unavailable regardless of what the template/overrides say,
+-- and flipping it back off simply resumes reading the template as normal
+-- -- there's nothing to "restore" since nothing was ever deleted.
+alter table profiles add column if not exists on_leave boolean not null default false;
