@@ -180,7 +180,15 @@ export function moneyByBucketFor(
   dimFiltered: MetricsAppointment[],
   buckets: PeriodBucket[],
   therapistSharePercent: Record<string, number>,
-  patientHospitalSharePercent: Record<string, number>
+  patientHospitalSharePercent: Record<string, number>,
+  // patientId -> true for every patient referred by a hospital, regardless
+  // of whether that hospital's revenue_share_percent is actually set. Needed
+  // to tell apart the two reasons patientHospitalSharePercent[patient_id]
+  // can come back undefined: "not hospital-referred at all" (0% hospital
+  // cut is correct) vs. "hospital-referred but the hospital's share isn't
+  // configured yet" (unknowable, must be excluded like the therapist-share
+  // case below -- see this function's own comment on the "don't guess" rule).
+  hospitalReferredPatientIds: Record<string, true>
 ): MoneyByBucket {
   const revenuePaise = buckets.map(() => 0);
   const therapistCutPaise = buckets.map(() => 0);
@@ -201,10 +209,15 @@ export function moneyByBucketFor(
       excludedRevenuePaise += paidPaise;
       continue;
     }
+    const hShare = patientHospitalSharePercent[a.patient_id];
+    if (hShare === undefined && hospitalReferredPatientIds[a.patient_id]) {
+      excludedCount += 1;
+      excludedRevenuePaise += paidPaise;
+      continue;
+    }
 
     revenuePaise[idx] += paidPaise;
     therapistCutPaise[idx] += Math.round((paidPaise * tShare) / 100);
-    const hShare = patientHospitalSharePercent[a.patient_id];
     if (hShare !== undefined) {
       hospitalCutPaise[idx] += Math.round((paidPaise * hShare) / 100);
     }

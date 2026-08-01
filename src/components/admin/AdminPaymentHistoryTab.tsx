@@ -21,8 +21,19 @@ function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
 }
 
+// Pinned to Asia/Kolkata -- this tab's summary tables (unlike its Modals,
+// which only ever mount after a client click) are part of the initial
+// render, going through a real SSR pass and then hydration. An unpinned
+// zone renders using the Node server's TZ first and the admin's browser TZ
+// second, which mismatch on any host that doesn't run in IST -- the same
+// hydration-mismatch class of bug already fixed elsewhere in this codebase
+// (AdminMetricsTab, AdminRosterTab, AdminCalendarTab).
 function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+  return new Date(iso).toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Kolkata",
+  });
 }
 
 function PatientTransactionTable({ transactions }: { transactions: PatientTransaction[] }) {

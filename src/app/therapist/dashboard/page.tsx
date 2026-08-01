@@ -20,6 +20,11 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
   cancelled: "text-red-700 bg-red-50",
 };
 
+// See patient/dashboard/page.tsx's matching NO_SHOW_STYLE comment -- a
+// completed session with no_show=true is otherwise visually identical to
+// one that was actually held.
+const NO_SHOW_STYLE = "text-orange-700 bg-orange-50";
+
 export const metadata: Metadata = {
   title: "Therapist Dashboard | Dr. Pooja's Physio",
 };
@@ -56,7 +61,15 @@ export default async function TherapistDashboardPage() {
     .select("day_of_week, hour")
     .eq("therapist_id", user.id);
 
-  const todayKey = new Date().toISOString().slice(0, 10);
+  // Computed in the therapist's OWN timezone, not the server's UTC clock --
+  // override dates are plain calendar dates meant to match the therapist's
+  // own local "today" (see schema.sql's comment on this table). A UTC-based
+  // cutoff would show a just-past override as "upcoming" for hours after
+  // local midnight in timezones ahead of UTC, or hide a genuinely-still-
+  // upcoming one in timezones behind UTC.
+  const todayKey = new Date().toLocaleDateString("en-CA", {
+    timeZone: profile?.timezone || "UTC",
+  });
   const { data: upcomingOverrides } = await supabase
     .from("therapist_availability_override")
     .select("date, hour, available, note")
@@ -192,10 +205,10 @@ export default async function TherapistDashboardPage() {
                     </div>
                     <span
                       className={`capitalize font-semibold px-3 py-1 rounded-full ${
-                        STATUS_BADGE_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
+                        a.no_show ? NO_SHOW_STYLE : STATUS_BADGE_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
                       }`}
                     >
-                      {a.status}
+                      {a.no_show ? "No-Show" : a.status}
                     </span>
                   </div>
                   <p className="text-slate-600">

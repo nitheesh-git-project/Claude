@@ -23,6 +23,13 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: "text-red-700 bg-red-50",
 };
 
+// A completed session with no_show=true previously rendered the exact same
+// teal "Completed" pill as one that was actually held -- no_show was only
+// ever consulted to hide the feedback form, never to change what the
+// status badge itself says, so there was no way to tell the two apart from
+// the dashboard.
+const NO_SHOW_STYLE = "text-orange-700 bg-orange-50";
+
 export default async function PatientDashboardPage() {
   const supabase = await createClient();
   const {
@@ -177,20 +184,30 @@ export default async function PatientDashboardPage() {
                   <div className="flex items-center gap-2">
                     <span
                       className={`capitalize font-semibold px-3 py-1 rounded-full ${
-                        STATUS_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
+                        a.no_show ? NO_SHOW_STYLE : STATUS_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
                       }`}
                     >
-                      {a.status}
+                      {a.no_show ? "No-Show" : a.status}
                     </span>
                     {a.status === "cancelled" ? (
                       a.refund_status === "processed" ? (
                         <span className="font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
                           Refunded
                         </span>
+                      ) : a.refund_status === "not_eligible" ? (
+                        <span className="font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                          No Refund
+                        </span>
                       ) : (
-                        a.refund_status === "not_eligible" && (
-                          <span className="font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-                            No Refund
+                        // refund_status === "failed" -- the refund attempt itself errored out
+                        // (see cancelAppointment.ts) and money is still owed. This used to fall
+                        // through to nothing, leaving a stuck refund visually identical to a
+                        // cancellation that never needed one -- the only place it was ever
+                        // surfaced was a one-time toast at the moment of cancellation, gone on
+                        // the very next page load.
+                        a.refund_status === "failed" && (
+                          <span className="font-semibold text-red-700 bg-red-50 px-3 py-1 rounded-full">
+                            Refund Failed — Contact Us
                           </span>
                         )
                       )

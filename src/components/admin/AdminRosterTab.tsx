@@ -10,6 +10,7 @@ import {
   type OverrideRow,
   type SlotState,
 } from "@/lib/therapistAvailability";
+import { istDateKey } from "@/lib/formatSlotRange";
 
 type Therapist = {
   id: string;
@@ -18,10 +19,14 @@ type Therapist = {
   on_leave: boolean;
 };
 
+// Pinned to Asia/Kolkata via the same istDateKey helper AdminCalendarTab
+// uses for its own "today" -- a runtime-local `new Date()` here would give
+// a different day server-side (SSR, likely UTC) than client-side
+// (hydration, the admin's own browser timezone) for roughly a third of
+// each day, the same hydration-mismatch class of bug already fixed
+// elsewhere in this codebase.
 function todayKey() {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return istDateKey(new Date().toISOString());
 }
 
 const STATE_STYLES: Record<SlotState, string> = {

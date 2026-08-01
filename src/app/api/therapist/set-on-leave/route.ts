@@ -22,11 +22,14 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("profiles")
-    .select("role")
+    .select("role, active")
     .eq("id", user.id)
     .single();
   if (profile?.role !== "therapist") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (profile.active === false) {
+    return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
 
   const { error } = await admin

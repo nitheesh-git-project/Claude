@@ -41,6 +41,20 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
+  // Unlike its sibling set-therapist-on-leave, this previously relied only
+  // on the FK constraint to reject a bogus id -- which rejects a
+  // non-existent id (loudly, with a raw Postgres error), but silently lets
+  // a real id belonging to a non-therapist profile through.
+  const { data: therapistProfile } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("id", therapistId)
+    .eq("role", "therapist")
+    .maybeSingle();
+  if (!therapistProfile) {
+    return NextResponse.json({ error: "Therapist not found" }, { status: 404 });
+  }
+
   if (action === "clear") {
     const { error } = await admin
       .from("therapist_availability_override")
