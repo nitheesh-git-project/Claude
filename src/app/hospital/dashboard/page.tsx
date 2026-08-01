@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import SignOutButton from "@/components/auth/SignOutButton";
 import SubmitReferralForm from "@/components/hospital/SubmitReferralForm";
+import DashboardShell, { type ShellNavItem } from "@/components/dashboard/DashboardShell";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
@@ -23,7 +23,7 @@ export default async function HospitalDashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, organization_name, referral_code, revenue_share_percent")
+    .select("full_name, organization_name, referral_code, revenue_share_percent, avatar_url")
     .eq("id", user.id)
     .single();
 
@@ -73,20 +73,33 @@ export default async function HospitalDashboardPage() {
   const hospitalCut = (totalRevenue * sharePercent) / 100;
   const companyCut = totalRevenue - hospitalCut;
 
-  return (
-    <section className="py-8 max-w-5xl mx-auto px-4">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            {profile?.organization_name ?? "Partner"} Dashboard
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Welcome, {profile?.full_name}
-          </p>
-        </div>
-        <SignOutButton />
-      </div>
+  const navItems: ShellNavItem[] = [
+    { id: "refer", label: "Refer a Patient", icon: "fa-user-plus" },
+    { id: "referrals", label: "Your Referrals", icon: "fa-list-check" },
+    { id: "revenue", label: "Revenue & Payouts", icon: "fa-chart-line" },
+  ];
 
+  // Same computation as the root layout's own showDebugNav -- duplicated
+  // here (rather than threaded through props from a layout) because this
+  // page hides the shared Navbar entirely and needs the same dev-only-bar
+  // offset for its own fixed sidebar. See DashboardShell's offsetTop prop.
+  const showDebugNav =
+    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
+    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
+      process.env.NODE_ENV !== "production");
+
+  return (
+    <DashboardShell
+      brandLabel="Partner Panel"
+      brandIcon="fa-hospital"
+      navItems={navItems}
+      userName={profile?.full_name ?? "Partner"}
+      userEmail={user.email ?? ""}
+      userAvatarUrl={profile?.avatar_url ?? null}
+      offsetTop={showDebugNav}
+      headerTitle={`${profile?.organization_name ?? "Partner"} Dashboard`}
+      headerSubtitle={`Welcome, ${profile?.full_name}`}
+    >
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-8 text-xs text-blue-900 flex items-center justify-between flex-wrap gap-2">
         <span>
           Your referral code — share it with patients who book directly:
@@ -97,14 +110,14 @@ export default async function HospitalDashboardPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div id="refer" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-bold text-lg text-slate-800 mb-4">
             Refer a Patient
           </h2>
           <SubmitReferralForm hospitalId={user.id} />
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div id="referrals" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-bold text-lg text-slate-800 mb-4">
             Your Referrals
           </h2>
@@ -140,7 +153,7 @@ export default async function HospitalDashboardPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-6">
+      <div id="revenue" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-6">
         <h2 className="font-bold text-lg text-slate-800 mb-4">
           Revenue & Payouts
         </h2>
@@ -202,6 +215,6 @@ export default async function HospitalDashboardPage() {
           </ul>
         )}
       </div>
-    </section>
+    </DashboardShell>
   );
 }
