@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import SignOutButton from "@/components/auth/SignOutButton";
+import { isDashboardShellRoute } from "@/lib/dashboardShellRoutes";
 
 const links = [
   { href: "/", label: "Home" },
@@ -84,12 +85,12 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
       ? "admin"
       : authUser?.fullName?.trim().split(" ")[0] || "there";
 
-  // The Admin Dashboard is its own full-height dark app shell (sidebar +
-  // content, no page scroll past the viewport) rather than a page that sits
-  // below this marketing nav -- exact match only, so the admin therapist/
-  // patient detail sub-pages (which aren't part of that shell) keep this nav
-  // for navigation.
-  if (pathname === "/admin/dashboard") {
+  // Each of the 4 role dashboards is its own full-height dark app shell
+  // (sidebar + content, no page scroll past the viewport) rather than a page
+  // that sits below this marketing nav -- exact match only, so sub-pages
+  // like /patient/dashboard/profile (which aren't part of a shell) keep
+  // this nav for navigation.
+  if (isDashboardShellRoute(pathname)) {
     return null;
   }
 

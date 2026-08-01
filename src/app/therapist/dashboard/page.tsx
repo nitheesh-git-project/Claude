@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import SignOutButton from "@/components/auth/SignOutButton";
-import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import CompleteSessionButton from "@/components/CompleteSessionButton";
 import MarkNoShowButton from "@/components/MarkNoShowButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
@@ -11,6 +9,7 @@ import TherapistAvailabilityRoster from "@/components/TherapistAvailabilityRoste
 import TherapistOnLeaveToggle from "@/components/TherapistOnLeaveToggle";
 import TherapistUpcomingOverrides from "@/components/TherapistUpcomingOverrides";
 import TherapistPayoutReceiptsSection from "@/components/TherapistPayoutReceiptsSection";
+import DashboardShell, { type ShellNavItem } from "@/components/dashboard/DashboardShell";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { buildTherapistPayoutReceipts } from "@/lib/receipts";
@@ -133,72 +132,86 @@ export default async function TherapistDashboardPage() {
     patientNameById
   );
 
+  const navItems: ShellNavItem[] = [
+    { id: "availability", label: "Availability", icon: "fa-calendar-days" },
+    { id: "sessions", label: "Assigned Sessions", icon: "fa-clipboard-list" },
+    { id: "receipts", label: "Payout Receipts", icon: "fa-sack-dollar" },
+  ];
+
+  // Same computation as the root layout's own showDebugNav -- duplicated
+  // here (rather than threaded through props from a layout) because this
+  // page hides the shared Navbar entirely and needs the same dev-only-bar
+  // offset for its own fixed sidebar. See DashboardShell's offsetTop prop.
+  const showDebugNav =
+    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
+    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
+      process.env.NODE_ENV !== "production");
+
   return (
-    <section className="py-8 max-w-5xl mx-auto px-4">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <AvatarThumbnail
-            url={profile?.avatar_url}
-            name={profile?.full_name ?? "T"}
-            size={48}
-          />
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Welcome, {profile?.full_name ?? "there"}
-            </h1>
-            <p className="text-xs text-slate-500 mt-1">{profile?.credentials}</p>
-            {profile?.revenue_share_percent !== null &&
-              profile?.revenue_share_percent !== undefined && (
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Your Revenue Share:{" "}
-                  <strong className="text-slate-600">{profile.revenue_share_percent}%</strong>
-                </p>
-              )}
-            <p className="text-[11px] text-slate-400 mt-1">
-              Your Rating:{" "}
-              {ownRating.average === null ? (
-                <strong className="text-slate-600">No ratings yet</strong>
-              ) : (
-                <strong className="text-slate-600">
-                  {ownRating.average.toFixed(1)} ({ownRating.count} rating
-                  {ownRating.count === 1 ? "" : "s"})
-                </strong>
-              )}
-              {profile?.rating_visible === false && (
-                <span className="text-slate-400"> — hidden from public pages</span>
-              )}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/therapist/dashboard/profile"
-            className="text-xs font-semibold text-slate-500 hover:text-purple-700 transition"
-          >
-            Edit Profile
-          </Link>
-          <SignOutButton />
-        </div>
-      </div>
-
-      <div className="mb-6">
-        <TherapistOnLeaveToggle initialOnLeave={onLeaveProfile?.on_leave ?? false} />
-      </div>
-
-      <div className="mb-6">
-        <TherapistAvailabilityRoster
-          initialSlots={availabilitySlots ?? []}
-          timezone={profile?.timezone ?? null}
-        />
-      </div>
-
-      {upcomingOverrides && upcomingOverrides.length > 0 && (
+    <DashboardShell
+      brandLabel="Therapist Panel"
+      brandIcon="fa-user-doctor"
+      navItems={navItems}
+      userName={profile?.full_name ?? "Therapist"}
+      userEmail={user.email ?? ""}
+      userAvatarUrl={profile?.avatar_url ?? null}
+      offsetTop={showDebugNav}
+      headerTitle={`Welcome, ${profile?.full_name ?? "there"}`}
+      headerSubtitle={
+        <>
+          <p>{profile?.credentials}</p>
+          {profile?.revenue_share_percent !== null &&
+            profile?.revenue_share_percent !== undefined && (
+              <p className="mt-1">
+                Your Revenue Share:{" "}
+                <strong className="text-slate-600">{profile.revenue_share_percent}%</strong>
+              </p>
+            )}
+          <p className="mt-1">
+            Your Rating:{" "}
+            {ownRating.average === null ? (
+              <strong className="text-slate-600">No ratings yet</strong>
+            ) : (
+              <strong className="text-slate-600">
+                {ownRating.average.toFixed(1)} ({ownRating.count} rating
+                {ownRating.count === 1 ? "" : "s"})
+              </strong>
+            )}
+            {profile?.rating_visible === false && (
+              <span className="text-slate-400"> — hidden from public pages</span>
+            )}
+          </p>
+        </>
+      }
+      headerActions={
+        <Link
+          href="/therapist/dashboard/profile"
+          className="text-xs font-semibold text-slate-500 hover:text-purple-700 transition"
+        >
+          Edit Profile
+        </Link>
+      }
+    >
+      <div id="availability">
         <div className="mb-6">
-          <TherapistUpcomingOverrides overrides={upcomingOverrides} />
+          <TherapistOnLeaveToggle initialOnLeave={onLeaveProfile?.on_leave ?? false} />
         </div>
-      )}
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="mb-6">
+          <TherapistAvailabilityRoster
+            initialSlots={availabilitySlots ?? []}
+            timezone={profile?.timezone ?? null}
+          />
+        </div>
+
+        {upcomingOverrides && upcomingOverrides.length > 0 && (
+          <div className="mb-6">
+            <TherapistUpcomingOverrides overrides={upcomingOverrides} />
+          </div>
+        )}
+      </div>
+
+      <div id="sessions" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-4">
           Assigned Patient Sessions
         </h2>
@@ -264,7 +277,9 @@ export default async function TherapistDashboardPage() {
         )}
       </div>
 
-      <TherapistPayoutReceiptsSection receipts={payoutReceipts} />
-    </section>
+      <div id="receipts">
+        <TherapistPayoutReceiptsSection receipts={payoutReceipts} />
+      </div>
+    </DashboardShell>
   );
 }

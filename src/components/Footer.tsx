@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { isDashboardShellRoute } from "@/lib/dashboardShellRoutes";
 
 export default function Footer() {
   const pathname = usePathname();
-  // See Navbar's matching check -- the Admin Dashboard is its own full-height
-  // dark app shell with no page scroll, so a footer below it would never be
-  // reachable/visible anyway.
-  if (pathname === "/admin/dashboard") {
+  // See Navbar's matching check -- each role dashboard is its own
+  // full-height dark app shell with no page scroll, so a footer below it
+  // would never be reachable/visible anyway.
+  if (isDashboardShellRoute(pathname)) {
     return null;
   }
 
