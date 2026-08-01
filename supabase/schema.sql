@@ -859,6 +859,25 @@ create policy "appointments_insert_own" on appointments
 -- that stricter promise is specific to the guided booking-wizard copy, not
 -- a documented platform-wide rule, so it isn't imposed here on other
 -- insert paths that don't make that promise.
+-- Security fix: a WITH CHECK clause only constrains the columns it
+-- references -- every column NOT listed here (most importantly
+-- therapist_id) was previously left completely open on a direct insert.
+-- The booking wizard never sets therapist_id at insert time (assignment
+-- only ever happens later, server-side, via assign-appointment /
+-- assign-referral using the service-role key -- see the comment on the
+-- revoked appointments UPDATE grant above), so requiring it to be null
+-- here changes no real behavior. Without this, any authenticated patient
+-- could craft a raw insert with an arbitrary real therapist_id (readable
+-- for free from the public public_therapist_profiles view), pay for it
+-- normally, and razorpay/verify's auto-confirm would flip it straight to
+-- 'confirmed' -- completely bypassing findTherapistConflict, which is only
+-- ever invoked from the admin assignment routes. That produced genuine
+-- double-booked, fully-paid "confirmed" sessions with no conflict check
+-- anywhere in the path. duration_minutes is pinned to match the chosen
+-- category (or the 60-minute base default when no category is set) for
+-- the same reason: it was previously any client-supplied integer,
+-- including zero/negative, which findTherapistConflict trusts as-is for
+-- every other appointment's overlap math.
 drop policy if exists "appointments_insert_own" on appointments;
 create policy "appointments_insert_own" on appointments
   for insert with check (
@@ -868,6 +887,11 @@ create policy "appointments_insert_own" on appointments
     and package_purchase_id is null
     and slot_time is not null
     and slot_time > now()
+    and therapist_id is null
+    and duration_minutes = coalesce(
+      (select duration_minutes from treatment_categories where id = category_id),
+      60
+    )
   );
 
 -- Therapist Roster: a weekly recurring availability template a therapist

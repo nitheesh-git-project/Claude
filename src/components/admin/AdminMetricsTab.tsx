@@ -19,6 +19,7 @@ import {
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import Modal from "@/components/admin/Modal";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
+import { istDateKey } from "@/lib/formatSlotRange";
 
 export type { MetricsAppointment };
 
@@ -44,8 +45,14 @@ function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
 }
 
+// Pinned to Asia/Kolkata (not d.toISOString()'s UTC date), the same
+// istDateKey helper AdminCalendarTab/AdminRosterTab use for their own
+// "today" -- the business timezone is IST throughout this dashboard, so a
+// UTC calendar date here would default the "To" range to yesterday (and
+// silently shift the Quick Range buttons by a day) for the ~5.5 hours
+// after midnight IST but before midnight UTC.
 function toDateInputValue(d: Date) {
-  return d.toISOString().slice(0, 10);
+  return istDateKey(d.toISOString());
 }
 
 // Pinned to a fixed timeZone (not left to the runtime's local zone) —
@@ -252,6 +259,7 @@ export default function AdminMetricsTab({
   patients,
   therapistSharePercent,
   patientHospitalSharePercent,
+  hospitalReferredPatientIds,
   nowMs,
 }: {
   appointments: MetricsAppointment[];
@@ -263,6 +271,11 @@ export default function AdminMetricsTab({
   // patientId -> the referring hospital's revenue-share %, only present for
   // patients referred by a hospital that has one set.
   patientHospitalSharePercent: Record<string, number>;
+  // patientId -> true for every hospital-referred patient, regardless of
+  // whether that hospital's share % is set -- lets moneyByBucketFor tell
+  // "not hospital-referred" (0% hospital cut is correct) apart from
+  // "hospital-referred but unconfigured" (unknowable, must be excluded).
+  hospitalReferredPatientIds: Record<string, true>;
   // Passed down from the server render rather than read via Date.now() in
   // here -- this component is always mounted (just CSS-hidden) as part of
   // the initial admin dashboard HTML, so seeding this useState from a fresh
@@ -290,15 +303,18 @@ export default function AdminMetricsTab({
     setFromDate(days === null ? "2000-01-01" : toDateInputValue(daysAgo(days, now)));
   }
 
-  // Parsed as UTC (explicit "Z"), not local time — "YYYY-MM-DDT00:00:00"
-  // without a zone suffix parses as the *runtime's* local time, which
-  // differs between the server (SSR) and the admin's browser (hydration),
-  // shifting these bucket boundaries by the timezone offset between them.
-  // That's not just a cosmetic mismatch: it can bucket revenue/bookings
-  // into the wrong day depending on which timezone rendered the page.
-  const fromMs = useMemo(() => new Date(fromDate + "T00:00:00Z").getTime(), [fromDate]);
+  // Parsed with an explicit +05:30 (IST) offset, not local time —
+  // "YYYY-MM-DDT00:00:00" without a zone suffix parses as the *runtime's*
+  // local time, which differs between the server (SSR) and the admin's
+  // browser (hydration), shifting these bucket boundaries by the timezone
+  // offset between them. Pinning to IST specifically (not just any fixed
+  // zone like UTC) matters too: the business and every other date display
+  // on this dashboard are IST, so a UTC "midnight" boundary here would
+  // silently exclude/include up to 5.5 hours of sessions at each edge of
+  // the range from what an admin picking "Aug 1" actually means.
+  const fromMs = useMemo(() => new Date(fromDate + "T00:00:00+05:30").getTime(), [fromDate]);
   // Inclusive of the whole "to" day.
-  const toMs = useMemo(() => new Date(toDate + "T00:00:00Z").getTime() + 86_400_000, [toDate]);
+  const toMs = useMemo(() => new Date(toDate + "T00:00:00+05:30").getTime() + 86_400_000, [toDate]);
 
   const dimFiltered = useMemo(
     () => filterByDimension(appointments, categoryFilter, therapistFilter, patientFilter),
@@ -328,8 +344,15 @@ export default function AdminMetricsTab({
   );
 
   const money = useMemo(
-    () => moneyByBucketFor(inRangeBySlot, buckets, therapistSharePercent, patientHospitalSharePercent),
-    [inRangeBySlot, buckets, therapistSharePercent, patientHospitalSharePercent]
+    () =>
+      moneyByBucketFor(
+        inRangeBySlot,
+        buckets,
+        therapistSharePercent,
+        patientHospitalSharePercent,
+        hospitalReferredPatientIds
+      ),
+    [inRangeBySlot, buckets, therapistSharePercent, patientHospitalSharePercent, hospitalReferredPatientIds]
   );
 
   const totalRevenuePaise = revenueByBucket.reduce((s, v) => s + v, 0) * 100;
@@ -907,8 +930,9 @@ export default function AdminMetricsTab({
           <p className="text-[11px] text-slate-400 mt-3">
             {money.excludedCount} paid session{money.excludedCount > 1 ? "s" : ""} totalling{" "}
             {formatInr(money.excludedRevenuePaise)} excluded from this breakdown — therapist not
-            assigned or their revenue share isn&apos;t set yet, so no split is knowable. Still
-            counted in the &quot;Revenue (range)&quot; stat above.
+            assigned, their revenue share isn&apos;t set yet, or (for a hospital-referred patient)
+            the referring hospital&apos;s revenue share isn&apos;t set yet, so no split is
+            knowable. Still counted in the &quot;Revenue (range)&quot; stat above.
           </p>
         )}
       </div>

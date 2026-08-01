@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
 
 // Marks a confirmed session as completed. Callable by the therapist who ran
 // the session, or an admin correcting the record — nobody else. There's no
@@ -42,6 +43,11 @@ export async function POST(request: NextRequest) {
   const isOwningTherapist = appointment.therapist_id === user.id;
   if (!adminUser && !isOwningTherapist) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  // Only gate the therapist's own path -- an admin correcting the record is
+  // never subject to the patient/therapist suspension flag.
+  if (!adminUser && !(await isProfileActive(user.id))) {
+    return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
 
   if (appointment.status !== "confirmed") {
