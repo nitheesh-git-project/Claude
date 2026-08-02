@@ -14,6 +14,7 @@ type TabKey =
   | "calendar"
   | "b2b"
   | "payouts"
+  | "payoutRequests"
   | "paymentHistory"
   | "content";
 
@@ -30,6 +31,8 @@ export default function AdminTabs({
   b2bPartners,
   b2bBadgeCount,
   payouts,
+  payoutRequests,
+  payoutRequestsBadgeCount,
   paymentHistory,
   siteContent,
   adminName,
@@ -53,6 +56,8 @@ export default function AdminTabs({
   b2bPartners: ReactNode;
   b2bBadgeCount: number;
   payouts: ReactNode;
+  payoutRequests: ReactNode;
+  payoutRequestsBadgeCount: number;
   paymentHistory: ReactNode;
   siteContent: ReactNode;
   adminName: string;
@@ -81,6 +86,12 @@ export default function AdminTabs({
     { key: "calendar", label: "Calendar", icon: "fa-calendar" },
     { key: "b2b", label: "B2B Partners", icon: "fa-handshake", badge: b2bBadgeCount },
     { key: "payouts", label: "Payouts", icon: "fa-sack-dollar" },
+    {
+      key: "payoutRequests",
+      label: "Payout Requests",
+      icon: "fa-hand-holding-dollar",
+      badge: payoutRequestsBadgeCount,
+    },
     { key: "paymentHistory", label: "Payment History", icon: "fa-receipt" },
     { key: "content", label: "Site Content", icon: "fa-pen-to-square" },
   ];
@@ -270,6 +281,7 @@ export default function AdminTabs({
           <div className={tab === "calendar" ? "" : "hidden"}>{calendar}</div>
           <div className={tab === "b2b" ? "" : "hidden"}>{b2bPartners}</div>
           <div className={tab === "payouts" ? "" : "hidden"}>{payouts}</div>
+          <div className={tab === "payoutRequests" ? "" : "hidden"}>{payoutRequests}</div>
           <div className={tab === "paymentHistory" ? "" : "hidden"}>{paymentHistory}</div>
           <div className={tab === "content" ? "" : "hidden"}>{siteContent}</div>
         </div>

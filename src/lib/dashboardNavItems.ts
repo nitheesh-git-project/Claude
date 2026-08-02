@@ -27,6 +27,7 @@ export function buildPatientNavItems({
 export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
   { id: "availability", label: "Availability", icon: "fa-calendar-days" },
   { id: "sessions", label: "Assigned Sessions", icon: "fa-clipboard-list" },
+  { id: "earnings", label: "Earnings", icon: "fa-chart-line" },
   { id: "receipts", label: "Payout Receipts", icon: "fa-sack-dollar" },
   { id: "edit-profile", label: "Edit Profile", icon: "fa-user-pen", href: "/therapist/dashboard/profile" },
 ];
