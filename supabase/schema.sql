@@ -1161,3 +1161,40 @@ create unique index if not exists profiles_hospital_code_unique_idx
   on profiles (hospital_code) where hospital_code is not null;
 create unique index if not exists appointments_session_code_unique_idx
   on appointments (session_code) where session_code is not null;
+
+-- Therapist payout requests -------------------------------------------------
+--
+-- A therapist's own accrued-but-unsettled earnings (session status
+-- 'completed' + payment_status 'paid', not yet given a
+-- therapist_payout_paid_at) are computed on the fly from appointments --
+-- see settle-therapist-payout's own owed formula, reused verbatim by
+-- src/lib/therapistEarnings.ts. This table only records the one new piece
+-- of real state needed on top of that: a therapist explicitly asking to be
+-- paid, and an admin explicitly acknowledging that request has been
+-- fulfilled (the actual settlement still happens the existing way, via the
+-- Payouts tab / settle-therapist-payout -- this is a lightweight request/ack
+-- loop layered on top, not a new payment mechanism).
+create table if not exists therapist_payout_requests (
+  id uuid primary key default gen_random_uuid(),
+  therapist_id uuid not null references profiles(id) on delete cascade,
+  requested_amount_paise integer not null,
+  status text not null default 'pending' check (status in ('pending', 'completed')),
+  requested_at timestamptz not null default now(),
+  completed_at timestamptz,
+  completed_by uuid references profiles(id),
+  acknowledged_at timestamptz
+);
+
+-- At most one open request per therapist at a time -- backstops the
+-- "Request Payout" button being disabled client-side while one is pending.
+create unique index if not exists payout_requests_one_pending_idx
+  on therapist_payout_requests (therapist_id) where status = 'pending';
+
+alter table therapist_payout_requests enable row level security;
+
+drop policy if exists "payout_requests_select_own" on therapist_payout_requests;
+create policy "payout_requests_select_own" on therapist_payout_requests
+  for select using (auth.uid() = therapist_id);
+-- No client insert/update/delete policy -- only
+-- /api/therapist/request-payout, /api/therapist/acknowledge-payout-request,
+-- and /api/admin/complete-payout-request (all service-role) write this table.

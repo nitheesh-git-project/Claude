@@ -8,12 +8,15 @@ import TherapistAvailabilityRoster from "@/components/TherapistAvailabilityRoste
 import TherapistOnLeaveToggle from "@/components/TherapistOnLeaveToggle";
 import TherapistUpcomingOverrides from "@/components/TherapistUpcomingOverrides";
 import TherapistPayoutReceiptsSection from "@/components/TherapistPayoutReceiptsSection";
+import TherapistEarningsTab from "@/components/TherapistEarningsTab";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { buildTherapistPayoutReceipts } from "@/lib/receipts";
 import { mergeSessionCodes } from "@/lib/sessionCode";
+import { computeTherapistEarningRows, computeTherapistPendingOwed } from "@/lib/therapistEarnings";
+import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -89,7 +92,7 @@ export default async function TherapistDashboardPage() {
   const { data: rawAppointments } = await supabase
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise"
+      "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id"
     )
     .eq("therapist_id", user.id)
     .order("created_at", { ascending: false });
@@ -150,6 +153,37 @@ export default async function TherapistDashboardPage() {
     payoutBatches ?? [],
     appointments ?? [],
     patientNameById
+  );
+
+  const { data: treatmentCategories } = await supabase
+    .from("treatment_categories")
+    .select("id, title");
+  const categoryTitleById = new Map((treatmentCategories ?? []).map((c) => [c.id, c.title]));
+
+  // therapist_payout_requests is new/migration-dependent -- kept isolated
+  // (it's its own brand-new table, so this is inherently its own query
+  // already) so an unknown-table error here only empties the Earnings
+  // tab's pending-request state, not the whole dashboard.
+  const { data: payoutRequests } = await supabase
+    .from("therapist_payout_requests")
+    .select("id, requested_amount_paise, status, requested_at, acknowledged_at")
+    .eq("therapist_id", user.id)
+    .order("requested_at", { ascending: false });
+
+  const earningRows = computeTherapistEarningRows(
+    appointments ?? [],
+    profile?.revenue_share_percent ?? null,
+    categoryTitleById,
+    patientNameById,
+    SESSION_FEE_PAISE
+  );
+  const pendingOwedPaise = computeTherapistPendingOwed(earningRows);
+  const hasPendingRequest = (payoutRequests ?? []).some((r) => r.status === "pending");
+  // The most recent request whose completion the therapist hasn't seen yet
+  // -- acknowledging it (see NotificationBanner) clears it so it doesn't
+  // show forever.
+  const latestCompletedRequest = (payoutRequests ?? []).find(
+    (r) => r.status === "completed" && !r.acknowledged_at
   );
 
   const navItems = THERAPIST_NAV_ITEMS;
@@ -288,6 +322,23 @@ export default async function TherapistDashboardPage() {
             })}
           </ul>
         )}
+      </div>
+
+      <div id="earnings">
+        <TherapistEarningsTab
+          rows={earningRows}
+          pendingOwedPaise={pendingOwedPaise}
+          hasPendingRequest={hasPendingRequest}
+          latestCompletedRequest={
+            latestCompletedRequest
+              ? {
+                  id: latestCompletedRequest.id,
+                  requestedAmountPaise: latestCompletedRequest.requested_amount_paise,
+                  requestedAt: latestCompletedRequest.requested_at,
+                }
+              : null
+          }
+        />
       </div>
 
       <div id="receipts">
