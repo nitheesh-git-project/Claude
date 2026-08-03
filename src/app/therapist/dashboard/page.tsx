@@ -8,6 +8,8 @@ import CompleteSessionButton from "@/components/CompleteSessionButton";
 import MarkNoShowButton from "@/components/MarkNoShowButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import TherapistAvailabilityRoster from "@/components/TherapistAvailabilityRoster";
+import TherapistOnLeaveToggle from "@/components/TherapistOnLeaveToggle";
+import TherapistUpcomingOverrides from "@/components/TherapistUpcomingOverrides";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 
@@ -38,10 +40,28 @@ export default async function TherapistDashboardPage() {
     .eq("id", user.id)
     .single();
 
+  // Kept as its own query rather than folded into the select above --
+  // on_leave is new and migration-dependent, and the query above feeds the
+  // whole page header (name, credentials, rating). An unknown-column error
+  // there would blank the entire dashboard; isolated, only the On Leave
+  // toggle degrades (defaults to "available") until the migration runs.
+  const { data: onLeaveProfile } = await supabase
+    .from("profiles")
+    .select("on_leave")
+    .eq("id", user.id)
+    .single();
+
   const { data: availabilitySlots } = await supabase
     .from("therapist_availability_template")
     .select("day_of_week, hour")
     .eq("therapist_id", user.id);
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const { data: upcomingOverrides } = await supabase
+    .from("therapist_availability_override")
+    .select("date, hour, available, note")
+    .eq("therapist_id", user.id)
+    .gte("date", todayKey);
 
   const { data: appointments } = await supabase
     .from("appointments")
@@ -127,11 +147,21 @@ export default async function TherapistDashboardPage() {
       </div>
 
       <div className="mb-6">
+        <TherapistOnLeaveToggle initialOnLeave={onLeaveProfile?.on_leave ?? false} />
+      </div>
+
+      <div className="mb-6">
         <TherapistAvailabilityRoster
           initialSlots={availabilitySlots ?? []}
           timezone={profile?.timezone ?? null}
         />
       </div>
+
+      {upcomingOverrides && upcomingOverrides.length > 0 && (
+        <div className="mb-6">
+          <TherapistUpcomingOverrides overrides={upcomingOverrides} />
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-4">

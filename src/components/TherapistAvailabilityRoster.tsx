@@ -6,13 +6,23 @@ import {
   AVAILABILITY_HOURS,
   DAY_ORDER,
   DAY_LABELS,
-  formatHourLabel,
+  formatHourRange,
 } from "@/lib/therapistAvailability";
 
 type Slot = { day_of_week: number; hour: number };
 
 function slotKey(day: number, hour: number) {
   return `${day}-${hour}`;
+}
+
+function toSet(slots: Slot[]) {
+  return new Set(slots.map((s) => slotKey(s.day_of_week, s.hour)));
+}
+
+function setsEqual(a: Set<string>, b: Set<string>) {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
 }
 
 export default function TherapistAvailabilityRoster({
@@ -22,20 +32,17 @@ export default function TherapistAvailabilityRoster({
   initialSlots: Slot[];
   timezone: string | null;
 }) {
-  const [enabled, setEnabled] = useState<Set<string>>(
-    new Set(initialSlots.map((s) => slotKey(s.day_of_week, s.hour)))
-  );
+  const [savedEnabled, setSavedEnabled] = useState<Set<string>>(() => toSet(initialSlots));
+  const [enabled, setEnabled] = useState<Set<string>>(() => toSet(initialSlots));
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const router = useRouter();
 
-  const isDirty =
-    enabled.size !== initialSlots.length ||
-    initialSlots.some((s) => !enabled.has(slotKey(s.day_of_week, s.hour)));
+  const isDirty = !setsEqual(enabled, savedEnabled);
 
   function toggle(day: number, hour: number) {
-    setSavedMessage(null);
+    if (!editing) return;
     const key = slotKey(day, hour);
     setEnabled((prev) => {
       const next = new Set(prev);
@@ -45,10 +52,20 @@ export default function TherapistAvailabilityRoster({
     });
   }
 
+  function handleEdit() {
+    setError(null);
+    setEditing(true);
+  }
+
+  function handleCancel() {
+    setEnabled(new Set(savedEnabled));
+    setError(null);
+    setEditing(false);
+  }
+
   async function handleSave() {
     setSaving(true);
     setError(null);
-    setSavedMessage(null);
     const slots: Slot[] = Array.from(enabled).map((key) => {
       const [day, hour] = key.split("-").map(Number);
       return { day_of_week: day, hour };
@@ -60,7 +77,8 @@ export default function TherapistAvailabilityRoster({
     });
     setSaving(false);
     if (res.ok) {
-      setSavedMessage("Availability saved.");
+      setSavedEnabled(new Set(enabled));
+      setEditing(false);
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
@@ -72,27 +90,43 @@ export default function TherapistAvailabilityRoster({
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
         <h2 className="font-bold text-lg text-slate-800">Your Weekly Availability</h2>
-        <button
-          onClick={handleSave}
-          disabled={saving || !isDirty}
-          className="bg-teal-700 hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-2 rounded-lg transition"
-        >
-          {saving ? "Saving..." : "Save"}
-        </button>
+        {!editing ? (
+          <button
+            onClick={handleEdit}
+            className="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold px-4 py-2 rounded-lg transition"
+          >
+            Edit
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCancel}
+              disabled={saving}
+              className="bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-800 text-xs font-semibold px-4 py-2 rounded-lg transition"
+            >
+              Cancel
+            </button>
+            {isDirty && (
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="bg-teal-700 hover:bg-teal-800 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-lg transition"
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <p className="text-[11px] text-slate-400 mb-4">
-        Tap the hours you&apos;re generally free to take sessions, in your own local time
-        {timezone ? ` (${timezone})` : ""}. This tells admin when to expect you&apos;re
-        available — it doesn&apos;t book anything by itself.
+        This is your recurring weekly schedule, in your own local time
+        {timezone ? ` (${timezone})` : ""}. Set it once and it repeats identically every week —
+        you only need to come back and change it if your regular hours change. It tells admin
+        when to expect you&apos;re available; it doesn&apos;t book anything by itself.
       </p>
       {error && (
         <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
           {error}
-        </div>
-      )}
-      {savedMessage && !isDirty && (
-        <div className="text-xs text-teal-700 bg-teal-50 border border-teal-200 rounded-lg p-3 mb-4">
-          {savedMessage}
         </div>
       )}
 
@@ -111,14 +145,15 @@ export default function TherapistAvailabilityRoster({
                       <button
                         type="button"
                         onClick={() => toggle(day, hour)}
-                        title={formatHourLabel(hour)}
-                        className={`w-14 py-2 rounded-md text-[10px] font-semibold border transition whitespace-nowrap ${
+                        disabled={!editing}
+                        title={formatHourRange(hour)}
+                        className={`w-24 py-2 rounded-md text-[10px] font-semibold border transition whitespace-nowrap ${
                           isOn
                             ? "bg-teal-700 border-teal-700 text-white"
-                            : "bg-slate-50 border-slate-200 text-slate-400 hover:border-teal-300"
-                        }`}
+                            : "bg-slate-50 border-slate-200 text-slate-400"
+                        } ${editing ? "hover:border-teal-300 cursor-pointer" : "cursor-default"}`}
                       >
-                        {formatHourLabel(hour)}
+                        {formatHourRange(hour)}
                       </button>
                     </td>
                   );
