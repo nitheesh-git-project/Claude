@@ -17,6 +17,10 @@ export default function EditRevenueShareForm({
   const router = useRouter();
 
   async function handleSave() {
+    if (value.trim() === "") {
+      setError("Enter a percentage.");
+      return;
+    }
     setLoading(true);
     setError(null);
     const res = await fetch("/api/admin/update-hospital-revenue-share", {
