@@ -18,20 +18,20 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Atomic conditional update -- only a request currently "reviewing" can
-  // become "completed" (the admin must explicitly start review first, via
-  // /api/admin/start-review-payout-request, before paying out and
-  // completing). Also closes the same double-tap race
-  // start-review-payout-request guards against.
+  // Atomic conditional update, not a check-then-write -- guards against two
+  // admin tabs (or two admins) both tapping "Start Review" on the same
+  // request at once, same pattern settle-therapist-payout already uses for
+  // its per-row claims. A losing request gets a clean 409, not a silent
+  // double-transition.
   const { data: updated, error } = await admin
     .from("therapist_payout_requests")
     .update({
-      status: "completed",
-      completed_at: new Date().toISOString(),
-      completed_by: adminUser.id,
+      status: "reviewing",
+      reviewing_at: new Date().toISOString(),
+      reviewing_by: adminUser.id,
     })
     .eq("id", body.requestId)
-    .eq("status", "reviewing")
+    .eq("status", "pending")
     .select("id")
     .maybeSingle();
 
@@ -39,20 +39,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   if (!updated) {
-    const { data: existing } = await admin
-      .from("therapist_payout_requests")
-      .select("status")
-      .eq("id", body.requestId)
-      .maybeSingle();
-    if (!existing) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 });
-    }
-    if (existing.status === "completed") {
-      return NextResponse.json({ error: "This request is already completed." }, { status: 400 });
-    }
     return NextResponse.json(
-      { error: "Start review on this request before marking it completed." },
-      { status: 400 }
+      { error: "This request is no longer pending — please refresh." },
+      { status: 409 }
     );
   }
 

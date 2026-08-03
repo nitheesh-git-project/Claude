@@ -179,7 +179,11 @@ export default async function TherapistDashboardPage() {
     SESSION_FEE_PAISE
   );
   const pendingOwedPaise = computeTherapistPendingOwed(earningRows);
-  const hasPendingRequest = (payoutRequests ?? []).some((r) => r.status === "pending");
+  const openRequest = (payoutRequests ?? []).find(
+    (r) => r.status === "pending" || r.status === "reviewing"
+  );
+  const requestStatus: "none" | "pending" | "reviewing" =
+    openRequest?.status === "reviewing" ? "reviewing" : openRequest ? "pending" : "none";
   // The most recent request whose completion the therapist hasn't seen yet
   // -- acknowledging it (see NotificationBanner) clears it so it doesn't
   // show forever.
@@ -340,7 +344,7 @@ export default async function TherapistDashboardPage() {
         <TherapistEarningsTab
           rows={earningRows}
           pendingOwedPaise={pendingOwedPaise}
-          hasPendingRequest={hasPendingRequest}
+          requestStatus={requestStatus}
           latestCompletedRequest={
             latestCompletedRequest
               ? {

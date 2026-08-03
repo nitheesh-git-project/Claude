@@ -1198,3 +1198,22 @@ create policy "payout_requests_select_own" on therapist_payout_requests
 -- No client insert/update/delete policy -- only
 -- /api/therapist/request-payout, /api/therapist/acknowledge-payout-request,
 -- and /api/admin/complete-payout-request (all service-role) write this table.
+
+-- "Reviewing" stage -- an explicit middle state between the therapist
+-- asking to be paid and the admin actually confirming payment, so the
+-- therapist can see "someone's on it" rather than just "request pending"
+-- for the entire duration. /api/admin/start-review-payout-request moves
+-- pending -> reviewing; /api/admin/complete-payout-request now only accepts
+-- reviewing -> completed (rejects a stale pending -> completed jump).
+alter table therapist_payout_requests add column if not exists reviewing_at timestamptz;
+alter table therapist_payout_requests add column if not exists reviewing_by uuid references profiles(id);
+
+alter table therapist_payout_requests drop constraint if exists therapist_payout_requests_status_check;
+alter table therapist_payout_requests add constraint therapist_payout_requests_status_check
+  check (status in ('pending', 'reviewing', 'completed'));
+
+-- Widened from "pending only" to "pending or reviewing" -- an open request
+-- being reviewed still blocks a second one, same as a plain pending one did.
+drop index if exists payout_requests_one_pending_idx;
+create unique index if not exists payout_requests_one_open_idx
+  on therapist_payout_requests (therapist_id) where status in ('pending', 'reviewing');

@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 
 export default function RequestPayoutButton({
   owedPaise,
-  hasPendingRequest,
+  requestStatus,
 }: {
   owedPaise: number;
-  hasPendingRequest: boolean;
+  requestStatus: "none" | "pending" | "reviewing";
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,13 +33,13 @@ export default function RequestPayoutButton({
     router.refresh();
   }
 
-  if (hasPendingRequest) {
+  if (requestStatus === "pending" || requestStatus === "reviewing") {
     return (
       <button
         disabled
         className="text-xs font-semibold px-4 py-2 rounded-xl bg-slate-100 text-slate-400 cursor-not-allowed"
       >
-        Request Pending
+        {requestStatus === "reviewing" ? "Under Review" : "Request Pending"}
       </button>
     );
   }

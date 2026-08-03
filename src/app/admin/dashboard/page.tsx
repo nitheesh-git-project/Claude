@@ -889,7 +889,7 @@ export default async function AdminDashboardPage() {
   const payoutRequestRows: PayoutRequestRow[] = (payoutRequests ?? []).map((r) => {
     const therapist = profileMap.get(r.therapist_id);
     const currentlyOwedPaise =
-      r.status === "pending"
+      r.status === "pending" || r.status === "reviewing"
         ? computeTherapistPayoutSummary(
             r.therapist_id,
             therapist?.revenue_share_percent ?? null,
@@ -904,12 +904,14 @@ export default async function AdminDashboardPage() {
       therapistCode: roleCodeMap.get(r.therapist_id)?.therapist_code ?? null,
       requestedAmountPaise: r.requested_amount_paise,
       requestedAt: r.requested_at,
-      status: r.status as "pending" | "completed",
+      status: r.status as "pending" | "reviewing" | "completed",
       completedAt: r.completed_at,
       currentlyOwedPaise,
     };
   });
-  const payoutRequestsBadgeCount = payoutRequestRows.filter((r) => r.status === "pending").length;
+  const payoutRequestsBadgeCount = payoutRequestRows.filter(
+    (r) => r.status === "pending" || r.status === "reviewing"
+  ).length;
 
   const payoutRequestsTab = <AdminPayoutRequestsTab requests={payoutRequestRows} />;
 
