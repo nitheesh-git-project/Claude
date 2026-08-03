@@ -5,5 +5,5 @@ export const PROFILE_FIELD_LABELS: Record<string, string> = {
   credentials: "Credentials / License",
   specialization: "Specialist In",
   years_experience: "Years of Experience",
-  phone: "WhatsApp / Phone",
+  phone: "Phone Number",
 };

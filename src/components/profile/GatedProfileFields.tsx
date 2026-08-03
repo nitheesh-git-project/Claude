@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { sanitizePhoneInput } from "@/lib/phoneInput";
+import PhoneNumberField from "@/components/PhoneNumberField";
 
 type FieldConfig = {
   name: string;
   label: string;
-  type: "text" | "date" | "number" | "select" | "tel";
+  type: "text" | "date" | "number" | "select" | "phone";
   options?: string[];
   min?: string | number;
   max?: string | number;
@@ -155,14 +155,18 @@ export default function GatedProfileFields({
                   </option>
                 ))}
               </select>
+            ) : f.type === "phone" ? (
+              <PhoneNumberField
+                value={values[f.name] ?? ""}
+                onChange={(v) => setValues((vals) => ({ ...vals, [f.name]: v }))}
+                label=""
+              />
             ) : (
               <input
                 type={f.type}
                 value={values[f.name] ?? ""}
                 min={f.min}
                 max={f.max}
-                inputMode={f.type === "tel" ? "tel" : undefined}
-                onInput={f.type === "tel" ? sanitizePhoneInput : undefined}
                 onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
                 className="w-full p-2.5 rounded-lg border border-slate-300"
               />

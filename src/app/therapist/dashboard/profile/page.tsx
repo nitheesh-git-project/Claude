@@ -99,7 +99,7 @@ export default async function TherapistProfilePage() {
               type: "number",
               min: 0,
             },
-            { name: "phone", label: "WhatsApp / Phone", type: "tel" },
+            { name: "phone", label: "Phone Number", type: "phone" },
           ]}
           currentValues={{
             full_name: profile?.full_name ?? "",

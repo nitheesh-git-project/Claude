@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { sanitizePhoneInput } from "@/lib/phoneInput";
+import { isValidStoredPhone } from "@/lib/phoneNumber";
+import PhoneNumberField from "@/components/PhoneNumberField";
 
 type FieldConfig = {
   name: string;
   label: string;
-  type: "text" | "tel" | "textarea" | "select";
+  type: "text" | "phone" | "textarea" | "select";
   options?: string[];
 };
 
@@ -38,8 +39,17 @@ export default function InstantProfileFields({
       setEditing(false);
       return;
     }
-    setLoading(true);
     setError(null);
+
+    for (const f of fields) {
+      const v = (values[f.name] ?? "").trim();
+      if (f.type === "phone" && v && !isValidStoredPhone(v)) {
+        setError(`Please enter a valid ${f.label.toLowerCase()}, or leave it blank.`);
+        return;
+      }
+    }
+
+    setLoading(true);
 
     const updates: Record<string, string | null> = {};
     for (const f of fields) {
@@ -101,12 +111,16 @@ export default function InstantProfileFields({
                 </option>
               ))}
             </select>
+          ) : f.type === "phone" ? (
+            <PhoneNumberField
+              value={values[f.name] ?? ""}
+              onChange={(v) => setValues((vals) => ({ ...vals, [f.name]: v }))}
+              label=""
+            />
           ) : (
             <input
               type={f.type}
               value={values[f.name] ?? ""}
-              inputMode={f.type === "tel" ? "tel" : undefined}
-              onInput={f.type === "tel" ? sanitizePhoneInput : undefined}
               onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
               className="w-full p-2.5 rounded-lg border border-slate-300"
             />

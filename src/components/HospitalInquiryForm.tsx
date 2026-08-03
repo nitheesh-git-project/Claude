@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { sanitizePhoneInput } from "@/lib/phoneInput";
+import { isValidStoredPhone } from "@/lib/phoneNumber";
+import PhoneNumberField from "@/components/PhoneNumberField";
 
 const SOURCES = ["Ads", "Friends", "Hospitals", "Other"];
 
@@ -10,11 +11,18 @@ export default function HospitalInquiryForm() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [phone, setPhone] = useState("");
   const supabase = createClient();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+
+    if (!isValidStoredPhone(phone)) {
+      setError("Please enter a valid phone number.");
+      return;
+    }
+
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
@@ -69,19 +77,7 @@ export default function HospitalInquiryForm() {
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
         </div>
-        <div>
-          <label className="block font-semibold mb-1">Phone Number</label>
-          <input
-            type="tel"
-            name="phone"
-            placeholder="+91 98765 43210"
-            required
-            inputMode="tel"
-            maxLength={20}
-            onInput={sanitizePhoneInput}
-            className="w-full p-2.5 rounded-lg border border-slate-300"
-          />
-        </div>
+        <PhoneNumberField value={phone} onChange={setPhone} required />
         <div>
           <label className="block font-semibold mb-1">Email Address</label>
           <input
