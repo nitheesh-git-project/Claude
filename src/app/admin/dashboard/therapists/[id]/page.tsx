@@ -9,6 +9,7 @@ import TherapistContactEditForm from "@/components/admin/TherapistContactEditFor
 import TherapistNotesForm from "@/components/admin/TherapistNotesForm";
 import TherapistRevenueShareForm from "@/components/admin/TherapistRevenueShareForm";
 import ResetTherapistPasswordButton from "@/components/admin/ResetTherapistPasswordButton";
+import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -47,7 +48,7 @@ export default async function AdminTherapistDetailPage({
     admin
       .from("appointments")
       .select(
-        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, paid_at"
+        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, paid_at, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note"
       )
       .eq("therapist_id", id)
       .order("created_at", { ascending: false }),
@@ -80,14 +81,15 @@ export default async function AdminTherapistDetailPage({
 
   const paidAppointments = (appointments ?? []).filter((a) => a.payment_status === "paid");
   const sharePercent = therapist.revenue_share_percent;
-  const totalPayoutPaise =
+  const unsettledAppointments = paidAppointments.filter((a) => !a.therapist_payout_paid_at);
+  const owedPaise =
     sharePercent !== null
-      ? paidAppointments.reduce(
+      ? unsettledAppointments.reduce(
           (sum, a) =>
             sum + Math.round(((a.amount_paid_paise ?? SESSION_FEE_PAISE) * sharePercent) / 100),
           0
         )
-      : null;
+      : 0;
 
   return (
     <section className="py-8 max-w-4xl mx-auto px-4">
@@ -218,15 +220,20 @@ export default async function AdminTherapistDetailPage({
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-sm text-slate-800">Payout History</h2>
-          {totalPayoutPaise !== null && (
-            <p className="text-xs text-slate-500">
-              Total Owed:{" "}
-              <strong className="text-teal-700">
-                ₹{(totalPayoutPaise / 100).toLocaleString("en-IN")}
-              </strong>
-            </p>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+          <div>
+            <h2 className="font-bold text-sm text-slate-800">Payout History</h2>
+            {sharePercent !== null && (
+              <p className="text-xs text-slate-500 mt-1">
+                Owed:{" "}
+                <strong className="text-teal-700">
+                  ₹{(owedPaise / 100).toLocaleString("en-IN")}
+                </strong>
+              </p>
+            )}
+          </div>
+          {sharePercent !== null && (
+            <TherapistPayoutButton therapistId={therapist.id} owedPaise={owedPaise} />
           )}
         </div>
         {sharePercent === null ? (
@@ -240,7 +247,10 @@ export default async function AdminTherapistDetailPage({
             {paidAppointments.map((a) => {
               const category = a.category_id ? categoryMap.get(a.category_id) : null;
               const feePaise = a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE;
-              const payoutPaise = Math.round((feePaise * sharePercent) / 100);
+              const isSettled = !!a.therapist_payout_paid_at;
+              const payoutPaise = isSettled
+                ? a.therapist_payout_amount_paise ?? Math.round((feePaise * sharePercent) / 100)
+                : Math.round((feePaise * sharePercent) / 100);
               const patient = a.patient_id ? patientMap.get(a.patient_id) : null;
               return (
                 <li key={a.id} className="p-4 rounded-xl border border-slate-200 space-y-1">
@@ -248,14 +258,32 @@ export default async function AdminTherapistDetailPage({
                     <strong className="text-slate-900">
                       {patient?.full_name ?? "Unknown patient"}
                     </strong>
-                    <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
-                      ₹{(payoutPaise / 100).toLocaleString("en-IN")}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
+                        ₹{(payoutPaise / 100).toLocaleString("en-IN")}
+                      </span>
+                      {isSettled ? (
+                        <span className="font-semibold text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
+                          Paid Out
+                        </span>
+                      ) : (
+                        <span className="font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                          Owed
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <p className="text-slate-500">
                     Session fee ₹{(feePaise / 100).toLocaleString("en-IN")} × {sharePercent}% •{" "}
                     Paid {a.paid_at ? new Date(a.paid_at).toLocaleDateString() : "date unknown"}
                   </p>
+                  {isSettled && (
+                    <p className="text-slate-400">
+                      Settled {new Date(a.therapist_payout_paid_at as string).toLocaleDateString()}{" "}
+                      via {a.therapist_payout_method}
+                      {a.therapist_payout_note && <> — &quot;{a.therapist_payout_note}&quot;</>}
+                    </p>
+                  )}
                 </li>
               );
             })}

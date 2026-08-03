@@ -104,6 +104,7 @@ export default async function AdminPatientDetailPage({
     (sum, a) => sum + (a.amount_paid_paise ?? SESSION_FEE_PAISE),
     0
   );
+  const now = new Date().getTime();
 
   // Profit only exists where the session's therapist has a revenue share
   // set — without it there's no way to know their cut, so those sessions
@@ -217,7 +218,7 @@ export default async function AdminPatientDetailPage({
                 a.status !== "completed" &&
                 a.status !== "cancelled" &&
                 !!a.slot_time &&
-                new Date(a.slot_time).getTime() > Date.now();
+                new Date(a.slot_time).getTime() > now;
               return (
                 <li key={a.id} className="p-4 rounded-xl border border-slate-200 space-y-1.5">
                   <div className="flex items-center justify-between flex-wrap gap-2">

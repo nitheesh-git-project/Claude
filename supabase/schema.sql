@@ -313,6 +313,18 @@ alter table appointments add column if not exists amount_paid_paise integer;
 -- later. Needed for a real payment history, not just a booking list.
 alter table appointments add column if not exists paid_at timestamptz;
 
+-- Tracks whether *this session's* cut has actually been handed to the
+-- therapist yet — separate from whether the patient paid. A session with
+-- payment_status = 'paid' but therapist_payout_paid_at null is money the
+-- clinic owes the therapist and hasn't settled. The amount is snapshotted
+-- at settlement time (same reasoning as amount_paid_paise) so editing a
+-- therapist's revenue share % later never rewrites what was already
+-- actually paid out for past sessions.
+alter table appointments add column if not exists therapist_payout_paid_at timestamptz;
+alter table appointments add column if not exists therapist_payout_amount_paise integer;
+alter table appointments add column if not exists therapist_payout_method text check (therapist_payout_method is null or therapist_payout_method in ('cash', 'online'));
+alter table appointments add column if not exists therapist_payout_note text;
+
 -- Structured contact email captured directly on the public inquiry form,
 -- so onboarding doesn't rely on retyping it from free-text notes.
 alter table b2b_leads add column if not exists email text;
