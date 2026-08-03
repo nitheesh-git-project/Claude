@@ -106,6 +106,37 @@ export default function SessionDetailDrawer({
     return categoryMap.get(id)?.title ?? "Unknown";
   }
 
+  async function submitReopen(overridePayoutSettled: boolean) {
+    setReopening(true);
+    setActionError(null);
+    const res = await fetch("/api/admin/reopen-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ appointmentId: a.id, overridePayoutSettled }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setReopening(false);
+    if (!res.ok) {
+      if (data.payoutSettled && !overridePayoutSettled) {
+        // This session's cash payout to the therapist was already settled.
+        // Reopening it won't be re-tracked for a future payout automatically,
+        // so make the admin explicitly own that before letting them proceed.
+        if (
+          window.confirm(
+            "This session's payout has already been settled in cash to the therapist. Reopening it will NOT automatically flag it for a future payout — you'll need to track that manually if the session is redelivered. Reopen anyway?"
+          )
+        ) {
+          await submitReopen(true);
+        }
+        return;
+      }
+      setActionError(data.error ?? "Could not reopen this session.");
+      return;
+    }
+    router.refresh();
+    onClose();
+  }
+
   async function handleReopen() {
     if (
       !window.confirm(
@@ -114,21 +145,7 @@ export default function SessionDetailDrawer({
     ) {
       return;
     }
-    setReopening(true);
-    setActionError(null);
-    const res = await fetch("/api/admin/reopen-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId: a.id }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setReopening(false);
-    if (!res.ok) {
-      setActionError(data.error ?? "Could not reopen this session.");
-      return;
-    }
-    router.refresh();
-    onClose();
+    await submitReopen(false);
   }
 
   async function submitCancel(reason: string, overridePayoutSettled: boolean) {
