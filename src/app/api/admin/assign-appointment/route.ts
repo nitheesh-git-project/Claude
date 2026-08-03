@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       therapistId,
       appointment.slot_time,
       appointment.duration_minutes ?? BASE_DURATION_MINUTES,
-      appointmentId
+      { excludeAppointmentId: appointmentId }
     );
     if (conflict) {
       return NextResponse.json(
