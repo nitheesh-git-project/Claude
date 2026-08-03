@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import ConfirmPasswordField from "@/components/auth/ConfirmPasswordField";
 
 const ROLE_LOGIN_HREF: Record<string, string> = {
   patient: "/patient/login",
@@ -131,18 +132,12 @@ export default function ResetPasswordPage() {
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
-            <div>
-              <label className="block font-semibold mb-1">Confirm New Password</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                maxLength={72}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
-            </div>
+            <ConfirmPasswordField
+              password={password}
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              label="Confirm New Password"
+            />
             <button
               type="submit"
               disabled={submitting}

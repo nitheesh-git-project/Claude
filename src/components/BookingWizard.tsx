@@ -8,6 +8,7 @@ import { payForAppointment } from "@/lib/razorpay";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { sanitizePhoneInput } from "@/lib/phoneInput";
+import ConfirmPasswordField from "@/components/auth/ConfirmPasswordField";
 
 type Category = {
   id: string;
@@ -47,16 +48,6 @@ export default function BookingWizard() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
-  // Shows as soon as either: the field has been tapped away from (blur), or
-  // enough has been typed into it to fully compare against the password —
-  // the latter means a full wrong retype surfaces the error immediately as
-  // you finish typing it, without waiting on a blur event that a tap
-  // straight onto the submit button can race with.
-  const passwordsMismatched =
-    confirmPassword.length > 0 &&
-    password !== confirmPassword &&
-    (confirmPasswordTouched || confirmPassword.length >= password.length);
   const [referralCode, setReferralCode] = useState("");
   const [referralCheck, setReferralCheck] = useState<ReferralCodeCheck>({
     status: "idle",
@@ -441,27 +432,13 @@ export default function BookingWizard() {
                   className="w-full p-3 rounded-xl border border-slate-300"
                 />
               </div>
-              <div>
-                <label className="block font-semibold mb-1.5 text-slate-900">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  onBlur={() => setConfirmPasswordTouched(true)}
-                  minLength={6}
-                  className={`w-full p-3 rounded-xl border ${
-                    passwordsMismatched ? "border-red-400" : "border-slate-300"
-                  }`}
-                />
-                {passwordsMismatched && (
-                  <p className="text-red-600 font-semibold text-xs mt-1">
-                    <i className="fa-solid fa-circle-exclamation mr-1"></i>
-                    Passwords do not match
-                  </p>
-                )}
-              </div>
+              <ConfirmPasswordField
+                password={password}
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                labelClassName="block font-semibold mb-1.5 text-slate-900"
+                errorClassName="text-xs"
+              />
               <div>
                 <label className="block font-semibold mb-1.5 text-slate-900">
                   Referral Code{" "}

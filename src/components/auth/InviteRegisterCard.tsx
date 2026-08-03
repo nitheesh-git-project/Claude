@@ -8,6 +8,7 @@ import { payForAppointment } from "@/lib/razorpay";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_INR } from "@/lib/pricing";
 import { isValidEmail } from "@/lib/validateEmail";
+import ConfirmPasswordField from "./ConfirmPasswordField";
 
 type Preview = {
   valid: boolean;
@@ -273,20 +274,11 @@ export default function InviteRegisterCard() {
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
-            <div>
-              <label className="block font-semibold mb-1">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                maxLength={72}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
-            </div>
+            <ConfirmPasswordField
+              password={password}
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+            />
             <button
               type="submit"
               disabled={loading}
