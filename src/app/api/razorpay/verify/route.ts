@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
   const shouldAutoConfirm = appointment.therapist_id && appointment.status === "requested";
 
   const admin = createAdminClient();
-  await admin
+  const { error: updateError } = await admin
     .from("appointments")
     .update({
       payment_status: "paid",
@@ -73,6 +73,19 @@ export async function POST(request: NextRequest) {
       ...(shouldAutoConfirm ? { status: "confirmed" } : {}),
     })
     .eq("id", appointmentId);
+
+  if (updateError) {
+    // The payment itself succeeded with Razorpay at this point — never tell
+    // the patient it failed. Surface it as a verification failure instead so
+    // the existing "contact us with payment ID X" fallback UI kicks in,
+    // rather than silently showing a false "Payment Confirmed" screen while
+    // the booking is actually left unpaid in the database.
+    console.error("Failed to record payment for appointment", appointmentId, updateError);
+    return NextResponse.json(
+      { error: "Could not record the payment. Please contact us." },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({ success: true });
 }
