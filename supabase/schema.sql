@@ -22,8 +22,15 @@ create table if not exists appointments (
   concern text,
   notes text,
   status text not null default 'requested' check (status in ('requested', 'confirmed', 'completed', 'cancelled')),
+  razorpay_order_id text,
+  razorpay_payment_id text,
+  payment_status text not null default 'unpaid' check (payment_status in ('unpaid', 'paid', 'failed')),
   created_at timestamptz not null default now()
 );
+
+alter table appointments add column if not exists razorpay_order_id text;
+alter table appointments add column if not exists razorpay_payment_id text;
+alter table appointments add column if not exists payment_status text not null default 'unpaid' check (payment_status in ('unpaid', 'paid', 'failed'));
 
 alter table profiles enable row level security;
 alter table appointments enable row level security;
@@ -90,6 +97,12 @@ drop policy if exists "appointments_insert_own" on appointments;
 create policy "appointments_insert_own" on appointments
   for insert with check (auth.uid() = patient_id);
 
+-- No client-side UPDATE policy on appointments: booking status, therapist
+-- assignment, and payment fields (razorpay_order_id, razorpay_payment_id,
+-- payment_status) must only ever be written by server-side code using the
+-- service role key (see src/lib/supabase/admin.ts) — never by the
+-- patient's or therapist's own browser session. Without this, a patient
+-- could open devtools and mark their own unpaid booking as "paid" the
+-- same way the profile self-approval hole worked before it was fixed.
 drop policy if exists "appointments_update_own" on appointments;
-create policy "appointments_update_own" on appointments
-  for update using (auth.uid() = patient_id or auth.uid() = therapist_id);
+revoke update on appointments from authenticated;

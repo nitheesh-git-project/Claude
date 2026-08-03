@@ -4,6 +4,26 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
+
+function loadRazorpayScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.Razorpay) {
+      resolve();
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Could not load the payment gateway."));
+    document.body.appendChild(script);
+  });
+}
+
 const CONCERNS = [
   "Lower Back Stiffness / Sciatica",
   "Post-Op Knee Replacement",
@@ -29,6 +49,7 @@ export default function BookingWizard() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [appointmentId, setAppointmentId] = useState<string | null>(null);
 
   const [timezone, setTimezone] = useState("");
   const [slotDateTime, setSlotDateTime] = useState("");
@@ -126,21 +147,89 @@ export default function BookingWizard() {
       userId = data.user.id;
     }
 
-    const { error: apptError } = await supabase.from("appointments").insert({
-      patient_id: userId,
-      slot_time: new Date(slotDateTime).toISOString(),
-      timezone,
-      concern,
-      notes,
-      status: "requested",
-    });
+    const { data: appointment, error: apptError } = await supabase
+      .from("appointments")
+      .insert({
+        patient_id: userId,
+        slot_time: new Date(slotDateTime).toISOString(),
+        timezone,
+        concern,
+        notes,
+        status: "requested",
+      })
+      .select("id")
+      .single();
 
-    setLoading(false);
-    if (apptError) {
-      setError(apptError.message);
+    if (apptError || !appointment) {
+      setLoading(false);
+      setError(apptError?.message ?? "Could not save your booking. Please try again.");
       return;
     }
-    setDone(true);
+
+    setAppointmentId(appointment.id);
+    await startPayment(appointment.id);
+  }
+
+  async function startPayment(id: string) {
+    setError(null);
+    setLoading(true);
+
+    try {
+      await loadRazorpayScript();
+
+      const res = await fetch("/api/razorpay/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId: id }),
+      });
+      const orderData = await res.json();
+      setLoading(false);
+
+      if (!res.ok) {
+        setError(orderData.error ?? "Could not start payment. Please try again.");
+        return;
+      }
+
+      const razorpay = new window.Razorpay({
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        order_id: orderData.orderId,
+        name: "Dr. Pooja's Physio",
+        description: concern,
+        prefill: { name: fullName, email },
+        theme: { color: "#0f766e" },
+        handler: async (response: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) => {
+          setLoading(true);
+          const verifyRes = await fetch("/api/razorpay/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ appointmentId: id, ...response }),
+          });
+          setLoading(false);
+          if (verifyRes.ok) {
+            setDone(true);
+          } else {
+            setError(
+              `Payment received but verification failed. Please contact us with payment ID ${response.razorpay_payment_id}.`
+            );
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setError("Payment was not completed. You can try again below.");
+          },
+        },
+      });
+      razorpay.open();
+    } catch {
+      setLoading(false);
+      setError("Could not load the payment gateway. Please check your connection and try again.");
+    }
   }
 
   const header = (
@@ -185,10 +274,10 @@ export default function BookingWizard() {
         {header}
         <div className="p-8 text-center">
           <i className="fa-solid fa-circle-check text-teal-600 text-4xl mb-4"></i>
-          <h2 className="text-xl font-bold text-slate-900">Booking Requested</h2>
+          <h2 className="text-xl font-bold text-slate-900">Payment Confirmed</h2>
           <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-            We&apos;ll confirm your slot and send a payment link by email or
-            WhatsApp shortly. You can track this booking from your dashboard.
+            Your session is booked and paid. We&apos;ll confirm your exact
+            slot and send the video call link by email or WhatsApp shortly.
           </p>
           <Link
             href="/patient/dashboard"
@@ -398,24 +487,28 @@ export default function BookingWizard() {
             </div>
           </div>
           <p className="text-xs text-slate-500">
-            <i className="fa-solid fa-circle-info text-teal-600 mr-1"></i>
-            Online payment is coming soon — once your slot is confirmed,
-            we&apos;ll send a secure payment link by email or WhatsApp.
+            <i className="fa-solid fa-lock text-teal-600 mr-1"></i>
+            Secure payment via Razorpay. Your slot is held once payment is
+            confirmed.
           </p>
           <div className="flex gap-3 pt-1">
             <button
               onClick={() => setStep(2)}
-              disabled={loading}
+              disabled={loading || !!appointmentId}
               className="w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3.5 rounded-xl transition disabled:opacity-60"
             >
               Back
             </button>
             <button
-              onClick={handleSubmit}
+              onClick={appointmentId ? () => startPayment(appointmentId) : handleSubmit}
               disabled={loading}
               className="w-2/3 bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition shadow-lg"
             >
-              {loading ? "Submitting..." : "Request Booking"}
+              {loading
+                ? "Please wait..."
+                : appointmentId
+                ? "Pay ₹1,999 Now"
+                : "Request Booking"}
             </button>
           </div>
         </>
