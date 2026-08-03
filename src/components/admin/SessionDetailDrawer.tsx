@@ -266,7 +266,10 @@ export default function SessionDetailDrawer({
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+      // backdrop-blur-sm matches the platform-wide pop-up convention (see
+      // Modal.tsx) -- every full-page overlay blurs the page behind it, not
+      // just dims it.
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div

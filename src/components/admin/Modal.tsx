@@ -15,7 +15,11 @@ export default function Modal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+      // backdrop-blur-sm is a deliberate, platform-wide convention (not
+      // just this dialog) -- every full-page pop-up should tint AND blur
+      // the page behind it, not just dim it, so the modal reads as clearly
+      // in front. Keep this on any future modal/overlay too.
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
       onClick={onClose}
     >
       <div

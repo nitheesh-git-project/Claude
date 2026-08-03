@@ -163,7 +163,11 @@ export default async function AdminPatientDetailPage({
       return {
         id: a.id,
         label: a.paid_at
-          ? new Date(a.paid_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+          ? new Date(a.paid_at).toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              timeZone: "Asia/Kolkata",
+            })
           : "—",
         paidPaise,
         payoutPaise,
