@@ -13,6 +13,7 @@ export function buildPatientNavItems({
 }): ShellNavItem[] {
   return [
     { id: "sessions", label: "Your Sessions", icon: "fa-calendar-check" },
+    { id: "calendar", label: "Calendar", icon: "fa-calendar" },
     ...(hasOwnedPackages
       ? [{ id: "your-packages", label: "Your Packages", icon: "fa-box-open" }]
       : []),
@@ -27,6 +28,7 @@ export function buildPatientNavItems({
 export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
   { id: "availability", label: "Availability", icon: "fa-calendar-days" },
   { id: "sessions", label: "Assigned Sessions", icon: "fa-clipboard-list" },
+  { id: "calendar", label: "Calendar", icon: "fa-calendar" },
   { id: "earnings", label: "Earnings", icon: "fa-chart-line" },
   { id: "receipts", label: "Payout Receipts", icon: "fa-sack-dollar" },
   { id: "edit-profile", label: "Edit Profile", icon: "fa-user-pen", href: "/therapist/dashboard/profile" },

@@ -9,6 +9,7 @@ import BuyPackageButton from "@/components/BuyPackageButton";
 import BookWithPackageForm from "@/components/BookWithPackageForm";
 import ReceiptsSection from "@/components/ReceiptsSection";
 import DashboardShell from "@/components/dashboard/DashboardShell";
+import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { buildPatientReceipts } from "@/lib/receipts";
@@ -160,6 +161,106 @@ export default async function PatientDashboardPage() {
 
   const navItems = buildPatientNavItems({ hasOwnedPackages, hasAvailablePackages });
 
+  // Shared between "Your Sessions" and the Calendar tab's tap-a-date detail
+  // list, so both ever show one true card style for a session rather than
+  // two copies that can quietly drift apart.
+  function renderAppointmentCard(a: (typeof appointments)[number]) {
+    return (
+      <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <p className="font-bold text-slate-900">
+              {a.concern ?? "General Consultation"}
+              {a.session_code && (
+                <span className="ml-2 font-mono font-normal text-[11px] text-slate-400">
+                  {a.session_code}
+                </span>
+              )}
+            </p>
+            <p className="text-slate-500 mt-1">
+              {formatSlotTime(a.slot_time, a.timezone)}
+              {a.duration_minutes && ` • ${a.duration_minutes} min`}
+            </p>
+            <p className="text-slate-500 mt-1">
+              Therapist:{" "}
+              <strong className="text-slate-700">
+                {a.therapist_id
+                  ? therapistMap.get(a.therapist_id) ?? "Unknown"
+                  : "Not yet assigned"}
+              </strong>
+            </p>
+            {a.package_purchase_id && (
+              <p className="text-teal-700 mt-1">Paid via package</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className={`capitalize font-semibold px-3 py-1 rounded-full ${
+                a.no_show ? NO_SHOW_STYLE : STATUS_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
+              }`}
+            >
+              {a.no_show ? "No-Show" : a.status}
+            </span>
+            {a.status === "cancelled" ? (
+              a.refund_status === "processed" ? (
+                <span className="font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
+                  Refunded
+                </span>
+              ) : a.refund_status === "not_eligible" ? (
+                <span className="font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                  No Refund
+                </span>
+              ) : (
+                // refund_status === "failed" -- the refund attempt itself errored out
+                // (see cancelAppointment.ts) and money is still owed. This used to fall
+                // through to nothing, leaving a stuck refund visually identical to a
+                // cancellation that never needed one -- the only place it was ever
+                // surfaced was a one-time toast at the moment of cancellation, gone on
+                // the very next page load.
+                a.refund_status === "failed" && (
+                  <span className="font-semibold text-red-700 bg-red-50 px-3 py-1 rounded-full">
+                    Refund Failed — Contact Us
+                  </span>
+                )
+              )
+            ) : a.payment_status === "unpaid" ? (
+              <PayNowButton
+                appointmentId={a.id}
+                name={profile?.full_name ?? ""}
+                email={profile?.email ?? ""}
+                description={a.concern ?? "Virtual Physical Therapy Session"}
+                amountPaise={
+                  a.amount_paid_paise ??
+                  (a.category_id ? categoryPriceMap.get(a.category_id) : undefined) ??
+                  SESSION_FEE_PAISE
+                }
+              />
+            ) : (
+              <span className="font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full">
+                Paid
+              </span>
+            )}
+          </div>
+        </div>
+        {(a.status === "requested" || a.status === "confirmed") && (
+          <CancelSessionButton
+            appointmentId={a.id}
+            paid={a.payment_status === "paid"}
+            slotTime={a.slot_time}
+          />
+        )}
+        {a.status === "completed" && !a.no_show && (
+          <SessionFeedbackForm
+            appointmentId={a.id}
+            role="patient"
+            existingRating={a.patient_rating}
+            existingFeedback={a.patient_feedback}
+          />
+        )}
+      </div>
+    );
+  }
+
   // Same computation as the root layout's own showDebugNav -- duplicated
   // here (rather than threaded through props from a layout) because this
   // page hides the shared Navbar entirely and needs the same dev-only-bar
@@ -202,104 +303,18 @@ export default async function PatientDashboardPage() {
         ) : (
           <ul className="space-y-3">
             {appointments.map((a) => (
-              <li
-                key={a.id}
-                className="p-4 rounded-xl border border-slate-200 text-xs space-y-3"
-              >
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div>
-                    <p className="font-bold text-slate-900">
-                      {a.concern ?? "General Consultation"}
-                      {a.session_code && (
-                        <span className="ml-2 font-mono font-normal text-[11px] text-slate-400">
-                          {a.session_code}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-slate-500 mt-1">
-                      {formatSlotTime(a.slot_time, a.timezone)}
-                      {a.duration_minutes && ` • ${a.duration_minutes} min`}
-                    </p>
-                    <p className="text-slate-500 mt-1">
-                      Therapist:{" "}
-                      <strong className="text-slate-700">
-                        {a.therapist_id
-                          ? therapistMap.get(a.therapist_id) ?? "Unknown"
-                          : "Not yet assigned"}
-                      </strong>
-                    </p>
-                    {a.package_purchase_id && (
-                      <p className="text-teal-700 mt-1">Paid via package</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`capitalize font-semibold px-3 py-1 rounded-full ${
-                        a.no_show ? NO_SHOW_STYLE : STATUS_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
-                      }`}
-                    >
-                      {a.no_show ? "No-Show" : a.status}
-                    </span>
-                    {a.status === "cancelled" ? (
-                      a.refund_status === "processed" ? (
-                        <span className="font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
-                          Refunded
-                        </span>
-                      ) : a.refund_status === "not_eligible" ? (
-                        <span className="font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-                          No Refund
-                        </span>
-                      ) : (
-                        // refund_status === "failed" -- the refund attempt itself errored out
-                        // (see cancelAppointment.ts) and money is still owed. This used to fall
-                        // through to nothing, leaving a stuck refund visually identical to a
-                        // cancellation that never needed one -- the only place it was ever
-                        // surfaced was a one-time toast at the moment of cancellation, gone on
-                        // the very next page load.
-                        a.refund_status === "failed" && (
-                          <span className="font-semibold text-red-700 bg-red-50 px-3 py-1 rounded-full">
-                            Refund Failed — Contact Us
-                          </span>
-                        )
-                      )
-                    ) : a.payment_status === "unpaid" ? (
-                      <PayNowButton
-                        appointmentId={a.id}
-                        name={profile?.full_name ?? ""}
-                        email={profile?.email ?? ""}
-                        description={a.concern ?? "Virtual Physical Therapy Session"}
-                        amountPaise={
-                          a.amount_paid_paise ??
-                          (a.category_id ? categoryPriceMap.get(a.category_id) : undefined) ??
-                          SESSION_FEE_PAISE
-                        }
-                      />
-                    ) : (
-                      <span className="font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full">
-                        Paid
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {(a.status === "requested" || a.status === "confirmed") && (
-                  <CancelSessionButton
-                    appointmentId={a.id}
-                    paid={a.payment_status === "paid"}
-                    slotTime={a.slot_time}
-                  />
-                )}
-                {a.status === "completed" && !a.no_show && (
-                  <SessionFeedbackForm
-                    appointmentId={a.id}
-                    role="patient"
-                    existingRating={a.patient_rating}
-                    existingFeedback={a.patient_feedback}
-                  />
-                )}
-              </li>
+              <li key={a.id}>{renderAppointmentCard(a)}</li>
             ))}
           </ul>
         )}
+      </div>
+
+      <div id="calendar" className="mt-8">
+        <SessionCalendarTab
+          sessions={appointments}
+          cardsById={Object.fromEntries(appointments.map((a) => [a.id, renderAppointmentCard(a)]))}
+          showMotivation
+        />
       </div>
 
       {ownedPackages && ownedPackages.length > 0 && (
