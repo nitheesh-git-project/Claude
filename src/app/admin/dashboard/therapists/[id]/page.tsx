@@ -13,6 +13,7 @@ import ResetTherapistPasswordButton from "@/components/admin/ResetTherapistPassw
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import EditBookingForm from "@/components/admin/EditBookingForm";
 import CompleteSessionButton from "@/components/CompleteSessionButton";
+import MarkNoShowButton from "@/components/MarkNoShowButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -270,7 +271,10 @@ export default async function AdminTherapistDetailPage({
                     />
                   )}
                   {a.status === "confirmed" && (
-                    <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+                    <div className="flex items-center gap-2">
+                      <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+                      <MarkNoShowButton appointmentId={a.id} />
+                    </div>
                   )}
                 </li>
               );

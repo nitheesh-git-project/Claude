@@ -10,11 +10,12 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 // which is naturally after slot_time, but an admin may also need to
 // backfill an older session, so this doesn't try to guess "is it over yet".
 export async function POST(request: NextRequest) {
-  const { data: body, error: parseError } = await parseJsonBody<{ appointmentId?: string }>(
-    request
-  );
+  const { data: body, error: parseError } = await parseJsonBody<{
+    appointmentId?: string;
+    noShow?: boolean;
+  }>(request);
   if (parseError) return parseError;
-  const { appointmentId } = body;
+  const { appointmentId, noShow } = body;
   if (!appointmentId) {
     return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
   }
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
 
   const { error } = await admin
     .from("appointments")
-    .update({ status: "completed" })
+    .update({ status: "completed", no_show: !!noShow })
     .eq("id", appointmentId);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
