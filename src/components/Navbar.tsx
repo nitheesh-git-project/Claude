@@ -8,6 +8,7 @@ const links = [
   { href: "/conditions", label: "Conditions Treated" },
   { href: "/how-it-works", label: "How It Works" },
   { href: "/team", label: "Specialist Team" },
+  { href: "/faq", label: "FAQ" },
   { href: "/hospitals", label: "For Hospitals (B2B)" },
 ];
 

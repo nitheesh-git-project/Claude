@@ -538,3 +538,40 @@ create policy "avatar_delete_own" on storage.objects
 drop policy if exists "avatar_select_public" on storage.objects;
 create policy "avatar_select_public" on storage.objects
   for select using (bucket_id = 'avatars');
+
+-- Admin-curated patient testimonials shown on the public Home page. Same
+-- pattern as treatment_categories: publicly readable when active, but all
+-- writes go through admin API routes using the service role — no client
+-- insert/update/delete policy exists, same reasoning as that table.
+create table if not exists testimonials (
+  id uuid primary key default gen_random_uuid(),
+  patient_name text not null,
+  quote text not null,
+  rating integer check (rating is null or (rating >= 1 and rating <= 5)),
+  condition_label text,
+  display_order integer not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table testimonials enable row level security;
+
+drop policy if exists "testimonials_select_active" on testimonials;
+create policy "testimonials_select_active" on testimonials
+  for select using (active = true);
+
+-- Admin-curated FAQ shown on the public /faq page. Same pattern again.
+create table if not exists faqs (
+  id uuid primary key default gen_random_uuid(),
+  question text not null,
+  answer text not null,
+  display_order integer not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table faqs enable row level security;
+
+drop policy if exists "faqs_select_active" on faqs;
+create policy "faqs_select_active" on faqs
+  for select using (active = true);

@@ -14,6 +14,8 @@ import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswor
 import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
+import TestimonialManager from "@/components/admin/TestimonialManager";
+import FaqManager from "@/components/admin/FaqManager";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -100,6 +102,18 @@ export default async function AdminDashboardPage() {
     .select(
       "id, title, description, points, price_paise, duration_minutes, cta_label, display_order, active"
     )
+    .order("display_order", { ascending: true })
+    .order("id", { ascending: true });
+
+  const { data: testimonials } = await admin
+    .from("testimonials")
+    .select("id, patient_name, quote, rating, condition_label, display_order, active")
+    .order("display_order", { ascending: true })
+    .order("id", { ascending: true });
+
+  const { data: faqs } = await admin
+    .from("faqs")
+    .select("id, question, answer, display_order, active")
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
   const categoryMap = new Map((treatmentCategories ?? []).map((c) => [c.id, c]));
@@ -696,6 +710,22 @@ export default async function AdminDashboardPage() {
             points: Array.isArray(c.points) ? (c.points as string[]) : [],
           }))}
         />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Testimonials</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          Controls what shows in the &quot;What Our Patients Say&quot; section on the Home page.
+        </p>
+        <TestimonialManager testimonials={testimonials ?? []} />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">FAQ</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          Controls what shows on the public /faq page.
+        </p>
+        <FaqManager faqs={faqs ?? []} />
       </div>
     </>
   );
