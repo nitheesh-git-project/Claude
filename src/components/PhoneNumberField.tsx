@@ -51,7 +51,13 @@ export default function PhoneNumberField({
           className="p-3 rounded-xl border border-slate-300 bg-white shrink-0 w-32 sm:w-40"
         >
           {COUNTRY_OPTIONS.map((c) => (
-            <option key={c.code} value={c.code}>
+            // Intl.DisplayNames resolves country names from whatever ICU
+            // data the runtime has, which can differ slightly between the
+            // server (Node) and the client browser for a handful of
+            // countries (e.g. Falkland Islands) — a harmless text
+            // difference, not a real bug, so tell React not to discard
+            // and re-render the whole subtree over it.
+            <option key={c.code} value={c.code} suppressHydrationWarning>
               {flagEmoji(c.code)} {c.name} (+{c.dialCode})
             </option>
           ))}
