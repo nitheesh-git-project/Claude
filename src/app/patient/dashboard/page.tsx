@@ -2,14 +2,13 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import SignOutButton from "@/components/auth/SignOutButton";
 import PayNowButton from "@/components/PayNowButton";
 import CancelSessionButton from "@/components/CancelSessionButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import BuyPackageButton from "@/components/BuyPackageButton";
 import BookWithPackageForm from "@/components/BookWithPackageForm";
-import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ReceiptsSection from "@/components/ReceiptsSection";
+import DashboardShell, { type ShellNavItem } from "@/components/dashboard/DashboardShell";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { buildPatientReceipts } from "@/lib/receipts";
@@ -136,36 +135,50 @@ export default async function PatientDashboardPage() {
     .eq("payment_status", "paid")
     .order("created_at", { ascending: false });
 
-  return (
-    <section className="py-8 max-w-5xl mx-auto px-4">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <AvatarThumbnail
-            url={profile?.avatar_url}
-            name={profile?.full_name ?? "P"}
-            size={48}
-          />
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Welcome back, {profile?.full_name ?? "there"}
-            </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Your virtual physical therapy dashboard
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/patient/dashboard/profile"
-            className="text-xs font-semibold text-slate-500 hover:text-teal-700 transition"
-          >
-            Edit Profile
-          </Link>
-          <SignOutButton />
-        </div>
-      </div>
+  const hasOwnedPackages = !!ownedPackages && ownedPackages.length > 0;
+  const hasAvailablePackages = !!availablePackages && availablePackages.length > 0;
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+  const navItems: ShellNavItem[] = [
+    { id: "sessions", label: "Your Sessions", icon: "fa-calendar-check" },
+    ...(hasOwnedPackages
+      ? [{ id: "your-packages", label: "Your Packages", icon: "fa-box-open" }]
+      : []),
+    ...(hasAvailablePackages
+      ? [{ id: "session-packages", label: "Session Packages", icon: "fa-layer-group" }]
+      : []),
+    { id: "receipts", label: "Receipts", icon: "fa-receipt" },
+  ];
+
+  // Same computation as the root layout's own showDebugNav -- duplicated
+  // here (rather than threaded through props from a layout) because this
+  // page hides the shared Navbar entirely and needs the same dev-only-bar
+  // offset for its own fixed sidebar. See DashboardShell's offsetTop prop.
+  const showDebugNav =
+    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
+    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
+      process.env.NODE_ENV !== "production");
+
+  return (
+    <DashboardShell
+      brandLabel="Patient Panel"
+      brandIcon="fa-user-injured"
+      navItems={navItems}
+      userName={profile?.full_name ?? "Patient"}
+      userEmail={profile?.email ?? user.email ?? ""}
+      userAvatarUrl={profile?.avatar_url ?? null}
+      offsetTop={showDebugNav}
+      headerTitle={`Welcome back, ${profile?.full_name ?? "there"}`}
+      headerSubtitle="Your virtual physical therapy dashboard"
+      headerActions={
+        <Link
+          href="/patient/dashboard/profile"
+          className="text-xs font-semibold text-slate-500 hover:text-teal-700 transition"
+        >
+          Edit Profile
+        </Link>
+      }
+    >
+      <div id="sessions" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-lg text-slate-800">Your Sessions</h2>
           <Link
@@ -280,7 +293,7 @@ export default async function PatientDashboardPage() {
       </div>
 
       {ownedPackages && ownedPackages.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
+        <div id="your-packages" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
           <h2 className="font-bold text-lg text-slate-800 mb-4">Your Packages</h2>
           <ul className="space-y-3">
             {ownedPackages.map((p) => {
@@ -309,7 +322,7 @@ export default async function PatientDashboardPage() {
       )}
 
       {availablePackages && availablePackages.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
+        <div id="session-packages" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
           <h2 className="font-bold text-lg text-slate-800 mb-1">Session Packages</h2>
           <p className="text-xs text-slate-500 mb-4">
             Buy a bundle of sessions upfront and use them one at a time,
@@ -342,14 +355,16 @@ export default async function PatientDashboardPage() {
         </div>
       )}
 
-      <ReceiptsSection
-        receipts={buildPatientReceipts(
-          appointments ?? [],
-          allPackagePurchases ?? [],
-          paymentFailures ?? [],
-          categoryTitleMap
-        )}
-      />
-    </section>
+      <div id="receipts">
+        <ReceiptsSection
+          receipts={buildPatientReceipts(
+            appointments ?? [],
+            allPackagePurchases ?? [],
+            paymentFailures ?? [],
+            categoryTitleMap
+          )}
+        />
+      </div>
+    </DashboardShell>
   );
 }
