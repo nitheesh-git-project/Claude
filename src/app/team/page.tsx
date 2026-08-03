@@ -18,7 +18,9 @@ export default async function TeamPage() {
   const supabase = createPublicClient();
   const { data: therapists } = await supabase
     .from("public_therapist_profiles")
-    .select("id, full_name, credentials, specialization, years_experience, bio, avatar_url")
+    .select(
+      "id, full_name, credentials, specialization, years_experience, bio, avatar_url, avg_rating, rating_count"
+    )
     .order("full_name", { ascending: true });
 
   return (
@@ -51,6 +53,13 @@ export default async function TeamPage() {
                 className="mb-4"
               />
               <h3 className="text-xl font-bold text-slate-900">{t.full_name}</h3>
+              {t.rating_count > 0 && (
+                <p className="text-xs font-semibold text-amber-600 mt-1">
+                  <i className="fa-solid fa-star mr-1"></i>
+                  {Number(t.avg_rating).toFixed(1)} ({t.rating_count} review
+                  {t.rating_count === 1 ? "" : "s"})
+                </p>
+              )}
               {t.credentials && (
                 <p className="text-xs font-semibold text-teal-700 mt-1">{t.credentials}</p>
               )}

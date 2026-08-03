@@ -25,6 +25,15 @@ export default async function Home() {
     .order("id", { ascending: true })
     .limit(6);
 
+  // Real, aggregated patient rating data (never individual reviews/names —
+  // see the schema comment on public_rating_summary for why) surfaced
+  // alongside the hand-curated testimonials above.
+  const { data: ratingSummary } = await supabase
+    .from("public_rating_summary")
+    .select("avg_rating, rating_count")
+    .single();
+  const hasRealRatings = !!ratingSummary && ratingSummary.rating_count > 0;
+
   return (
     <>
       {/* HERO */}
@@ -59,7 +68,11 @@ export default async function Home() {
                 Watch How It Works
               </Link>
             </div>
-            <div className="mt-10 grid grid-cols-3 gap-4 pt-6 border-t border-slate-200/80">
+            <div
+              className={`mt-10 grid gap-4 pt-6 border-t border-slate-200/80 ${
+                hasRealRatings ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
+              }`}
+            >
               <div>
                 <p className="text-2xl font-bold text-slate-900">100+</p>
                 <p className="text-xs text-slate-500 font-medium">Global Patients</p>
@@ -76,6 +89,17 @@ export default async function Home() {
                   Dedicated HD Video
                 </p>
               </div>
+              {hasRealRatings && (
+                <div>
+                  <p className="text-2xl font-bold text-slate-900">
+                    <i className="fa-solid fa-star text-amber-500 text-lg mr-1"></i>
+                    {Number(ratingSummary.avg_rating).toFixed(1)}
+                  </p>
+                  <p className="text-xs text-slate-500 font-medium">
+                    From {ratingSummary.rating_count} Real Sessions
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -163,6 +187,13 @@ export default async function Home() {
                 Real recoveries from real patients, guided remotely by our
                 licensed specialists.
               </p>
+              {hasRealRatings && (
+                <p className="text-amber-600 font-semibold text-sm mt-2">
+                  <i className="fa-solid fa-star mr-1"></i>
+                  {Number(ratingSummary.avg_rating).toFixed(1)} average rating across{" "}
+                  {ratingSummary.rating_count} completed sessions
+                </p>
+              )}
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {testimonials.map((t) => (

@@ -4,13 +4,23 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import SignOutButton from "@/components/auth/SignOutButton";
 import PayNowButton from "@/components/PayNowButton";
+import CancelSessionButton from "@/components/CancelSessionButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
+import BuyPackageButton from "@/components/BuyPackageButton";
+import BookWithPackageForm from "@/components/BookWithPackageForm";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Patient Dashboard | Dr. Pooja's Physio",
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  requested: "text-amber-700 bg-amber-50",
+  confirmed: "text-purple-700 bg-purple-50",
+  completed: "text-teal-700 bg-teal-50",
+  cancelled: "text-red-700 bg-red-50",
 };
 
 export default async function PatientDashboardPage() {
@@ -32,7 +42,7 @@ export default async function PatientDashboardPage() {
   const { data: appointments } = await supabase
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status"
     )
     .eq("patient_id", user.id)
     .order("created_at", { ascending: false });
@@ -71,6 +81,25 @@ export default async function PatientDashboardPage() {
       ? await admin.from("profiles").select("id, full_name").in("id", therapistIds as string[])
       : { data: [] as { id: string; full_name: string }[] };
   const therapistMap = new Map((therapists ?? []).map((t) => [t.id, t.full_name]));
+
+  const { data: activeCategories } = await supabase
+    .from("treatment_categories")
+    .select("id, title")
+    .eq("active", true);
+  const activeCategoryMap = new Map((activeCategories ?? []).map((c) => [c.id, c.title]));
+
+  const { data: availablePackages } = await supabase
+    .from("treatment_category_packages")
+    .select("id, category_id, title, session_count, price_paise")
+    .eq("active", true)
+    .order("display_order", { ascending: true });
+
+  const { data: ownedPackages } = await supabase
+    .from("patient_package_purchases")
+    .select("id, category_id, session_count, sessions_used")
+    .eq("patient_id", user.id)
+    .eq("payment_status", "paid")
+    .order("created_at", { ascending: false });
 
   return (
     <section className="py-8 max-w-5xl mx-auto px-4">
@@ -143,10 +172,20 @@ export default async function PatientDashboardPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
+                    <span
+                      className={`capitalize font-semibold px-3 py-1 rounded-full ${
+                        STATUS_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
+                      }`}
+                    >
                       {a.status}
                     </span>
-                    {a.payment_status === "unpaid" ? (
+                    {a.status === "cancelled" ? (
+                      a.refund_status === "processed" && (
+                        <span className="font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
+                          Refunded
+                        </span>
+                      )
+                    ) : a.payment_status === "unpaid" ? (
                       <PayNowButton
                         appointmentId={a.id}
                         name={profile?.full_name ?? ""}
@@ -165,6 +204,12 @@ export default async function PatientDashboardPage() {
                     )}
                   </div>
                 </div>
+                {(a.status === "requested" || a.status === "confirmed") && (
+                  <CancelSessionButton
+                    appointmentId={a.id}
+                    paid={a.payment_status === "paid"}
+                  />
+                )}
                 {a.status === "completed" && (
                   <SessionFeedbackForm
                     appointmentId={a.id}
@@ -178,6 +223,69 @@ export default async function PatientDashboardPage() {
           </ul>
         )}
       </div>
+
+      {ownedPackages && ownedPackages.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
+          <h2 className="font-bold text-lg text-slate-800 mb-4">Your Packages</h2>
+          <ul className="space-y-3">
+            {ownedPackages.map((p) => {
+              const remaining = p.session_count - p.sessions_used;
+              return (
+                <li
+                  key={p.id}
+                  className="p-4 rounded-xl border border-slate-200 text-xs"
+                >
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div>
+                      <p className="font-bold text-slate-900">
+                        {activeCategoryMap.get(p.category_id) ?? "General Consultation"}
+                      </p>
+                      <p className="text-slate-500 mt-1">
+                        {remaining} of {p.session_count} sessions remaining
+                      </p>
+                    </div>
+                    {remaining > 0 && <BookWithPackageForm packagePurchaseId={p.id} />}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {availablePackages && availablePackages.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
+          <h2 className="font-bold text-lg text-slate-800 mb-1">Session Packages</h2>
+          <p className="text-xs text-slate-500 mb-4">
+            Buy a bundle of sessions upfront and use them one at a time,
+            whenever you&apos;re ready to book.
+          </p>
+          <ul className="space-y-3">
+            {availablePackages.map((pkg) => (
+              <li
+                key={pkg.id}
+                className="p-4 rounded-xl border border-slate-200 text-xs flex items-center justify-between gap-2 flex-wrap"
+              >
+                <div>
+                  <p className="font-bold text-slate-900">{pkg.title}</p>
+                  <p className="text-slate-500 mt-1">
+                    {activeCategoryMap.get(pkg.category_id) ?? "General Consultation"} •{" "}
+                    {pkg.session_count} sessions • ₹
+                    {(pkg.price_paise / pkg.session_count / 100).toFixed(0)}/session
+                  </p>
+                </div>
+                <BuyPackageButton
+                  packageId={pkg.id}
+                  name={profile?.full_name ?? ""}
+                  email={profile?.email ?? ""}
+                  description={pkg.title}
+                  priceInPaise={pkg.price_paise}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

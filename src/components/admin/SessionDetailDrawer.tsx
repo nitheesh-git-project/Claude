@@ -25,6 +25,9 @@ export type SessionDetailAppointment = {
   patient_feedback: string | null;
   therapist_rating: number | null;
   therapist_feedback: string | null;
+  cancellation_reason: string | null;
+  refund_status: string | null;
+  refund_amount_paise: number | null;
 };
 
 export type ReassignmentLogEntry = {
@@ -75,6 +78,7 @@ export default function SessionDetailDrawer({
   onClose: () => void;
 }) {
   const [reopening, setReopening] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [clearingRole, setClearingRole] = useState<"patient" | "therapist" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const router = useRouter();
@@ -118,6 +122,30 @@ export default function SessionDetailDrawer({
     setReopening(false);
     if (!res.ok) {
       setActionError(data.error ?? "Could not reopen this session.");
+      return;
+    }
+    router.refresh();
+    onClose();
+  }
+
+  async function handleCancel() {
+    const reason = window.prompt(
+      a.payment_status === "paid"
+        ? "Cancel this session and refund the payment? Add a reason (optional):"
+        : "Cancel this session? Add a reason (optional):"
+    );
+    if (reason === null) return;
+    setCancelling(true);
+    setActionError(null);
+    const res = await fetch("/api/admin/cancel-appointment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ appointmentId: a.id, reason }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setCancelling(false);
+    if (!res.ok) {
+      setActionError(data.error ?? "Could not cancel this session.");
       return;
     }
     router.refresh();
@@ -254,6 +282,20 @@ export default function SessionDetailDrawer({
             <div>
               <p className="text-slate-400">Notes</p>
               <p className="text-slate-700">{a.notes}</p>
+            </div>
+          )}
+
+          {a.status === "cancelled" && (
+            <div>
+              <p className="text-slate-400">Cancellation</p>
+              <p className="text-slate-700">
+                {a.refund_status === "processed" && a.refund_amount_paise
+                  ? `₹${(a.refund_amount_paise / 100).toLocaleString("en-IN")} refunded`
+                  : "No payment to refund"}
+              </p>
+              {a.cancellation_reason && (
+                <p className="text-slate-500 mt-0.5">Reason: {a.cancellation_reason}</p>
+              )}
             </div>
           )}
 
@@ -394,6 +436,23 @@ export default function SessionDetailDrawer({
               <p className="text-[11px] text-slate-400 mt-1">
                 Reverts to Confirmed and clears any ratings/feedback already submitted.
               </p>
+            </div>
+          )}
+
+          {canReassign && (
+            <div className="pt-3 border-t border-slate-100">
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="text-red-600 font-semibold hover:underline disabled:opacity-60"
+              >
+                {cancelling ? "Cancelling..." : "Cancel Session"}
+              </button>
+              {a.payment_status === "paid" && (
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Refunds the amount paid via Razorpay as part of cancelling.
+                </p>
+              )}
             </div>
           )}
         </div>

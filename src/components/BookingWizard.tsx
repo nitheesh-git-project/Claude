@@ -54,6 +54,10 @@ export default function BookingWizard() {
   const [categoryId, setCategoryId] = useState("");
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
+  const [previousTherapists, setPreviousTherapists] = useState<
+    { id: string; full_name: string }[]
+  >([]);
+  const [preferredTherapistId, setPreferredTherapistId] = useState("");
 
   const supabase = createClient();
   const selectedCategory = categories.find((c) => c.id === categoryId);
@@ -78,6 +82,12 @@ export default function BookingWizard() {
             setFullName(profile.full_name);
             setEmail(profile.email);
           }
+          // Best-effort "book with the same therapist again" — a fresh
+          // account or a fetch failure just means the option doesn't show.
+          fetch("/api/patient/previous-therapists")
+            .then((res) => (res.ok ? res.json() : { therapists: [] }))
+            .then((data) => setPreviousTherapists(data.therapists ?? []))
+            .catch(() => {});
         }
       })
       .catch(() => {
@@ -201,6 +211,7 @@ export default function BookingWizard() {
         category_id: categoryId || null,
         duration_minutes: selectedCategory?.duration_minutes ?? BASE_DURATION_MINUTES,
         notes,
+        preferred_therapist_id: preferredTherapistId || null,
         status: "requested",
       })
       .select("id")
@@ -488,6 +499,33 @@ export default function BookingWizard() {
               </select>
             )}
           </div>
+
+          {previousTherapists.length > 0 && (
+            <div>
+              <label className="block font-semibold mb-1.5 text-slate-900">
+                Continue with the same therapist?{" "}
+                <span className="font-normal text-slate-500 text-xs">
+                  (optional)
+                </span>
+              </label>
+              <select
+                value={preferredTherapistId}
+                onChange={(e) => setPreferredTherapistId(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-300 bg-white"
+              >
+                <option value="">No preference — any available specialist</option>
+                {previousTherapists.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.full_name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-400 mt-1">
+                We&apos;ll try to book you with them, subject to availability
+                for your requested time.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block font-semibold mb-1.5 text-slate-900">
