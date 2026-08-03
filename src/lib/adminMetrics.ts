@@ -153,9 +153,15 @@ export function computeCancellationRate(inRangeBySlot: MetricsAppointment[]): {
   refundedCount: number;
   forfeitedCount: number;
 } {
-  const cancelled = inRangeBySlot.filter((a) => a.status === "cancelled");
+  // Denominator is resolved sessions only (completed or cancelled) — a
+  // still-upcoming requested/confirmed session hasn't had the chance to be
+  // cancelled yet, so counting it as "not cancelled" would understate the
+  // rate. This also means picking a "To" date in the future can't silently
+  // dilute the number with bookings that haven't happened yet.
+  const resolved = inRangeBySlot.filter((a) => a.status === "completed" || a.status === "cancelled");
+  const cancelled = resolved.filter((a) => a.status === "cancelled");
   return {
-    rate: inRangeBySlot.length > 0 ? (cancelled.length / inRangeBySlot.length) * 100 : null,
+    rate: resolved.length > 0 ? (cancelled.length / resolved.length) * 100 : null,
     cancelledCount: cancelled.length,
     refundedCount: cancelled.filter((a) => a.refund_status === "processed").length,
     forfeitedCount: cancelled.filter((a) => a.refund_status === "not_eligible").length,

@@ -30,6 +30,7 @@ export type SessionDetailAppointment = {
   refund_amount_paise: number | null;
   package_purchase_id: string | null;
   therapist_payout_paid_at: string | null;
+  no_show: boolean;
 };
 
 export type ReassignmentLogEntry = {
@@ -252,6 +253,11 @@ export default function SessionDetailDrawer({
             >
               {a.status}
             </span>
+            {a.status === "completed" && a.no_show && (
+              <span className="capitalize font-semibold px-2.5 py-1 rounded-full text-slate-600 bg-slate-100">
+                No-Show
+              </span>
+            )}
             <span
               className={`capitalize font-semibold px-2.5 py-1 rounded-full ${
                 a.payment_status === "paid"
