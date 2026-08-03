@@ -7,6 +7,7 @@ import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import CompleteSessionButton from "@/components/CompleteSessionButton";
 import MarkNoShowButton from "@/components/MarkNoShowButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
+import TherapistAvailabilityRoster from "@/components/TherapistAvailabilityRoster";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 
@@ -33,9 +34,14 @@ export default async function TherapistDashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, credentials, avatar_url, revenue_share_percent, rating_visible")
+    .select("full_name, credentials, avatar_url, revenue_share_percent, rating_visible, timezone")
     .eq("id", user.id)
     .single();
+
+  const { data: availabilitySlots } = await supabase
+    .from("therapist_availability_template")
+    .select("day_of_week, hour")
+    .eq("therapist_id", user.id);
 
   const { data: appointments } = await supabase
     .from("appointments")
@@ -118,6 +124,13 @@ export default async function TherapistDashboardPage() {
           </Link>
           <SignOutButton />
         </div>
+      </div>
+
+      <div className="mb-6">
+        <TherapistAvailabilityRoster
+          initialSlots={availabilitySlots ?? []}
+          timezone={profile?.timezone ?? null}
+        />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

@@ -10,6 +10,7 @@ export default function AdminTabs({
   therapists,
   payouts,
   paymentHistory,
+  roster,
   calendar,
   sessionStory,
   metrics,
@@ -22,6 +23,7 @@ export default function AdminTabs({
   therapists: ReactNode;
   payouts: ReactNode;
   paymentHistory: ReactNode;
+  roster: ReactNode;
   calendar: ReactNode;
   sessionStory: ReactNode;
   metrics: ReactNode;
@@ -34,6 +36,7 @@ export default function AdminTabs({
     | "therapists"
     | "payouts"
     | "paymentHistory"
+    | "roster"
     | "calendar"
     | "sessionStory"
     | "metrics"
@@ -47,6 +50,7 @@ export default function AdminTabs({
     { key: "therapists", label: "Therapists" },
     { key: "payouts", label: "Payouts" },
     { key: "paymentHistory", label: "Payment History" },
+    { key: "roster", label: "Manage Roster" },
     { key: "calendar", label: "Calendar" },
     { key: "sessionStory", label: "Session Story" },
     { key: "metrics", label: "Metrics" },
@@ -82,6 +86,7 @@ export default function AdminTabs({
       <div className={tab === "therapists" ? "" : "hidden"}>{therapists}</div>
       <div className={tab === "payouts" ? "" : "hidden"}>{payouts}</div>
       <div className={tab === "paymentHistory" ? "" : "hidden"}>{paymentHistory}</div>
+      <div className={tab === "roster" ? "" : "hidden"}>{roster}</div>
       <div className={tab === "calendar" ? "" : "hidden"}>{calendar}</div>
       <div className={tab === "sessionStory" ? "" : "hidden"}>{sessionStory}</div>
       <div className={tab === "metrics" ? "" : "hidden"}>{metrics}</div>
