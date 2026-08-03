@@ -1,6 +1,23 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { createClient } from "@/lib/supabase/client";
+import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
+
+type TabKey =
+  | "overview"
+  | "approvalBookings"
+  | "sessionStory"
+  | "patients"
+  | "therapists"
+  | "roster"
+  | "calendar"
+  | "b2b"
+  | "payouts"
+  | "paymentHistory"
+  | "content";
+
+type TabDef = { key: TabKey; label: string; icon: string; badge?: number };
 
 export default function AdminTabs({
   overview,
@@ -15,6 +32,9 @@ export default function AdminTabs({
   payouts,
   paymentHistory,
   siteContent,
+  adminName,
+  adminEmail,
+  adminAvatarUrl,
 }: {
   // The at-a-glance landing tab -- the Metrics dashboard (cards/charts),
   // not the old approvals/bookings list. See approvalBookings below for
@@ -34,90 +54,192 @@ export default function AdminTabs({
   payouts: ReactNode;
   paymentHistory: ReactNode;
   siteContent: ReactNode;
+  adminName: string;
+  adminEmail: string;
+  adminAvatarUrl: string | null;
 }) {
-  const [tab, setTab] = useState<
-    | "overview"
-    | "approvalBookings"
-    | "sessionStory"
-    | "patients"
-    | "therapists"
-    | "roster"
-    | "calendar"
-    | "b2b"
-    | "payouts"
-    | "paymentHistory"
-    | "content"
-  >("overview");
+  const [tab, setTab] = useState<TabKey>("overview");
+  // Desktop full <-> mini collapse. Independent of the mobile drawer below --
+  // a phone gets an off-canvas drawer instead, never the mini/icon-only rail.
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const tabs: { key: typeof tab; label: string; badge?: number }[] = [
-    { key: "overview", label: "Overview" },
-    { key: "approvalBookings", label: "Approval & Bookings" },
-    { key: "sessionStory", label: "Session Story" },
-    { key: "patients", label: "Patients" },
-    { key: "therapists", label: "Therapists" },
-    { key: "roster", label: "Manage Roster" },
-    { key: "calendar", label: "Calendar" },
-    { key: "b2b", label: "B2B Partners", badge: b2bBadgeCount },
-    { key: "payouts", label: "Payouts" },
-    { key: "paymentHistory", label: "Payment History" },
-    { key: "content", label: "Site Content" },
+  const tabs: TabDef[] = [
+    { key: "overview", label: "Overview", icon: "fa-gauge-high" },
+    { key: "approvalBookings", label: "Approval & Bookings", icon: "fa-clipboard-check" },
+    { key: "sessionStory", label: "Session Story", icon: "fa-book-open" },
+    { key: "patients", label: "Patients", icon: "fa-user-injured" },
+    { key: "therapists", label: "Therapists", icon: "fa-user-doctor" },
+    { key: "roster", label: "Manage Roster", icon: "fa-calendar-days" },
+    { key: "calendar", label: "Calendar", icon: "fa-calendar" },
+    { key: "b2b", label: "B2B Partners", icon: "fa-handshake", badge: b2bBadgeCount },
+    { key: "payouts", label: "Payouts", icon: "fa-sack-dollar" },
+    { key: "paymentHistory", label: "Payment History", icon: "fa-receipt" },
+    { key: "content", label: "Site Content", icon: "fa-pen-to-square" },
   ];
 
-  return (
-    // A plain block below lg (so the horizontal bar sits above the
-    // content, stacked), a row flex at lg+ (sidebar beside the content).
-    // Content is rendered exactly once either way -- only the nav chrome
-    // around it switches with the breakpoint -- since duplicating it into
-    // two parallel trees would double-mount every tab's components (and
-    // any of their side effects/requests) at once.
-    <div className="lg:flex lg:gap-8 lg:items-start">
-      {/* Narrow screens: the original horizontal, scrollable tab bar -- a
-          fixed-width left sidebar doesn't leave enough room for content on
-          a phone/tablet. */}
-      <div className="lg:hidden flex gap-2 mb-6 border-b border-slate-200 overflow-x-auto">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
-              tab === t.key
-                ? "border-teal-700 text-teal-700"
-                : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
-          >
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    // A hard navigation so the browser sends a fresh request guaranteed to
+    // carry the now-cleared auth cookies -- see SignOutButton for the same
+    // reasoning, duplicated here since this sign-out control needs the
+    // sidebar's dark styling rather than that component's light one.
+    window.location.href = "/?farewell=1";
+  }
+
+  // A plain render function, not a nested component -- called directly as
+  // renderNavItem(...) rather than <NavItem ... />, so React never treats it
+  // as its own component type and there's nothing to remount every render.
+  function renderNavItem(t: TabDef, mini: boolean, onNavigate?: () => void) {
+    const active = tab === t.key;
+    return (
+      <button
+        key={t.key}
+        type="button"
+        onClick={() => {
+          setTab(t.key);
+          onNavigate?.();
+        }}
+        title={mini ? t.label : undefined}
+        className={`group relative w-full flex items-center gap-3 rounded-xl transition ${
+          mini ? "justify-center px-0 py-3" : "px-3.5 py-2.5"
+        } ${active ? "bg-teal-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+      >
+        <i className={`fa-solid ${t.icon} ${mini ? "text-base" : "w-4 text-center text-sm"}`}></i>
+        {!mini && <span className="flex-1 text-left text-sm font-semibold">{t.label}</span>}
+        {!!t.badge && t.badge > 0 && !mini && (
+          <span className="rounded-full bg-amber-300 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
+            {t.badge}
+          </span>
+        )}
+        {!!t.badge && t.badge > 0 && mini && (
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400"></span>
+        )}
+        {mini && (
+          <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 scale-95 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition group-hover:scale-100 group-hover:opacity-100">
             {t.label}
-            {!!t.badge && t.badge > 0 && (
-              <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                {t.badge}
-              </span>
-            )}
-          </button>
-        ))}
+          </span>
+        )}
+      </button>
+    );
+  }
+
+  function renderBrand(mini: boolean) {
+    return (
+      <div className={`flex items-center gap-2.5 px-1 py-2 ${mini ? "justify-center" : ""}`}>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white">
+          <i className="fa-solid fa-user-doctor text-sm"></i>
+        </div>
+        {!mini && <span className="text-sm font-bold leading-tight text-white">Admin Panel</span>}
+      </div>
+    );
+  }
+
+  function renderFooter(mini: boolean) {
+    return (
+      <div className="mt-auto space-y-1 border-t border-slate-800 pt-3">
+        <div className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2 ${mini ? "justify-center" : ""}`}>
+          <AvatarThumbnail url={adminAvatarUrl} name={adminName} size={32} />
+          {!mini && (
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold text-white">{adminName}</p>
+              <p className="truncate text-[11px] text-slate-400">{adminEmail}</p>
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          title={mini ? "Log Out" : undefined}
+          className={`group relative flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
+            mini ? "justify-center px-0" : ""
+          }`}
+        >
+          <i className="fa-solid fa-arrow-right-from-bracket text-sm"></i>
+          {!mini && <span>Log Out</span>}
+          {mini && (
+            <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 scale-95 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition group-hover:scale-100 group-hover:opacity-100">
+              Log Out
+            </span>
+          )}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    // A plain block below lg (mobile top bar + off-canvas drawer), a row
+    // flex at lg+ (sidebar beside the content). Content is rendered exactly
+    // once either way -- only the nav chrome around it switches with the
+    // breakpoint/state -- since duplicating it into parallel trees would
+    // double-mount every tab's components (and any of their side
+    // effects/requests) at once.
+    <div className="lg:flex lg:gap-6 lg:items-start">
+      {/* Narrow screens: a compact dark top bar that opens an off-canvas
+          drawer -- a fixed-width sidebar doesn't leave enough room for
+          content on a phone/tablet. */}
+      <div className="mb-4 flex items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 lg:hidden">
+        {renderBrand(false)}
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open menu"
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-800 hover:text-white"
+        >
+          <i className="fa-solid fa-bars"></i>
+        </button>
       </div>
 
-      {/* lg and up: vertical sidebar on the left. */}
-      <nav className="hidden lg:block w-56 shrink-0 sticky top-8 space-y-1">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-between gap-2 border-l-4 ${
-              tab === t.key
-                ? "border-teal-700 bg-teal-50 text-teal-700"
-                : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <span>{t.label}</span>
-            {!!t.badge && t.badge > 0 && (
-              <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                {t.badge}
-              </span>
-            )}
-          </button>
-        ))}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileOpen(false)}
+          ></div>
+          <nav className="absolute bottom-0 left-0 top-0 flex w-72 max-w-[85vw] flex-col overflow-y-auto bg-slate-900 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              {renderBrand(false)}
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close menu"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <div className="flex-1 space-y-1">
+              {tabs.map((t) => renderNavItem(t, false, () => setMobileOpen(false)))}
+            </div>
+            {renderFooter(false)}
+          </nav>
+        </div>
+      )}
+
+      {/* lg and up: dark sidebar on the left, collapsible to an icon-only
+          rail with hover tooltips. */}
+      <nav
+        className={`sticky top-8 hidden max-h-[calc(100vh-4rem)] shrink-0 flex-col overflow-y-auto rounded-2xl bg-slate-900 p-3 transition-[width] duration-200 lg:flex ${
+          collapsed ? "w-[76px]" : "w-64"
+        }`}
+      >
+        {renderBrand(collapsed)}
+        <div className="mt-2 flex-1 space-y-1">{tabs.map((t) => renderNavItem(t, collapsed))}</div>
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          className={`mt-2 flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
+            collapsed ? "justify-center px-0" : ""
+          }`}
+        >
+          <i className={`fa-solid ${collapsed ? "fa-angles-right" : "fa-angles-left"} text-sm`}></i>
+          {!collapsed && <span>Collapse</span>}
+        </button>
+        {renderFooter(collapsed)}
       </nav>
 
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className={tab === "overview" ? "" : "hidden"}>{overview}</div>
         <div className={tab === "approvalBookings" ? "" : "hidden"}>{approvalBookings}</div>
         <div className={tab === "sessionStory" ? "" : "hidden"}>{sessionStory}</div>
