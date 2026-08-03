@@ -17,7 +17,14 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const showDebugNav = process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false";
+  // Defaults to hidden on any production build (next build/start sets
+  // NODE_ENV=production automatically — no env var to remember), visible
+  // during local dev for convenience. NEXT_PUBLIC_SHOW_DEBUG_NAV overrides
+  // either way if a real need for it in a specific environment comes up.
+  const showDebugNav =
+    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
+    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
+      process.env.NODE_ENV !== "production");
 
   return (
     <html lang="en" className="h-full antialiased">
