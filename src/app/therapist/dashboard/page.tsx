@@ -10,6 +10,7 @@ import TherapistUpcomingOverrides from "@/components/TherapistUpcomingOverrides"
 import TherapistPayoutReceiptsSection from "@/components/TherapistPayoutReceiptsSection";
 import TherapistEarningsTab from "@/components/TherapistEarningsTab";
 import DashboardShell from "@/components/dashboard/DashboardShell";
+import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
 import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
@@ -188,6 +189,61 @@ export default async function TherapistDashboardPage() {
 
   const navItems = THERAPIST_NAV_ITEMS;
 
+  // Shared between "Assigned Patient Sessions" and the Calendar tab's
+  // tap-a-date detail list -- one true card style for a session, not two
+  // copies that can drift apart.
+  function renderAppointmentCard(a: (typeof appointments)[number]) {
+    const patient = patientMap.get(a.patient_id);
+    return (
+      <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <p className="font-bold text-slate-900">
+              {patient?.full_name ?? "Unknown patient"}
+            </p>
+            <p className="text-slate-500">
+              {patient?.phone || patient?.email || "No contact on file"}
+            </p>
+          </div>
+          <span
+            className={`capitalize font-semibold px-3 py-1 rounded-full ${
+              a.no_show ? NO_SHOW_STYLE : STATUS_BADGE_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
+            }`}
+          >
+            {a.no_show ? "No-Show" : a.status}
+          </span>
+        </div>
+        <p className="text-slate-600">
+          <strong>{a.concern ?? "General Consultation"}</strong> —{" "}
+          {formatSlotTime(a.slot_time, a.timezone)}
+          {a.duration_minutes && ` • ${a.duration_minutes} min`}
+          {a.session_code && (
+            <span className="ml-2 font-mono text-slate-400">{a.session_code}</span>
+          )}
+        </p>
+        {a.notes && (
+          <p className="text-slate-500">
+            <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
+          </p>
+        )}
+        {a.status === "confirmed" && (
+          <div className="flex items-center gap-2">
+            <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+            <MarkNoShowButton appointmentId={a.id} />
+          </div>
+        )}
+        {a.status === "completed" && !a.no_show && (
+          <SessionFeedbackForm
+            appointmentId={a.id}
+            role="therapist"
+            existingRating={a.therapist_rating}
+            existingFeedback={a.therapist_feedback}
+          />
+        )}
+      </div>
+    );
+  }
+
   // Same computation as the root layout's own showDebugNav -- duplicated
   // here (rather than threaded through props from a layout) because this
   // page hides the shared Navbar entirely and needs the same dev-only-bar
@@ -266,65 +322,21 @@ export default async function TherapistDashboardPage() {
           </p>
         ) : (
           <ul className="space-y-3">
-            {appointments.map((a) => {
-              const patient = patientMap.get(a.patient_id);
-              return (
-                <li
-                  key={a.id}
-                  className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
-                >
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div>
-                      <p className="font-bold text-slate-900">
-                        {patient?.full_name ?? "Unknown patient"}
-                      </p>
-                      <p className="text-slate-500">
-                        {patient?.phone || patient?.email || "No contact on file"}
-                      </p>
-                    </div>
-                    <span
-                      className={`capitalize font-semibold px-3 py-1 rounded-full ${
-                        a.no_show ? NO_SHOW_STYLE : STATUS_BADGE_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
-                      }`}
-                    >
-                      {a.no_show ? "No-Show" : a.status}
-                    </span>
-                  </div>
-                  <p className="text-slate-600">
-                    <strong>{a.concern ?? "General Consultation"}</strong> —{" "}
-                    {formatSlotTime(a.slot_time, a.timezone)}
-                    {a.duration_minutes && ` • ${a.duration_minutes} min`}
-                    {a.session_code && (
-                      <span className="ml-2 font-mono text-slate-400">{a.session_code}</span>
-                    )}
-                  </p>
-                  {a.notes && (
-                    <p className="text-slate-500">
-                      <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
-                    </p>
-                  )}
-                  {a.status === "confirmed" && (
-                    <div className="flex items-center gap-2">
-                      <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
-                      <MarkNoShowButton appointmentId={a.id} />
-                    </div>
-                  )}
-                  {a.status === "completed" && !a.no_show && (
-                    <SessionFeedbackForm
-                      appointmentId={a.id}
-                      role="therapist"
-                      existingRating={a.therapist_rating}
-                      existingFeedback={a.therapist_feedback}
-                    />
-                  )}
-                </li>
-              );
-            })}
+            {appointments.map((a) => (
+              <li key={a.id}>{renderAppointmentCard(a)}</li>
+            ))}
           </ul>
         )}
       </div>
 
-      <div id="earnings">
+      <div id="calendar" className="mt-8">
+        <SessionCalendarTab
+          sessions={appointments}
+          cardsById={Object.fromEntries(appointments.map((a) => [a.id, renderAppointmentCard(a)]))}
+        />
+      </div>
+
+      <div id="earnings" className="mt-8">
         <TherapistEarningsTab
           rows={earningRows}
           pendingOwedPaise={pendingOwedPaise}
