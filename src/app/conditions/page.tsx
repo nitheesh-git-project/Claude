@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 export const metadata: Metadata = {
   title: "Conditions Treated | Dr. Pooja's Physio",
@@ -8,8 +8,12 @@ export const metadata: Metadata = {
     "Specialized virtual rehabilitation programs for spine & posture issues and post-surgical recovery.",
 };
 
+// No per-user content on this page — cache and revalidate on a timer
+// instead of hitting Supabase on every single visit.
+export const revalidate = 300;
+
 export default async function ConditionsPage() {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data: categories } = await supabase
     .from("treatment_categories")
     .select("id, title, description, points, price_paise, duration_minutes, cta_label")

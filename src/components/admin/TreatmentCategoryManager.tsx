@@ -113,7 +113,11 @@ export default function TreatmentCategoryManager({
   }
 
   function startDuplicate(cat: Category) {
-    setDuplicateFrom(cat);
+    // Always append at the very end (max existing order + 1) rather than
+    // source.display_order + 1 — the latter can collide with whatever
+    // category already occupies that number.
+    const maxOrder = categories.reduce((max, c) => Math.max(max, c.display_order), 0);
+    setDuplicateFrom({ ...cat, display_order: maxOrder + 1 });
     setAddingNew(true);
   }
 
@@ -213,7 +217,7 @@ export default function TreatmentCategoryManager({
                   price_paise: duplicateFrom.price_paise,
                   duration_minutes: duplicateFrom.duration_minutes,
                   cta_label: duplicateFrom.cta_label,
-                  display_order: duplicateFrom.display_order + 1,
+                  display_order: duplicateFrom.display_order,
                   active: false,
                 }
               : undefined

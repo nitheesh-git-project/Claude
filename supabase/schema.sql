@@ -281,3 +281,39 @@ alter table appointments add column if not exists category_id uuid references tr
 -- the therapist and admin so an appointment's actual length is known
 -- past just the marketing page — not only stored for pricing purposes.
 alter table appointments add column if not exists duration_minutes integer;
+
+-- Once categories became admin-curated (rather than a free-text "Other"
+-- option), a patient whose issue doesn't match any listed condition had
+-- no way to book at all. Guarantees a standing fallback exists — admin
+-- can edit its price/description/order like any other category, but this
+-- keeps re-seeding itself if it's ever deleted entirely, so booking never
+-- silently dead-ends.
+insert into treatment_categories (title, description, points, price_paise, duration_minutes, cta_label, display_order)
+select
+  'General Consultation',
+  'Not sure which category fits? Book a general assessment and we''ll guide you from there.',
+  '[]'::jsonb,
+  199900,
+  60,
+  'Book General Consultation',
+  999
+where not exists (select 1 from treatment_categories where title = 'General Consultation');
+
+-- Runs both halves of a category-order swap in a single transaction —
+-- called by the admin Move Up/Down controls instead of two independent
+-- UPDATE statements, so a network blip mid-swap can't leave two
+-- categories sharing the same display_order.
+create or replace function swap_treatment_category_order(id_a uuid, id_b uuid)
+returns void
+language plpgsql
+as $$
+declare
+  order_a integer;
+  order_b integer;
+begin
+  select display_order into order_a from treatment_categories where id = id_a;
+  select display_order into order_b from treatment_categories where id = id_b;
+  update treatment_categories set display_order = order_b where id = id_a;
+  update treatment_categories set display_order = order_a where id = id_b;
+end;
+$$;
