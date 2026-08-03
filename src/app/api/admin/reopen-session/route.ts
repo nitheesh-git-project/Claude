@@ -72,9 +72,11 @@ export async function POST(request: NextRequest) {
       patient_rating: null,
       patient_feedback: null,
       patient_feedback_at: null,
+      patient_rating_excluded: false,
       therapist_rating: null,
       therapist_feedback: null,
       therapist_feedback_at: null,
+      therapist_rating_excluded: false,
     })
     .eq("id", appointmentId);
 
