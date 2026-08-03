@@ -150,6 +150,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Re-check for a conflict now that the write has landed — the earlier
+  // check and this write aren't atomic, so two concurrent reschedules onto
+  // the same therapist with overlapping times could both pass the earlier
+  // check before either write committed, double-booking that therapist.
+  // Whichever request's write lands second will see the other's
+  // now-committed row here and can roll its own change back instead of
+  // leaving a real double-booking in place.
+  const conflictAfterWrite = await findTherapistConflict(
+    admin,
+    therapistId,
+    newSlotIso,
+    durationMinutes,
+    { excludeAppointmentId: appointmentId }
+  );
+  if (conflictAfterWrite) {
+    await admin
+      .from("appointments")
+      .update({
+        therapist_id: appointment.therapist_id,
+        slot_time: appointment.slot_time,
+        category_id: appointment.category_id,
+        duration_minutes: appointment.duration_minutes,
+      })
+      .eq("id", appointmentId);
+    return NextResponse.json(
+      {
+        error:
+          "This therapist was just double-booked by a concurrent change — please try again or pick a different therapist/time.",
+      },
+      { status: 409 }
+    );
+  }
+
   // Best-effort audit trail — logged only when something actually changed,
   // so a no-op "save" (e.g. picking the same therapist/time again) doesn't
   // clutter the session's history with an empty entry.

@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
   const { data: appointment } = await admin
     .from("appointments")
-    .select("payment_status, slot_time, duration_minutes, therapist_id")
+    .select("payment_status, slot_time, duration_minutes, therapist_id, status")
     .eq("id", appointmentId)
     .single();
 
@@ -93,6 +93,36 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Re-check for a conflict now that the write has landed — the earlier
+  // check and this write aren't atomic, so two concurrent assignments of
+  // the same therapist to overlapping slots could both pass the earlier
+  // check before either write committed, double-booking that therapist.
+  // Whichever request's write lands second will see the other's
+  // now-committed row here and can roll its own assignment back instead of
+  // leaving a real double-booking in place.
+  if (appointment.slot_time) {
+    const conflictAfterWrite = await findTherapistConflict(
+      admin,
+      therapistId,
+      appointment.slot_time,
+      appointment.duration_minutes ?? BASE_DURATION_MINUTES,
+      { excludeAppointmentId: appointmentId }
+    );
+    if (conflictAfterWrite) {
+      await admin
+        .from("appointments")
+        .update({ therapist_id: appointment.therapist_id, status: appointment.status })
+        .eq("id", appointmentId);
+      return NextResponse.json(
+        {
+          error:
+            "This therapist was just double-booked by a concurrent assignment — please try again or pick a different therapist/time.",
+        },
+        { status: 409 }
+      );
+    }
   }
 
   if (appointment.therapist_id !== therapistId) {
