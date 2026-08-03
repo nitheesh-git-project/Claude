@@ -256,7 +256,16 @@ export function moneyByBucketFor(
   return { revenuePaise, therapistCutPaise, hospitalCutPaise, profitPaise, excludedCount, excludedRevenuePaise };
 }
 
-export function computeNoShowRate(completedInRange: MetricsAppointment[]): {
+// Narrowed to exactly the fields these two read (rather than the full
+// MetricsAppointment) so the admin Therapist/Patient detail pages -- whose
+// own `appointments` queries don't select every Metrics-tab-only column --
+// can reuse the same rate math without widening their query just to satisfy
+// this type. Any MetricsAppointment still satisfies these Picks, so this is
+// a pure narrowing, not a breaking change for the Metrics tab's own callers.
+type NoShowInput = Pick<MetricsAppointment, "no_show">;
+type CancellationInput = Pick<MetricsAppointment, "status" | "refund_status">;
+
+export function computeNoShowRate(completedInRange: NoShowInput[]): {
   rate: number | null;
   noShowCount: number;
   completedCount: number;
@@ -270,7 +279,7 @@ export function computeNoShowRate(completedInRange: MetricsAppointment[]): {
   };
 }
 
-export function computeCancellationRate(inRangeBySlot: MetricsAppointment[]): {
+export function computeCancellationRate(inRangeBySlot: CancellationInput[]): {
   rate: number | null;
   cancelledCount: number;
   refundedCount: number;

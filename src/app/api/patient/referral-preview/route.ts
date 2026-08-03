@@ -44,6 +44,10 @@ export async function GET(request: NextRequest) {
     patientName: referral.patient_name,
     medicalIssue: referral.medical_issue,
     assignedSlotTime: referral.assigned_slot_time,
+    // Registration still succeeds either way (see register-via-referral) --
+    // this only lets the invite page warn the patient up front instead of
+    // silently booking them against a time that's already gone.
+    isPastSlot: !!referral.assigned_slot_time && new Date(referral.assigned_slot_time) < new Date(),
     hospitalName: hospital?.organization_name ?? "our partner hospital",
     therapistName: therapist?.full_name ?? null,
   });

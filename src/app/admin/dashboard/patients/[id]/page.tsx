@@ -14,6 +14,7 @@ import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawe
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
+import { computeNoShowRate, computeCancellationRate } from "@/lib/adminMetrics";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 
 export const metadata: Metadata = {
@@ -203,6 +204,14 @@ export default async function AdminPatientDetailPage({
     (a) => a.status === "requested" || a.status === "confirmed"
   ).length;
 
+  // All-time, this patient only -- same math as the fleet-wide Metrics tab
+  // stat (computeNoShowRate/computeCancellationRate), just scoped to this
+  // one person's own appointments instead of a date-ranged fleet set.
+  const noShowStats = computeNoShowRate(
+    (appointments ?? []).filter((a) => a.status === "completed")
+  );
+  const cancellationStats = computeCancellationRate(appointments ?? []);
+
   return (
     <section className="py-8 max-w-4xl mx-auto px-4">
       <Link
@@ -292,6 +301,34 @@ export default async function AdminPatientDetailPage({
       <p className="text-[11px] text-slate-400 -mt-4 mb-6">
         Admin-only — never shown to the patient or any therapist.
       </p>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+        <h2 className="font-bold text-sm text-slate-800 mb-3">Session Performance</h2>
+        <p className="text-[11px] text-slate-400 -mt-2 mb-3">
+          All-time, this patient only. Same math as the fleet-wide rates on the Metrics tab.
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-slate-400">No-Show Rate</p>
+            <p className="font-bold text-slate-900 text-lg">
+              {noShowStats.rate === null ? "—" : `${noShowStats.rate.toFixed(1)}%`}
+            </p>
+            <p className="text-slate-400">
+              {noShowStats.noShowCount} of {noShowStats.completedCount} completed sessions
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-400">Cancellation Rate</p>
+            <p className="font-bold text-slate-900 text-lg">
+              {cancellationStats.rate === null ? "—" : `${cancellationStats.rate.toFixed(1)}%`}
+            </p>
+            <p className="text-slate-400">
+              {cancellationStats.cancelledCount} cancelled ({cancellationStats.refundedCount} refunded,{" "}
+              {cancellationStats.forfeitedCount} forfeited)
+            </p>
+          </div>
+        </div>
+      </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <h2 className="font-bold text-sm text-slate-800 mb-3">Booking History</h2>

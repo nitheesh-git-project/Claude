@@ -118,6 +118,13 @@ create policy "patient_referrals_insert_own" on patient_referrals
 
 revoke update on patient_referrals from authenticated;
 
+-- A short admin-set note surfaced to the hospital in place of a blank
+-- status when a pending_review referral genuinely can't be staffed right
+-- now ("no capacity right now — will follow up") -- closes the "why is
+-- nothing happening" support loop without building real
+-- specialization/capacity matching.
+alter table patient_referrals add column if not exists capacity_note text;
+
 -- Links a patient's first appointment back to the referral that led to
 -- it (white-glove channel only — self-serve code bookings have no
 -- referral row, just the profile-level referred_by_hospital_id).

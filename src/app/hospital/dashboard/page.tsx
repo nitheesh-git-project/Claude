@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import SubmitReferralForm from "@/components/hospital/SubmitReferralForm";
+import WithdrawReferralButton from "@/components/hospital/WithdrawReferralButton";
 import DashboardShell, { type ShellNavItem } from "@/components/dashboard/DashboardShell";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
@@ -45,6 +46,17 @@ export default async function HospitalDashboardPage() {
     )
     .eq("hospital_id", user.id)
     .order("created_at", { ascending: false });
+
+  // capacity_note is new/migration-dependent -- kept isolated (same
+  // convention used throughout this codebase) so a missing migration only
+  // blanks this one note, not the whole referrals list.
+  const { data: capacityNoteRows } = await supabase
+    .from("patient_referrals")
+    .select("id, capacity_note")
+    .eq("hospital_id", user.id);
+  const capacityNoteMap = new Map(
+    (capacityNoteRows ?? []).map((r) => [r.id, r.capacity_note])
+  );
 
   // Revenue transparency: which sessions (across both referral channels)
   // are attributed to this hospital and paid. RLS wouldn't normally let a
@@ -169,6 +181,16 @@ export default async function HospitalDashboardPage() {
                     <p className="text-slate-500">
                       Slot: {formatSlotTime(r.assigned_slot_time, "Asia/Kolkata")}
                     </p>
+                  )}
+                  {r.status === "pending_review" && capacityNoteMap.get(r.id) && (
+                    <p className="text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5">
+                      {capacityNoteMap.get(r.id)}
+                    </p>
+                  )}
+                  {(r.status === "pending_review" || r.status === "therapist_assigned") && (
+                    <div className="pt-1">
+                      <WithdrawReferralButton referralId={r.id} />
+                    </div>
                   )}
                 </li>
               ))}
