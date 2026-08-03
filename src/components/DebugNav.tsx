@@ -17,6 +17,8 @@ const routes = [
   { value: "/pending-approval", label: "10. Pending Approval" },
   { value: "/admin/login", label: "11. Admin Login" },
   { value: "/admin/dashboard", label: "11b. Admin Dashboard (protected)" },
+  { value: "/hospital/login", label: "12. Partner (Hospital) Login" },
+  { value: "/hospital/dashboard", label: "12b. Partner Dashboard (protected)" },
 ];
 
 export default function DebugNav() {

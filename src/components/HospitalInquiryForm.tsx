@@ -1,9 +1,36 @@
 "use client";
 
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+
+const SOURCES = ["Ads", "Friends", "Hospitals", "Other"];
 
 export default function HospitalInquiryForm() {
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const supabase = createClient();
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const formData = new FormData(e.currentTarget);
+    const { error } = await supabase.from("b2b_leads").insert({
+      name: formData.get("name") as string,
+      phone: formData.get("phone") as string,
+      source: formData.get("source") as string,
+      org_details: (formData.get("org_details") as string) || null,
+    });
+
+    setLoading(false);
+    if (error) {
+      setError("Could not submit your inquiry. Please try again.");
+      return;
+    }
+    setSubmitted(true);
+  }
 
   if (submitted) {
     return (
@@ -22,51 +49,72 @@ export default function HospitalInquiryForm() {
       <h3 className="font-bold text-lg text-slate-900 mb-4">
         Request Partnership Deck
       </h3>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          setSubmitted(true);
-        }}
-        className="space-y-3 text-xs"
-      >
+
+      {error && (
+        <div className="mb-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-3 text-xs">
         <div>
-          <label className="block font-semibold mb-1">
-            Hospital / Clinic Name
-          </label>
+          <label className="block font-semibold mb-1">Your Name</label>
           <input
             type="text"
-            placeholder="e.g. Apollo Orthopedic Care"
+            name="name"
+            placeholder="Dr. V. Sharma"
+            required
+            className="w-full p-2.5 rounded-lg border border-slate-300"
+          />
+        </div>
+        <div>
+          <label className="block font-semibold mb-1">Phone Number</label>
+          <input
+            type="tel"
+            name="phone"
+            placeholder="+91 98765 43210"
             required
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
         </div>
         <div>
           <label className="block font-semibold mb-1">
-            Contact Person & Role
+            How did you hear about us?
           </label>
-          <input
-            type="text"
-            placeholder="Dr. V. Sharma (Head of Surgery)"
+          <select
+            name="source"
             required
-            className="w-full p-2.5 rounded-lg border border-slate-300"
-          />
+            defaultValue=""
+            className="w-full p-2.5 rounded-lg border border-slate-300 bg-white"
+          >
+            <option value="" disabled>
+              Select one
+            </option>
+            {SOURCES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block font-semibold mb-1">
-            Official Email / WhatsApp
+            Official Details{" "}
+            <span className="font-normal text-slate-400">(optional)</span>
           </label>
-          <input
-            type="text"
-            placeholder="v.sharma@apollo.com"
-            required
+          <textarea
+            name="org_details"
+            rows={2}
+            placeholder="Hospital/clinic name, role, official email..."
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
         </div>
         <button
           type="submit"
-          className="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 rounded-xl transition text-xs"
+          disabled={loading}
+          className="w-full bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition text-xs"
         >
-          Submit B2B Inquiry
+          {loading ? "Submitting..." : "Submit B2B Inquiry"}
         </button>
       </form>
     </>

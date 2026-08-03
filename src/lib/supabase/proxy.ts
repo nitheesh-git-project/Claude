@@ -43,11 +43,16 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin/login", request.url));
   }
 
+  if (path.startsWith("/hospital/dashboard") && !user) {
+    return NextResponse.redirect(new URL("/hospital/login", request.url));
+  }
+
   if (
     user &&
     (path.startsWith("/patient/dashboard") ||
       path.startsWith("/therapist/dashboard") ||
-      path.startsWith("/admin/dashboard"))
+      path.startsWith("/admin/dashboard") ||
+      path.startsWith("/hospital/dashboard"))
   ) {
     const { data: profile } = await supabase
       .from("profiles")
@@ -70,6 +75,10 @@ export async function updateSession(request: NextRequest) {
 
     if (path.startsWith("/admin/dashboard") && profile?.role !== "admin") {
       return NextResponse.redirect(new URL("/admin/login", request.url));
+    }
+
+    if (path.startsWith("/hospital/dashboard") && profile?.role !== "hospital") {
+      return NextResponse.redirect(new URL("/hospital/login", request.url));
     }
   }
 
