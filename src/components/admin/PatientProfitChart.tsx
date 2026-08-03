@@ -53,7 +53,7 @@ export default function PatientProfitChart({
     <div>
       <div className="grid grid-cols-3 gap-3 mb-5">
         <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">Total Paid</p>
+          <p className="text-[11px] text-slate-500">Paid (Payout Known)</p>
           <p className="text-base font-bold text-slate-900">{formatInr(totalPaidPaise)}</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3 text-center">

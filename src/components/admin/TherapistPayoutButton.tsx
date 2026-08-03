@@ -16,6 +16,7 @@ export default function TherapistPayoutButton({
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [settled, setSettled] = useState<{ amountPaise: number; count: number } | null>(null);
   const router = useRouter();
 
   async function handleConfirmCash() {
@@ -39,9 +40,22 @@ export default function TherapistPayoutButton({
       setError(data.error ?? "Could not record the payout. Please try again.");
       return;
     }
+    // Show what the server actually settled, not the owedPaise this
+    // component was rendered with — a payment could have landed in the
+    // gap between page load and this click, so the two can differ.
+    setSettled({ amountPaise: data.settledAmountPaise, count: data.settledCount });
     setView("closed");
     setNote("");
     router.refresh();
+  }
+
+  if (settled) {
+    return (
+      <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-xs text-teal-900">
+        Paid ₹{(settled.amountPaise / 100).toLocaleString("en-IN")} in cash across{" "}
+        {settled.count} session{settled.count > 1 ? "s" : ""}.
+      </div>
+    );
   }
 
   if (owedPaise <= 0) {

@@ -10,6 +10,7 @@ import TherapistNotesForm from "@/components/admin/TherapistNotesForm";
 import TherapistRevenueShareForm from "@/components/admin/TherapistRevenueShareForm";
 import ResetTherapistPasswordButton from "@/components/admin/ResetTherapistPasswordButton";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
+import EditBookingForm from "@/components/admin/EditBookingForm";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -65,7 +66,7 @@ export default async function AdminTherapistDetailPage({
   const patientIds = [
     ...new Set((appointments ?? []).map((a) => a.patient_id).filter(Boolean)),
   ];
-  const [{ data: categories }, { data: patients }] = await Promise.all([
+  const [{ data: categories }, { data: patients }, { data: approvedTherapists }] = await Promise.all([
     categoryIds.length > 0
       ? admin
           .from("treatment_categories")
@@ -75,11 +76,26 @@ export default async function AdminTherapistDetailPage({
     patientIds.length > 0
       ? admin.from("profiles").select("id, full_name").in("id", patientIds as string[])
       : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    admin
+      .from("profiles")
+      .select("id, full_name")
+      .eq("role", "therapist")
+      .eq("approved", true)
+      .order("full_name"),
   ]);
   const categoryMap = new Map((categories ?? []).map((c) => [c.id, c]));
   const patientMap = new Map((patients ?? []).map((p) => [p.id, p]));
+  const now = new Date().getTime();
 
-  const paidAppointments = (appointments ?? []).filter((a) => a.payment_status === "paid");
+  // Sorted by when payment actually cleared, not booking-creation order —
+  // same reasoning as the patient detail page's Payment History.
+  const paidAppointments = (appointments ?? [])
+    .filter((a) => a.payment_status === "paid")
+    .sort((a, b) => {
+      const at = a.paid_at ? new Date(a.paid_at).getTime() : new Date(a.created_at).getTime();
+      const bt = b.paid_at ? new Date(b.paid_at).getTime() : new Date(b.created_at).getTime();
+      return bt - at;
+    });
   const sharePercent = therapist.revenue_share_percent;
   const unsettledAppointments = paidAppointments.filter((a) => !a.therapist_payout_paid_at);
   const owedPaise =
@@ -181,12 +197,24 @@ export default async function AdminTherapistDetailPage({
               const durationMinutes =
                 a.duration_minutes ?? category?.duration_minutes ?? BASE_DURATION_MINUTES;
               const patient = a.patient_id ? patientMap.get(a.patient_id) : null;
+              const isUpcoming =
+                a.status !== "completed" &&
+                a.status !== "cancelled" &&
+                !!a.slot_time &&
+                new Date(a.slot_time).getTime() > now;
               return (
                 <li key={a.id} className="p-4 rounded-xl border border-slate-200 space-y-1.5">
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <strong className="text-slate-900">
-                      {patient?.full_name ?? "Unknown patient"}
-                    </strong>
+                    {a.patient_id ? (
+                      <Link
+                        href={`/admin/dashboard/patients/${a.patient_id}`}
+                        className="font-bold text-slate-900 hover:text-teal-700 hover:underline transition"
+                      >
+                        {patient?.full_name ?? "Unknown patient"}
+                      </Link>
+                    ) : (
+                      <strong className="text-slate-900">Unknown patient</strong>
+                    )}
                     <div className="flex gap-2">
                       <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
                         {a.status}
@@ -211,6 +239,14 @@ export default async function AdminTherapistDetailPage({
                     <p className="text-slate-500">
                       <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
                     </p>
+                  )}
+                  {isUpcoming && (
+                    <EditBookingForm
+                      appointmentId={a.id}
+                      currentTherapistId={therapist.id}
+                      currentSlotTime={a.slot_time}
+                      therapists={approvedTherapists ?? []}
+                    />
                   )}
                 </li>
               );
@@ -255,9 +291,16 @@ export default async function AdminTherapistDetailPage({
               return (
                 <li key={a.id} className="p-4 rounded-xl border border-slate-200 space-y-1">
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <strong className="text-slate-900">
-                      {patient?.full_name ?? "Unknown patient"}
-                    </strong>
+                    {a.patient_id ? (
+                      <Link
+                        href={`/admin/dashboard/patients/${a.patient_id}`}
+                        className="font-bold text-slate-900 hover:text-teal-700 hover:underline transition"
+                      >
+                        {patient?.full_name ?? "Unknown patient"}
+                      </Link>
+                    ) : (
+                      <strong className="text-slate-900">Unknown patient</strong>
+                    )}
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
                         ₹{(payoutPaise / 100).toLocaleString("en-IN")}
