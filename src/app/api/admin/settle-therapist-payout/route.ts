@@ -70,13 +70,23 @@ export async function POST(request: NextRequest) {
   }
 
   const paidAt = new Date().toISOString();
-  let totalSettledPaise = 0;
-  const results = await Promise.all(
-    unsettled.map((a) => {
+  // Atomic per-row claim, same pattern as cancelAppointmentAndRefund and
+  // complete-session — the plain unconditional update this used to be let
+  // two concurrent settle requests (two admins, or one admin with two open
+  // tabs) both read the same unsettled set and both write payout data for
+  // it. Both would then report "settled ₹X" back to their respective
+  // admins, and since this route's whole point is telling an admin how
+  // much *cash* to physically hand the therapist, that means real money
+  // paid out twice for the same sessions — with no trace afterward, since
+  // the second write just silently overwrote the first's record.
+  // Guarding the write on therapist_payout_paid_at still being null closes
+  // that: a losing claim settles nothing, and the response reflects
+  // exactly what this request actually claimed, never a phantom amount.
+  const claims = await Promise.all(
+    unsettled.map(async (a) => {
       const paidPaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
       const payoutPaise = Math.round((paidPaise * therapist.revenue_share_percent!) / 100);
-      totalSettledPaise += payoutPaise;
-      return admin
+      const { data: claimed, error } = await admin
         .from("appointments")
         .update({
           therapist_payout_paid_at: paidAt,
@@ -84,23 +94,37 @@ export async function POST(request: NextRequest) {
           therapist_payout_method: method,
           therapist_payout_note: note || null,
         })
-        .eq("id", a.id);
+        .eq("id", a.id)
+        .is("therapist_payout_paid_at", null)
+        .select("id")
+        .maybeSingle();
+      return { error, claimed: !!claimed, payoutPaise };
     })
   );
 
-  const failed = results.find((r) => r.error);
+  const failed = claims.find((c) => c.error);
   if (failed?.error) {
     return NextResponse.json({ error: failed.error.message }, { status: 500 });
   }
 
+  const actuallySettled = claims.filter((c) => c.claimed);
+  if (actuallySettled.length === 0) {
+    return NextResponse.json(
+      { error: "This payout was already settled — please refresh." },
+      { status: 409 }
+    );
+  }
+
+  const totalSettledPaise = actuallySettled.reduce((sum, c) => sum + c.payoutPaise, 0);
+
   // The client's confirm dialog shows the balance as of page load, which
-  // can be stale by the time this actually runs (e.g. a new payment landed
-  // in between) — this route always settles whatever is *actually*
-  // unsettled right now, so the amount it reports back is what genuinely
-  // got paid, not just an echo of what the client asked for.
+  // can be stale by the time this actually runs (e.g. a new payment landed,
+  // or a concurrent request already claimed some of these sessions) — this
+  // route reports back only what THIS request genuinely claimed, not an
+  // echo of what the client asked for.
   return NextResponse.json({
     success: true,
-    settledCount: unsettled.length,
+    settledCount: actuallySettled.length,
     settledAmountPaise: totalSettledPaise,
   });
 }
