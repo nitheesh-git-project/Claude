@@ -15,12 +15,25 @@ export default function JoinSessionButton({
 }) {
   const slotTimeMs = slotTime ? new Date(slotTime).getTime() : null;
 
+  function computeJoinable(ms: number | null) {
+    return ms === null ? true : Date.now() >= ms - JOINABLE_BEFORE_MS;
+  }
+
   // Lazy initializer -- read once on mount rather than on every render
   // (satisfies the "no impure calls during render" rule), mirroring the
   // one-time Date.now() read already used in ProfileSessionList.
-  const [isJoinable, setIsJoinable] = useState(() =>
-    slotTimeMs === null ? true : Date.now() >= slotTimeMs - JOINABLE_BEFORE_MS
-  );
+  const [isJoinable, setIsJoinable] = useState(() => computeJoinable(slotTimeMs));
+
+  // Re-derive immediately (during render, not in an effect) if this same
+  // mounted instance receives a new slotTime -- e.g. an admin reschedule
+  // followed by router.refresh() re-renders the same row (same key={a.id})
+  // with fresh props rather than remounting. Without this, a button already
+  // active would wrongly stay active after being rescheduled further out.
+  const [trackedSlotTimeMs, setTrackedSlotTimeMs] = useState(slotTimeMs);
+  if (slotTimeMs !== trackedSlotTimeMs) {
+    setTrackedSlotTimeMs(slotTimeMs);
+    setIsJoinable(computeJoinable(slotTimeMs));
+  }
 
   useEffect(() => {
     if (isJoinable || slotTimeMs === null) return;

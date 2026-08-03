@@ -31,44 +31,52 @@ export async function createMeetEventForConfirmedAppointment(
     timezone: string | null;
   }
 ) {
-  const { data: people } = await admin
-    .from("profiles")
-    .select("id, email")
-    .in("id", [patientId, therapistId]);
+  // Never let anything here throw -- this runs after a payment/booking/
+  // assignment write has already succeeded, and an unexpected error (e.g. a
+  // transient network blip on the follow-up DB write) must not turn into a
+  // 500 for a request whose actual work already completed.
+  try {
+    const { data: people } = await admin
+      .from("profiles")
+      .select("id, email")
+      .in("id", [patientId, therapistId]);
 
-  const patientEmail = people?.find((p) => p.id === patientId)?.email;
-  const therapistEmail = people?.find((p) => p.id === therapistId)?.email;
+    const patientEmail = people?.find((p) => p.id === patientId)?.email;
+    const therapistEmail = people?.find((p) => p.id === therapistId)?.email;
 
-  if (!patientEmail || !therapistEmail) {
-    console.error("Missing patient/therapist email, skipping Meet event for appointment", appointmentId);
-    return;
-  }
+    if (!patientEmail || !therapistEmail) {
+      console.error("Missing patient/therapist email, skipping Meet event for appointment", appointmentId);
+      return;
+    }
 
-  const result = await createSessionMeetEvent({
-    appointmentId,
-    patientEmail,
-    therapistEmail,
-    slotTime,
-    durationMinutes,
-    timezone,
-  });
+    const result = await createSessionMeetEvent({
+      appointmentId,
+      patientEmail,
+      therapistEmail,
+      slotTime,
+      durationMinutes,
+      timezone,
+    });
 
-  if ("error" in result) {
+    if ("error" in result) {
+      await admin
+        .from("appointments")
+        .update({ google_calendar_sync_error: result.error })
+        .eq("id", appointmentId);
+      return;
+    }
+
     await admin
       .from("appointments")
-      .update({ google_calendar_sync_error: result.error })
+      .update({
+        google_event_id: result.eventId,
+        meet_link: result.meetLink,
+        google_calendar_sync_error: null,
+      })
       .eq("id", appointmentId);
-    return;
+  } catch (err) {
+    console.error("Unexpected error creating Meet event for appointment", appointmentId, err);
   }
-
-  await admin
-    .from("appointments")
-    .update({
-      google_event_id: result.eventId,
-      meet_link: result.meetLink,
-      google_calendar_sync_error: null,
-    })
-    .eq("id", appointmentId);
 }
 
 /**
@@ -100,33 +108,41 @@ export async function updateMeetEventForAppointment(
 ) {
   if (!googleEventId) return;
 
-  const { data: people } = await admin
-    .from("profiles")
-    .select("id, email")
-    .in("id", [patientId, therapistId]);
+  // Never let anything here throw -- the reassignment/reschedule write this
+  // runs after has already succeeded; a Calendar-side error must only be
+  // recorded, never turned into a failed response for an already-completed
+  // reassignment.
+  try {
+    const { data: people } = await admin
+      .from("profiles")
+      .select("id, email")
+      .in("id", [patientId, therapistId]);
 
-  const patientEmail = people?.find((p) => p.id === patientId)?.email;
-  const therapistEmail = people?.find((p) => p.id === therapistId)?.email;
+    const patientEmail = people?.find((p) => p.id === patientId)?.email;
+    const therapistEmail = people?.find((p) => p.id === therapistId)?.email;
 
-  if (!patientEmail || !therapistEmail) {
-    console.error("Missing patient/therapist email, skipping Meet event update for appointment", appointmentId);
-    return;
+    if (!patientEmail || !therapistEmail) {
+      console.error("Missing patient/therapist email, skipping Meet event update for appointment", appointmentId);
+      return;
+    }
+
+    const result = await updateSessionMeetEvent({
+      appointmentId,
+      eventId: googleEventId,
+      patientEmail,
+      therapistEmail,
+      slotTime,
+      durationMinutes,
+      timezone,
+    });
+
+    await admin
+      .from("appointments")
+      .update({ google_calendar_sync_error: result === true ? null : result.error })
+      .eq("id", appointmentId);
+  } catch (err) {
+    console.error("Unexpected error updating Meet event for appointment", appointmentId, err);
   }
-
-  const result = await updateSessionMeetEvent({
-    appointmentId,
-    eventId: googleEventId,
-    patientEmail,
-    therapistEmail,
-    slotTime,
-    durationMinutes,
-    timezone,
-  });
-
-  await admin
-    .from("appointments")
-    .update({ google_calendar_sync_error: result === true ? null : result.error })
-    .eq("id", appointmentId);
 }
 
 /**
@@ -141,14 +157,22 @@ export async function deleteMeetEventForAppointment(
 ) {
   if (!googleEventId) return;
 
-  const deleted = await deleteSessionMeetEvent(appointmentId, googleEventId);
+  // Never let anything here throw -- the cancellation (and any refund) this
+  // runs after has already been committed; a Calendar-side error must only
+  // be recorded, never turned into a failed response for an already-
+  // cancelled session.
+  try {
+    const deleted = await deleteSessionMeetEvent(appointmentId, googleEventId);
 
-  await admin
-    .from("appointments")
-    .update(
-      deleted
-        ? { google_event_id: null, meet_link: null, google_calendar_sync_error: null }
-        : { google_calendar_sync_error: "Failed to delete Calendar event on cancellation" }
-    )
-    .eq("id", appointmentId);
+    await admin
+      .from("appointments")
+      .update(
+        deleted
+          ? { google_event_id: null, meet_link: null, google_calendar_sync_error: null }
+          : { google_calendar_sync_error: "Failed to delete Calendar event on cancellation" }
+      )
+      .eq("id", appointmentId);
+  } catch (err) {
+    console.error("Unexpected error deleting Meet event for appointment", appointmentId, err);
+  }
 }
