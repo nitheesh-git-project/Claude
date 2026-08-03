@@ -10,8 +10,10 @@ import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import TherapistAvailabilityRoster from "@/components/TherapistAvailabilityRoster";
 import TherapistOnLeaveToggle from "@/components/TherapistOnLeaveToggle";
 import TherapistUpcomingOverrides from "@/components/TherapistUpcomingOverrides";
+import TherapistPayoutReceiptsSection from "@/components/TherapistPayoutReceiptsSection";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
+import { buildTherapistPayoutReceipts } from "@/lib/receipts";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -79,8 +81,19 @@ export default async function TherapistDashboardPage() {
   const { data: appointments } = await supabase
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded"
+      "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise"
     )
+    .eq("therapist_id", user.id)
+    .order("created_at", { ascending: false });
+
+  // Kept as its own query rather than folded into the select above for the
+  // same reason as onLeaveProfile -- therapist_payout_batches is new and
+  // migration-dependent, and an unknown-table error here should only
+  // degrade the Payout Receipts section (empty until the migration runs),
+  // not blank the whole dashboard.
+  const { data: payoutBatches } = await supabase
+    .from("therapist_payout_batches")
+    .select("id, therapist_id, amount_paise, method, note, created_at")
     .eq("therapist_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -110,6 +123,15 @@ export default async function TherapistDashboardPage() {
           .in("id", patientIds)
       : { data: [] as { id: string; full_name: string; phone: string | null; email: string }[] };
   const patientMap = new Map((patients ?? []).map((p) => [p.id, p]));
+  const patientNameById = new Map(
+    (patients ?? []).map((p) => [p.id, p.full_name ?? "Unknown patient"])
+  );
+
+  const payoutReceipts = buildTherapistPayoutReceipts(
+    payoutBatches ?? [],
+    appointments ?? [],
+    patientNameById
+  );
 
   return (
     <section className="py-8 max-w-5xl mx-auto px-4">
@@ -241,6 +263,8 @@ export default async function TherapistDashboardPage() {
           </ul>
         )}
       </div>
+
+      <TherapistPayoutReceiptsSection receipts={payoutReceipts} />
     </section>
   );
 }

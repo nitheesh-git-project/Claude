@@ -70,6 +70,34 @@ export async function POST(request: NextRequest) {
   }
 
   const paidAt = new Date().toISOString();
+
+  // Created up front, before the per-row claims below -- if zero rows end
+  // up actually claimed (a losing race against a concurrent settle), this
+  // becomes an orphaned batch with no linked sessions. Harmless: it simply
+  // never surfaces as a payout receipt (buildTherapistPayoutReceipts only
+  // shows batches that have at least one linked appointment), and it's
+  // cheaper to accept an occasional unused row than to conditionally
+  // create the batch only after knowing the claim succeeded, which would
+  // need a second write to attach it anyway.
+  const { data: batch, error: batchError } = await admin
+    .from("therapist_payout_batches")
+    .insert({
+      therapist_id: therapistId,
+      amount_paise: 0, // corrected below once the real claimed total is known
+      method,
+      note: note || null,
+      settled_by: adminUser.id,
+      created_at: paidAt,
+    })
+    .select("id")
+    .single();
+  if (batchError || !batch) {
+    return NextResponse.json(
+      { error: batchError?.message ?? "Could not start this payout." },
+      { status: 500 }
+    );
+  }
+
   // Atomic per-row claim, same pattern as cancelAppointmentAndRefund and
   // complete-session — the plain unconditional update this used to be let
   // two concurrent settle requests (two admins, or one admin with two open
@@ -93,6 +121,7 @@ export async function POST(request: NextRequest) {
           therapist_payout_amount_paise: payoutPaise,
           therapist_payout_method: method,
           therapist_payout_note: note || null,
+          therapist_payout_batch_id: batch.id,
         })
         .eq("id", a.id)
         .is("therapist_payout_paid_at", null)
@@ -109,6 +138,9 @@ export async function POST(request: NextRequest) {
 
   const actuallySettled = claims.filter((c) => c.claimed);
   if (actuallySettled.length === 0) {
+    // Leaves behind the empty batch row created above -- see its own
+    // comment for why that's an accepted, harmless no-op rather than
+    // something worth an extra round trip to clean up.
     return NextResponse.json(
       { error: "This payout was already settled — please refresh." },
       { status: 409 }
@@ -116,6 +148,18 @@ export async function POST(request: NextRequest) {
   }
 
   const totalSettledPaise = actuallySettled.reduce((sum, c) => sum + c.payoutPaise, 0);
+
+  // Correct the batch's placeholder amount now that the real claimed total
+  // is known -- not fatal to the payout itself if this write fails (the
+  // sessions are already genuinely settled), just means that one receipt's
+  // header total would need reconciling against its own session list.
+  const { error: batchAmountError } = await admin
+    .from("therapist_payout_batches")
+    .update({ amount_paise: totalSettledPaise })
+    .eq("id", batch.id);
+  if (batchAmountError) {
+    console.error("Failed to set final amount on payout batch", batch.id, batchAmountError);
+  }
 
   // The client's confirm dialog shows the balance as of page load, which
   // can be stale by the time this actually runs (e.g. a new payment landed,
