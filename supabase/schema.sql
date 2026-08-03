@@ -187,6 +187,28 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- Lets admin lock a patient out of their dashboard (abuse, fraud, at their
+-- own request) without deleting the account or its booking history.
+-- Enforced in the proxy alongside the existing role/approved checks, so an
+-- already-open session is kicked out on its next request, same as a
+-- therapist whose approval gets revoked.
+alter table profiles add column if not exists active boolean not null default true;
+
+-- Private admin notes about a patient (e.g. "prefers evening slots",
+-- "payment dispute resolved 3/15") — deliberately its own table, not a
+-- column on profiles, because profiles_select_own lets a patient read
+-- every column of their own row; a note column there would leak straight
+-- back to the person it's about. This table gets no RLS policies at all,
+-- so only the service role (the admin API routes) can ever touch it.
+create table if not exists patient_admin_notes (
+  patient_id uuid primary key references profiles(id) on delete cascade,
+  note text not null default '',
+  updated_by uuid references profiles(id),
+  updated_at timestamptz not null default now()
+);
+
+alter table patient_admin_notes enable row level security;
+
 drop policy if exists "profiles_update_own" on profiles;
 create policy "profiles_update_own" on profiles
   for update using (auth.uid() = id);
