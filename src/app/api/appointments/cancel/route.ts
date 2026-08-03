@@ -47,7 +47,13 @@ export async function POST(request: NextRequest) {
     reason,
   });
   if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    // Patients never see the internal "payout settled" reasoning — it's
+    // meaningless to them and this is a genuine dead end for a patient to
+    // resolve on their own.
+    const error = result.payoutSettled
+      ? "This session can't be cancelled online — please contact the clinic."
+      : result.error;
+    return NextResponse.json({ error }, { status: result.status });
   }
   return NextResponse.json({
     success: true,

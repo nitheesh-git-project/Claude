@@ -129,29 +129,30 @@ export default function SessionDetailDrawer({
     onClose();
   }
 
-  async function handleCancel() {
-    const hoursUntilSlot = a.slot_time
-      ? (new Date(a.slot_time).getTime() - Date.now()) / (1000 * 60 * 60)
-      : null;
-    const isLate = hoursUntilSlot !== null && hoursUntilSlot < CANCELLATION_FULL_REFUND_HOURS;
-    const reason = window.prompt(
-      a.payment_status === "paid" && isLate
-        ? `Cancel this session? It's within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot, so the patient won't be refunded. Add a reason (optional):`
-        : a.payment_status === "paid"
-        ? "Cancel this session and refund the payment? Add a reason (optional):"
-        : "Cancel this session? Add a reason (optional):"
-    );
-    if (reason === null) return;
+  async function submitCancel(reason: string, overridePayoutSettled: boolean) {
     setCancelling(true);
     setActionError(null);
     const res = await fetch("/api/admin/cancel-appointment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId: a.id, reason }),
+      body: JSON.stringify({ appointmentId: a.id, reason, overridePayoutSettled }),
     });
     const data = await res.json().catch(() => ({}));
     setCancelling(false);
     if (!res.ok) {
+      if (data.payoutSettled && !overridePayoutSettled) {
+        // This session's cash payout to the therapist was already settled.
+        // Cancelling can't claw that back automatically, so make the admin
+        // explicitly own that before letting them proceed.
+        if (
+          window.confirm(
+            "This session's payout has already been settled in cash to the therapist. Cancelling it now will NOT automatically reclaim that money — you'll need to recover it from the therapist directly if that's warranted. Cancel anyway?"
+          )
+        ) {
+          await submitCancel(reason, true);
+        }
+        return;
+      }
       setActionError(data.error ?? "Could not cancel this session.");
       if (res.status === 409) {
         // Someone else (the patient, or another admin) already cancelled
@@ -172,6 +173,22 @@ export default function SessionDetailDrawer({
       return;
     }
     onClose();
+  }
+
+  async function handleCancel() {
+    const hoursUntilSlot = a.slot_time
+      ? (new Date(a.slot_time).getTime() - Date.now()) / (1000 * 60 * 60)
+      : null;
+    const isLate = hoursUntilSlot !== null && hoursUntilSlot < CANCELLATION_FULL_REFUND_HOURS;
+    const reason = window.prompt(
+      a.payment_status === "paid" && isLate
+        ? `Cancel this session? It's within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot, so the patient won't be refunded. Add a reason (optional):`
+        : a.payment_status === "paid"
+        ? "Cancel this session and refund the payment? Add a reason (optional):"
+        : "Cancel this session? Add a reason (optional):"
+    );
+    if (reason === null) return;
+    await submitCancel(reason, false);
   }
 
   async function handleClearRating(role: "patient" | "therapist") {
