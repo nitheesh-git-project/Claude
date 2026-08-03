@@ -42,7 +42,7 @@ export default async function PatientDashboardPage() {
   const { data: appointments } = await supabase
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id"
     )
     .eq("patient_id", user.id)
     .order("created_at", { ascending: false });
@@ -170,6 +170,9 @@ export default async function PatientDashboardPage() {
                           : "Not yet assigned"}
                       </strong>
                     </p>
+                    {a.package_purchase_id && (
+                      <p className="text-teal-700 mt-1">Paid via package</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <span
