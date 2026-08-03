@@ -1106,10 +1106,17 @@ create trigger trg_assign_session_code
   for each row execute function assign_session_code();
 
 -- Backfill every row that predates these triggers, oldest first, then
--- advance each sequence past what backfill just used so the next real
--- INSERT continues the same series instead of colliding with it. Guarded by
--- "is null" on both the update's source and the setval seed count, so this
--- whole block is a no-op (and safe to leave in place) once it's run once.
+-- advance each sequence to the highest code number actually in use so the
+-- next real INSERT continues the same series instead of colliding with it.
+-- The backfill itself is guarded by "is null", so it only ever touches rows
+-- that predate the triggers. The setval calls are deliberately NOT based on
+-- row count: count(*) looks equivalent right after a fresh backfill, but
+-- silently regresses every sequence backward the moment any row of that
+-- role/table is ever deleted afterward -- the next real signup/booking would
+-- then collide with a still-existing higher-numbered code and fail with a
+-- duplicate-key error. Deriving from max(existing code number) instead means
+-- this block is genuinely idempotent and safe to re-run at any time, no
+-- matter how many rows have since been deleted.
 do $$
 begin
   if exists (select 1 from profiles where role = 'patient' and patient_code is null) then
@@ -1120,7 +1127,11 @@ begin
     update profiles p set patient_code = 'PT' || lpad(ordered.rn::text, 4, '0')
     from ordered where p.id = ordered.id;
   end if;
-  perform setval('patient_code_seq', (select count(*) from profiles where role = 'patient'), true);
+  perform setval(
+    'patient_code_seq',
+    coalesce((select max(substring(patient_code from 3)::int) from profiles where role = 'patient'), 0),
+    true
+  );
 
   if exists (select 1 from profiles where role = 'therapist' and therapist_code is null) then
     with ordered as (
@@ -1130,7 +1141,11 @@ begin
     update profiles p set therapist_code = 'TH' || lpad(ordered.rn::text, 4, '0')
     from ordered where p.id = ordered.id;
   end if;
-  perform setval('therapist_code_seq', (select count(*) from profiles where role = 'therapist'), true);
+  perform setval(
+    'therapist_code_seq',
+    coalesce((select max(substring(therapist_code from 3)::int) from profiles where role = 'therapist'), 0),
+    true
+  );
 
   if exists (select 1 from profiles where role = 'hospital' and hospital_code is null) then
     with ordered as (
@@ -1140,7 +1155,11 @@ begin
     update profiles p set hospital_code = 'BB' || lpad(ordered.rn::text, 4, '0')
     from ordered where p.id = ordered.id;
   end if;
-  perform setval('hospital_code_seq', (select count(*) from profiles where role = 'hospital'), true);
+  perform setval(
+    'hospital_code_seq',
+    coalesce((select max(substring(hospital_code from 3)::int) from profiles where role = 'hospital'), 0),
+    true
+  );
 
   if exists (select 1 from appointments where session_code is null) then
     with ordered as (
@@ -1150,7 +1169,11 @@ begin
     update appointments a set session_code = 'SS' || lpad(ordered.rn::text, 4, '0')
     from ordered where a.id = ordered.id;
   end if;
-  perform setval('session_code_seq', (select count(*) from appointments), true);
+  perform setval(
+    'session_code_seq',
+    coalesce((select max(substring(session_code from 3)::int) from appointments), 0),
+    true
+  );
 end $$;
 
 create unique index if not exists profiles_patient_code_unique_idx

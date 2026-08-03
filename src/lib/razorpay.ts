@@ -55,6 +55,14 @@ export async function payForAppointment({
       onError(orderData.error ?? "Could not start payment. Please try again.");
       return;
     }
+    if (orderData.alreadyPaid) {
+      // A prior checkout attempt for this same appointment already
+      // succeeded with Razorpay (the browser likely closed before our own
+      // /verify callback landed) — the server has just recorded that
+      // payment, so there's nothing left to check out for.
+      onSuccess();
+      return;
+    }
 
     const razorpay = new window.Razorpay({
       key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
