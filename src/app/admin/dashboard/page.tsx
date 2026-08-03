@@ -29,6 +29,7 @@ import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
+import { mergeSessionCodes } from "@/lib/sessionCode";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Dr. Pooja's Physio",
@@ -128,7 +129,16 @@ export default async function AdminDashboardPage() {
   const payoutBatchIdByAppointmentId = new Map(
     (payoutBatchLinks ?? []).map((a) => [a.id, a.therapist_payout_batch_id])
   );
-  const appointmentsWithPayoutBatch = (appointments ?? []).map((a) => ({
+
+  // session_code is also new/migration-dependent -- same isolation
+  // reasoning as payoutBatchLinks above. Layered on top of the payout-batch
+  // merge (rather than the other way around) so Payment History ends up
+  // with both new columns at once.
+  const { data: sessionCodeLinks } = await admin
+    .from("appointments")
+    .select("id, session_code");
+  const appointmentsWithSessionCode = mergeSessionCodes(appointments ?? [], sessionCodeLinks);
+  const appointmentsWithPayoutBatch = appointmentsWithSessionCode.map((a) => ({
     ...a,
     therapist_payout_batch_id: payoutBatchIdByAppointmentId.get(a.id) ?? null,
   }));
@@ -185,6 +195,15 @@ export default async function AdminDashboardPage() {
     );
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
   const adminProfile = profileMap.get(user.id);
+
+  // patient_code/therapist_code/hospital_code are new/migration-dependent --
+  // kept isolated for the same reason as onLeaveRows above (allProfiles
+  // feeds nearly every tab on this page; an unknown-column error here should
+  // only degrade these ID badges, not take down the rest of the dashboard).
+  const { data: roleCodeRows } = await admin
+    .from("profiles")
+    .select("id, patient_code, therapist_code, hospital_code");
+  const roleCodeMap = new Map((roleCodeRows ?? []).map((r) => [r.id, r]));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
   const { data: hospitalNotes } = await admin
@@ -394,13 +413,13 @@ export default async function AdminDashboardPage() {
             refresh this page. (Calendar, Session Story, and Metrics are
             affected too, since they share this same data.)
           </p>
-        ) : !appointments || appointments.length === 0 ? (
+        ) : appointmentsWithSessionCode.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">
             No bookings yet.
           </p>
         ) : (
           <ul className="space-y-3">
-            {appointments.map((a) => {
+            {appointmentsWithSessionCode.map((a) => {
               const patient = profileMap.get(a.patient_id);
               const therapist = a.therapist_id
                 ? profileMap.get(a.therapist_id)
@@ -445,6 +464,9 @@ export default async function AdminDashboardPage() {
                   <p className="text-slate-600">
                     <strong>{a.concern}</strong> —{" "}
                     {formatSlotTime(a.slot_time, a.timezone)} • {durationMinutes} min
+                    {a.session_code && (
+                      <span className="ml-2 font-mono text-slate-400">{a.session_code}</span>
+                    )}
                   </p>
                   <p className="text-slate-500">
                     Fee: <strong>₹{(feePaise / 100).toLocaleString("en-IN")}</strong>
@@ -564,9 +586,16 @@ export default async function AdminDashboardPage() {
                 >
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
-                      <p className="font-bold text-slate-900">
-                        {h.organization_name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-slate-900">
+                          {h.organization_name}
+                        </p>
+                        {roleCodeMap.get(h.id)?.hospital_code && (
+                          <span className="text-[10px] font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                            {roleCodeMap.get(h.id)?.hospital_code}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-slate-500">
                         {h.full_name} • {h.email}
                       </p>
@@ -722,6 +751,7 @@ export default async function AdminDashboardPage() {
             avatar_url: p.avatar_url,
             active: p.active,
             created_at: p.created_at,
+            code: roleCodeMap.get(p.id)?.patient_code ?? null,
           }))}
         />
       )}
@@ -751,6 +781,7 @@ export default async function AdminDashboardPage() {
             active: t.active,
             approved: t.approved,
             created_at: t.created_at,
+            code: roleCodeMap.get(t.id)?.therapist_code ?? null,
           }))}
         />
       )}
@@ -768,7 +799,7 @@ export default async function AdminDashboardPage() {
 
   const calendarTab = (
     <AdminCalendarTab
-      appointments={appointments ?? []}
+      appointments={appointmentsWithSessionCode}
       people={allPeople}
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
@@ -778,7 +809,7 @@ export default async function AdminDashboardPage() {
 
   const sessionStoryTab = (
     <AdminSessionStoryTab
-      appointments={appointments ?? []}
+      appointments={appointmentsWithSessionCode}
       people={allPeople}
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
@@ -846,8 +877,16 @@ export default async function AdminDashboardPage() {
 
   const paymentHistoryTab = (
     <AdminPaymentHistoryTab
-      patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
-      therapists={allTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
+      patients={patients.map((p) => ({
+        id: p.id,
+        full_name: p.full_name,
+        code: roleCodeMap.get(p.id)?.patient_code ?? null,
+      }))}
+      therapists={allTherapists.map((t) => ({
+        id: t.id,
+        full_name: t.full_name,
+        code: roleCodeMap.get(t.id)?.therapist_code ?? null,
+      }))}
       appointments={appointmentsWithPayoutBatch}
       packagePurchases={packagePurchases ?? []}
       paymentFailures={paymentFailures ?? []}

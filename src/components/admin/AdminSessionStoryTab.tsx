@@ -83,6 +83,7 @@ export default function AdminSessionStoryTab({
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
   const [dateFilter, setDateFilter] = useState("");
+  const [sessionCodeFilter, setSessionCodeFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selectedAppointment, setSelectedAppointment] = useState<SessionDetailAppointment | null>(
@@ -90,9 +91,12 @@ export default function AdminSessionStoryTab({
   );
 
   const rows = useMemo(() => {
-    const filtered = dateFilter
-      ? appointments.filter((a) => a.slot_time && istDateKey(a.slot_time) === dateFilter)
-      : appointments;
+    const trimmedCodeFilter = sessionCodeFilter.trim().toLowerCase();
+    const filtered = appointments
+      .filter((a) => !dateFilter || (a.slot_time && istDateKey(a.slot_time) === dateFilter))
+      .filter(
+        (a) => !trimmedCodeFilter || (a.session_code ?? "").toLowerCase().includes(trimmedCodeFilter)
+      );
 
     const resolved = filtered.map((a) => {
       const category = a.category_id ? categoryMap.get(a.category_id) : undefined;
@@ -138,7 +142,7 @@ export default function AdminSessionStoryTab({
     });
 
     return sorted;
-  }, [appointments, dateFilter, sortKey, sortDir, peopleMap, categoryMap]);
+  }, [appointments, dateFilter, sessionCodeFilter, sortKey, sortDir, peopleMap, categoryMap]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -163,7 +167,22 @@ export default function AdminSessionStoryTab({
             Every session — upcoming and completed — with ratings &amp; feedback from both sides.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="text"
+            value={sessionCodeFilter}
+            onChange={(e) => setSessionCodeFilter(e.target.value)}
+            placeholder="Filter by Session ID"
+            className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-40"
+          />
+          {sessionCodeFilter && (
+            <button
+              onClick={() => setSessionCodeFilter("")}
+              className="text-xs text-teal-700 font-semibold hover:underline"
+            >
+              Clear
+            </button>
+          )}
           <input
             type="date"
             value={dateFilter}
@@ -185,6 +204,7 @@ export default function AdminSessionStoryTab({
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="text-left text-slate-500 border-b border-slate-200">
+              <th className="py-2 pr-3 font-semibold">Session ID</th>
               <SortHeader label="Date" sortKeyName="date" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
               <SortHeader
                 label="Time"
@@ -207,7 +227,7 @@ export default function AdminSessionStoryTab({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={10} className="py-6 text-center text-slate-400">
+                <td colSpan={11} className="py-6 text-center text-slate-400">
                   No sessions found.
                 </td>
               </tr>
@@ -218,6 +238,7 @@ export default function AdminSessionStoryTab({
                   onClick={() => setSelectedAppointment(a)}
                   className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
                 >
+                  <td className="py-2 pr-3 text-slate-400 font-mono">{a.session_code ?? "—"}</td>
                   <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">
                     {a.slot_time
                       ? new Date(a.slot_time).toLocaleDateString("en-IN", {
