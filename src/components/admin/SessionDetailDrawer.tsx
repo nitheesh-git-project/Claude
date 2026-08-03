@@ -155,6 +155,15 @@ export default function SessionDetailDrawer({
       return;
     }
     router.refresh();
+    if (data.refundFailed) {
+      // Stay open instead of the usual auto-close so this doesn't get
+      // missed — the session is cancelled either way, but the refund needs
+      // manual follow-up.
+      setActionError(
+        "Session cancelled, but the automatic refund failed. Please process the refund manually."
+      );
+      return;
+    }
     onClose();
   }
 

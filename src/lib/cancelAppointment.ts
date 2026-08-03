@@ -4,12 +4,13 @@ import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 
 type CancelResult =
   | { error: string; status: number }
-  | { success: true; refunded: boolean };
+  | { success: true; refunded: boolean; refundFailed?: boolean };
 
 /**
  * Cancels an upcoming appointment and, if it was paid, refunds the exact
- * amount charged via Razorpay — used by both the patient-facing and
- * admin-facing cancel routes so the refund logic only lives in one place.
+ * amount charged via Razorpay (or gives a package-booked session back to
+ * the patient's balance) — used by both the patient-facing and
+ * admin-facing cancel routes so this logic only lives in one place.
  * Takes a service-role client since it writes fields (status, refund_*)
  * that have no client-side update policy.
  */
@@ -24,7 +25,7 @@ export async function cancelAppointmentAndRefund(
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "id, status, slot_time, payment_status, amount_paid_paise, razorpay_payment_id, therapist_payout_paid_at"
+      "id, status, slot_time, payment_status, amount_paid_paise, razorpay_payment_id, therapist_payout_paid_at, package_purchase_id"
     )
     .eq("id", appointmentId)
     .single();
@@ -46,7 +47,14 @@ export async function cancelAppointmentAndRefund(
     };
   }
 
-  const needsRefund = appointment.payment_status === "paid" && !!appointment.razorpay_payment_id;
+  // A directly-paid session has a razorpay_payment_id on the appointment
+  // itself. A package-booked session has payment_status 'paid' too, but the
+  // money moved on the *package purchase*, not this appointment — there's
+  // nothing here for Razorpay to refund; instead the session gets given
+  // back to the package's balance (unless it's a late cancellation, same
+  // forfeit rule as money).
+  const isDirectPayment = appointment.payment_status === "paid" && !!appointment.razorpay_payment_id;
+  const isPackagePayment = appointment.payment_status === "paid" && !!appointment.package_purchase_id;
 
   // Missing slot_time shouldn't happen for a real, paid booking, but if it
   // ever does there's no way to judge lateness — don't penalize for a data
@@ -55,10 +63,69 @@ export async function cancelAppointmentAndRefund(
     ? (new Date(appointment.slot_time).getTime() - Date.now()) / (1000 * 60 * 60)
     : null;
   const isLateCancellation =
-    needsRefund && hoursUntilSlot !== null && hoursUntilSlot < CANCELLATION_FULL_REFUND_HOURS;
-  const willRefund = needsRefund && !isLateCancellation;
+    (isDirectPayment || isPackagePayment) &&
+    hoursUntilSlot !== null &&
+    hoursUntilSlot < CANCELLATION_FULL_REFUND_HOURS;
+
+  const willRefund = isDirectPayment && !isLateCancellation;
+  const willRestorePackageSession = isPackagePayment && !isLateCancellation;
+
+  // Atomically claim the cancellation — only succeeds if the appointment is
+  // still in an upcoming state. Closes the race where two concurrent cancel
+  // requests (double-click past the button's disabled guard, two open
+  // tabs, or a patient and admin cancelling the same session around the
+  // same time) could otherwise both pass the checks above and both trigger
+  // a Razorpay refund for the same payment before either one writes
+  // status: 'cancelled'.
+  const { data: claimed, error: claimError } = await admin
+    .from("appointments")
+    .update({
+      status: "cancelled",
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: cancelledBy,
+      cancellation_reason: reason?.trim() ? reason.trim() : null,
+    })
+    .eq("id", appointmentId)
+    .in("status", ["requested", "confirmed"])
+    .select("id")
+    .maybeSingle();
+
+  if (claimError) {
+    return { error: claimError.message, status: 500 };
+  }
+  if (!claimed) {
+    return { error: "This session has already been cancelled.", status: 409 };
+  }
+
+  // Give the package session back. Best-effort compare-and-swap on the
+  // purchase row — if it loses a race against another cancellation on the
+  // same package, the session simply doesn't get restored rather than
+  // risking a double-restore; the appointment's own cancellation above is
+  // already safely claimed regardless.
+  if (willRestorePackageSession && appointment.package_purchase_id) {
+    const { data: purchase } = await admin
+      .from("patient_package_purchases")
+      .select("id, sessions_used")
+      .eq("id", appointment.package_purchase_id)
+      .single();
+    if (purchase && purchase.sessions_used > 0) {
+      const { error: restoreError } = await admin
+        .from("patient_package_purchases")
+        .update({ sessions_used: purchase.sessions_used - 1 })
+        .eq("id", purchase.id)
+        .eq("sessions_used", purchase.sessions_used);
+      if (restoreError) {
+        console.error(
+          "Failed to restore package session for appointment",
+          appointmentId,
+          restoreError
+        );
+      }
+    }
+  }
 
   let refundId: string | null = null;
+  let refundFailed = false;
 
   if (willRefund) {
     try {
@@ -71,22 +138,20 @@ export async function cancelAppointmentAndRefund(
       });
       refundId = refund.id;
     } catch (err) {
+      // The cancellation itself is already committed (claimed above) — a
+      // refund failure here doesn't roll that back, since the slot is
+      // legitimately freed either way. It just needs manual follow-up.
       console.error("Refund failed for appointment", appointmentId, err);
-      return {
-        error: "Could not process the refund. Please try again or contact us.",
-        status: 502,
-      };
+      refundFailed = true;
     }
   }
 
-  const { error } = await admin
+  const { error: recordError } = await admin
     .from("appointments")
-    .update({
-      status: "cancelled",
-      cancelled_at: new Date().toISOString(),
-      cancelled_by: cancelledBy,
-      cancellation_reason: reason?.trim() ? reason.trim() : null,
-      ...(willRefund
+    .update(
+      refundFailed
+        ? { refund_status: "failed" }
+        : willRefund
         ? {
             refund_id: refundId,
             refund_status: "processed",
@@ -94,23 +159,23 @@ export async function cancelAppointmentAndRefund(
           }
         : isLateCancellation
         ? { refund_status: "not_eligible", refund_amount_paise: 0 }
-        : {}),
-    })
+        : {}
+    )
     .eq("id", appointmentId);
 
-  if (error) {
-    // The refund (if any) already succeeded with Razorpay at this point —
-    // never let the caller think nothing happened.
+  if (recordError) {
     console.error(
-      "Refund succeeded but failed to record cancellation for appointment",
+      "Cancelled but failed to record refund outcome for appointment",
       appointmentId,
-      error
+      recordError
     );
+  }
+
+  if (refundFailed) {
     return {
-      error: willRefund
-        ? "Refund was processed but the booking could not be updated. Please contact us."
-        : error.message,
-      status: 500,
+      success: true,
+      refunded: false,
+      refundFailed: true,
     };
   }
 
