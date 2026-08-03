@@ -14,6 +14,7 @@ import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
+import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -45,7 +46,7 @@ export default async function AdminDashboardPage() {
 
   const { data: pendingTherapists } = await admin
     .from("profiles")
-    .select("id, full_name, email, credentials, created_at")
+    .select("id, full_name, email, credentials, avatar_url, created_at")
     .eq("role", "therapist")
     .eq("approved", false)
     .order("created_at", { ascending: false });
@@ -85,7 +86,7 @@ export default async function AdminDashboardPage() {
   const { data: allProfiles } = await admin
     .from("profiles")
     .select(
-      "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id"
+      "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id, avatar_url, date_of_birth, gender, credentials, specialization, years_experience"
     );
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
 
@@ -169,10 +170,13 @@ export default async function AdminDashboardPage() {
                 key={t.id}
                 className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 text-xs"
               >
-                <div>
-                  <p className="font-bold text-slate-900">{t.full_name}</p>
-                  <p className="text-slate-500 mt-1">{t.email}</p>
-                  <p className="text-slate-500 mt-1">{t.credentials}</p>
+                <div className="flex items-center gap-3">
+                  <AvatarThumbnail url={t.avatar_url} name={t.full_name ?? "T"} size={36} />
+                  <div>
+                    <p className="font-bold text-slate-900">{t.full_name}</p>
+                    <p className="text-slate-500 mt-1">{t.email}</p>
+                    <p className="text-slate-500 mt-1">{t.credentials}</p>
+                  </div>
                 </div>
                 <ApproveTherapistButton therapistId={t.id} />
               </li>
@@ -212,14 +216,25 @@ export default async function AdminDashboardPage() {
                       </span>
                     </p>
                     <ul className="mt-1 space-y-0.5 text-slate-600">
-                      {Object.entries(changes).map(([field, value]) => (
-                        <li key={field}>
-                          <span className="text-slate-400">
-                            {PROFILE_FIELD_LABELS[field] ?? field}:
-                          </span>{" "}
-                          <strong>{value === null ? "(cleared)" : String(value)}</strong>
-                        </li>
-                      ))}
+                      {Object.entries(changes).map(([field, value]) => {
+                        const oldValue = (requester as Record<string, unknown> | undefined)?.[
+                          field
+                        ];
+                        return (
+                          <li key={field}>
+                            <span className="text-slate-400">
+                              {PROFILE_FIELD_LABELS[field] ?? field}:
+                            </span>{" "}
+                            <span className="line-through text-slate-400">
+                              {oldValue === null || oldValue === undefined || oldValue === ""
+                                ? "(not set)"
+                                : String(oldValue)}
+                            </span>{" "}
+                            →{" "}
+                            <strong>{value === null ? "(cleared)" : String(value)}</strong>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                   <ProfileChangeRequestActions requestId={r.id} />
@@ -252,11 +267,18 @@ export default async function AdminDashboardPage() {
                   className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
                 >
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <p className="font-bold text-slate-900">
-                        {patient?.full_name ?? "Unknown patient"}
-                      </p>
-                      <p className="text-slate-500">{patient?.email}</p>
+                    <div className="flex items-center gap-3">
+                      <AvatarThumbnail
+                        url={patient?.avatar_url}
+                        name={patient?.full_name ?? "P"}
+                        size={32}
+                      />
+                      <div>
+                        <p className="font-bold text-slate-900">
+                          {patient?.full_name ?? "Unknown patient"}
+                        </p>
+                        <p className="text-slate-500">{patient?.email}</p>
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">

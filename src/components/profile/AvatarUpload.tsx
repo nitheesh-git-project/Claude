@@ -3,15 +3,16 @@
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/compressImage";
+import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 
 export default function AvatarUpload({
   userId,
   currentUrl,
-  fallbackInitials,
+  name,
 }: {
   userId: string;
   currentUrl: string | null;
-  fallbackInitials: string;
+  name: string;
 }) {
   const [avatarUrl, setAvatarUrl] = useState(currentUrl);
   const [uploading, setUploading] = useState(false);
@@ -60,14 +61,7 @@ export default function AvatarUpload({
 
   return (
     <div className="flex items-center gap-4">
-      <div className="w-16 h-16 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-lg overflow-hidden shrink-0">
-        {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatarUrl} alt="Profile photo" className="w-full h-full object-cover" />
-        ) : (
-          fallbackInitials
-        )}
-      </div>
+      <AvatarThumbnail url={avatarUrl} name={name} size={64} className="text-lg" />
       <div>
         <button
           type="button"

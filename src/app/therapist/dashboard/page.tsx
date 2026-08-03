@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/auth/SignOutButton";
+import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 
 export const metadata: Metadata = {
@@ -20,7 +21,7 @@ export default async function TherapistDashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, credentials")
+    .select("full_name, credentials, avatar_url")
     .eq("id", user.id)
     .single();
 
@@ -33,11 +34,18 @@ export default async function TherapistDashboardPage() {
   return (
     <section className="py-8 max-w-5xl mx-auto px-4">
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Welcome, {profile?.full_name ?? "there"}
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">{profile?.credentials}</p>
+        <div className="flex items-center gap-3">
+          <AvatarThumbnail
+            url={profile?.avatar_url}
+            name={profile?.full_name ?? "T"}
+            size={48}
+          />
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              Welcome, {profile?.full_name ?? "there"}
+            </h1>
+            <p className="text-xs text-slate-500 mt-1">{profile?.credentials}</p>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <Link

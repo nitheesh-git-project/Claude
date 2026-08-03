@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import SignOutButton from "@/components/auth/SignOutButton";
 import PayNowButton from "@/components/PayNowButton";
+import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
@@ -23,7 +24,7 @@ export default async function PatientDashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, email")
+    .select("full_name, email, avatar_url")
     .eq("id", user.id)
     .single();
 
@@ -59,13 +60,20 @@ export default async function PatientDashboardPage() {
   return (
     <section className="py-8 max-w-5xl mx-auto px-4">
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Welcome back, {profile?.full_name ?? "there"}
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Your virtual physical therapy dashboard
-          </p>
+        <div className="flex items-center gap-3">
+          <AvatarThumbnail
+            url={profile?.avatar_url}
+            name={profile?.full_name ?? "P"}
+            size={48}
+          />
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              Welcome back, {profile?.full_name ?? "there"}
+            </h1>
+            <p className="text-xs text-slate-500 mt-1">
+              Your virtual physical therapy dashboard
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <Link
