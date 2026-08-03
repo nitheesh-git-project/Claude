@@ -31,6 +31,12 @@ export default function CompleteSessionButton({
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Could not update. Please try again.");
+      if (res.status === 409) {
+        // Someone else already changed this session (marked it done/no-show,
+        // or the patient cancelled it) — refresh so this stops showing it as
+        // still actionable.
+        router.refresh();
+      }
       return;
     }
     router.refresh();

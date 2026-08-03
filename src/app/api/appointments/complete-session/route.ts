@@ -51,12 +51,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { error } = await admin
+  // Atomic claim, same pattern as cancelAppointmentAndRefund's — the plain
+  // read-then-write this used to be let two concurrent requests (e.g. a
+  // therapist clicking Done while an admin clicks No-Show, or a patient
+  // cancelling — and getting refunded — at the same moment) both pass the
+  // status check above and then unconditionally overwrite each other. Worse,
+  // an unconditional write here could resurrect a just-cancelled-and-refunded
+  // appointment back to "completed", making it look payout-eligible again.
+  // Requiring status still be 'confirmed' at write time closes both cases.
+  const { data: updated, error } = await admin
     .from("appointments")
     .update({ status: "completed", no_show: !!noShow })
-    .eq("id", appointmentId);
+    .eq("id", appointmentId)
+    .eq("status", "confirmed")
+    .select("id")
+    .maybeSingle();
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!updated) {
+    return NextResponse.json(
+      { error: "This session was already updated — please refresh and try again." },
+      { status: 409 }
+    );
   }
 
   return NextResponse.json({ success: true });
