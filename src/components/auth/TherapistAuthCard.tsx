@@ -8,12 +8,14 @@ export default function TherapistAuthCard() {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     const { error } = await supabase.auth.signInWithPassword({
@@ -32,6 +34,7 @@ export default function TherapistAuthCard() {
   async function handleRegister(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     const email = formData.get("email") as string;
@@ -40,31 +43,25 @@ export default function TherapistAuthCard() {
     const phone = formData.get("phone") as string;
     const credentials = formData.get("credentials") as string;
 
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { role: "therapist", full_name: fullName, phone, credentials },
+      },
+    });
+    setLoading(false);
     if (error) {
-      setLoading(false);
       setError(error.message);
       return;
     }
 
-    if (data.user) {
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: data.user.id,
-        role: "therapist",
-        full_name: fullName,
-        email,
-        phone,
-        credentials,
-        approved: false,
-      });
-      if (profileError) {
-        setLoading(false);
-        setError(profileError.message);
-        return;
-      }
+    if (!data.session) {
+      setInfo("Application submitted! Check your email to confirm your account, then sign in.");
+      setTab("login");
+      return;
     }
 
-    setLoading(false);
     router.push("/pending-approval");
     router.refresh();
   }
@@ -105,6 +102,11 @@ export default function TherapistAuthCard() {
         {error && (
           <div className="mb-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
             {error}
+          </div>
+        )}
+        {info && (
+          <div className="mb-4 text-xs text-purple-800 bg-purple-50 border border-purple-200 rounded-lg p-3">
+            {info}
           </div>
         )}
 
