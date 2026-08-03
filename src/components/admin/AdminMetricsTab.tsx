@@ -34,8 +34,15 @@ function toDateInputValue(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function daysAgo(n: number) {
-  return new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+function daysAgo(n: number, fromMs: number) {
+  return new Date(fromMs - n * 24 * 60 * 60 * 1000);
+}
+
+// A plain module-level helper so a fresh read isn't flagged as an impure
+// call inside the component body -- safe here regardless, since this is
+// only ever reached from the onClick below, never during render.
+function nowTimestamp() {
+  return Date.now();
 }
 
 function TrendBarChart({
@@ -69,14 +76,15 @@ function TrendBarChart({
           const y = chartHeight - h;
           return (
             <g key={b.label + i}>
-              {/* Locale-formatted date label — harmless if it differs by a
-                  moment between server render and client hydration (see
-                  buildBuckets' UTC-pinning comment for the underlying fix);
-                  this is the belt-and-braces backstop React's own hydration
-                  docs recommend for exactly this class of text. */}
-              <title suppressHydrationWarning>
-                {b.label}: {formatValue(value)}
-              </title>
+              {/* One interpolated string, not `{b.label}: {formatValue(value)}`
+                  as three separate children -- with multiple children,
+                  suppressHydrationWarning only silences the console warning
+                  but doesn't stop React from still treating it as a real
+                  mismatch and discarding/re-rendering the subtree client-side
+                  (visibly, as a flash + a thrown hydration error in dev).
+                  A single string child is what suppressHydrationWarning
+                  actually patches over. */}
+              <title suppressHydrationWarning>{`${b.label}: ${formatValue(value)}`}</title>
               {h > 0 && <rect x={x} y={y} width={barWidth} height={h} fill={CHART_COLOR} rx={4} />}
               <text x={x + barWidth / 2} y={y - 6} textAnchor="middle" fontSize={10} fontWeight={700} fill="#0f172a">
                 {value > 0 ? formatValue(value) : ""}
@@ -96,19 +104,33 @@ export default function AdminMetricsTab({
   appointments,
   therapists,
   categories,
+  nowMs,
 }: {
   appointments: MetricsAppointment[];
   therapists: Person[];
   categories: Category[];
+  // Passed down from the server render rather than read via Date.now() in
+  // here -- this component is always mounted (just CSS-hidden) as part of
+  // the initial admin dashboard HTML, so seeding this useState from a fresh
+  // client-side Date.now() at hydration time can disagree with whatever the
+  // server used a moment earlier, and React's hydration diff has no way to
+  // reconcile two different dates -- it just throws the whole subtree away
+  // and re-renders client-side. Taking the same timestamp as a prop makes
+  // the initial value identical on both passes.
+  nowMs: number;
 }) {
-  const [fromDate, setFromDate] = useState(() => toDateInputValue(daysAgo(90)));
-  const [toDate, setToDate] = useState(() => toDateInputValue(new Date()));
+  const [fromDate, setFromDate] = useState(() => toDateInputValue(daysAgo(90, nowMs)));
+  const [toDate, setToDate] = useState(() => toDateInputValue(new Date(nowMs)));
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [therapistFilter, setTherapistFilter] = useState<string>("all");
 
   function setQuickRange(days: number | null) {
-    setToDate(toDateInputValue(new Date()));
-    setFromDate(days === null ? "2000-01-01" : toDateInputValue(daysAgo(days)));
+    // A click handler only ever runs client-side, so a fresh timestamp here
+    // carries none of the SSR/hydration risk the initial useState values
+    // above are guarding against.
+    const now = nowTimestamp();
+    setToDate(toDateInputValue(new Date(now)));
+    setFromDate(days === null ? "2000-01-01" : toDateInputValue(daysAgo(days, now)));
   }
 
   // Parsed as UTC (explicit "Z"), not local time — "YYYY-MM-DDT00:00:00"

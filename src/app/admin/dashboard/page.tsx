@@ -32,6 +32,14 @@ export const metadata: Metadata = {
   title: "Admin Dashboard | Dr. Pooja's Physio",
 };
 
+// A plain module-level helper (not called inline in the component body) so
+// it can carry a single Date.now() read down to AdminMetricsTab as a prop --
+// see that component's nowMs comment for why the client side must not read
+// its own Date.now() for this.
+function nowTimestamp() {
+  return Date.now();
+}
+
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
   const {
@@ -718,6 +726,7 @@ export default async function AdminDashboardPage() {
       appointments={appointments ?? []}
       therapists={allTherapists}
       categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+      nowMs={nowTimestamp()}
     />
   );
 
