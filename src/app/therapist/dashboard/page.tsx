@@ -139,7 +139,7 @@ export default async function TherapistDashboardPage() {
                     </p>
                   )}
                   {a.status === "confirmed" && (
-                    <CompleteSessionButton appointmentId={a.id} />
+                    <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
                   )}
                   {a.status === "completed" && (
                     <SessionFeedbackForm

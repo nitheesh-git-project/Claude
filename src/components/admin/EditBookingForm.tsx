@@ -3,6 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+// Sentinel for the category <select>, distinct from both a real category id
+// and the empty string (which means "leave the category unchanged"). Lets
+// the admin explicitly clear a category instead of only ever being able to
+// pick a different one.
+const CLEAR_CATEGORY_VALUE = "__none__";
+
 function minDateTimeLocal() {
   const d = new Date(Date.now() + 5 * 60 * 1000);
   d.setSeconds(0, 0);
@@ -61,7 +67,8 @@ export default function EditBookingForm({
         appointmentId,
         therapistId,
         slotDateTime: new Date(slotDateTime).toISOString(),
-        categoryId: categoryId || undefined,
+        categoryId:
+          categoryId === "" ? undefined : categoryId === CLEAR_CATEGORY_VALUE ? null : categoryId,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -126,6 +133,7 @@ export default function EditBookingForm({
             className="p-2 rounded-lg border border-slate-300 bg-white"
           >
             <option value="">Category unchanged</option>
+            <option value={CLEAR_CATEGORY_VALUE}>No category</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.title}

@@ -86,12 +86,15 @@ export async function POST(request: NextRequest) {
   }
 
   if (appointment.therapist_id !== therapistId) {
-    await admin.from("appointment_reassignment_log").insert({
+    const { error: logError } = await admin.from("appointment_reassignment_log").insert({
       appointment_id: appointmentId,
       changed_by: adminUser.id,
       old_therapist_id: appointment.therapist_id,
       new_therapist_id: therapistId,
     });
+    if (logError) {
+      console.error("Failed to record appointment_reassignment_log entry:", logError);
+    }
   }
 
   return NextResponse.json({ success: true });

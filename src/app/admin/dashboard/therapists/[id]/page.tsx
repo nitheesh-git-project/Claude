@@ -254,7 +254,7 @@ export default async function AdminTherapistDetailPage({
                     />
                   )}
                   {a.status === "confirmed" && (
-                    <CompleteSessionButton appointmentId={a.id} />
+                    <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
                   )}
                 </li>
               );
