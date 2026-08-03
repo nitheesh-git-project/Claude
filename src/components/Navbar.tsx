@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
+import SignOutButton from "@/components/auth/SignOutButton";
 
 const links = [
   { href: "/", label: "Home" },
@@ -73,7 +74,13 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
   }, []);
 
   const dashboardHref = authUser ? DASHBOARD_HREF[authUser.role] : undefined;
-  const firstName = authUser?.fullName?.trim().split(" ")[0] || "there";
+  // Admins see a role-based greeting rather than their profile's full_name
+  // (often just an internal/test name, not something meant to be shown as
+  // a personal greeting) — every other role greets by their first name.
+  const firstName =
+    authUser?.role === "admin"
+      ? "admin"
+      : authUser?.fullName?.trim().split(" ")[0] || "there";
 
   return (
     <nav
@@ -111,19 +118,23 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
 
           <div className="hidden md:flex items-center space-x-3">
             {authUser && dashboardHref ? (
-              <Link
-                href={dashboardHref}
-                className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-full hover:bg-slate-100 transition"
-              >
-                <AvatarThumbnail
-                  url={authUser.avatarUrl}
-                  name={authUser.fullName || "U"}
-                  size={34}
-                />
-                <span className="text-sm font-semibold text-slate-700">
-                  Welcome, {firstName}
-                </span>
-              </Link>
+              <>
+                <Link
+                  href={dashboardHref}
+                  className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-full hover:bg-slate-100 transition"
+                >
+                  <AvatarThumbnail
+                    url={authUser.avatarUrl}
+                    name={authUser.fullName || "U"}
+                    size={34}
+                  />
+                  <span className="text-sm font-semibold text-slate-700">
+                    Welcome, {firstName}
+                  </span>
+                </Link>
+                <span className="w-px h-5 bg-slate-200"></span>
+                <SignOutButton />
+              </>
             ) : (
               <>
                 <Link
@@ -164,18 +175,21 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
               </Link>
             ))}
             {authUser && dashboardHref ? (
-              <Link
-                href={dashboardHref}
-                onClick={() => setOpen(false)}
-                className="mt-2 flex items-center gap-2.5 py-2 font-semibold text-slate-800"
-              >
-                <AvatarThumbnail
-                  url={authUser.avatarUrl}
-                  name={authUser.fullName || "U"}
-                  size={32}
-                />
-                Welcome, {firstName} — Go to Dashboard
-              </Link>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <Link
+                  href={dashboardHref}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2.5 py-2 font-semibold text-slate-800"
+                >
+                  <AvatarThumbnail
+                    url={authUser.avatarUrl}
+                    name={authUser.fullName || "U"}
+                    size={32}
+                  />
+                  Welcome, {firstName} — Go to Dashboard
+                </Link>
+                <SignOutButton />
+              </div>
             ) : (
               <>
                 <Link
