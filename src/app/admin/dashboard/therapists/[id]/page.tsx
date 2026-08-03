@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ApproveTherapistButton from "@/components/admin/ApproveTherapistButton";
 import TherapistActiveToggle from "@/components/admin/TherapistActiveToggle";
+import TherapistTeamVisibilityToggle from "@/components/admin/TherapistTeamVisibilityToggle";
 import TherapistContactEditForm from "@/components/admin/TherapistContactEditForm";
 import TherapistNotesForm from "@/components/admin/TherapistNotesForm";
 import TherapistRevenueShareForm from "@/components/admin/TherapistRevenueShareForm";
@@ -31,7 +32,7 @@ export default async function AdminTherapistDetailPage({
   const { data: therapist } = await admin
     .from("profiles")
     .select(
-      "id, full_name, email, phone, avatar_url, active, approved, created_at, credentials, specialization, years_experience, bio, languages, revenue_share_percent"
+      "id, full_name, email, phone, avatar_url, active, approved, created_at, credentials, specialization, years_experience, bio, languages, revenue_share_percent, visible_on_team"
     )
     .eq("id", id)
     .eq("role", "therapist")
@@ -140,6 +141,11 @@ export default async function AdminTherapistDetailPage({
                     Pending Approval
                   </span>
                 )}
+                {!therapist.visible_on_team && (
+                  <span className="text-[10px] font-bold uppercase text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+                    Hidden from /team
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-1">
                 {therapist.credentials} • Joined {new Date(therapist.created_at).toLocaleDateString()}
@@ -148,6 +154,10 @@ export default async function AdminTherapistDetailPage({
           </div>
           <div className="flex items-center gap-2">
             {!therapist.approved && <ApproveTherapistButton therapistId={therapist.id} />}
+            <TherapistTeamVisibilityToggle
+              therapistId={therapist.id}
+              visibleOnTeam={therapist.visible_on_team}
+            />
             <TherapistActiveToggle therapistId={therapist.id} active={therapist.active} />
           </div>
         </div>
