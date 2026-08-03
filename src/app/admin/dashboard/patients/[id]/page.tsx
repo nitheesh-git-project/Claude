@@ -26,7 +26,7 @@ export default async function AdminPatientDetailPage({
   const { data: patient } = await admin
     .from("profiles")
     .select(
-      "id, full_name, email, phone, avatar_url, active, created_at, referred_by_hospital_id"
+      "id, full_name, email, phone, avatar_url, active, created_at, referred_by_hospital_id, emergency_contact_name, emergency_contact_phone"
     )
     .eq("id", id)
     .eq("role", "patient")
@@ -118,6 +118,19 @@ export default async function AdminPatientDetailPage({
             currentPhone={patient.phone}
             currentEmail={patient.email}
           />
+          <div className="mt-4 pt-4 border-t border-slate-100 text-xs space-y-1">
+            <p className="font-semibold text-slate-700">Emergency Contact</p>
+            {patient.emergency_contact_name || patient.emergency_contact_phone ? (
+              <>
+                <p className="text-slate-600">{patient.emergency_contact_name || "Name not set"}</p>
+                <p className="text-slate-600">
+                  {patient.emergency_contact_phone || "Phone not set"}
+                </p>
+              </>
+            ) : (
+              <p className="text-slate-400">Not provided by the patient.</p>
+            )}
+          </div>
           <div className="mt-4 pt-4 border-t border-slate-100">
             <ResetPatientPasswordButton patientId={patient.id} />
           </div>
