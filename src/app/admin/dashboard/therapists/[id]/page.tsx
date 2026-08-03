@@ -19,6 +19,7 @@ import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { computeNoShowRate, computeCancellationRate } from "@/lib/adminMetrics";
 import { mergeSessionCodes } from "@/lib/sessionCode";
+import { mergeMeetLinks } from "@/lib/meetLink";
 
 export const metadata: Metadata = {
   title: "Therapist Details | Dr. Pooja's Physio",
@@ -86,7 +87,18 @@ export default async function AdminTherapistDetailPage({
     .from("appointments")
     .select("id, session_code")
     .eq("therapist_id", id);
-  const appointments = mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks);
+
+  // meet_link is also new/migration-dependent -- same isolation reasoning
+  // as sessionCodeLinks above.
+  const { data: meetLinkRows } = await admin
+    .from("appointments")
+    .select("id, meet_link")
+    .eq("therapist_id", id);
+
+  const appointments = mergeMeetLinks(
+    mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
+    meetLinkRows
+  );
 
   const appointmentIds = (appointments ?? []).map((a) => a.id);
   const { data: reassignmentLogs } =

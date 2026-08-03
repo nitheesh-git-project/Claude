@@ -8,9 +8,18 @@ import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { mergeSessionCodes } from "@/lib/sessionCode";
+import { mergeMeetLinks } from "@/lib/meetLink";
+import JoinSessionButton from "@/components/JoinSessionButton";
 
 export const metadata: Metadata = {
   title: "Partner Dashboard | Dr. Pooja's Physio",
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  requested: "text-amber-700 bg-amber-50",
+  confirmed: "text-purple-700 bg-purple-50",
+  completed: "text-teal-700 bg-teal-50",
+  cancelled: "text-red-700 bg-red-50",
 };
 
 export default async function HospitalDashboardPage() {
@@ -75,7 +84,7 @@ export default async function HospitalDashboardPage() {
       ? await admin
           .from("appointments")
           .select(
-            "id, concern, slot_time, timezone, status, payment_status, amount_paid_paise, patient_id, created_at"
+            "id, concern, slot_time, timezone, status, payment_status, amount_paid_paise, patient_id, therapist_id, created_at"
           )
           .in("patient_id", referredPatientIds)
           .order("created_at", { ascending: false })
@@ -90,7 +99,21 @@ export default async function HospitalDashboardPage() {
           .select("id, session_code")
           .in("patient_id", referredPatientIds)
       : { data: [] as { id: string; session_code: string | null }[] };
-  const referredSessions = mergeSessionCodes(rawReferredSessions ?? [], sessionCodeLinks);
+
+  // meet_link is also new/migration-dependent -- same isolation reasoning
+  // as sessionCodeLinks above.
+  const { data: meetLinkRows } =
+    referredPatientIds.length > 0
+      ? await admin
+          .from("appointments")
+          .select("id, meet_link")
+          .in("patient_id", referredPatientIds)
+      : { data: [] as { id: string; meet_link: string | null }[] };
+
+  const referredSessions = mergeMeetLinks(
+    mergeSessionCodes(rawReferredSessions ?? [], sessionCodeLinks),
+    meetLinkRows
+  );
 
   const patientMap = new Map((referredPatients ?? []).map((p) => [p.id, p]));
   const paidSessions = (referredSessions ?? []).filter(
@@ -237,7 +260,7 @@ export default async function HospitalDashboardPage() {
             {referredSessions.map((s) => (
               <li
                 key={s.id}
-                className="flex items-center justify-between p-3 rounded-xl border border-slate-200"
+                className="flex items-center justify-between flex-wrap gap-2 p-3 rounded-xl border border-slate-200"
               >
                 <div>
                   <p className="font-bold text-slate-900">
@@ -250,15 +273,25 @@ export default async function HospitalDashboardPage() {
                     )}
                   </p>
                 </div>
-                <span
-                  className={`font-semibold px-3 py-1 rounded-full ${
-                    s.payment_status === "paid"
-                      ? "text-green-700 bg-green-50"
-                      : "text-slate-500 bg-slate-100"
-                  }`}
-                >
-                  {s.payment_status}
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className={`capitalize font-semibold px-3 py-1 rounded-full ${
+                      STATUS_STYLES[s.status] ?? "text-slate-600 bg-slate-100"
+                    }`}
+                  >
+                    {s.status}
+                  </span>
+                  <span
+                    className={`font-semibold px-3 py-1 rounded-full ${
+                      s.payment_status === "paid"
+                        ? "text-green-700 bg-green-50"
+                        : "text-slate-500 bg-slate-100"
+                    }`}
+                  >
+                    {s.payment_status}
+                  </span>
+                  <JoinSessionButton meetLink={s.meet_link} slotTime={s.slot_time} status={s.status} />
+                </div>
               </li>
             ))}
           </ul>

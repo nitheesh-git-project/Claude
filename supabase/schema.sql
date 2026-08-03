@@ -1247,3 +1247,16 @@ alter table therapist_payout_requests add constraint therapist_payout_requests_s
 drop index if exists payout_requests_one_pending_idx;
 create unique index if not exists payout_requests_one_open_idx
   on therapist_payout_requests (therapist_id) where status in ('pending', 'reviewing');
+
+-- Google Calendar / Meet integration. A dedicated Calendar event (with an
+-- auto-generated Meet link) is created once a session is confirmed with a
+-- therapist assigned, updated in place on reassignment/reschedule, and
+-- deleted on cancellation (see src/lib/googleCalendar.ts). Left untouched on
+-- completion -- it's a harmless historical record and lets the Join button
+-- go straight back to working if the session is ever reopened.
+-- google_calendar_sync_error records the last Calendar-API failure message
+-- (if any), so a confirmed session that never got a Meet link is visible
+-- from inside the app, not just in server logs.
+alter table appointments add column if not exists google_event_id text;
+alter table appointments add column if not exists meet_link text;
+alter table appointments add column if not exists google_calendar_sync_error text;

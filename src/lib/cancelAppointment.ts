@@ -1,6 +1,7 @@
 import Razorpay from "razorpay";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
+import { deleteMeetEventForAppointment } from "@/lib/googleCalendarSync";
 
 type CancelResult =
   | { error: string; status: number; payoutSettled?: boolean }
@@ -38,7 +39,7 @@ export async function cancelAppointmentAndRefund(
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "id, status, slot_time, payment_status, amount_paid_paise, razorpay_payment_id, therapist_payout_paid_at, package_purchase_id"
+      "id, status, slot_time, payment_status, amount_paid_paise, razorpay_payment_id, therapist_payout_paid_at, package_purchase_id, google_event_id"
     )
     .eq("id", appointmentId)
     .single();
@@ -112,6 +113,14 @@ export async function cancelAppointmentAndRefund(
   if (!claimed) {
     return { error: "This session has already been cancelled.", status: 409 };
   }
+
+  // Delete the Calendar event, if this session had one -- Google emails all
+  // attendees the cancellation automatically. No-ops if the session was
+  // only ever "requested" and never got a Meet event created.
+  await deleteMeetEventForAppointment(admin, {
+    appointmentId,
+    googleEventId: appointment.google_event_id,
+  });
 
   // Give the package session back. Best-effort compare-and-swap on the
   // purchase row — if it loses a race against another cancellation on the

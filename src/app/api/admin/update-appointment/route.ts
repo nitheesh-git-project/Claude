@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { updateMeetEventForAppointment } from "@/lib/googleCalendarSync";
 
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "status, slot_time, duration_minutes, category_id, therapist_id, therapist_payout_paid_at"
+      "patient_id, status, slot_time, duration_minutes, timezone, category_id, therapist_id, therapist_payout_paid_at, google_event_id"
     )
     .eq("id", appointmentId)
     .single();
@@ -203,6 +204,23 @@ export async function POST(request: NextRequest) {
     if (logError) {
       console.error("Failed to record appointment_reassignment_log entry:", logError);
     }
+  }
+
+  // Past the post-write conflict re-check above -- the change is confirmed
+  // to have actually stuck. Only patches the Calendar event (attendees +
+  // time) if one already exists (i.e. this session was already confirmed
+  // with a Meet event); no-ops otherwise, matching duration/category-only
+  // edits too since those affect the event's end time.
+  if (therapistChanged || slotChanged || categoryChanged) {
+    await updateMeetEventForAppointment(admin, {
+      appointmentId,
+      googleEventId: appointment.google_event_id,
+      patientId: appointment.patient_id,
+      therapistId,
+      slotTime: newSlotIso,
+      durationMinutes,
+      timezone: appointment.timezone,
+    });
   }
 
   return NextResponse.json({ success: true });

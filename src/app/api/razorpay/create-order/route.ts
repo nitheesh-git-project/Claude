@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 
 // The amount is always resolved here, server-side, from the appointment's
 // linked category price (or the flat base fee) — never trust an amount
@@ -30,7 +31,9 @@ export async function POST(request: NextRequest) {
   // we check explicitly so a mismatched appointment gives a clear 404.
   const { data: appointment } = await supabase
     .from("appointments")
-    .select("id, patient_id, payment_status, category_id, razorpay_order_id, therapist_id, status")
+    .select(
+      "id, patient_id, payment_status, category_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone"
+    )
     .eq("id", appointmentId)
     .eq("patient_id", user.id)
     .single();
@@ -70,7 +73,12 @@ export async function POST(request: NextRequest) {
         );
         const shouldAutoConfirm =
           appointment.therapist_id && appointment.status === "requested";
-        await admin
+        // Claim-check added alongside the Calendar integration: this write
+        // previously had no read-back at all, so there was no way to know
+        // whether it actually landed (e.g. lost a race against a
+        // cancellation) before this. Needed so calendar-event creation below
+        // is only attempted once we know the status change genuinely stuck.
+        const { data: claimed } = await admin
           .from("appointments")
           .update({
             payment_status: "paid",
@@ -79,7 +87,19 @@ export async function POST(request: NextRequest) {
             ...(shouldAutoConfirm ? { status: "confirmed" } : {}),
           })
           .eq("id", appointmentId)
-          .eq("payment_status", "unpaid");
+          .eq("payment_status", "unpaid")
+          .select("id")
+          .maybeSingle();
+        if (claimed && shouldAutoConfirm && appointment.therapist_id && appointment.slot_time) {
+          await createMeetEventForConfirmedAppointment(admin, {
+            appointmentId,
+            patientId: appointment.patient_id,
+            therapistId: appointment.therapist_id,
+            slotTime: appointment.slot_time,
+            durationMinutes: appointment.duration_minutes,
+            timezone: appointment.timezone,
+          });
+        }
         return NextResponse.json({
           alreadyPaid: true,
           error:

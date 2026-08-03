@@ -32,6 +32,8 @@ import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { mergeSessionCodes } from "@/lib/sessionCode";
+import { mergeMeetLinks } from "@/lib/meetLink";
+import JoinSessionButton from "@/components/JoinSessionButton";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 
 export const metadata: Metadata = {
@@ -140,7 +142,17 @@ export default async function AdminDashboardPage() {
   const { data: sessionCodeLinks } = await admin
     .from("appointments")
     .select("id, session_code");
-  const appointmentsWithSessionCode = mergeSessionCodes(appointments ?? [], sessionCodeLinks);
+
+  // meet_link is also new/migration-dependent -- same isolation reasoning
+  // as sessionCodeLinks above. Merged in here so it flows through to
+  // Calendar, Session Story, and the All Bookings list below all at once,
+  // same as session_code does.
+  const { data: meetLinkRows } = await admin.from("appointments").select("id, meet_link");
+
+  const appointmentsWithSessionCode = mergeMeetLinks(
+    mergeSessionCodes(appointments ?? [], sessionCodeLinks),
+    meetLinkRows
+  );
   const appointmentsWithPayoutBatch = appointmentsWithSessionCode.map((a) => ({
     ...a,
     therapist_payout_batch_id: payoutBatchIdByAppointmentId.get(a.id) ?? null,
@@ -514,6 +526,7 @@ export default async function AdminDashboardPage() {
                       preferredTherapistId={a.preferred_therapist_id}
                     />
                   )}
+                  <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
                 </li>
               );
             })}

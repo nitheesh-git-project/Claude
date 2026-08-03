@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 
 export async function POST(request: NextRequest) {
   const {
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
 
   const { data: appointment } = await supabase
     .from("appointments")
-    .select("id, patient_id, razorpay_order_id, therapist_id, status")
+    .select("id, patient_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone")
     .eq("id", appointmentId)
     .eq("patient_id", user.id)
     .single();
@@ -126,6 +127,20 @@ export async function POST(request: NextRequest) {
       },
       { status: 409 }
     );
+  }
+
+  // The atomic claim above already applied shouldAutoConfirm inside the
+  // same write -- if it succeeded, the status change (if any) actually
+  // stuck, so it's safe to create the Meet event now.
+  if (shouldAutoConfirm && appointment.therapist_id && appointment.slot_time) {
+    await createMeetEventForConfirmedAppointment(admin, {
+      appointmentId,
+      patientId: appointment.patient_id,
+      therapistId: appointment.therapist_id,
+      slotTime: appointment.slot_time,
+      durationMinutes: appointment.duration_minutes,
+      timezone: appointment.timezone,
+    });
   }
 
   return NextResponse.json({ success: true });
