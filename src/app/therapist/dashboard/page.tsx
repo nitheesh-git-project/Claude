@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/auth/SignOutButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -38,7 +39,15 @@ export default async function TherapistDashboardPage() {
           </h1>
           <p className="text-xs text-slate-500 mt-1">{profile?.credentials}</p>
         </div>
-        <SignOutButton />
+        <div className="flex items-center gap-4">
+          <Link
+            href="/therapist/dashboard/profile"
+            className="text-xs font-semibold text-slate-500 hover:text-purple-700 transition"
+          >
+            Edit Profile
+          </Link>
+          <SignOutButton />
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

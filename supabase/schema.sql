@@ -183,8 +183,19 @@ create policy "profiles_update_own" on profiles
 -- close that: "role" and "approved" can only be changed by an admin
 -- (via the Supabase Table Editor / service role) or the signup trigger
 -- above, which runs with elevated privileges and isn't subject to grants.
+--
+-- full_name and credentials are deliberately NOT in this list even though
+-- they were originally — both are identity/trust-sensitive (credentials
+-- especially, since patients see it as a therapist's license claim), so
+-- changing either now goes through profile_change_requests + admin
+-- approval instead of being directly writable. Everything else here is
+-- low-risk enough to save immediately.
 revoke update on profiles from authenticated;
-grant update (full_name, phone, timezone, credentials) on profiles to authenticated;
+grant update (
+  phone, timezone, avatar_url,
+  emergency_contact_name, emergency_contact_phone, preferred_language,
+  bio, languages
+) on profiles to authenticated;
 
 -- Appointments: patients and their assigned therapist can see/manage a booking.
 drop policy if exists "appointments_select_own" on appointments;
@@ -346,3 +357,82 @@ begin
   update treatment_categories set display_order = order_a where id = id_b;
 end;
 $$;
+
+-- Patient + therapist editable profile fields. avatar_url and the fields
+-- below are instant-save (see the profiles grant above); full_name and
+-- credentials are approval-required (see profile_change_requests below).
+alter table profiles add column if not exists avatar_url text;
+alter table profiles add column if not exists date_of_birth date;
+alter table profiles add column if not exists gender text;
+alter table profiles add column if not exists emergency_contact_name text;
+alter table profiles add column if not exists emergency_contact_phone text;
+alter table profiles add column if not exists preferred_language text;
+alter table profiles add column if not exists specialization text;
+alter table profiles add column if not exists years_experience integer;
+alter table profiles add column if not exists bio text;
+alter table profiles add column if not exists languages text;
+
+-- A patient or therapist requesting a change to an identity/trust-sensitive
+-- field (full name, DOB, gender, credentials, specialization, years of
+-- experience) doesn't write the profile directly — it lands here pending
+-- admin review. "changes" holds one or more {field: new_value} pairs so a
+-- single review covers everything they edited in one sitting. Approving
+-- applies the change via the service role; declining requires a note so
+-- the requester knows why (shown back to them on their profile page).
+create table if not exists profile_change_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  changes jsonb not null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'declined')),
+  admin_notes text,
+  reviewed_by uuid references profiles(id),
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table profile_change_requests enable row level security;
+
+drop policy if exists "profile_change_requests_select_own" on profile_change_requests;
+create policy "profile_change_requests_select_own" on profile_change_requests
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "profile_change_requests_insert_own" on profile_change_requests;
+create policy "profile_change_requests_insert_own" on profile_change_requests
+  for insert with check (auth.uid() = user_id);
+
+-- No client-side UPDATE policy — approving or declining a request (and
+-- actually applying an approved change to profiles) only ever happens
+-- through the admin API routes using the service role, same reasoning as
+-- appointments having no client update policy.
+revoke update on profile_change_requests from authenticated;
+
+-- Avatar storage: a public bucket (profile pictures aren't sensitive data
+-- and are simplest to serve as plain public URLs) where each user may only
+-- write inside a folder named after their own user id — enforced by the
+-- policies below, not just convention. Compression happens client-side
+-- before upload (see src/lib/compressImage.ts) to keep files small.
+insert into storage.buckets (id, name, public)
+select 'avatars', 'avatars', true
+where not exists (select 1 from storage.buckets where id = 'avatars');
+
+drop policy if exists "avatar_insert_own" on storage.objects;
+create policy "avatar_insert_own" on storage.objects
+  for insert with check (
+    bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "avatar_update_own" on storage.objects;
+create policy "avatar_update_own" on storage.objects
+  for update using (
+    bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "avatar_delete_own" on storage.objects;
+create policy "avatar_delete_own" on storage.objects
+  for delete using (
+    bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "avatar_select_public" on storage.objects;
+create policy "avatar_select_public" on storage.objects
+  for select using (bucket_id = 'avatars');

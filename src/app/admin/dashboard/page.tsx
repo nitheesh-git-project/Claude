@@ -13,9 +13,19 @@ import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswor
 import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
+import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
+
+const PROFILE_FIELD_LABELS: Record<string, string> = {
+  full_name: "Full Name",
+  date_of_birth: "Date of Birth",
+  gender: "Gender",
+  credentials: "Credentials / License",
+  specialization: "Specialist In",
+  years_experience: "Years of Experience",
+};
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Dr. Pooja's Physio",
@@ -38,6 +48,12 @@ export default async function AdminDashboardPage() {
     .select("id, full_name, email, credentials, created_at")
     .eq("role", "therapist")
     .eq("approved", false)
+    .order("created_at", { ascending: false });
+
+  const { data: pendingProfileChanges } = await admin
+    .from("profile_change_requests")
+    .select("id, user_id, changes, created_at")
+    .eq("status", "pending")
     .order("created_at", { ascending: false });
 
   const { data: approvedTherapists } = await admin
@@ -161,6 +177,55 @@ export default async function AdminDashboardPage() {
                 <ApproveTherapistButton therapistId={t.id} />
               </li>
             ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
+        <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+          Profile Change Requests
+          {pendingProfileChanges && pendingProfileChanges.length > 0 && (
+            <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
+              {pendingProfileChanges.length}
+            </span>
+          )}
+        </h2>
+        {!pendingProfileChanges || pendingProfileChanges.length === 0 ? (
+          <p className="text-xs text-slate-500 py-4 text-center">
+            No pending profile change requests.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {pendingProfileChanges.map((r) => {
+              const requester = profileMap.get(r.user_id);
+              const changes = (r.changes ?? {}) as Record<string, unknown>;
+              return (
+                <li
+                  key={r.id}
+                  className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 text-xs flex-wrap"
+                >
+                  <div>
+                    <p className="font-bold text-slate-900">
+                      {requester?.full_name ?? "Unknown user"}{" "}
+                      <span className="font-normal text-slate-400 capitalize">
+                        ({requester?.role ?? "unknown"})
+                      </span>
+                    </p>
+                    <ul className="mt-1 space-y-0.5 text-slate-600">
+                      {Object.entries(changes).map(([field, value]) => (
+                        <li key={field}>
+                          <span className="text-slate-400">
+                            {PROFILE_FIELD_LABELS[field] ?? field}:
+                          </span>{" "}
+                          <strong>{value === null ? "(cleared)" : String(value)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <ProfileChangeRequestActions requestId={r.id} />
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

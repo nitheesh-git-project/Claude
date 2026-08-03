@@ -67,7 +67,15 @@ export default async function PatientDashboardPage() {
             Your virtual physical therapy dashboard
           </p>
         </div>
-        <SignOutButton />
+        <div className="flex items-center gap-4">
+          <Link
+            href="/patient/dashboard/profile"
+            className="text-xs font-semibold text-slate-500 hover:text-teal-700 transition"
+          >
+            Edit Profile
+          </Link>
+          <SignOutButton />
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
