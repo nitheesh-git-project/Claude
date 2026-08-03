@@ -14,7 +14,9 @@ import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawe
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
+import { computeNoShowRate, computeCancellationRate } from "@/lib/adminMetrics";
 import { mergeSessionCodes } from "@/lib/sessionCode";
+import { mergeMeetLinks } from "@/lib/meetLink";
 
 export const metadata: Metadata = {
   title: "Patient Details | Dr. Pooja's Physio",
@@ -84,7 +86,18 @@ export default async function AdminPatientDetailPage({
     .from("appointments")
     .select("id, session_code")
     .eq("patient_id", id);
-  const appointments = mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks);
+
+  // meet_link is also new/migration-dependent -- same isolation reasoning
+  // as sessionCodeLinks above.
+  const { data: meetLinkRows } = await admin
+    .from("appointments")
+    .select("id, meet_link")
+    .eq("patient_id", id);
+
+  const appointments = mergeMeetLinks(
+    mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
+    meetLinkRows
+  );
 
   const categoryIds = [
     ...new Set((appointments ?? []).map((a) => a.category_id).filter(Boolean)),
@@ -197,6 +210,20 @@ export default async function AdminPatientDetailPage({
   const totalProfitProfitPaise = profitSessions.reduce((sum, s) => sum + s.profitPaise, 0);
   const totalProfitPaidPaise = profitSessions.reduce((sum, s) => sum + s.paidPaise, 0);
 
+  // Surfaced in the suspend confirmation so an admin isn't suspending
+  // blind -- see PatientActiveToggle.
+  const upcomingSessionCount = (appointments ?? []).filter(
+    (a) => a.status === "requested" || a.status === "confirmed"
+  ).length;
+
+  // All-time, this patient only -- same math as the fleet-wide Metrics tab
+  // stat (computeNoShowRate/computeCancellationRate), just scoped to this
+  // one person's own appointments instead of a date-ranged fleet set.
+  const noShowStats = computeNoShowRate(
+    (appointments ?? []).filter((a) => a.status === "completed")
+  );
+  const cancellationStats = computeCancellationRate(appointments ?? []);
+
   return (
     <section className="py-8 max-w-4xl mx-auto px-4">
       <Link
@@ -232,7 +259,11 @@ export default async function AdminPatientDetailPage({
               </p>
             </div>
           </div>
-          <PatientActiveToggle patientId={patient.id} active={patient.active} />
+          <PatientActiveToggle
+            patientId={patient.id}
+            active={patient.active}
+            upcomingSessionCount={upcomingSessionCount}
+          />
         </div>
       </div>
 
@@ -282,6 +313,34 @@ export default async function AdminPatientDetailPage({
       <p className="text-[11px] text-slate-400 -mt-4 mb-6">
         Admin-only — never shown to the patient or any therapist.
       </p>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+        <h2 className="font-bold text-sm text-slate-800 mb-3">Session Performance</h2>
+        <p className="text-[11px] text-slate-400 -mt-2 mb-3">
+          All-time, this patient only. Same math as the fleet-wide rates on the Metrics tab.
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-slate-400">No-Show Rate</p>
+            <p className="font-bold text-slate-900 text-lg">
+              {noShowStats.rate === null ? "—" : `${noShowStats.rate.toFixed(1)}%`}
+            </p>
+            <p className="text-slate-400">
+              {noShowStats.noShowCount} of {noShowStats.completedCount} completed sessions
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-400">Cancellation Rate</p>
+            <p className="font-bold text-slate-900 text-lg">
+              {cancellationStats.rate === null ? "—" : `${cancellationStats.rate.toFixed(1)}%`}
+            </p>
+            <p className="text-slate-400">
+              {cancellationStats.cancelledCount} cancelled ({cancellationStats.refundedCount} refunded,{" "}
+              {cancellationStats.forfeitedCount} forfeited)
+            </p>
+          </div>
+        </div>
+      </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <h2 className="font-bold text-sm text-slate-800 mb-3">Booking History</h2>

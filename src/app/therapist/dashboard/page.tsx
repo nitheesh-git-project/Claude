@@ -16,6 +16,8 @@ import { formatSlotTime } from "@/lib/formatSlotTime";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { buildTherapistPayoutReceipts } from "@/lib/receipts";
 import { mergeSessionCodes } from "@/lib/sessionCode";
+import { mergeMeetLinks } from "@/lib/meetLink";
+import JoinSessionButton from "@/components/JoinSessionButton";
 import { computeTherapistEarningRows, computeTherapistPendingOwed } from "@/lib/therapistEarnings";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
@@ -104,7 +106,18 @@ export default async function TherapistDashboardPage() {
     .from("appointments")
     .select("id, session_code")
     .eq("therapist_id", user.id);
-  const appointments = mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks);
+
+  // meet_link is also new/migration-dependent -- same isolation reasoning
+  // as sessionCodeLinks above.
+  const { data: meetLinkRows } = await supabase
+    .from("appointments")
+    .select("id, meet_link")
+    .eq("therapist_id", user.id);
+
+  const appointments = mergeMeetLinks(
+    mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
+    meetLinkRows
+  );
   const sessionCodeByAppointmentId = Object.fromEntries(
     appointments.map((a) => [a.id, a.session_code])
   );
@@ -230,12 +243,15 @@ export default async function TherapistDashboardPage() {
             <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
           </p>
         )}
-        {a.status === "confirmed" && (
-          <div className="flex items-center gap-2">
-            <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
-            <MarkNoShowButton appointmentId={a.id} />
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
+          {a.status === "confirmed" && (
+            <>
+              <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+              <MarkNoShowButton appointmentId={a.id} />
+            </>
+          )}
+        </div>
         {a.status === "completed" && !a.no_show && (
           <SessionFeedbackForm
             appointmentId={a.id}

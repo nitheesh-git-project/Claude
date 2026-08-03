@@ -17,7 +17,9 @@ import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawe
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
+import { computeNoShowRate, computeCancellationRate } from "@/lib/adminMetrics";
 import { mergeSessionCodes } from "@/lib/sessionCode";
+import { mergeMeetLinks } from "@/lib/meetLink";
 
 export const metadata: Metadata = {
   title: "Therapist Details | Dr. Pooja's Physio",
@@ -53,25 +55,31 @@ export default async function AdminTherapistDetailPage({
     .eq("id", id)
     .maybeSingle();
 
-  const [{ data: note }, { data: rawAppointments }, { data: changeRequests }] = await Promise.all([
-    admin
-      .from("therapist_admin_notes")
-      .select("note, temp_password, temp_password_set_at")
-      .eq("therapist_id", id)
-      .maybeSingle(),
-    admin
-      .from("appointments")
-      .select(
-        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note"
-      )
-      .eq("therapist_id", id)
-      .order("created_at", { ascending: false }),
-    admin
-      .from("profile_change_requests")
-      .select("id, status, admin_notes, changes, created_at")
-      .eq("user_id", id)
-      .order("created_at", { ascending: false }),
-  ]);
+  const [{ data: note }, { data: rawAppointments }, { data: changeRequests }, { data: openPayoutRequests }] =
+    await Promise.all([
+      admin
+        .from("therapist_admin_notes")
+        .select("note, temp_password, temp_password_set_at")
+        .eq("therapist_id", id)
+        .maybeSingle(),
+      admin
+        .from("appointments")
+        .select(
+          "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note"
+        )
+        .eq("therapist_id", id)
+        .order("created_at", { ascending: false }),
+      admin
+        .from("profile_change_requests")
+        .select("id, status, admin_notes, changes, created_at")
+        .eq("user_id", id)
+        .order("created_at", { ascending: false }),
+      admin
+        .from("therapist_payout_requests")
+        .select("id")
+        .eq("therapist_id", id)
+        .in("status", ["pending", "reviewing"]),
+    ]);
 
   // session_code is also new/migration-dependent -- same isolation
   // reasoning as therapistCodeRow above.
@@ -79,7 +87,18 @@ export default async function AdminTherapistDetailPage({
     .from("appointments")
     .select("id, session_code")
     .eq("therapist_id", id);
-  const appointments = mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks);
+
+  // meet_link is also new/migration-dependent -- same isolation reasoning
+  // as sessionCodeLinks above.
+  const { data: meetLinkRows } = await admin
+    .from("appointments")
+    .select("id, meet_link")
+    .eq("therapist_id", id);
+
+  const appointments = mergeMeetLinks(
+    mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
+    meetLinkRows
+  );
 
   const appointmentIds = (appointments ?? []).map((a) => a.id);
   const { data: reassignmentLogs } =
@@ -159,6 +178,21 @@ export default async function AdminTherapistDetailPage({
         )
       : 0;
 
+  // Surfaced in the suspend confirmation so an admin isn't suspending
+  // blind -- see TherapistActiveToggle.
+  const upcomingSessionCount = (appointments ?? []).filter(
+    (a) => a.status === "requested" || a.status === "confirmed"
+  ).length;
+  const openPayoutRequestCount = (openPayoutRequests ?? []).length;
+
+  // All-time, this therapist only -- same math as the fleet-wide Metrics
+  // tab stat (computeNoShowRate/computeCancellationRate), just scoped to
+  // this one person's own appointments instead of a date-ranged fleet set.
+  const noShowStats = computeNoShowRate(
+    (appointments ?? []).filter((a) => a.status === "completed")
+  );
+  const cancellationStats = computeCancellationRate(appointments ?? []);
+
   return (
     <section className="py-8 max-w-4xl mx-auto px-4">
       <Link
@@ -207,7 +241,12 @@ export default async function AdminTherapistDetailPage({
               therapistId={therapist.id}
               visibleOnTeam={therapist.visible_on_team}
             />
-            <TherapistActiveToggle therapistId={therapist.id} active={therapist.active} />
+            <TherapistActiveToggle
+              therapistId={therapist.id}
+              active={therapist.active}
+              upcomingSessionCount={upcomingSessionCount}
+              openPayoutRequestCount={openPayoutRequestCount}
+            />
           </div>
         </div>
       </div>
@@ -263,6 +302,34 @@ export default async function AdminTherapistDetailPage({
         visible={therapist.rating_visible}
         onToggleVisible={{ therapistId: therapist.id }}
       />
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+        <h2 className="font-bold text-sm text-slate-800 mb-3">Session Performance</h2>
+        <p className="text-[11px] text-slate-400 -mt-2 mb-3">
+          All-time, this therapist only. Same math as the fleet-wide rates on the Metrics tab.
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-slate-400">No-Show Rate</p>
+            <p className="font-bold text-slate-900 text-lg">
+              {noShowStats.rate === null ? "—" : `${noShowStats.rate.toFixed(1)}%`}
+            </p>
+            <p className="text-slate-400">
+              {noShowStats.noShowCount} of {noShowStats.completedCount} completed sessions
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-400">Cancellation Rate</p>
+            <p className="font-bold text-slate-900 text-lg">
+              {cancellationStats.rate === null ? "—" : `${cancellationStats.rate.toFixed(1)}%`}
+            </p>
+            <p className="text-slate-400">
+              {cancellationStats.cancelledCount} cancelled ({cancellationStats.refundedCount} refunded,{" "}
+              {cancellationStats.forfeitedCount} forfeited)
+            </p>
+          </div>
+        </div>
+      </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <h2 className="font-bold text-sm text-slate-800 mb-3">Assigned Sessions</h2>

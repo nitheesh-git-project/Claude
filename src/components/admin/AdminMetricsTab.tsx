@@ -11,6 +11,7 @@ import {
   revenueByBucketFor,
   bookingsByBucketFor,
   moneyByBucketFor,
+  refundedPaiseByBucketFor,
   computeNoShowRate,
   computeCancellationRate,
   computeRepeatBookingRate,
@@ -20,6 +21,8 @@ import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import Modal from "@/components/admin/Modal";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import { istDateKey } from "@/lib/formatSlotRange";
+import { toCsv } from "@/lib/csvExport";
+import DownloadCsvButton from "@/components/admin/DownloadCsvButton";
 
 export type { MetricsAppointment };
 
@@ -361,6 +364,16 @@ export default function AdminMetricsTab({
   const totalMoneyRevenuePaise = money.revenuePaise.reduce((s, v) => s + v, 0);
   const totalProfitPaise = money.profitPaise.reduce((s, v) => s + v, 0);
 
+  const refundedByBucket = useMemo(
+    () => refundedPaiseByBucketFor(inRangeBySlot, buckets),
+    [inRangeBySlot, buckets]
+  );
+  const totalRefundedPaise = refundedByBucket.reduce((s, v) => s + v, 0);
+  const totalNetRevenuePaise = totalMoneyRevenuePaise - totalRefundedPaise;
+  const totalNetProfitPaise = totalProfitPaise - totalRefundedPaise;
+
+  const todayForFilename = toDateInputValue(new Date());
+
   // Therapist Ledger — scoped to the same date range as everything else on
   // this tab (a session counts here if its slot_time falls in range,
   // regardless of when it was actually settled). Rows with zero activity
@@ -381,6 +394,17 @@ export default function AdminMetricsTab({
       .filter((row) => row.summary.completedCount > 0)
       .sort((a, b) => b.summary.owedPaise - a.summary.owedPaise);
   }, [therapists, inRangeBySlot, therapistSharePercent, nowMs]);
+
+  const therapistLedgerCsv = useMemo(
+    () =>
+      toCsv(rangeTherapistLedger, [
+        { header: "Therapist", value: (r) => r.name },
+        { header: "Sessions", value: (r) => r.summary.completedCount },
+        { header: "Pending (INR)", value: (r) => r.summary.owedPaise / 100 },
+        { header: "Total Paid (INR)", value: (r) => r.summary.paidOutPaise / 100 },
+      ]),
+    [rangeTherapistLedger]
+  );
 
   const totalPaidToTherapistsPaise = rangeTherapistLedger.reduce(
     (s, r) => s + r.summary.paidOutPaise,
@@ -429,6 +453,17 @@ export default function AdminMetricsTab({
       .filter((row) => row.sessionCount > 0)
       .sort((a, b) => b.totalSpentPaise - a.totalSpentPaise);
   }, [patients, inRangeBySlot]);
+
+  const patientLedgerCsv = useMemo(
+    () =>
+      toCsv(rangePatientLedger, [
+        { header: "Patient Name", value: (r) => r.name },
+        { header: "Sessions", value: (r) => r.sessionCount },
+        { header: "Total Spent (INR)", value: (r) => r.totalSpentPaise / 100 },
+        { header: "Last Active", value: (r) => r.lastActive ?? "" },
+      ]),
+    [rangePatientLedger]
+  );
 
   const selectedTherapistRow = rangeTherapistLedger.find((r) => r.id === selectedTherapistId) ?? null;
   const selectedTherapistSessions = useMemo(() => {
@@ -592,11 +627,16 @@ export default function AdminMetricsTab({
       <div>
         <h2 className="font-bold text-lg text-slate-800 mb-1">Financial Summary</h2>
         <p className="text-[11px] text-slate-400 mb-3">
-          All four figures reflect the Filters above — Gross Revenue and Platform Margin count every
-          paid session with slot_time in range; Paid to Therapists and Pending Owed count what those
-          same in-range sessions have (or haven&apos;t yet) been settled for.
+          Gross Revenue and Platform Margin count every paid session with slot_time in range, before
+          refunds; Net Revenue and Net Platform Margin subtract processed refunds from those same two
+          figures{" "}
+          <span title="Net Platform Margin subtracts the full refunded amount even for a session whose revenue split was never knowable (already excluded from Platform Margin itself) -- a documented approximation, not a precise re-derivation.">
+            (approximate — see note<sup>*</sup>)
+          </span>
+          . Paid to Therapists and Pending Owed count what those same in-range sessions have (or
+          haven&apos;t yet) been settled for.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
               <i className="fa-solid fa-sack-dollar text-teal-600"></i> Gross Revenue
@@ -608,12 +648,17 @@ export default function AdminMetricsTab({
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-hand-holding-dollar text-indigo-600"></i> Paid to Therapists
+              <i className="fa-solid fa-rotate-left text-slate-400"></i> Net Revenue
             </p>
             <p className="text-2xl font-bold text-slate-900 mt-2">
-              {formatInr(totalPaidToTherapistsPaise)}{" "}
+              {formatInr(totalNetRevenuePaise)}{" "}
               <span className="text-xs font-semibold text-slate-400">INR</span>
             </p>
+            {totalRefundedPaise > 0 && (
+              <p className="text-[11px] text-slate-400 mt-1">
+                after {formatInr(totalRefundedPaise)} refunded
+              </p>
+            )}
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
@@ -621,6 +666,29 @@ export default function AdminMetricsTab({
             </p>
             <p className="text-2xl font-bold mt-2" style={{ color: PROFIT_COLOR }}>
               {formatInr(totalProfitPaise)} <span className="text-xs font-semibold text-slate-400">INR</span>
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-rotate-left text-slate-400"></i> Net Platform Margin
+            </p>
+            <p className="text-2xl font-bold mt-2" style={{ color: PROFIT_COLOR }}>
+              {formatInr(totalNetProfitPaise)}{" "}
+              <span className="text-xs font-semibold text-slate-400">INR</span>
+            </p>
+            {totalRefundedPaise > 0 && (
+              <p className="text-[11px] text-slate-400 mt-1">
+                after {formatInr(totalRefundedPaise)} refunded<sup>*</sup>
+              </p>
+            )}
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-hand-holding-dollar text-indigo-600"></i> Paid to Therapists
+            </p>
+            <p className="text-2xl font-bold text-slate-900 mt-2">
+              {formatInr(totalPaidToTherapistsPaise)}{" "}
+              <span className="text-xs font-semibold text-slate-400">INR</span>
             </p>
           </div>
           <div
@@ -645,7 +713,14 @@ export default function AdminMetricsTab({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-1">Therapist Ledger</h2>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+            <h2 className="font-bold text-lg text-slate-800">Therapist Ledger</h2>
+            <DownloadCsvButton
+              filename={`therapist-ledger-${todayForFilename}.csv`}
+              csv={therapistLedgerCsv}
+              disabled={rangeTherapistLedger.length === 0}
+            />
+          </div>
           <p className="text-[11px] text-slate-400 mb-4">
             Click a row for the full session-by-session breakdown and to record a payout.
           </p>
@@ -692,7 +767,14 @@ export default function AdminMetricsTab({
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-1">Patient Ledger</h2>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+            <h2 className="font-bold text-lg text-slate-800">Patient Ledger</h2>
+            <DownloadCsvButton
+              filename={`patient-ledger-${todayForFilename}.csv`}
+              csv={patientLedgerCsv}
+              disabled={rangePatientLedger.length === 0}
+            />
+          </div>
           <p className="text-[11px] text-slate-400 mb-4">
             Click a row to see this patient&apos;s paid transactions in range.
           </p>

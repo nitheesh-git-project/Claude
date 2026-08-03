@@ -12,6 +12,7 @@ import AdminPaymentHistoryTab from "@/components/admin/AdminPaymentHistoryTab";
 import AdminRosterTab from "@/components/admin/AdminRosterTab";
 import LeadStatusButtons from "@/components/admin/LeadStatusButtons";
 import DeclineReferralButton from "@/components/admin/DeclineReferralButton";
+import ReferralCapacityNoteForm from "@/components/admin/ReferralCapacityNoteForm";
 import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswordButton";
 import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
@@ -31,6 +32,8 @@ import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { mergeSessionCodes } from "@/lib/sessionCode";
+import { mergeMeetLinks } from "@/lib/meetLink";
+import JoinSessionButton from "@/components/JoinSessionButton";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 
 export const metadata: Metadata = {
@@ -139,7 +142,17 @@ export default async function AdminDashboardPage() {
   const { data: sessionCodeLinks } = await admin
     .from("appointments")
     .select("id, session_code");
-  const appointmentsWithSessionCode = mergeSessionCodes(appointments ?? [], sessionCodeLinks);
+
+  // meet_link is also new/migration-dependent -- same isolation reasoning
+  // as sessionCodeLinks above. Merged in here so it flows through to
+  // Calendar, Session Story, and the All Bookings list below all at once,
+  // same as session_code does.
+  const { data: meetLinkRows } = await admin.from("appointments").select("id, meet_link");
+
+  const appointmentsWithSessionCode = mergeMeetLinks(
+    mergeSessionCodes(appointments ?? [], sessionCodeLinks),
+    meetLinkRows
+  );
   const appointmentsWithPayoutBatch = appointmentsWithSessionCode.map((a) => ({
     ...a,
     therapist_payout_batch_id: payoutBatchIdByAppointmentId.get(a.id) ?? null,
@@ -189,6 +202,15 @@ export default async function AdminDashboardPage() {
       "id, hospital_id, patient_name, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at"
     )
     .order("created_at", { ascending: false });
+  const nowForReferrals = nowTimestamp();
+
+  // capacity_note is new/migration-dependent -- kept isolated (same
+  // reasoning as roleCodeRows/sessionCodeLinks elsewhere on this page) so a
+  // missing migration only blanks this one note, not the whole referrals list.
+  const { data: capacityNoteRows } = await admin
+    .from("patient_referrals")
+    .select("id, capacity_note");
+  const capacityNoteMap = new Map((capacityNoteRows ?? []).map((r) => [r.id, r.capacity_note]));
 
   const { data: allProfiles } = await admin
     .from("profiles")
@@ -281,6 +303,18 @@ export default async function AdminDashboardPage() {
     // exactly what was charged, so this never drifts as pricing changes.
     entry.totalRevenue += (appt.amount_paid_paise ?? SESSION_FEE_PAISE) / 100;
     hospitalRevenue.set(hospitalId, entry);
+  }
+
+  // Referral-to-registration conversion per hospital: how many of the
+  // referrals a hospital has submitted actually turned into a registered
+  // patient, vs. still pending/declined. The raw counts already existed on
+  // this tab (via `referrals`) -- just wasn't turned into a ratio yet.
+  const hospitalReferralStats = new Map<string, { total: number; converted: number }>();
+  for (const r of referrals ?? []) {
+    const entry = hospitalReferralStats.get(r.hospital_id) ?? { total: 0, converted: 0 };
+    entry.total += 1;
+    if (r.status === "converted") entry.converted += 1;
+    hospitalReferralStats.set(r.hospital_id, entry);
   }
 
   // Per-category performance: how many bookings each condition category
@@ -492,6 +526,7 @@ export default async function AdminDashboardPage() {
                       preferredTherapistId={a.preferred_therapist_id}
                     />
                   )}
+                  <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
                 </li>
               );
             })}
@@ -579,8 +614,18 @@ export default async function AdminDashboardPage() {
                 totalRevenue: 0,
               };
               const sharePercent = h.revenue_share_percent ?? 0;
-              const hospitalCut = (revenue.totalRevenue * sharePercent) / 100;
+              const isSuspended = h.active === false;
+              // Suspended hospitals stop earning revenue share going
+              // forward -- the session still counts in full, the platform
+              // just keeps 100% of it instead of splitting, rather than the
+              // configured % silently continuing to accrue for a partner
+              // who's been suspended.
+              const effectiveSharePercent = isSuspended ? 0 : sharePercent;
+              const hospitalCut = (revenue.totalRevenue * effectiveSharePercent) / 100;
               const companyCut = revenue.totalRevenue - hospitalCut;
+              const referralStats = hospitalReferralStats.get(h.id) ?? { total: 0, converted: 0 };
+              const conversionRate =
+                referralStats.total > 0 ? (referralStats.converted / referralStats.total) * 100 : null;
               return (
                 <li
                   key={h.id}
@@ -606,7 +651,7 @@ export default async function AdminDashboardPage() {
                       {h.referral_code}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-100">
                     <div>
                       <p className="text-slate-400">Revenue Share</p>
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -626,10 +671,22 @@ export default async function AdminDashboardPage() {
                       </p>
                     </div>
                     <div>
+                      <p className="text-slate-400">Conversion Rate</p>
+                      <p className="font-bold text-slate-900">
+                        {conversionRate === null ? "—" : `${conversionRate.toFixed(0)}%`}
+                      </p>
+                      <p className="text-slate-400">
+                        {referralStats.converted}/{referralStats.total} referrals
+                      </p>
+                    </div>
+                    <div>
                       <p className="text-slate-400">Hospital&apos;s Cut</p>
                       <p className="font-bold text-teal-700">
                         ₹{hospitalCut.toFixed(2)}
                       </p>
+                      {isSuspended && (
+                        <p className="text-red-600">Stopped — suspended</p>
+                      )}
                     </div>
                     <div>
                       <p className="text-slate-400">Company&apos;s Cut</p>
@@ -677,6 +734,14 @@ export default async function AdminDashboardPage() {
               const assignedTherapist = r.assigned_therapist_id
                 ? profileMap.get(r.assigned_therapist_id)
                 : null;
+              // Only meaningful once a slot actually exists and the referral
+              // has moved past triage -- a pending_review referral has no
+              // slot yet, and a declined one's slot was never going to happen
+              // anyway.
+              const slotHasPassed =
+                (r.status === "invite_sent" || r.status === "converted") &&
+                !!r.assigned_slot_time &&
+                new Date(r.assigned_slot_time).getTime() < nowForReferrals;
               return (
                 <li
                   key={r.id}
@@ -702,23 +767,36 @@ export default async function AdminDashboardPage() {
                   </p>
                   {assignedTherapist ? (
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <p className="text-slate-500">
+                      <p className="text-slate-500 flex items-center gap-2 flex-wrap">
                         Assigned to:{" "}
                         <strong>{assignedTherapist.full_name}</strong> —{" "}
                         {formatSlotTime(r.assigned_slot_time, "Asia/Kolkata")}
+                        {slotHasPassed && (
+                          <span className="font-bold uppercase text-red-700 bg-red-100 px-2 py-0.5 rounded-full text-[10px]">
+                            Slot Passed
+                          </span>
+                        )}
                       </p>
                       {r.status === "invite_sent" && r.invite_token && (
                         <CopyInviteLinkButton inviteToken={r.invite_token} />
                       )}
                     </div>
                   ) : (
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <AssignReferralForm
-                        referralId={r.id}
-                        therapists={activeApprovedTherapists}
-                      />
-                      {r.status !== "declined" && (
-                        <DeclineReferralButton referralId={r.id} />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <AssignReferralForm
+                          referralId={r.id}
+                          therapists={activeApprovedTherapists}
+                        />
+                        {r.status !== "declined" && (
+                          <DeclineReferralButton referralId={r.id} />
+                        )}
+                      </div>
+                      {r.status === "pending_review" && (
+                        <ReferralCapacityNoteForm
+                          referralId={r.id}
+                          currentNote={capacityNoteMap.get(r.id) ?? null}
+                        />
                       )}
                     </div>
                   )}
@@ -839,12 +917,26 @@ export default async function AdminDashboardPage() {
       .filter((h) => h.revenue_share_percent !== null && h.revenue_share_percent !== undefined)
       .map((h) => [h.id, h.revenue_share_percent as number])
   );
+  // A suspended hospital stops earning revenue share going forward -- the
+  // booking still counts in full toward Gross Revenue/Platform Margin
+  // (see moneyByBucketFor), it's just the platform's 100% instead of a
+  // split. Kept as an explicit 0% here (not left undefined) so it isn't
+  // mistaken for the "share never configured" case, which excludes the
+  // booking from the calc entirely instead of splitting it. Same live-view
+  // convention as an ordinary revenue_share_percent edit -- applies to
+  // every render going forward, not partitioned by suspension date.
+  const hospitalActiveById = new Map(hospitals.map((h) => [h.id, h.active !== false]));
   const patientHospitalSharePercent = Object.fromEntries(
     patients
       .filter(
         (p) => p.referred_by_hospital_id && hospitalSharePercentById.has(p.referred_by_hospital_id)
       )
-      .map((p) => [p.id, hospitalSharePercentById.get(p.referred_by_hospital_id as string) as number])
+      .map((p) => {
+        const hospitalId = p.referred_by_hospital_id as string;
+        const configuredShare = hospitalSharePercentById.get(hospitalId) as number;
+        const isActive = hospitalActiveById.get(hospitalId) ?? true;
+        return [p.id, isActive ? configuredShare : 0];
+      })
   );
   const hospitalReferredPatientIds = Object.fromEntries(
     patients.filter((p) => p.referred_by_hospital_id).map((p) => [p.id, true as const])

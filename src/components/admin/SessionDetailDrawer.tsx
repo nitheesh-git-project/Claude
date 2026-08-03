@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
+import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 
@@ -37,6 +38,9 @@ export type SessionDetailAppointment = {
   // section) -- optional so every existing caller of this shared type keeps
   // compiling even before it starts fetching the column.
   session_code?: string | null;
+  // New/migration-dependent (see supabase/schema.sql's Google Calendar
+  // section) -- same optional-field convention as session_code above.
+  meet_link?: string | null;
 };
 
 export type ReassignmentLogEntry = {
@@ -371,6 +375,13 @@ export default function SessionDetailDrawer({
               {a.slot_time ? formatSlotRange(a.slot_time, durationMinutes) : "Time TBD"}
             </p>
           </div>
+
+          {a.meet_link && (
+            <div>
+              <p className="text-slate-400">Session Meeting</p>
+              <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
+            </div>
+          )}
 
           <div>
             <p className="text-slate-400">Price</p>

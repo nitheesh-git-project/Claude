@@ -5,6 +5,7 @@ import SessionDetailDrawer, {
   type SessionDetailAppointment,
   type ReassignmentLogEntry,
 } from "@/components/admin/SessionDetailDrawer";
+import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange, istDateKey } from "@/lib/formatSlotRange";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 
@@ -197,12 +198,13 @@ export default function AdminCalendarTab({
               <th className="py-2 pr-3 font-semibold">Patient</th>
               <th className="py-2 pr-3 font-semibold">Category</th>
               <th className="py-2 pr-3 font-semibold">Status</th>
+              <th className="py-2 pr-3 font-semibold">Join</th>
             </tr>
           </thead>
           <tbody>
             {sessionsForSelectedDate.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-6 text-center text-slate-400">
+                <td colSpan={7} className="py-6 text-center text-slate-400">
                   No sessions booked for this date.
                 </td>
               </tr>
@@ -237,6 +239,9 @@ export default function AdminCalendarTab({
                     >
                       {a.status}
                     </span>
+                  </td>
+                  <td className="py-2 pr-3" onClick={(e) => e.stopPropagation()}>
+                    <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
                   </td>
                 </tr>
               ))

@@ -5,6 +5,7 @@ import SessionDetailDrawer, {
   type SessionDetailAppointment,
   type ReassignmentLogEntry,
 } from "@/components/admin/SessionDetailDrawer";
+import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange, istDateKey, istMinutesOfDay } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 
@@ -222,12 +223,13 @@ export default function AdminSessionStoryTab({
               <th className="py-2 pr-3 font-semibold">Payment</th>
               <th className="py-2 pr-3 font-semibold">Patient Rating</th>
               <th className="py-2 pr-3 font-semibold">Therapist Rating</th>
+              <th className="py-2 pr-3 font-semibold">Join</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={11} className="py-6 text-center text-slate-400">
+                <td colSpan={12} className="py-6 text-center text-slate-400">
                   No sessions found.
                 </td>
               </tr>
@@ -290,6 +292,9 @@ export default function AdminSessionStoryTab({
                     {a.therapist_rating ? <Stars rating={a.therapist_rating} /> : (
                       <span className="text-slate-300">—</span>
                     )}
+                  </td>
+                  <td className="py-2 pr-3" onClick={(e) => e.stopPropagation()}>
+                    <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
                   </td>
                 </tr>
               ))

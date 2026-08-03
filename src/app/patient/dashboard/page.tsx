@@ -15,6 +15,8 @@ import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { buildPatientReceipts } from "@/lib/receipts";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { mergeSessionCodes } from "@/lib/sessionCode";
+import { mergeMeetLinks } from "@/lib/meetLink";
+import JoinSessionButton from "@/components/JoinSessionButton";
 
 export const metadata: Metadata = {
   title: "Patient Dashboard | Dr. Pooja's Physio",
@@ -74,7 +76,18 @@ export default async function PatientDashboardPage() {
     .from("appointments")
     .select("id, session_code")
     .eq("patient_id", user.id);
-  const appointments = mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks);
+
+  // meet_link is also new/migration-dependent -- same isolation reasoning
+  // as sessionCodeLinks above.
+  const { data: meetLinkRows } = await supabase
+    .from("appointments")
+    .select("id, meet_link")
+    .eq("patient_id", user.id);
+
+  const appointments = mergeMeetLinks(
+    mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
+    meetLinkRows
+  );
 
   // Full purchase history (not just currently-usable packages -- that's
   // ownedPackages below, filtered to paid ones with sessions remaining) so
@@ -242,13 +255,16 @@ export default async function PatientDashboardPage() {
             )}
           </div>
         </div>
-        {(a.status === "requested" || a.status === "confirmed") && (
-          <CancelSessionButton
-            appointmentId={a.id}
-            paid={a.payment_status === "paid"}
-            slotTime={a.slot_time}
-          />
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
+          {(a.status === "requested" || a.status === "confirmed") && (
+            <CancelSessionButton
+              appointmentId={a.id}
+              paid={a.payment_status === "paid"}
+              slotTime={a.slot_time}
+            />
+          )}
+        </div>
         {a.status === "completed" && !a.no_show && (
           <SessionFeedbackForm
             appointmentId={a.id}

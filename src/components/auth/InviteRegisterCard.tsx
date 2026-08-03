@@ -15,6 +15,7 @@ type Preview = {
   patientName?: string;
   medicalIssue?: string;
   assignedSlotTime?: string | null;
+  isPastSlot?: boolean;
   hospitalName?: string;
   therapistName?: string | null;
 };
@@ -208,6 +209,13 @@ export default function InviteRegisterCard() {
                 </strong>
               </p>
             )}
+          </div>
+        )}
+
+        {preview && preview.valid && preview.isPastSlot && (
+          <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+            This scheduled time has already passed — you can still register and
+            pay below, and the clinic will follow up to reschedule your session.
           </div>
         )}
 

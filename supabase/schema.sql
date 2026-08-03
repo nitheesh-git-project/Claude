@@ -118,6 +118,13 @@ create policy "patient_referrals_insert_own" on patient_referrals
 
 revoke update on patient_referrals from authenticated;
 
+-- A short admin-set note surfaced to the hospital in place of a blank
+-- status when a pending_review referral genuinely can't be staffed right
+-- now ("no capacity right now — will follow up") -- closes the "why is
+-- nothing happening" support loop without building real
+-- specialization/capacity matching.
+alter table patient_referrals add column if not exists capacity_note text;
+
 -- Links a patient's first appointment back to the referral that led to
 -- it (white-glove channel only — self-serve code bookings have no
 -- referral row, just the profile-level referred_by_hospital_id).
@@ -1106,10 +1113,17 @@ create trigger trg_assign_session_code
   for each row execute function assign_session_code();
 
 -- Backfill every row that predates these triggers, oldest first, then
--- advance each sequence past what backfill just used so the next real
--- INSERT continues the same series instead of colliding with it. Guarded by
--- "is null" on both the update's source and the setval seed count, so this
--- whole block is a no-op (and safe to leave in place) once it's run once.
+-- advance each sequence to the highest code number actually in use so the
+-- next real INSERT continues the same series instead of colliding with it.
+-- The backfill itself is guarded by "is null", so it only ever touches rows
+-- that predate the triggers. The setval calls are deliberately NOT based on
+-- row count: count(*) looks equivalent right after a fresh backfill, but
+-- silently regresses every sequence backward the moment any row of that
+-- role/table is ever deleted afterward -- the next real signup/booking would
+-- then collide with a still-existing higher-numbered code and fail with a
+-- duplicate-key error. Deriving from max(existing code number) instead means
+-- this block is genuinely idempotent and safe to re-run at any time, no
+-- matter how many rows have since been deleted.
 do $$
 begin
   if exists (select 1 from profiles where role = 'patient' and patient_code is null) then
@@ -1120,7 +1134,11 @@ begin
     update profiles p set patient_code = 'PT' || lpad(ordered.rn::text, 4, '0')
     from ordered where p.id = ordered.id;
   end if;
-  perform setval('patient_code_seq', (select count(*) from profiles where role = 'patient'), true);
+  perform setval(
+    'patient_code_seq',
+    coalesce((select max(substring(patient_code from 3)::int) from profiles where role = 'patient'), 0),
+    true
+  );
 
   if exists (select 1 from profiles where role = 'therapist' and therapist_code is null) then
     with ordered as (
@@ -1130,7 +1148,11 @@ begin
     update profiles p set therapist_code = 'TH' || lpad(ordered.rn::text, 4, '0')
     from ordered where p.id = ordered.id;
   end if;
-  perform setval('therapist_code_seq', (select count(*) from profiles where role = 'therapist'), true);
+  perform setval(
+    'therapist_code_seq',
+    coalesce((select max(substring(therapist_code from 3)::int) from profiles where role = 'therapist'), 0),
+    true
+  );
 
   if exists (select 1 from profiles where role = 'hospital' and hospital_code is null) then
     with ordered as (
@@ -1140,7 +1162,11 @@ begin
     update profiles p set hospital_code = 'BB' || lpad(ordered.rn::text, 4, '0')
     from ordered where p.id = ordered.id;
   end if;
-  perform setval('hospital_code_seq', (select count(*) from profiles where role = 'hospital'), true);
+  perform setval(
+    'hospital_code_seq',
+    coalesce((select max(substring(hospital_code from 3)::int) from profiles where role = 'hospital'), 0),
+    true
+  );
 
   if exists (select 1 from appointments where session_code is null) then
     with ordered as (
@@ -1150,7 +1176,11 @@ begin
     update appointments a set session_code = 'SS' || lpad(ordered.rn::text, 4, '0')
     from ordered where a.id = ordered.id;
   end if;
-  perform setval('session_code_seq', (select count(*) from appointments), true);
+  perform setval(
+    'session_code_seq',
+    coalesce((select max(substring(session_code from 3)::int) from appointments), 0),
+    true
+  );
 end $$;
 
 create unique index if not exists profiles_patient_code_unique_idx
@@ -1217,3 +1247,16 @@ alter table therapist_payout_requests add constraint therapist_payout_requests_s
 drop index if exists payout_requests_one_pending_idx;
 create unique index if not exists payout_requests_one_open_idx
   on therapist_payout_requests (therapist_id) where status in ('pending', 'reviewing');
+
+-- Google Calendar / Meet integration. A dedicated Calendar event (with an
+-- auto-generated Meet link) is created once a session is confirmed with a
+-- therapist assigned, updated in place on reassignment/reschedule, and
+-- deleted on cancellation (see src/lib/googleCalendar.ts). Left untouched on
+-- completion -- it's a harmless historical record and lets the Join button
+-- go straight back to working if the session is ever reopened.
+-- google_calendar_sync_error records the last Calendar-API failure message
+-- (if any), so a confirmed session that never got a Meet link is visible
+-- from inside the app, not just in server logs.
+alter table appointments add column if not exists google_event_id text;
+alter table appointments add column if not exists meet_link text;
+alter table appointments add column if not exists google_calendar_sync_error text;

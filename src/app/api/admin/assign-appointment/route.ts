@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
 
   const { data: appointment } = await admin
     .from("appointments")
-    .select("payment_status, slot_time, duration_minutes, therapist_id, status")
+    .select("patient_id, payment_status, slot_time, duration_minutes, timezone, therapist_id, status")
     .eq("id", appointmentId)
     .single();
 
@@ -135,6 +136,20 @@ export async function POST(request: NextRequest) {
     if (logError) {
       console.error("Failed to record appointment_reassignment_log entry:", logError);
     }
+  }
+
+  // Past the post-write conflict re-check above -- the assignment (and any
+  // status: "confirmed") is confirmed to have actually stuck, so it's safe
+  // to create the Meet event now.
+  if (shouldConfirm && appointment.slot_time) {
+    await createMeetEventForConfirmedAppointment(admin, {
+      appointmentId,
+      patientId: appointment.patient_id,
+      therapistId,
+      slotTime: appointment.slot_time,
+      durationMinutes: appointment.duration_minutes,
+      timezone: appointment.timezone,
+    });
   }
 
   return NextResponse.json({ success: true });

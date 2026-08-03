@@ -5,6 +5,7 @@ import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
 import CompleteSessionButton from "@/components/CompleteSessionButton";
 import MarkNoShowButton from "@/components/MarkNoShowButton";
+import JoinSessionButton from "@/components/JoinSessionButton";
 import SessionDetailDrawer, {
   type SessionDetailAppointment,
   type ReassignmentLogEntry,
@@ -142,12 +143,15 @@ export default function ProfileSessionList({
                   />
                 </div>
               )}
-              {a.status === "confirmed" && (
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
-                  <MarkNoShowButton appointmentId={a.id} />
-                </div>
-              )}
+              <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
+                {a.status === "confirmed" && (
+                  <>
+                    <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+                    <MarkNoShowButton appointmentId={a.id} />
+                  </>
+                )}
+              </div>
             </li>
           );
         })}

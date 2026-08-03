@@ -22,6 +22,8 @@ import {
   type PayoutBatchRow,
 } from "@/lib/receipts";
 import { formatSlotTime } from "@/lib/formatSlotTime";
+import { toCsv } from "@/lib/csvExport";
+import DownloadCsvButton from "@/components/admin/DownloadCsvButton";
 
 type Patient = { id: string; full_name: string | null; code?: string | null };
 type Therapist = { id: string; full_name: string | null; code?: string | null };
@@ -313,14 +315,54 @@ export default function AdminPaymentHistoryTab({
     return true;
   });
 
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Not wrapped in useMemo -- patientRows/therapistRows above are themselves
+  // plain consts recomputed every render (not memoized), so memoizing only
+  // this derived step would depend on an already-unstable reference and
+  // buys nothing.
+  const patientHistoryCsv = toCsv(patientRows, [
+    { header: "Patient ID", value: (r) => r.patient.code ?? "" },
+    { header: "Patient Name", value: (r) => r.patient.full_name ?? "Unknown" },
+    { header: "Total Spent (INR)", value: (r) => r.summary.totalSpentPaise / 100 },
+    { header: "Last Payment", value: (r) => r.summary.lastPaymentAt ?? "" },
+  ]);
+
+  const therapistHistoryCsv = toCsv(therapistRows, [
+    { header: "Therapist ID", value: (r) => r.therapist.code ?? "" },
+    { header: "Therapist Name", value: (r) => r.therapist.full_name ?? "Unknown" },
+    { header: "Total Paid Out (INR)", value: (r) => r.summary.totalPaidOutPaise / 100 },
+    { header: "Last Payout", value: (r) => r.summary.lastPayoutAt ?? "" },
+  ]);
+
+  const receiptsCsv = useMemo(
+    () =>
+      toCsv(filteredReceiptRows, [
+        { header: "Date", value: (r) => r.date },
+        { header: "Session ID", value: (r) => r.sessionCode ?? "" },
+        { header: "Who", value: (r) => r.personName },
+        { header: "Role", value: (r) => r.personRole },
+        { header: "Type", value: (r) => r.typeLabel },
+        { header: "Amount (INR)", value: (r) => (r.amountPaise !== null ? r.amountPaise / 100 : "") },
+      ]),
+    [filteredReceiptRows]
+  );
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
           <h2 className="font-bold text-lg text-slate-800">Patient Payment History</h2>
-          <p className="text-xs text-slate-500">
-            Money in, all-time: <strong className="text-teal-700">{formatInr(totalPatientSpendPaise)}</strong>
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-slate-500">
+              Money in, all-time: <strong className="text-teal-700">{formatInr(totalPatientSpendPaise)}</strong>
+            </p>
+            <DownloadCsvButton
+              filename={`patient-payment-history-${today}.csv`}
+              csv={patientHistoryCsv}
+              disabled={patientRows.length === 0}
+            />
+          </div>
         </div>
         <p className="text-[11px] text-slate-400 mb-4">
           Every successful session payment and package purchase, per patient. Sessions covered by an
@@ -369,9 +411,16 @@ export default function AdminPaymentHistoryTab({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
           <h2 className="font-bold text-lg text-slate-800">Therapist Payment History</h2>
-          <p className="text-xs text-slate-500">
-            Money out, all-time: <strong className="text-teal-700">{formatInr(totalTherapistPaidOutPaise)}</strong>
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-slate-500">
+              Money out, all-time: <strong className="text-teal-700">{formatInr(totalTherapistPaidOutPaise)}</strong>
+            </p>
+            <DownloadCsvButton
+              filename={`therapist-payment-history-${today}.csv`}
+              csv={therapistHistoryCsv}
+              disabled={therapistRows.length === 0}
+            />
+          </div>
         </div>
         <p className="text-[11px] text-slate-400 mb-4">
           Every payout settlement an admin has recorded for a therapist. These are admin-recorded
@@ -418,10 +467,18 @@ export default function AdminPaymentHistoryTab({
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Receipts</h2>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+          <h2 className="font-bold text-lg text-slate-800">Receipts</h2>
+          <DownloadCsvButton
+            filename={`receipts-${today}.csv`}
+            csv={receiptsCsv}
+            disabled={filteredReceiptRows.length === 0}
+          />
+        </div>
         <p className="text-[11px] text-slate-400 mb-4">
           Every receipt generated on the platform — patient payments, completed sessions, failed
-          payment attempts, and therapist payouts — in one filterable log.
+          payment attempts, and therapist payouts — in one filterable log. The download reflects
+          whatever filters are currently applied below.
         </p>
 
         <div className="flex items-center gap-3 flex-wrap mb-4">
