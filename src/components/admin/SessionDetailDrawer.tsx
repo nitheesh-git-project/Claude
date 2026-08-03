@@ -29,6 +29,7 @@ export type SessionDetailAppointment = {
   refund_status: string | null;
   refund_amount_paise: number | null;
   package_purchase_id: string | null;
+  therapist_payout_paid_at: string | null;
 };
 
 export type ReassignmentLogEntry = {
@@ -337,7 +338,9 @@ export default function SessionDetailDrawer({
                 {a.refund_status === "processed" && a.refund_amount_paise
                   ? `₹${(a.refund_amount_paise / 100).toLocaleString("en-IN")} refunded`
                   : a.refund_status === "not_eligible"
-                  ? `No refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot)`
+                  ? a.therapist_payout_paid_at
+                    ? "No refund (this session's payout was already settled — cancelled as an admin correction, not a late cancellation)"
+                    : `No refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot)`
                   : "No payment to refund"}
               </p>
               {a.cancellation_reason && (
