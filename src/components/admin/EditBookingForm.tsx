@@ -24,12 +24,16 @@ export default function EditBookingForm({
   appointmentId,
   currentTherapistId,
   currentSlotTime,
+  currentCategoryId,
   therapists,
+  categories,
 }: {
   appointmentId: string;
   currentTherapistId: string | null;
   currentSlotTime: string | null;
+  currentCategoryId?: string | null;
   therapists: { id: string; full_name: string }[];
+  categories?: { id: string; title: string }[];
 }) {
   const [open, setOpen] = useState(false);
   const [therapistId, setTherapistId] = useState(
@@ -38,6 +42,7 @@ export default function EditBookingForm({
   const [slotDateTime, setSlotDateTime] = useState(
     currentSlotTime ? toDateTimeLocalValue(currentSlotTime) : ""
   );
+  const [categoryId, setCategoryId] = useState(currentCategoryId ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -54,6 +59,7 @@ export default function EditBookingForm({
         appointmentId,
         therapistId,
         slotDateTime: new Date(slotDateTime).toISOString(),
+        categoryId: categoryId || undefined,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -105,6 +111,20 @@ export default function EditBookingForm({
           required
           className="p-2 rounded-lg border border-slate-300"
         />
+        {categories && categories.length > 0 && (
+          <select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className="p-2 rounded-lg border border-slate-300 bg-white"
+          >
+            <option value="">Category unchanged</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.title}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
       <div className="flex gap-2">
         <button

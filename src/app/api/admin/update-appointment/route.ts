@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { appointmentId, therapistId, slotDateTime } = await request.json();
+  const { appointmentId, therapistId, slotDateTime, categoryId } = await request.json();
   if (!appointmentId || !therapistId || !slotDateTime) {
     return NextResponse.json(
       { error: "Missing appointmentId, therapistId, or slotDateTime" },
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   const { data: appointment } = await admin
     .from("appointments")
-    .select("status, duration_minutes, therapist_id, therapist_payout_paid_at")
+    .select("status, duration_minutes, category_id, therapist_id, therapist_payout_paid_at")
     .eq("id", appointmentId)
     .single();
 
@@ -72,11 +72,31 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Changing category re-labels the session and updates its duration (for
+  // accurate conflict-checking / calendar blocking) — the amount already
+  // charged is left untouched, since real money already moved via Razorpay
+  // and retroactively adjusting it would need refund/upcharge handling
+  // this route doesn't do.
+  let durationMinutes = appointment.duration_minutes ?? BASE_DURATION_MINUTES;
+  let resolvedCategoryId = appointment.category_id;
+  if (categoryId && categoryId !== appointment.category_id) {
+    const { data: category } = await admin
+      .from("treatment_categories")
+      .select("id, duration_minutes")
+      .eq("id", categoryId)
+      .single();
+    if (!category) {
+      return NextResponse.json({ error: "That category doesn't exist" }, { status: 400 });
+    }
+    resolvedCategoryId = category.id;
+    durationMinutes = category.duration_minutes ?? durationMinutes;
+  }
+
   const conflict = await findTherapistConflict(
     admin,
     therapistId,
     new Date(slotDateTime).toISOString(),
-    appointment.duration_minutes ?? BASE_DURATION_MINUTES,
+    durationMinutes,
     { excludeAppointmentId: appointmentId }
   );
   if (conflict) {
@@ -91,6 +111,8 @@ export async function POST(request: NextRequest) {
     .update({
       therapist_id: therapistId,
       slot_time: new Date(slotDateTime).toISOString(),
+      category_id: resolvedCategoryId,
+      duration_minutes: durationMinutes,
     })
     .eq("id", appointmentId);
 

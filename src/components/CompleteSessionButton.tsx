@@ -9,7 +9,7 @@ export default function CompleteSessionButton({ appointmentId }: { appointmentId
   const router = useRouter();
 
   async function handleComplete() {
-    if (!window.confirm("Mark this session as completed?")) return;
+    if (!window.confirm("Mark this session as done? You'll be asked to rate it next.")) return;
     setLoading(true);
     setError(null);
     const res = await fetch("/api/appointments/complete-session", {
@@ -34,7 +34,7 @@ export default function CompleteSessionButton({ appointmentId }: { appointmentId
         disabled={loading}
         className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition"
       >
-        {loading ? "Saving..." : "Mark as Completed"}
+        {loading ? "Saving..." : "Done"}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
     </div>

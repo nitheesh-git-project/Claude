@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import SignOutButton from "@/components/auth/SignOutButton";
 import PayNowButton from "@/components/PayNowButton";
+import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
@@ -31,7 +32,7 @@ export default async function PatientDashboardPage() {
   const { data: appointments } = await supabase
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id, duration_minutes, therapist_id"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback"
     )
     .eq("patient_id", user.id)
     .order("created_at", { ascending: false });
@@ -121,47 +122,57 @@ export default async function PatientDashboardPage() {
             {appointments.map((a) => (
               <li
                 key={a.id}
-                className="flex items-center justify-between p-4 rounded-xl border border-slate-200 text-xs"
+                className="p-4 rounded-xl border border-slate-200 text-xs space-y-3"
               >
-                <div>
-                  <p className="font-bold text-slate-900">
-                    {a.concern ?? "General Consultation"}
-                  </p>
-                  <p className="text-slate-500 mt-1">
-                    {formatSlotTime(a.slot_time, a.timezone)}
-                    {a.duration_minutes && ` • ${a.duration_minutes} min`}
-                  </p>
-                  <p className="text-slate-500 mt-1">
-                    Therapist:{" "}
-                    <strong className="text-slate-700">
-                      {a.therapist_id
-                        ? therapistMap.get(a.therapist_id) ?? "Unknown"
-                        : "Not yet assigned"}
-                    </strong>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
-                    {a.status}
-                  </span>
-                  {a.payment_status === "unpaid" ? (
-                    <PayNowButton
-                      appointmentId={a.id}
-                      name={profile?.full_name ?? ""}
-                      email={profile?.email ?? ""}
-                      description={a.concern ?? "Virtual Physical Therapy Session"}
-                      amountPaise={
-                        a.amount_paid_paise ??
-                        (a.category_id ? categoryPriceMap.get(a.category_id) : undefined) ??
-                        SESSION_FEE_PAISE
-                      }
-                    />
-                  ) : (
-                    <span className="font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full">
-                      Paid
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <p className="font-bold text-slate-900">
+                      {a.concern ?? "General Consultation"}
+                    </p>
+                    <p className="text-slate-500 mt-1">
+                      {formatSlotTime(a.slot_time, a.timezone)}
+                      {a.duration_minutes && ` • ${a.duration_minutes} min`}
+                    </p>
+                    <p className="text-slate-500 mt-1">
+                      Therapist:{" "}
+                      <strong className="text-slate-700">
+                        {a.therapist_id
+                          ? therapistMap.get(a.therapist_id) ?? "Unknown"
+                          : "Not yet assigned"}
+                      </strong>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
+                      {a.status}
                     </span>
-                  )}
+                    {a.payment_status === "unpaid" ? (
+                      <PayNowButton
+                        appointmentId={a.id}
+                        name={profile?.full_name ?? ""}
+                        email={profile?.email ?? ""}
+                        description={a.concern ?? "Virtual Physical Therapy Session"}
+                        amountPaise={
+                          a.amount_paid_paise ??
+                          (a.category_id ? categoryPriceMap.get(a.category_id) : undefined) ??
+                          SESSION_FEE_PAISE
+                        }
+                      />
+                    ) : (
+                      <span className="font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full">
+                        Paid
+                      </span>
+                    )}
+                  </div>
                 </div>
+                {a.status === "completed" && (
+                  <SessionFeedbackForm
+                    appointmentId={a.id}
+                    role="patient"
+                    existingRating={a.patient_rating}
+                    existingFeedback={a.patient_feedback}
+                  />
+                )}
               </li>
             ))}
           </ul>

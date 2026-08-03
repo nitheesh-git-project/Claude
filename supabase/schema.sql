@@ -338,6 +338,22 @@ alter table appointments add column if not exists therapist_payout_amount_paise 
 alter table appointments add column if not exists therapist_payout_method text check (therapist_payout_method is null or therapist_payout_method in ('cash', 'online'));
 alter table appointments add column if not exists therapist_payout_note text;
 
+-- Post-session ratings/feedback, captured independently from each side once
+-- a session is marked completed (the therapist's "Done" action). Rating is
+-- required when submitting, feedback is optional free text — enforced in
+-- the submit-*-feedback API routes, not here, since there's no single
+-- "submit" moment at the column level to hang a check constraint off of.
+-- Nothing here is client-writable directly (appointments has no client
+-- update policy at all — see below), so these only ever get set by the
+-- service-role submit-*-feedback routes after verifying the caller is the
+-- patient/therapist on that exact appointment.
+alter table appointments add column if not exists patient_rating integer check (patient_rating is null or (patient_rating >= 1 and patient_rating <= 5));
+alter table appointments add column if not exists patient_feedback text;
+alter table appointments add column if not exists patient_feedback_at timestamptz;
+alter table appointments add column if not exists therapist_rating integer check (therapist_rating is null or (therapist_rating >= 1 and therapist_rating <= 5));
+alter table appointments add column if not exists therapist_feedback text;
+alter table appointments add column if not exists therapist_feedback_at timestamptz;
+
 -- Structured contact email captured directly on the public inquiry form,
 -- so onboarding doesn't rely on retyping it from free-text notes.
 alter table b2b_leads add column if not exists email text;
