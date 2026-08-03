@@ -17,6 +17,9 @@ export type MetricsAppointment = {
   slot_time: string | null;
   no_show: boolean;
   refund_status: string | null;
+  // Only populated once refund_status is 'processed' -- see
+  // refundedPaiseByBucketFor, which is the only reader of this field.
+  refund_amount_paise: number | null;
   // Added for the Financial Summary / Therapist & Patient Ledger section --
   // widened rather than given its own narrower type, since this is always
   // the exact same `appointments` array page.tsx already passes to
@@ -141,6 +144,29 @@ export function revenueByBucketFor(
     dimFiltered.filter((a) => a.payment_status === "paid"),
     (a) => (a.slot_time ? new Date(a.slot_time).getTime() : null),
     (a) => (a.amount_paid_paise ?? SESSION_FEE_PAISE) / 100,
+    buckets
+  );
+}
+
+// Paise (not rupees, unlike revenueByBucketFor above) -- matches
+// moneyByBucketFor's own convention, since this exists purely to be
+// subtracted from moneyByBucketFor's revenuePaise/profitPaise totals for the
+// Net Revenue / Net Platform Margin cards. Deliberately a separate, simple
+// pass rather than folded into moneyByBucketFor itself: only "processed"
+// refunds count (a failed or not-eligible refund never actually left the
+// till), and this doesn't touch the therapist/hospital-share eligibility
+// logic moneyByBucketFor already has -- a refunded session whose revenue
+// split was never knowable (already excluded from Platform Margin) still
+// gets its refund subtracted here, so Net Platform Margin is a documented
+// approximation in that one edge case, not silently wrong.
+export function refundedPaiseByBucketFor(
+  dimFiltered: MetricsAppointment[],
+  buckets: PeriodBucket[]
+): number[] {
+  return sumByBucket(
+    dimFiltered.filter((a) => a.refund_status === "processed"),
+    (a) => (a.slot_time ? new Date(a.slot_time).getTime() : null),
+    (a) => a.refund_amount_paise ?? 0,
     buckets
   );
 }

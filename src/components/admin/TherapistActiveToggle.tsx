@@ -6,9 +6,15 @@ import { useRouter } from "next/navigation";
 export default function TherapistActiveToggle({
   therapistId,
   active,
+  upcomingSessionCount = 0,
+  openPayoutRequestCount = 0,
 }: {
   therapistId: string;
   active: boolean;
+  // Both zero by default so today's exact confirm text is unchanged when
+  // there's nothing in flight — these only add a clause when non-zero.
+  upcomingSessionCount?: number;
+  openPayoutRequestCount?: number;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,13 +22,34 @@ export default function TherapistActiveToggle({
 
   async function handleToggle() {
     const nextActive = !active;
-    if (
-      !nextActive &&
-      !window.confirm(
-        "This will immediately block this therapist from signing in to their dashboard. Continue?"
-      )
-    ) {
-      return;
+    if (!nextActive) {
+      let message = "This will immediately block this therapist from signing in to their dashboard.";
+      const notes: string[] = [];
+      if (upcomingSessionCount > 0) {
+        notes.push(
+          `${upcomingSessionCount} upcoming session${
+            upcomingSessionCount === 1 ? "" : "s"
+          } still assigned to them (only an admin will be able to complete or reassign ${
+            upcomingSessionCount === 1 ? "it" : "them"
+          } while suspended)`
+        );
+      }
+      if (openPayoutRequestCount > 0) {
+        notes.push(
+          `${openPayoutRequestCount} payout request${
+            openPayoutRequestCount === 1 ? "" : "s"
+          } still in progress (${
+            openPayoutRequestCount === 1 ? "this" : "these"
+          } can still be completed by an admin while suspended)`
+        );
+      }
+      if (notes.length > 0) {
+        message += ` They currently have ${notes.join(" and ")}.`;
+      }
+      message += " Continue?";
+      if (!window.confirm(message)) {
+        return;
+      }
     }
     setLoading(true);
     setError(null);

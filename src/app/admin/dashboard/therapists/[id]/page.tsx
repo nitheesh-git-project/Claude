@@ -53,25 +53,31 @@ export default async function AdminTherapistDetailPage({
     .eq("id", id)
     .maybeSingle();
 
-  const [{ data: note }, { data: rawAppointments }, { data: changeRequests }] = await Promise.all([
-    admin
-      .from("therapist_admin_notes")
-      .select("note, temp_password, temp_password_set_at")
-      .eq("therapist_id", id)
-      .maybeSingle(),
-    admin
-      .from("appointments")
-      .select(
-        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note"
-      )
-      .eq("therapist_id", id)
-      .order("created_at", { ascending: false }),
-    admin
-      .from("profile_change_requests")
-      .select("id, status, admin_notes, changes, created_at")
-      .eq("user_id", id)
-      .order("created_at", { ascending: false }),
-  ]);
+  const [{ data: note }, { data: rawAppointments }, { data: changeRequests }, { data: openPayoutRequests }] =
+    await Promise.all([
+      admin
+        .from("therapist_admin_notes")
+        .select("note, temp_password, temp_password_set_at")
+        .eq("therapist_id", id)
+        .maybeSingle(),
+      admin
+        .from("appointments")
+        .select(
+          "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note"
+        )
+        .eq("therapist_id", id)
+        .order("created_at", { ascending: false }),
+      admin
+        .from("profile_change_requests")
+        .select("id, status, admin_notes, changes, created_at")
+        .eq("user_id", id)
+        .order("created_at", { ascending: false }),
+      admin
+        .from("therapist_payout_requests")
+        .select("id")
+        .eq("therapist_id", id)
+        .in("status", ["pending", "reviewing"]),
+    ]);
 
   // session_code is also new/migration-dependent -- same isolation
   // reasoning as therapistCodeRow above.
@@ -159,6 +165,13 @@ export default async function AdminTherapistDetailPage({
         )
       : 0;
 
+  // Surfaced in the suspend confirmation so an admin isn't suspending
+  // blind -- see TherapistActiveToggle.
+  const upcomingSessionCount = (appointments ?? []).filter(
+    (a) => a.status === "requested" || a.status === "confirmed"
+  ).length;
+  const openPayoutRequestCount = (openPayoutRequests ?? []).length;
+
   return (
     <section className="py-8 max-w-4xl mx-auto px-4">
       <Link
@@ -207,7 +220,12 @@ export default async function AdminTherapistDetailPage({
               therapistId={therapist.id}
               visibleOnTeam={therapist.visible_on_team}
             />
-            <TherapistActiveToggle therapistId={therapist.id} active={therapist.active} />
+            <TherapistActiveToggle
+              therapistId={therapist.id}
+              active={therapist.active}
+              upcomingSessionCount={upcomingSessionCount}
+              openPayoutRequestCount={openPayoutRequestCount}
+            />
           </div>
         </div>
       </div>

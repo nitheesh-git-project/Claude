@@ -6,9 +6,14 @@ import { useRouter } from "next/navigation";
 export default function PatientActiveToggle({
   patientId,
   active,
+  upcomingSessionCount = 0,
 }: {
   patientId: string;
   active: boolean;
+  // Assigned/paid-but-not-yet-happened sessions this patient still has —
+  // surfaced in the suspend confirmation so an admin isn't suspending
+  // blind. Zero by default keeps today's exact confirm text unchanged.
+  upcomingSessionCount?: number;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,13 +21,17 @@ export default function PatientActiveToggle({
 
   async function handleToggle() {
     const nextActive = !active;
-    if (
-      !nextActive &&
-      !window.confirm(
-        "This will immediately block this patient from signing in to their dashboard. Continue?"
-      )
-    ) {
-      return;
+    if (!nextActive) {
+      let message = "This will immediately block this patient from signing in to their dashboard.";
+      if (upcomingSessionCount > 0) {
+        message += ` They currently have ${upcomingSessionCount} upcoming session${
+          upcomingSessionCount === 1 ? "" : "s"
+        } on the calendar.`;
+      }
+      message += " Continue?";
+      if (!window.confirm(message)) {
+        return;
+      }
     }
     setLoading(true);
     setError(null);

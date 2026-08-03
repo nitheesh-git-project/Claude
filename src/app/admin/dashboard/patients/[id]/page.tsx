@@ -197,6 +197,12 @@ export default async function AdminPatientDetailPage({
   const totalProfitProfitPaise = profitSessions.reduce((sum, s) => sum + s.profitPaise, 0);
   const totalProfitPaidPaise = profitSessions.reduce((sum, s) => sum + s.paidPaise, 0);
 
+  // Surfaced in the suspend confirmation so an admin isn't suspending
+  // blind -- see PatientActiveToggle.
+  const upcomingSessionCount = (appointments ?? []).filter(
+    (a) => a.status === "requested" || a.status === "confirmed"
+  ).length;
+
   return (
     <section className="py-8 max-w-4xl mx-auto px-4">
       <Link
@@ -232,7 +238,11 @@ export default async function AdminPatientDetailPage({
               </p>
             </div>
           </div>
-          <PatientActiveToggle patientId={patient.id} active={patient.active} />
+          <PatientActiveToggle
+            patientId={patient.id}
+            active={patient.active}
+            upcomingSessionCount={upcomingSessionCount}
+          />
         </div>
       </div>
 
