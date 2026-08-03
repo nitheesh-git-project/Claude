@@ -129,7 +129,7 @@ export default function GetStartedPage() {
               </li>
               <li className="flex items-center gap-2">
                 <i className="fa-solid fa-check text-purple-600"></i> Track
-                earned 70% commission in ₹ INR
+                your earned commission in ₹ INR
               </li>
             </ul>
           </div>
