@@ -39,7 +39,7 @@ export default async function TherapistDashboardPage() {
   const { data: appointments } = await supabase
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback"
+      "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show"
     )
     .eq("therapist_id", user.id)
     .order("created_at", { ascending: false });
@@ -145,7 +145,7 @@ export default async function TherapistDashboardPage() {
                       <MarkNoShowButton appointmentId={a.id} />
                     </div>
                   )}
-                  {a.status === "completed" && (
+                  {a.status === "completed" && !a.no_show && (
                     <SessionFeedbackForm
                       appointmentId={a.id}
                       role="therapist"

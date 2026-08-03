@@ -42,7 +42,7 @@ export default async function PatientDashboardPage() {
   const { data: appointments } = await supabase
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id, no_show"
     )
     .eq("patient_id", user.id)
     .order("created_at", { ascending: false });
@@ -220,7 +220,7 @@ export default async function PatientDashboardPage() {
                     slotTime={a.slot_time}
                   />
                 )}
-                {a.status === "completed" && (
+                {a.status === "completed" && !a.no_show && (
                   <SessionFeedbackForm
                     appointmentId={a.id}
                     role="patient"
