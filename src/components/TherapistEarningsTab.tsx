@@ -77,12 +77,12 @@ function NotificationBanner({ request }: { request: CompletedRequest }) {
 export default function TherapistEarningsTab({
   rows,
   pendingOwedPaise,
-  hasPendingRequest,
+  requestStatus,
   latestCompletedRequest,
 }: {
   rows: TherapistEarningRow[];
   pendingOwedPaise: number;
-  hasPendingRequest: boolean;
+  requestStatus: "none" | "pending" | "reviewing";
   latestCompletedRequest: CompletedRequest | null;
 }) {
   const [sessionCodeFilter, setSessionCodeFilter] = useState("");
@@ -126,17 +126,20 @@ export default function TherapistEarningsTab({
   }, [rows, trimmedSessionCodeFilter, patientFilter, categoryFilter, statusFilter, fromMs, toMs]);
 
   const chartDays: EarningsDay[] = useMemo(() => {
-    const byDay = new Map<string, number>();
+    const byDay = new Map<string, { paidPaise: number; pendingPaise: number }>();
     for (const r of filteredRows) {
       const key = istDateKey(r.date);
-      byDay.set(key, (byDay.get(key) ?? 0) + r.earningPaise);
+      const entry = byDay.get(key) ?? { paidPaise: 0, pendingPaise: 0 };
+      if (r.status === "paid_out") entry.paidPaise += r.earningPaise;
+      else entry.pendingPaise += r.earningPaise;
+      byDay.set(key, entry);
     }
     return [...byDay.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, earningsPaise]) => ({
+      .map(([key, totals]) => ({
         key,
         label: dayLabel(`${key}T00:00:00+05:30`),
-        earningsPaise,
+        ...totals,
       }));
   }, [filteredRows]);
 
@@ -168,8 +171,13 @@ export default function TherapistEarningsTab({
           <p className="text-[11px] text-slate-400 mt-1">
             What you&apos;ve earned from completed sessions that haven&apos;t been settled yet.
           </p>
+          {requestStatus === "reviewing" && (
+            <p className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-2 inline-block">
+              Admin is reviewing your payout request.
+            </p>
+          )}
         </div>
-        <RequestPayoutButton owedPaise={pendingOwedPaise} hasPendingRequest={hasPendingRequest} />
+        <RequestPayoutButton owedPaise={pendingOwedPaise} requestStatus={requestStatus} />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
