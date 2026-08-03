@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: appointment } = await admin
     .from("appointments")
-    .select("id, therapist_id, status")
+    .select("id, therapist_id, status, no_show")
     .eq("id", appointmentId)
     .single();
 
@@ -52,6 +52,15 @@ export async function POST(request: NextRequest) {
   if (appointment.status !== "completed") {
     return NextResponse.json(
       { error: "This session isn't marked completed yet." },
+      { status: 400 }
+    );
+  }
+  // Same reasoning as submit-patient-feedback: the client hides the form
+  // for a no-show, but a page rendered just before the no-show was recorded
+  // could still have it open — reject the write here too.
+  if (appointment.no_show) {
+    return NextResponse.json(
+      { error: "This session was marked as a no-show — there's nothing to rate." },
       { status: 400 }
     );
   }
