@@ -11,12 +11,12 @@ import TherapistNotesForm from "@/components/admin/TherapistNotesForm";
 import TherapistRevenueShareForm from "@/components/admin/TherapistRevenueShareForm";
 import ResetTherapistPasswordButton from "@/components/admin/ResetTherapistPasswordButton";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
-import EditBookingForm from "@/components/admin/EditBookingForm";
-import CompleteSessionButton from "@/components/CompleteSessionButton";
-import MarkNoShowButton from "@/components/MarkNoShowButton";
-import { formatSlotTime } from "@/lib/formatSlotTime";
+import RatingManager from "@/components/admin/RatingManager";
+import ProfileSessionList from "@/components/admin/ProfileSessionList";
+import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawer";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
-import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { computeRatingAggregate } from "@/lib/ratingAggregate";
 
 export const metadata: Metadata = {
   title: "Therapist Details | Dr. Pooja's Physio",
@@ -33,7 +33,7 @@ export default async function AdminTherapistDetailPage({
   const { data: therapist } = await admin
     .from("profiles")
     .select(
-      "id, full_name, email, phone, avatar_url, active, approved, created_at, credentials, specialization, years_experience, bio, languages, revenue_share_percent, visible_on_team"
+      "id, full_name, email, phone, avatar_url, active, approved, created_at, credentials, specialization, years_experience, bio, languages, revenue_share_percent, visible_on_team, rating_visible"
     )
     .eq("id", id)
     .eq("role", "therapist")
@@ -52,7 +52,7 @@ export default async function AdminTherapistDetailPage({
     admin
       .from("appointments")
       .select(
-        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, paid_at, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note"
+        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note"
       )
       .eq("therapist_id", id)
       .order("created_at", { ascending: false }),
@@ -62,6 +62,17 @@ export default async function AdminTherapistDetailPage({
       .eq("user_id", id)
       .order("created_at", { ascending: false }),
   ]);
+
+  const appointmentIds = (appointments ?? []).map((a) => a.id);
+  const { data: reassignmentLogs } =
+    appointmentIds.length > 0
+      ? await admin
+          .from("appointment_reassignment_log")
+          .select(
+            "id, appointment_id, changed_at, changed_by, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
+          )
+          .in("appointment_id", appointmentIds)
+      : { data: [] as ReassignmentLogEntry[] };
 
   const categoryIds = [
     ...new Set((appointments ?? []).map((a) => a.category_id).filter(Boolean)),
@@ -88,7 +99,21 @@ export default async function AdminTherapistDetailPage({
   ]);
   const categoryMap = new Map((categories ?? []).map((c) => [c.id, c]));
   const patientMap = new Map((patients ?? []).map((p) => [p.id, p]));
-  const now = new Date().getTime();
+  // SessionDetailDrawer looks up both patient_id and therapist_id names
+  // from one map -- this therapist's own row plus every patient on their
+  // appointments covers every id ProfileSessionList/SessionDetailDrawer
+  // will ever need to resolve on this page.
+  const peopleMap = new Map<string, string>([
+    [therapist.id, therapist.full_name ?? "Unknown"],
+    ...(patients ?? []).map((p) => [p.id, p.full_name ?? "Unknown"] as [string, string]),
+  ]);
+
+  const ratingAggregate = computeRatingAggregate(
+    (appointments ?? []).map((a) => ({
+      rating: a.patient_rating,
+      excluded: a.patient_rating_excluded,
+    }))
+  );
 
   // Sorted by when payment actually cleared, not booking-creation order —
   // same reasoning as the patient detail page's Payment History.
@@ -207,80 +232,30 @@ export default async function AdminTherapistDetailPage({
         </div>
       </div>
 
+      <RatingManager
+        title="Patient Ratings of This Therapist"
+        average={ratingAggregate.average}
+        count={ratingAggregate.count}
+        excludedCount={ratingAggregate.excludedCount}
+        visible={therapist.rating_visible}
+        onToggleVisible={{ therapistId: therapist.id }}
+      />
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <h2 className="font-bold text-sm text-slate-800 mb-3">Assigned Sessions</h2>
-        {!appointments || appointments.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">No sessions assigned yet.</p>
-        ) : (
-          <ul className="space-y-3 text-xs">
-            {appointments.map((a) => {
-              const category = a.category_id ? categoryMap.get(a.category_id) : null;
-              const feePaise = a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE;
-              const durationMinutes =
-                a.duration_minutes ?? category?.duration_minutes ?? BASE_DURATION_MINUTES;
-              const patient = a.patient_id ? patientMap.get(a.patient_id) : null;
-              const isUpcoming =
-                a.status !== "completed" &&
-                a.status !== "cancelled" &&
-                !!a.slot_time &&
-                new Date(a.slot_time).getTime() > now;
-              return (
-                <li key={a.id} className="p-4 rounded-xl border border-slate-200 space-y-1.5">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    {a.patient_id ? (
-                      <Link
-                        href={`/admin/dashboard/patients/${a.patient_id}`}
-                        className="font-bold text-slate-900 hover:text-teal-700 hover:underline transition"
-                      >
-                        {patient?.full_name ?? "Unknown patient"}
-                      </Link>
-                    ) : (
-                      <strong className="text-slate-900">Unknown patient</strong>
-                    )}
-                    <div className="flex gap-2">
-                      <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
-                        {a.status}
-                      </span>
-                      <span
-                        className={`capitalize font-semibold px-2.5 py-1 rounded-full ${
-                          a.payment_status === "paid"
-                            ? "text-green-700 bg-green-50"
-                            : "text-slate-500 bg-slate-100"
-                        }`}
-                      >
-                        {a.payment_status}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-slate-500">
-                    {a.concern ?? "General Consultation"} •{" "}
-                    {formatSlotTime(a.slot_time, a.timezone)} • {durationMinutes} min • ₹
-                    {(feePaise / 100).toLocaleString("en-IN")}
-                  </p>
-                  {a.notes && (
-                    <p className="text-slate-500">
-                      <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
-                    </p>
-                  )}
-                  {isUpcoming && (
-                    <EditBookingForm
-                      appointmentId={a.id}
-                      currentTherapistId={therapist.id}
-                      currentSlotTime={a.slot_time}
-                      therapists={approvedTherapists ?? []}
-                    />
-                  )}
-                  {a.status === "confirmed" && (
-                    <div className="flex items-center gap-2">
-                      <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
-                      <MarkNoShowButton appointmentId={a.id} />
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <p className="text-[11px] text-slate-400 -mt-2 mb-3">
+          Click a session to see its full detail, including rating &amp; feedback.
+        </p>
+        <ProfileSessionList
+          variant="therapist"
+          appointments={appointments ?? []}
+          peopleMap={peopleMap}
+          categoryMap={categoryMap}
+          therapists={approvedTherapists ?? []}
+          categories={categories ?? []}
+          reassignmentLogs={reassignmentLogs ?? []}
+          emptyMessage="No sessions assigned yet."
+        />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">

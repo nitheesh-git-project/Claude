@@ -16,6 +16,7 @@ import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManage
 import PackageManager from "@/components/admin/PackageManager";
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
+import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
@@ -77,7 +78,7 @@ export default async function AdminDashboardPage() {
   const { data: appointments, error: appointmentsError } = await admin
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, therapist_rating, therapist_feedback, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, no_show"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, no_show"
     )
     .order("created_at", { ascending: false });
   // This single query feeds Overview, Calendar, Session Story, and Metrics
@@ -152,6 +153,12 @@ export default async function AdminDashboardPage() {
     .select("id, question, answer, display_order, active")
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
+
+  const { data: siteSettings } = await admin
+    .from("site_settings")
+    .select("ratings_visible_publicly")
+    .eq("id", true)
+    .single();
   const categoryMap = new Map((treatmentCategories ?? []).map((c) => [c.id, c]));
 
   // Revenue rollup per hospital: every paid session belonging to a patient
@@ -707,6 +714,10 @@ export default async function AdminDashboardPage() {
 
   const siteContent = (
     <>
+      <SiteRatingsVisibilityToggle
+        visible={siteSettings?.ratings_visible_publicly ?? true}
+      />
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-bold text-lg text-slate-800 mb-4">
           Category Performance

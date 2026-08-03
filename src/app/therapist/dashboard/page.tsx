@@ -8,6 +8,7 @@ import CompleteSessionButton from "@/components/CompleteSessionButton";
 import MarkNoShowButton from "@/components/MarkNoShowButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import { formatSlotTime } from "@/lib/formatSlotTime";
+import { computeRatingAggregate } from "@/lib/ratingAggregate";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -32,17 +33,28 @@ export default async function TherapistDashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, credentials, avatar_url, revenue_share_percent")
+    .select("full_name, credentials, avatar_url, revenue_share_percent, rating_visible")
     .eq("id", user.id)
     .single();
 
   const { data: appointments } = await supabase
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show"
+      "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded"
     )
     .eq("therapist_id", user.id)
     .order("created_at", { ascending: false });
+
+  // What patients rated THIS therapist -- the therapist's own standing,
+  // shown to them regardless of whether it's currently visible to the
+  // public (rating_visible/site_settings only gate the public /team page
+  // and homepage, not what a therapist can see about themselves).
+  const ownRating = computeRatingAggregate(
+    (appointments ?? []).map((a) => ({
+      rating: a.patient_rating,
+      excluded: a.patient_rating_excluded,
+    }))
+  );
 
   // A therapist can read their own appointment rows via RLS, but not the
   // linked patients' profiles (that policy only allows a user to read
@@ -81,6 +93,20 @@ export default async function TherapistDashboardPage() {
                   <strong className="text-slate-600">{profile.revenue_share_percent}%</strong>
                 </p>
               )}
+            <p className="text-[11px] text-slate-400 mt-1">
+              Your Rating:{" "}
+              {ownRating.average === null ? (
+                <strong className="text-slate-600">No ratings yet</strong>
+              ) : (
+                <strong className="text-slate-600">
+                  {ownRating.average.toFixed(1)} ({ownRating.count} rating
+                  {ownRating.count === 1 ? "" : "s"})
+                </strong>
+              )}
+              {profile?.rating_visible === false && (
+                <span className="text-slate-400"> — hidden from public pages</span>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-4">
