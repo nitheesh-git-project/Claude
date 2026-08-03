@@ -65,12 +65,10 @@ export default async function TherapistProfilePage() {
         <InstantProfileFields
           userId={user.id}
           fields={[
-            { name: "phone", label: "WhatsApp / Phone", type: "tel" },
             { name: "languages", label: "Languages Spoken", type: "text" },
             { name: "bio", label: "Short Bio", type: "textarea" },
           ]}
           currentValues={{
-            phone: profile?.phone ?? "",
             languages: profile?.languages ?? "",
             bio: profile?.bio ?? "",
           }}
@@ -101,6 +99,7 @@ export default async function TherapistProfilePage() {
               type: "number",
               min: 0,
             },
+            { name: "phone", label: "WhatsApp / Phone", type: "tel" },
           ]}
           currentValues={{
             full_name: profile?.full_name ?? "",
@@ -110,6 +109,7 @@ export default async function TherapistProfilePage() {
               profile?.years_experience !== null && profile?.years_experience !== undefined
                 ? String(profile.years_experience)
                 : "",
+            phone: profile?.phone ?? "",
           }}
           fieldStatus={fieldStatus}
         />

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { sanitizePhoneInput } from "@/lib/phoneInput";
 
 const SOURCES = ["Ads", "Friends", "Hospitals", "Other"];
 
@@ -75,6 +76,9 @@ export default function HospitalInquiryForm() {
             name="phone"
             placeholder="+91 98765 43210"
             required
+            inputMode="tel"
+            maxLength={20}
+            onInput={sanitizePhoneInput}
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
         </div>

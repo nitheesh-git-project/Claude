@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_INR } from "@/lib/pricing";
+import { isValidEmail } from "@/lib/validateEmail";
 
 type Preview = {
   valid: boolean;
@@ -110,6 +111,11 @@ export default function InviteRegisterCard() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+
+    if (!isValidEmail(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match. Please re-enter them.");

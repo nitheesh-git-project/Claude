@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
+import { isValidEmail } from "@/lib/validateEmail";
+import { sanitizePhoneInput } from "@/lib/phoneInput";
 
 export default function PatientAuthCard() {
   const [tab, setTab] = useState<"login" | "register">("login");
@@ -75,6 +77,18 @@ export default function PatientAuthCard() {
     const fullName = formData.get("fullName") as string;
     const phone = formData.get("phone") as string;
     const referralCode = (formData.get("referralCode") as string)?.trim();
+
+    if (!isValidEmail(email)) {
+      setLoading(false);
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (!phone.trim()) {
+      setLoading(false);
+      setError("Please enter your WhatsApp / Phone number.");
+      return;
+    }
 
     if (password !== confirmPassword) {
       setLoading(false);
@@ -282,14 +296,10 @@ export default function PatientAuthCard() {
               <input
                 type="tel"
                 name="phone"
+                required
                 inputMode="tel"
                 maxLength={20}
-                onInput={(e) => {
-                  e.currentTarget.value = e.currentTarget.value.replace(
-                    /[^0-9+\-\s()]/g,
-                    ""
-                  );
-                }}
+                onInput={sanitizePhoneInput}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>

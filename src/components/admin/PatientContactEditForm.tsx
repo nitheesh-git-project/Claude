@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { sanitizePhoneInput } from "@/lib/phoneInput";
 
 export default function PatientContactEditForm({
   patientId,
@@ -85,6 +86,8 @@ export default function PatientContactEditForm({
         <input
           type="tel"
           value={phone}
+          inputMode="tel"
+          onInput={sanitizePhoneInput}
           onChange={(e) => setPhone(e.target.value)}
           className="w-full p-2 rounded-lg border border-slate-300"
         />

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { sanitizePhoneInput } from "@/lib/phoneInput";
 
 type FieldConfig = {
   name: string;
@@ -104,6 +105,8 @@ export default function InstantProfileFields({
             <input
               type={f.type}
               value={values[f.name] ?? ""}
+              inputMode={f.type === "tel" ? "tel" : undefined}
+              onInput={f.type === "tel" ? sanitizePhoneInput : undefined}
               onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
               className="w-full p-2.5 rounded-lg border border-slate-300"
             />
