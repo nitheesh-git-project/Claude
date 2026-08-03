@@ -142,7 +142,22 @@ security definer set search_path = public
 as $$
 declare
   v_referred_by uuid;
+  v_role text;
 begin
+  -- raw_user_meta_data is whatever the caller passed as options.data to
+  -- auth.signUp() — for a public signup that's fully client-controlled, so
+  -- it must NEVER be trusted to grant 'admin' or 'hospital'. 'therapist' is
+  -- the only self-serve role beyond the 'patient' default; both of those
+  -- still start unapproved/gated appropriately below. Admin accounts are
+  -- promoted by hand in the Table Editor; hospital accounts are created by
+  -- the onboard-hospital route, which sets role via a service-role update
+  -- *after* this trigger runs, bypassing this restriction entirely (as
+  -- intended — that path never goes through public signUp metadata).
+  v_role := case
+    when new.raw_user_meta_data->>'role' = 'therapist' then 'therapist'
+    else 'patient'
+  end;
+
   -- Self-serve referral: if the signup form passed a hospital's referral
   -- code, resolve it to that hospital's profile id. An unknown/blank code
   -- just leaves this null rather than failing the signup.
@@ -155,12 +170,12 @@ begin
   insert into public.profiles (id, role, full_name, email, phone, credentials, approved, referred_by_hospital_id)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data->>'role', 'patient'),
+    v_role,
     coalesce(new.raw_user_meta_data->>'full_name', ''),
     new.email,
     new.raw_user_meta_data->>'phone',
     new.raw_user_meta_data->>'credentials',
-    (coalesce(new.raw_user_meta_data->>'role', 'patient') = 'patient'),
+    (v_role = 'patient'),
     v_referred_by
   );
   return new;
