@@ -781,6 +781,9 @@ export default async function AdminDashboardPage() {
       )
       .map((p) => [p.id, hospitalSharePercentById.get(p.referred_by_hospital_id as string) as number])
   );
+  const hospitalReferredPatientIds = Object.fromEntries(
+    patients.filter((p) => p.referred_by_hospital_id).map((p) => [p.id, true as const])
+  );
 
   const metricsTab = (
     <AdminMetricsTab
@@ -790,6 +793,7 @@ export default async function AdminDashboardPage() {
       patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
       therapistSharePercent={therapistSharePercent}
       patientHospitalSharePercent={patientHospitalSharePercent}
+      hospitalReferredPatientIds={hospitalReferredPatientIds}
       nowMs={nowTimestamp()}
     />
   );

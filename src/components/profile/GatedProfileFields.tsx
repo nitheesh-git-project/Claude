@@ -78,6 +78,7 @@ export default function GatedProfileFields({
     // its own — a single shared row would mean withdrawing any one field
     // deletes the whole row and silently withdraws the others with it.
     const rows: { user_id: string; changes: Record<string, string | number | null> }[] = [];
+    const submittedNames: string[] = [];
     for (const f of editableFields) {
       if (!touchedRef.current.has(f.name)) continue;
       const rawNew = (values[f.name] ?? "").trim();
@@ -92,6 +93,7 @@ export default function GatedProfileFields({
         value = rawNew === "" ? null : rawNew;
       }
       rows.push({ user_id: userId, changes: { [f.name]: value } });
+      submittedNames.push(f.name);
     }
 
     if (rows.length === 0) {
@@ -107,7 +109,15 @@ export default function GatedProfileFields({
       setError("Could not submit your request. Please try again.");
       return;
     }
-    touchedRef.current.clear();
+    // Only untouch the fields actually submitted -- not every touched field.
+    // A blanket clear() here would also un-mark a *different* field the user
+    // started editing while this request was in flight, letting the
+    // post-submit router.refresh() silently overwrite that unsaved edit with
+    // stale server data (the resync effect above only preserves values for
+    // names still in touchedRef).
+    for (const name of submittedNames) {
+      touchedRef.current.delete(name);
+    }
     setJustSubmitted(true);
     router.refresh();
   }

@@ -3,6 +3,7 @@ import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
 
 // Unlike a regular appointment (created client-side, then paid for),
 // there's no meaningful "unpaid" state for a package purchase — so this
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+  if (!(await isProfileActive(user.id))) {
+    return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
 
   const admin = createAdminClient();

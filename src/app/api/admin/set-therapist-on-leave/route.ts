@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
@@ -8,7 +9,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { therapistId, onLeave } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    therapistId?: string;
+    onLeave?: boolean;
+  }>(request);
+  if (parseError) return parseError;
+  const { therapistId, onLeave } = body;
   if (!therapistId || typeof onLeave !== "boolean") {
     return NextResponse.json(
       { error: "Missing therapistId or onLeave" },

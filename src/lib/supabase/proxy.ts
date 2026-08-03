@@ -98,8 +98,18 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(new URL("/admin/login", request.url));
     }
 
-    if (path.startsWith("/hospital/dashboard") && profile?.role !== "hospital") {
-      return NextResponse.redirect(new URL("/hospital/login", request.url));
+    if (path.startsWith("/hospital/dashboard")) {
+      if (profile?.role !== "hospital") {
+        return NextResponse.redirect(new URL("/hospital/login", request.url));
+      }
+      // Consistent with the patient/therapist gates above -- there's no
+      // admin control to suspend a hospital account today, but if `active`
+      // is ever flipped by hand (or a future feature adds one), this should
+      // already lock the dashboard out the same way it does for the other
+      // two roles rather than silently doing nothing.
+      if (!profile.active) {
+        return NextResponse.redirect(new URL("/account-suspended", request.url));
+      }
     }
   }
 
