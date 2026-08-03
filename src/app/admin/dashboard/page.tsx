@@ -7,6 +7,7 @@ import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
 import AssignReferralForm from "@/components/admin/AssignReferralForm";
 import AdminTabs from "@/components/admin/AdminTabs";
 import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
+import AdminPayoutRequestsTab, { type PayoutRequestRow } from "@/components/admin/AdminPayoutRequestsTab";
 import AdminPaymentHistoryTab from "@/components/admin/AdminPaymentHistoryTab";
 import AdminRosterTab from "@/components/admin/AdminRosterTab";
 import LeadStatusButtons from "@/components/admin/LeadStatusButtons";
@@ -30,6 +31,7 @@ import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { mergeSessionCodes } from "@/lib/sessionCode";
+import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Dr. Pooja's Physio",
@@ -875,6 +877,42 @@ export default async function AdminDashboardPage() {
     />
   );
 
+  // therapist_payout_requests is new/migration-dependent -- kept isolated
+  // (it's its own brand-new table, so this is inherently its own query
+  // already) so an unknown-table error here only empties this one tab, not
+  // the rest of the dashboard.
+  const { data: payoutRequests } = await admin
+    .from("therapist_payout_requests")
+    .select("id, therapist_id, requested_amount_paise, status, requested_at, completed_at")
+    .order("requested_at", { ascending: false });
+
+  const payoutRequestRows: PayoutRequestRow[] = (payoutRequests ?? []).map((r) => {
+    const therapist = profileMap.get(r.therapist_id);
+    const currentlyOwedPaise =
+      r.status === "pending"
+        ? computeTherapistPayoutSummary(
+            r.therapist_id,
+            therapist?.revenue_share_percent ?? null,
+            (appointments ?? []).filter((a) => a.therapist_id === r.therapist_id),
+            nowTimestamp()
+          ).owedPaise
+        : 0;
+    return {
+      id: r.id,
+      therapistId: r.therapist_id,
+      therapistName: therapist?.full_name ?? "Unknown therapist",
+      therapistCode: roleCodeMap.get(r.therapist_id)?.therapist_code ?? null,
+      requestedAmountPaise: r.requested_amount_paise,
+      requestedAt: r.requested_at,
+      status: r.status as "pending" | "completed",
+      completedAt: r.completed_at,
+      currentlyOwedPaise,
+    };
+  });
+  const payoutRequestsBadgeCount = payoutRequestRows.filter((r) => r.status === "pending").length;
+
+  const payoutRequestsTab = <AdminPayoutRequestsTab requests={payoutRequestRows} />;
+
   const paymentHistoryTab = (
     <AdminPaymentHistoryTab
       patients={patients.map((p) => ({
@@ -1034,6 +1072,8 @@ export default async function AdminDashboardPage() {
       b2bPartners={b2bPartners}
       b2bBadgeCount={b2bBadgeCount}
       payouts={payoutsTab}
+      payoutRequests={payoutRequestsTab}
+      payoutRequestsBadgeCount={payoutRequestsBadgeCount}
       paymentHistory={paymentHistoryTab}
       siteContent={siteContent}
       adminName={adminProfile?.full_name ?? "Admin"}
