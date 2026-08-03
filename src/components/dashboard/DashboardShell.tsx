@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 
 // `href` marks a real page navigation (e.g. "Edit Profile") rather than a
-// same-page anchor -- it renders as a plain anchor instead of a scroll
-// button, is never scroll-spied (there's no section on this page to
-// observe), and isn't included in the IntersectionObserver targets below.
+// same-page anchor -- it always renders as a plain link to that page. An
+// anchor item (no `href`) resolves to `${basePath}#id`: a smooth in-page
+// scroll when already on basePath, or a real navigation there (landing on
+// that section) from any other page rendered by this same shell -- this is
+// what lets "Edit Profile" and the dashboard's own sections share one nav
+// no matter which of the two pages you're currently on.
 export type ShellNavItem = { id: string; label: string; icon: string; href?: string };
 
 // Shared with the Admin Dashboard's own AdminTabs shell only in spirit, not
@@ -20,6 +24,7 @@ export type ShellNavItem = { id: string; label: string; icon: string; href?: str
 export default function DashboardShell({
   brandLabel,
   brandIcon,
+  basePath,
   navItems,
   userName,
   userEmail,
@@ -32,6 +37,12 @@ export default function DashboardShell({
 }: {
   brandLabel: string;
   brandIcon: string;
+  // The dashboard page's own URL (e.g. "/patient/dashboard") -- every
+  // anchor nav item is really a link to `${basePath}#id`. Other pages this
+  // same shell wraps (Edit Profile) pass this so their anchor items still
+  // point back at the real sections instead of trying (and failing) to
+  // scroll to an id that doesn't exist on the current page.
+  basePath: string;
   navItems: ShellNavItem[];
   userName: string;
   userEmail: string;
@@ -42,6 +53,8 @@ export default function DashboardShell({
   headerActions?: ReactNode;
   children: ReactNode;
 }) {
+  const pathname = usePathname();
+  const onBasePage = pathname === basePath;
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(
@@ -51,9 +64,10 @@ export default function DashboardShell({
   useEffect(() => {
     // Highlights whichever section is currently nearest the top of the
     // viewport -- real scroll-spy over the page's actual sections, not a
-    // fake "current tab" since there's no tab state here to read from. Link
-    // items (Edit Profile) are excluded -- there's no on-page section for
-    // them to observe.
+    // fake "current tab" since there's no tab state here to read from.
+    // Skipped entirely off the base page -- none of these ids exist on
+    // Edit Profile, so there's nothing to observe there.
+    if (!onBasePage) return;
     const anchorItems = navItems.filter((item) => !item.href);
     if (anchorItems.length === 0) return;
     const observer = new IntersectionObserver(
@@ -72,7 +86,18 @@ export default function DashboardShell({
       .filter((el): el is HTMLElement => el !== null);
     els.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [navItems]);
+  }, [navItems, onBasePage]);
+
+  useEffect(() => {
+    // Landing here via a real navigation from another page (e.g. clicking
+    // "Your Sessions" while on Edit Profile) arrives as basePath#id -- the
+    // browser's own anchor-jump already gets close, but re-running our own
+    // scroll keeps the offset identical to a same-page click.
+    if (!onBasePage) return;
+    const hash = window.location.hash.slice(1);
+    if (hash) scrollToSection(hash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onBasePage]);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -89,13 +114,18 @@ export default function DashboardShell({
     if (!el) return;
     const y = el.getBoundingClientRect().top + window.scrollY - (offsetTop ? 96 : 88);
     window.scrollTo({ top: y, behavior: "smooth" });
+    // A same-page click is intercepted (preventDefault) for the custom
+    // offset above, which skips the browser's own hash update too -- set it
+    // by hand so the URL still reflects the section (refresh, share, back
+    // button all keep working).
+    history.replaceState(null, "", `#${id}`);
   }
 
   // A plain render function, not a nested component -- called directly
   // rather than as <NavItem ... />, so React never treats it as its own
   // component type and there's nothing to remount every render.
   function renderNavItem(item: ShellNavItem, mini: boolean, onNavigate?: () => void) {
-    const active = activeId === item.id;
+    const active = item.href ? pathname === item.href : onBasePage && activeId === item.id;
     const className = `group relative w-full flex items-center gap-3 rounded-xl transition ${
       mini ? "justify-center px-0 py-3" : "px-3.5 py-2.5"
     } ${active ? "bg-teal-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`;
@@ -111,38 +141,33 @@ export default function DashboardShell({
       </>
     );
 
-    if (item.href) {
-      return (
-        // A plain anchor (full page load), not next/link -- this crosses
-        // out of the dashboard shell into a differently-chromed page (the
-        // public Navbar/Footer come back), and a hard nav sidesteps any
-        // client-side-transition edge case the same way this codebase's own
-        // login handlers already do for cookie-sensitive navigations.
-        <a
-          key={item.id}
-          href={item.href}
-          onClick={() => onNavigate?.()}
-          title={mini ? item.label : undefined}
-          className={className}
-        >
-          {content}
-        </a>
-      );
-    }
-
+    // Anchor items resolve to a real URL (`${basePath}#id`) so they work
+    // from any page this shell wraps -- clicking one while already on
+    // basePath intercepts the click for a smooth in-page scroll instead of
+    // a jarring reload; clicking it from elsewhere (Edit Profile) lets the
+    // browser actually navigate there, and the hash-scroll effect above
+    // takes over once it lands. A plain anchor throughout (not next/link)
+    // -- client-side transitions into a differently-chromed route were
+    // silently not completing in this environment, and a hard nav sidesteps
+    // it the same way this codebase's own login handlers already do for
+    // cookie-sensitive navigations.
+    const targetHref = item.href ?? `${basePath}#${item.id}`;
     return (
-      <button
+      <a
         key={item.id}
-        type="button"
-        onClick={() => {
-          scrollToSection(item.id);
+        href={targetHref}
+        onClick={(e) => {
+          if (!item.href && onBasePage) {
+            e.preventDefault();
+            scrollToSection(item.id);
+          }
           onNavigate?.();
         }}
         title={mini ? item.label : undefined}
         className={className}
       >
         {content}
-      </button>
+      </a>
     );
   }
 

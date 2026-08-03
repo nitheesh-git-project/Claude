@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import SignOutButton from "@/components/auth/SignOutButton";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import InstantProfileFields from "@/components/profile/InstantProfileFields";
 import GatedProfileFields from "@/components/profile/GatedProfileFields";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
+import DashboardShell from "@/components/dashboard/DashboardShell";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { LANGUAGE_OPTIONS } from "@/lib/languageOptions";
+import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 
 export const metadata: Metadata = {
   title: "Edit Profile | Dr. Pooja's Physio",
@@ -38,21 +38,48 @@ export default async function PatientProfilePage() {
     .order("created_at", { ascending: false });
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
 
-  return (
-    <section className="py-8 max-w-2xl mx-auto px-4">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Edit Profile</h1>
-          <Link
-            href="/patient/dashboard"
-            className="text-xs text-teal-700 font-semibold mt-1 inline-block"
-          >
-            ← Back to Dashboard
-          </Link>
-        </div>
-        <SignOutButton />
-      </div>
+  // Cheap existence-only checks, not the full rows the dashboard page
+  // itself fetches -- this page only needs to know whether to show these
+  // two sidebar nav items, so the dashboard page and this one always agree
+  // on what's in the sidebar (see buildPatientNavItems).
+  const { count: ownedPackagesCount } = await supabase
+    .from("patient_package_purchases")
+    .select("id", { count: "exact", head: true })
+    .eq("patient_id", user.id)
+    .eq("payment_status", "paid");
+  const { count: availablePackagesCount } = await supabase
+    .from("treatment_category_packages")
+    .select("id", { count: "exact", head: true })
+    .eq("active", true);
 
+  const navItems = buildPatientNavItems({
+    hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
+    hasAvailablePackages: !!availablePackagesCount && availablePackagesCount > 0,
+  });
+
+  // Same computation as the root layout's own showDebugNav -- duplicated
+  // here (rather than threaded through props from a layout) because this
+  // page hides the shared Navbar entirely and needs the same dev-only-bar
+  // offset for its own fixed sidebar. See DashboardShell's offsetTop prop.
+  const showDebugNav =
+    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
+    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
+      process.env.NODE_ENV !== "production");
+
+  return (
+    <DashboardShell
+      brandLabel="Patient Panel"
+      brandIcon="fa-user-injured"
+      basePath="/patient/dashboard"
+      navItems={navItems}
+      userName={profile?.full_name ?? "Patient"}
+      userEmail={profile?.email ?? user.email ?? ""}
+      userAvatarUrl={profile?.avatar_url ?? null}
+      offsetTop={showDebugNav}
+      headerTitle="Edit Profile"
+      headerSubtitle="Update your personal details, contact info, and account security."
+    >
+      <div className="max-w-2xl">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <AvatarUpload
           userId={user.id}
@@ -123,6 +150,7 @@ export default async function PatientProfilePage() {
         </p>
         <AccountSecuritySection email={profile?.email ?? user.email ?? ""} />
       </div>
-    </section>
+      </div>
+    </DashboardShell>
   );
 }
