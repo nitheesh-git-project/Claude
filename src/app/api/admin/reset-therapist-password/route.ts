@@ -40,5 +40,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Kept visible to admins (not shown just once) so they can walk the
+  // therapist through logging in over a support call — cleared
+  // automatically once they set their own password via forgot-password.
+  await admin.from("therapist_admin_notes").upsert({
+    therapist_id: therapistId,
+    temp_password: password,
+    temp_password_set_at: new Date().toISOString(),
+  });
+
   return NextResponse.json({ email: therapist.email, password });
 }

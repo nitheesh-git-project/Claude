@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import FarewellBanner from "@/components/FarewellBanner";
 import Footer from "@/components/Footer";
 import DebugNav from "@/components/DebugNav";
 
@@ -22,6 +24,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-800 font-sans">
         {showDebugNav && <DebugNav />}
         <Navbar offsetTop={showDebugNav} />
+        <Suspense fallback={null}>
+          <FarewellBanner />
+        </Suspense>
         <main className="flex-grow">{children}</main>
         <Footer />
       </body>

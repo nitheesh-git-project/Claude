@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function AdminLoginCard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
   const supabase = createClient();
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
@@ -24,8 +22,11 @@ export default function AdminLoginCard() {
       setError(error.message);
       return;
     }
-    router.push("/admin/dashboard");
-    router.refresh();
+    // A hard navigation, not router.push — a client-side soft nav can race
+    // the just-set auth cookies, so the proxy's next check reads a stale
+    // session and bounces back to /admin/login without ever showing an
+    // error, leaving the button looking like it silently failed.
+    window.location.href = "/admin/dashboard";
   }
 
   return (
@@ -54,6 +55,7 @@ export default function AdminLoginCard() {
               type="email"
               name="email"
               required
+              maxLength={254}
               className="w-full p-3 rounded-xl border border-slate-300"
             />
           </div>
@@ -63,6 +65,7 @@ export default function AdminLoginCard() {
               type="password"
               name="password"
               required
+              maxLength={72}
               className="w-full p-3 rounded-xl border border-slate-300"
             />
           </div>

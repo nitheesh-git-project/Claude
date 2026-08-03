@@ -226,6 +226,19 @@ create table if not exists therapist_admin_notes (
 
 alter table therapist_admin_notes enable row level security;
 
+-- The plaintext of the most recent admin-generated password, kept visible
+-- to admins (not just shown once) so they can walk a patient/therapist
+-- through logging in over a support call. Lives on these zero-RLS-policy
+-- tables (service role only) for the same reason admin notes do — a plain
+-- column on profiles would leak straight back to the account owner via
+-- profiles_select_own. Cleared the moment the user sets their own password
+-- through the forgot-password flow (see /api/clear-temp-password), so a
+-- once-used support password doesn't linger here forever.
+alter table patient_admin_notes add column if not exists temp_password text;
+alter table patient_admin_notes add column if not exists temp_password_set_at timestamptz;
+alter table therapist_admin_notes add column if not exists temp_password text;
+alter table therapist_admin_notes add column if not exists temp_password_set_at timestamptz;
+
 drop policy if exists "profiles_update_own" on profiles;
 create policy "profiles_update_own" on profiles
   for update using (auth.uid() = id);

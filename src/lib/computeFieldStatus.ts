@@ -11,10 +11,14 @@ type ChangeRequestRow = {
 /**
  * Reduces a user's full change-request history into "what's the current
  * state of each individual field right now" — pending (locked, awaiting
- * review), declined (editable again, with the reason shown), or untouched
- * (no entry). Requests are expected ordered newest-first; for any field
- * touched by more than one request, only the most recent one matters, so
- * an old decline doesn't linger after a later resubmission was approved.
+ * review, carrying the requested new value), declined (editable again, with
+ * the reason shown), or untouched (no entry). Requests are expected ordered
+ * newest-first; for any field touched by more than one request, only the
+ * most recent one matters, so an old decline doesn't linger after a later
+ * resubmission was approved. Each field is submitted as its own request row
+ * (see GatedProfileFields), so a field's pending/declined state here is
+ * scoped to that one field, not entangled with any other field a user
+ * happened to also change around the same time.
  */
 export function computeFieldStatus(requests: ChangeRequestRow[]): FieldStatusMap {
   const status: FieldStatusMap = {};
@@ -25,7 +29,7 @@ export function computeFieldStatus(requests: ChangeRequestRow[]): FieldStatusMap
       if (seen.has(field)) continue; // a newer request already decided this field's state
       seen.add(field);
       if (r.status === "pending") {
-        status[field] = { status: "pending", requestId: r.id };
+        status[field] = { status: "pending", requestId: r.id, newValue: r.changes[field] };
       } else if (r.status === "declined") {
         status[field] = { status: "declined", notes: r.admin_notes };
       }

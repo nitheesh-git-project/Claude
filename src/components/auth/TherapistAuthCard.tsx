@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function TherapistAuthCard() {
@@ -9,7 +8,9 @@ export default function TherapistAuthCard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const router = useRouter();
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
   const supabase = createClient();
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
@@ -27,8 +28,22 @@ export default function TherapistAuthCard() {
       setError(error.message);
       return;
     }
-    router.push("/therapist/dashboard");
-    router.refresh();
+    // Hard navigation so the fresh cookies set by signInWithPassword are
+    // guaranteed to be sent with the very next request to the proxy.
+    window.location.href = "/therapist/dashboard";
+  }
+
+  async function handleForgotPassword(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setForgotSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setForgotSubmitting(false);
+    setForgotSent(true);
   }
 
   async function handleRegister(e: React.FormEvent<HTMLFormElement>) {
@@ -69,8 +84,7 @@ export default function TherapistAuthCard() {
       return;
     }
 
-    router.push("/pending-approval");
-    router.refresh();
+    window.location.href = "/pending-approval";
   }
 
   return (
@@ -85,7 +99,10 @@ export default function TherapistAuthCard() {
 
         <div className="flex border-b border-slate-200 mt-6 mb-6">
           <button
-            onClick={() => setTab("login")}
+            onClick={() => {
+              setTab("login");
+              setForgotMode(false);
+            }}
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "login"
                 ? "text-purple-700 border-b-2 border-purple-700"
@@ -95,7 +112,10 @@ export default function TherapistAuthCard() {
             Sign In
           </button>
           <button
-            onClick={() => setTab("register")}
+            onClick={() => {
+              setTab("register");
+              setForgotMode(false);
+            }}
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "register"
                 ? "text-purple-700 border-b-2 border-purple-700"
@@ -117,7 +137,56 @@ export default function TherapistAuthCard() {
           </div>
         )}
 
-        {tab === "login" ? (
+        {tab === "login" && forgotMode ? (
+          forgotSent ? (
+            <div className="text-xs space-y-4">
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-purple-800">
+                If an account exists for that email, we&apos;ve sent a
+                password reset link. Check your inbox (and spam folder).
+              </div>
+              <button
+                onClick={() => {
+                  setForgotMode(false);
+                  setForgotSent(false);
+                }}
+                className="text-purple-700 font-semibold hover:underline"
+              >
+                ← Back to Sign In
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotPassword} className="space-y-4 text-xs">
+              <p className="text-slate-500">
+                Enter your account email and we&apos;ll send you a link to
+                reset your password.
+              </p>
+              <div>
+                <label className="block font-semibold mb-1">Email Address</label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  maxLength={254}
+                  className="w-full p-3 rounded-xl border border-slate-300"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={forgotSubmitting}
+                className="w-full bg-purple-700 hover:bg-purple-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
+              >
+                {forgotSubmitting ? "Sending..." : "Send Reset Link"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setForgotMode(false)}
+                className="w-full text-slate-500 font-semibold"
+              >
+                ← Back to Sign In
+              </button>
+            </form>
+          )
+        ) : tab === "login" ? (
           <form onSubmit={handleLogin} className="space-y-4 text-xs">
             <div>
               <label className="block font-semibold mb-1">Email Address</label>
@@ -125,6 +194,7 @@ export default function TherapistAuthCard() {
                 type="email"
                 name="email"
                 required
+                maxLength={254}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
@@ -134,8 +204,16 @@ export default function TherapistAuthCard() {
                 type="password"
                 name="password"
                 required
+                maxLength={72}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
+              <button
+                type="button"
+                onClick={() => setForgotMode(true)}
+                className="text-purple-700 font-semibold mt-1.5 hover:underline"
+              >
+                Forgot password?
+              </button>
             </div>
             <button
               type="submit"
@@ -153,6 +231,7 @@ export default function TherapistAuthCard() {
                 type="text"
                 name="fullName"
                 required
+                maxLength={120}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
@@ -162,6 +241,7 @@ export default function TherapistAuthCard() {
                 type="email"
                 name="email"
                 required
+                maxLength={254}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
@@ -172,6 +252,14 @@ export default function TherapistAuthCard() {
               <input
                 type="tel"
                 name="phone"
+                inputMode="tel"
+                maxLength={20}
+                onInput={(e) => {
+                  e.currentTarget.value = e.currentTarget.value.replace(
+                    /[^0-9+\-\s()]/g,
+                    ""
+                  );
+                }}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
@@ -184,6 +272,7 @@ export default function TherapistAuthCard() {
                 name="credentials"
                 placeholder="e.g. BPT, MPT — Council Reg: PT-XXXXXX"
                 required
+                maxLength={200}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
@@ -199,6 +288,7 @@ export default function TherapistAuthCard() {
                 name="password"
                 required
                 minLength={6}
+                maxLength={72}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
@@ -211,6 +301,7 @@ export default function TherapistAuthCard() {
                 name="confirmPassword"
                 required
                 minLength={6}
+                maxLength={72}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>

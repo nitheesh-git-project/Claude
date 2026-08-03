@@ -15,7 +15,8 @@ type FieldConfig = {
 
 export type FieldStatusMap = Record<
   string,
-  { status: "pending"; requestId: string } | { status: "declined"; notes: string | null }
+  | { status: "pending"; requestId: string; newValue: unknown }
+  | { status: "declined"; notes: string | null }
 >;
 
 export default function GatedProfileFields({
@@ -37,39 +38,40 @@ export default function GatedProfileFields({
   const router = useRouter();
   const supabase = createClient();
 
+  const editableFields = fields.filter((f) => fieldStatus[f.name]?.status !== "pending");
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setJustSubmitted(false);
 
-    const changes: Record<string, string | number | null> = {};
-    for (const f of fields) {
-      // Locked fields (already awaiting review) aren't editable, so they
-      // can't be part of a new submission — everything else still can be,
-      // even while one field is pending.
-      if (fieldStatus[f.name]?.status === "pending") continue;
-
+    // Each changed field becomes its own request row (rather than one row
+    // holding every change) so it can later be withdrawn or reviewed on
+    // its own — a single shared row would mean withdrawing any one field
+    // deletes the whole row and silently withdraws the others with it.
+    const rows: { user_id: string; changes: Record<string, string | number | null> }[] = [];
+    for (const f of editableFields) {
       const rawNew = (values[f.name] ?? "").trim();
       const rawOld = (currentValues[f.name] ?? "").trim();
       if (rawNew === rawOld) continue;
 
+      let value: string | number | null;
       if (f.type === "number") {
         const n = rawNew === "" ? null : Number(rawNew);
-        changes[f.name] = n === null || Number.isNaN(n) ? null : n;
+        value = n === null || Number.isNaN(n) ? null : n;
       } else {
-        changes[f.name] = rawNew === "" ? null : rawNew;
+        value = rawNew === "" ? null : rawNew;
       }
+      rows.push({ user_id: userId, changes: { [f.name]: value } });
     }
 
-    if (Object.keys(changes).length === 0) {
+    if (rows.length === 0) {
       setError("You haven't changed anything yet.");
       return;
     }
 
     setLoading(true);
-    const { error: insertError } = await supabase
-      .from("profile_change_requests")
-      .insert({ user_id: userId, changes });
+    const { error: insertError } = await supabase.from("profile_change_requests").insert(rows);
     setLoading(false);
 
     if (insertError) {
@@ -123,8 +125,10 @@ export default function GatedProfileFields({
 
             {isLocked ? (
               <div className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
-                <span className="text-slate-500">
-                  {currentValues[f.name] || "—"}
+                <span className="text-slate-700 font-semibold">
+                  {status.newValue === null || status.newValue === undefined || status.newValue === ""
+                    ? "—"
+                    : String(status.newValue)}
                 </span>
                 <button
                   type="button"
@@ -141,7 +145,9 @@ export default function GatedProfileFields({
                 onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
                 className="w-full p-2.5 rounded-lg border border-slate-300 bg-white"
               >
-                <option value="">— Not set —</option>
+                <option value="" disabled hidden>
+                  Select {f.label}
+                </option>
                 {f.options?.map((o) => (
                   <option key={o} value={o}>
                     {o}
@@ -167,16 +173,20 @@ export default function GatedProfileFields({
           </div>
         );
       })}
-      <p className="text-[11px] text-slate-400">
-        Changes to these fields need admin approval before they take effect.
-      </p>
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white font-bold py-2.5 rounded-xl transition"
-      >
-        {loading ? "Submitting..." : "Request Changes"}
-      </button>
+      {editableFields.length > 0 && (
+        <>
+          <p className="text-[11px] text-slate-400">
+            Changes to these fields need admin approval before they take effect.
+          </p>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white font-bold py-2.5 rounded-xl transition"
+          >
+            {loading ? "Submitting..." : "Request Changes"}
+          </button>
+        </>
+      )}
     </form>
   );
 }

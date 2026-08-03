@@ -4,7 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-type FieldConfig = { name: string; label: string; type: "text" | "tel" | "textarea" };
+type FieldConfig = {
+  name: string;
+  label: string;
+  type: "text" | "tel" | "textarea" | "select";
+  options?: string[];
+};
 
 export default function InstantProfileFields({
   userId,
@@ -15,18 +20,25 @@ export default function InstantProfileFields({
   fields: FieldConfig[];
   currentValues: Record<string, string>;
 }) {
+  const [editing, setEditing] = useState(false);
   const [values, setValues] = useState<Record<string, string>>(currentValues);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
+  const isDirty = fields.some(
+    (f) => (values[f.name] ?? "").trim() !== (currentValues[f.name] ?? "").trim()
+  );
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!isDirty) {
+      setEditing(false);
+      return;
+    }
     setLoading(true);
     setError(null);
-    setSaved(false);
 
     const updates: Record<string, string | null> = {};
     for (const f of fields) {
@@ -42,8 +54,14 @@ export default function InstantProfileFields({
       setError("Could not save. Please try again.");
       return;
     }
-    setSaved(true);
+    setEditing(false);
     router.refresh();
+  }
+
+  function handleCancel() {
+    setValues(currentValues);
+    setError(null);
+    setEditing(false);
   }
 
   return (
@@ -53,44 +71,71 @@ export default function InstantProfileFields({
           {error}
         </div>
       )}
-      {saved && (
-        <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-teal-800">
-          Saved.
-        </div>
-      )}
       {fields.map((f) => (
         <div key={f.name}>
           <label className="block font-semibold mb-1">{f.label}</label>
-          {f.type === "textarea" ? (
+          {!editing ? (
+            <p className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700">
+              {currentValues[f.name] || "Not set"}
+            </p>
+          ) : f.type === "textarea" ? (
             <textarea
               rows={3}
               value={values[f.name] ?? ""}
-              onChange={(e) => {
-                setValues((v) => ({ ...v, [f.name]: e.target.value }));
-                setSaved(false);
-              }}
+              onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
               className="w-full p-2.5 rounded-lg border border-slate-300"
             />
+          ) : f.type === "select" ? (
+            <select
+              value={values[f.name] ?? ""}
+              onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+              className="w-full p-2.5 rounded-lg border border-slate-300 bg-white"
+            >
+              <option value="" disabled hidden>
+                Select {f.label}
+              </option>
+              {f.options?.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
           ) : (
             <input
               type={f.type}
               value={values[f.name] ?? ""}
-              onChange={(e) => {
-                setValues((v) => ({ ...v, [f.name]: e.target.value }));
-                setSaved(false);
-              }}
+              onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
               className="w-full p-2.5 rounded-lg border border-slate-300"
             />
           )}
         </div>
       ))}
-      <button
-        type="submit"
-        disabled={loading}
-        className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold px-4 py-2.5 rounded-xl transition"
-      >
-        {loading ? "Saving..." : "Save"}
-      </button>
+      {!editing ? (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold px-4 py-2.5 rounded-xl transition"
+        >
+          Edit
+        </button>
+      ) : (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold px-4 py-2.5 rounded-xl transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold px-4 py-2.5 rounded-xl transition"
+          >
+            {loading ? "Saving..." : "Save"}
+          </button>
+        </div>
+      )}
     </form>
   );
 }

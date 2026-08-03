@@ -5,6 +5,7 @@ import SignOutButton from "@/components/auth/SignOutButton";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import InstantProfileFields from "@/components/profile/InstantProfileFields";
 import GatedProfileFields from "@/components/profile/GatedProfileFields";
+import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 
 export const metadata: Metadata = {
@@ -24,7 +25,7 @@ export default async function TherapistProfilePage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "full_name, avatar_url, phone, credentials, specialization, years_experience, bio, languages"
+      "full_name, email, avatar_url, phone, credentials, specialization, years_experience, bio, languages"
     )
     .eq("id", user.id)
     .single();
@@ -112,6 +113,14 @@ export default async function TherapistProfilePage() {
           }}
           fieldStatus={fieldStatus}
         />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-6">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Account Security</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          Change your password by email — this keeps your account secure.
+        </p>
+        <AccountSecuritySection email={profile?.email ?? user.email ?? ""} />
       </div>
     </section>
   );

@@ -233,6 +233,7 @@ export default function InviteRegisterCard() {
               <input
                 type="text"
                 required
+                maxLength={120}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-300"
@@ -243,6 +244,7 @@ export default function InviteRegisterCard() {
               <input
                 type="email"
                 required
+                maxLength={254}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-300"
@@ -259,6 +261,7 @@ export default function InviteRegisterCard() {
                 type="password"
                 required
                 minLength={6}
+                maxLength={72}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-300"
@@ -272,6 +275,7 @@ export default function InviteRegisterCard() {
                 type="password"
                 required
                 minLength={6}
+                maxLength={72}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-300"

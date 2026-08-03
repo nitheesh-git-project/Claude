@@ -40,5 +40,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Kept visible to admins (not shown just once) so they can walk the
+  // patient through logging in over a support call — cleared automatically
+  // once the patient sets their own password via the forgot-password flow.
+  await admin.from("patient_admin_notes").upsert({
+    patient_id: patientId,
+    temp_password: password,
+    temp_password_set_at: new Date().toISOString(),
+  });
+
   return NextResponse.json({ email: patient.email, password });
 }
