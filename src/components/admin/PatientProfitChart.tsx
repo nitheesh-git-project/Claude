@@ -112,9 +112,15 @@ export default function PatientProfitChart({
 
             return (
               <g key={s.id}>
-                <title>
-                  {s.label}: paid {formatInr(s.paidPaise)}, payout {formatInr(s.payoutPaise)},
-                  profit {formatInr(s.profitPaise)}
+                {/* Single interpolated string, not multiple JSX children --
+                    with multiple children, suppressHydrationWarning only
+                    silences the console warning but React still discards
+                    and re-renders the subtree client-side. Same pattern
+                    already used by AdminMetricsTab's chart tooltips. */}
+                <title suppressHydrationWarning>
+                  {`${s.label}: paid ${formatInr(s.paidPaise)}, payout ${formatInr(
+                    s.payoutPaise
+                  )}, profit ${formatInr(s.profitPaise)}`}
                 </title>
                 {payoutH > 0 && (
                   <rect
