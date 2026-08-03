@@ -253,7 +253,10 @@ export default async function AdminDashboardPage() {
     categoryStats.set(appt.category_id, entry);
   }
 
-  const overview = (
+  // What used to be the "Overview" tab's own content (pending approvals +
+  // All Bookings) -- now shown under the "Approval & Bookings" tab instead,
+  // since "Overview" itself is now the Metrics at-a-glance dashboard.
+  const approvalBookingsTab = (
     <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
@@ -946,17 +949,17 @@ export default async function AdminDashboardPage() {
       </div>
 
       <AdminTabs
-        overview={overview}
-        b2bPartners={b2bPartners}
-        b2bBadgeCount={b2bBadgeCount}
+        overview={metricsTab}
+        approvalBookings={approvalBookingsTab}
+        sessionStory={sessionStoryTab}
         patients={patientsTab}
         therapists={therapistsTab}
-        payouts={payoutsTab}
-        paymentHistory={paymentHistoryTab}
         roster={rosterTab}
         calendar={calendarTab}
-        sessionStory={sessionStoryTab}
-        metrics={metricsTab}
+        b2bPartners={b2bPartners}
+        b2bBadgeCount={b2bBadgeCount}
+        payouts={payoutsTab}
+        paymentHistory={paymentHistoryTab}
         siteContent={siteContent}
       />
     </section>
