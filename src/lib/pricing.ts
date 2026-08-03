@@ -1,0 +1,2 @@
+export const SESSION_FEE_INR = 1999;
+export const SESSION_FEE_PAISE = SESSION_FEE_INR * 100;

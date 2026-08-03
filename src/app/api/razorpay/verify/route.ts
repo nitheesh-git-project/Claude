@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
   const { data: appointment } = await supabase
     .from("appointments")
-    .select("id, patient_id, razorpay_order_id")
+    .select("id, patient_id, razorpay_order_id, therapist_id, status")
     .eq("id", appointmentId)
     .eq("patient_id", user.id)
     .single();
@@ -53,12 +53,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Signature verification failed" }, { status: 400 });
   }
 
+  // A therapist already being assigned means everything else was already
+  // arranged (e.g. a hospital referral) — payment was the only thing
+  // pending, so confirm it now rather than leaving it stuck on
+  // "requested" waiting for a separate admin action.
+  const shouldAutoConfirm = appointment.therapist_id && appointment.status === "requested";
+
   const admin = createAdminClient();
   await admin
     .from("appointments")
     .update({
       payment_status: "paid",
       razorpay_payment_id,
+      ...(shouldAutoConfirm ? { status: "confirmed" } : {}),
     })
     .eq("id", appointmentId);
 

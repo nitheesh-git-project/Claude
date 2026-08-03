@@ -6,7 +6,10 @@ import ApproveTherapistButton from "@/components/admin/ApproveTherapistButton";
 import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
 import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
 import AssignReferralForm from "@/components/admin/AssignReferralForm";
+import AdminTabs from "@/components/admin/AdminTabs";
 import { formatSlotTime } from "@/lib/formatSlotTime";
+import { formatReferralStatus } from "@/lib/referralStatus";
+import { SESSION_FEE_INR } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Dr. Pooja's Physio",
@@ -59,21 +62,36 @@ export default async function AdminDashboardPage() {
 
   const { data: allProfiles } = await admin
     .from("profiles")
-    .select("id, full_name, email");
+    .select(
+      "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id"
+    );
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
 
-  return (
-    <section className="py-8 max-w-6xl mx-auto px-4">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Manage approvals, bookings, and partner referrals
-          </p>
-        </div>
-        <SignOutButton />
-      </div>
+  const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
 
+  // Revenue rollup per hospital: every paid session belonging to a patient
+  // this hospital referred (either channel — invite-link or self-serve
+  // code, both set referred_by_hospital_id) counts toward their payout.
+  const hospitalRevenue = new Map<
+    string,
+    { paidSessions: number; totalRevenue: number }
+  >();
+  for (const appt of appointments ?? []) {
+    if (appt.payment_status !== "paid") continue;
+    const patient = profileMap.get(appt.patient_id);
+    const hospitalId = patient?.referred_by_hospital_id;
+    if (!hospitalId) continue;
+    const entry = hospitalRevenue.get(hospitalId) ?? {
+      paidSessions: 0,
+      totalRevenue: 0,
+    };
+    entry.paidSessions += 1;
+    entry.totalRevenue += SESSION_FEE_INR;
+    hospitalRevenue.set(hospitalId, entry);
+  }
+
+  const overview = (
+    <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
           Pending Therapist Approvals
@@ -102,125 +120,6 @@ export default async function AdminDashboardPage() {
                 <ApproveTherapistButton therapistId={t.id} />
               </li>
             ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
-        <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
-          B2B Leads
-          {b2bLeads &&
-            b2bLeads.filter((l) => l.status === "new").length > 0 && (
-              <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
-                {b2bLeads.filter((l) => l.status === "new").length} new
-              </span>
-            )}
-        </h2>
-        {!b2bLeads || b2bLeads.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">
-            No B2B inquiries yet.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {b2bLeads.map((lead) => (
-              <li
-                key={lead.id}
-                className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
-              >
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <p className="font-bold text-slate-900">{lead.name}</p>
-                    <p className="text-slate-500">{lead.phone}</p>
-                  </div>
-                  <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
-                    {lead.status}
-                  </span>
-                </div>
-                <p className="text-slate-600">
-                  <span className="text-slate-500">Source:</span> {lead.source}
-                  {lead.org_details && (
-                    <>
-                      {" "}
-                      — <span className="text-slate-500">Details:</span>{" "}
-                      {lead.org_details}
-                    </>
-                  )}
-                </p>
-                {lead.status !== "onboarded" && (
-                  <OnboardHospitalForm
-                    lead={{
-                      id: lead.id,
-                      name: lead.name,
-                      org_details: lead.org_details,
-                    }}
-                  />
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
-        <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
-          Patient Referrals
-          {referrals &&
-            referrals.filter((r) => r.status === "pending_review").length >
-              0 && (
-              <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
-                {referrals.filter((r) => r.status === "pending_review").length}{" "}
-                pending
-              </span>
-            )}
-        </h2>
-        {!referrals || referrals.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">
-            No patient referrals yet.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {referrals.map((r) => {
-              const hospital = profileMap.get(r.hospital_id);
-              const assignedTherapist = r.assigned_therapist_id
-                ? profileMap.get(r.assigned_therapist_id)
-                : null;
-              return (
-                <li
-                  key={r.id}
-                  className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
-                >
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <p className="font-bold text-slate-900">
-                        {r.patient_name}
-                      </p>
-                      <p className="text-slate-500">
-                        Referred by:{" "}
-                        {hospital?.full_name ?? "Unknown partner"}
-                      </p>
-                    </div>
-                    <span className="capitalize font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full">
-                      {r.status.replace(/_/g, " ")}
-                    </span>
-                  </div>
-                  <p className="text-slate-600">
-                    <strong>{r.medical_issue}</strong>
-                    {r.treatment_needed && <> — {r.treatment_needed}</>}
-                  </p>
-                  {assignedTherapist ? (
-                    <p className="text-slate-500">
-                      Assigned to: <strong>{assignedTherapist.full_name}</strong>{" "}
-                      — {formatSlotTime(r.assigned_slot_time, null)}
-                    </p>
-                  ) : (
-                    <AssignReferralForm
-                      referralId={r.id}
-                      therapists={approvedTherapists ?? []}
-                    />
-                  )}
-                </li>
-              );
-            })}
           </ul>
         )}
       </div>
@@ -285,6 +184,222 @@ export default async function AdminDashboardPage() {
           </ul>
         )}
       </div>
+    </>
+  );
+
+  const b2bPartners = (
+    <>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
+        <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+          B2B Leads
+          {b2bLeads &&
+            b2bLeads.filter((l) => l.status === "new").length > 0 && (
+              <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
+                {b2bLeads.filter((l) => l.status === "new").length} new
+              </span>
+            )}
+        </h2>
+        {!b2bLeads || b2bLeads.length === 0 ? (
+          <p className="text-xs text-slate-500 py-4 text-center">
+            No B2B inquiries yet.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {b2bLeads.map((lead) => (
+              <li
+                key={lead.id}
+                className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
+              >
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <p className="font-bold text-slate-900">{lead.name}</p>
+                    <p className="text-slate-500">{lead.phone}</p>
+                  </div>
+                  <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
+                    {lead.status}
+                  </span>
+                </div>
+                <p className="text-slate-600">
+                  <span className="text-slate-500">Source:</span> {lead.source}
+                  {lead.org_details && (
+                    <>
+                      {" "}
+                      — <span className="text-slate-500">Details:</span>{" "}
+                      {lead.org_details}
+                    </>
+                  )}
+                </p>
+                {lead.status !== "onboarded" && (
+                  <OnboardHospitalForm
+                    lead={{
+                      id: lead.id,
+                      name: lead.name,
+                      org_details: lead.org_details,
+                    }}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
+        <h2 className="font-bold text-lg text-slate-800 mb-4">
+          Hospital Partners
+        </h2>
+        {hospitals.length === 0 ? (
+          <p className="text-xs text-slate-500 py-4 text-center">
+            No hospital partners onboarded yet.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {hospitals.map((h) => {
+              const revenue = hospitalRevenue.get(h.id) ?? {
+                paidSessions: 0,
+                totalRevenue: 0,
+              };
+              const sharePercent = h.revenue_share_percent ?? 0;
+              const hospitalCut = (revenue.totalRevenue * sharePercent) / 100;
+              const companyCut = revenue.totalRevenue - hospitalCut;
+              return (
+                <li
+                  key={h.id}
+                  className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <p className="font-bold text-slate-900">
+                        {h.organization_name}
+                      </p>
+                      <p className="text-slate-500">
+                        {h.full_name} • {h.email}
+                      </p>
+                    </div>
+                    <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+                      {h.referral_code}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+                    <div>
+                      <p className="text-slate-400">Revenue Share</p>
+                      <p className="font-bold text-slate-900">
+                        {sharePercent}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Paid Sessions</p>
+                      <p className="font-bold text-slate-900">
+                        {revenue.paidSessions}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Hospital&apos;s Cut</p>
+                      <p className="font-bold text-teal-700">
+                        ₹{hospitalCut.toFixed(2)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Company&apos;s Cut</p>
+                      <p className="font-bold text-slate-900">
+                        ₹{companyCut.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+          Patient Referrals
+          {referrals &&
+            referrals.filter((r) => r.status === "pending_review").length >
+              0 && (
+              <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
+                {referrals.filter((r) => r.status === "pending_review").length}{" "}
+                pending
+              </span>
+            )}
+        </h2>
+        {!referrals || referrals.length === 0 ? (
+          <p className="text-xs text-slate-500 py-4 text-center">
+            No patient referrals yet.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {referrals.map((r) => {
+              const hospital = profileMap.get(r.hospital_id);
+              const assignedTherapist = r.assigned_therapist_id
+                ? profileMap.get(r.assigned_therapist_id)
+                : null;
+              return (
+                <li
+                  key={r.id}
+                  className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <p className="font-bold text-slate-900">
+                        {r.patient_name}
+                      </p>
+                      <p className="text-slate-500">
+                        Referred by:{" "}
+                        {hospital?.full_name ?? "Unknown partner"}
+                      </p>
+                    </div>
+                    <span className="font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full">
+                      {formatReferralStatus(r.status)}
+                    </span>
+                  </div>
+                  <p className="text-slate-600">
+                    <strong>{r.medical_issue}</strong>
+                    {r.treatment_needed && <> — {r.treatment_needed}</>}
+                  </p>
+                  {assignedTherapist ? (
+                    <p className="text-slate-500">
+                      Assigned to: <strong>{assignedTherapist.full_name}</strong>{" "}
+                      — {formatSlotTime(r.assigned_slot_time, "Asia/Kolkata")}
+                    </p>
+                  ) : (
+                    <AssignReferralForm
+                      referralId={r.id}
+                      therapists={approvedTherapists ?? []}
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </>
+  );
+
+  const b2bBadgeCount =
+    (b2bLeads?.filter((l) => l.status === "new").length ?? 0) +
+    (referrals?.filter((r) => r.status === "pending_review").length ?? 0);
+
+  return (
+    <section className="py-8 max-w-6xl mx-auto px-4">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Manage approvals, bookings, and partner referrals
+          </p>
+        </div>
+        <SignOutButton />
+      </div>
+
+      <AdminTabs
+        overview={overview}
+        b2bPartners={b2bPartners}
+        b2bBadgeCount={b2bBadgeCount}
+      />
     </section>
   );
 }

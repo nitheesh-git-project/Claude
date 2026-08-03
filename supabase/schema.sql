@@ -47,6 +47,19 @@ alter table profiles add constraint profiles_role_check check (role in ('patient
 alter table profiles add column if not exists organization_name text;
 alter table profiles add column if not exists referral_code text;
 alter table profiles add column if not exists referred_by_hospital_id uuid references profiles(id);
+-- The hospital's cut of each referred session's fee (e.g. 30 = hospital
+-- gets 30%, company keeps 70%). Set once at onboarding by the admin —
+-- only meaningful on rows where role = 'hospital'.
+alter table profiles add column if not exists revenue_share_percent numeric(5,2);
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'profiles_revenue_share_range'
+  ) then
+    alter table profiles add constraint profiles_revenue_share_range
+      check (revenue_share_percent is null or (revenue_share_percent >= 0 and revenue_share_percent <= 100));
+  end if;
+end $$;
 create unique index if not exists profiles_referral_code_unique_idx
   on profiles (referral_code) where referral_code is not null;
 

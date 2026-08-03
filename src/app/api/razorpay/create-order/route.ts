@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
 // Session fee is fixed here, server-side — never trust an amount sent
 // from the browser, or anyone could pay whatever they want.
-const SESSION_FEE_PAISE = 199900; // ₹1,999.00
 
 export async function POST(request: NextRequest) {
   const { appointmentId } = await request.json();
