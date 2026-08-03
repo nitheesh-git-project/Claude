@@ -9,7 +9,16 @@ export async function POST(request: NextRequest) {
   }
 
   const { therapistId, revenueSharePercent } = await request.json();
-  if (!therapistId || revenueSharePercent === undefined) {
+  // Explicitly reject "" (and other non-numeric-looking input) before the
+  // Number() conversion below — Number("") is 0, not NaN, so an emptied
+  // input would otherwise silently save as a real, meaningful 0% instead
+  // of being rejected as missing.
+  if (
+    !therapistId ||
+    revenueSharePercent === undefined ||
+    revenueSharePercent === null ||
+    String(revenueSharePercent).trim() === ""
+  ) {
     return NextResponse.json(
       { error: "Missing therapistId or revenueSharePercent" },
       { status: 400 }

@@ -20,6 +20,10 @@ export default function TherapistRevenueShareForm({
   const companyPercent = value !== "" && !Number.isNaN(parsed) ? 100 - parsed : null;
 
   async function handleSave() {
+    if (value.trim() === "") {
+      setError("Enter a percentage — leave it blank only if you want to cancel.");
+      return;
+    }
     setLoading(true);
     setError(null);
     const res = await fetch("/api/admin/update-therapist-revenue-share", {
