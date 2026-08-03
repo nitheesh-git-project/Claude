@@ -17,6 +17,22 @@ export type MetricsAppointment = {
   slot_time: string | null;
   no_show: boolean;
   refund_status: string | null;
+  // Added for the Financial Summary / Therapist & Patient Ledger section --
+  // widened rather than given its own narrower type, since this is always
+  // the exact same `appointments` array page.tsx already passes to
+  // AdminPayoutsTab/AdminPaymentHistoryTab in full; this just lets
+  // AdminMetricsTab reuse computeTherapistPayoutSummary directly instead of
+  // re-deriving the same math.
+  concern: string | null;
+  razorpay_payment_id: string | null;
+  therapist_payout_paid_at: string | null;
+  therapist_payout_amount_paise: number | null;
+  therapist_payout_method: string | null;
+  therapist_payout_note: string | null;
+  patient_rating: number | null;
+  patient_feedback: string | null;
+  therapist_rating: number | null;
+  therapist_feedback: string | null;
 };
 
 export type Person = { id: string; full_name: string | null };
