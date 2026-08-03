@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // Wipes one side's submitted rating/feedback so they can be prompted to
 // re-rate (e.g. a therapist fat-fingered 5 stars instead of 2). Admin-only —
@@ -12,7 +13,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { appointmentId, role } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    appointmentId?: string;
+    role?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { appointmentId, role } = body;
   if (!appointmentId || (role !== "patient" && role !== "therapist")) {
     return NextResponse.json(
       { error: "Missing appointmentId or invalid role" },
@@ -21,6 +27,15 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+  const { data: appointment } = await admin
+    .from("appointments")
+    .select("id")
+    .eq("id", appointmentId)
+    .single();
+  if (!appointment) {
+    return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+  }
+
   const updates =
     role === "patient"
       ? { patient_rating: null, patient_feedback: null, patient_feedback_at: null }

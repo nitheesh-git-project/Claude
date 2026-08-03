@@ -3,6 +3,7 @@ import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
@@ -10,7 +11,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { appointmentId, therapistId, slotDateTime, categoryId } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    appointmentId?: string;
+    therapistId?: string;
+    slotDateTime?: string;
+    categoryId?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { appointmentId, therapistId, slotDateTime, categoryId } = body;
   if (!appointmentId || !therapistId || !slotDateTime) {
     return NextResponse.json(
       { error: "Missing appointmentId, therapistId, or slotDateTime" },
@@ -18,7 +26,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (new Date(slotDateTime).getTime() <= Date.now()) {
+  const slotTimestamp = new Date(slotDateTime).getTime();
+  if (Number.isNaN(slotTimestamp)) {
+    return NextResponse.json({ error: "Invalid slotDateTime" }, { status: 400 });
+  }
+  if (slotTimestamp <= Date.now()) {
     return NextResponse.json(
       { error: "The new slot must be in the future" },
       { status: 400 }

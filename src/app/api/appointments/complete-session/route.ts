@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // Marks a confirmed session as completed. Callable by the therapist who ran
 // the session, or an admin correcting the record — nobody else. There's no
@@ -9,7 +10,11 @@ import { getAdminUser } from "@/lib/supabase/requireAdmin";
 // which is naturally after slot_time, but an admin may also need to
 // backfill an older session, so this doesn't try to guess "is it over yet".
 export async function POST(request: NextRequest) {
-  const { appointmentId } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{ appointmentId?: string }>(
+    request
+  );
+  if (parseError) return parseError;
+  const { appointmentId } = body;
   if (!appointmentId) {
     return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
   }

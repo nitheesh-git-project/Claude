@@ -3,6 +3,7 @@ import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
@@ -10,7 +11,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { appointmentId, therapistId } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    appointmentId?: string;
+    therapistId?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { appointmentId, therapistId } = body;
   if (!appointmentId || !therapistId) {
     return NextResponse.json(
       { error: "Missing appointmentId or therapistId" },
