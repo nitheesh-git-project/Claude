@@ -46,7 +46,7 @@ export default function Navbar() {
 
           <div className="hidden md:flex items-center space-x-3">
             <Link
-              href="/get-started"
+              href="/patient/login"
               className="text-sm font-semibold text-slate-700 hover:text-teal-700 px-3 py-2 transition"
             >
               Sign In
@@ -81,7 +81,7 @@ export default function Navbar() {
               </Link>
             ))}
             <Link
-              href="/get-started"
+              href="/patient/login"
               onClick={() => setOpen(false)}
               className="py-2 font-semibold text-slate-700"
             >

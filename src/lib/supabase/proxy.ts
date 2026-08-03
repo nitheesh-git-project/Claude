@@ -1,0 +1,64 @@
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+
+export async function updateSession(request: NextRequest) {
+  let response = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const path = request.nextUrl.pathname;
+
+  if (path.startsWith("/patient/dashboard") && !user) {
+    return NextResponse.redirect(new URL("/patient/login", request.url));
+  }
+
+  if (path.startsWith("/therapist/dashboard") && !user) {
+    return NextResponse.redirect(new URL("/therapist/login", request.url));
+  }
+
+  if (user && (path.startsWith("/patient/dashboard") || path.startsWith("/therapist/dashboard"))) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, approved")
+      .eq("id", user.id)
+      .single();
+
+    if (path.startsWith("/therapist/dashboard")) {
+      if (profile?.role !== "therapist") {
+        return NextResponse.redirect(new URL("/get-started", request.url));
+      }
+      if (!profile.approved) {
+        return NextResponse.redirect(new URL("/pending-approval", request.url));
+      }
+    }
+
+    if (path.startsWith("/patient/dashboard") && profile?.role !== "patient") {
+      return NextResponse.redirect(new URL("/get-started", request.url));
+    }
+  }
+
+  return response;
+}
