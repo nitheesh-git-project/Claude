@@ -3,12 +3,12 @@ import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
-// Online payouts aren't wired up yet — this route only ever actually
-// settles anything for method "cash". "online" is accepted so the client
-// can distinguish the tap for its own UI, but it's rejected here rather
-// than silently doing nothing, so nothing can ever look "paid" without
-// money having actually changed hands.
-const IMPLEMENTED_METHODS = ["cash"];
+// "online" here means the admin already sent the money themselves (UPI,
+// bank transfer) outside the platform and is logging it after the fact --
+// same as "cash", just a different method label plus whatever reference
+// they typed into the note field. There's no payment-provider integration
+// behind this; it's record-keeping, not a real payout trigger.
+const IMPLEMENTED_METHODS = ["cash", "online"];
 
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
