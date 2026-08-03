@@ -180,10 +180,16 @@ export default async function PatientDashboardPage() {
                       {a.status}
                     </span>
                     {a.status === "cancelled" ? (
-                      a.refund_status === "processed" && (
+                      a.refund_status === "processed" ? (
                         <span className="font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
                           Refunded
                         </span>
+                      ) : (
+                        a.refund_status === "not_eligible" && (
+                          <span className="font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                            No Refund
+                          </span>
+                        )
                       )
                     ) : a.payment_status === "unpaid" ? (
                       <PayNowButton
@@ -208,6 +214,7 @@ export default async function PatientDashboardPage() {
                   <CancelSessionButton
                     appointmentId={a.id}
                     paid={a.payment_status === "paid"}
+                    slotTime={a.slot_time}
                   />
                 )}
                 {a.status === "completed" && (

@@ -638,6 +638,14 @@ alter table appointments add column if not exists refund_id text;
 alter table appointments add column if not exists refund_status text check (refund_status is null or refund_status in ('processed', 'failed'));
 alter table appointments add column if not exists refund_amount_paise integer;
 
+-- 'not_eligible' added for the late-cancellation policy below: a paid
+-- session cancelled inside the no-refund window gets this instead of
+-- 'processed', so it stays distinguishable from "wasn't paid, so there was
+-- never anything to refund" (which leaves refund_status null).
+alter table appointments drop constraint if exists appointments_refund_status_check;
+alter table appointments add constraint appointments_refund_status_check
+  check (refund_status is null or refund_status in ('processed', 'failed', 'not_eligible'));
+
 -- Lets a patient express "book with the same therapist as before" at
 -- booking time. Purely a hint for the admin's assignment screen (which
 -- still runs its normal conflict check) — never auto-assigns, since the
