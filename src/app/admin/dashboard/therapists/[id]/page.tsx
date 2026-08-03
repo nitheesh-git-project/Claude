@@ -79,7 +79,7 @@ export default async function AdminTherapistDetailPage({
       : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
     admin
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, active")
       .eq("role", "therapist")
       .eq("approved", true)
       .order("full_name"),

@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
   const { data: therapist } = await admin
     .from("profiles")
-    .select("id")
+    .select("id, active")
     .eq("id", therapistId)
     .eq("role", "therapist")
     .eq("approved", true)
@@ -39,6 +39,12 @@ export async function POST(request: NextRequest) {
   if (!therapist) {
     return NextResponse.json(
       { error: "That therapist is not an approved therapist" },
+      { status: 400 }
+    );
+  }
+  if (!therapist.active) {
+    return NextResponse.json(
+      { error: "That therapist is suspended and can't be assigned new referrals." },
       { status: 400 }
     );
   }

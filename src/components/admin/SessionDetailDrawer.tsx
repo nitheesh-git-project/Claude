@@ -69,7 +69,7 @@ export default function SessionDetailDrawer({
   appointment: SessionDetailAppointment;
   peopleMap: Map<string, string>;
   categoryMap: Map<string, CategoryInfo>;
-  therapists: { id: string; full_name: string }[];
+  therapists: { id: string; full_name: string; active?: boolean }[];
   categories: CategoryInfo[];
   reassignmentLogs: ReassignmentLogEntry[];
   onClose: () => void;

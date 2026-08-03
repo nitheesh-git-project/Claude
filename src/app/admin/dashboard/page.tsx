@@ -54,13 +54,23 @@ export default async function AdminDashboardPage() {
     .eq("status", "pending")
     .order("created_at", { ascending: false });
 
+  // Includes suspended (active: false) therapists deliberately — the
+  // reassign-existing-session form (EditBookingForm, used by the Calendar
+  // and Session Story tabs) must always be able to show whoever a session
+  // is CURRENTLY assigned to, even if they were suspended after the fact,
+  // or its <select> silently mismatches its own state. Brand-new-assignment
+  // pickers (AssignTherapistForm/AssignReferralForm below) filter this down
+  // to active-only themselves, since they have no existing assignment to
+  // preserve.
   const { data: approvedTherapists } = await admin
     .from("profiles")
-    .select("id, full_name")
+    .select("id, full_name, active")
     .eq("role", "therapist")
     .eq("approved", true)
-    .eq("active", true)
     .order("full_name");
+  const activeApprovedTherapists = (approvedTherapists ?? []).filter(
+    (t) => t.active !== false
+  );
 
   const { data: appointments } = await admin
     .from("appointments")
@@ -344,7 +354,7 @@ export default async function AdminDashboardPage() {
                   ) : (
                     <AssignTherapistForm
                       appointmentId={a.id}
-                      therapists={approvedTherapists ?? []}
+                      therapists={activeApprovedTherapists}
                     />
                   )}
                 </li>
@@ -557,7 +567,7 @@ export default async function AdminDashboardPage() {
                     <div className="flex items-center gap-3 flex-wrap">
                       <AssignReferralForm
                         referralId={r.id}
-                        therapists={approvedTherapists ?? []}
+                        therapists={activeApprovedTherapists}
                       />
                       {r.status !== "declined" && (
                         <DeclineReferralButton referralId={r.id} />

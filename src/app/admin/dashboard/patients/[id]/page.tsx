@@ -93,7 +93,7 @@ export default async function AdminPatientDetailPage({
         }),
     admin
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, active")
       .eq("role", "therapist")
       .eq("approved", true)
       .order("full_name"),
