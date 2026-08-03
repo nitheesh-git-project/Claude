@@ -291,6 +291,11 @@ revoke update on appointments from authenticated;
 -- session fee constant happens to be at query time.
 alter table appointments add column if not exists amount_paid_paise integer;
 
+-- When the payment actually cleared — distinct from created_at (when the
+-- booking was first made), since a patient can book now and pay days
+-- later. Needed for a real payment history, not just a booking list.
+alter table appointments add column if not exists paid_at timestamptz;
+
 -- Structured contact email captured directly on the public inquiry form,
 -- so onboarding doesn't rely on retyping it from free-text notes.
 alter table b2b_leads add column if not exists email text;
