@@ -33,9 +33,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const { data: appointment } = await admin
+    .from("appointments")
+    .select("payment_status")
+    .eq("id", appointmentId)
+    .single();
+
+  if (!appointment) {
+    return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+  }
+
+  // Only flip to "confirmed" once the patient has actually paid — otherwise
+  // assigning a therapist would silently confirm an unpaid booking. If it's
+  // still unpaid, the therapist is assigned but status stays "requested";
+  // /api/razorpay/verify auto-confirms it the moment payment succeeds.
+  const shouldConfirm = appointment.payment_status === "paid";
+
   const { error } = await admin
     .from("appointments")
-    .update({ therapist_id: therapistId, status: "confirmed" })
+    .update({
+      therapist_id: therapistId,
+      ...(shouldConfirm ? { status: "confirmed" } : {}),
+    })
     .eq("id", appointmentId);
 
   if (error) {
