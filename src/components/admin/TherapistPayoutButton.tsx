@@ -49,7 +49,13 @@ export default function TherapistPayoutButton({
     router.refresh();
   }
 
-  if (settled) {
+  // Gated on owedPaise too, not just the local "did we just settle"
+  // flag — this component doesn't remount on router.refresh(), so if new
+  // sessions become owed later in the same page view, owedPaise will
+  // reflect that on the next server refetch and this stale success
+  // banner needs to step aside for a fresh "Pay" button instead of
+  // showing forever.
+  if (settled && owedPaise <= 0) {
     return (
       <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-xs text-teal-900">
         Paid ₹{(settled.amountPaise / 100).toLocaleString("en-IN")} in cash across{" "}
