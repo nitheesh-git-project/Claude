@@ -208,6 +208,19 @@ export default function PatientAuthCard() {
               >
                 ← Back to Sign In
               </button>
+              <p className="text-slate-500">
+                Don&apos;t have an account?{" "}
+                <button
+                  onClick={() => {
+                    setTab("register");
+                    setForgotMode(false);
+                    setForgotSent(false);
+                  }}
+                  className="text-teal-700 font-semibold hover:underline"
+                >
+                  Register
+                </button>
+              </p>
             </div>
           ) : (
             <form onSubmit={handleForgotPassword} className="space-y-4 text-xs">
@@ -239,6 +252,19 @@ export default function PatientAuthCard() {
               >
                 ← Back to Sign In
               </button>
+              <p className="text-center text-slate-500">
+                Don&apos;t have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab("register");
+                    setForgotMode(false);
+                  }}
+                  className="text-teal-700 font-semibold hover:underline"
+                >
+                  Register
+                </button>
+              </p>
             </form>
           )
         ) : tab === "login" ? (
