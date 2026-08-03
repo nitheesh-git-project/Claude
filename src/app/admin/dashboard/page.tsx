@@ -59,6 +59,7 @@ export default async function AdminDashboardPage() {
     .select("id, full_name")
     .eq("role", "therapist")
     .eq("approved", true)
+    .eq("active", true)
     .order("full_name");
 
   const { data: appointments } = await admin
@@ -71,7 +72,7 @@ export default async function AdminDashboardPage() {
   const { data: reassignmentLogs } = await admin
     .from("appointment_reassignment_log")
     .select(
-      "id, appointment_id, changed_at, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
+      "id, appointment_id, changed_at, changed_by, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
     )
     .order("changed_at", { ascending: false });
 
