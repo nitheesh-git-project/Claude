@@ -11,11 +11,15 @@ const links = [
   { href: "/hospitals", label: "For Hospitals (B2B)" },
 ];
 
-export default function Navbar() {
+export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <nav className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+    <nav
+      className={`bg-white border-b border-slate-200 sticky z-40 shadow-sm ${
+        offsetTop ? "top-[41px]" : "top-0"
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           <Link href="/" className="flex items-center space-x-3">
