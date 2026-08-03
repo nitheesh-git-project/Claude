@@ -1,0 +1,32 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+// The global kill-switch: off means no rating numbers show on /team or the
+// homepage for ANY therapist, regardless of that therapist's own
+// rating_visible flag -- both existing public rating views already null
+// their numbers out when this is false. Writes the one guaranteed-singleton
+// row in site_settings.
+export async function POST(request: NextRequest) {
+  const adminUser = await getAdminUser();
+  if (!adminUser) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { visible } = await request.json();
+  if (typeof visible !== "boolean") {
+    return NextResponse.json({ error: "Missing visible" }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("site_settings")
+    .update({ ratings_visible_publicly: visible })
+    .eq("id", true);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true, visible });
+}

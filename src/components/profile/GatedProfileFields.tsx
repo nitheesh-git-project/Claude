@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import PhoneNumberField from "@/components/PhoneNumberField";
@@ -39,6 +39,33 @@ export default function GatedProfileFields({
   const router = useRouter();
   const supabase = createClient();
 
+  // Fields the user has actually edited this session. handleSubmit only
+  // ever diffs these against fresh server data — never every editable
+  // field — so a stale local draft for an untouched field (e.g. one that
+  // got approved elsewhere between this mount and now) can never be
+  // silently resubmitted or reverted.
+  const touchedRef = useRef<Set<string>>(new Set());
+
+  // currentValues is a new snapshot on every router.refresh() (after our
+  // own submit/withdraw, but potentially after any other server refetch
+  // too). Resync any field the user hasn't touched to that fresh value —
+  // otherwise `values` would keep whatever was there at mount forever,
+  // since useState's initializer only runs once.
+  useEffect(() => {
+    setValues((prev) => {
+      const next = { ...currentValues };
+      for (const name of touchedRef.current) {
+        if (name in prev) next[name] = prev[name];
+      }
+      return next;
+    });
+  }, [currentValues]);
+
+  function setField(name: string, value: string) {
+    touchedRef.current.add(name);
+    setValues((v) => ({ ...v, [name]: value }));
+  }
+
   const editableFields = fields.filter((f) => fieldStatus[f.name]?.status !== "pending");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -52,6 +79,7 @@ export default function GatedProfileFields({
     // deletes the whole row and silently withdraws the others with it.
     const rows: { user_id: string; changes: Record<string, string | number | null> }[] = [];
     for (const f of editableFields) {
+      if (!touchedRef.current.has(f.name)) continue;
       const rawNew = (values[f.name] ?? "").trim();
       const rawOld = (currentValues[f.name] ?? "").trim();
       if (rawNew === rawOld) continue;
@@ -79,6 +107,7 @@ export default function GatedProfileFields({
       setError("Could not submit your request. Please try again.");
       return;
     }
+    touchedRef.current.clear();
     setJustSubmitted(true);
     router.refresh();
   }
@@ -143,7 +172,7 @@ export default function GatedProfileFields({
             ) : f.type === "select" ? (
               <select
                 value={values[f.name] ?? ""}
-                onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+                onChange={(e) => setField(f.name, e.target.value)}
                 className="w-full p-2.5 rounded-lg border border-slate-300 bg-white"
               >
                 <option value="" disabled hidden>
@@ -158,7 +187,7 @@ export default function GatedProfileFields({
             ) : f.type === "phone" ? (
               <PhoneNumberField
                 value={values[f.name] ?? ""}
-                onChange={(v) => setValues((vals) => ({ ...vals, [f.name]: v }))}
+                onChange={(v) => setField(f.name, v)}
                 label=""
               />
             ) : (
@@ -167,7 +196,7 @@ export default function GatedProfileFields({
                 value={values[f.name] ?? ""}
                 min={f.min}
                 max={f.max}
-                onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+                onChange={(e) => setField(f.name, e.target.value)}
                 className="w-full p-2.5 rounded-lg border border-slate-300"
               />
             )}

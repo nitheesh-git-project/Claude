@@ -23,8 +23,10 @@ export type SessionDetailAppointment = {
   paid_at: string | null;
   patient_rating: number | null;
   patient_feedback: string | null;
+  patient_rating_excluded: boolean;
   therapist_rating: number | null;
   therapist_feedback: string | null;
+  therapist_rating_excluded: boolean;
   cancellation_reason: string | null;
   refund_status: string | null;
   refund_amount_paise: number | null;
@@ -83,6 +85,13 @@ export default function SessionDetailDrawer({
   const [reopening, setReopening] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [clearingRole, setClearingRole] = useState<"patient" | "therapist" | null>(null);
+  const [excludingRole, setExcludingRole] = useState<"patient" | "therapist" | null>(null);
+  // Tracked locally (seeded from the prop) so the toggle reflects instantly
+  // without needing router.refresh() to re-render this already-open drawer
+  // with a fresh prop -- unlike Clear, which closes the drawer outright
+  // because it's a bigger, rating-erasing action.
+  const [patientExcluded, setPatientExcluded] = useState(a.patient_rating_excluded);
+  const [therapistExcluded, setTherapistExcluded] = useState(a.therapist_rating_excluded);
   const [actionError, setActionError] = useState<string | null>(null);
   const router = useRouter();
 
@@ -106,6 +115,37 @@ export default function SessionDetailDrawer({
     return categoryMap.get(id)?.title ?? "Unknown";
   }
 
+  async function submitReopen(overridePayoutSettled: boolean) {
+    setReopening(true);
+    setActionError(null);
+    const res = await fetch("/api/admin/reopen-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ appointmentId: a.id, overridePayoutSettled }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setReopening(false);
+    if (!res.ok) {
+      if (data.payoutSettled && !overridePayoutSettled) {
+        // This session's cash payout to the therapist was already settled.
+        // Reopening it won't be re-tracked for a future payout automatically,
+        // so make the admin explicitly own that before letting them proceed.
+        if (
+          window.confirm(
+            "This session's payout has already been settled in cash to the therapist. Reopening it will NOT automatically flag it for a future payout — you'll need to track that manually if the session is redelivered. Reopen anyway?"
+          )
+        ) {
+          await submitReopen(true);
+        }
+        return;
+      }
+      setActionError(data.error ?? "Could not reopen this session.");
+      return;
+    }
+    router.refresh();
+    onClose();
+  }
+
   async function handleReopen() {
     if (
       !window.confirm(
@@ -114,21 +154,7 @@ export default function SessionDetailDrawer({
     ) {
       return;
     }
-    setReopening(true);
-    setActionError(null);
-    const res = await fetch("/api/admin/reopen-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId: a.id }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setReopening(false);
-    if (!res.ok) {
-      setActionError(data.error ?? "Could not reopen this session.");
-      return;
-    }
-    router.refresh();
-    onClose();
+    await submitReopen(false);
   }
 
   async function submitCancel(reason: string, overridePayoutSettled: boolean) {
@@ -210,6 +236,32 @@ export default function SessionDetailDrawer({
     }
     router.refresh();
     onClose();
+  }
+
+  async function handleToggleExcluded(role: "patient" | "therapist", nextExcluded: boolean) {
+    setExcludingRole(role);
+    setActionError(null);
+    const res = await fetch("/api/admin/exclude-session-rating", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ appointmentId: a.id, role, excluded: nextExcluded }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setExcludingRole(null);
+    if (!res.ok) {
+      setActionError(data.error ?? "Could not update this rating.");
+      return;
+    }
+    if (role === "patient") {
+      setPatientExcluded(nextExcluded);
+    } else {
+      setTherapistExcluded(nextExcluded);
+    }
+    // No onClose()/full router.refresh()-driven re-render needed here for
+    // the drawer itself, but the underlying list (average shown elsewhere
+    // on the page) does need to pick up the new excluded flag next time
+    // it's fetched.
+    router.refresh();
   }
 
   return (
@@ -358,21 +410,41 @@ export default function SessionDetailDrawer({
           <div className="pt-3 border-t border-slate-100 space-y-2">
             <p className="font-bold text-slate-800">Ratings &amp; Feedback</p>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-slate-400">Patient</p>
                 {a.patient_rating !== null && (
-                  <button
-                    onClick={() => handleClearRating("patient")}
-                    disabled={clearingRole === "patient"}
-                    className="text-[10px] text-red-600 font-semibold hover:underline disabled:opacity-60"
-                  >
-                    {clearingRole === "patient" ? "Clearing..." : "Clear (let them re-rate)"}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleToggleExcluded("patient", !patientExcluded)}
+                      disabled={excludingRole === "patient"}
+                      className={`text-[10px] font-semibold hover:underline disabled:opacity-60 ${
+                        patientExcluded ? "text-amber-600" : "text-slate-500"
+                      }`}
+                    >
+                      {excludingRole === "patient"
+                        ? "Saving..."
+                        : patientExcluded
+                        ? "Excluded from average — include it"
+                        : "Exclude from average"}
+                    </button>
+                    <button
+                      onClick={() => handleClearRating("patient")}
+                      disabled={clearingRole === "patient"}
+                      className="text-[10px] text-red-600 font-semibold hover:underline disabled:opacity-60"
+                    >
+                      {clearingRole === "patient" ? "Clearing..." : "Clear (let them re-rate)"}
+                    </button>
+                  </>
                 )}
               </div>
               {a.patient_rating ? (
                 <>
                   <Stars rating={a.patient_rating} />
+                  {patientExcluded && (
+                    <span className="ml-2 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                      Excluded from average
+                    </span>
+                  )}
                   {a.patient_feedback && (
                     <p className="text-slate-700 mt-0.5">{a.patient_feedback}</p>
                   )}
@@ -382,21 +454,41 @@ export default function SessionDetailDrawer({
               )}
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-slate-400">Therapist</p>
                 {a.therapist_rating !== null && (
-                  <button
-                    onClick={() => handleClearRating("therapist")}
-                    disabled={clearingRole === "therapist"}
-                    className="text-[10px] text-red-600 font-semibold hover:underline disabled:opacity-60"
-                  >
-                    {clearingRole === "therapist" ? "Clearing..." : "Clear (let them re-rate)"}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleToggleExcluded("therapist", !therapistExcluded)}
+                      disabled={excludingRole === "therapist"}
+                      className={`text-[10px] font-semibold hover:underline disabled:opacity-60 ${
+                        therapistExcluded ? "text-amber-600" : "text-slate-500"
+                      }`}
+                    >
+                      {excludingRole === "therapist"
+                        ? "Saving..."
+                        : therapistExcluded
+                        ? "Excluded from average — include it"
+                        : "Exclude from average"}
+                    </button>
+                    <button
+                      onClick={() => handleClearRating("therapist")}
+                      disabled={clearingRole === "therapist"}
+                      className="text-[10px] text-red-600 font-semibold hover:underline disabled:opacity-60"
+                    >
+                      {clearingRole === "therapist" ? "Clearing..." : "Clear (let them re-rate)"}
+                    </button>
+                  </>
                 )}
               </div>
               {a.therapist_rating ? (
                 <>
                   <Stars rating={a.therapist_rating} />
+                  {therapistExcluded && (
+                    <span className="ml-2 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                      Excluded from average
+                    </span>
+                  )}
                   {a.therapist_feedback && (
                     <p className="text-slate-700 mt-0.5">{a.therapist_feedback}</p>
                   )}
