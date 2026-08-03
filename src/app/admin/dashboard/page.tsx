@@ -7,9 +7,14 @@ import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
 import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
 import AssignReferralForm from "@/components/admin/AssignReferralForm";
 import AdminTabs from "@/components/admin/AdminTabs";
+import LeadStatusButtons from "@/components/admin/LeadStatusButtons";
+import DeclineReferralButton from "@/components/admin/DeclineReferralButton";
+import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswordButton";
+import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
+import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
-import { SESSION_FEE_INR } from "@/lib/pricing";
+import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Dr. Pooja's Physio",
@@ -44,19 +49,19 @@ export default async function AdminDashboardPage() {
   const { data: appointments } = await admin
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, patient_id, therapist_id, created_at"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, patient_id, therapist_id, created_at"
     )
     .order("created_at", { ascending: false });
 
   const { data: b2bLeads } = await admin
     .from("b2b_leads")
-    .select("id, name, phone, source, org_details, status, created_at")
+    .select("id, name, phone, email, source, org_details, status, created_at")
     .order("created_at", { ascending: false });
 
   const { data: referrals } = await admin
     .from("patient_referrals")
     .select(
-      "id, hospital_id, patient_name, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, created_at"
+      "id, hospital_id, patient_name, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at"
     )
     .order("created_at", { ascending: false });
 
@@ -86,7 +91,10 @@ export default async function AdminDashboardPage() {
       totalRevenue: 0,
     };
     entry.paidSessions += 1;
-    entry.totalRevenue += SESSION_FEE_INR;
+    // Falls back to the current session fee only for older paid rows from
+    // before amount_paid_paise existed — every payment since then records
+    // exactly what was charged, so this never drifts as pricing changes.
+    entry.totalRevenue += (appt.amount_paid_paise ?? SESSION_FEE_PAISE) / 100;
     hospitalRevenue.set(hospitalId, entry);
   }
 
@@ -214,6 +222,7 @@ export default async function AdminDashboardPage() {
                   <div>
                     <p className="font-bold text-slate-900">{lead.name}</p>
                     <p className="text-slate-500">{lead.phone}</p>
+                    <p className="text-slate-500">{lead.email}</p>
                   </div>
                   <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
                     {lead.status}
@@ -230,13 +239,17 @@ export default async function AdminDashboardPage() {
                   )}
                 </p>
                 {lead.status !== "onboarded" && (
-                  <OnboardHospitalForm
-                    lead={{
-                      id: lead.id,
-                      name: lead.name,
-                      org_details: lead.org_details,
-                    }}
-                  />
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <OnboardHospitalForm
+                      lead={{
+                        id: lead.id,
+                        name: lead.name,
+                        email: lead.email,
+                        org_details: lead.org_details,
+                      }}
+                    />
+                    <LeadStatusButtons leadId={lead.id} status={lead.status} />
+                  </div>
                 )}
               </li>
             ))}
@@ -283,9 +296,15 @@ export default async function AdminDashboardPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
                     <div>
                       <p className="text-slate-400">Revenue Share</p>
-                      <p className="font-bold text-slate-900">
-                        {sharePercent}%
-                      </p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-slate-900">
+                          {sharePercent}%
+                        </span>
+                        <EditRevenueShareForm
+                          hospitalId={h.id}
+                          currentPercent={sharePercent}
+                        />
+                      </div>
                     </div>
                     <div>
                       <p className="text-slate-400">Paid Sessions</p>
@@ -305,6 +324,9 @@ export default async function AdminDashboardPage() {
                         ₹{companyCut.toFixed(2)}
                       </p>
                     </div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-100">
+                    <ResetHospitalPasswordButton hospitalId={h.id} />
                   </div>
                 </li>
               );
@@ -360,15 +382,26 @@ export default async function AdminDashboardPage() {
                     {r.treatment_needed && <> — {r.treatment_needed}</>}
                   </p>
                   {assignedTherapist ? (
-                    <p className="text-slate-500">
-                      Assigned to: <strong>{assignedTherapist.full_name}</strong>{" "}
-                      — {formatSlotTime(r.assigned_slot_time, "Asia/Kolkata")}
-                    </p>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <p className="text-slate-500">
+                        Assigned to:{" "}
+                        <strong>{assignedTherapist.full_name}</strong> —{" "}
+                        {formatSlotTime(r.assigned_slot_time, "Asia/Kolkata")}
+                      </p>
+                      {r.status === "invite_sent" && r.invite_token && (
+                        <CopyInviteLinkButton inviteToken={r.invite_token} />
+                      )}
+                    </div>
                   ) : (
-                    <AssignReferralForm
-                      referralId={r.id}
-                      therapists={approvedTherapists ?? []}
-                    />
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <AssignReferralForm
+                        referralId={r.id}
+                        therapists={approvedTherapists ?? []}
+                      />
+                      {r.status !== "declined" && (
+                        <DeclineReferralButton referralId={r.id} />
+                      )}
+                    </div>
                   )}
                 </li>
               );

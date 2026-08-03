@@ -1,0 +1,44 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+export async function POST(request: NextRequest) {
+  const adminUser = await getAdminUser();
+  if (!adminUser) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { referralId } = await request.json();
+  if (!referralId) {
+    return NextResponse.json({ error: "Missing referralId" }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+
+  const { data: referral } = await admin
+    .from("patient_referrals")
+    .select("status")
+    .eq("id", referralId)
+    .single();
+
+  if (!referral) {
+    return NextResponse.json({ error: "Referral not found" }, { status: 404 });
+  }
+  if (referral.status === "invite_sent" || referral.status === "converted") {
+    return NextResponse.json(
+      { error: "An invite has already been sent for this referral, so it can't be declined" },
+      { status: 400 }
+    );
+  }
+
+  const { error } = await admin
+    .from("patient_referrals")
+    .update({ status: "declined" })
+    .eq("id", referralId);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}

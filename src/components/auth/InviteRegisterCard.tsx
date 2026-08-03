@@ -1,14 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
+import { formatSlotTime } from "@/lib/formatSlotTime";
+
+type Preview = {
+  valid: boolean;
+  patientName?: string;
+  medicalIssue?: string;
+  assignedSlotTime?: string | null;
+  hospitalName?: string;
+  therapistName?: string | null;
+};
 
 export default function InviteRegisterCard() {
   const searchParams = useSearchParams();
   const token = searchParams.get("ref");
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [checkingToken, setCheckingToken] = useState(!!token);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,14 +32,51 @@ export default function InviteRegisterCard() {
   const [concern, setConcern] = useState("");
   const supabase = createClient();
 
-  if (!token) {
+  useEffect(() => {
+    if (!token) return;
+    fetch(`/api/patient/referral-preview?token=${encodeURIComponent(token)}`)
+      .then((res) => res.json())
+      .then((data: Preview) => {
+        setPreview(data);
+        if (data.valid && data.patientName) {
+          setFullName(data.patientName);
+        }
+      })
+      .catch(() => setPreview({ valid: false }))
+      .finally(() => setCheckingToken(false));
+  }, [token]);
+
+  if (!token || checkingToken) {
     return (
       <section className="py-16 max-w-md mx-auto px-4 text-center">
         <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
-          <h1 className="text-xl font-bold text-slate-900">Invalid Link</h1>
-          <p className="text-xs text-slate-500 mt-2">
-            This registration link is missing or malformed. Please check the
-            link you were sent, or contact us.
+          {!token ? (
+            <>
+              <h1 className="text-xl font-bold text-slate-900">Invalid Link</h1>
+              <p className="text-xs text-slate-500 mt-2">
+                This registration link is missing or malformed. Please check
+                the link you were sent, or contact us.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-500">Checking your invite...</p>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  if (preview && !preview.valid) {
+    return (
+      <section className="py-16 max-w-md mx-auto px-4 text-center">
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
+          <h1 className="text-xl font-bold text-slate-900">
+            Link Invalid or Already Used
+          </h1>
+          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+            This registration link has expired or already been used to
+            create an account. Please contact the hospital that referred you,
+            or reach out to us directly for a new link.
           </p>
         </div>
       </section>
@@ -127,6 +176,32 @@ export default function InviteRegisterCard() {
           You&apos;ve been referred for a virtual physical therapy session —
           set up your account and complete payment to confirm it.
         </p>
+
+        {preview && preview.valid && (
+          <div className="mt-4 bg-teal-50 border border-teal-100 rounded-xl p-3 text-xs text-teal-900 space-y-1">
+            <p>
+              Referred by <strong>{preview.hospitalName}</strong>
+            </p>
+            {preview.medicalIssue && (
+              <p>
+                Concern: <strong>{preview.medicalIssue}</strong>
+              </p>
+            )}
+            {preview.therapistName && (
+              <p>
+                Therapist: <strong>{preview.therapistName}</strong>
+              </p>
+            )}
+            {preview.assignedSlotTime && (
+              <p>
+                Scheduled for:{" "}
+                <strong>
+                  {formatSlotTime(preview.assignedSlotTime, "Asia/Kolkata")}
+                </strong>
+              </p>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="mt-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">

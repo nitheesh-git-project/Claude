@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
+import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 
 const CONCERNS = [
   "Lower Back Stiffness / Sciatica",
@@ -39,6 +40,9 @@ export default function BookingWizard() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [referralCode, setReferralCode] = useState("");
+  const [referralCheck, setReferralCheck] = useState<ReferralCodeCheck>({
+    status: "idle",
+  });
   const [concern, setConcern] = useState(CONCERNS[0]);
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
@@ -96,6 +100,12 @@ export default function BookingWizard() {
       }
       if (password !== confirmPassword) {
         setError("Passwords do not match. Please re-enter them.");
+        return;
+      }
+      if (referralCheck.status === "invalid") {
+        setError(
+          "That referral code isn't recognized. Please double-check it or clear the field to continue without one."
+        );
         return;
       }
     }
@@ -371,10 +381,36 @@ export default function BookingWizard() {
                 <input
                   type="text"
                   value={referralCode}
-                  onChange={(e) => setReferralCode(e.target.value)}
+                  onChange={(e) => {
+                    setReferralCode(e.target.value);
+                    setReferralCheck({ status: "idle" });
+                  }}
+                  onBlur={async (e) => {
+                    if (!e.target.value.trim()) {
+                      setReferralCheck({ status: "idle" });
+                      return;
+                    }
+                    setReferralCheck({ status: "checking" });
+                    setReferralCheck(await checkReferralCode(e.target.value));
+                  }}
                   placeholder="e.g. from your hospital/clinic"
                   className="w-full p-3 rounded-xl border border-slate-300"
                 />
+                {referralCheck.status === "checking" && (
+                  <p className="text-slate-400 text-xs mt-1">Checking code...</p>
+                )}
+                {referralCheck.status === "valid" && (
+                  <p className="text-teal-700 font-semibold text-xs mt-1">
+                    <i className="fa-solid fa-circle-check mr-1"></i>
+                    Valid — referred by {referralCheck.hospitalName ?? "your partner hospital"}
+                  </p>
+                )}
+                {referralCheck.status === "invalid" && (
+                  <p className="text-red-600 font-semibold text-xs mt-1">
+                    <i className="fa-solid fa-circle-exclamation mr-1"></i>
+                    Code not recognized — double-check it or leave blank
+                  </p>
+                )}
               </div>
               <p className="text-[11px] text-slate-400">
                 Already have an account?{" "}

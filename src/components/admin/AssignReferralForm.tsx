@@ -3,6 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+function minDateTimeLocal() {
+  const d = new Date(Date.now() + 5 * 60 * 1000);
+  d.setSeconds(0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
+
 export default function AssignReferralForm({
   referralId,
   therapists,
@@ -20,6 +29,10 @@ export default function AssignReferralForm({
   async function handleAssign(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!therapistId || !slotDateTime) return;
+    if (new Date(slotDateTime).getTime() <= Date.now()) {
+      setError("Please pick a slot time in the future.");
+      return;
+    }
     setLoading(true);
     setError(null);
     const res = await fetch("/api/admin/assign-referral", {
@@ -93,6 +106,7 @@ export default function AssignReferralForm({
       <input
         type="datetime-local"
         value={slotDateTime}
+        min={minDateTimeLocal()}
         onChange={(e) => setSlotDateTime(e.target.value)}
         required
         className="text-xs p-2 rounded-lg border border-slate-300"
