@@ -69,7 +69,12 @@ function TrendBarChart({
           const y = chartHeight - h;
           return (
             <g key={b.label + i}>
-              <title>
+              {/* Locale-formatted date label — harmless if it differs by a
+                  moment between server render and client hydration (see
+                  buildBuckets' UTC-pinning comment for the underlying fix);
+                  this is the belt-and-braces backstop React's own hydration
+                  docs recommend for exactly this class of text. */}
+              <title suppressHydrationWarning>
                 {b.label}: {formatValue(value)}
               </title>
               {h > 0 && <rect x={x} y={y} width={barWidth} height={h} fill={CHART_COLOR} rx={4} />}
@@ -106,9 +111,15 @@ export default function AdminMetricsTab({
     setFromDate(days === null ? "2000-01-01" : toDateInputValue(daysAgo(days)));
   }
 
-  const fromMs = useMemo(() => new Date(fromDate + "T00:00:00").getTime(), [fromDate]);
+  // Parsed as UTC (explicit "Z"), not local time — "YYYY-MM-DDT00:00:00"
+  // without a zone suffix parses as the *runtime's* local time, which
+  // differs between the server (SSR) and the admin's browser (hydration),
+  // shifting these bucket boundaries by the timezone offset between them.
+  // That's not just a cosmetic mismatch: it can bucket revenue/bookings
+  // into the wrong day depending on which timezone rendered the page.
+  const fromMs = useMemo(() => new Date(fromDate + "T00:00:00Z").getTime(), [fromDate]);
   // Inclusive of the whole "to" day.
-  const toMs = useMemo(() => new Date(toDate + "T00:00:00").getTime() + 86_400_000, [toDate]);
+  const toMs = useMemo(() => new Date(toDate + "T00:00:00Z").getTime() + 86_400_000, [toDate]);
 
   const dimFiltered = useMemo(
     () => filterByDimension(appointments, categoryFilter, therapistFilter),
