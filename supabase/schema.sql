@@ -253,6 +253,20 @@ alter table patient_admin_notes add column if not exists temp_password_set_at ti
 alter table therapist_admin_notes add column if not exists temp_password text;
 alter table therapist_admin_notes add column if not exists temp_password_set_at timestamptz;
 
+-- Same as patient_admin_notes/therapist_admin_notes, for hospital B2B
+-- partner accounts -- added after the fact (the hospital reset-password
+-- button originally had nowhere to persist the generated password, so it
+-- vanished the moment the admin navigated away, unlike its patient/
+-- therapist siblings). No `note` field here since hospitals don't have an
+-- equivalent admin-notes UI today -- just the temp password.
+create table if not exists hospital_admin_notes (
+  hospital_id uuid primary key references profiles(id) on delete cascade,
+  temp_password text,
+  temp_password_set_at timestamptz
+);
+
+alter table hospital_admin_notes enable row level security;
+
 drop policy if exists "profiles_update_own" on profiles;
 create policy "profiles_update_own" on profiles
   for update using (auth.uid() = id);
