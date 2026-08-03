@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SESSION_FEE_INR } from "@/lib/pricing";
 
 const conditions = [
   {
@@ -49,7 +50,6 @@ export default function Home() {
                 className="bg-teal-700 hover:bg-teal-800 text-white font-bold px-6 py-3.5 rounded-xl shadow-lg transition flex items-center gap-2"
               >
                 <i className="fa-solid fa-calendar-check"></i> Book Assessment
-                (₹1,999 INR)
               </Link>
               <Link
                 href="/how-it-works"
@@ -108,7 +108,7 @@ export default function Home() {
                 </div>
               </div>
               <span className="text-xs font-bold text-teal-800 bg-white px-2.5 py-1 rounded-lg border border-teal-200">
-                ₹1,999 INR / Session
+                From ₹{SESSION_FEE_INR.toLocaleString("en-IN")} INR / Session
               </span>
             </div>
           </div>

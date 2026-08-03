@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
 import { formatSlotTime } from "@/lib/formatSlotTime";
+import { SESSION_FEE_INR } from "@/lib/pricing";
 
 type Preview = {
   valid: boolean;
@@ -220,7 +221,9 @@ export default function InviteRegisterCard() {
               disabled={loading}
               className="w-full bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
             >
-              {loading ? "Please wait..." : "Pay ₹1,999 Now"}
+              {loading
+                ? "Please wait..."
+                : `Pay ₹${SESSION_FEE_INR.toLocaleString("en-IN")} Now`}
             </button>
           </div>
         ) : (

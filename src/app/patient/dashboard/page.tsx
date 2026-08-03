@@ -1,9 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import SignOutButton from "@/components/auth/SignOutButton";
 import PayNowButton from "@/components/PayNowButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
+import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Patient Dashboard | Dr. Pooja's Physio",
@@ -27,9 +29,32 @@ export default async function PatientDashboardPage() {
 
   const { data: appointments } = await supabase
     .from("appointments")
-    .select("id, slot_time, timezone, concern, status, payment_status")
+    .select(
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id"
+    )
     .eq("patient_id", user.id)
     .order("created_at", { ascending: false });
+
+  // Unpaid bookings won't have amount_paid_paise set yet (that's only
+  // recorded once a payment order is created), so fall back to the linked
+  // category's price, or the flat base fee if there's no category. Looked
+  // up via the admin client (not the active-only public policy) so this
+  // always matches what /api/razorpay/create-order will actually charge,
+  // even for a category that's since been deactivated.
+  const categoryIds = [
+    ...new Set((appointments ?? []).map((a) => a.category_id).filter(Boolean)),
+  ];
+  const admin = createAdminClient();
+  const { data: categoryPrices } =
+    categoryIds.length > 0
+      ? await admin
+          .from("treatment_categories")
+          .select("id, price_paise")
+          .in("id", categoryIds as string[])
+      : { data: [] as { id: string; price_paise: number }[] };
+  const categoryPriceMap = new Map(
+    (categoryPrices ?? []).map((c) => [c.id, c.price_paise])
+  );
 
   return (
     <section className="py-8 max-w-5xl mx-auto px-4">
@@ -86,6 +111,11 @@ export default async function PatientDashboardPage() {
                       name={profile?.full_name ?? ""}
                       email={profile?.email ?? ""}
                       description={a.concern ?? "Virtual Physical Therapy Session"}
+                      amountPaise={
+                        a.amount_paid_paise ??
+                        (a.category_id ? categoryPriceMap.get(a.category_id) : undefined) ??
+                        SESSION_FEE_PAISE
+                      }
                     />
                   ) : (
                     <span className="font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full">

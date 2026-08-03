@@ -4,8 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
-// Session fee is fixed here, server-side — never trust an amount sent
-// from the browser, or anyone could pay whatever they want.
+// The amount is always resolved here, server-side, from the appointment's
+// linked category price (or the flat base fee) — never trust an amount
+// sent from the browser, or anyone could pay whatever they want.
 
 export async function POST(request: NextRequest) {
   const { appointmentId } = await request.json();
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
   // we check explicitly so a mismatched appointment gives a clear 404.
   const { data: appointment } = await supabase
     .from("appointments")
-    .select("id, patient_id, payment_status")
+    .select("id, patient_id, payment_status, category_id")
     .eq("id", appointmentId)
     .eq("patient_id", user.id)
     .single();
@@ -37,21 +38,40 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This booking is already paid" }, { status: 400 });
   }
 
+  const admin = createAdminClient();
+
+  // Resolve the real price for what was actually booked. Looked up via the
+  // admin client (not the active-only public policy) so that if a category
+  // gets deactivated after this appointment was created, the patient is
+  // still charged the price they originally saw — not silently bumped to
+  // the flat fallback fee. No category (e.g. a hospital-referred booking)
+  // charges the flat base fee.
+  let amountPaise = SESSION_FEE_PAISE;
+  if (appointment.category_id) {
+    const { data: category } = await admin
+      .from("treatment_categories")
+      .select("price_paise")
+      .eq("id", appointment.category_id)
+      .single();
+    if (category) {
+      amountPaise = category.price_paise;
+    }
+  }
+
   const razorpay = new Razorpay({
     key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
     key_secret: process.env.RAZORPAY_KEY_SECRET!,
   });
 
   const order = await razorpay.orders.create({
-    amount: SESSION_FEE_PAISE,
+    amount: amountPaise,
     currency: "INR",
     receipt: appointmentId,
   });
 
-  const admin = createAdminClient();
   const { error: updateError } = await admin
     .from("appointments")
-    .update({ razorpay_order_id: order.id })
+    .update({ razorpay_order_id: order.id, amount_paid_paise: amountPaise })
     .eq("id", appointmentId);
 
   if (updateError) {
