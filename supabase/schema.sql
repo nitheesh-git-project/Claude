@@ -50,6 +50,11 @@ alter table profiles add column if not exists referred_by_hospital_id uuid refer
 -- The hospital's cut of each referred session's fee (e.g. 30 = hospital
 -- gets 30%, company keeps 70%). Set once at onboarding by the admin —
 -- only meaningful on rows where role = 'hospital'.
+--
+-- Also reused for role = 'therapist': the therapist's cut of each session
+-- fee they're assigned to, set by admin on the Manage Therapists page.
+-- Same column, same 0-100 meaning, just a different counterparty — no
+-- reason to duplicate the field for a second role.
 alter table profiles add column if not exists revenue_share_percent numeric(5,2);
 do $$
 begin
@@ -208,6 +213,18 @@ create table if not exists patient_admin_notes (
 );
 
 alter table patient_admin_notes enable row level security;
+
+-- Same idea as patient_admin_notes, for therapists — kept as its own
+-- table rather than a shared one so it stays a plain one-row-per-user
+-- upsert on each management page without a role column to filter on.
+create table if not exists therapist_admin_notes (
+  therapist_id uuid primary key references profiles(id) on delete cascade,
+  note text not null default '',
+  updated_by uuid references profiles(id),
+  updated_at timestamptz not null default now()
+);
+
+alter table therapist_admin_notes enable row level security;
 
 drop policy if exists "profiles_update_own" on profiles;
 create policy "profiles_update_own" on profiles

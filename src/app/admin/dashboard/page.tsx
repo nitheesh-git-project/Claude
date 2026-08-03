@@ -79,13 +79,18 @@ export default async function AdminDashboardPage() {
   const { data: allProfiles } = await admin
     .from("profiles")
     .select(
-      "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id, avatar_url, date_of_birth, gender, credentials, specialization, years_experience, active, phone, created_at"
+      "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id, avatar_url, date_of_birth, gender, credentials, specialization, years_experience, active, phone, created_at, approved"
     );
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
   const patients = (allProfiles ?? [])
     .filter((p) => p.role === "patient")
+    .sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  const allTherapists = (allProfiles ?? [])
+    .filter((p) => p.role === "therapist")
     .sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
@@ -581,6 +586,47 @@ export default async function AdminDashboardPage() {
     </div>
   );
 
+  const therapistsTab = (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <h2 className="font-bold text-lg text-slate-800 mb-4">
+        Therapists
+        <span className="ml-2 text-xs font-normal text-slate-400">
+          {allTherapists.length} total
+        </span>
+      </h2>
+      {allTherapists.length === 0 ? (
+        <p className="text-xs text-slate-500 py-4 text-center">
+          No therapists have applied yet.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          {allTherapists.map((t) => (
+            <Link
+              key={t.id}
+              href={`/admin/dashboard/therapists/${t.id}`}
+              className="flex flex-col items-center text-center p-4 rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-sm transition relative"
+            >
+              {!t.active ? (
+                <span className="absolute top-2 right-2 text-[9px] font-bold uppercase text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">
+                  Suspended
+                </span>
+              ) : !t.approved ? (
+                <span className="absolute top-2 right-2 text-[9px] font-bold uppercase text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
+                  Pending
+                </span>
+              ) : null}
+              <AvatarThumbnail url={t.avatar_url} name={t.full_name ?? "T"} size={56} />
+              <p className="font-bold text-slate-900 text-xs mt-2 line-clamp-1">
+                {t.full_name}
+              </p>
+              <p className="text-slate-500 text-[11px] line-clamp-1">{t.credentials}</p>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   const b2bBadgeCount =
     (b2bLeads?.filter((l) => l.status === "new").length ?? 0) +
     (referrals?.filter((r) => r.status === "pending_review").length ?? 0);
@@ -671,6 +717,7 @@ export default async function AdminDashboardPage() {
         b2bPartners={b2bPartners}
         b2bBadgeCount={b2bBadgeCount}
         patients={patientsTab}
+        therapists={therapistsTab}
         siteContent={siteContent}
       />
     </section>
