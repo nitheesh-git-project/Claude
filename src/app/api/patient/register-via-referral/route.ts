@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 
 export async function POST(request: NextRequest) {
   const { token, fullName, email, password } = await request.json();
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
       therapist_id: referral.assigned_therapist_id,
       slot_time: referral.assigned_slot_time,
       concern: referral.medical_issue,
+      duration_minutes: BASE_DURATION_MINUTES,
       notes: referral.treatment_needed,
       status: "requested",
       referral_id: referral.id,

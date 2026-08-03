@@ -274,3 +274,10 @@ where not exists (select 1 from treatment_categories);
 -- hospital-referred bookings (those describe a free-text medical issue,
 -- not a category, and charge the flat base session fee).
 alter table appointments add column if not exists category_id uuid references treatment_categories(id);
+
+-- The session length booked, snapshotted at booking time (same reasoning
+-- as amount_paid_paise: a category's duration can change later, but a
+-- booking already made shouldn't silently change with it). Surfaced to
+-- the therapist and admin so an appointment's actual length is known
+-- past just the marketing page — not only stored for pricing purposes.
+alter table appointments add column if not exists duration_minutes integer;

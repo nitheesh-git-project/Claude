@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 
 type Category = {
   id: string;
@@ -89,12 +90,19 @@ export default function BookingWizard() {
         .from("treatment_categories")
         .select("id, title, price_paise, duration_minutes")
         .eq("active", true)
-        .order("display_order", { ascending: true });
+        .order("display_order", { ascending: true })
+        .order("id", { ascending: true });
       const list = data ?? [];
       setCategories(list);
+      // Only preselect when the patient arrived via a specific "Book X"
+      // link from the Conditions page — that's a deliberate choice. Never
+      // default to the first category in the list just because one
+      // exists; since each one can carry a different price now, silently
+      // picking one for the patient risks booking (and charging) them for
+      // a concern they never actually chose.
       const fromQuery = searchParams.get("category");
       const preselect = list.find((c) => c.id === fromQuery);
-      setCategoryId(preselect?.id ?? list[0]?.id ?? "");
+      setCategoryId(preselect?.id ?? "");
       setCategoriesLoaded(true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -191,6 +199,7 @@ export default function BookingWizard() {
         timezone,
         concern: selectedCategory?.title ?? "General Consultation",
         category_id: categoryId || null,
+        duration_minutes: selectedCategory?.duration_minutes ?? BASE_DURATION_MINUTES,
         notes,
         status: "requested",
       })
@@ -468,6 +477,9 @@ export default function BookingWizard() {
                 onChange={(e) => setCategoryId(e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-300 bg-white"
               >
+                <option value="" disabled>
+                  — Select what you need help with —
+                </option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.title} — {formatInr(c.price_paise)} / {c.duration_minutes} min

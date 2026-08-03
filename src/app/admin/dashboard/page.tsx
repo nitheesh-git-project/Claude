@@ -15,7 +15,7 @@ import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
-import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Dr. Pooja's Physio",
@@ -50,7 +50,7 @@ export default async function AdminDashboardPage() {
   const { data: appointments } = await admin
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, patient_id, therapist_id, created_at"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, created_at"
     )
     .order("created_at", { ascending: false });
 
@@ -80,7 +80,9 @@ export default async function AdminDashboardPage() {
     .select(
       "id, title, description, points, price_paise, duration_minutes, cta_label, display_order, active"
     )
-    .order("display_order", { ascending: true });
+    .order("display_order", { ascending: true })
+    .order("id", { ascending: true });
+  const categoryMap = new Map((treatmentCategories ?? []).map((c) => [c.id, c]));
 
   // Revenue rollup per hospital: every paid session belonging to a patient
   // this hospital referred (either channel — invite-link or self-serve
@@ -104,6 +106,29 @@ export default async function AdminDashboardPage() {
     // exactly what was charged, so this never drifts as pricing changes.
     entry.totalRevenue += (appt.amount_paid_paise ?? SESSION_FEE_PAISE) / 100;
     hospitalRevenue.set(hospitalId, entry);
+  }
+
+  // Per-category performance: how many bookings each condition category
+  // has gotten, and how much revenue it's actually brought in — useful now
+  // that price varies by category instead of every booking being worth
+  // the same flat fee.
+  const categoryStats = new Map<
+    string,
+    { totalBookings: number; paidBookings: number; totalRevenue: number }
+  >();
+  for (const appt of appointments ?? []) {
+    if (!appt.category_id) continue;
+    const entry = categoryStats.get(appt.category_id) ?? {
+      totalBookings: 0,
+      paidBookings: 0,
+      totalRevenue: 0,
+    };
+    entry.totalBookings += 1;
+    if (appt.payment_status === "paid") {
+      entry.paidBookings += 1;
+      entry.totalRevenue += (appt.amount_paid_paise ?? SESSION_FEE_PAISE) / 100;
+    }
+    categoryStats.set(appt.category_id, entry);
   }
 
   const overview = (
@@ -153,6 +178,9 @@ export default async function AdminDashboardPage() {
               const therapist = a.therapist_id
                 ? profileMap.get(a.therapist_id)
                 : null;
+              const category = a.category_id ? categoryMap.get(a.category_id) : null;
+              const feePaise = a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE;
+              const durationMinutes = a.duration_minutes ?? category?.duration_minutes ?? BASE_DURATION_MINUTES;
               return (
                 <li
                   key={a.id}
@@ -182,7 +210,13 @@ export default async function AdminDashboardPage() {
                   </div>
                   <p className="text-slate-600">
                     <strong>{a.concern}</strong> —{" "}
-                    {formatSlotTime(a.slot_time, a.timezone)}
+                    {formatSlotTime(a.slot_time, a.timezone)} • {durationMinutes} min
+                  </p>
+                  <p className="text-slate-500">
+                    Fee: <strong>₹{(feePaise / 100).toLocaleString("en-IN")}</strong>
+                    {a.payment_status !== "paid" && (
+                      <span className="text-slate-400"> (estimated)</span>
+                    )}
                   </p>
                   {therapist ? (
                     <p className="text-slate-500">
@@ -425,21 +459,72 @@ export default async function AdminDashboardPage() {
     (referrals?.filter((r) => r.status === "pending_review").length ?? 0);
 
   const siteContent = (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-bold text-lg text-slate-800 mb-1">
-        Conditions Treated — Categories
-      </h2>
-      <p className="text-xs text-slate-500 mb-4">
-        Controls what shows on the public /conditions page, and what
-        patients can pick (and get charged) in the booking wizard.
-      </p>
-      <TreatmentCategoryManager
-        categories={(treatmentCategories ?? []).map((c) => ({
-          ...c,
-          points: Array.isArray(c.points) ? (c.points as string[]) : [],
-        }))}
-      />
-    </div>
+    <>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
+        <h2 className="font-bold text-lg text-slate-800 mb-4">
+          Category Performance
+        </h2>
+        {!treatmentCategories || treatmentCategories.length === 0 ? (
+          <p className="text-xs text-slate-500 py-4 text-center">
+            No categories yet — add one below to start tracking bookings.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {treatmentCategories.map((c) => {
+              const stats = categoryStats.get(c.id) ?? {
+                totalBookings: 0,
+                paidBookings: 0,
+                totalRevenue: 0,
+              };
+              return (
+                <li
+                  key={c.id}
+                  className="p-4 rounded-xl border border-slate-200 text-xs"
+                >
+                  <p className="font-bold text-slate-900 mb-2">{c.title}</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-slate-400">Bookings</p>
+                      <p className="font-bold text-slate-900">
+                        {stats.totalBookings}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Paid</p>
+                      <p className="font-bold text-slate-900">
+                        {stats.paidBookings}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Revenue</p>
+                      <p className="font-bold text-teal-700">
+                        ₹{stats.totalRevenue.toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">
+          Conditions Treated — Categories
+        </h2>
+        <p className="text-xs text-slate-500 mb-4">
+          Controls what shows on the public /conditions page, and what
+          patients can pick (and get charged) in the booking wizard.
+        </p>
+        <TreatmentCategoryManager
+          categories={(treatmentCategories ?? []).map((c) => ({
+            ...c,
+            points: Array.isArray(c.points) ? (c.points as string[]) : [],
+          }))}
+        />
+      </div>
+    </>
   );
 
   return (

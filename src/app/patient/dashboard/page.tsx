@@ -30,7 +30,7 @@ export default async function PatientDashboardPage() {
   const { data: appointments } = await supabase
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, category_id, duration_minutes"
     )
     .eq("patient_id", user.id)
     .order("created_at", { ascending: false });
@@ -99,6 +99,7 @@ export default async function PatientDashboardPage() {
                   </p>
                   <p className="text-slate-500 mt-1">
                     {formatSlotTime(a.slot_time, a.timezone)}
+                    {a.duration_minutes && ` • ${a.duration_minutes} min`}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
