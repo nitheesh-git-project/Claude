@@ -44,14 +44,17 @@ export default function PatientAuthCard() {
       email: formData.get("email") as string,
       password: formData.get("password") as string,
     });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       setError(error.message);
       return;
     }
-    // Hard navigation so the fresh cookies set by signInWithPassword are
-    // guaranteed to be sent with the very next request to the proxy —
-    // a client-side soft nav can race the cookie write.
+    // Left in the loading state deliberately -- a hard navigation is about
+    // to replace this page, so resetting it first just flashes the button
+    // back to "Sign In" for however long that navigation takes. Hard nav
+    // (not router.push) so the fresh cookies set by signInWithPassword are
+    // guaranteed to be sent with the very next request to the proxy — a
+    // client-side soft nav can race the cookie write.
     window.location.href = "/patient/dashboard";
   }
 
@@ -121,18 +124,20 @@ export default function PatientAuthCard() {
         },
       },
     });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       setError(error.message);
       return;
     }
 
     if (!data.session) {
+      setLoading(false);
       setInfo("Account created! Check your email to confirm it, then sign in.");
       setTab("login");
       return;
     }
 
+    // Left in the loading state deliberately -- see handleLogin's comment.
     window.location.href = "/patient/dashboard";
   }
 

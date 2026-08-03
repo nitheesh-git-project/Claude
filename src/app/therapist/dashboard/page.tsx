@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import CompleteSessionButton from "@/components/CompleteSessionButton";
@@ -136,6 +135,7 @@ export default async function TherapistDashboardPage() {
     { id: "availability", label: "Availability", icon: "fa-calendar-days" },
     { id: "sessions", label: "Assigned Sessions", icon: "fa-clipboard-list" },
     { id: "receipts", label: "Payout Receipts", icon: "fa-sack-dollar" },
+    { id: "edit-profile", label: "Edit Profile", icon: "fa-user-pen", href: "/therapist/dashboard/profile" },
   ];
 
   // Same computation as the root layout's own showDebugNav -- duplicated
@@ -182,14 +182,6 @@ export default async function TherapistDashboardPage() {
             )}
           </p>
         </>
-      }
-      headerActions={
-        <Link
-          href="/therapist/dashboard/profile"
-          className="text-xs font-semibold text-slate-500 hover:text-purple-700 transition"
-        >
-          Edit Profile
-        </Link>
       }
     >
       <div id="availability">

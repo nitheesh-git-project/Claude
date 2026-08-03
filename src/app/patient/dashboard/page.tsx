@@ -147,6 +147,7 @@ export default async function PatientDashboardPage() {
       ? [{ id: "session-packages", label: "Session Packages", icon: "fa-layer-group" }]
       : []),
     { id: "receipts", label: "Receipts", icon: "fa-receipt" },
+    { id: "edit-profile", label: "Edit Profile", icon: "fa-user-pen", href: "/patient/dashboard/profile" },
   ];
 
   // Same computation as the root layout's own showDebugNav -- duplicated
@@ -169,14 +170,6 @@ export default async function PatientDashboardPage() {
       offsetTop={showDebugNav}
       headerTitle={`Welcome back, ${profile?.full_name ?? "there"}`}
       headerSubtitle="Your virtual physical therapy dashboard"
-      headerActions={
-        <Link
-          href="/patient/dashboard/profile"
-          className="text-xs font-semibold text-slate-500 hover:text-teal-700 transition"
-        >
-          Edit Profile
-        </Link>
-      }
     >
       <div id="sessions" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
