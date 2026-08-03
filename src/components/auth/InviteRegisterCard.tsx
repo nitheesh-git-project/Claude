@@ -12,6 +12,7 @@ export default function InviteRegisterCard() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -58,8 +59,14 @@ export default function InviteRegisterCard() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match. Please re-enter them.");
+      return;
+    }
+
+    setLoading(true);
 
     const res = await fetch("/api/patient/register-via-referral", {
       method: "POST",
@@ -164,13 +171,31 @@ export default function InviteRegisterCard() {
               />
             </div>
             <div>
-              <label className="block font-semibold mb-1">Password</label>
+              <label className="block font-semibold mb-1">
+                Create Password{" "}
+                <span className="font-normal text-slate-400">
+                  (for portal access)
+                </span>
+              </label>
               <input
                 type="password"
                 required
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-300"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold mb-1">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>

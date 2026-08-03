@@ -39,9 +39,16 @@ export default function TherapistAuthCard() {
     const formData = new FormData(e.currentTarget);
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
+    const confirmPassword = formData.get("confirmPassword") as string;
     const fullName = formData.get("fullName") as string;
     const phone = formData.get("phone") as string;
     const credentials = formData.get("credentials") as string;
+
+    if (password !== confirmPassword) {
+      setLoading(false);
+      setError("Passwords do not match. Please re-enter them.");
+      return;
+    }
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -181,10 +188,27 @@ export default function TherapistAuthCard() {
               />
             </div>
             <div>
-              <label className="block font-semibold mb-1">Password</label>
+              <label className="block font-semibold mb-1">
+                Create Password{" "}
+                <span className="font-normal text-slate-400">
+                  (for portal access)
+                </span>
+              </label>
               <input
                 type="password"
                 name="password"
+                required
+                minLength={6}
+                className="w-full p-3 rounded-xl border border-slate-300"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold mb-1">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                name="confirmPassword"
                 required
                 minLength={6}
                 className="w-full p-3 rounded-xl border border-slate-300"
