@@ -4,56 +4,62 @@ import { useState, type ReactNode } from "react";
 
 export default function AdminTabs({
   overview,
-  b2bPartners,
-  b2bBadgeCount,
+  approvalBookings,
+  sessionStory,
   patients,
   therapists,
-  payouts,
-  paymentHistory,
   roster,
   calendar,
-  sessionStory,
-  metrics,
+  b2bPartners,
+  b2bBadgeCount,
+  payouts,
+  paymentHistory,
   siteContent,
 }: {
+  // The at-a-glance landing tab -- the Metrics dashboard (cards/charts),
+  // not the old approvals/bookings list. See approvalBookings below for
+  // that.
   overview: ReactNode;
-  b2bPartners: ReactNode;
-  b2bBadgeCount: number;
+  // What used to be the Overview tab's own content (pending approvals +
+  // All Bookings list), moved here and renamed so "Overview" can be a
+  // pure at-a-glance metrics view instead.
+  approvalBookings: ReactNode;
+  sessionStory: ReactNode;
   patients: ReactNode;
   therapists: ReactNode;
-  payouts: ReactNode;
-  paymentHistory: ReactNode;
   roster: ReactNode;
   calendar: ReactNode;
-  sessionStory: ReactNode;
-  metrics: ReactNode;
+  b2bPartners: ReactNode;
+  b2bBadgeCount: number;
+  payouts: ReactNode;
+  paymentHistory: ReactNode;
   siteContent: ReactNode;
 }) {
   const [tab, setTab] = useState<
     | "overview"
-    | "b2b"
+    | "approvalBookings"
+    | "sessionStory"
     | "patients"
     | "therapists"
-    | "payouts"
-    | "paymentHistory"
     | "roster"
     | "calendar"
-    | "sessionStory"
-    | "metrics"
+    | "b2b"
+    | "payouts"
+    | "paymentHistory"
     | "content"
   >("overview");
 
   const tabs: { key: typeof tab; label: string; badge?: number }[] = [
     { key: "overview", label: "Overview" },
-    { key: "b2b", label: "B2B Partners", badge: b2bBadgeCount },
+    { key: "approvalBookings", label: "Approval & Bookings" },
+    { key: "sessionStory", label: "Session Story" },
     { key: "patients", label: "Patients" },
     { key: "therapists", label: "Therapists" },
-    { key: "payouts", label: "Payouts" },
-    { key: "paymentHistory", label: "Payment History" },
     { key: "roster", label: "Manage Roster" },
     { key: "calendar", label: "Calendar" },
-    { key: "sessionStory", label: "Session Story" },
-    { key: "metrics", label: "Metrics" },
+    { key: "b2b", label: "B2B Partners", badge: b2bBadgeCount },
+    { key: "payouts", label: "Payouts" },
+    { key: "paymentHistory", label: "Payment History" },
     { key: "content", label: "Site Content" },
   ];
 
@@ -81,15 +87,15 @@ export default function AdminTabs({
       </div>
 
       <div className={tab === "overview" ? "" : "hidden"}>{overview}</div>
-      <div className={tab === "b2b" ? "" : "hidden"}>{b2bPartners}</div>
+      <div className={tab === "approvalBookings" ? "" : "hidden"}>{approvalBookings}</div>
+      <div className={tab === "sessionStory" ? "" : "hidden"}>{sessionStory}</div>
       <div className={tab === "patients" ? "" : "hidden"}>{patients}</div>
       <div className={tab === "therapists" ? "" : "hidden"}>{therapists}</div>
-      <div className={tab === "payouts" ? "" : "hidden"}>{payouts}</div>
-      <div className={tab === "paymentHistory" ? "" : "hidden"}>{paymentHistory}</div>
       <div className={tab === "roster" ? "" : "hidden"}>{roster}</div>
       <div className={tab === "calendar" ? "" : "hidden"}>{calendar}</div>
-      <div className={tab === "sessionStory" ? "" : "hidden"}>{sessionStory}</div>
-      <div className={tab === "metrics" ? "" : "hidden"}>{metrics}</div>
+      <div className={tab === "b2b" ? "" : "hidden"}>{b2bPartners}</div>
+      <div className={tab === "payouts" ? "" : "hidden"}>{payouts}</div>
+      <div className={tab === "paymentHistory" ? "" : "hidden"}>{paymentHistory}</div>
       <div className={tab === "content" ? "" : "hidden"}>{siteContent}</div>
     </div>
   );
