@@ -354,6 +354,27 @@ alter table appointments add column if not exists therapist_rating integer check
 alter table appointments add column if not exists therapist_feedback text;
 alter table appointments add column if not exists therapist_feedback_at timestamptz;
 
+-- Every reassignment (therapist/time/category change) made from the admin
+-- Calendar/Session Story views writes one row here recording what it was
+-- before and after — the appointments row itself only ever holds current
+-- state, so without this there'd be no way to answer "when was this
+-- session actually moved, and from what". Service-role only, same as the
+-- rest of the admin surface; nothing here is client-writable.
+create table if not exists appointment_reassignment_log (
+  id uuid primary key default gen_random_uuid(),
+  appointment_id uuid not null references appointments(id) on delete cascade,
+  changed_by uuid references profiles(id),
+  changed_at timestamptz not null default now(),
+  old_therapist_id uuid references profiles(id),
+  new_therapist_id uuid references profiles(id),
+  old_slot_time timestamptz,
+  new_slot_time timestamptz,
+  old_category_id uuid references treatment_categories(id),
+  new_category_id uuid references treatment_categories(id)
+);
+
+alter table appointment_reassignment_log enable row level security;
+
 -- Structured contact email captured directly on the public inquiry form,
 -- so onboarding doesn't rely on retyping it from free-text notes.
 alter table b2b_leads add column if not exists email text;

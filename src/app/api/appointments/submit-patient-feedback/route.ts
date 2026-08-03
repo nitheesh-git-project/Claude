@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+const MAX_FEEDBACK_LENGTH = 1000;
+
 export async function POST(request: NextRequest) {
   const { appointmentId, rating, feedback } = await request.json();
   if (!appointmentId || !rating) {
@@ -13,6 +15,12 @@ export async function POST(request: NextRequest) {
   const ratingNum = Number(rating);
   if (!Number.isInteger(ratingNum) || ratingNum < 1 || ratingNum > 5) {
     return NextResponse.json({ error: "Rating must be 1-5" }, { status: 400 });
+  }
+  if (feedback && String(feedback).length > MAX_FEEDBACK_LENGTH) {
+    return NextResponse.json(
+      { error: `Feedback must be ${MAX_FEEDBACK_LENGTH} characters or less.` },
+      { status: 400 }
+    );
   }
 
   const supabase = await createClient();

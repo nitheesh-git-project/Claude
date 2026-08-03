@@ -1,12 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import SessionDetailDrawer, { type SessionDetailAppointment } from "@/components/admin/SessionDetailDrawer";
+import SessionDetailDrawer, {
+  type SessionDetailAppointment,
+  type ReassignmentLogEntry,
+} from "@/components/admin/SessionDetailDrawer";
 import { formatSlotRange, istDateKey, istMinutesOfDay } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 
 type Person = { id: string; full_name: string | null };
-type Category = { id: string; title: string; price_paise: number; duration_minutes: number };
+type Category = {
+  id: string;
+  title: string;
+  price_paise: number;
+  duration_minutes: number;
+  active?: boolean;
+};
 type SortKey = "date" | "time" | "therapist" | "patient" | "category" | "price" | "status";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -31,17 +40,20 @@ function SortHeader({
   sortKey,
   sortDir,
   onToggle,
+  title,
 }: {
   label: string;
   sortKeyName: SortKey;
   sortKey: SortKey;
   sortDir: "asc" | "desc";
   onToggle: (key: SortKey) => void;
+  title?: string;
 }) {
   const active = sortKey === sortKeyName;
   return (
     <th
       onClick={() => onToggle(sortKeyName)}
+      title={title}
       className={`py-2 pr-3 font-semibold cursor-pointer select-none whitespace-nowrap transition ${
         active ? "text-slate-900" : "hover:text-slate-800"
       }`}
@@ -56,11 +68,13 @@ export default function AdminSessionStoryTab({
   people,
   categories,
   therapists,
+  reassignmentLogs,
 }: {
   appointments: SessionDetailAppointment[];
   people: Person[];
   categories: Category[];
   therapists: { id: string; full_name: string }[];
+  reassignmentLogs: ReassignmentLogEntry[];
 }) {
   const peopleMap = useMemo(
     () => new Map(people.map((p) => [p.id, p.full_name ?? "Unknown"])),
@@ -172,12 +186,20 @@ export default function AdminSessionStoryTab({
           <thead>
             <tr className="text-left text-slate-500 border-b border-slate-200">
               <SortHeader label="Date" sortKeyName="date" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-              <SortHeader label="Time" sortKeyName="time" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+              <SortHeader
+                label="Time"
+                sortKeyName="time"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onToggle={toggleSort}
+                title="Sorts by time of day only, independent of date"
+              />
               <SortHeader label="Therapist" sortKeyName="therapist" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
               <SortHeader label="Patient" sortKeyName="patient" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
               <SortHeader label="Category" sortKeyName="category" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
               <SortHeader label="Price" sortKeyName="price" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
               <SortHeader label="Status" sortKeyName="status" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+              <th className="py-2 pr-3 font-semibold">Payment</th>
               <th className="py-2 pr-3 font-semibold">Patient Rating</th>
               <th className="py-2 pr-3 font-semibold">Therapist Rating</th>
             </tr>
@@ -185,7 +207,7 @@ export default function AdminSessionStoryTab({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-6 text-center text-slate-400">
+                <td colSpan={10} className="py-6 text-center text-slate-400">
                   No sessions found.
                 </td>
               </tr>
@@ -214,6 +236,9 @@ export default function AdminSessionStoryTab({
                   <td className="py-2 pr-3 text-slate-500">{categoryTitle}</td>
                   <td className="py-2 pr-3 text-slate-700 font-semibold whitespace-nowrap">
                     ₹{(price / 100).toLocaleString("en-IN")}
+                    {a.payment_status !== "paid" && (
+                      <span className="text-slate-400 font-normal"> (est.)</span>
+                    )}
                   </td>
                   <td className="py-2 pr-3">
                     <span
@@ -222,6 +247,17 @@ export default function AdminSessionStoryTab({
                       }`}
                     >
                       {a.status}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-3">
+                    <span
+                      className={`capitalize font-semibold px-2 py-1 rounded-full ${
+                        a.payment_status === "paid"
+                          ? "text-green-700 bg-green-50"
+                          : "text-slate-500 bg-slate-100"
+                      }`}
+                    >
+                      {a.payment_status}
                     </span>
                   </td>
                   <td className="py-2 pr-3">
@@ -244,19 +280,11 @@ export default function AdminSessionStoryTab({
       {selectedAppointment && (
         <SessionDetailDrawer
           appointment={selectedAppointment}
-          patientName={peopleMap.get(selectedAppointment.patient_id) ?? "Unknown"}
-          therapistName={
-            selectedAppointment.therapist_id
-              ? peopleMap.get(selectedAppointment.therapist_id) ?? null
-              : null
-          }
-          categoryTitle={
-            selectedAppointment.category_id
-              ? categoryMap.get(selectedAppointment.category_id)?.title ?? null
-              : null
-          }
+          peopleMap={peopleMap}
+          categoryMap={categoryMap}
           therapists={therapists}
           categories={categories}
+          reassignmentLogs={reassignmentLogs}
           onClose={() => setSelectedAppointment(null)}
         />
       )}
