@@ -18,8 +18,88 @@ export function flagEmoji(iso2: string): string {
     .replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
 }
 
+// IANA timezone -> ISO country code, for the timezones real visitors are
+// actually likely to be in. Timezone is a far more reliable "where is this
+// person" signal than navigator.language/languages: a huge share of
+// browsers/OSes are left on an English (often en-US) language setting
+// regardless of the user's real location, but very few people run their
+// system clock on the wrong timezone. Not exhaustive (IANA has ~400 zones)
+// — covers the markets this app is realistically used from; anything not
+// listed here falls through to the language-based guess below.
+const TIMEZONE_COUNTRY: Record<string, CountryCode> = {
+  "Asia/Kolkata": "IN",
+  "Asia/Calcutta": "IN",
+  "Asia/Dubai": "AE",
+  "Asia/Karachi": "PK",
+  "Asia/Dhaka": "BD",
+  "Asia/Kathmandu": "NP",
+  "Asia/Colombo": "LK",
+  "Asia/Kabul": "AF",
+  "Asia/Singapore": "SG",
+  "Asia/Kuala_Lumpur": "MY",
+  "Asia/Bangkok": "TH",
+  "Asia/Jakarta": "ID",
+  "Asia/Manila": "PH",
+  "Asia/Ho_Chi_Minh": "VN",
+  "Asia/Hong_Kong": "HK",
+  "Asia/Shanghai": "CN",
+  "Asia/Taipei": "TW",
+  "Asia/Tokyo": "JP",
+  "Asia/Seoul": "KR",
+  "Asia/Riyadh": "SA",
+  "Asia/Qatar": "QA",
+  "Asia/Kuwait": "KW",
+  "Asia/Bahrain": "BH",
+  "Asia/Muscat": "OM",
+  "Asia/Tel_Aviv": "IL",
+  "Asia/Jerusalem": "IL",
+  "Europe/London": "GB",
+  "Europe/Dublin": "IE",
+  "Europe/Paris": "FR",
+  "Europe/Berlin": "DE",
+  "Europe/Madrid": "ES",
+  "Europe/Rome": "IT",
+  "Europe/Amsterdam": "NL",
+  "Europe/Brussels": "BE",
+  "Europe/Zurich": "CH",
+  "Europe/Lisbon": "PT",
+  "Europe/Moscow": "RU",
+  "Africa/Cairo": "EG",
+  "Africa/Lagos": "NG",
+  "Africa/Nairobi": "KE",
+  "Africa/Johannesburg": "ZA",
+  "America/New_York": "US",
+  "America/Chicago": "US",
+  "America/Denver": "US",
+  "America/Los_Angeles": "US",
+  "America/Anchorage": "US",
+  "America/Toronto": "CA",
+  "America/Vancouver": "CA",
+  "America/Mexico_City": "MX",
+  "America/Sao_Paulo": "BR",
+  "America/Bogota": "CO",
+  "America/Argentina/Buenos_Aires": "AR",
+  "Australia/Sydney": "AU",
+  "Australia/Melbourne": "AU",
+  "Australia/Perth": "AU",
+  "Pacific/Auckland": "NZ",
+};
+
+function detectTimezoneCountry(): CountryCode | null {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return TIMEZONE_COUNTRY[zone] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function detectBrowserCountry(): CountryCode {
   if (typeof navigator === "undefined") return LEGACY_DEFAULT_COUNTRY;
+
+  const timezoneCountry = detectTimezoneCountry();
+  if (timezoneCountry) return timezoneCountry;
+
   try {
     const locale = navigator.languages?.[0] ?? navigator.language;
     const region = new Intl.Locale(locale).maximize().region;

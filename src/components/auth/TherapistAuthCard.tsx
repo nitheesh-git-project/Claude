@@ -6,12 +6,15 @@ import { isValidEmail } from "@/lib/validateEmail";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
 import ConfirmPasswordField from "./ConfirmPasswordField";
+import EmailField from "./EmailField";
+import PasswordField from "./PasswordField";
 
 export default function TherapistAuthCard() {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [registerEmail, setRegisterEmail] = useState("");
   const [registerPhone, setRegisterPhone] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
@@ -126,6 +129,7 @@ export default function TherapistAuthCard() {
             onClick={() => {
               setTab("login");
               setForgotMode(false);
+              setRegisterEmail("");
               setRegisterPhone("");
               setRegisterPassword("");
               setRegisterConfirmPassword("");
@@ -142,6 +146,7 @@ export default function TherapistAuthCard() {
             onClick={() => {
               setTab("register");
               setForgotMode(false);
+              setRegisterEmail("");
               setRegisterPhone("");
               setRegisterPassword("");
               setRegisterConfirmPassword("");
@@ -291,16 +296,7 @@ export default function TherapistAuthCard() {
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
-            <div>
-              <label className="block font-semibold mb-1">Email Address</label>
-              <input
-                type="email"
-                name="email"
-                required
-                maxLength={254}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
-            </div>
+            <EmailField value={registerEmail} onChange={setRegisterEmail} />
             <PhoneNumberField value={registerPhone} onChange={setRegisterPhone} required />
             <div>
               <label className="block font-semibold mb-1">
@@ -315,24 +311,16 @@ export default function TherapistAuthCard() {
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
-            <div>
-              <label className="block font-semibold mb-1">
-                Create Password{" "}
-                <span className="font-normal text-slate-400">
-                  (for portal access)
-                </span>
-              </label>
-              <input
-                type="password"
-                name="password"
-                required
-                minLength={6}
-                maxLength={72}
-                value={registerPassword}
-                onChange={(e) => setRegisterPassword(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
-            </div>
+            <PasswordField
+              value={registerPassword}
+              onChange={setRegisterPassword}
+              label={
+                <>
+                  Create Password{" "}
+                  <span className="font-normal text-slate-400">(for portal access)</span>
+                </>
+              }
+            />
             <ConfirmPasswordField
               password={registerPassword}
               value={registerConfirmPassword}

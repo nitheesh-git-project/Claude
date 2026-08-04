@@ -9,6 +9,8 @@ import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_INR } from "@/lib/pricing";
 import { isValidEmail } from "@/lib/validateEmail";
 import ConfirmPasswordField from "./ConfirmPasswordField";
+import EmailField from "./EmailField";
+import PasswordField from "./PasswordField";
 
 type Preview = {
   valid: boolean;
@@ -254,34 +256,17 @@ export default function InviteRegisterCard() {
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
             </div>
-            <div>
-              <label className="block font-semibold mb-1">Email Address</label>
-              <input
-                type="email"
-                required
-                maxLength={254}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">
-                Create Password{" "}
-                <span className="font-normal text-slate-400">
-                  (for portal access)
-                </span>
-              </label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                maxLength={72}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
-            </div>
+            <EmailField value={email} onChange={setEmail} />
+            <PasswordField
+              value={password}
+              onChange={setPassword}
+              label={
+                <>
+                  Create Password{" "}
+                  <span className="font-normal text-slate-400">(for portal access)</span>
+                </>
+              }
+            />
             <ConfirmPasswordField
               password={password}
               value={confirmPassword}
