@@ -7,6 +7,7 @@ import AccountSecuritySection from "@/components/profile/AccountSecuritySection"
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
+import { parseAdminSettings } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
   title: "Edit Profile | Dr. Pooja's Physio",
@@ -46,6 +47,15 @@ export default async function TherapistProfilePage() {
     .eq("id", user.id)
     .maybeSingle();
 
+  // These site_settings columns are new/migration-dependent -- isolated so
+  // a missing migration only disables Feature Control's effects, not the
+  // whole page.
+  const { data: settingsRow } = await supabase
+    .from("site_settings")
+    .select("session_packages_visible, session_timeout_minutes")
+    .maybeSingle();
+  const adminSettings = parseAdminSettings(settingsRow);
+
   // Same computation as the root layout's own showDebugNav -- duplicated
   // here (rather than threaded through props from a layout) because this
   // page hides the shared Navbar entirely and needs the same dev-only-bar
@@ -66,6 +76,7 @@ export default async function TherapistProfilePage() {
       userAvatarUrl={profile?.avatar_url ?? null}
       userCode={therapistCodeRow?.therapist_code ?? null}
       offsetTop={showDebugNav}
+      sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
       headerTitle="Edit Profile"
       headerSubtitle="Update your public details, credentials, and account security."
     >

@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
+import { useIdleTimeout } from "@/lib/useIdleTimeout";
 
 type TabKey =
   | "overview"
@@ -16,7 +17,8 @@ type TabKey =
   | "payouts"
   | "payoutRequests"
   | "paymentHistory"
-  | "content";
+  | "content"
+  | "featureControl";
 
 type TabDef = { key: TabKey; label: string; icon: string; badge?: number };
 
@@ -35,10 +37,12 @@ export default function AdminTabs({
   payoutRequestsBadgeCount,
   paymentHistory,
   siteContent,
+  featureControl,
   adminName,
   adminEmail,
   adminAvatarUrl,
   offsetTop,
+  sessionTimeoutMinutes,
 }: {
   // The at-a-glance landing tab -- the Metrics dashboard (cards/charts),
   // not the old approvals/bookings list. See approvalBookings below for
@@ -60,6 +64,7 @@ export default function AdminTabs({
   payoutRequestsBadgeCount: number;
   paymentHistory: ReactNode;
   siteContent: ReactNode;
+  featureControl: ReactNode;
   adminName: string;
   adminEmail: string;
   adminAvatarUrl: string | null;
@@ -69,6 +74,9 @@ export default function AdminTabs({
   // own fixed sidebar has to account for that offset itself instead of
   // inheriting it for free from normal document flow.
   offsetTop: boolean;
+  // Admin-configured Session Timeout of Inactivity, in minutes (0 =
+  // disabled) -- see src/lib/useIdleTimeout.ts and Feature 16.
+  sessionTimeoutMinutes: number;
 }) {
   const [tab, setTab] = useState<TabKey>("overview");
   // Desktop full <-> mini collapse. Independent of the mobile drawer below --
@@ -94,6 +102,7 @@ export default function AdminTabs({
     },
     { key: "paymentHistory", label: "Payment History", icon: "fa-receipt" },
     { key: "content", label: "Site Content", icon: "fa-pen-to-square" },
+    { key: "featureControl", label: "Feature Control", icon: "fa-sliders" },
   ];
 
   async function handleSignOut() {
@@ -105,6 +114,8 @@ export default function AdminTabs({
     // sidebar's dark styling rather than that component's light one.
     window.location.href = "/?farewell=1";
   }
+
+  useIdleTimeout(sessionTimeoutMinutes, handleSignOut);
 
   // A plain render function, not a nested component -- called directly as
   // renderNavItem(...) rather than <NavItem ... />, so React never treats it
@@ -284,6 +295,7 @@ export default function AdminTabs({
           <div className={tab === "payoutRequests" ? "" : "hidden"}>{payoutRequests}</div>
           <div className={tab === "paymentHistory" ? "" : "hidden"}>{paymentHistory}</div>
           <div className={tab === "content" ? "" : "hidden"}>{siteContent}</div>
+          <div className={tab === "featureControl" ? "" : "hidden"}>{featureControl}</div>
         </div>
       </div>
     </div>

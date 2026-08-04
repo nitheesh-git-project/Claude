@@ -27,6 +27,7 @@ import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
 import AdminSessionStoryTab from "@/components/admin/AdminSessionStoryTab";
 import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
+import AdminFeatureControlTab from "@/components/admin/AdminFeatureControlTab";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
@@ -36,6 +37,7 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
+import { parseAdminSettings } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Dr. Pooja's Physio",
@@ -135,6 +137,16 @@ export default async function AdminDashboardPage() {
   const payoutBatchIdByAppointmentId = new Map(
     (payoutBatchLinks ?? []).map((a) => [a.id, a.therapist_payout_batch_id])
   );
+
+  // Feature Control tab (Feature 16) -- these site_settings columns are
+  // also new/migration-dependent, same isolation reasoning as the queries
+  // above: a missing migration degrades to DEFAULT_ADMIN_SETTINGS rather
+  // than blanking the whole dashboard.
+  const { data: settingsRow } = await admin
+    .from("site_settings")
+    .select("session_packages_visible, session_timeout_minutes")
+    .maybeSingle();
+  const adminSettings = parseAdminSettings(settingsRow);
 
   // session_code is also new/migration-dependent -- same isolation
   // reasoning as payoutBatchLinks above. Layered on top of the payout-batch
@@ -1155,6 +1167,8 @@ export default async function AdminDashboardPage() {
     </>
   );
 
+  const featureControl = <AdminFeatureControlTab settings={adminSettings} />;
+
   // Same computation as the root layout's own showDebugNav -- duplicated
   // here (rather than threaded through props from a layout) because this
   // page hides the shared Navbar entirely and needs the same dev-only-bar
@@ -1180,10 +1194,12 @@ export default async function AdminDashboardPage() {
       payoutRequestsBadgeCount={payoutRequestsBadgeCount}
       paymentHistory={paymentHistoryTab}
       siteContent={siteContent}
+      featureControl={featureControl}
       adminName={adminProfile?.full_name ?? "Admin"}
       adminEmail={adminProfile?.email ?? user.email ?? ""}
       adminAvatarUrl={adminProfile?.avatar_url ?? null}
       offsetTop={showDebugNav}
+      sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
     />
   );
 }

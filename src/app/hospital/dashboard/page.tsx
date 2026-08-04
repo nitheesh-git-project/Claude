@@ -10,6 +10,7 @@ import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
+import { parseAdminSettings } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
   title: "Partner Dashboard | Dr. Pooja's Physio",
@@ -37,6 +38,15 @@ export default async function HospitalDashboardPage() {
     .select("full_name, organization_name, referral_code, revenue_share_percent, avatar_url")
     .eq("id", user.id)
     .single();
+
+  // These site_settings columns are new/migration-dependent -- isolated so
+  // a missing migration only disables Feature Control's effects, not the
+  // whole page.
+  const { data: settingsRow } = await supabase
+    .from("site_settings")
+    .select("session_packages_visible, session_timeout_minutes")
+    .maybeSingle();
+  const adminSettings = parseAdminSettings(settingsRow);
 
   // hospital_code is new/migration-dependent -- kept isolated (see
   // sessionCode.ts's comment / this codebase's established convention) so
@@ -156,6 +166,7 @@ export default async function HospitalDashboardPage() {
       userAvatarUrl={profile?.avatar_url ?? null}
       userCode={hospitalCodeRow?.hospital_code ?? null}
       offsetTop={showDebugNav}
+      sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
       headerTitle={`${profile?.organization_name ?? "Partner"} Dashboard`}
       headerSubtitle={`Welcome, ${profile?.full_name}`}
     >

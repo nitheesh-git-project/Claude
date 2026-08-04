@@ -8,6 +8,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { LANGUAGE_OPTIONS } from "@/lib/languageOptions";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
+import { parseAdminSettings } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
   title: "Edit Profile | Dr. Pooja's Physio",
@@ -61,9 +62,19 @@ export default async function PatientProfilePage() {
     .select("id", { count: "exact", head: true })
     .eq("active", true);
 
+  // These site_settings columns are new/migration-dependent -- isolated so
+  // a missing migration only disables Feature Control's effects, not the
+  // whole page.
+  const { data: settingsRow } = await supabase
+    .from("site_settings")
+    .select("session_packages_visible, session_timeout_minutes")
+    .maybeSingle();
+  const adminSettings = parseAdminSettings(settingsRow);
+
   const navItems = buildPatientNavItems({
     hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
-    hasAvailablePackages: !!availablePackagesCount && availablePackagesCount > 0,
+    hasAvailablePackages:
+      adminSettings.sessionPackagesVisible && !!availablePackagesCount && availablePackagesCount > 0,
   });
 
   // Same computation as the root layout's own showDebugNav -- duplicated
@@ -86,6 +97,7 @@ export default async function PatientProfilePage() {
       userAvatarUrl={profile?.avatar_url ?? null}
       userCode={patientCodeRow?.patient_code ?? null}
       offsetTop={showDebugNav}
+      sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
       headerTitle="Edit Profile"
       headerSubtitle="Update your personal details, contact info, and account security."
     >

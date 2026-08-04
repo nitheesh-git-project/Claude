@@ -17,6 +17,7 @@ import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
+import { parseAdminSettings } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
   title: "Patient Dashboard | Dr. Pooja's Physio",
@@ -51,6 +52,15 @@ export default async function PatientDashboardPage() {
     .select("full_name, email, avatar_url")
     .eq("id", user.id)
     .single();
+
+  // These site_settings columns are new/migration-dependent -- isolated so
+  // a missing migration only disables Feature Control's effects, not the
+  // whole page.
+  const { data: settingsRow } = await supabase
+    .from("site_settings")
+    .select("session_packages_visible, session_timeout_minutes")
+    .maybeSingle();
+  const adminSettings = parseAdminSettings(settingsRow);
 
   // patient_code is new and migration-dependent -- its own isolated query
   // (rather than folded into the select above) so a missing-column error
@@ -170,7 +180,8 @@ export default async function PatientDashboardPage() {
     .order("created_at", { ascending: false });
 
   const hasOwnedPackages = !!ownedPackages && ownedPackages.length > 0;
-  const hasAvailablePackages = !!availablePackages && availablePackages.length > 0;
+  const hasAvailablePackages =
+    adminSettings.sessionPackagesVisible && !!availablePackages && availablePackages.length > 0;
 
   const navItems = buildPatientNavItems({ hasOwnedPackages, hasAvailablePackages });
 
@@ -304,6 +315,7 @@ export default async function PatientDashboardPage() {
       userAvatarUrl={profile?.avatar_url ?? null}
       userCode={patientCodeRow?.patient_code ?? null}
       offsetTop={showDebugNav}
+      sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
       headerTitle={`Welcome back, ${profile?.full_name ?? "there"}`}
       headerSubtitle="Your virtual physical therapy dashboard"
     >
@@ -369,7 +381,7 @@ export default async function PatientDashboardPage() {
         </div>
       )}
 
-      {availablePackages && availablePackages.length > 0 && (
+      {adminSettings.sessionPackagesVisible && availablePackages && availablePackages.length > 0 && (
         <div id="session-packages" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
           <h2 className="font-bold text-lg text-slate-800 mb-1">Session Packages</h2>
           <p className="text-xs text-slate-500 mb-4">

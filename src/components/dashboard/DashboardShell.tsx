@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
+import { useIdleTimeout } from "@/lib/useIdleTimeout";
 
 // `href` marks a real page navigation (e.g. "Edit Profile") rather than a
 // same-page anchor -- it always renders as a plain link to that page. An
@@ -45,6 +46,7 @@ export default function DashboardShell({
   headerTitle,
   headerSubtitle,
   headerActions,
+  sessionTimeoutMinutes = 0,
   children,
 }: {
   brandLabel: string;
@@ -69,6 +71,9 @@ export default function DashboardShell({
   headerTitle: string;
   headerSubtitle?: ReactNode;
   headerActions?: ReactNode;
+  // Admin-configured Session Timeout of Inactivity, in minutes (0/undefined
+  // = disabled) -- see src/lib/useIdleTimeout.ts and Feature 16.
+  sessionTimeoutMinutes?: number;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -133,6 +138,8 @@ export default function DashboardShell({
     // sidebar's dark styling rather than that component's light one.
     window.location.href = "/?farewell=1";
   }
+
+  useIdleTimeout(sessionTimeoutMinutes, handleSignOut);
 
   function scrollToSection(id: string) {
     const el = document.getElementById(id);

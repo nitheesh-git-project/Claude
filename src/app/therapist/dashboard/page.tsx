@@ -20,6 +20,7 @@ import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { computeTherapistEarningRows, computeTherapistPendingOwed } from "@/lib/therapistEarnings";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { parseAdminSettings } from "@/lib/adminSettings";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -52,6 +53,15 @@ export default async function TherapistDashboardPage() {
     .select("full_name, credentials, avatar_url, revenue_share_percent, rating_visible, timezone")
     .eq("id", user.id)
     .single();
+
+  // These site_settings columns are new/migration-dependent -- isolated so
+  // a missing migration only disables Feature Control's effects, not the
+  // whole page.
+  const { data: settingsRow } = await supabase
+    .from("site_settings")
+    .select("session_packages_visible, session_timeout_minutes")
+    .maybeSingle();
+  const adminSettings = parseAdminSettings(settingsRow);
 
   // therapist_code is new/migration-dependent -- kept isolated for the same
   // reason as onLeaveProfile below (see its own comment).
@@ -288,6 +298,7 @@ export default async function TherapistDashboardPage() {
       userAvatarUrl={profile?.avatar_url ?? null}
       userCode={therapistCodeRow?.therapist_code ?? null}
       offsetTop={showDebugNav}
+      sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
       headerTitle={`Welcome, ${profile?.full_name ?? "there"}`}
       headerSubtitle={
         <>

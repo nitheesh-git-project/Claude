@@ -1267,3 +1267,16 @@ alter table appointments add column if not exists google_calendar_sync_error tex
 -- razorpay_payment_id staying null already implies "not online", but this
 -- makes it an explicit, queryable fact rather than an inferred one.
 alter table appointments add column if not exists payment_method text;
+
+-- Admin Feature Control (Feature 16): two more columns on the existing
+-- site_settings singleton (see its own definition/comment above) rather
+-- than a new table -- same "one guaranteed row" pattern as
+-- ratings_visible_publicly. Every dashboard (patient/therapist/hospital/
+-- admin) reads these with its own regular (non-admin) client to apply e.g.
+-- the idle-timeout minutes client-side -- site_settings is already publicly
+-- readable (see site_settings_select_public above), so no new RLS policy is
+-- needed. All writes go through the service-role
+-- /api/admin/update-setting route only, same as ratings_visible_publicly's
+-- own route.
+alter table site_settings add column if not exists session_packages_visible boolean not null default true;
+alter table site_settings add column if not exists session_timeout_minutes integer not null default 0;
