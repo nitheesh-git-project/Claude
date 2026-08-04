@@ -17,6 +17,7 @@ async function saveSetting(key: string, value: boolean | number) {
 
 export type GoogleMeetSyncIssue = {
   id: string;
+  sessionCode: string | null;
   slotTime: string | null;
   patientName: string;
   therapistName: string | null;
@@ -306,6 +307,8 @@ export default function AdminFeatureControlTab({
                     {issue.therapistName ? ` → ${issue.therapistName}` : ""}
                   </p>
                   <p className="text-[11px] text-slate-500 mt-0.5">
+                    <span className="font-mono text-slate-400">{issue.sessionCode ?? "—"}</span>
+                    {" · "}
                     {issue.slotTime ? new Date(issue.slotTime).toLocaleString() : "Slot to be confirmed"}
                   </p>
                   {issue.error && (

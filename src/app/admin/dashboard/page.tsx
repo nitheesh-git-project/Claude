@@ -259,6 +259,7 @@ export default async function AdminDashboardPage() {
     .filter((a) => !a.meet_link || a.google_calendar_sync_error)
     .map((a) => ({
       id: a.id,
+      sessionCode: a.session_code ?? null,
       slotTime: a.slot_time,
       patientName: profileMap.get(a.patient_id)?.full_name ?? "Unknown patient",
       therapistName: a.therapist_id ? profileMap.get(a.therapist_id)?.full_name ?? "Unknown therapist" : null,
