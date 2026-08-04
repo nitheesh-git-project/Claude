@@ -6,6 +6,9 @@ import { createClient } from "@/lib/supabase/client";
 export default function HospitalLoginCard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
   const supabase = createClient();
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
@@ -30,6 +33,21 @@ export default function HospitalLoginCard() {
     window.location.href = "/hospital/dashboard";
   }
 
+  async function handleForgotPassword(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setForgotSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setForgotSubmitting(false);
+    // Always show the same confirmation regardless of whether the email is
+    // registered, so this can't be used to probe which emails have accounts.
+    setForgotSent(true);
+  }
+
   return (
     <section className="py-16 max-w-md mx-auto px-4">
       <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
@@ -49,42 +67,102 @@ export default function HospitalLoginCard() {
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-4 text-xs mt-6">
-          <div>
-            <label className="block font-semibold mb-1">Email Address</label>
-            <input
-              type="email"
-              name="email"
-              required
-              maxLength={254}
-              className="w-full p-3 rounded-xl border border-slate-300"
-            />
-          </div>
-          <div>
-            <label className="block font-semibold mb-1">Password</label>
-            <input
-              type="password"
-              name="password"
-              required
-              maxLength={72}
-              className="w-full p-3 rounded-xl border border-slate-300"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
-          >
-            {loading ? "Signing in..." : "Sign In"}
-          </button>
-        </form>
+        {forgotMode ? (
+          forgotSent ? (
+            <div className="text-xs space-y-4 mt-6">
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-teal-800">
+                If an account exists for that email, we&apos;ve sent a
+                password reset link. Check your inbox (and spam folder).
+              </div>
+              <button
+                onClick={() => {
+                  setForgotMode(false);
+                  setForgotSent(false);
+                }}
+                className="text-blue-700 font-semibold hover:underline"
+              >
+                ← Back to Sign In
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotPassword} className="space-y-4 text-xs mt-6">
+              <p className="text-slate-500">
+                Enter your partner account email and we&apos;ll send you a
+                link to reset your password.
+              </p>
+              <div>
+                <label className="block font-semibold mb-1">Email Address</label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  maxLength={254}
+                  className="w-full p-3 rounded-xl border border-slate-300"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={forgotSubmitting}
+                className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
+              >
+                {forgotSubmitting ? "Sending..." : "Send Reset Link"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setForgotMode(false)}
+                className="w-full text-slate-500 font-semibold"
+              >
+                ← Back to Sign In
+              </button>
+            </form>
+          )
+        ) : (
+          <>
+            <form onSubmit={handleLogin} className="space-y-4 text-xs mt-6">
+              <div>
+                <label className="block font-semibold mb-1">Email Address</label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  maxLength={254}
+                  className="w-full p-3 rounded-xl border border-slate-300"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Password</label>
+                <input
+                  type="password"
+                  name="password"
+                  required
+                  maxLength={72}
+                  className="w-full p-3 rounded-xl border border-slate-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => setForgotMode(true)}
+                  className="text-blue-700 font-semibold mt-1.5 hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
+              >
+                {loading ? "Signing in..." : "Sign In"}
+              </button>
+            </form>
 
-        <p className="text-[11px] text-slate-400 text-center mt-4">
-          Interested in partnering?{" "}
-          <a href="/hospitals" className="text-teal-700 font-semibold">
-            Learn more
-          </a>
-        </p>
+            <p className="text-[11px] text-slate-400 text-center mt-4">
+              Interested in partnering?{" "}
+              <a href="/hospitals" className="text-teal-700 font-semibold">
+                Learn more
+              </a>
+            </p>
+          </>
+        )}
       </div>
     </section>
   );

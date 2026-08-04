@@ -1191,7 +1191,11 @@ export default async function AdminDashboardPage() {
   );
 
   const featureControl = (
-    <AdminFeatureControlTab settings={adminSettings} syncIssues={googleMeetSyncIssues} />
+    <AdminFeatureControlTab
+      settings={adminSettings}
+      syncIssues={googleMeetSyncIssues}
+      adminEmail={adminProfile?.email ?? user.email ?? ""}
+    />
   );
 
   // Same computation as the root layout's own showDebugNav -- duplicated

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AdminSettings } from "@/lib/adminSettings";
+import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
 
 async function saveSetting(key: string, value: boolean | number) {
   const res = await fetch("/api/admin/update-setting", {
@@ -25,9 +26,11 @@ export type GoogleMeetSyncIssue = {
 export default function AdminFeatureControlTab({
   settings,
   syncIssues,
+  adminEmail,
 }: {
   settings: AdminSettings;
   syncIssues: GoogleMeetSyncIssue[];
+  adminEmail: string;
 }) {
   const router = useRouter();
   const [packagesVisible, setPackagesVisible] = useState(settings.sessionPackagesVisible);
@@ -143,6 +146,17 @@ export default function AdminFeatureControlTab({
 
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="font-bold text-lg text-slate-900">Account Security</h2>
+        <p className="text-xs text-slate-500 mt-1">
+          Reset your own admin password by email.
+        </p>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <AccountSecuritySection email={adminEmail} />
+      </div>
+
       <div>
         <h2 className="font-bold text-lg text-slate-900">Feature Control</h2>
         <p className="text-xs text-slate-500 mt-1">

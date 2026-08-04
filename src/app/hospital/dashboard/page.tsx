@@ -145,6 +145,7 @@ export default async function HospitalDashboardPage() {
     { id: "refer", label: "Refer a Patient", icon: "fa-user-plus" },
     { id: "referrals", label: "Your Referrals", icon: "fa-list-check" },
     { id: "revenue", label: "Revenue & Payouts", icon: "fa-chart-line" },
+    { id: "profile", label: "Account Security", icon: "fa-lock", href: "/hospital/dashboard/profile" },
   ];
 
   // Same computation as the root layout's own showDebugNav -- duplicated
