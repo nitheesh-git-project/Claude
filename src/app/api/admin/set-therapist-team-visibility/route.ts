@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -31,6 +32,11 @@ export async function POST(request: NextRequest) {
   if (!updated) {
     return NextResponse.json({ error: "Therapist not found" }, { status: 404 });
   }
+
+  // /team is time-based ISR (revalidate = 300s) -- without this, an admin
+  // toggling this off/on would see no change on the public page for up to
+  // 5 minutes, which reads as the toggle being broken.
+  revalidatePath("/team");
 
   return NextResponse.json({ success: true, visibleOnTeam });
 }
