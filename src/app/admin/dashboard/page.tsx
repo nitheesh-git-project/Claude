@@ -38,6 +38,7 @@ import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import { parseAdminSettings } from "@/lib/adminSettings";
+import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Dr. Pooja's Physio",
@@ -144,7 +145,7 @@ export default async function AdminDashboardPage() {
   // than blanking the whole dashboard.
   const { data: settingsRow } = await admin
     .from("site_settings")
-    .select("session_packages_visible, session_timeout_minutes")
+    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes")
     .maybeSingle();
   const adminSettings = parseAdminSettings(settingsRow);
 
@@ -166,6 +167,12 @@ export default async function AdminDashboardPage() {
     mergeSessionCodes(appointments ?? [], sessionCodeLinks),
     meetLinkRows
   );
+
+  // Sync health panel data (Feature Control tab) is built further down,
+  // once profileMap (patient/therapist names) is available.
+  const { data: syncErrorRows } = await admin
+    .from("appointments")
+    .select("id, google_calendar_sync_error");
   const appointmentsWithPayoutBatch = appointmentsWithSessionCode.map((a) => ({
     ...a,
     therapist_payout_batch_id: payoutBatchIdByAppointmentId.get(a.id) ?? null,
@@ -241,6 +248,22 @@ export default async function AdminDashboardPage() {
     .from("profiles")
     .select("id, patient_code, therapist_code, hospital_code");
   const roleCodeMap = new Map((roleCodeRows ?? []).map((r) => [r.id, r]));
+
+  // Sync health panel (Feature Control tab): confirmed sessions that either
+  // never got a Meet link or recorded a sync error -- surfaces silent
+  // Calendar-API failures in-app instead of only in server logs.
+  const syncErrorById = new Map((syncErrorRows ?? []).map((r) => [r.id, r.google_calendar_sync_error]));
+  const googleMeetSyncIssues = appointmentsWithSessionCode
+    .filter((a) => a.status === "confirmed")
+    .map((a) => ({ ...a, google_calendar_sync_error: syncErrorById.get(a.id) ?? null }))
+    .filter((a) => !a.meet_link || a.google_calendar_sync_error)
+    .map((a) => ({
+      id: a.id,
+      slotTime: a.slot_time,
+      patientName: profileMap.get(a.patient_id)?.full_name ?? "Unknown patient",
+      therapistName: a.therapist_id ? profileMap.get(a.therapist_id)?.full_name ?? "Unknown therapist" : null,
+      error: a.google_calendar_sync_error,
+    }));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
   const { data: hospitalNotes } = await admin
@@ -1167,7 +1190,9 @@ export default async function AdminDashboardPage() {
     </>
   );
 
-  const featureControl = <AdminFeatureControlTab settings={adminSettings} />;
+  const featureControl = (
+    <AdminFeatureControlTab settings={adminSettings} syncIssues={googleMeetSyncIssues} />
+  );
 
   // Same computation as the root layout's own showDebugNav -- duplicated
   // here (rather than threaded through props from a layout) because this
@@ -1179,6 +1204,7 @@ export default async function AdminDashboardPage() {
       process.env.NODE_ENV !== "production");
 
   return (
+    <JoinWindowProvider minutes={adminSettings.joinWindowMinutes}>
     <AdminTabs
       overview={metricsTab}
       approvalBookings={approvalBookingsTab}
@@ -1201,5 +1227,6 @@ export default async function AdminDashboardPage() {
       offsetTop={showDebugNav}
       sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
     />
+    </JoinWindowProvider>
   );
 }

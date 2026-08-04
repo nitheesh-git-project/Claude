@@ -22,6 +22,7 @@ export async function createMeetEventForConfirmedAppointment(
     slotTime,
     durationMinutes,
     timezone,
+    bypassMasterToggle = false,
   }: {
     appointmentId: string;
     patientId: string;
@@ -29,6 +30,11 @@ export async function createMeetEventForConfirmedAppointment(
     slotTime: string;
     durationMinutes: number | null;
     timezone: string | null;
+    // Set only by the admin-triggered manual retry route -- an admin
+    // explicitly clicking Retry on one session is an explicit override of
+    // the site-wide default, not a new automatic creation the toggle is
+    // meant to gate.
+    bypassMasterToggle?: boolean;
   }
 ) {
   // Never let anything here throw -- this runs after a payment/booking/
@@ -36,6 +42,23 @@ export async function createMeetEventForConfirmedAppointment(
   // transient network blip on the follow-up DB write) must not turn into a
   // 500 for a request whose actual work already completed.
   try {
+    // Admin master kill switch (Feature Control tab). Selecting a single
+    // column, not the whole row, so a still-null result before this
+    // migration is applied defaults to enabled -- same
+    // isolated-query-degrades-gracefully convention as everywhere else.
+    // Doesn't block updateMeetEventForAppointment/deleteMeetEventForAppointment
+    // below -- turning this off should only stop *new* events, never strand
+    // an existing one out of sync or block cleanup on cancellation.
+    if (!bypassMasterToggle) {
+      const { data: settingsRow } = await admin
+        .from("site_settings")
+        .select("google_meet_enabled")
+        .maybeSingle();
+      if (settingsRow?.google_meet_enabled === false) {
+        return;
+      }
+    }
+
     const { data: people } = await admin
       .from("profiles")
       .select("id, email")

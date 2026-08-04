@@ -1281,6 +1281,14 @@ alter table appointments add column if not exists payment_method text;
 alter table site_settings add column if not exists session_packages_visible boolean not null default true;
 alter table site_settings add column if not exists session_timeout_minutes integer not null default 0;
 
+-- Google Meet/Calendar admin controls (Feature Control tab): master kill
+-- switch for auto Meet-link creation, and how many minutes before slot_time
+-- the Tap to Join button activates. OAuth credentials/calendar ID stay in
+-- env vars, never DB-stored -- these two are the only non-secret,
+-- operationally-safe knobs to expose in the admin UI.
+alter table site_settings add column if not exists google_meet_enabled boolean not null default true;
+alter table site_settings add column if not exists join_window_minutes integer not null default 15;
+
 -- Specialist Team profile popup (Feature 38): an admin-curated public blurb
 -- shown alongside the therapist's own self-reported bio/credentials in the
 -- /team popup, distinct from therapist_admin_notes (private, never public)

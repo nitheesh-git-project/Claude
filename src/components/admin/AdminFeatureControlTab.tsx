@@ -14,7 +14,21 @@ async function saveSetting(key: string, value: boolean | number) {
   if (!res.ok) throw new Error(data.error ?? "Could not save. Please try again.");
 }
 
-export default function AdminFeatureControlTab({ settings }: { settings: AdminSettings }) {
+export type GoogleMeetSyncIssue = {
+  id: string;
+  slotTime: string | null;
+  patientName: string;
+  therapistName: string | null;
+  error: string | null;
+};
+
+export default function AdminFeatureControlTab({
+  settings,
+  syncIssues,
+}: {
+  settings: AdminSettings;
+  syncIssues: GoogleMeetSyncIssue[];
+}) {
   const router = useRouter();
   const [packagesVisible, setPackagesVisible] = useState(settings.sessionPackagesVisible);
   const [savingPackages, setSavingPackages] = useState(false);
@@ -24,6 +38,18 @@ export default function AdminFeatureControlTab({ settings }: { settings: AdminSe
   const [savingTimeout, setSavingTimeout] = useState(false);
   const [timeoutError, setTimeoutError] = useState<string | null>(null);
   const [timeoutSaved, setTimeoutSaved] = useState(false);
+
+  const [meetEnabled, setMeetEnabled] = useState(settings.googleMeetEnabled);
+  const [savingMeetEnabled, setSavingMeetEnabled] = useState(false);
+  const [meetEnabledError, setMeetEnabledError] = useState<string | null>(null);
+
+  const [joinWindowInput, setJoinWindowInput] = useState(String(settings.joinWindowMinutes));
+  const [savingJoinWindow, setSavingJoinWindow] = useState(false);
+  const [joinWindowError, setJoinWindowError] = useState<string | null>(null);
+  const [joinWindowSaved, setJoinWindowSaved] = useState(false);
+
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
 
   async function handleTogglePackages() {
     const next = !packagesVisible;
@@ -54,6 +80,64 @@ export default function AdminFeatureControlTab({ settings }: { settings: AdminSe
       setTimeoutError(e instanceof Error ? e.message : "Could not save. Please try again.");
     } finally {
       setSavingTimeout(false);
+    }
+  }
+
+  async function handleToggleMeetEnabled() {
+    const next = !meetEnabled;
+    setSavingMeetEnabled(true);
+    setMeetEnabledError(null);
+    try {
+      await saveSetting("google_meet_enabled", next);
+      setMeetEnabled(next);
+      router.refresh();
+    } catch (e) {
+      setMeetEnabledError(e instanceof Error ? e.message : "Could not save. Please try again.");
+    } finally {
+      setSavingMeetEnabled(false);
+    }
+  }
+
+  async function handleSaveJoinWindow() {
+    const minutes = Math.max(0, Math.floor(Number(joinWindowInput) || 0));
+    setSavingJoinWindow(true);
+    setJoinWindowError(null);
+    setJoinWindowSaved(false);
+    try {
+      await saveSetting("join_window_minutes", minutes);
+      setJoinWindowInput(String(minutes));
+      setJoinWindowSaved(true);
+      router.refresh();
+    } catch (e) {
+      setJoinWindowError(e instanceof Error ? e.message : "Could not save. Please try again.");
+    } finally {
+      setSavingJoinWindow(false);
+    }
+  }
+
+  async function handleRetry(appointmentId: string) {
+    setRetryingId(appointmentId);
+    setRetryErrors((prev) => {
+      const next = { ...prev };
+      delete next[appointmentId];
+      return next;
+    });
+    try {
+      const res = await fetch("/api/admin/retry-meet-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Retry failed. Please try again.");
+      router.refresh();
+    } catch (e) {
+      setRetryErrors((prev) => ({
+        ...prev,
+        [appointmentId]: e instanceof Error ? e.message : "Retry failed. Please try again.",
+      }));
+    } finally {
+      setRetryingId(null);
     }
   }
 
@@ -119,6 +203,115 @@ export default function AdminFeatureControlTab({ settings }: { settings: AdminSe
           {timeoutSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
         </div>
         {timeoutError && <p className="text-[11px] text-red-600 mt-2">{timeoutError}</p>}
+      </div>
+
+      <div>
+        <h2 className="font-bold text-lg text-slate-900">Google Meet / Calendar</h2>
+        <p className="text-xs text-slate-500 mt-1">
+          OAuth credentials and the target calendar are configured in server environment
+          variables, not here — these are the operational controls only.
+        </p>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="font-bold text-sm text-slate-800">Auto-Create Meet Links</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-md">
+              When off, newly confirmed sessions won&apos;t get a Calendar event or Meet link.
+              Existing links, reassignments/reschedules of already-confirmed sessions, and
+              cancellations are unaffected — this only stops <em>new</em> events going forward.
+            </p>
+          </div>
+          <button
+            onClick={handleToggleMeetEnabled}
+            disabled={savingMeetEnabled}
+            className={`text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-60 ${
+              meetEnabled
+                ? "bg-teal-700 hover:bg-teal-800 text-white"
+                : "bg-slate-200 hover:bg-slate-300 text-slate-800"
+            }`}
+          >
+            {savingMeetEnabled ? "Saving..." : meetEnabled ? "Enabled" : "Disabled"}
+          </button>
+        </div>
+        {meetEnabledError && <p className="text-[11px] text-red-600 mt-2">{meetEnabledError}</p>}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h3 className="font-bold text-sm text-slate-800">Join Button Window</h3>
+        <p className="text-xs text-slate-500 mt-1 max-w-md">
+          How many minutes before a session&apos;s slot time the &quot;Tap to Join&quot; button
+          becomes active, everywhere it appears.
+        </p>
+        <div className="flex items-center gap-2 mt-3">
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={joinWindowInput}
+            onChange={(e) => {
+              setJoinWindowInput(e.target.value);
+              setJoinWindowSaved(false);
+            }}
+            className="w-24 text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
+          />
+          <span className="text-xs text-slate-500">minutes before slot time</span>
+          <button
+            onClick={handleSaveJoinWindow}
+            disabled={savingJoinWindow}
+            className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
+          >
+            {savingJoinWindow ? "Saving..." : "Save"}
+          </button>
+          {joinWindowSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
+        </div>
+        {joinWindowError && <p className="text-[11px] text-red-600 mt-2">{joinWindowError}</p>}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h3 className="font-bold text-sm text-slate-800">Sync Health</h3>
+        <p className="text-xs text-slate-500 mt-1 max-w-md">
+          Confirmed sessions that don&apos;t have a Meet link yet — either creation hasn&apos;t
+          run, or it failed. Retry re-attempts event creation for that one session.
+        </p>
+        {syncIssues.length === 0 ? (
+          <p className="text-xs text-slate-400 mt-4">
+            No sync issues right now — every confirmed session has a Meet link.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-2">
+            {syncIssues.map((issue) => (
+              <div
+                key={issue.id}
+                className="flex items-center justify-between flex-wrap gap-2 border border-slate-200 rounded-xl px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-slate-800">
+                    {issue.patientName}
+                    {issue.therapistName ? ` → ${issue.therapistName}` : ""}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {issue.slotTime ? new Date(issue.slotTime).toLocaleString() : "Slot to be confirmed"}
+                  </p>
+                  {issue.error && (
+                    <p className="text-[11px] text-red-600 mt-1 break-words">{issue.error}</p>
+                  )}
+                  {retryErrors[issue.id] && (
+                    <p className="text-[11px] text-red-600 mt-1 break-words">{retryErrors[issue.id]}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleRetry(issue.id)}
+                  disabled={retryingId === issue.id}
+                  className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition shrink-0"
+                >
+                  {retryingId === issue.id ? "Retrying..." : "Retry"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

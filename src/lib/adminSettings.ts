@@ -1,16 +1,22 @@
 export type AdminSettings = {
   sessionPackagesVisible: boolean;
   sessionTimeoutMinutes: number;
+  googleMeetEnabled: boolean;
+  joinWindowMinutes: number;
 };
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   sessionPackagesVisible: true,
   sessionTimeoutMinutes: 0,
+  googleMeetEnabled: true,
+  joinWindowMinutes: 15,
 };
 
 type SiteSettingsRow = {
   session_packages_visible?: boolean | null;
   session_timeout_minutes?: number | null;
+  google_meet_enabled?: boolean | null;
+  join_window_minutes?: number | null;
 };
 
 // Turns the site_settings singleton row's Feature Control columns (see
@@ -30,5 +36,13 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
       typeof row?.session_timeout_minutes === "number"
         ? row.session_timeout_minutes
         : DEFAULT_ADMIN_SETTINGS.sessionTimeoutMinutes,
+    googleMeetEnabled:
+      typeof row?.google_meet_enabled === "boolean"
+        ? row.google_meet_enabled
+        : DEFAULT_ADMIN_SETTINGS.googleMeetEnabled,
+    joinWindowMinutes:
+      typeof row?.join_window_minutes === "number"
+        ? row.join_window_minutes
+        : DEFAULT_ADMIN_SETTINGS.joinWindowMinutes,
   };
 }

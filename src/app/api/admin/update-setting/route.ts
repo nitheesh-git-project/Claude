@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const ALLOWED_COLUMNS = new Set(["session_packages_visible", "session_timeout_minutes"]);
+const ALLOWED_COLUMNS = new Set([
+  "session_packages_visible",
+  "session_timeout_minutes",
+  "google_meet_enabled",
+  "join_window_minutes",
+]);
 
 // Writes one Feature Control column on the site_settings singleton row --
 // same table/pattern as /api/admin/set-ratings-visible-publicly, just
@@ -18,10 +23,16 @@ export async function POST(request: NextRequest) {
   if (typeof key !== "string" || !ALLOWED_COLUMNS.has(key)) {
     return NextResponse.json({ error: "Unknown setting key" }, { status: 400 });
   }
-  if (key === "session_packages_visible" && typeof value !== "boolean") {
+  if (
+    (key === "session_packages_visible" || key === "google_meet_enabled") &&
+    typeof value !== "boolean"
+  ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
   }
-  if (key === "session_timeout_minutes" && (typeof value !== "number" || value < 0)) {
+  if (
+    (key === "session_timeout_minutes" || key === "join_window_minutes") &&
+    (typeof value !== "number" || value < 0)
+  ) {
     return NextResponse.json({ error: "value must be a non-negative number" }, { status: 400 });
   }
 

@@ -18,6 +18,7 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { parseAdminSettings } from "@/lib/adminSettings";
+import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 export const metadata: Metadata = {
   title: "Patient Dashboard | Dr. Pooja's Physio",
@@ -58,7 +59,7 @@ export default async function PatientDashboardPage() {
   // whole page.
   const { data: settingsRow } = await supabase
     .from("site_settings")
-    .select("session_packages_visible, session_timeout_minutes")
+    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes")
     .maybeSingle();
   const adminSettings = parseAdminSettings(settingsRow);
 
@@ -305,6 +306,7 @@ export default async function PatientDashboardPage() {
       process.env.NODE_ENV !== "production");
 
   return (
+    <JoinWindowProvider minutes={adminSettings.joinWindowMinutes}>
     <DashboardShell
       brandLabel="Patient Panel"
       brandIcon="fa-user-injured"
@@ -429,5 +431,6 @@ export default async function PatientDashboardPage() {
         />
       </div>
     </DashboardShell>
+    </JoinWindowProvider>
   );
 }

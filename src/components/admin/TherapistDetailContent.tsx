@@ -21,6 +21,8 @@ import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { computeNoShowRate, computeCancellationRate } from "@/lib/adminMetrics";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
+import { parseAdminSettings } from "@/lib/adminSettings";
+import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 // Shared body for both the standalone /admin/dashboard/therapists/[id] page
 // (hard navigation, shareable link) and the @modal intercepted route that
@@ -28,6 +30,15 @@ import { mergeMeetLinks } from "@/lib/meetLink";
 // Bug 10 and PatientDetailContent's identical rationale.
 export default async function TherapistDetailContent({ id }: { id: string }) {
   const admin = createAdminClient();
+
+  // Isolated query, same migration-dependent convention as everything else
+  // on this page -- only feeds the Join button's window here, never blocks
+  // the rest of the detail page if the columns aren't migrated yet.
+  const { data: settingsRow } = await admin
+    .from("site_settings")
+    .select("join_window_minutes")
+    .maybeSingle();
+  const adminSettings = parseAdminSettings(settingsRow);
 
   const { data: therapist } = await admin
     .from("profiles")
@@ -198,7 +209,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
   const cancellationStats = computeCancellationRate(appointments ?? []);
 
   return (
-    <>
+    <JoinWindowProvider minutes={adminSettings.joinWindowMinutes}>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
@@ -496,6 +507,6 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           </ul>
         )}
       </div>
-    </>
+    </JoinWindowProvider>
   );
 }
