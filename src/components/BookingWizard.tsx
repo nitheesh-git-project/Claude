@@ -19,6 +19,12 @@ type Category = {
   duration_minutes: number;
 };
 
+// After this many failed/dismissed payment attempts on the same booking,
+// offer an escape hatch -- the unpaid appointment isn't lost, it just sits
+// as a normal pending booking the patient can retry later via the same
+// Pay Now button their dashboard already shows for any unpaid session.
+const MAX_ATTEMPTS_BEFORE_ESCAPE = 3;
+
 function todayDateStr() {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -39,6 +45,7 @@ export default function BookingWizard() {
   const [info, setInfo] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
 
   // Lazy initializer, not a bare Date.now() in the render body -- same
   // one-time-"now" pattern already used elsewhere in this codebase (see
@@ -283,10 +290,12 @@ export default function BookingWizard() {
       onError: (message) => {
         setLoading(false);
         setError(message);
+        setFailedAttempts((n) => n + 1);
       },
       onDismiss: () => {
         setLoading(false);
         setError("Payment was not completed. You can try again below.");
+        setFailedAttempts((n) => n + 1);
       },
     });
   }
@@ -682,8 +691,18 @@ export default function BookingWizard() {
           </p>
           <div className="flex gap-3 pt-1">
             <button
-              onClick={() => setStep(2)}
-              disabled={loading || !!appointmentId}
+              onClick={() => {
+                // Going back to change details abandons the current unpaid
+                // draft rather than silently retrying payment against the
+                // old (possibly now-stale) booking -- it stays in the
+                // patient's dashboard as a normal unpaid session either way,
+                // same as if they'd just closed the tab here.
+                setAppointmentId(null);
+                setFailedAttempts(0);
+                setError(null);
+                setStep(2);
+              }}
+              disabled={loading}
               className="w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3.5 rounded-xl transition disabled:opacity-60"
             >
               Back
@@ -700,6 +719,20 @@ export default function BookingWizard() {
                 : "Request Booking"}
             </button>
           </div>
+          {appointmentId && failedAttempts >= MAX_ATTEMPTS_BEFORE_ESCAPE && (
+            <div className="text-xs text-center bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 space-y-2">
+              <p>
+                Having trouble paying? Your booking is saved as pending — you
+                can come back and pay any time from your dashboard.
+              </p>
+              <Link
+                href="/patient/dashboard"
+                className="inline-block font-bold text-teal-700 hover:underline"
+              >
+                Go to Dashboard →
+              </Link>
+            </div>
+          )}
         </>
       )}
       </div>
