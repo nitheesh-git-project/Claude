@@ -5,6 +5,7 @@ import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
 import CompleteSessionButton from "@/components/CompleteSessionButton";
 import MarkNoShowButton from "@/components/MarkNoShowButton";
+import MarkPaidByCashButton from "@/components/admin/MarkPaidByCashButton";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import SessionDetailDrawer, {
   type SessionDetailAppointment,
@@ -151,6 +152,10 @@ export default function ProfileSessionList({
                     <MarkNoShowButton appointmentId={a.id} />
                   </>
                 )}
+                {a.payment_status !== "paid" &&
+                  (a.status === "requested" || a.status === "confirmed") && (
+                    <MarkPaidByCashButton appointmentId={a.id} />
+                  )}
               </div>
             </li>
           );

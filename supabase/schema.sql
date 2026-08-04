@@ -1260,3 +1260,10 @@ create unique index if not exists payout_requests_one_open_idx
 alter table appointments add column if not exists google_event_id text;
 alter table appointments add column if not exists meet_link text;
 alter table appointments add column if not exists google_calendar_sync_error text;
+
+-- Distinguishes an admin-recorded cash payment from a normal online
+-- Razorpay charge -- null/'razorpay' for the existing online-payment path
+-- (never written to explicitly), 'cash' for /api/admin/mark-paid-by-cash.
+-- razorpay_payment_id staying null already implies "not online", but this
+-- makes it an explicit, queryable fact rather than an inferred one.
+alter table appointments add column if not exists payment_method text;
