@@ -33,7 +33,7 @@ export default async function AdminPatientDetailPage({
   const { data: patient } = await admin
     .from("profiles")
     .select(
-      "id, full_name, email, phone, avatar_url, active, created_at, referred_by_hospital_id, emergency_contact_name, emergency_contact_phone"
+      "id, full_name, email, phone, avatar_url, active, created_at, referred_by_hospital_id, emergency_contact_name, emergency_contact_phone, date_of_birth, gender, preferred_language"
     )
     .eq("id", id)
     .eq("role", "patient")
@@ -269,6 +269,23 @@ export default async function AdminPatientDetailPage({
 
       <div className="grid md:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h2 className="font-bold text-sm text-slate-800 mb-3">Personal Details</h2>
+          <div className="text-xs space-y-1 mb-4 pb-4 border-b border-slate-100">
+            <p className="text-slate-600">
+              <span className="font-semibold text-slate-500">Date of Birth: </span>
+              {patient.date_of_birth
+                ? new Date(patient.date_of_birth).toLocaleDateString("en-IN")
+                : "Not set"}
+            </p>
+            <p className="text-slate-600">
+              <span className="font-semibold text-slate-500">Gender: </span>
+              {patient.gender || "Not set"}
+            </p>
+            <p className="text-slate-600">
+              <span className="font-semibold text-slate-500">Preferred Language: </span>
+              {patient.preferred_language || "Not set"}
+            </p>
+          </div>
           <h2 className="font-bold text-sm text-slate-800 mb-3">Contact Info</h2>
           <PatientContactEditForm
             patientId={patient.id}

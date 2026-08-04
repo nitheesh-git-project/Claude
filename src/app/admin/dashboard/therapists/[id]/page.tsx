@@ -280,6 +280,9 @@ export default async function AdminTherapistDetailPage({
                 ? `${therapist.years_experience}+ years of experience`
                 : "Years of experience not set"}
             </p>
+            {therapist.languages && (
+              <p className="text-slate-600">Languages: {therapist.languages}</p>
+            )}
             {therapist.bio && <p className="text-slate-600">{therapist.bio}</p>}
           </div>
           <div className="mt-4 pt-4 border-t border-slate-100">
