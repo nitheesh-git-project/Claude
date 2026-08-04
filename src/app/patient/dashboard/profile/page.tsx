@@ -89,7 +89,7 @@ export default async function PatientProfilePage() {
       headerTitle="Edit Profile"
       headerSubtitle="Update your personal details, contact info, and account security."
     >
-      <div className="max-w-2xl">
+      <div className="max-w-2xl mx-auto">
       <div id="profile-photo" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <AvatarUpload
           userId={user.id}
