@@ -397,7 +397,13 @@ export default function BookingWizard() {
                 type="date"
                 value={bookDate}
                 min={todayDateStr()}
-                onChange={(e) => setBookDate(e.target.value)}
+                onChange={(e) => {
+                  setBookDate(e.target.value);
+                  // Previously-picked hour may no longer be >=12hrs out for
+                  // the new date -- clear it rather than silently submitting
+                  // a stale, now-filtered-out value.
+                  setBookHour("");
+                }}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
               <select
@@ -409,18 +415,17 @@ export default function BookingWizard() {
                 <option value="" disabled>
                   — Time —
                 </option>
-                {AVAILABILITY_HOURS.map((hour) => {
-                  const tooSoon =
-                    bookDate &&
-                    new Date(`${bookDate}T${String(hour).padStart(2, "0")}:00`).getTime() <
-                      nowMs + 12 * 60 * 60 * 1000;
+                {AVAILABILITY_HOURS.filter((hour) => {
+                  if (!bookDate) return true;
                   return (
-                    <option key={hour} value={hour} disabled={!!tooSoon}>
-                      {formatHourRange(hour)}
-                      {tooSoon ? " (too soon)" : ""}
-                    </option>
+                    new Date(`${bookDate}T${String(hour).padStart(2, "0")}:00`).getTime() >=
+                    nowMs + 12 * 60 * 60 * 1000
                   );
-                })}
+                }).map((hour) => (
+                  <option key={hour} value={hour}>
+                    {formatHourRange(hour)}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
