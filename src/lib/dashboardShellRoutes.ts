@@ -15,3 +15,15 @@ export const DASHBOARD_SHELL_ROUTES = new Set([
 export function isDashboardShellRoute(pathname: string | null): boolean {
   return pathname !== null && DASHBOARD_SHELL_ROUTES.has(pathname);
 }
+
+// Routes where the top Navbar specifically should stay hidden, beyond the
+// full dashboard shells above -- the booking wizard involves a real payment
+// mid-flow, and the nav's Sign In / Get Started / Go to Dashboard links are
+// an easy way to accidentally navigate away and lose progress. The Footer
+// isn't part of this (it's not a stray-navigation risk), so this is
+// intentionally separate from isDashboardShellRoute rather than folded in.
+const NAV_HIDDEN_ROUTES = new Set([...DASHBOARD_SHELL_ROUTES, "/book"]);
+
+export function isNavHiddenRoute(pathname: string | null): boolean {
+  return pathname !== null && NAV_HIDDEN_ROUTES.has(pathname);
+}

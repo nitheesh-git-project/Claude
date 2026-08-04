@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function BookPage() {
   return (
-    <section className="py-12 px-4 sm:px-6 lg:px-8 bg-slate-100 min-h-[calc(100vh-4rem)]">
+    <section className="py-12 px-4 sm:px-6 lg:px-8 bg-slate-100 min-h-screen">
       <div className="max-w-2xl mx-auto">
         <Suspense fallback={null}>
           <BookingWizard />

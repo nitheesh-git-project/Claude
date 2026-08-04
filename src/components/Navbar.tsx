@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { isDashboardShellRoute } from "@/lib/dashboardShellRoutes";
+import { isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
 
 const links = [
   { href: "/", label: "Home" },
@@ -77,7 +77,7 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
   // that sits below this marketing nav -- exact match only, so sub-pages
   // like /patient/dashboard/profile (which aren't part of a shell) keep
   // this nav for navigation.
-  if (isDashboardShellRoute(pathname)) {
+  if (isNavHiddenRoute(pathname)) {
     return null;
   }
 
