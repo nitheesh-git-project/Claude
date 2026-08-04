@@ -215,6 +215,28 @@ export default function BookingWizard() {
       userId = data.user.id;
     }
 
+    const newDuration = selectedCategory?.duration_minutes ?? BASE_DURATION_MINUTES;
+    const newStart = new Date(slotDateTime).getTime();
+    const newEnd = newStart + newDuration * 60_000;
+    const { data: existingBookings } = await supabase
+      .from("appointments")
+      .select("slot_time, duration_minutes")
+      .eq("patient_id", userId)
+      .in("status", ["requested", "confirmed"]);
+    const overlaps = (existingBookings ?? []).some((a) => {
+      if (!a.slot_time) return false;
+      const existingStart = new Date(a.slot_time).getTime();
+      const existingEnd = existingStart + (a.duration_minutes ?? BASE_DURATION_MINUTES) * 60_000;
+      return existingStart < newEnd && newStart < existingEnd;
+    });
+    if (overlaps) {
+      setLoading(false);
+      setError(
+        "You already have a session scheduled around this time. Please pick a different slot, or check your dashboard for existing bookings."
+      );
+      return;
+    }
+
     const { data: appointment, error: apptError } = await supabase
       .from("appointments")
       .insert({
