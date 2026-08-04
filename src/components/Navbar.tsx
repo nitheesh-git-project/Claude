@@ -31,6 +31,14 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
   // Sign In / Get Started buttons.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [dashboardHref, setDashboardHref] = useState("/patient/dashboard");
+  // A therapist whose application hasn't been approved yet has nowhere to
+  // go -- /therapist/dashboard just redirects them straight back out to
+  // /pending-approval -- so the button is hidden entirely rather than
+  // sending them on a round trip. Starts hidden (fail-closed) rather than
+  // defaulting to visible, so a failed/slow role lookup can't briefly show
+  // the button to someone it shouldn't -- it appears once the role check
+  // actually resolves, same as the rest of this logged-in state already does.
+  const [dashboardVisible, setDashboardVisible] = useState(false);
   const [navigating, setNavigating] = useState(false);
 
   useEffect(() => {
@@ -53,11 +61,12 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
       // anything else down with it.
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, approved")
         .eq("id", session.user.id)
         .maybeSingle();
       if (active && profile?.role) {
         setDashboardHref(ROLE_DASHBOARD_HREF[profile.role] ?? "/patient/dashboard");
+        setDashboardVisible(!(profile.role === "therapist" && profile.approved === false));
       }
     }
 
@@ -130,7 +139,7 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
                 Get Started <i className="fa-solid fa-arrow-right text-xs"></i>
               </Link>
             </div>
-          ) : (
+          ) : dashboardVisible ? (
             <div className="hidden md:flex items-center">
               <Link
                 href={dashboardHref}
@@ -142,7 +151,7 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
                 {!navigating && <i className="fa-solid fa-arrow-right text-xs"></i>}
               </Link>
             </div>
-          )}
+          ) : null}
 
           <button
             onClick={() => setOpen(!open)}
@@ -182,7 +191,7 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
                   Get Started
                 </Link>
               </>
-            ) : (
+            ) : dashboardVisible ? (
               <Link
                 href={dashboardHref}
                 onClick={() => {
@@ -194,7 +203,7 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
               >
                 {navigating ? "Loading..." : "Go to Dashboard"}
               </Link>
-            )}
+            ) : null}
           </div>
         )}
       </div>
