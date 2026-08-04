@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { debugNow } from "@/lib/debugNow";
 
 const JOINABLE_BEFORE_MS = 15 * 60 * 1000;
 
@@ -16,7 +17,7 @@ export default function JoinSessionButton({
   const slotTimeMs = slotTime ? new Date(slotTime).getTime() : null;
 
   function computeJoinable(ms: number | null) {
-    return ms === null ? true : Date.now() >= ms - JOINABLE_BEFORE_MS;
+    return ms === null ? true : debugNow() >= ms - JOINABLE_BEFORE_MS;
   }
 
   // Lazy initializer -- read once on mount rather than on every render
@@ -37,7 +38,7 @@ export default function JoinSessionButton({
 
   useEffect(() => {
     if (isJoinable || slotTimeMs === null) return;
-    const msUntilJoinable = slotTimeMs - JOINABLE_BEFORE_MS - Date.now();
+    const msUntilJoinable = slotTimeMs - JOINABLE_BEFORE_MS - debugNow();
     // One-time timer, not a recurring interval -- this codebase has no
     // existing setInterval usage, and a single scheduled flip at exactly
     // the joinable moment is the cheapest correct approach. Clamped to 0 so

@@ -11,6 +11,7 @@ import { AVAILABILITY_HOURS, formatHourRange } from "@/lib/therapistAvailability
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
 import ConfirmPasswordField from "@/components/auth/ConfirmPasswordField";
+import { debugNow } from "@/lib/debugNow";
 
 type Category = {
   id: string;
@@ -50,8 +51,9 @@ export default function BookingWizard() {
   // Lazy initializer, not a bare Date.now() in the render body -- same
   // one-time-"now" pattern already used elsewhere in this codebase (see
   // ProfileSessionList) for grey-out logic that only needs to be roughly
-  // fresh, not tick-perfect.
-  const [nowMs] = useState(() => Date.now());
+  // fresh, not tick-perfect. Reads the QA debug tool's simulated clock
+  // (Feature 44) when set, real time otherwise.
+  const [nowMs] = useState(() => debugNow());
   const [timezone, setTimezone] = useState("");
   const [bookDate, setBookDate] = useState("");
   const [bookHour, setBookHour] = useState<number | "">("");
@@ -141,7 +143,7 @@ export default function BookingWizard() {
       setError("Please select a preferred date and time.");
       return;
     }
-    if (new Date(slotDateTime).getTime() < Date.now() + 12 * 60 * 60 * 1000) {
+    if (new Date(slotDateTime).getTime() < nowMs + 12 * 60 * 60 * 1000) {
       setError("Please choose a time at least 12 hours from now.");
       return;
     }

@@ -1,6 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { debugNow, getDebugNowOffsetMs, setDebugNowOffsetMs } from "@/lib/debugNow";
+
+// datetime-local wants "YYYY-MM-DDTHH:mm" in the browser's local timezone,
+// not an ISO/UTC string -- sliceing toISOString would silently shift the
+// displayed value by the timezone offset.
+function toLocalInputValue(ms: number) {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 const routes = [
   { value: "/", label: "1. Home" },
@@ -24,6 +35,29 @@ const routes = [
 export default function DebugNav() {
   const router = useRouter();
   const pathname = usePathname();
+  // Lazy read (once, on mount) -- this is a dev-only debug control, not a
+  // rendering-correctness-sensitive value, so re-reading localStorage on
+  // every render would be pure overhead for no benefit.
+  const [simInput, setSimInput] = useState(() => toLocalInputValue(debugNow()));
+  const [active, setActive] = useState(() => getDebugNowOffsetMs() !== 0);
+
+  function applySimulatedTime() {
+    const target = new Date(simInput).getTime();
+    if (Number.isNaN(target)) return;
+    setDebugNowOffsetMs(target - Date.now());
+    setActive(true);
+    // A full reload, not a soft re-render -- every component reading
+    // debugNow() does so via a one-time lazy useState initializer (same
+    // convention as this codebase's existing Date.now() reads), so only a
+    // fresh page load picks up the new simulated clock everywhere at once.
+    window.location.reload();
+  }
+
+  function resetSimulatedTime() {
+    setDebugNowOffsetMs(null);
+    setActive(false);
+    window.location.reload();
+  }
 
   return (
     <div className="bg-slate-950 text-white border-b border-slate-800 sticky top-0 z-50">
@@ -45,6 +79,33 @@ export default function DebugNav() {
             </option>
           ))}
         </select>
+
+        <span className="text-xs text-slate-400 hidden md:inline ml-2">
+          Simulate now:
+        </span>
+        <input
+          type="datetime-local"
+          value={simInput}
+          onChange={(e) => setSimInput(e.target.value)}
+          className="bg-slate-800 text-teal-300 text-xs font-mono py-1.5 px-2 rounded-lg border border-slate-700 focus:outline-none focus:border-teal-500"
+        />
+        <button
+          type="button"
+          onClick={applySimulatedTime}
+          className="bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition"
+        >
+          Set
+        </button>
+        {active && (
+          <button
+            type="button"
+            onClick={resetSimulatedTime}
+            className="bg-slate-700 hover:bg-slate-600 text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition"
+          >
+            Reset to Real Time
+          </button>
+        )}
+
         <span className="text-[11px] text-slate-500 ml-auto hidden sm:inline">
           Remove this bar before real launch
         </span>
