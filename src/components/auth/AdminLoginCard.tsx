@@ -3,12 +3,16 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+// Deliberately no pre-auth "forgot password?" link here (unlike the
+// patient/therapist/hospital login cards) -- the admin portal isn't
+// public-facing self-serve, and a locked-out admin's blast radius is
+// higher, so recovery goes through another admin (see AdminFeatureControlTab's
+// Account Security section, for a logged-in admin resetting their own
+// password) or direct Supabase dashboard access, not an unauthenticated
+// email link.
 export default function AdminLoginCard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [forgotMode, setForgotMode] = useState(false);
-  const [forgotSubmitting, setForgotSubmitting] = useState(false);
-  const [forgotSent, setForgotSent] = useState(false);
   const supabase = createClient();
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
@@ -35,21 +39,6 @@ export default function AdminLoginCard() {
     window.location.href = "/admin/dashboard";
   }
 
-  async function handleForgotPassword(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    setForgotSubmitting(true);
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    setForgotSubmitting(false);
-    // Always show the same confirmation regardless of whether the email is
-    // registered, so this can't be used to probe which emails have accounts.
-    setForgotSent(true);
-  }
-
   return (
     <section className="py-16 max-w-md mx-auto px-4">
       <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
@@ -69,93 +58,35 @@ export default function AdminLoginCard() {
           </div>
         )}
 
-        {forgotMode ? (
-          forgotSent ? (
-            <div className="text-xs space-y-4 mt-6">
-              <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-teal-800">
-                If an account exists for that email, we&apos;ve sent a
-                password reset link. Check your inbox (and spam folder).
-              </div>
-              <button
-                onClick={() => {
-                  setForgotMode(false);
-                  setForgotSent(false);
-                }}
-                className="text-slate-700 font-semibold hover:underline"
-              >
-                ← Back to Sign In
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleForgotPassword} className="space-y-4 text-xs mt-6">
-              <p className="text-slate-500">
-                Enter your admin account email and we&apos;ll send you a link
-                to reset your password.
-              </p>
-              <div>
-                <label className="block font-semibold mb-1">Email Address</label>
-                <input
-                  type="email"
-                  name="email"
-                  required
-                  maxLength={254}
-                  className="w-full p-3 rounded-xl border border-slate-300"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={forgotSubmitting}
-                className="w-full bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
-              >
-                {forgotSubmitting ? "Sending..." : "Send Reset Link"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setForgotMode(false)}
-                className="w-full text-slate-500 font-semibold"
-              >
-                ← Back to Sign In
-              </button>
-            </form>
-          )
-        ) : (
-          <form onSubmit={handleLogin} className="space-y-4 text-xs mt-6">
-            <div>
-              <label className="block font-semibold mb-1">Email Address</label>
-              <input
-                type="email"
-                name="email"
-                required
-                maxLength={254}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Password</label>
-              <input
-                type="password"
-                name="password"
-                required
-                maxLength={72}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
-              <button
-                type="button"
-                onClick={() => setForgotMode(true)}
-                className="text-slate-700 font-semibold mt-1.5 hover:underline"
-              >
-                Forgot password?
-              </button>
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
-            >
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
-          </form>
-        )}
+        <form onSubmit={handleLogin} className="space-y-4 text-xs mt-6">
+          <div>
+            <label className="block font-semibold mb-1">Email Address</label>
+            <input
+              type="email"
+              name="email"
+              required
+              maxLength={254}
+              className="w-full p-3 rounded-xl border border-slate-300"
+            />
+          </div>
+          <div>
+            <label className="block font-semibold mb-1">Password</label>
+            <input
+              type="password"
+              name="password"
+              required
+              maxLength={72}
+              className="w-full p-3 rounded-xl border border-slate-300"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
+          >
+            {loading ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
       </div>
     </section>
   );
