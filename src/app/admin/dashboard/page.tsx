@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ApproveTherapistButton from "@/components/admin/ApproveTherapistButton";
+import DeclineTherapistButton from "@/components/admin/DeclineTherapistButton";
 import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
 import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
 import AssignReferralForm from "@/components/admin/AssignReferralForm";
@@ -62,7 +63,7 @@ export default async function AdminDashboardPage() {
 
   const { data: pendingTherapists } = await admin
     .from("profiles")
-    .select("id, full_name, email, credentials, avatar_url, created_at")
+    .select("id, full_name, email, phone, credentials, avatar_url, created_at")
     .eq("role", "therapist")
     .eq("approved", false)
     .order("created_at", { ascending: false });
@@ -370,10 +371,14 @@ export default async function AdminDashboardPage() {
                   <div>
                     <p className="font-bold text-slate-900">{t.full_name}</p>
                     <p className="text-slate-500 mt-1">{t.email}</p>
+                    {t.phone && <p className="text-slate-500 mt-1">{t.phone}</p>}
                     <p className="text-slate-500 mt-1">{t.credentials}</p>
                   </div>
                 </div>
-                <ApproveTherapistButton therapistId={t.id} />
+                <div className="flex items-center gap-2">
+                  <DeclineTherapistButton therapistId={t.id} />
+                  <ApproveTherapistButton therapistId={t.id} />
+                </div>
               </li>
             ))}
           </ul>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { SUPPORT_EMAIL } from "@/lib/siteContact";
 
 export const metadata: Metadata = {
   title: "Application Received | Dr. Pooja's Physio",
@@ -19,6 +20,14 @@ export default function PendingApprovalPage() {
           Thanks for applying to join the therapist network. Your credentials
           are being reviewed — you&apos;ll get access to your dashboard once
           an admin approves your account.
+        </p>
+        <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+          Questions about your application, or it&apos;s been a while? Reach
+          out at{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-teal-700 font-semibold hover:underline">
+            {SUPPORT_EMAIL}
+          </a>
+          .
         </p>
         <Link
           href="/"
