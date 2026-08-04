@@ -11,7 +11,7 @@ import ReceiptsSection from "@/components/ReceiptsSection";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
 import { formatSlotTime } from "@/lib/formatSlotTime";
-import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { SESSION_FEE_PAISE, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { buildPatientReceipts } from "@/lib/receipts";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { mergeSessionCodes } from "@/lib/sessionCode";
@@ -65,7 +65,7 @@ export default async function PatientDashboardPage() {
   const { data: rawAppointments } = await supabase
     .from("appointments")
     .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, paid_at, razorpay_payment_id, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id, no_show"
+      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, paid_at, razorpay_payment_id, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id, no_show, therapist_payout_paid_at"
     )
     .eq("patient_id", user.id)
     .order("created_at", { ascending: false });
@@ -220,7 +220,14 @@ export default async function PatientDashboardPage() {
                   Refunded
                 </span>
               ) : a.refund_status === "not_eligible" ? (
-                <span className="font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                <span
+                  className="font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full"
+                  title={
+                    a.therapist_payout_paid_at
+                      ? "No refund — this session's payout was already settled (cancelled as an admin correction, not a late cancellation)"
+                      : `No refund — cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot`
+                  }
+                >
                   No Refund
                 </span>
               ) : (

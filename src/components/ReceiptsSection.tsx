@@ -4,6 +4,7 @@ import { useState } from "react";
 import Modal from "@/components/admin/Modal";
 import type { PatientReceipt, BookingReceiptStage } from "@/lib/receipts";
 import { formatSlotTime } from "@/lib/formatSlotTime";
+import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 
 function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
@@ -179,11 +180,15 @@ export default function ReceiptsSection({
                   <span className="font-mono text-slate-600">{selected.transactionId}</span>
                 </div>
               )}
-              {(selected.stage === "refund_failed" || selected.stage === "refunded") && (
+              {(selected.stage === "refund_failed" ||
+                selected.stage === "refunded" ||
+                selected.stage === "cancelled") && (
                 <p className="text-slate-500 pt-2 border-t border-slate-100">
                   {selected.stage === "refund_failed"
                     ? "The refund for this cancelled session couldn't be processed automatically — please contact us."
-                    : "This session was cancelled and refunded."}
+                    : selected.stage === "refunded"
+                    ? "This session was cancelled and refunded."
+                    : `This session was cancelled — no refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot).`}
                 </p>
               )}
             </div>
