@@ -562,6 +562,9 @@ export default function AdminMetricsTab({
           </div>
           <div className="flex items-center gap-1.5">
             {[
+              { label: "Today", days: 0 },
+              { label: "7 Days", days: 7 },
+              { label: "15 Days", days: 15 },
               { label: "30d", days: 30 },
               { label: "90d", days: 90 },
               { label: "12mo", days: 365 },

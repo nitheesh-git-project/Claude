@@ -478,6 +478,11 @@ export default async function AdminDashboardPage() {
                       <div>
                         <p className="font-bold text-slate-900">
                           {patient?.full_name ?? "Unknown patient"}
+                          {roleCodeMap.get(a.patient_id)?.patient_code && (
+                            <span className="ml-2 font-mono font-normal text-slate-400">
+                              {roleCodeMap.get(a.patient_id)?.patient_code}
+                            </span>
+                          )}
                         </p>
                         <p className="text-slate-500">{patient?.email}</p>
                       </div>
