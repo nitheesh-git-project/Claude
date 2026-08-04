@@ -6,6 +6,7 @@ import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ApproveTherapistButton from "@/components/admin/ApproveTherapistButton";
 import TherapistActiveToggle from "@/components/admin/TherapistActiveToggle";
 import TherapistTeamVisibilityToggle from "@/components/admin/TherapistTeamVisibilityToggle";
+import TherapistNotAvailableToggle from "@/components/admin/TherapistNotAvailableToggle";
 import TherapistContactEditForm from "@/components/admin/TherapistContactEditForm";
 import TherapistNotesForm from "@/components/admin/TherapistNotesForm";
 import TherapistRevenueShareForm from "@/components/admin/TherapistRevenueShareForm";
@@ -36,7 +37,7 @@ export default async function AdminTherapistDetailPage({
   const { data: therapist } = await admin
     .from("profiles")
     .select(
-      "id, full_name, email, phone, avatar_url, active, approved, created_at, credentials, specialization, years_experience, bio, languages, revenue_share_percent, visible_on_team, rating_visible"
+      "id, full_name, email, phone, avatar_url, active, approved, created_at, credentials, specialization, years_experience, bio, languages, revenue_share_percent, visible_on_team, rating_visible, on_leave"
     )
     .eq("id", id)
     .eq("role", "therapist")
@@ -229,6 +230,15 @@ export default async function AdminTherapistDetailPage({
                     Hidden from /team
                   </span>
                 )}
+                <span
+                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                    therapist.on_leave
+                      ? "text-amber-700 bg-amber-100"
+                      : "text-green-700 bg-green-100"
+                  }`}
+                >
+                  {therapist.on_leave ? "Not Available" : "Available"}
+                </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
                 {therapist.credentials} • Joined {new Date(therapist.created_at).toLocaleDateString()}
@@ -241,6 +251,7 @@ export default async function AdminTherapistDetailPage({
               therapistId={therapist.id}
               visibleOnTeam={therapist.visible_on_team}
             />
+            <TherapistNotAvailableToggle therapistId={therapist.id} onLeave={therapist.on_leave} />
             <TherapistActiveToggle
               therapistId={therapist.id}
               active={therapist.active}
