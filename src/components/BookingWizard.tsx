@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
-import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { AVAILABILITY_HOURS, formatHourRange } from "@/lib/therapistAvailability";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
@@ -40,6 +40,11 @@ export default function BookingWizard() {
   const [done, setDone] = useState(false);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
 
+  // Lazy initializer, not a bare Date.now() in the render body -- same
+  // one-time-"now" pattern already used elsewhere in this codebase (see
+  // ProfileSessionList) for grey-out logic that only needs to be roughly
+  // fresh, not tick-perfect.
+  const [nowMs] = useState(() => Date.now());
   const [timezone, setTimezone] = useState("");
   const [bookDate, setBookDate] = useState("");
   const [bookHour, setBookHour] = useState<number | "">("");
@@ -393,11 +398,18 @@ export default function BookingWizard() {
                 <option value="" disabled>
                   — Time —
                 </option>
-                {AVAILABILITY_HOURS.map((hour) => (
-                  <option key={hour} value={hour}>
-                    {formatHourRange(hour)}
-                  </option>
-                ))}
+                {AVAILABILITY_HOURS.map((hour) => {
+                  const tooSoon =
+                    bookDate &&
+                    new Date(`${bookDate}T${String(hour).padStart(2, "0")}:00`).getTime() <
+                      nowMs + 12 * 60 * 60 * 1000;
+                  return (
+                    <option key={hour} value={hour} disabled={!!tooSoon}>
+                      {formatHourRange(hour)}
+                      {tooSoon ? " (too soon)" : ""}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
@@ -661,6 +673,12 @@ export default function BookingWizard() {
             <i className="fa-solid fa-lock text-teal-600 mr-1"></i>
             Secure payment via Razorpay. Your slot is held once payment is
             confirmed.
+          </p>
+          <p className="text-xs text-slate-500">
+            <i className="fa-solid fa-circle-info text-teal-600 mr-1"></i>
+            Free cancellation up to {CANCELLATION_FULL_REFUND_HOURS} hours before
+            your slot. Cancelling within {CANCELLATION_FULL_REFUND_HOURS} hours
+            of the slot isn&apos;t eligible for a refund.
           </p>
           <div className="flex gap-3 pt-1">
             <button
