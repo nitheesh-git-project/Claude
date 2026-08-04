@@ -31,6 +31,15 @@ export default async function PatientProfilePage() {
     .eq("id", user.id)
     .single();
 
+  // patient_code is new/migration-dependent -- kept isolated (see
+  // sessionCode.ts's comment / this codebase's established convention) so
+  // an unknown-column error here only degrades this one badge.
+  const { data: patientCodeRow } = await supabase
+    .from("profiles")
+    .select("patient_code")
+    .eq("id", user.id)
+    .maybeSingle();
+
   const { data: changeRequests } = await supabase
     .from("profile_change_requests")
     .select("id, status, admin_notes, changes, created_at")
@@ -75,6 +84,7 @@ export default async function PatientProfilePage() {
       userName={profile?.full_name ?? "Patient"}
       userEmail={profile?.email ?? user.email ?? ""}
       userAvatarUrl={profile?.avatar_url ?? null}
+      userCode={patientCodeRow?.patient_code ?? null}
       offsetTop={showDebugNav}
       headerTitle="Edit Profile"
       headerSubtitle="Update your personal details, contact info, and account security."

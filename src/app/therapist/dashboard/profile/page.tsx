@@ -37,6 +37,15 @@ export default async function TherapistProfilePage() {
     .order("created_at", { ascending: false });
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
 
+  // therapist_code is new/migration-dependent -- kept isolated (same
+  // convention used throughout this codebase) so an unknown-column error
+  // here only degrades this one badge.
+  const { data: therapistCodeRow } = await supabase
+    .from("profiles")
+    .select("therapist_code")
+    .eq("id", user.id)
+    .maybeSingle();
+
   // Same computation as the root layout's own showDebugNav -- duplicated
   // here (rather than threaded through props from a layout) because this
   // page hides the shared Navbar entirely and needs the same dev-only-bar
@@ -55,6 +64,7 @@ export default async function TherapistProfilePage() {
       userName={profile?.full_name ?? "Therapist"}
       userEmail={profile?.email ?? user.email ?? ""}
       userAvatarUrl={profile?.avatar_url ?? null}
+      userCode={therapistCodeRow?.therapist_code ?? null}
       offsetTop={showDebugNav}
       headerTitle="Edit Profile"
       headerSubtitle="Update your public details, credentials, and account security."

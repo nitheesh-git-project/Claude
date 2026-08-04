@@ -230,13 +230,17 @@ export default async function TherapistDashboardPage() {
             {a.no_show ? "No-Show" : a.status}
           </span>
         </div>
-        <p className="text-slate-600">
-          <strong>{a.concern ?? "General Consultation"}</strong> —{" "}
+        <p className="font-bold text-sm text-slate-900">
+          {a.concern ?? "General Consultation"}
+          {a.session_code && (
+            <span className="ml-2 font-mono font-normal text-[11px] text-slate-400">
+              {a.session_code}
+            </span>
+          )}
+        </p>
+        <p className="text-sm text-slate-500">
           {formatSlotTime(a.slot_time, a.timezone)}
           {a.duration_minutes && ` • ${a.duration_minutes} min`}
-          {a.session_code && (
-            <span className="ml-2 font-mono text-slate-400">{a.session_code}</span>
-          )}
         </p>
         {a.notes && (
           <p className="text-slate-500">

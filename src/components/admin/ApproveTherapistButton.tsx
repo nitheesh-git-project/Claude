@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUnloadWarning } from "@/lib/useUnloadWarning";
 
 export default function ApproveTherapistButton({
   therapistId,
@@ -11,6 +12,7 @@ export default function ApproveTherapistButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  useUnloadWarning(loading);
 
   async function handleApprove() {
     setLoading(true);
@@ -19,6 +21,7 @@ export default function ApproveTherapistButton({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ therapistId }),
+      keepalive: true,
     });
     setLoading(false);
     if (res.ok) {

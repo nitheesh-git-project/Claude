@@ -909,7 +909,7 @@ export default function AdminMetricsTab({
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="text-left text-slate-500 border-b border-slate-200">
-                    <th className="py-2 pr-3 font-semibold">Session Date</th>
+                    <th className="py-2 pr-3 font-semibold">Payment Date</th>
                     <th className="py-2 pr-3 font-semibold">Transaction ID</th>
                     <th className="py-2 pr-3 font-semibold">Assigned Therapist</th>
                     <th className="py-2 pr-3 font-semibold">Amount</th>

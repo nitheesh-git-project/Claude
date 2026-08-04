@@ -27,13 +27,25 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  const { data: therapist } = await admin
-    .from("profiles")
-    .select("id, active")
-    .eq("id", therapistId)
-    .eq("role", "therapist")
-    .eq("approved", true)
-    .single();
+  // Independent lookups -- run in parallel rather than sequentially, since
+  // each Supabase round trip in a slower network environment adds real,
+  // user-visible latency to this button (see appointment_reassignment_log's
+  // usage below for why speed matters here: a slow admin action button is
+  // more likely to be interrupted by a page reload mid-request).
+  const [{ data: therapist }, { data: appointment }] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("id, active")
+      .eq("id", therapistId)
+      .eq("role", "therapist")
+      .eq("approved", true)
+      .single(),
+    admin
+      .from("appointments")
+      .select("patient_id, payment_status, slot_time, duration_minutes, timezone, therapist_id, status")
+      .eq("id", appointmentId)
+      .single(),
+  ]);
 
   if (!therapist) {
     return NextResponse.json(
@@ -51,12 +63,6 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-
-  const { data: appointment } = await admin
-    .from("appointments")
-    .select("patient_id, payment_status, slot_time, duration_minutes, timezone, therapist_id, status")
-    .eq("id", appointmentId)
-    .single();
 
   if (!appointment) {
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });

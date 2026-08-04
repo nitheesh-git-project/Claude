@@ -92,7 +92,7 @@ export default function ReceiptsSection({
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
                     <p className="text-[11px] text-slate-400">
-                      {r.kind === "booking" ? "Session Date" : "Payment Attempted"}
+                      {r.kind === "booking" ? "Payment Date" : "Payment Attempted"}
                     </p>
                     <div className="flex items-center gap-2 flex-wrap mt-0.5">
                       <p className="text-xl font-bold text-slate-900">{formatDateHeading(r.date)}</p>

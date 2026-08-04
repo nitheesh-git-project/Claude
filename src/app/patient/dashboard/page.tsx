@@ -182,7 +182,7 @@ export default async function PatientDashboardPage() {
       <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
-            <p className="font-bold text-slate-900">
+            <p className="font-bold text-sm text-slate-900">
               {a.concern ?? "General Consultation"}
               {a.session_code && (
                 <span className="ml-2 font-mono font-normal text-[11px] text-slate-400">
@@ -190,17 +190,17 @@ export default async function PatientDashboardPage() {
                 </span>
               )}
             </p>
-            <p className="text-slate-500 mt-1">
+            <p className="text-sm text-slate-500 mt-1">
               {formatSlotTime(a.slot_time, a.timezone)}
               {a.duration_minutes && ` • ${a.duration_minutes} min`}
             </p>
-            <p className="text-slate-500 mt-1">
+            <p className="text-sm text-slate-500 mt-1">
               Therapist:{" "}
-              <strong className="text-slate-700">
+              <span className="text-slate-700">
                 {a.therapist_id
                   ? therapistMap.get(a.therapist_id) ?? "Unknown"
                   : "Not yet assigned"}
-              </strong>
+              </span>
             </p>
             {a.package_purchase_id && (
               <p className="text-teal-700 mt-1">Paid via package</p>

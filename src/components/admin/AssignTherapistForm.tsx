@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUnloadWarning } from "@/lib/useUnloadWarning";
 
 export default function AssignTherapistForm({
   appointmentId,
@@ -20,6 +21,7 @@ export default function AssignTherapistForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  useUnloadWarning(loading);
 
   async function handleAssign() {
     if (!therapistId) return;
@@ -29,6 +31,10 @@ export default function AssignTherapistForm({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ appointmentId, therapistId }),
+      // Lets the browser try to finish delivering this request even if the
+      // tab is closing/navigating away mid-request, rather than the
+      // connection just being torn down before the server ever sees it.
+      keepalive: true,
     });
     setLoading(false);
     if (res.ok) {
