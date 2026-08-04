@@ -1280,3 +1280,35 @@ alter table appointments add column if not exists payment_method text;
 -- own route.
 alter table site_settings add column if not exists session_packages_visible boolean not null default true;
 alter table site_settings add column if not exists session_timeout_minutes integer not null default 0;
+
+-- Specialist Team profile popup (Feature 38): an admin-curated public blurb
+-- shown alongside the therapist's own self-reported bio/credentials in the
+-- /team popup, distinct from therapist_admin_notes (private, never public)
+-- and from `bio` (self-edited by the therapist, gated via the normal
+-- profile-change-request flow). Only an admin can ever write this -- see
+-- /api/admin/update-therapist-display-content -- so it needs no gating of
+-- its own beyond that route's admin check.
+alter table profiles add column if not exists public_display_note text;
+
+-- Re-create (not just alter) since a view's column list is fixed at
+-- creation -- same convention as every other public_therapist_profiles
+-- edit above. Identical to the previous definition, with
+-- public_display_note added to the select list.
+drop view if exists public_therapist_profiles;
+create view public_therapist_profiles as
+select
+  p.id, p.full_name, p.credentials, p.specialization, p.years_experience, p.bio, p.avatar_url,
+  p.languages, p.public_display_note,
+  case when s.ratings_visible_publicly and p.rating_visible then r.avg_rating else null end as avg_rating,
+  case when s.ratings_visible_publicly and p.rating_visible then r.rating_count else null end as rating_count
+from profiles p
+cross join site_settings s
+left join (
+  select therapist_id, avg(patient_rating)::numeric(3,2) as avg_rating, count(*) as rating_count
+  from appointments
+  where patient_rating is not null and patient_rating_excluded = false
+  group by therapist_id
+) r on r.therapist_id = p.id
+where p.role = 'therapist' and p.approved = true and p.active = true and p.visible_on_team = true;
+
+grant select on public_therapist_profiles to anon, authenticated;

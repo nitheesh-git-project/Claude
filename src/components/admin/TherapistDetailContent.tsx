@@ -8,6 +8,7 @@ import TherapistTeamVisibilityToggle from "@/components/admin/TherapistTeamVisib
 import TherapistNotAvailableToggle from "@/components/admin/TherapistNotAvailableToggle";
 import TherapistContactEditForm from "@/components/admin/TherapistContactEditForm";
 import TherapistNotesForm from "@/components/admin/TherapistNotesForm";
+import TherapistDisplayContentForm from "@/components/admin/TherapistDisplayContentForm";
 import TherapistRevenueShareForm from "@/components/admin/TherapistRevenueShareForm";
 import ResetTherapistPasswordButton from "@/components/admin/ResetTherapistPasswordButton";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
@@ -47,6 +48,14 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
   const { data: therapistCodeRow } = await admin
     .from("profiles")
     .select("therapist_code")
+    .eq("id", id)
+    .maybeSingle();
+
+  // public_display_note is also new/migration-dependent (Feature 38) --
+  // same isolation reasoning as therapistCodeRow above.
+  const { data: displayContentRow } = await admin
+    .from("profiles")
+    .select("public_display_note")
     .eq("id", id)
     .maybeSingle();
 
@@ -293,6 +302,17 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             <TherapistNotesForm therapistId={therapist.id} currentNote={note?.note ?? ""} />
           </div>
         </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+        <h2 className="font-bold text-sm text-slate-800 mb-1">Public Display Content</h2>
+        <p className="text-[11px] text-slate-400 mb-3">
+          Shown to visitors in this therapist&apos;s /team profile popup, alongside their own bio.
+        </p>
+        <TherapistDisplayContentForm
+          therapistId={therapist.id}
+          currentDisplayNote={displayContentRow?.public_display_note ?? ""}
+        />
       </div>
 
       <RatingManager
