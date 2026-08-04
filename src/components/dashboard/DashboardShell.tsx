@@ -12,7 +12,18 @@ import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 // that section) from any other page rendered by this same shell -- this is
 // what lets "Edit Profile" and the dashboard's own sections share one nav
 // no matter which of the two pages you're currently on.
-export type ShellNavItem = { id: string; label: string; icon: string; href?: string };
+export type ShellNavItem = {
+  id: string;
+  label: string;
+  icon: string;
+  href?: string;
+  // Sub-tabs shown nested under this item once its own page (`href`) is
+  // active -- e.g. Edit Profile's Personal Details / Contact / Security
+  // sections. Always anchor items scoped to the parent's `href` page (never
+  // another `href` of their own), since a sub-tab only ever exists on the
+  // page its parent links to.
+  children?: { id: string; label: string; icon: string }[];
+};
 
 // Shared with the Admin Dashboard's own AdminTabs shell only in spirit, not
 // in code -- AdminTabs switches between real client-side tabs (11 separate
@@ -62,20 +73,26 @@ export default function DashboardShell({
 }) {
   const pathname = usePathname();
   const onBasePage = pathname === basePath;
+  // The nav item (if any) whose own page we're currently on and which has
+  // sub-tabs -- e.g. Edit Profile's Personal Details / Contact / Security.
+  // Its children are the sections to scroll-spy/anchor on this page instead
+  // of the main dashboard's own sections.
+  const activeParent = navItems.find((item) => item.children && item.href === pathname);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(
-    navItems.find((item) => !item.href)?.id ?? null
-  );
+  const [activeId, setActiveId] = useState<string | null>(() => {
+    if (pathname === basePath) return navItems.find((item) => !item.href)?.id ?? null;
+    const parent = navItems.find((item) => item.children && item.href === pathname);
+    return parent?.children?.[0]?.id ?? null;
+  });
 
   useEffect(() => {
     // Highlights whichever section is currently nearest the top of the
     // viewport -- real scroll-spy over the page's actual sections, not a
     // fake "current tab" since there's no tab state here to read from.
-    // Skipped entirely off the base page -- none of these ids exist on
-    // Edit Profile, so there's nothing to observe there.
-    if (!onBasePage) return;
-    const anchorItems = navItems.filter((item) => !item.href);
+    const anchorItems = onBasePage
+      ? navItems.filter((item) => !item.href)
+      : activeParent?.children ?? [];
     if (anchorItems.length === 0) return;
     const observer = new IntersectionObserver(
       (entries) => {
@@ -93,18 +110,19 @@ export default function DashboardShell({
       .filter((el): el is HTMLElement => el !== null);
     els.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [navItems, onBasePage]);
+  }, [navItems, onBasePage, activeParent]);
 
   useEffect(() => {
     // Landing here via a real navigation from another page (e.g. clicking
-    // "Your Sessions" while on Edit Profile) arrives as basePath#id -- the
-    // browser's own anchor-jump already gets close, but re-running our own
-    // scroll keeps the offset identical to a same-page click.
-    if (!onBasePage) return;
+    // "Your Sessions" while on Edit Profile, or a sub-tab like "Contact
+    // Details" from the main dashboard) arrives as ...#id -- the browser's
+    // own anchor-jump already gets close, but re-running our own scroll
+    // keeps the offset identical to a same-page click. No-ops harmlessly if
+    // this page doesn't have that id.
     const hash = window.location.hash.slice(1);
     if (hash) scrollToSection(hash);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onBasePage]);
+  }, [pathname]);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -175,6 +193,50 @@ export default function DashboardShell({
       >
         {content}
       </a>
+    );
+  }
+
+  // Sub-tabs (Edit Profile's Personal Details / Contact / Security) --
+  // rendered only once we've actually landed on the parent's page, so the
+  // click can always intercept for a smooth scroll rather than needing to
+  // know whether it's a same-page or cross-page navigation. Skipped in the
+  // collapsed mini sidebar to keep that view to single-icon rows.
+  function renderChildItem(
+    parentHref: string,
+    child: { id: string; label: string; icon: string },
+    onNavigate?: () => void
+  ) {
+    const active = pathname === parentHref && activeId === child.id;
+    return (
+      <a
+        key={child.id}
+        href={`${parentHref}#${child.id}`}
+        onClick={(e) => {
+          e.preventDefault();
+          scrollToSection(child.id);
+          onNavigate?.();
+        }}
+        className={`flex items-center gap-2.5 rounded-lg py-2 pl-9 pr-3 text-xs font-semibold transition ${
+          active ? "text-teal-400" : "text-slate-500 hover:text-white"
+        }`}
+      >
+        <i className={`fa-solid ${child.icon} w-3.5 text-center text-[11px]`}></i>
+        <span>{child.label}</span>
+      </a>
+    );
+  }
+
+  function renderNavEntry(item: ShellNavItem, mini: boolean, onNavigate?: () => void) {
+    const showChildren = !mini && item.href && item.children && pathname === item.href;
+    return (
+      <div key={item.id}>
+        {renderNavItem(item, mini, onNavigate)}
+        {showChildren && (
+          <div className="mt-0.5 space-y-0.5">
+            {item.children!.map((child) => renderChildItem(item.href!, child, onNavigate))}
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -266,7 +328,7 @@ export default function DashboardShell({
               </button>
             </div>
             <div className="flex-1 space-y-1">
-              {navItems.map((item) => renderNavItem(item, false, () => setMobileOpen(false)))}
+              {navItems.map((item) => renderNavEntry(item, false, () => setMobileOpen(false)))}
             </div>
             {renderFooter(false)}
           </nav>
@@ -280,7 +342,7 @@ export default function DashboardShell({
       >
         {renderBrand(collapsed)}
         <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
-          {navItems.map((item) => renderNavItem(item, collapsed))}
+          {navItems.map((item) => renderNavEntry(item, collapsed))}
         </div>
         <button
           type="button"

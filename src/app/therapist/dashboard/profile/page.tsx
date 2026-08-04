@@ -70,7 +70,7 @@ export default async function TherapistProfilePage() {
       headerSubtitle="Update your public details, credentials, and account security."
     >
       <div className="max-w-2xl">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+      <div id="profile-photo" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <AvatarUpload
           userId={user.id}
           currentUrl={profile?.avatar_url ?? null}
@@ -78,7 +78,7 @@ export default async function TherapistProfilePage() {
         />
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+      <div id="public-details" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <h2 className="font-bold text-lg text-slate-800 mb-4">Public Details</h2>
         <InstantProfileFields
           userId={user.id}
@@ -93,7 +93,7 @@ export default async function TherapistProfilePage() {
         />
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div id="credentials" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-1">
           Credentials &amp; Specialization
         </h2>
@@ -133,7 +133,7 @@ export default async function TherapistProfilePage() {
         />
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-6">
+      <div id="account-security" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-6">
         <h2 className="font-bold text-lg text-slate-800 mb-1">Account Security</h2>
         <p className="text-xs text-slate-500 mb-4">
           Change your password by email — this keeps your account secure.

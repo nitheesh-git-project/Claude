@@ -21,7 +21,18 @@ export function buildPatientNavItems({
       ? [{ id: "session-packages", label: "Session Packages", icon: "fa-layer-group" }]
       : []),
     { id: "receipts", label: "Receipts", icon: "fa-receipt" },
-    { id: "edit-profile", label: "Edit Profile", icon: "fa-user-pen", href: "/patient/dashboard/profile" },
+    {
+      id: "edit-profile",
+      label: "Edit Profile",
+      icon: "fa-user-pen",
+      href: "/patient/dashboard/profile",
+      children: [
+        { id: "profile-photo", label: "Photo", icon: "fa-image" },
+        { id: "personal-details", label: "Personal Details", icon: "fa-id-card" },
+        { id: "contact-details", label: "Contact Details", icon: "fa-address-book" },
+        { id: "account-security", label: "Account Security", icon: "fa-lock" },
+      ],
+    },
   ];
 }
 
@@ -31,5 +42,16 @@ export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
   { id: "calendar", label: "Calendar", icon: "fa-calendar" },
   { id: "earnings", label: "Earnings", icon: "fa-chart-line" },
   { id: "receipts", label: "Payout Receipts", icon: "fa-sack-dollar" },
-  { id: "edit-profile", label: "Edit Profile", icon: "fa-user-pen", href: "/therapist/dashboard/profile" },
+  {
+    id: "edit-profile",
+    label: "Edit Profile",
+    icon: "fa-user-pen",
+    href: "/therapist/dashboard/profile",
+    children: [
+      { id: "profile-photo", label: "Photo", icon: "fa-image" },
+      { id: "public-details", label: "Public Details", icon: "fa-address-card" },
+      { id: "credentials", label: "Credentials", icon: "fa-graduation-cap" },
+      { id: "account-security", label: "Account Security", icon: "fa-lock" },
+    ],
+  },
 ];
