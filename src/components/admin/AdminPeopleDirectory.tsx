@@ -27,6 +27,16 @@ export default function AdminPeopleDirectory({
   basePath: string;
 }) {
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [query, setQuery] = useState("");
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const filtered = normalizedQuery
+    ? people.filter((p) =>
+        [p.full_name, p.subtitle, p.code]
+          .filter((v): v is string => !!v)
+          .some((v) => v.toLowerCase().includes(normalizedQuery))
+      )
+    : people;
 
   function badge(p: Person) {
     if (!p.active) {
@@ -48,7 +58,17 @@ export default function AdminPeopleDirectory({
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name, email, or ID..."
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 text-xs"
+          />
+        </div>
         <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden text-[11px] font-semibold">
           <button
             onClick={() => setView("grid")}
@@ -69,9 +89,13 @@ export default function AdminPeopleDirectory({
         </div>
       </div>
 
-      {view === "grid" ? (
+      {filtered.length === 0 ? (
+        <p className="text-xs text-slate-500 py-4 text-center">
+          No matches for &quot;{query}&quot;.
+        </p>
+      ) : view === "grid" ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {people.map((p) => (
+          {filtered.map((p) => (
             <Link
               key={p.id}
               href={`${basePath}/${p.id}`}
@@ -99,7 +123,7 @@ export default function AdminPeopleDirectory({
               </tr>
             </thead>
             <tbody>
-              {people.map((p) => (
+              {filtered.map((p) => (
                 <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
                   <td className="py-2 pr-3 text-slate-400 font-mono">{p.code ?? "—"}</td>
                   <td className="py-2 pr-3">
