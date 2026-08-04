@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/lib/useConfirm";
 
 export default function TherapistActiveToggle({
   therapistId,
@@ -19,6 +20,7 @@ export default function TherapistActiveToggle({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
   async function handleToggle() {
     const nextActive = !active;
@@ -47,7 +49,7 @@ export default function TherapistActiveToggle({
         message += ` They currently have ${notes.join(" and ")}.`;
       }
       message += " Continue?";
-      if (!window.confirm(message)) {
+      if (!(await confirm(message))) {
         return;
       }
     }
@@ -85,6 +87,7 @@ export default function TherapistActiveToggle({
           : "Reactivate Account"}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
+      {dialog}
     </div>
   );
 }

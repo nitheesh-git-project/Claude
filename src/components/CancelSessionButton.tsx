@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
+import { usePrompt } from "@/lib/usePrompt";
 
 export default function CancelSessionButton({
   appointmentId,
@@ -16,13 +17,14 @@ export default function CancelSessionButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { prompt, dialog } = usePrompt();
 
   async function handleCancel() {
     const hoursUntilSlot = slotTime
       ? (new Date(slotTime).getTime() - Date.now()) / (1000 * 60 * 60)
       : null;
     const isLate = hoursUntilSlot !== null && hoursUntilSlot < CANCELLATION_FULL_REFUND_HOURS;
-    const reason = window.prompt(
+    const reason = await prompt(
       paid && isLate
         ? `Cancel this session? It's within ${CANCELLATION_FULL_REFUND_HOURS} hours of your slot, so this won't be refunded. You can add a reason (optional):`
         : paid
@@ -68,6 +70,7 @@ export default function CancelSessionButton({
         {loading ? "Cancelling..." : "Cancel Session"}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
+      {dialog}
     </div>
   );
 }

@@ -2,17 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/lib/useConfirm";
 
 export default function TherapistOnLeaveToggle({ initialOnLeave }: { initialOnLeave: boolean }) {
   const [onLeave, setOnLeave] = useState(initialOnLeave);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
   async function handleToggle() {
     const next = !onLeave;
     if (next) {
-      const confirmed = window.confirm(
+      const confirmed = await confirm(
         "Mark yourself as not available? Admin will see you as unavailable for every slot until you turn this back off. Your saved weekly schedule stays intact underneath."
       );
       if (!confirmed) return;
@@ -62,6 +64,7 @@ export default function TherapistOnLeaveToggle({ initialOnLeave }: { initialOnLe
       >
         {saving ? "Updating..." : onLeave ? "Mark Available Again" : "Mark Not Available"}
       </button>
+      {dialog}
     </div>
   );
 }

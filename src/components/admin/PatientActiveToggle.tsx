@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/lib/useConfirm";
 
 export default function PatientActiveToggle({
   patientId,
@@ -18,6 +19,7 @@ export default function PatientActiveToggle({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
   async function handleToggle() {
     const nextActive = !active;
@@ -29,7 +31,7 @@ export default function PatientActiveToggle({
         } on the calendar.`;
       }
       message += " Continue?";
-      if (!window.confirm(message)) {
+      if (!(await confirm(message))) {
         return;
       }
     }
@@ -67,6 +69,7 @@ export default function PatientActiveToggle({
           : "Reactivate Account"}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
+      {dialog}
     </div>
   );
 }

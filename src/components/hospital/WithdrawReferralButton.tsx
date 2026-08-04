@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/lib/useConfirm";
 
 export default function WithdrawReferralButton({
   referralId,
@@ -11,9 +12,10 @@ export default function WithdrawReferralButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
   async function handleWithdraw() {
-    if (!window.confirm("Withdraw this referral? The clinic will no longer act on it.")) {
+    if (!(await confirm("Withdraw this referral? The clinic will no longer act on it."))) {
       return;
     }
     setLoading(true);
@@ -46,6 +48,7 @@ export default function WithdrawReferralButton({
         {loading ? "Withdrawing..." : "Withdraw"}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
+      {dialog}
     </div>
   );
 }

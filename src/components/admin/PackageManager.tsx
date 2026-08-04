@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PackageForm from "./PackageForm";
+import { useConfirm } from "@/lib/useConfirm";
 
 type Package = {
   id: string;
@@ -18,9 +19,10 @@ function DeleteButton({ id }: { id: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
   async function handleDelete() {
-    if (!window.confirm("Delete this package? This can't be undone.")) return;
+    if (!(await confirm("Delete this package? This can't be undone."))) return;
     setLoading(true);
     setError(null);
     const res = await fetch("/api/admin/delete-package", {
@@ -47,6 +49,7 @@ function DeleteButton({ id }: { id: string }) {
         {loading ? "Deleting..." : "Delete"}
       </button>
       {error && <span className="text-[11px] text-red-600 max-w-[160px] text-right">{error}</span>}
+      {dialog}
     </div>
   );
 }

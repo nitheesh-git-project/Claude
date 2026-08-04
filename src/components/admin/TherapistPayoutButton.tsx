@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/lib/useConfirm";
 
 type PayoutMethod = "cash" | "online";
 type View = "closed" | "choose" | "confirm";
@@ -28,6 +29,7 @@ export default function TherapistPayoutButton({
     null
   );
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
   function openConfirm(m: PayoutMethod) {
     setMethod(m);
@@ -36,9 +38,9 @@ export default function TherapistPayoutButton({
 
   async function handleConfirm() {
     if (
-      !window.confirm(
+      !(await confirm(
         `Mark ₹${(owedPaise / 100).toLocaleString("en-IN")} as paid via ${METHOD_LABEL[method]} to this therapist? This can't be undone.`
-      )
+      ))
     ) {
       return;
     }
@@ -163,6 +165,7 @@ export default function TherapistPayoutButton({
           {loading ? "Recording..." : `Confirm ${method === "cash" ? "Cash" : "Online"} Payment`}
         </button>
       </div>
+      {dialog}
     </div>
   );
 }

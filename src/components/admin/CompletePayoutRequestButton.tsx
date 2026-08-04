@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/lib/useConfirm";
 
 export default function CompletePayoutRequestButton({
   requestId,
@@ -17,6 +18,7 @@ export default function CompletePayoutRequestButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
   async function handleComplete() {
     const confirmMessage =
@@ -25,7 +27,7 @@ export default function CompletePayoutRequestButton({
             "en-IN"
           )} owed and unsettled in the Payouts tab — mark this request completed anyway?`
         : "Mark this payout request as completed? The therapist will be notified.";
-    if (!window.confirm(confirmMessage)) return;
+    if (!(await confirm(confirmMessage))) return;
 
     setLoading(true);
     setError(null);
@@ -53,6 +55,7 @@ export default function CompletePayoutRequestButton({
         {loading ? "Marking..." : "Mark Completed"}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
+      {dialog}
     </div>
   );
 }

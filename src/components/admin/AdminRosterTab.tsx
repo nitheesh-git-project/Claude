@@ -11,6 +11,7 @@ import {
   type SlotState,
 } from "@/lib/therapistAvailability";
 import { istDateKey } from "@/lib/formatSlotRange";
+import { useConfirm } from "@/lib/useConfirm";
 
 type Therapist = {
   id: string;
@@ -61,6 +62,7 @@ export default function AdminRosterTab({
   const [pendingLeaveId, setPendingLeaveId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
   const templateByTherapist = useMemo(() => {
     const map = new Map<string, TemplateRow[]>();
@@ -122,7 +124,7 @@ export default function AdminRosterTab({
   async function handleToggleOnLeave(therapistId: string, currentOnLeave: boolean) {
     const next = !currentOnLeave;
     if (next) {
-      const confirmed = window.confirm(
+      const confirmed = await confirm(
         "Mark this therapist as not available? They'll show as unavailable for every slot until this is turned back off. Their saved weekly schedule stays intact underneath."
       );
       if (!confirmed) return;
@@ -321,6 +323,7 @@ export default function AdminRosterTab({
           </table>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

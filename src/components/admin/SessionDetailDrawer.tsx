@@ -7,6 +7,8 @@ import EditBookingForm from "@/components/admin/EditBookingForm";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
+import { useConfirm } from "@/lib/useConfirm";
+import { usePrompt } from "@/lib/usePrompt";
 
 export type SessionDetailAppointment = {
   id: string;
@@ -102,6 +104,8 @@ export default function SessionDetailDrawer({
   const [therapistExcluded, setTherapistExcluded] = useState(a.therapist_rating_excluded);
   const [actionError, setActionError] = useState<string | null>(null);
   const router = useRouter();
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const { prompt, dialog: promptDialog } = usePrompt();
 
   const feePaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
   const durationMinutes = a.duration_minutes ?? BASE_DURATION_MINUTES;
@@ -139,7 +143,7 @@ export default function SessionDetailDrawer({
         // Reopening it won't be re-tracked for a future payout automatically,
         // so make the admin explicitly own that before letting them proceed.
         if (
-          window.confirm(
+          await confirm(
             "This session's payout has already been settled in cash to the therapist. Reopening it will NOT automatically flag it for a future payout — you'll need to track that manually if the session is redelivered. Reopen anyway?"
           )
         ) {
@@ -156,9 +160,9 @@ export default function SessionDetailDrawer({
 
   async function handleReopen() {
     if (
-      !window.confirm(
+      !(await confirm(
         "Reopen this session? It goes back to Confirmed, reassignment unlocks again, and any ratings/feedback already submitted will be cleared."
-      )
+      ))
     ) {
       return;
     }
@@ -181,7 +185,7 @@ export default function SessionDetailDrawer({
         // Cancelling can't claw that back automatically, so make the admin
         // explicitly own that before letting them proceed.
         if (
-          window.confirm(
+          await confirm(
             "This session's payout has already been settled in cash to the therapist. Cancelling it now will NOT automatically reclaim that money — you'll need to recover it from the therapist directly if that's warranted. Cancel anyway?"
           )
         ) {
@@ -216,7 +220,7 @@ export default function SessionDetailDrawer({
       ? (new Date(a.slot_time).getTime() - Date.now()) / (1000 * 60 * 60)
       : null;
     const isLate = hoursUntilSlot !== null && hoursUntilSlot < CANCELLATION_FULL_REFUND_HOURS;
-    const reason = window.prompt(
+    const reason = await prompt(
       a.payment_status === "paid" && isLate
         ? `Cancel this session? It's within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot, so the patient won't be refunded. Add a reason (optional):`
         : a.payment_status === "paid"
@@ -228,7 +232,7 @@ export default function SessionDetailDrawer({
   }
 
   async function handleClearRating(role: "patient" | "therapist") {
-    if (!window.confirm(`Clear the ${role}'s rating so they can submit it again?`)) return;
+    if (!(await confirm(`Clear the ${role}'s rating so they can submit it again?`))) return;
     setClearingRole(role);
     setActionError(null);
     const res = await fetch("/api/admin/clear-session-rating", {
@@ -628,6 +632,8 @@ export default function SessionDetailDrawer({
           )}
         </div>
       </div>
+      {confirmDialog}
+      {promptDialog}
     </div>
   );
 }

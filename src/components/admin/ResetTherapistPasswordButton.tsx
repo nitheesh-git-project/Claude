@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatIST } from "@/lib/formatIST";
+import { useConfirm } from "@/lib/useConfirm";
 
 export default function ResetTherapistPasswordButton({
   therapistId,
@@ -20,12 +21,13 @@ export default function ResetTherapistPasswordButton({
   );
   const [copied, setCopied] = useState(false);
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
   async function handleReset() {
     if (
-      !window.confirm(
+      !(await confirm(
         "This will invalidate the therapist's current password immediately. Continue?"
-      )
+      ))
     ) {
       return;
     }
@@ -83,6 +85,7 @@ export default function ResetTherapistPasswordButton({
           </button>
         </div>
         {error && <span className="text-[11px] text-red-600">{error}</span>}
+        {dialog}
       </div>
     );
   }
@@ -97,6 +100,7 @@ export default function ResetTherapistPasswordButton({
         {loading ? "Resetting..." : "Reset Password"}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
+      {dialog}
     </div>
   );
 }

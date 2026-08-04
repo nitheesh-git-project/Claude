@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/lib/useConfirm";
 
 export default function MarkNoShowButton({
   appointmentId,
@@ -11,12 +12,13 @@ export default function MarkNoShowButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
   async function handleMarkNoShow() {
     if (
-      !window.confirm(
+      !(await confirm(
         "Mark this session as a no-show? The patient didn't attend. This won't change payout eligibility — the therapist still held the slot, same as a completed session."
-      )
+      ))
     )
       return;
     setLoading(true);
@@ -52,6 +54,7 @@ export default function MarkNoShowButton({
         {loading ? "Saving..." : "No-Show"}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
+      {dialog}
     </div>
   );
 }
