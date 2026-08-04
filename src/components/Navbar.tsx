@@ -15,6 +15,13 @@ const links = [
   { href: "/hospitals", label: "For Hospitals (B2B)" },
 ];
 
+const ROLE_DASHBOARD_HREF: Record<string, string> = {
+  patient: "/patient/dashboard",
+  therapist: "/therapist/dashboard",
+  admin: "/admin/dashboard",
+  hospital: "/hospital/dashboard",
+};
+
 export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -23,6 +30,8 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
   // to know WHO is logged in (name/avatar/role), only whether to hide the
   // Sign In / Get Started buttons.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [dashboardHref, setDashboardHref] = useState("/patient/dashboard");
+  const [navigating, setNavigating] = useState(false);
 
   useEffect(() => {
     // Read auth state on the client rather than in a Server Component, so
@@ -36,7 +45,20 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (active) setIsLoggedIn(!!session?.user);
+      if (!active) return;
+      setIsLoggedIn(!!session?.user);
+      if (!session?.user) return;
+      // Isolated lookup, not merged into a larger select -- only this one
+      // button needs the role, so a query failure here shouldn't take
+      // anything else down with it.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      if (active && profile?.role) {
+        setDashboardHref(ROLE_DASHBOARD_HREF[profile.role] ?? "/patient/dashboard");
+      }
     }
 
     loadAuthState();
@@ -93,7 +115,7 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
             ))}
           </div>
 
-          {!isLoggedIn && (
+          {!isLoggedIn ? (
             <div className="hidden md:flex items-center space-x-3">
               <Link
                 href="/patient/login"
@@ -106,6 +128,18 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
                 className="bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5"
               >
                 Get Started <i className="fa-solid fa-arrow-right text-xs"></i>
+              </Link>
+            </div>
+          ) : (
+            <div className="hidden md:flex items-center">
+              <Link
+                href={dashboardHref}
+                onClick={() => setNavigating(true)}
+                aria-disabled={navigating}
+                className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5 aria-disabled:opacity-60 aria-disabled:pointer-events-none"
+              >
+                {navigating ? "Loading..." : "Go to Dashboard"}{" "}
+                {!navigating && <i className="fa-solid fa-arrow-right text-xs"></i>}
               </Link>
             </div>
           )}
@@ -131,7 +165,7 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
                 {link.label}
               </Link>
             ))}
-            {!isLoggedIn && (
+            {!isLoggedIn ? (
               <>
                 <Link
                   href="/patient/login"
@@ -148,6 +182,18 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
                   Get Started
                 </Link>
               </>
+            ) : (
+              <Link
+                href={dashboardHref}
+                onClick={() => {
+                  setOpen(false);
+                  setNavigating(true);
+                }}
+                aria-disabled={navigating}
+                className="mt-2 bg-teal-700 text-white text-center font-semibold px-4 py-2.5 rounded-xl aria-disabled:opacity-60 aria-disabled:pointer-events-none"
+              >
+                {navigating ? "Loading..." : "Go to Dashboard"}
+              </Link>
             )}
           </div>
         )}
