@@ -323,6 +323,7 @@ export default async function PatientDashboardPage() {
       userCode={patientCodeRow?.patient_code ?? null}
       offsetTop={showDebugNav}
       sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
+      realtimeTables={["appointments", "profile_change_requests"]}
       headerTitle={`Welcome back, ${profile?.full_name ?? "there"}`}
       headerSubtitle="Your virtual physical therapy dashboard"
     >

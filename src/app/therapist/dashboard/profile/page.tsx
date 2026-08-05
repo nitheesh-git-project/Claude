@@ -77,6 +77,7 @@ export default async function TherapistProfilePage() {
       userCode={therapistCodeRow?.therapist_code ?? null}
       offsetTop={showDebugNav}
       sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
+      realtimeTables={["appointments", "therapist_payout_requests", "profile_change_requests"]}
       headerTitle="Edit Profile"
       headerSubtitle="Update your public details, credentials, and account security."
     >

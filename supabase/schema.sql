@@ -1326,3 +1326,82 @@ left join (
 where p.role = 'therapist' and p.approved = true and p.active = true and p.visible_on_team = true;
 
 grant select on public_therapist_profiles to anon, authenticated;
+
+-- Live dashboard updates (RealtimeRefresh component): admin's browser
+-- session needs read access to rows it doesn't own (a payout request from
+-- a therapist, a referral from a hospital, a new therapist signup) so a
+-- Realtime subscription authenticated as admin actually receives events
+-- for them -- the existing *_select_own policies below only ever matched
+-- auth.uid() against patient_id/therapist_id/hospital_id, which excludes
+-- admin entirely. security definer so the policies below (including the
+-- one on profiles itself) don't recurse back into profiles' own RLS.
+create or replace function is_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from profiles where id = auth.uid() and role = 'admin'
+  );
+$$;
+
+drop policy if exists "appointments_select_admin" on appointments;
+create policy "appointments_select_admin" on appointments
+  for select using (is_admin());
+
+drop policy if exists "payout_requests_select_admin" on therapist_payout_requests;
+create policy "payout_requests_select_admin" on therapist_payout_requests
+  for select using (is_admin());
+
+drop policy if exists "patient_referrals_select_admin" on patient_referrals;
+create policy "patient_referrals_select_admin" on patient_referrals
+  for select using (is_admin());
+
+drop policy if exists "b2b_leads_select_admin" on b2b_leads;
+create policy "b2b_leads_select_admin" on b2b_leads
+  for select using (is_admin());
+
+drop policy if exists "profiles_select_admin" on profiles;
+create policy "profiles_select_admin" on profiles
+  for select using (is_admin());
+
+drop policy if exists "profile_change_requests_select_admin" on profile_change_requests;
+create policy "profile_change_requests_select_admin" on profile_change_requests
+  for select using (is_admin());
+
+-- Actually turns on the postgres_changes stream for the tables above --
+-- without this, RealtimeRefresh's subscription connects successfully but
+-- Supabase never emits an event for it, regardless of RLS. Wrapped in a
+-- DO block so re-running this file doesn't error on tables already added.
+do $$
+begin
+  alter publication supabase_realtime add table appointments;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table therapist_payout_requests;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table patient_referrals;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table b2b_leads;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table profiles;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table profile_change_requests;
+exception when duplicate_object then null;
+end $$;

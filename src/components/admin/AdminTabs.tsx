@@ -4,6 +4,21 @@ import { useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { useIdleTimeout } from "@/lib/useIdleTimeout";
+import RealtimeRefresh from "@/components/RealtimeRefresh";
+
+// Every table an admin action anywhere on this dashboard reads that another
+// user (a therapist, patient, or hospital) can also write to -- see the
+// *_select_admin RLS policies + supabase_realtime publication entries at
+// the end of schema.sql. Fixed at module scope so RealtimeRefresh's own
+// tables prop is referentially stable across renders.
+const ADMIN_REALTIME_TABLES = [
+  "appointments",
+  "therapist_payout_requests",
+  "patient_referrals",
+  "b2b_leads",
+  "profiles",
+  "profile_change_requests",
+];
 
 type TabKey =
   | "overview"
@@ -205,6 +220,7 @@ export default function AdminTabs({
     // column -- Navbar/Footer are hidden on this exact route (see their own
     // pathname checks) so this component owns the entire viewport.
     <div className="min-h-screen bg-slate-50">
+      <RealtimeRefresh tables={ADMIN_REALTIME_TABLES} />
       {/* Narrow screens: a compact dark top bar that opens an off-canvas
           drawer -- a fixed-width sidebar doesn't leave enough room for
           content on a phone/tablet. */}

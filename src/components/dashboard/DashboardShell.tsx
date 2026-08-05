@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { useIdleTimeout } from "@/lib/useIdleTimeout";
+import RealtimeRefresh from "@/components/RealtimeRefresh";
 
 // `href` marks a real page navigation (e.g. "Edit Profile") rather than a
 // same-page anchor -- it always renders as a plain link to that page. An
@@ -47,6 +48,7 @@ export default function DashboardShell({
   headerSubtitle,
   headerActions,
   sessionTimeoutMinutes = 0,
+  realtimeTables,
   children,
 }: {
   brandLabel: string;
@@ -74,6 +76,12 @@ export default function DashboardShell({
   // Admin-configured Session Timeout of Inactivity, in minutes (0/undefined
   // = disabled) -- see src/lib/useIdleTimeout.ts and Feature 16.
   sessionTimeoutMinutes?: number;
+  // Tables whose changes should trigger a live router.refresh() while this
+  // page is open (e.g. an admin reassigns this therapist's session while
+  // they're looking at their own dashboard) -- see RealtimeRefresh. Omit
+  // for pages with nothing that changes from outside the viewer's own
+  // actions.
+  realtimeTables?: string[];
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -305,6 +313,9 @@ export default function DashboardShell({
     // pathname checks) so this component owns the entire viewport, matching
     // the Admin Dashboard's own shell.
     <div className="min-h-screen bg-slate-50">
+      {realtimeTables && realtimeTables.length > 0 && (
+        <RealtimeRefresh tables={realtimeTables} />
+      )}
       <div className="flex items-center justify-between bg-slate-900 px-4 py-3 lg:hidden">
         {renderBrand(false)}
         {navItems.length > 0 && (

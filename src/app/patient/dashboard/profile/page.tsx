@@ -98,6 +98,7 @@ export default async function PatientProfilePage() {
       userCode={patientCodeRow?.patient_code ?? null}
       offsetTop={showDebugNav}
       sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
+      realtimeTables={["appointments", "profile_change_requests"]}
       headerTitle="Edit Profile"
       headerSubtitle="Update your personal details, contact info, and account security."
     >

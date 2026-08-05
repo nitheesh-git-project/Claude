@@ -64,136 +64,249 @@ export default async function AdminDashboardPage() {
 
   const admin = createAdminClient();
 
-  const { data: pendingTherapists } = await admin
-    .from("profiles")
-    .select("id, full_name, email, phone, credentials, avatar_url, created_at")
-    .eq("role", "therapist")
-    .eq("approved", false)
-    .order("created_at", { ascending: false });
+  // All of these are independent reads -- none needs another query's data,
+  // only fixed filters -- so they run as one parallel batch instead of the
+  // ~25 sequential round trips this page used to make one at a time. That
+  // used to matter on every single admin button click, not just page load:
+  // router.refresh() re-runs this entire Server Component, so every prior
+  // query's latency was paid again before the next one even started.
+  // hospitalNotes further down is the one real exception (it needs
+  // allProfiles' hospital ids first) and stays a separate awaited call
+  // after this batch resolves. Comments on each query explain the
+  // isolation/migration-dependent reasoning for that particular fetch, same
+  // as before this was parallelized.
+  const [
+    { data: pendingTherapists },
+    { data: pendingProfileChanges },
+    { data: approvedTherapists },
+    { data: appointments, error: appointmentsError },
+    { data: packagePurchases },
+    { data: paymentFailures },
+    { data: payoutBatches },
+    { data: payoutBatchLinks },
+    { data: settingsRow },
+    { data: sessionCodeLinks },
+    { data: meetLinkRows },
+    { data: syncErrorRows },
+    { data: availabilityTemplateRows },
+    { data: availabilityOverrideRows },
+    { data: onLeaveRows },
+    { data: reassignmentLogs },
+    { data: b2bLeads },
+    { data: referrals },
+    { data: capacityNoteRows },
+    { data: allProfiles },
+    { data: roleCodeRows },
+    { data: treatmentCategories },
+    { data: packages },
+    { data: testimonials },
+    { data: faqs },
+    { data: siteSettings },
+    { data: payoutRequests },
+  ] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("id, full_name, email, phone, credentials, avatar_url, created_at")
+      .eq("role", "therapist")
+      .eq("approved", false)
+      .order("created_at", { ascending: false }),
 
-  const { data: pendingProfileChanges } = await admin
-    .from("profile_change_requests")
-    .select("id, user_id, changes, created_at")
-    .eq("status", "pending")
-    .order("created_at", { ascending: false });
+    admin
+      .from("profile_change_requests")
+      .select("id, user_id, changes, created_at")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false }),
 
-  // Includes suspended (active: false) therapists deliberately — the
-  // reassign-existing-session form (EditBookingForm, used by the Calendar
-  // and Session Story tabs) must always be able to show whoever a session
-  // is CURRENTLY assigned to, even if they were suspended after the fact,
-  // or its <select> silently mismatches its own state. Brand-new-assignment
-  // pickers (AssignTherapistForm/AssignReferralForm below) filter this down
-  // to active-only themselves, since they have no existing assignment to
-  // preserve.
-  const { data: approvedTherapists } = await admin
-    .from("profiles")
-    .select("id, full_name, active")
-    .eq("role", "therapist")
-    .eq("approved", true)
-    .order("full_name");
+    // Includes suspended (active: false) therapists deliberately — the
+    // reassign-existing-session form (EditBookingForm, used by the Calendar
+    // and Session Story tabs) must always be able to show whoever a session
+    // is CURRENTLY assigned to, even if they were suspended after the fact,
+    // or its <select> silently mismatches its own state. Brand-new-assignment
+    // pickers (AssignTherapistForm/AssignReferralForm below) filter this down
+    // to active-only themselves, since they have no existing assignment to
+    // preserve.
+    admin
+      .from("profiles")
+      .select("id, full_name, active")
+      .eq("role", "therapist")
+      .eq("approved", true)
+      .order("full_name"),
+
+    admin
+      .from("appointments")
+      .select(
+        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, razorpay_payment_id, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note, no_show"
+      )
+      .order("created_at", { ascending: false }),
+
+    // Feeds the Payment History tab's Patient section -- a package purchase
+    // is its own real payment event (own razorpay_payment_id), separate from
+    // any individual session, so it needs its own fetch rather than being
+    // inferred from appointments.
+    admin
+      .from("patient_package_purchases")
+      .select("id, patient_id, category_id, session_count, payment_status, amount_paid_paise, paid_at, razorpay_payment_id")
+      .order("paid_at", { ascending: false }),
+
+    // Feeds the Payment History tab's new Receipts section. Both isolated
+    // from the queries above for the same reason as the roster tables --
+    // new, migration-dependent, and a missing migration should only empty
+    // out the Receipts section rather than take down the rest of this page.
+    admin
+      .from("payment_failure_log")
+      .select(
+        "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
+      )
+      .order("created_at", { ascending: false }),
+
+    admin
+      .from("therapist_payout_batches")
+      .select("id, therapist_id, amount_paise, method, note, created_at")
+      .order("created_at", { ascending: false }),
+
+    // therapist_payout_batch_id lives on appointments, but it's queried
+    // separately and merged in below rather than added to the big shared
+    // select above -- that select feeds Overview, Calendar, Session Story,
+    // and Metrics too, so a missing-column error there (before this
+    // migration runs) would blank all of those, not just the Receipts
+    // section. Same isolation reasoning as payoutBatches/paymentFailures.
+    admin.from("appointments").select("id, therapist_payout_batch_id"),
+
+    // Feature Control tab (Feature 16) -- these site_settings columns are
+    // also new/migration-dependent, same isolation reasoning as the queries
+    // above: a missing migration degrades to DEFAULT_ADMIN_SETTINGS rather
+    // than blanking the whole dashboard.
+    admin
+      .from("site_settings")
+      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
+      .maybeSingle(),
+
+    // session_code is also new/migration-dependent -- same isolation
+    // reasoning as payoutBatchLinks above. Layered on top of the payout-batch
+    // merge (rather than the other way around) so Payment History ends up
+    // with both new columns at once.
+    admin.from("appointments").select("id, session_code"),
+
+    // meet_link is also new/migration-dependent -- same isolation reasoning
+    // as sessionCodeLinks above. Merged in here so it flows through to
+    // Calendar, Session Story, and the All Bookings list below all at once,
+    // same as session_code does.
+    admin.from("appointments").select("id, meet_link"),
+
+    // Sync health panel data (Feature Control tab) is built further down,
+    // once profileMap (patient/therapist names) is available.
+    admin.from("appointments").select("id, google_calendar_sync_error"),
+
+    // Feeds the Manage Roster tab. Both queries can legitimately return
+    // nothing (or error, if the migration hasn't been applied to this
+    // database yet) -- the tab renders an empty-but-correct grid either way,
+    // it never crashes the rest of the dashboard over this.
+    admin.from("therapist_availability_template").select("therapist_id, day_of_week, hour"),
+    admin
+      .from("therapist_availability_override")
+      .select("therapist_id, date, hour, available, note"),
+
+    // Deliberately its own query rather than folded into the allProfiles
+    // select below -- on_leave is new and migration-dependent same as the two
+    // tables above, and allProfiles feeds nearly every other tab on this page.
+    // An unknown-column error on one shared query would take all of them down;
+    // keeping it isolated means only the roster tab's on_leave badges degrade.
+    admin.from("profiles").select("id, on_leave"),
+
+    admin
+      .from("appointment_reassignment_log")
+      .select(
+        "id, appointment_id, changed_at, changed_by, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
+      )
+      .order("changed_at", { ascending: false }),
+
+    admin
+      .from("b2b_leads")
+      .select("id, name, phone, email, source, org_details, status, created_at")
+      .order("created_at", { ascending: false }),
+
+    admin
+      .from("patient_referrals")
+      .select(
+        "id, hospital_id, patient_name, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at"
+      )
+      .order("created_at", { ascending: false }),
+
+    // capacity_note is new/migration-dependent -- kept isolated (same
+    // reasoning as roleCodeRows/sessionCodeLinks elsewhere on this page) so a
+    // missing migration only blanks this one note, not the whole referrals list.
+    admin.from("patient_referrals").select("id, capacity_note"),
+
+    admin
+      .from("profiles")
+      .select(
+        "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id, avatar_url, date_of_birth, gender, credentials, specialization, years_experience, active, phone, created_at, approved, timezone"
+      ),
+
+    // patient_code/therapist_code/hospital_code are new/migration-dependent --
+    // kept isolated for the same reason as onLeaveRows above (allProfiles
+    // feeds nearly every tab on this page; an unknown-column error here should
+    // only degrade these ID badges, not take down the rest of the dashboard).
+    admin.from("profiles").select("id, patient_code, therapist_code, hospital_code"),
+
+    admin
+      .from("treatment_categories")
+      .select(
+        "id, title, description, points, price_paise, duration_minutes, cta_label, display_order, active"
+      )
+      .order("display_order", { ascending: true })
+      .order("id", { ascending: true }),
+
+    admin
+      .from("treatment_category_packages")
+      .select("id, category_id, title, session_count, price_paise, display_order, active")
+      .order("display_order", { ascending: true })
+      .order("id", { ascending: true }),
+
+    admin
+      .from("testimonials")
+      .select("id, patient_name, quote, rating, condition_label, display_order, active")
+      .order("display_order", { ascending: true })
+      .order("id", { ascending: true }),
+
+    admin
+      .from("faqs")
+      .select("id, question, answer, display_order, active")
+      .order("display_order", { ascending: true })
+      .order("id", { ascending: true }),
+
+    admin.from("site_settings").select("ratings_visible_publicly").eq("id", true).single(),
+
+    // therapist_payout_requests is new/migration-dependent -- kept isolated
+    // (it's its own brand-new table, so this is inherently its own query
+    // already) so an unknown-table error here only empties this one tab, not
+    // the rest of the dashboard.
+    admin
+      .from("therapist_payout_requests")
+      .select("id, therapist_id, requested_amount_paise, status, requested_at, completed_at")
+      .order("requested_at", { ascending: false }),
+  ]);
+
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
     (t) => t.active !== false
   );
 
-  const { data: appointments, error: appointmentsError } = await admin
-    .from("appointments")
-    .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, razorpay_payment_id, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note, no_show"
-    )
-    .order("created_at", { ascending: false });
-
-  // Feeds the Payment History tab's Patient section -- a package purchase
-  // is its own real payment event (own razorpay_payment_id), separate from
-  // any individual session, so it needs its own fetch rather than being
-  // inferred from appointments.
-  const { data: packagePurchases } = await admin
-    .from("patient_package_purchases")
-    .select("id, patient_id, category_id, session_count, payment_status, amount_paid_paise, paid_at, razorpay_payment_id")
-    .order("paid_at", { ascending: false });
-
-  // Feeds the Payment History tab's new Receipts section. Both isolated
-  // from the queries above for the same reason as the roster tables --
-  // new, migration-dependent, and a missing migration should only empty
-  // out the Receipts section rather than take down the rest of this page.
-  const { data: paymentFailures } = await admin
-    .from("payment_failure_log")
-    .select(
-      "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
-    )
-    .order("created_at", { ascending: false });
-  const { data: payoutBatches } = await admin
-    .from("therapist_payout_batches")
-    .select("id, therapist_id, amount_paise, method, note, created_at")
-    .order("created_at", { ascending: false });
-
-  // therapist_payout_batch_id lives on appointments, but it's queried
-  // separately and merged in below rather than added to the big shared
-  // select above -- that select feeds Overview, Calendar, Session Story,
-  // and Metrics too, so a missing-column error there (before this
-  // migration runs) would blank all of those, not just the Receipts
-  // section. Same isolation reasoning as payoutBatches/paymentFailures.
-  const { data: payoutBatchLinks } = await admin
-    .from("appointments")
-    .select("id, therapist_payout_batch_id");
   const payoutBatchIdByAppointmentId = new Map(
     (payoutBatchLinks ?? []).map((a) => [a.id, a.therapist_payout_batch_id])
   );
 
-  // Feature Control tab (Feature 16) -- these site_settings columns are
-  // also new/migration-dependent, same isolation reasoning as the queries
-  // above: a missing migration degrades to DEFAULT_ADMIN_SETTINGS rather
-  // than blanking the whole dashboard.
-  const { data: settingsRow } = await admin
-    .from("site_settings")
-    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
-    .maybeSingle();
   const adminSettings = parseAdminSettings(settingsRow);
-
-  // session_code is also new/migration-dependent -- same isolation
-  // reasoning as payoutBatchLinks above. Layered on top of the payout-batch
-  // merge (rather than the other way around) so Payment History ends up
-  // with both new columns at once.
-  const { data: sessionCodeLinks } = await admin
-    .from("appointments")
-    .select("id, session_code");
-
-  // meet_link is also new/migration-dependent -- same isolation reasoning
-  // as sessionCodeLinks above. Merged in here so it flows through to
-  // Calendar, Session Story, and the All Bookings list below all at once,
-  // same as session_code does.
-  const { data: meetLinkRows } = await admin.from("appointments").select("id, meet_link");
 
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(appointments ?? [], sessionCodeLinks),
     meetLinkRows
   );
 
-  // Sync health panel data (Feature Control tab) is built further down,
-  // once profileMap (patient/therapist names) is available.
-  const { data: syncErrorRows } = await admin
-    .from("appointments")
-    .select("id, google_calendar_sync_error");
   const appointmentsWithPayoutBatch = appointmentsWithSessionCode.map((a) => ({
     ...a,
     therapist_payout_batch_id: payoutBatchIdByAppointmentId.get(a.id) ?? null,
   }));
 
-  // Feeds the Manage Roster tab. Both queries can legitimately return
-  // nothing (or error, if the migration hasn't been applied to this
-  // database yet) -- the tab renders an empty-but-correct grid either way,
-  // it never crashes the rest of the dashboard over this.
-  const { data: availabilityTemplateRows } = await admin
-    .from("therapist_availability_template")
-    .select("therapist_id, day_of_week, hour");
-  const { data: availabilityOverrideRows } = await admin
-    .from("therapist_availability_override")
-    .select("therapist_id, date, hour, available, note");
-  // Deliberately its own query rather than folded into the allProfiles
-  // select below -- on_leave is new and migration-dependent same as the two
-  // tables above, and allProfiles feeds nearly every other tab on this page.
-  // An unknown-column error on one shared query would take all of them down;
-  // keeping it isolated means only the roster tab's on_leave badges degrade.
-  const { data: onLeaveRows } = await admin.from("profiles").select("id, on_leave");
   const onLeaveMap = new Map((onLeaveRows ?? []).map((r) => [r.id, r.on_leave]));
   // This single query feeds Overview, Calendar, Session Story, and Metrics
   // all at once — if it fails (e.g. a column referenced here doesn't exist
@@ -204,49 +317,13 @@ export default async function AdminDashboardPage() {
     console.error("Admin dashboard: failed to load appointments", appointmentsError);
   }
 
-  const { data: reassignmentLogs } = await admin
-    .from("appointment_reassignment_log")
-    .select(
-      "id, appointment_id, changed_at, changed_by, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
-    )
-    .order("changed_at", { ascending: false });
-
-  const { data: b2bLeads } = await admin
-    .from("b2b_leads")
-    .select("id, name, phone, email, source, org_details, status, created_at")
-    .order("created_at", { ascending: false });
-
-  const { data: referrals } = await admin
-    .from("patient_referrals")
-    .select(
-      "id, hospital_id, patient_name, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at"
-    )
-    .order("created_at", { ascending: false });
   const nowForReferrals = nowTimestamp();
 
-  // capacity_note is new/migration-dependent -- kept isolated (same
-  // reasoning as roleCodeRows/sessionCodeLinks elsewhere on this page) so a
-  // missing migration only blanks this one note, not the whole referrals list.
-  const { data: capacityNoteRows } = await admin
-    .from("patient_referrals")
-    .select("id, capacity_note");
   const capacityNoteMap = new Map((capacityNoteRows ?? []).map((r) => [r.id, r.capacity_note]));
 
-  const { data: allProfiles } = await admin
-    .from("profiles")
-    .select(
-      "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id, avatar_url, date_of_birth, gender, credentials, specialization, years_experience, active, phone, created_at, approved, timezone"
-    );
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
   const adminProfile = profileMap.get(user.id);
 
-  // patient_code/therapist_code/hospital_code are new/migration-dependent --
-  // kept isolated for the same reason as onLeaveRows above (allProfiles
-  // feeds nearly every tab on this page; an unknown-column error here should
-  // only degrade these ID badges, not take down the rest of the dashboard).
-  const { data: roleCodeRows } = await admin
-    .from("profiles")
-    .select("id, patient_code, therapist_code, hospital_code");
   const roleCodeMap = new Map((roleCodeRows ?? []).map((r) => [r.id, r]));
 
   // Sync health panel (Feature Control tab): confirmed sessions that either
@@ -285,37 +362,6 @@ export default async function AdminDashboardPage() {
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 
-  const { data: treatmentCategories } = await admin
-    .from("treatment_categories")
-    .select(
-      "id, title, description, points, price_paise, duration_minutes, cta_label, display_order, active"
-    )
-    .order("display_order", { ascending: true })
-    .order("id", { ascending: true });
-
-  const { data: packages } = await admin
-    .from("treatment_category_packages")
-    .select("id, category_id, title, session_count, price_paise, display_order, active")
-    .order("display_order", { ascending: true })
-    .order("id", { ascending: true });
-
-  const { data: testimonials } = await admin
-    .from("testimonials")
-    .select("id, patient_name, quote, rating, condition_label, display_order, active")
-    .order("display_order", { ascending: true })
-    .order("id", { ascending: true });
-
-  const { data: faqs } = await admin
-    .from("faqs")
-    .select("id, question, answer, display_order, active")
-    .order("display_order", { ascending: true })
-    .order("id", { ascending: true });
-
-  const { data: siteSettings } = await admin
-    .from("site_settings")
-    .select("ratings_visible_publicly")
-    .eq("id", true)
-    .single();
   const categoryMap = new Map((treatmentCategories ?? []).map((c) => [c.id, c]));
 
   // Revenue rollup per hospital: every paid session belonging to a patient
@@ -1020,15 +1066,6 @@ export default async function AdminDashboardPage() {
       nowMs={nowTimestamp()}
     />
   );
-
-  // therapist_payout_requests is new/migration-dependent -- kept isolated
-  // (it's its own brand-new table, so this is inherently its own query
-  // already) so an unknown-table error here only empties this one tab, not
-  // the rest of the dashboard.
-  const { data: payoutRequests } = await admin
-    .from("therapist_payout_requests")
-    .select("id, therapist_id, requested_amount_paise, status, requested_at, completed_at")
-    .order("requested_at", { ascending: false });
 
   const payoutRequestRows: PayoutRequestRow[] = (payoutRequests ?? []).map((r) => {
     const therapist = profileMap.get(r.therapist_id);

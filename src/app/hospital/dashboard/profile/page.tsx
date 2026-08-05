@@ -74,6 +74,7 @@ export default async function HospitalProfilePage() {
       userCode={hospitalCodeRow?.hospital_code ?? null}
       offsetTop={showDebugNav}
       sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
+      realtimeTables={["patient_referrals"]}
       headerTitle="Account Security"
       headerSubtitle="Change your password by email — this keeps your account secure."
     >
