@@ -1,76 +1,99 @@
 import type { Metadata } from "next";
+import StepScroller from "@/components/howitworks/StepScroller";
 import { Reveal, Stagger, StaggerItem, MotionButton, FloatingOrbs } from "@/components/motion/primitives";
 
 export const metadata: Metadata = {
   title: "How It Works | Dr. Pooja's Physio",
   description:
-    "Your path to recovery in 3 simple steps: smart booking, a 60-minute HD video call, and a custom home exercise plan.",
+    "Your path to recovery in 3 steps: book a slot in your timezone, a 60-minute guided video assessment, and a home exercise plan built for your space.",
 };
 
-const steps = [
+const OBJECTIONS = [
   {
-    num: 1,
-    icon: "fa-calendar-check",
-    title: "Smart Booking & Intake",
-    desc: "Auto-timezone slot selection, instant Razorpay UPI payment in ₹ INR, and secure file upload for your X-rays/MRIs.",
+    icon: "fa-hand",
+    q: "Without hands-on treatment, does it actually work?",
+    a: "Most musculoskeletal recovery is driven by graded, correctly-performed exercise — not by passive treatment. What a therapist needs is to see how you move, and video shows that clearly.",
   },
   {
-    num: 2,
-    icon: "fa-video",
-    title: "60-Min HD Video Call",
-    desc: "1-on-1 visual movement assessment, posture analysis, and active pain response testing on Google Meet.",
+    icon: "fa-house-laptop",
+    q: "Why is being at home an advantage?",
+    a: "Your pain happens in your chair, at your desk, in your bed. Assessing you there means the plan is fitted to the environment you'll actually rehab in.",
   },
   {
-    num: 3,
-    icon: "fa-person-walking-arrow-right",
-    title: "Custom Home Exercise Plan",
-    desc: "Receive video-guided daily stretches tailored to your chair, bed, and home environment with ongoing follow-up.",
+    icon: "fa-calendar-day",
+    q: "What if I'm in a different country?",
+    a: "Slots are shown in your own timezone and confirmed before the call. Sessions run on Google Meet, so there's nothing to install beyond a browser.",
   },
 ];
 
 export default function HowItWorksPage() {
   return (
     <>
-      <div className="relative overflow-hidden bg-gradient-to-b from-teal-50/70 to-white py-16 border-b border-slate-100">
+      <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/70 to-white py-20">
         <FloatingOrbs />
-        <Reveal className="relative text-center max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="font-display text-3xl sm:text-5xl font-extrabold text-slate-900">
-            Your Path to Recovery in 3 Simple Steps
+        <Reveal className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
+          <span className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-100 px-3 py-1 text-xs font-semibold text-teal-800">
+            <i className="fa-solid fa-route text-teal-600" />
+            Three steps, start to plan
+          </span>
+          <h1 className="font-display mt-5 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl">
+            What actually happens when you book a session
           </h1>
-          <p className="text-slate-600 mt-3 text-base">
-            How virtual physical therapy achieves clinical success without
-            physical touch.
+          <p className="mt-5 text-lg leading-relaxed text-slate-600">
+            No vague promises — here is the exact path from picking a time to
+            working through a plan built around your own home.
           </p>
         </Reveal>
       </div>
 
-      <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Stagger className="grid md:grid-cols-3 gap-8 relative">
-          <div className="hidden md:block absolute top-14 left-[16.6%] right-[16.6%] h-px bg-gradient-to-r from-teal-200 via-teal-300 to-teal-200" />
-          {steps.map((s) => (
-            <StaggerItem key={s.num}>
-              <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center relative shadow-sm hover:shadow-lg hover:shadow-slate-900/5 transition-shadow h-full">
-                <div className="w-14 h-14 bg-gradient-to-br from-teal-600 to-emerald-600 text-white rounded-2xl flex items-center justify-center text-xl mx-auto mb-5 shadow-lg shadow-teal-900/20">
-                  <i className={`fa-solid ${s.icon}`}></i>
-                </div>
-                <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">
-                  Step {s.num}
-                </span>
-                <h3 className="font-display font-bold text-lg text-slate-800 mt-1">{s.title}</h3>
-                <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                  {s.desc}
-                </p>
-              </div>
-            </StaggerItem>
-          ))}
-        </Stagger>
+      <div className="py-16">
+        <StepScroller />
+      </div>
 
-        <Reveal delay={0.1} className="mt-16 text-center">
-          <MotionButton href="/book" variant="primary">
-            <i className="fa-solid fa-calendar-check"></i> Start Your First Session
-          </MotionButton>
+      {/* The three things people hesitate over, answered plainly. */}
+      <div className="border-y border-slate-100 bg-slate-50 py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <Reveal className="mx-auto mb-12 max-w-2xl text-center">
+            <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
+              The questions people ask before booking
+            </h2>
+          </Reveal>
+          <Stagger className="grid gap-6 md:grid-cols-3">
+            {OBJECTIONS.map((o) => (
+              <StaggerItem key={o.q}>
+                <div className="h-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+                    <i className={`fa-solid ${o.icon}`} />
+                  </span>
+                  <h3 className="font-display text-base font-bold text-slate-900">
+                    {o.q}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{o.a}</p>
+                </div>
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </div>
+      </div>
+
+      <div className="relative overflow-hidden py-20">
+        <div className="absolute inset-0 bg-gradient-to-br from-teal-800 to-emerald-700" />
+        <FloatingOrbs className="opacity-40" />
+        <Reveal className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
+          <h2 className="font-display text-3xl font-extrabold text-white sm:text-4xl">
+            Step one takes about two minutes.
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-teal-100">
+            Pick a slot, and your therapist will have read your history before
+            you join the call.
+          </p>
+          <div className="mt-8 flex justify-center">
+            <MotionButton href="/book" variant="secondary">
+              <i className="fa-solid fa-calendar-check text-teal-700" /> Book Your Assessment
+            </MotionButton>
+          </div>
         </Reveal>
-      </section>
+      </div>
     </>
   );
 }

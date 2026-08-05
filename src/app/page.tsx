@@ -1,12 +1,49 @@
 import { createPublicClient } from "@/lib/supabase/public";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
-import { Reveal, Stagger, StaggerItem, MotionButton, FloatingOrbs, AnimatedCard } from "@/components/motion/primitives";
+import {
+  Reveal,
+  Stagger,
+  StaggerItem,
+  MotionButton,
+  FloatingOrbs,
+  AnimatedCard,
+} from "@/components/motion/primitives";
+import SpineStory from "@/components/home/SpineStory";
+import { ConsultScene } from "@/components/howitworks/scenes";
 
 const ICON_ROTATION = ["fa-bone", "fa-user-injured", "fa-person-running", "fa-laptop-house"];
 
 // This page has no per-user content — it can be cached and revalidated
 // on a timer instead of hitting Supabase on every single visit.
 export const revalidate = 300;
+
+const TRUST_POINTS = [
+  { icon: "fa-certificate", label: "Licensed physiotherapists" },
+  { icon: "fa-video", label: "1-on-1 HD video sessions" },
+  { icon: "fa-file-medical", label: "Reports reviewed pre-session" },
+  { icon: "fa-lock", label: "Secure UPI payment" },
+];
+
+const JOURNEY = [
+  {
+    icon: "fa-calendar-check",
+    step: "01",
+    title: "Book in your timezone",
+    body: "Pick a slot, pay over UPI, and upload your scans — all before the call.",
+  },
+  {
+    icon: "fa-video",
+    step: "02",
+    title: "Get assessed on camera",
+    body: "60 minutes of guided movement testing with a licensed specialist.",
+  },
+  {
+    icon: "fa-person-walking",
+    step: "03",
+    title: "Rehab from your room",
+    body: "A video-guided plan fitted to your chair, bed and floor space.",
+  },
+];
 
 export default async function Home() {
   const supabase = createPublicClient();
@@ -44,65 +81,64 @@ export default async function Home() {
 
   return (
     <>
-      {/* HERO */}
-      <div className="relative overflow-hidden bg-gradient-to-b from-teal-50/70 via-white to-white py-20 lg:py-28 border-b border-slate-100">
+      {/* HERO — the session itself is the hero image, so what we sell is
+          legible before a single line of copy is read. */}
+      <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/70 via-white to-white py-16 lg:py-24">
         <FloatingOrbs />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-2 gap-12 items-center">
+        <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 sm:px-6 md:grid-cols-2 lg:px-8">
           <Reveal>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-100 text-teal-800 mb-5 border border-teal-200">
-              <i className="fa-solid fa-shield-halved text-teal-600"></i>{" "}
+            <span className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-100 px-3 py-1 text-xs font-semibold text-teal-800">
+              <i className="fa-solid fa-shield-halved text-teal-600" />
               Certified Global Telehealth Practice
             </span>
-            <h1 className="font-display text-4xl sm:text-6xl font-extrabold text-slate-900 leading-[1.08] tracking-tight">
-              Expert Virtual Physical Therapy —{" "}
+            <h1 className="font-display text-4xl font-extrabold leading-[1.08] tracking-tight text-slate-900 sm:text-6xl">
+              Physiotherapy that watches{" "}
               <span className="bg-gradient-to-r from-teal-700 to-emerald-500 bg-clip-text text-transparent">
-                Restoring Mobility from Home
+                how you actually move
               </span>
             </h1>
-            <p className="mt-5 text-base sm:text-lg text-slate-600 leading-relaxed max-w-xl">
-              Receive 1-on-1 evidence-based physical therapy, movement
-              assessments, and customized rehabilitation plans from licensed
-              specialists — no matter where you live in the world.
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
+              A licensed specialist assesses your posture and range of motion
+              live over video, then builds a rehabilitation plan around the
+              room you recover in — anywhere in the world.
             </p>
-            <div className="mt-9 flex flex-wrap gap-4 items-center">
+            <div className="mt-9 flex flex-wrap items-center gap-4">
               <MotionButton href="/book" variant="primary">
-                <i className="fa-solid fa-calendar-check"></i> Book Assessment
-                <i className="fa-solid fa-arrow-right text-xs opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all"></i>
+                <i className="fa-solid fa-calendar-check" /> Book Assessment
+                <i className="fa-solid fa-arrow-right -ml-2 text-xs opacity-0 transition-all group-hover:ml-0 group-hover:opacity-100" />
               </MotionButton>
               <MotionButton href="/how-it-works" variant="secondary">
-                <i className="fa-solid fa-circle-play text-teal-600"></i>{" "}
-                Watch How It Works
+                <i className="fa-solid fa-circle-play text-teal-600" /> See how a session runs
               </MotionButton>
             </div>
+
             <div
-              className={`mt-12 grid gap-4 pt-6 border-t border-slate-200/80 ${
+              className={`mt-12 grid gap-4 border-t border-slate-200/80 pt-6 ${
                 hasRealRatings ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
               }`}
             >
               <div>
                 <p className="font-display text-2xl font-bold text-slate-900">100+</p>
-                <p className="text-xs text-slate-500 font-medium">Global Patients</p>
+                <p className="text-xs font-medium text-slate-500">Global Patients</p>
               </div>
               <div>
-                <p className="font-display text-2xl font-bold text-slate-900">100%</p>
-                <p className="text-xs text-slate-500 font-medium">
-                  Licensed Specialists
-                </p>
+                <p className="font-display text-2xl font-bold text-slate-900">60 min</p>
+                <p className="text-xs font-medium text-slate-500">1-on-1 Assessment</p>
               </div>
               <div>
-                <p className="font-display text-2xl font-bold text-slate-900">1-on-1</p>
-                <p className="text-xs text-slate-500 font-medium">
-                  Dedicated HD Video
+                <p className="font-display text-2xl font-bold text-slate-900">
+                  ₹{(startingPricePaise / 100).toLocaleString("en-IN")}
                 </p>
+                <p className="text-xs font-medium text-slate-500">Starting per session</p>
               </div>
               {hasRealRatings && (
                 <div>
                   <p className="font-display text-2xl font-bold text-slate-900">
-                    <i className="fa-solid fa-star text-amber-500 text-lg mr-1"></i>
+                    <i className="fa-solid fa-star mr-1 text-lg text-amber-500" />
                     {Number(ratingSummary.avg_rating).toFixed(1)}
                   </p>
-                  <p className="text-xs text-slate-500 font-medium">
-                    From {ratingSummary.rating_count} Real Sessions
+                  <p className="text-xs font-medium text-slate-500">
+                    From {ratingSummary.rating_count} sessions
                   </p>
                 </div>
               )}
@@ -110,123 +146,148 @@ export default async function Home() {
           </Reveal>
 
           <Reveal delay={0.15}>
-            <div className="bg-white p-6 rounded-2xl shadow-xl shadow-slate-900/5 border border-slate-100 relative">
-              <div className="bg-slate-900 rounded-xl overflow-hidden aspect-video relative flex items-center justify-center text-white">
-                <div className="relative text-center p-6">
-                  <div className="w-16 h-16 bg-teal-600/90 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg cursor-pointer hover:scale-105 transition">
-                    <i className="fa-solid fa-play text-2xl text-white ml-1"></i>
-                  </div>
-                  <p className="font-semibold text-sm">
-                    60-Min Guided Movement Evaluation
-                  </p>
-                  <p className="text-xs text-slate-300">
-                    Live Video Consultation Sample
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 flex items-center justify-between bg-teal-50 p-3 rounded-xl border border-teal-100">
-                <div className="flex items-center space-x-3">
-                  <div className="w-9 h-9 bg-teal-700 text-white rounded-full flex items-center justify-center font-bold text-xs">
-                    DP
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">
-                      Dr. Pooja (PT)
-                    </p>
-                    <p className="text-[11px] text-teal-800">
-                      Lead Specialist • 8+ Yrs Exp
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-teal-800 bg-white px-2.5 py-1 rounded-lg border border-teal-200">
-                  From ₹{(startingPricePaise / 100).toLocaleString("en-IN")} INR / Session
-                </span>
-              </div>
+            <div className="h-[26rem] sm:h-[30rem]">
+              <ConsultScene />
             </div>
+            <p className="mt-3 text-center text-xs text-slate-500">
+              A live movement assessment — posture measured against your own
+              alignment, in real time.
+            </p>
           </Reveal>
         </div>
       </div>
 
-      {/* CONDITIONS GRID OVERVIEW */}
+      {/* TRUST STRIP */}
+      <div className="border-b border-slate-100 bg-white py-5">
+        <Stagger className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-10 gap-y-3 px-4 sm:px-6 lg:px-8">
+          {TRUST_POINTS.map((t) => (
+            <StaggerItem key={t.label}>
+              <span className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                <i className={`fa-solid ${t.icon} text-teal-600`} />
+                {t.label}
+              </span>
+            </StaggerItem>
+          ))}
+        </Stagger>
+      </div>
+
+      {/* SCROLL STORY — what we treat, read off the spine itself */}
+      <SpineStory />
+
+      {/* JOURNEY TEASER */}
+      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+        <Reveal className="mx-auto mb-14 max-w-2xl text-center">
+          <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
+            Three steps from booking to recovery
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Everything is handled before you join the call, so the hour is
+            spent on you — not on paperwork.
+          </p>
+        </Reveal>
+        <Stagger className="grid gap-6 md:grid-cols-3">
+          {JOURNEY.map((j) => (
+            <StaggerItem key={j.step}>
+              <AnimatedCard className="h-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:border-teal-200 hover:shadow-lg hover:shadow-slate-900/5">
+                <div className="flex items-center justify-between">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-emerald-600 text-lg text-white shadow-lg shadow-teal-900/20">
+                    <i className={`fa-solid ${j.icon}`} />
+                  </span>
+                  <span className="font-display text-3xl font-extrabold text-slate-100">
+                    {j.step}
+                  </span>
+                </div>
+                <h3 className="font-display mt-4 text-lg font-bold text-slate-900">
+                  {j.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{j.body}</p>
+              </AnimatedCard>
+            </StaggerItem>
+          ))}
+        </Stagger>
+        <Reveal delay={0.1} className="mt-10 text-center">
+          <MotionButton href="/how-it-works" variant="secondary">
+            Walk through a full session <i className="fa-solid fa-arrow-right text-xs" />
+          </MotionButton>
+        </Reveal>
+      </div>
+
+      {/* CONDITIONS — admin-controlled content, so the layout stays generic
+          and simply adapts to whatever categories are configured. */}
       {categories && categories.length > 0 && (
-        <div className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Reveal className="text-center max-w-2xl mx-auto mb-14">
-            <h2 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
-              Conditions We Treat Virtually
-            </h2>
-            <p className="text-slate-600 mt-2 text-sm">
-              Targeted, evidence-based rehabilitation protocols for acute and
-              chronic musculoskeletal pain.
-            </p>
-          </Reveal>
-          <Stagger className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {categories.map((c, i) => {
-              const points = Array.isArray(c.points) ? (c.points as string[]) : [];
-              const desc = c.description || points[0] || "Learn more about this program.";
-              return (
-                <StaggerItem key={c.id}>
-                  <AnimatedCard
-                    href={`/book?category=${c.id}`}
-                    className="h-full bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg hover:shadow-slate-900/5 hover:border-teal-200 transition-shadow"
-                  >
-                    <div className="w-12 h-12 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center text-xl mb-4">
-                      <i className={`fa-solid ${ICON_ROTATION[i % ICON_ROTATION.length]}`}></i>
-                    </div>
-                    <h3 className="font-display font-bold text-lg text-slate-800">{c.title}</h3>
-                    <p className="text-slate-600 text-xs mt-2 leading-relaxed">
-                      {desc}
-                    </p>
-                  </AnimatedCard>
-                </StaggerItem>
-              );
-            })}
-          </Stagger>
+        <div className="border-y border-slate-100 bg-slate-50 py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <Reveal className="mx-auto mb-14 max-w-2xl text-center">
+              <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
+                Programs we run virtually
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Targeted, evidence-based rehabilitation protocols for acute and
+                chronic musculoskeletal pain.
+              </p>
+            </Reveal>
+            <Stagger className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {categories.map((c, i) => {
+                const points = Array.isArray(c.points) ? (c.points as string[]) : [];
+                const desc = c.description || points[0] || "Learn more about this program.";
+                return (
+                  <StaggerItem key={c.id}>
+                    <AnimatedCard
+                      href={`/book?category=${c.id}`}
+                      className="h-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:border-teal-200 hover:shadow-lg hover:shadow-slate-900/5"
+                    >
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-teal-100 text-xl text-teal-700">
+                        <i className={`fa-solid ${ICON_ROTATION[i % ICON_ROTATION.length]}`} />
+                      </div>
+                      <h3 className="font-display text-lg font-bold text-slate-800">
+                        {c.title}
+                      </h3>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-600">{desc}</p>
+                      <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700">
+                        Book this program <i className="fa-solid fa-arrow-right text-[10px]" />
+                      </span>
+                    </AnimatedCard>
+                  </StaggerItem>
+                );
+              })}
+            </Stagger>
+          </div>
         </div>
       )}
 
       {/* TESTIMONIALS */}
       {testimonials && testimonials.length > 0 && (
-        <div className="py-20 bg-slate-50 border-y border-slate-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <Reveal className="text-center max-w-2xl mx-auto mb-14">
-              <h2 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
-                What Our Patients Say
+        <div className="py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <Reveal className="mx-auto mb-14 max-w-2xl text-center">
+              <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
+                Recoveries guided entirely over video
               </h2>
-              <p className="text-slate-600 mt-2 text-sm">
-                Real recoveries from real patients, guided remotely by our
-                licensed specialists.
-              </p>
               {hasRealRatings && (
-                <p className="text-amber-600 font-semibold text-sm mt-2">
-                  <i className="fa-solid fa-star mr-1"></i>
-                  {Number(ratingSummary.avg_rating).toFixed(1)} average rating across{" "}
+                <p className="mt-2 text-sm font-semibold text-amber-600">
+                  <i className="fa-solid fa-star mr-1" />
+                  {Number(ratingSummary.avg_rating).toFixed(1)} average across{" "}
                   {ratingSummary.rating_count} completed sessions
                 </p>
               )}
             </Reveal>
-            <Stagger className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Stagger className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {testimonials.map((t) => (
                 <StaggerItem key={t.id}>
-                  <AnimatedCard className="h-full bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                  <AnimatedCard className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     {t.rating && (
-                      <div className="text-amber-500 text-sm mb-3">
+                      <div className="mb-3 text-sm text-amber-500">
                         {"★".repeat(t.rating)}
-                        <span className="text-slate-300">
-                          {"★".repeat(5 - t.rating)}
-                        </span>
+                        <span className="text-slate-300">{"★".repeat(5 - t.rating)}</span>
                       </div>
                     )}
-                    <p className="text-slate-700 text-sm leading-relaxed flex-1">
+                    <p className="flex-1 text-sm leading-relaxed text-slate-700">
                       &quot;{t.quote}&quot;
                     </p>
-                    <div className="mt-4 pt-4 border-t border-slate-100">
-                      <p className="font-bold text-sm text-slate-900">
-                        {t.patient_name}
-                      </p>
+                    <div className="mt-4 border-t border-slate-100 pt-4">
+                      <p className="text-sm font-bold text-slate-900">{t.patient_name}</p>
                       {t.condition_label && (
-                        <p className="text-xs text-teal-700 mt-0.5">
-                          {t.condition_label}
-                        </p>
+                        <p className="mt-0.5 text-xs text-teal-700">{t.condition_label}</p>
                       )}
                     </div>
                   </AnimatedCard>
@@ -241,20 +302,20 @@ export default async function Home() {
       <div className="relative overflow-hidden py-20">
         <div className="absolute inset-0 bg-gradient-to-br from-teal-800 to-emerald-700" />
         <FloatingOrbs className="opacity-40" />
-        <Reveal className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-white">
-            Your recovery starts with one session.
+        <Reveal className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
+          <h2 className="font-display text-3xl font-extrabold text-white sm:text-4xl">
+            Your recovery starts with one assessment.
           </h2>
-          <p className="text-teal-100 mt-4 text-base max-w-xl mx-auto">
-            Book a 60-minute assessment today and get a personalized plan from
-            a licensed specialist — wherever you are.
+          <p className="mx-auto mt-4 max-w-xl text-base text-teal-100">
+            Book a 60-minute session and leave with a plan built for your body
+            and your home — wherever you are.
           </p>
-          <div className="mt-8 flex justify-center gap-4 flex-wrap">
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
             <MotionButton href="/book" variant="secondary">
-              <i className="fa-solid fa-calendar-check text-teal-700"></i> Book Assessment
+              <i className="fa-solid fa-calendar-check text-teal-700" /> Book Assessment
             </MotionButton>
             <MotionButton href="/get-started" variant="ghost">
-              Explore All Options <i className="fa-solid fa-arrow-right text-xs"></i>
+              Explore All Options <i className="fa-solid fa-arrow-right text-xs" />
             </MotionButton>
           </div>
         </Reveal>
