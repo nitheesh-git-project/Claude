@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AdminSettings } from "@/lib/adminSettings";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
@@ -34,113 +34,118 @@ export default function AdminFeatureControlTab({
   adminEmail: string;
 }) {
   const router = useRouter();
-  const [packagesVisible, setPackagesVisible] = useState(settings.sessionPackagesVisible);
-  const [savingPackages, setSavingPackages] = useState(false);
+  // Prop-derived base: flips the label instantly instead of waiting on the
+  // fetch + router.refresh() round trip. Reverts to the real prop on
+  // failure (no refresh happens); matches the new prop on success once
+  // router.refresh() lands. See PatientActiveToggle's comment.
+  const [optimisticPackagesVisible, setOptimisticPackagesVisible] = useOptimistic(
+    settings.sessionPackagesVisible
+  );
+  const [isPackagesPending, startPackagesTransition] = useTransition();
   const [packagesError, setPackagesError] = useState<string | null>(null);
 
   const [timeoutInput, setTimeoutInput] = useState(String(settings.sessionTimeoutMinutes));
-  const [savingTimeout, setSavingTimeout] = useState(false);
+  const [isTimeoutPending, startTimeoutTransition] = useTransition();
   const [timeoutError, setTimeoutError] = useState<string | null>(null);
   const [timeoutSaved, setTimeoutSaved] = useState(false);
 
-  const [meetEnabled, setMeetEnabled] = useState(settings.googleMeetEnabled);
-  const [savingMeetEnabled, setSavingMeetEnabled] = useState(false);
+  const [optimisticMeetEnabled, setOptimisticMeetEnabled] = useOptimistic(
+    settings.googleMeetEnabled
+  );
+  const [isMeetEnabledPending, startMeetEnabledTransition] = useTransition();
   const [meetEnabledError, setMeetEnabledError] = useState<string | null>(null);
 
   const [joinWindowInput, setJoinWindowInput] = useState(String(settings.joinWindowMinutes));
-  const [savingJoinWindow, setSavingJoinWindow] = useState(false);
+  const [isJoinWindowPending, startJoinWindowTransition] = useTransition();
   const [joinWindowError, setJoinWindowError] = useState<string | null>(null);
   const [joinWindowSaved, setJoinWindowSaved] = useState(false);
 
   const [joinWindowAfterInput, setJoinWindowAfterInput] = useState(
     String(settings.joinWindowAfterMinutes)
   );
-  const [savingJoinWindowAfter, setSavingJoinWindowAfter] = useState(false);
+  const [isJoinWindowAfterPending, startJoinWindowAfterTransition] = useTransition();
   const [joinWindowAfterError, setJoinWindowAfterError] = useState<string | null>(null);
   const [joinWindowAfterSaved, setJoinWindowAfterSaved] = useState(false);
 
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
 
-  async function handleTogglePackages() {
-    const next = !packagesVisible;
-    setSavingPackages(true);
+  function handleTogglePackages() {
+    const next = !optimisticPackagesVisible;
     setPackagesError(null);
-    try {
-      await saveSetting("session_packages_visible", next);
-      setPackagesVisible(next);
-      router.refresh();
-    } catch (e) {
-      setPackagesError(e instanceof Error ? e.message : "Could not save. Please try again.");
-    } finally {
-      setSavingPackages(false);
-    }
+    startPackagesTransition(async () => {
+      setOptimisticPackagesVisible(next);
+      try {
+        await saveSetting("session_packages_visible", next);
+        router.refresh();
+      } catch (e) {
+        setPackagesError(e instanceof Error ? e.message : "Could not save. Please try again.");
+      }
+    });
   }
 
-  async function handleSaveTimeout() {
+  function handleSaveTimeout() {
     const minutes = Math.max(0, Math.floor(Number(timeoutInput) || 0));
-    setSavingTimeout(true);
     setTimeoutError(null);
     setTimeoutSaved(false);
-    try {
-      await saveSetting("session_timeout_minutes", minutes);
-      setTimeoutInput(String(minutes));
-      setTimeoutSaved(true);
-      router.refresh();
-    } catch (e) {
-      setTimeoutError(e instanceof Error ? e.message : "Could not save. Please try again.");
-    } finally {
-      setSavingTimeout(false);
-    }
+    startTimeoutTransition(async () => {
+      try {
+        await saveSetting("session_timeout_minutes", minutes);
+        setTimeoutInput(String(minutes));
+        setTimeoutSaved(true);
+        router.refresh();
+      } catch (e) {
+        setTimeoutError(e instanceof Error ? e.message : "Could not save. Please try again.");
+      }
+    });
   }
 
-  async function handleToggleMeetEnabled() {
-    const next = !meetEnabled;
-    setSavingMeetEnabled(true);
+  function handleToggleMeetEnabled() {
+    const next = !optimisticMeetEnabled;
     setMeetEnabledError(null);
-    try {
-      await saveSetting("google_meet_enabled", next);
-      setMeetEnabled(next);
-      router.refresh();
-    } catch (e) {
-      setMeetEnabledError(e instanceof Error ? e.message : "Could not save. Please try again.");
-    } finally {
-      setSavingMeetEnabled(false);
-    }
+    startMeetEnabledTransition(async () => {
+      setOptimisticMeetEnabled(next);
+      try {
+        await saveSetting("google_meet_enabled", next);
+        router.refresh();
+      } catch (e) {
+        setMeetEnabledError(e instanceof Error ? e.message : "Could not save. Please try again.");
+      }
+    });
   }
 
-  async function handleSaveJoinWindow() {
+  function handleSaveJoinWindow() {
     const minutes = Math.max(0, Math.floor(Number(joinWindowInput) || 0));
-    setSavingJoinWindow(true);
     setJoinWindowError(null);
     setJoinWindowSaved(false);
-    try {
-      await saveSetting("join_window_minutes", minutes);
-      setJoinWindowInput(String(minutes));
-      setJoinWindowSaved(true);
-      router.refresh();
-    } catch (e) {
-      setJoinWindowError(e instanceof Error ? e.message : "Could not save. Please try again.");
-    } finally {
-      setSavingJoinWindow(false);
-    }
+    startJoinWindowTransition(async () => {
+      try {
+        await saveSetting("join_window_minutes", minutes);
+        setJoinWindowInput(String(minutes));
+        setJoinWindowSaved(true);
+        router.refresh();
+      } catch (e) {
+        setJoinWindowError(e instanceof Error ? e.message : "Could not save. Please try again.");
+      }
+    });
   }
 
-  async function handleSaveJoinWindowAfter() {
+  function handleSaveJoinWindowAfter() {
     const minutes = Math.max(0, Math.floor(Number(joinWindowAfterInput) || 0));
-    setSavingJoinWindowAfter(true);
     setJoinWindowAfterError(null);
     setJoinWindowAfterSaved(false);
-    try {
-      await saveSetting("join_window_after_minutes", minutes);
-      setJoinWindowAfterInput(String(minutes));
-      setJoinWindowAfterSaved(true);
-      router.refresh();
-    } catch (e) {
-      setJoinWindowAfterError(e instanceof Error ? e.message : "Could not save. Please try again.");
-    } finally {
-      setSavingJoinWindowAfter(false);
-    }
+    startJoinWindowAfterTransition(async () => {
+      try {
+        await saveSetting("join_window_after_minutes", minutes);
+        setJoinWindowAfterInput(String(minutes));
+        setJoinWindowAfterSaved(true);
+        router.refresh();
+      } catch (e) {
+        setJoinWindowAfterError(
+          e instanceof Error ? e.message : "Could not save. Please try again."
+        );
+      }
+    });
   }
 
   async function handleRetry(appointmentId: string) {
@@ -200,14 +205,14 @@ export default function AdminFeatureControlTab({
           </div>
           <button
             onClick={handleTogglePackages}
-            disabled={savingPackages}
+            disabled={isPackagesPending}
             className={`text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-60 ${
-              packagesVisible
+              optimisticPackagesVisible
                 ? "bg-teal-700 hover:bg-teal-800 text-white"
                 : "bg-slate-200 hover:bg-slate-300 text-slate-800"
             }`}
           >
-            {savingPackages ? "Saving..." : packagesVisible ? "Visible" : "Hidden"}
+            {optimisticPackagesVisible ? "Visible" : "Hidden"}
           </button>
         </div>
         {packagesError && <p className="text-[11px] text-red-600 mt-2">{packagesError}</p>}
@@ -234,10 +239,10 @@ export default function AdminFeatureControlTab({
           <span className="text-xs text-slate-500">minutes</span>
           <button
             onClick={handleSaveTimeout}
-            disabled={savingTimeout}
+            disabled={isTimeoutPending}
             className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
           >
-            {savingTimeout ? "Saving..." : "Save"}
+            {isTimeoutPending ? "Saving..." : "Save"}
           </button>
           {timeoutSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
         </div>
@@ -264,14 +269,14 @@ export default function AdminFeatureControlTab({
           </div>
           <button
             onClick={handleToggleMeetEnabled}
-            disabled={savingMeetEnabled}
+            disabled={isMeetEnabledPending}
             className={`text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-60 ${
-              meetEnabled
+              optimisticMeetEnabled
                 ? "bg-teal-700 hover:bg-teal-800 text-white"
                 : "bg-slate-200 hover:bg-slate-300 text-slate-800"
             }`}
           >
-            {savingMeetEnabled ? "Saving..." : meetEnabled ? "Enabled" : "Disabled"}
+            {optimisticMeetEnabled ? "Enabled" : "Disabled"}
           </button>
         </div>
         {meetEnabledError && <p className="text-[11px] text-red-600 mt-2">{meetEnabledError}</p>}
@@ -299,10 +304,10 @@ export default function AdminFeatureControlTab({
           <span className="text-xs text-slate-500">minutes before slot time</span>
           <button
             onClick={handleSaveJoinWindow}
-            disabled={savingJoinWindow}
+            disabled={isJoinWindowPending}
             className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
           >
-            {savingJoinWindow ? "Saving..." : "Save"}
+            {isJoinWindowPending ? "Saving..." : "Save"}
           </button>
           {joinWindowSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
         </div>
@@ -323,10 +328,10 @@ export default function AdminFeatureControlTab({
           <span className="text-xs text-slate-500">minutes after slot time ends</span>
           <button
             onClick={handleSaveJoinWindowAfter}
-            disabled={savingJoinWindowAfter}
+            disabled={isJoinWindowAfterPending}
             className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
           >
-            {savingJoinWindowAfter ? "Saving..." : "Save"}
+            {isJoinWindowAfterPending ? "Saving..." : "Save"}
           </button>
           {joinWindowAfterSaved && (
             <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>

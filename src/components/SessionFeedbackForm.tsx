@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 export default function SessionFeedbackForm({
@@ -17,9 +17,13 @@ export default function SessionFeedbackForm({
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [feedback, setFeedback] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(existingRating !== null);
+  // Prop-derived base: flips to the confirmation view instantly instead of
+  // waiting on the fetch + router.refresh() round trip. Reverts to the real
+  // `existingRating`-derived prop on failure (no refresh happens); matches
+  // the new prop on success once router.refresh() lands.
+  const [submitted, setSubmitted] = useOptimistic(existingRating !== null);
+  const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   if (submitted) {
@@ -40,31 +44,31 @@ export default function SessionFeedbackForm({
     );
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (rating === 0) {
       setError("Please select a star rating.");
       return;
     }
-    setLoading(true);
     setError(null);
     const endpoint =
       role === "patient"
         ? "/api/appointments/submit-patient-feedback"
         : "/api/appointments/submit-therapist-feedback";
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId, rating, feedback }),
+    startTransition(async () => {
+      setSubmitted(true);
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId, rating, feedback }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not submit. Please try again.");
+        return;
+      }
+      router.refresh();
     });
-    const data = await res.json().catch(() => ({}));
-    setLoading(false);
-    if (!res.ok) {
-      setError(data.error ?? "Could not submit. Please try again.");
-      return;
-    }
-    setSubmitted(true);
-    router.refresh();
   }
 
   return (
@@ -101,10 +105,10 @@ export default function SessionFeedbackForm({
       />
       <button
         type="submit"
-        disabled={loading}
+        disabled={isPending}
         className="bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white font-semibold px-3 py-1.5 rounded-lg transition"
       >
-        {loading ? "Submitting..." : "Submit Rating"}
+        {isPending ? "Submitting..." : "Submit Rating"}
       </button>
     </form>
   );
