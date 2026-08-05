@@ -139,124 +139,70 @@ export function BookingScene() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Step 2 — the live assessment                                        */
+/* Step 2 — the findings the assessment produces                       */
 /* ------------------------------------------------------------------ */
 
-const JOINTS = [
-  { id: "shoulder", x: 150, y: 74 },
-  { id: "elbow", x: 160, y: 108 },
-  { id: "wrist", x: 165, y: 140 },
-  { id: "hip", x: 148, y: 132 },
-  { id: "knee", x: 153, y: 180 },
-  { id: "ankle", x: 149, y: 226 },
+const FINDINGS = [
+  { label: "Cervical rotation", value: "L 58° / R 71°", flag: "Restricted left" },
+  { label: "Thoracic extension", value: "Reduced", flag: "Contributing" },
+  { label: "Hip flexion", value: "96°", flag: "Within range" },
+  { label: "Sit-to-stand", value: "Compensating", flag: "Retrain" },
 ];
 
-export function ConsultScene() {
+export function FindingsScene() {
   return (
     <SceneFrame>
-      <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-xl">
-        <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
-          <span className="flex items-center gap-2 text-[11px] font-semibold text-slate-300">
-            <motion.span
-              className="h-2 w-2 rounded-full bg-rose-500"
-              animate={{ opacity: [1, 0.25, 1] }}
-              transition={{ duration: 1.8, repeat: Infinity }}
-            />
-            Live movement assessment
-          </span>
-          <span className="font-mono text-[11px] text-slate-400">58:12</span>
-        </div>
+      <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-900/5">
+        <motion.div variants={rise} initial="hidden" animate="show" custom={0}>
+          <div className="flex items-center justify-between">
+            <p className="font-display text-sm font-bold text-slate-900">
+              Assessment findings
+            </p>
+            <span className="rounded-md bg-teal-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-teal-700">
+              Yours to keep
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Measured during your session, not estimated afterwards.
+          </p>
+        </motion.div>
 
-        <div className="relative flex-1">
-          <svg viewBox="0 0 300 270" className="h-full w-full">
-            {/* Plumb line — the reference posture is measured against. */}
-            <motion.line
-              x1={150} y1={40} x2={150} y2={250}
-              stroke="#475569" strokeWidth={1} strokeDasharray="4 5"
-              initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
-              transition={{ duration: 0.8, ease: EASE }}
-            />
-
-            <motion.g
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              stroke="#5eead4"
-              strokeWidth={2.5}
-              strokeLinecap="round"
-              fill="none"
+        <div className="mt-5 space-y-2.5">
+          {FINDINGS.map((f, i) => (
+            <motion.div
+              key={f.label}
+              variants={rise}
+              initial="hidden"
+              animate="show"
+              custom={i + 1}
+              className="flex items-center gap-3 rounded-xl border border-slate-200 p-3"
             >
-              <circle cx={150} cy={52} r={13} stroke="#5eead4" strokeWidth={2.5} />
-              <path d="M150 65 L150 74" />
-              <path d="M150 74 L148 132" />
-              <path d="M150 74 L160 108 L165 140" />
-              <path d="M148 132 L153 180 L149 226" />
-            </motion.g>
-
-            {/* Hip angle readout — the kind of measurement a therapist calls out. */}
-            <motion.path
-              d="M148 132 m 22 0 a 22 22 0 0 1 -6.5 15.5"
-              fill="none"
-              stroke="#fbbf24"
-              strokeWidth={2}
-              initial={{ pathLength: 0, opacity: 0 }}
-              animate={{ pathLength: 1, opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.45, ease: EASE }}
-            />
-
-            {JOINTS.map((j, i) => (
-              <motion.circle
-                key={j.id}
-                cx={j.x}
-                cy={j.y}
-                r={5}
-                fill="#0f766e"
-                stroke="#5eead4"
-                strokeWidth={2}
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.22 + i * 0.06, type: "spring", stiffness: 320, damping: 16 }}
-                style={{ transformOrigin: `${j.x}px ${j.y}px` }}
-              />
-            ))}
-          </svg>
-
-          <motion.div
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.55, duration: 0.35 }}
-            className="absolute left-4 top-4 rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 backdrop-blur"
-          >
-            <p className="text-[10px] uppercase tracking-wider text-slate-400">Trunk lean</p>
-            <p className="font-mono text-sm font-bold text-amber-300">8.4°</p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.65, duration: 0.35 }}
-            className="absolute right-4 top-4 rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 backdrop-blur"
-          >
-            <p className="text-[10px] uppercase tracking-wider text-slate-400">Hip flexion</p>
-            <p className="font-mono text-sm font-bold text-teal-300">96°</p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.75, duration: 0.35 }}
-            className="absolute bottom-4 right-4 flex w-28 items-center gap-2 rounded-lg border border-white/15 bg-slate-800/90 p-2 backdrop-blur"
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-700 text-[10px] font-bold text-white">
-              DP
-            </span>
-            <span className="text-[10px] leading-tight text-slate-300">
-              Dr. Pooja
-              <br />
-              <span className="text-slate-500">Specialist</span>
-            </span>
-          </motion.div>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-semibold text-slate-800">{f.label}</span>
+                <span className="font-mono text-[11px] text-slate-500">{f.value}</span>
+              </span>
+              <span className="shrink-0 rounded-md bg-slate-50 px-2 py-1 text-[10px] font-semibold text-slate-600">
+                {f.flag}
+              </span>
+            </motion.div>
+          ))}
         </div>
+
+        <motion.div
+          variants={rise}
+          initial="hidden"
+          animate="show"
+          custom={6}
+          className="mt-auto rounded-xl bg-slate-900 p-4"
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wider text-teal-400">
+            What this means
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
+            Your neck pain is being driven from the mid-back. The plan targets
+            that first — which is why the exercises may not be where it hurts.
+          </p>
+        </motion.div>
       </div>
     </SceneFrame>
   );

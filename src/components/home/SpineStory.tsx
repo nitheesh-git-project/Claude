@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { motion, useScroll, useSpring, useTransform, type MotionValue } from "motion/react";
-import SpineColumn from "@/components/visuals/SpineColumn";
+import XraySpine from "@/components/visuals/XraySpine";
 
 /**
  * The home page's "what we actually treat" act.
@@ -136,7 +136,7 @@ export default function SpineStory() {
   });
 
   return (
-    <section ref={ref} className="relative h-[300vh] bg-slate-950">
+    <section ref={ref} className="relative h-[250vh] bg-slate-950">
       <div className="sticky top-0 flex h-screen items-center overflow-hidden">
         {/* Ambient depth behind the column. */}
         <div className="pointer-events-none absolute inset-0">
@@ -169,7 +169,7 @@ export default function SpineStory() {
           </div>
 
           <div className="pointer-events-none absolute inset-y-0 right-0 -z-0 flex w-2/3 items-center opacity-25 md:relative md:z-10 md:w-full md:opacity-100">
-            <SpineColumn progress={progress} className="mx-auto h-[82vh] w-full max-w-md" />
+            <XraySpine progress={progress} className="mx-auto h-[82vh] w-full max-w-sm" />
           </div>
         </div>
       </div>

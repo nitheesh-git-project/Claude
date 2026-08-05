@@ -8,7 +8,7 @@ import {
   useScroll,
   useTransform,
 } from "motion/react";
-import { BookingScene, ConsultScene, PlanScene } from "./scenes";
+import { BookingScene, FindingsScene, PlanScene } from "./scenes";
 
 const STEPS = [
   {
@@ -26,14 +26,14 @@ const STEPS = [
   {
     num: 2,
     tag: "The 60-minute session",
-    title: "A licensed therapist watches how you actually move",
+    title: "A licensed therapist measures how you actually move",
     body: "Not a phone consult. Over HD video you are guided through range-of-motion tests, posture screens and pain-response checks — measured against your own body, in the room where the pain happens.",
     points: [
       "Guided range-of-motion testing",
       "Posture and gait analysis on camera",
       "Live pain-response assessment",
     ],
-    scene: ConsultScene,
+    scene: FindingsScene,
   },
   {
     num: 3,
@@ -68,14 +68,14 @@ export default function StepScroller() {
 
   return (
     <div ref={ref} className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div className="grid gap-12 md:grid-cols-2 md:gap-16">
+      <div className="grid gap-10 md:grid-cols-2 md:gap-14">
         {/* Sticky demonstration panel — desktop only; on narrow screens each
             scene is rendered inline with its own step instead. */}
         <div className="hidden md:block">
           {/* Centred in the viewport so the panel lines up with whichever
               step block is currently centred beside it. */}
           <div className="sticky top-0 flex h-screen items-center">
-            <div className="h-[30rem] w-full">
+            <div className="h-[27rem] w-full">
               {/* Keyed directly so each scene's own motion root handles the
                   exit transition — a plain wrapper div would swallow it. */}
               <AnimatePresence mode="wait">
@@ -99,7 +99,7 @@ export default function StepScroller() {
             return (
               <section
                 key={step.num}
-                className="relative flex min-h-[60vh] flex-col justify-center py-10 md:min-h-screen"
+                className="relative flex min-h-[52vh] flex-col justify-center py-8 md:min-h-[78vh]"
               >
                 <div className="sm:pl-14">
                   <span className="absolute left-0 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-teal-700 font-display text-sm font-bold text-white shadow-lg sm:flex">

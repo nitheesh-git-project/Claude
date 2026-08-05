@@ -9,9 +9,12 @@ import {
   AnimatedCard,
 } from "@/components/motion/primitives";
 import SpineStory from "@/components/home/SpineStory";
-import { ConsultScene } from "@/components/howitworks/scenes";
+import HeroPanel from "@/components/home/HeroPanel";
+import JourneySteps from "@/components/home/JourneySteps";
+import CareAreas from "@/components/home/CareAreas";
+import CareIllustration from "@/components/visuals/CareIllustration";
 
-const ICON_ROTATION = ["fa-bone", "fa-user-injured", "fa-person-running", "fa-laptop-house"];
+const PROGRAM_ART = ["neckback", "mobility", "sports", "ergonomics"] as const;
 
 // This page has no per-user content — it can be cached and revalidated
 // on a timer instead of hitting Supabase on every single visit.
@@ -22,27 +25,6 @@ const TRUST_POINTS = [
   { icon: "fa-video", label: "1-on-1 HD video sessions" },
   { icon: "fa-file-medical", label: "Reports reviewed pre-session" },
   { icon: "fa-lock", label: "Secure UPI payment" },
-];
-
-const JOURNEY = [
-  {
-    icon: "fa-calendar-check",
-    step: "01",
-    title: "Book in your timezone",
-    body: "Pick a slot, pay over UPI, and upload your scans — all before the call.",
-  },
-  {
-    icon: "fa-video",
-    step: "02",
-    title: "Get assessed on camera",
-    body: "60 minutes of guided movement testing with a licensed specialist.",
-  },
-  {
-    icon: "fa-person-walking",
-    step: "03",
-    title: "Rehab from your room",
-    body: "A video-guided plan fitted to your chair, bed and floor space.",
-  },
 ];
 
 export default async function Home() {
@@ -146,13 +128,9 @@ export default async function Home() {
           </Reveal>
 
           <Reveal delay={0.15}>
-            <div className="h-[26rem] sm:h-[30rem]">
-              <ConsultScene />
-            </div>
-            <p className="mt-3 text-center text-xs text-slate-500">
-              A live movement assessment — posture measured against your own
-              alignment, in real time.
-            </p>
+            <HeroPanel
+              priceLabel={`From ₹${(startingPricePaise / 100).toLocaleString("en-IN")}`}
+            />
           </Reveal>
         </div>
       </div>
@@ -174,78 +152,127 @@ export default async function Home() {
       {/* SCROLL STORY — what we treat, read off the spine itself */}
       <SpineStory />
 
-      {/* JOURNEY TEASER */}
+      {/* JOURNEY — interactive, so the whole path can be explored in place */}
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <Reveal className="mx-auto mb-14 max-w-2xl text-center">
-          <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
-            Three steps from booking to recovery
+        <Reveal className="mx-auto mb-12 max-w-2xl text-center">
+          <span className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
+            Booking to recovery
+          </span>
+          <h2 className="font-display mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+            Three steps, and you know exactly what each one involves
           </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Everything is handled before you join the call, so the hour is
-            spent on you — not on paperwork.
+          <p className="mt-3 text-sm text-slate-600">
+            Select a step to see what actually happens in it.
           </p>
         </Reveal>
-        <Stagger className="grid gap-6 md:grid-cols-3">
-          {JOURNEY.map((j) => (
-            <StaggerItem key={j.step}>
-              <AnimatedCard className="h-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:border-teal-200 hover:shadow-lg hover:shadow-slate-900/5">
-                <div className="flex items-center justify-between">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-emerald-600 text-lg text-white shadow-lg shadow-teal-900/20">
-                    <i className={`fa-solid ${j.icon}`} />
-                  </span>
-                  <span className="font-display text-3xl font-extrabold text-slate-100">
-                    {j.step}
-                  </span>
-                </div>
-                <h3 className="font-display mt-4 text-lg font-bold text-slate-900">
-                  {j.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">{j.body}</p>
-              </AnimatedCard>
-            </StaggerItem>
-          ))}
-        </Stagger>
-        <Reveal delay={0.1} className="mt-10 text-center">
+        <Reveal delay={0.05}>
+          <JourneySteps />
+        </Reveal>
+        <Reveal delay={0.1} className="mt-12 text-center">
           <MotionButton href="/how-it-works" variant="secondary">
             Walk through a full session <i className="fa-solid fa-arrow-right text-xs" />
           </MotionButton>
         </Reveal>
       </div>
 
+      {/* BREADTH OF CARE — credibility across more than one complaint */}
+      <div className="border-y border-slate-100 bg-slate-50 py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <Reveal className="mx-auto mb-12 max-w-2xl text-center">
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
+              Areas of care
+            </span>
+            <h2 className="font-display mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+              What our specialists treat
+            </h2>
+            <p className="mt-3 text-sm text-slate-600">
+              Each area has a defined assessment and a structured programme
+              behind it — not a general promise to help.
+            </p>
+          </Reveal>
+          <CareAreas />
+        </div>
+      </div>
+
       {/* CONDITIONS — admin-controlled content, so the layout stays generic
           and simply adapts to whatever categories are configured. */}
       {categories && categories.length > 0 && (
-        <div className="border-y border-slate-100 bg-slate-50 py-20">
+        <div className="bg-white py-20">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <Reveal className="mx-auto mb-14 max-w-2xl text-center">
-              <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
+            <Reveal className="mx-auto mb-12 max-w-2xl text-center">
+              <span className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
+                Structured programmes
+              </span>
+              <h2 className="font-display mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
                 Programs we run virtually
               </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Targeted, evidence-based rehabilitation protocols for acute and
-                chronic musculoskeletal pain.
+              <p className="mt-3 text-sm text-slate-600">
+                Every programme opens with the same 60-minute assessment —
+                what changes is the protocol built from it.
               </p>
             </Reveal>
-            <Stagger className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Layout stays generic: these rows are admin-controlled from
+                Site Content, so it has to hold for any number of programmes
+                and any length of copy. */}
+            <Stagger className="grid gap-6 md:grid-cols-2">
               {categories.map((c, i) => {
                 const points = Array.isArray(c.points) ? (c.points as string[]) : [];
-                const desc = c.description || points[0] || "Learn more about this program.";
+                const desc = c.description || points[0] || "Learn more about this programme.";
                 return (
-                  <StaggerItem key={c.id}>
+                  <StaggerItem key={c.id} className="h-full">
                     <AnimatedCard
                       href={`/book?category=${c.id}`}
-                      className="h-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:border-teal-200 hover:shadow-lg hover:shadow-slate-900/5"
+                      className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-teal-300 hover:shadow-xl hover:shadow-slate-900/5 sm:p-7"
                     >
-                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-teal-100 text-xl text-teal-700">
-                        <i className={`fa-solid ${ICON_ROTATION[i % ICON_ROTATION.length]}`} />
+                      <div className="flex items-start gap-5">
+                        <div className="h-20 w-24 shrink-0 rounded-xl bg-teal-50/70 p-2 transition-colors group-hover:bg-teal-50">
+                          <CareIllustration
+                            id={PROGRAM_ART[i % PROGRAM_ART.length]}
+                            className="h-full w-full text-teal-700"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-display text-lg font-bold text-slate-900">
+                            {c.title}
+                          </h3>
+                          <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                            {desc}
+                          </p>
+                        </div>
                       </div>
-                      <h3 className="font-display text-lg font-bold text-slate-800">
-                        {c.title}
-                      </h3>
-                      <p className="mt-2 text-xs leading-relaxed text-slate-600">{desc}</p>
-                      <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700">
-                        Book this program <i className="fa-solid fa-arrow-right text-[10px]" />
-                      </span>
+
+                      {points.length > 0 && (
+                        <ul className="mt-5 grid gap-2 border-t border-slate-100 pt-5 sm:grid-cols-2">
+                          {points.slice(0, 4).map((pt) => (
+                            <li
+                              key={pt}
+                              className="flex items-start gap-2 text-xs leading-snug text-slate-700"
+                            >
+                              <i
+                                aria-hidden="true"
+                                className="fa-solid fa-circle-check mt-0.5 shrink-0 text-teal-600"
+                              />
+                              {pt}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      <div className="mt-auto flex items-center justify-between gap-4 pt-6">
+                        <span className="font-display text-lg font-bold text-slate-900">
+                          ₹{(c.price_paise / 100).toLocaleString("en-IN")}
+                          <span className="ml-1 text-xs font-normal text-slate-500">
+                            / session
+                          </span>
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700">
+                          Book this programme
+                          <i
+                            aria-hidden="true"
+                            className="fa-solid fa-arrow-right text-[10px] transition-transform group-hover:translate-x-1"
+                          />
+                        </span>
+                      </div>
                     </AnimatedCard>
                   </StaggerItem>
                 );
