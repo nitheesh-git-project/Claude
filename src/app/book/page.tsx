@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
 import BookingWizard from "@/components/BookingWizard";
 import { Reveal } from "@/components/motion/primitives";
+import { parseBookingLanguages } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
   title: "Book a Session | Dr. Pooja's Physio",
@@ -19,12 +20,21 @@ export const revalidate = 300;
 
 export default async function BookPage() {
   const supabase = createPublicClient();
-  const { data: categories } = await supabase
-    .from("treatment_categories")
-    .select("id, title, price_paise, duration_minutes")
-    .eq("active", true)
-    .order("display_order", { ascending: true })
-    .order("id", { ascending: true });
+  const [{ data: categories }, { data: settingsRow }] = await Promise.all([
+    supabase
+      .from("treatment_categories")
+      .select("id, title, price_paise, duration_minutes")
+      .eq("active", true)
+      .order("display_order", { ascending: true })
+      .order("id", { ascending: true }),
+
+    // Step 1's language chips. Kept as its own query (rather than joined
+    // into the one above) for the same migration-tolerance reason as the
+    // admin dashboard's: if booking_languages doesn't exist yet, this one
+    // query fails and parseBookingLanguages falls back to ["English"],
+    // instead of the failure blanking the category list too.
+    supabase.from("site_settings").select("booking_languages").maybeSingle(),
+  ]);
 
   return (
     <section className="py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-teal-50/50 to-slate-100 min-h-screen">
@@ -39,7 +49,10 @@ export default async function BookPage() {
           </p>
         </Reveal>
         <Suspense fallback={null}>
-          <BookingWizard initialCategories={categories ?? []} />
+          <BookingWizard
+            initialCategories={categories ?? []}
+            bookingLanguages={parseBookingLanguages(settingsRow?.booking_languages)}
+          />
         </Suspense>
       </div>
     </section>
