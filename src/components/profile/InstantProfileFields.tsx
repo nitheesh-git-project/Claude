@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
@@ -22,9 +22,12 @@ export default function InstantProfileFields({
   fields: FieldConfig[];
   currentValues: Record<string, string>;
 }) {
+  // Prop-derived base: reverts to the real props on failure (no refresh
+  // happens), matches the new props on success once router.refresh() lands.
+  const [optimisticValues, setOptimisticValues] = useOptimistic(currentValues);
   const [editing, setEditing] = useState(false);
   const [values, setValues] = useState<Record<string, string>>(currentValues);
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
@@ -33,7 +36,7 @@ export default function InstantProfileFields({
     (f) => (values[f.name] ?? "").trim() !== (currentValues[f.name] ?? "").trim()
   );
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!isDirty) {
       setEditing(false);
@@ -49,28 +52,31 @@ export default function InstantProfileFields({
       }
     }
 
-    setLoading(true);
-
     const updates: Record<string, string | null> = {};
+    const newValues: Record<string, string> = {};
     for (const f of fields) {
-      updates[f.name] = (values[f.name] ?? "").trim() || null;
+      const trimmed = (values[f.name] ?? "").trim();
+      updates[f.name] = trimmed || null;
+      newValues[f.name] = trimmed;
     }
 
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", userId);
-    setLoading(false);
-    if (updateError) {
-      setError("Could not save. Please try again.");
-      return;
-    }
-    setEditing(false);
-    router.refresh();
+    startTransition(async () => {
+      setOptimisticValues(newValues);
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", userId);
+      if (!updateError) {
+        setEditing(false);
+        router.refresh();
+      } else {
+        setError("Could not save. Please try again.");
+      }
+    });
   }
 
   function handleCancel() {
-    setValues(currentValues);
+    setValues(optimisticValues);
     setError(null);
     setEditing(false);
   }
@@ -87,7 +93,7 @@ export default function InstantProfileFields({
           <label className="block font-semibold mb-1">{f.label}</label>
           {!editing ? (
             <p className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700">
-              {currentValues[f.name] || "Not set"}
+              {optimisticValues[f.name] || "Not set"}
             </p>
           ) : f.type === "textarea" ? (
             <textarea
@@ -146,10 +152,10 @@ export default function InstantProfileFields({
           </button>
           <button
             type="submit"
-            disabled={loading}
+            disabled={isPending}
             className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold px-4 py-2.5 rounded-xl transition"
           >
-            {loading ? "Saving..." : "Save"}
+            {isPending ? "Saving..." : "Save"}
           </button>
         </div>
       )}

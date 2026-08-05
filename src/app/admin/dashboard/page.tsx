@@ -752,15 +752,10 @@ export default async function AdminDashboardPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-100">
                     <div>
                       <p className="text-slate-400">Revenue Share</p>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-slate-900">
-                          {sharePercent}%
-                        </span>
-                        <EditRevenueShareForm
-                          hospitalId={h.id}
-                          currentPercent={sharePercent}
-                        />
-                      </div>
+                      <EditRevenueShareForm
+                        hospitalId={h.id}
+                        currentPercent={sharePercent}
+                      />
                     </div>
                     <div>
                       <p className="text-slate-400">Paid Sessions</p>

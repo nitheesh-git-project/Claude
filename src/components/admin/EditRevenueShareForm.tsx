@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 export default function EditRevenueShareForm({
@@ -10,45 +10,53 @@ export default function EditRevenueShareForm({
   hospitalId: string;
   currentPercent: number;
 }) {
+  // Prop-derived base: reverts to the real prop on failure (no refresh
+  // happens), matches the new prop on success once router.refresh() lands.
+  const [optimisticPercent, setOptimisticPercent] = useOptimistic(currentPercent);
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(String(currentPercent));
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  async function handleSave() {
+  function handleSave() {
     if (value.trim() === "") {
       setError("Enter a percentage.");
       return;
     }
-    setLoading(true);
     setError(null);
-    const res = await fetch("/api/admin/update-hospital-revenue-share", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hospitalId, revenueSharePercent: value }),
+    const newPercent = Number(value);
+    startTransition(async () => {
+      setOptimisticPercent(newPercent);
+      const res = await fetch("/api/admin/update-hospital-revenue-share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hospitalId, revenueSharePercent: value }),
+      });
+      if (res.ok) {
+        setEditing(false);
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not update. Please try again.");
+      }
     });
-    const data = await res.json().catch(() => ({}));
-    setLoading(false);
-    if (!res.ok) {
-      setError(data.error ?? "Could not update. Please try again.");
-      return;
-    }
-    setEditing(false);
-    router.refresh();
   }
 
   if (!editing) {
     return (
-      <button
-        onClick={() => {
-          setValue(String(currentPercent));
-          setEditing(true);
-        }}
-        className="text-[11px] text-teal-700 font-semibold hover:underline"
-      >
-        Edit
-      </button>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="font-bold text-slate-900">{optimisticPercent}%</span>
+        <button
+          onClick={() => {
+            setValue(String(optimisticPercent));
+            setEditing(true);
+          }}
+          className="text-[11px] text-teal-700 font-semibold hover:underline"
+        >
+          Edit
+        </button>
+      </div>
     );
   }
 
@@ -65,10 +73,10 @@ export default function EditRevenueShareForm({
       />
       <button
         onClick={handleSave}
-        disabled={loading}
+        disabled={isPending}
         className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-[11px] font-semibold px-2 py-1.5 rounded-lg transition"
       >
-        {loading ? "Saving..." : "Save"}
+        {isPending ? "Saving..." : "Save"}
       </button>
       <button
         onClick={() => setEditing(false)}

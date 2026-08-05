@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/lib/useConfirm";
 
 export default function TherapistOnLeaveToggle({ initialOnLeave }: { initialOnLeave: boolean }) {
-  const [onLeave, setOnLeave] = useState(initialOnLeave);
-  const [saving, setSaving] = useState(false);
+  // See PatientActiveToggle's identical comment -- flips the label the
+  // instant it's clicked instead of waiting on the fetch + router.refresh()
+  // round trip.
+  const [onLeave, setOnLeave] = useOptimistic(initialOnLeave);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
@@ -19,21 +22,21 @@ export default function TherapistOnLeaveToggle({ initialOnLeave }: { initialOnLe
       );
       if (!confirmed) return;
     }
-    setSaving(true);
     setError(null);
-    const res = await fetch("/api/therapist/set-on-leave", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ onLeave: next }),
-    });
-    setSaving(false);
-    if (res.ok) {
+    startTransition(async () => {
       setOnLeave(next);
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not update your status. Please try again.");
-    }
+      const res = await fetch("/api/therapist/set-on-leave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ onLeave: next }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not update your status. Please try again.");
+      }
+    });
   }
 
   return (
@@ -55,14 +58,14 @@ export default function TherapistOnLeaveToggle({ initialOnLeave }: { initialOnLe
       </div>
       <button
         onClick={handleToggle}
-        disabled={saving}
+        disabled={isPending}
         className={`text-xs font-bold px-4 py-2 rounded-lg transition disabled:opacity-50 whitespace-nowrap ${
           onLeave
             ? "bg-teal-700 hover:bg-teal-800 text-white"
             : "bg-amber-100 hover:bg-amber-200 text-amber-800"
         }`}
       >
-        {saving ? "Updating..." : onLeave ? "Mark Available Again" : "Mark Not Available"}
+        {onLeave ? "Mark Available Again" : "Mark Not Available"}
       </button>
       {dialog}
     </div>

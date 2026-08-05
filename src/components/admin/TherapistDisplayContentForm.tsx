@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 // Admin-curated public marketing copy for the /team popup (Feature 38) --
@@ -16,27 +16,30 @@ export default function TherapistDisplayContentForm({
   currentDisplayNote: string;
 }) {
   const [displayNote, setDisplayNote] = useState(currentDisplayNote);
-  const [savedNote, setSavedNote] = useState(currentDisplayNote);
-  const [loading, setLoading] = useState(false);
+  // Prop-derived base: reverts to the real prop on failure (no refresh
+  // happens), matches the new prop on success once router.refresh() lands.
+  const [savedNote, setSavedNote] = useOptimistic(currentDisplayNote);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  async function handleSave() {
-    setLoading(true);
+  function handleSave() {
     setError(null);
-    const res = await fetch("/api/admin/update-therapist-display-content", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ therapistId, displayNote }),
+    const newNote = displayNote;
+    startTransition(async () => {
+      setSavedNote(newNote);
+      const res = await fetch("/api/admin/update-therapist-display-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ therapistId, displayNote: newNote }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not save. Please try again.");
+      }
     });
-    setLoading(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not save. Please try again.");
-      return;
-    }
-    setSavedNote(displayNote);
-    router.refresh();
   }
 
   return (
@@ -51,10 +54,10 @@ export default function TherapistDisplayContentForm({
       />
       <button
         onClick={handleSave}
-        disabled={loading || displayNote === savedNote}
+        disabled={isPending || displayNote === savedNote}
         className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-semibold px-3 py-1.5 rounded-lg transition"
       >
-        {loading ? "Saving..." : "Save Display Content"}
+        {isPending ? "Saving..." : "Save Display Content"}
       </button>
       {savedNote ? (
         <p className="p-2.5 rounded-lg bg-teal-50 border border-teal-200 text-teal-900 whitespace-pre-wrap">

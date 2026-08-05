@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import PhoneNumberField from "@/components/PhoneNumberField";
 
@@ -13,29 +13,38 @@ export default function PatientContactEditForm({
   currentPhone: string | null;
   currentEmail: string;
 }) {
+  // Prop-derived base: reverts to the real prop on failure (no refresh
+  // happens), matches the new prop on success once router.refresh() lands.
+  const [optimisticContact, setOptimisticContact] = useOptimistic({
+    phone: currentPhone,
+    email: currentEmail,
+  });
   const [editing, setEditing] = useState(false);
   const [phone, setPhone] = useState(currentPhone ?? "");
   const [email, setEmail] = useState(currentEmail);
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  async function handleSave() {
-    setLoading(true);
+  function handleSave() {
     setError(null);
-    const res = await fetch("/api/admin/update-patient-contact", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ patientId, phone, email }),
+    const newPhone = phone;
+    const newEmail = email;
+    startTransition(async () => {
+      setOptimisticContact({ phone: newPhone, email: newEmail });
+      const res = await fetch("/api/admin/update-patient-contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientId, phone: newPhone, email: newEmail }),
+      });
+      if (res.ok) {
+        setEditing(false);
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not save. Please try again.");
+      }
     });
-    const data = await res.json().catch(() => ({}));
-    setLoading(false);
-    if (!res.ok) {
-      setError(data.error ?? "Could not save. Please try again.");
-      return;
-    }
-    setEditing(false);
-    router.refresh();
   }
 
   if (!editing) {
@@ -43,18 +52,18 @@ export default function PatientContactEditForm({
       <div className="text-xs space-y-1">
         <p>
           <span className="text-slate-400">Email:</span>{" "}
-          <span className="font-semibold text-slate-800">{currentEmail}</span>
+          <span className="font-semibold text-slate-800">{optimisticContact.email}</span>
         </p>
         <p>
           <span className="text-slate-400">Phone:</span>{" "}
           <span className="font-semibold text-slate-800">
-            {currentPhone || "Not set"}
+            {optimisticContact.phone || "Not set"}
           </span>
         </p>
         <button
           onClick={() => {
-            setPhone(currentPhone ?? "");
-            setEmail(currentEmail);
+            setPhone(optimisticContact.phone ?? "");
+            setEmail(optimisticContact.email);
             setError(null);
             setEditing(true);
           }}
@@ -91,10 +100,10 @@ export default function PatientContactEditForm({
         </button>
         <button
           onClick={handleSave}
-          disabled={loading}
+          disabled={isPending}
           className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-semibold px-3 py-1.5 rounded-lg transition"
         >
-          {loading ? "Saving..." : "Save"}
+          {isPending ? "Saving..." : "Save"}
         </button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/lib/useConfirm";
 
@@ -17,13 +17,17 @@ export default function TherapistActiveToggle({
   upcomingSessionCount?: number;
   openPayoutRequestCount?: number;
 }) {
-  const [loading, setLoading] = useState(false);
+  // See PatientActiveToggle's identical comment -- flips the label the
+  // instant it's clicked instead of waiting on the fetch + router.refresh()
+  // round trip.
+  const [optimisticActive, setOptimisticActive] = useOptimistic(active);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
 
   async function handleToggle() {
-    const nextActive = !active;
+    const nextActive = !optimisticActive;
     if (!nextActive) {
       let message = "This will immediately block this therapist from signing in to their dashboard.";
       const notes: string[] = [];
@@ -53,38 +57,35 @@ export default function TherapistActiveToggle({
         return;
       }
     }
-    setLoading(true);
     setError(null);
-    const res = await fetch("/api/admin/set-therapist-active", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ therapistId, active: nextActive }),
+    startTransition(async () => {
+      setOptimisticActive(nextActive);
+      const res = await fetch("/api/admin/set-therapist-active", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ therapistId, active: nextActive }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not update. Please try again.");
+      }
     });
-    setLoading(false);
-    if (res.ok) {
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not update. Please try again.");
-    }
   }
 
   return (
     <div className="flex flex-col items-start gap-1">
       <button
         onClick={handleToggle}
-        disabled={loading}
+        disabled={isPending}
         className={`text-xs font-semibold px-3 py-2 rounded-lg transition disabled:opacity-60 ${
-          active
+          optimisticActive
             ? "bg-red-50 hover:bg-red-100 text-red-700"
             : "bg-teal-700 hover:bg-teal-800 text-white"
         }`}
       >
-        {loading
-          ? "Saving..."
-          : active
-          ? "Suspend Account"
-          : "Reactivate Account"}
+        {optimisticActive ? "Suspend Account" : "Reactivate Account"}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
       {dialog}

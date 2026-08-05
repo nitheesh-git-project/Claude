@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import PhoneNumberField from "@/components/PhoneNumberField";
@@ -32,12 +32,28 @@ export default function GatedProfileFields({
   fieldStatus: FieldStatusMap;
 }) {
   const [values, setValues] = useState<Record<string, string>>(currentValues);
-  const [loading, setLoading] = useState(false);
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [justSubmitted, setJustSubmitted] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const supabase = createClient();
+
+  // Prop-derived base: reverts to the real fieldStatus prop on failure (no
+  // refresh happens), matches the new prop on success once router.refresh()
+  // lands. Overlay entries use `null` to optimistically unlock a field
+  // (withdraw) rather than set a status.
+  const [optimisticFieldStatus, setOptimisticFieldStatus] = useOptimistic(
+    fieldStatus,
+    (state, overlay: Record<string, FieldStatusMap[string] | null>) => {
+      const next = { ...state };
+      for (const [name, value] of Object.entries(overlay)) {
+        if (value === null) delete next[name];
+        else next[name] = value;
+      }
+      return next;
+    }
+  );
 
   // Fields the user has actually edited this session. handleSubmit only
   // ever diffs these against fresh server data — never every editable
@@ -66,9 +82,9 @@ export default function GatedProfileFields({
     setValues((v) => ({ ...v, [name]: value }));
   }
 
-  const editableFields = fields.filter((f) => fieldStatus[f.name]?.status !== "pending");
+  const editableFields = fields.filter((f) => optimisticFieldStatus[f.name]?.status !== "pending");
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setJustSubmitted(false);
@@ -101,40 +117,57 @@ export default function GatedProfileFields({
       return;
     }
 
-    setLoading(true);
-    const { error: insertError } = await supabase.from("profile_change_requests").insert(rows);
-    setLoading(false);
+    startTransition(async () => {
+      const { data, error: insertError } = await supabase
+        .from("profile_change_requests")
+        .insert(rows)
+        .select("id");
 
-    if (insertError) {
-      setError("Could not submit your request. Please try again.");
-      return;
-    }
-    // Only untouch the fields actually submitted -- not every touched field.
-    // A blanket clear() here would also un-mark a *different* field the user
-    // started editing while this request was in flight, letting the
-    // post-submit router.refresh() silently overwrite that unsaved edit with
-    // stale server data (the resync effect above only preserves values for
-    // names still in touchedRef).
-    for (const name of submittedNames) {
-      touchedRef.current.delete(name);
-    }
-    setJustSubmitted(true);
-    router.refresh();
+      if (insertError || !data) {
+        setError("Could not submit your request. Please try again.");
+        return;
+      }
+
+      const overlay: Record<string, FieldStatusMap[string] | null> = {};
+      rows.forEach((row, i) => {
+        const name = submittedNames[i];
+        const id = data[i]?.id;
+        if (id) {
+          overlay[name] = { status: "pending", requestId: id, newValue: row.changes[name] };
+        }
+      });
+      setOptimisticFieldStatus(overlay);
+
+      // Only untouch the fields actually submitted -- not every touched field.
+      // A blanket clear() here would also un-mark a *different* field the user
+      // started editing while this request was in flight, letting the
+      // post-submit router.refresh() silently overwrite that unsaved edit with
+      // stale server data (the resync effect above only preserves values for
+      // names still in touchedRef).
+      for (const name of submittedNames) {
+        touchedRef.current.delete(name);
+      }
+      setJustSubmitted(true);
+      router.refresh();
+    });
   }
 
-  async function handleWithdraw(requestId: string) {
-    setWithdrawingId(requestId);
+  function handleWithdraw(requestId: string, fieldName: string) {
     setError(null);
-    const { error: deleteError } = await supabase
-      .from("profile_change_requests")
-      .delete()
-      .eq("id", requestId);
-    setWithdrawingId(null);
-    if (deleteError) {
-      setError("Could not withdraw the request. Please try again.");
-      return;
-    }
-    router.refresh();
+    startTransition(async () => {
+      setWithdrawingId(requestId);
+      setOptimisticFieldStatus({ [fieldName]: null });
+      const { error: deleteError } = await supabase
+        .from("profile_change_requests")
+        .delete()
+        .eq("id", requestId);
+      setWithdrawingId(null);
+      if (deleteError) {
+        setError("Could not withdraw the request. Please try again.");
+        return;
+      }
+      router.refresh();
+    });
   }
 
   return (
@@ -150,7 +183,7 @@ export default function GatedProfileFields({
         </div>
       )}
       {fields.map((f) => {
-        const status = fieldStatus[f.name];
+        const status = optimisticFieldStatus[f.name];
         const isLocked = status?.status === "pending";
         return (
           <div key={f.name}>
@@ -172,7 +205,7 @@ export default function GatedProfileFields({
                 </span>
                 <button
                   type="button"
-                  onClick={() => handleWithdraw(status.requestId)}
+                  onClick={() => handleWithdraw(status.requestId, f.name)}
                   disabled={withdrawingId === status.requestId}
                   className="text-[11px] text-red-600 font-semibold hover:underline disabled:opacity-60 shrink-0"
                 >
@@ -226,10 +259,10 @@ export default function GatedProfileFields({
           </p>
           <button
             type="submit"
-            disabled={loading}
+            disabled={isPending}
             className="w-full bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white font-bold py-2.5 rounded-xl transition"
           >
-            {loading ? "Submitting..." : "Request Changes"}
+            {isPending ? "Submitting..." : "Request Changes"}
           </button>
         </>
       )}

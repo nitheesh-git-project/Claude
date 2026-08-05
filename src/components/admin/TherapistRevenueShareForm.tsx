@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 export default function TherapistRevenueShareForm({
@@ -10,58 +10,63 @@ export default function TherapistRevenueShareForm({
   therapistId: string;
   currentPercent: number | null;
 }) {
+  // Prop-derived base: reverts to the real prop on failure (no refresh
+  // happens), matches the new prop on success once router.refresh() lands.
+  const [optimisticPercent, setOptimisticPercent] = useOptimistic(currentPercent);
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(currentPercent !== null ? String(currentPercent) : "");
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const parsed = Number(value);
   const companyPercent = value !== "" && !Number.isNaN(parsed) ? 100 - parsed : null;
 
-  async function handleSave() {
+  function handleSave() {
     if (value.trim() === "") {
       setError("Enter a percentage — leave it blank only if you want to cancel.");
       return;
     }
-    setLoading(true);
     setError(null);
-    const res = await fetch("/api/admin/update-therapist-revenue-share", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ therapistId, revenueSharePercent: value }),
+    const newPercent = Number(value);
+    startTransition(async () => {
+      setOptimisticPercent(newPercent);
+      const res = await fetch("/api/admin/update-therapist-revenue-share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ therapistId, revenueSharePercent: value }),
+      });
+      if (res.ok) {
+        setEditing(false);
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not update. Please try again.");
+      }
     });
-    const data = await res.json().catch(() => ({}));
-    setLoading(false);
-    if (!res.ok) {
-      setError(data.error ?? "Could not update. Please try again.");
-      return;
-    }
-    setEditing(false);
-    router.refresh();
   }
 
   if (!editing) {
     return (
       <div className="text-xs">
-        {currentPercent !== null ? (
+        {optimisticPercent !== null ? (
           <p className="text-slate-600">
-            Therapist gets <strong className="text-slate-900">{currentPercent}%</strong>{" "}
+            Therapist gets <strong className="text-slate-900">{optimisticPercent}%</strong>{" "}
             of each session fee, company keeps{" "}
-            <strong className="text-slate-900">{100 - currentPercent}%</strong>.
+            <strong className="text-slate-900">{100 - optimisticPercent}%</strong>.
           </p>
         ) : (
           <p className="text-slate-400">Not set yet — payouts can&apos;t be calculated.</p>
         )}
         <button
           onClick={() => {
-            setValue(currentPercent !== null ? String(currentPercent) : "");
+            setValue(optimisticPercent !== null ? String(optimisticPercent) : "");
             setError(null);
             setEditing(true);
           }}
           className="text-teal-700 font-semibold hover:underline mt-1"
         >
-          {currentPercent !== null ? "Edit" : "Set Revenue Share"}
+          {optimisticPercent !== null ? "Edit" : "Set Revenue Share"}
         </button>
       </div>
     );
@@ -99,10 +104,10 @@ export default function TherapistRevenueShareForm({
         </button>
         <button
           onClick={handleSave}
-          disabled={loading}
+          disabled={isPending}
           className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-semibold px-3 py-1.5 rounded-lg transition"
         >
-          {loading ? "Saving..." : "Save"}
+          {isPending ? "Saving..." : "Save"}
         </button>
       </div>
     </div>

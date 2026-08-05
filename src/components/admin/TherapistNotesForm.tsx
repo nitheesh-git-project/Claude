@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 export default function TherapistNotesForm({
@@ -11,27 +11,30 @@ export default function TherapistNotesForm({
   currentNote: string;
 }) {
   const [note, setNote] = useState(currentNote);
-  const [savedNote, setSavedNote] = useState(currentNote);
-  const [loading, setLoading] = useState(false);
+  // Prop-derived base: reverts to the real prop on failure (no refresh
+  // happens), matches the new prop on success once router.refresh() lands.
+  const [savedNote, setSavedNote] = useOptimistic(currentNote);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  async function handleSave() {
-    setLoading(true);
+  function handleSave() {
     setError(null);
-    const res = await fetch("/api/admin/update-therapist-notes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ therapistId, note }),
+    const newNote = note;
+    startTransition(async () => {
+      setSavedNote(newNote);
+      const res = await fetch("/api/admin/update-therapist-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ therapistId, note: newNote }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not save. Please try again.");
+      }
     });
-    setLoading(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not save. Please try again.");
-      return;
-    }
-    setSavedNote(note);
-    router.refresh();
   }
 
   return (
@@ -46,10 +49,10 @@ export default function TherapistNotesForm({
       />
       <button
         onClick={handleSave}
-        disabled={loading}
+        disabled={isPending}
         className="bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white font-semibold px-3 py-1.5 rounded-lg transition"
       >
-        {loading ? "Saving..." : "Save Notes"}
+        {isPending ? "Saving..." : "Save Notes"}
       </button>
       {savedNote ? (
         <p className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 whitespace-pre-wrap">
