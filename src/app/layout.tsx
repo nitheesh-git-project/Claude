@@ -1,10 +1,27 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import FarewellBanner from "@/components/FarewellBanner";
 import Footer from "@/components/Footer";
 import DebugNav from "@/components/DebugNav";
+
+// Inter for body copy — optimized for on-screen reading at small sizes,
+// which matters here given how much clinical/pricing detail patients read.
+// Plus Jakarta Sans for headings/display — geometric and confident without
+// tipping into a cold "tech" register, which suits a healthcare brand.
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Dr. Pooja's Physio | Global Virtual Physical Therapy",
@@ -27,7 +44,7 @@ export default function RootLayout({
       process.env.NODE_ENV !== "production");
 
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`h-full antialiased ${inter.variable} ${jakarta.variable}`}>
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-800 font-sans">
         {showDebugNav && <DebugNav />}
         <Navbar offsetTop={showDebugNav} />

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
+import { Stagger, StaggerItem } from "@/components/motion/primitives";
 
 export type TeamTherapist = {
   id: string;
@@ -34,53 +36,66 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
 
   return (
     <>
-      <div className="grid md:grid-cols-3 gap-8">
+      <Stagger className="grid md:grid-cols-3 gap-8">
         {therapists.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setOpenId(t.id)}
-            className="text-left bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md hover:border-teal-300 transition cursor-pointer"
-          >
-            <AvatarThumbnail
-              url={t.avatar_url}
-              name={t.full_name ?? "Therapist"}
-              size={80}
-              className="mb-4"
-            />
-            <h3 className="text-xl font-bold text-slate-900">{t.full_name}</h3>
-            {t.rating_count > 0 && (
-              <p className="text-xs font-semibold text-amber-600 mt-1">
-                <i className="fa-solid fa-star mr-1"></i>
-                {Number(t.avg_rating).toFixed(1)} ({t.rating_count} review
-                {t.rating_count === 1 ? "" : "s"})
+          <StaggerItem key={t.id}>
+            <motion.button
+              type="button"
+              onClick={() => setOpenId(t.id)}
+              whileHover={{ y: -6 }}
+              transition={{ type: "spring", stiffness: 300, damping: 24 }}
+              className="text-left w-full bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-lg hover:shadow-slate-900/5 hover:border-teal-300 transition-shadow cursor-pointer"
+            >
+              <AvatarThumbnail
+                url={t.avatar_url}
+                name={t.full_name ?? "Therapist"}
+                size={80}
+                className="mb-4"
+              />
+              <h3 className="font-display text-xl font-bold text-slate-900">{t.full_name}</h3>
+              {t.rating_count > 0 && (
+                <p className="text-xs font-semibold text-amber-600 mt-1">
+                  <i className="fa-solid fa-star mr-1"></i>
+                  {Number(t.avg_rating).toFixed(1)} ({t.rating_count} review
+                  {t.rating_count === 1 ? "" : "s"})
+                </p>
+              )}
+              {t.credentials && (
+                <p className="text-xs font-semibold text-teal-700 mt-1">{t.credentials}</p>
+              )}
+              {t.specialization && (
+                <p className="text-xs text-slate-500 mt-1">Specialist in {t.specialization}</p>
+              )}
+              {t.years_experience !== null && t.years_experience !== undefined && (
+                <p className="text-xs text-slate-500 mt-1">
+                  {t.years_experience}+ years of experience
+                </p>
+              )}
+              {t.bio && (
+                <p className="text-xs text-slate-600 mt-3 leading-relaxed line-clamp-3">{t.bio}</p>
+              )}
+              <p className="text-xs text-teal-700 font-semibold mt-4 group-hover:translate-x-1 transition-transform">
+                View full profile →
               </p>
-            )}
-            {t.credentials && (
-              <p className="text-xs font-semibold text-teal-700 mt-1">{t.credentials}</p>
-            )}
-            {t.specialization && (
-              <p className="text-xs text-slate-500 mt-1">Specialist in {t.specialization}</p>
-            )}
-            {t.years_experience !== null && t.years_experience !== undefined && (
-              <p className="text-xs text-slate-500 mt-1">
-                {t.years_experience}+ years of experience
-              </p>
-            )}
-            {t.bio && (
-              <p className="text-xs text-slate-600 mt-3 leading-relaxed line-clamp-3">{t.bio}</p>
-            )}
-            <p className="text-xs text-teal-700 font-semibold mt-4">View full profile →</p>
-          </button>
+            </motion.button>
+          </StaggerItem>
         ))}
-      </div>
+      </Stagger>
 
+      <AnimatePresence>
       {open && (
-        <div
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setOpenId(null)}
         >
-          <div
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 12 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6"
           >
@@ -136,9 +151,10 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                 <p className="text-slate-400 text-xs">No additional details provided yet.</p>
               )}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </>
   );
 }

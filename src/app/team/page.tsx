@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
 import TeamTherapistPopup, { type TeamTherapist } from "@/components/TeamTherapistPopup";
+import { Reveal } from "@/components/motion/primitives";
 
 export const metadata: Metadata = {
   title: "Specialist Team | Dr. Pooja's Physio",
@@ -43,15 +44,15 @@ export default async function TeamPage() {
 
   return (
     <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="text-center max-w-2xl mx-auto mb-12">
-        <h1 className="text-3xl font-bold text-slate-900">
+      <Reveal className="text-center max-w-2xl mx-auto mb-12">
+        <h1 className="font-display text-3xl font-bold text-slate-900">
           Meet Our Licensed Clinical Specialists
         </h1>
         <p className="text-slate-600 mt-2 text-sm">
           Certified physical therapy professionals dedicated to global
           virtual care.
         </p>
-      </div>
+      </Reveal>
 
       {!therapists || therapists.length === 0 ? (
         <p className="text-center text-sm text-slate-500 py-12">

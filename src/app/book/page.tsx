@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
 import BookingWizard from "@/components/BookingWizard";
+import { Reveal } from "@/components/motion/primitives";
 
 export const metadata: Metadata = {
   title: "Book a Session | Dr. Pooja's Physio",
@@ -26,8 +27,17 @@ export default async function BookPage() {
     .order("id", { ascending: true });
 
   return (
-    <section className="py-12 px-4 sm:px-6 lg:px-8 bg-slate-100 min-h-screen">
+    <section className="py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-teal-50/50 to-slate-100 min-h-screen">
       <div className="max-w-2xl mx-auto">
+        <Reveal className="text-center mb-8">
+          <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-slate-900">
+            Book Your Session
+          </h1>
+          <p className="text-slate-600 text-sm mt-1.5">
+            A few quick steps — pick a time, tell us what&apos;s going on, and
+            you&apos;re booked.
+          </p>
+        </Reveal>
         <Suspense fallback={null}>
           <BookingWizard initialCategories={categories ?? []} />
         </Suspense>

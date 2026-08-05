@@ -21,7 +21,7 @@ export default function Footer() {
             <div className="w-9 h-9 rounded-xl bg-teal-700 text-white flex items-center justify-center font-bold shadow-md">
               <i className="fa-solid fa-user-doctor"></i>
             </div>
-            <span className="text-white font-bold">Dr. Pooja&apos;s Physio</span>
+            <span className="font-display text-white font-bold">Dr. Pooja&apos;s Physio</span>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">
             Certified global telehealth physical therapy practice, restoring
