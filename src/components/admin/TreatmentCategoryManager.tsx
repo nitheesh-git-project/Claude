@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import TreatmentCategoryForm from "./TreatmentCategoryForm";
 import { useConfirm } from "@/lib/useConfirm";
@@ -18,37 +18,47 @@ type Category = {
 };
 
 function DeleteButton({ id }: { id: string }) {
-  const [loading, setLoading] = useState(false);
+  // The parent only renders this row while the category still exists, so a
+  // real success unmounts it via router.refresh() before this optimistic
+  // overlay would need to clear on its own -- a failure just reverts to the
+  // base `false`. See PatientActiveToggle's comment.
+  const [optimisticDeleted, setOptimisticDeleted] = useOptimistic(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
 
   async function handleDelete() {
     if (!(await confirm("Delete this category? This can't be undone."))) return;
-    setLoading(true);
     setError(null);
-    const res = await fetch("/api/admin/delete-treatment-category", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+    startTransition(async () => {
+      setOptimisticDeleted(true);
+      const res = await fetch("/api/admin/delete-treatment-category", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not delete. Please try again.");
+      }
     });
-    const data = await res.json().catch(() => ({}));
-    setLoading(false);
-    if (res.ok) {
-      router.refresh();
-    } else {
-      setError(data.error ?? "Could not delete. Please try again.");
-    }
+  }
+
+  if (optimisticDeleted && !error) {
+    return <span className="text-[11px] font-semibold text-slate-500">Deleting...</span>;
   }
 
   return (
     <div className="flex flex-col items-end gap-1">
       <button
         onClick={handleDelete}
-        disabled={loading}
+        disabled={isPending}
         className="text-[11px] text-red-600 font-semibold hover:underline disabled:opacity-60"
       >
-        {loading ? "Deleting..." : "Delete"}
+        Delete
       </button>
       {error && <span className="text-[11px] text-red-600 max-w-[160px] text-right">{error}</span>}
       {dialog}
@@ -57,41 +67,29 @@ function DeleteButton({ id }: { id: string }) {
 }
 
 function MoveButtons({
-  id,
   isFirst,
   isLast,
+  isPending,
+  onMove,
 }: {
-  id: string;
   isFirst: boolean;
   isLast: boolean;
+  isPending: boolean;
+  onMove: (direction: "up" | "down") => void;
 }) {
-  const [loading, setLoading] = useState<"up" | "down" | null>(null);
-  const router = useRouter();
-
-  async function move(direction: "up" | "down") {
-    setLoading(direction);
-    await fetch("/api/admin/reorder-treatment-category", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, direction }),
-    });
-    setLoading(null);
-    router.refresh();
-  }
-
   return (
     <div className="flex items-center gap-1">
       <button
-        onClick={() => move("up")}
-        disabled={isFirst || loading !== null}
+        onClick={() => onMove("up")}
+        disabled={isFirst || isPending}
         title="Move up"
         className="w-6 h-6 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
       >
         <i className="fa-solid fa-chevron-up text-[10px]"></i>
       </button>
       <button
-        onClick={() => move("down")}
-        disabled={isLast || loading !== null}
+        onClick={() => onMove("down")}
+        disabled={isLast || isPending}
         title="Move down"
         className="w-6 h-6 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
       >
@@ -109,6 +107,40 @@ export default function TreatmentCategoryManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addingNew, setAddingNew] = useState(false);
   const [duplicateFrom, setDuplicateFrom] = useState<Category | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const router = useRouter();
+
+  // Prop-derived base: swapping two adjacent rows' positions is fully known
+  // client-side the moment the button is clicked, so the list reorders
+  // instantly instead of waiting on the fetch + router.refresh() round trip.
+  // Reverts to the real prop order on failure (no refresh happens); matches
+  // the new prop order on success once router.refresh() lands.
+  const [optimisticCategories, setOptimisticCategories] = useOptimistic(categories);
+  const [isMovePending, startMoveTransition] = useTransition();
+
+  function handleMove(id: string, direction: "up" | "down") {
+    const idx = optimisticCategories.findIndex((c) => c.id === id);
+    if (idx === -1) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= optimisticCategories.length) return;
+    const reordered = [...optimisticCategories];
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+
+    setMoveError(null);
+    startMoveTransition(async () => {
+      setOptimisticCategories(reordered);
+      const res = await fetch("/api/admin/reorder-treatment-category", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, direction }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        setMoveError("Could not reorder. Please try again.");
+      }
+    });
+  }
 
   function startAddNew() {
     setDuplicateFrom(null);
@@ -131,13 +163,18 @@ export default function TreatmentCategoryManager({
 
   return (
     <div className="space-y-3">
-      {categories.length === 0 && !addingNew ? (
+      {moveError && (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">
+          {moveError}
+        </p>
+      )}
+      {optimisticCategories.length === 0 && !addingNew ? (
         <p className="text-xs text-slate-500 py-4 text-center">
           No condition categories yet — add one below.
         </p>
       ) : (
         <ul className="space-y-3">
-          {categories.map((cat, i) =>
+          {optimisticCategories.map((cat, i) =>
             editingId === cat.id ? (
               <li key={cat.id}>
                 <TreatmentCategoryForm
@@ -153,9 +190,10 @@ export default function TreatmentCategoryManager({
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <MoveButtons
-                      id={cat.id}
                       isFirst={i === 0}
-                      isLast={i === categories.length - 1}
+                      isLast={i === optimisticCategories.length - 1}
+                      isPending={isMovePending}
+                      onMove={(direction) => handleMove(cat.id, direction)}
                     />
                     <div>
                       <p className="font-bold text-slate-900">{cat.title}</p>

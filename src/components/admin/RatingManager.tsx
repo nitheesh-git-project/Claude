@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 export default function RatingManager({
@@ -18,27 +18,35 @@ export default function RatingManager({
   visible?: boolean;
   onToggleVisible?: { therapistId: string };
 }) {
-  const [loading, setLoading] = useState(false);
+  // Prop-derived base: flips the label instantly instead of waiting on the
+  // fetch + router.refresh() round trip. Reverts to the real `visible` prop
+  // on failure (no refresh happens); matches the new prop on success once
+  // router.refresh() lands. Falls back to `false` when this instance has no
+  // toggle at all (visible is undefined) -- that branch never renders the
+  // button, so the fallback value is never shown.
+  const [optimisticVisible, setOptimisticVisible] = useOptimistic(visible ?? false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  async function handleToggleVisible() {
+  function handleToggleVisible() {
     if (!onToggleVisible || visible === undefined) return;
     const next = !visible;
-    setLoading(true);
     setError(null);
-    const res = await fetch("/api/admin/set-therapist-rating-visibility", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ therapistId: onToggleVisible.therapistId, visible: next }),
+    startTransition(async () => {
+      setOptimisticVisible(next);
+      const res = await fetch("/api/admin/set-therapist-rating-visibility", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ therapistId: onToggleVisible.therapistId, visible: next }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not update. Please try again.");
+      }
     });
-    setLoading(false);
-    if (res.ok) {
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not update. Please try again.");
-    }
   }
 
   return (
@@ -48,14 +56,14 @@ export default function RatingManager({
         {onToggleVisible && visible !== undefined && (
           <button
             onClick={handleToggleVisible}
-            disabled={loading}
+            disabled={isPending}
             className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition disabled:opacity-60 ${
-              visible
+              optimisticVisible
                 ? "bg-slate-100 hover:bg-slate-200 text-slate-700"
                 : "bg-teal-700 hover:bg-teal-800 text-white"
             }`}
           >
-            {loading ? "Saving..." : visible ? "Hide from public pages" : "Show on public pages"}
+            {optimisticVisible ? "Hide from public pages" : "Show on public pages"}
           </button>
         )}
       </div>
@@ -76,7 +84,7 @@ export default function RatingManager({
           still visible on its own session below.
         </p>
       )}
-      {onToggleVisible && visible === false && (
+      {onToggleVisible && optimisticVisible === false && visible !== undefined && (
         <p className="text-[11px] text-slate-400 mt-1">
           Hidden from public pages — only visible here to admin.
         </p>

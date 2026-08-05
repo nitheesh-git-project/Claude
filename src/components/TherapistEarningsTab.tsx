@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import RequestPayoutButton from "@/components/RequestPayoutButton";
 import TherapistEarningsChart, { type EarningsDay } from "@/components/TherapistEarningsChart";
@@ -36,24 +36,24 @@ type CompletedRequest = {
 
 function NotificationBanner({ request }: { request: CompletedRequest }) {
   const [dismissed, setDismissed] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   if (dismissed) return null;
 
-  async function handleDismiss() {
-    setLoading(true);
-    // Optimistic -- this is just clearing a notification, not a
-    // money-moving action, so there's nothing worth blocking the UI on if
-    // the request fails; a refresh will just show it again next time.
-    setDismissed(true);
-    await fetch("/api/therapist/acknowledge-payout-request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requestId: request.id }),
-    }).catch(() => {});
-    setLoading(false);
-    router.refresh();
+  function handleDismiss() {
+    startTransition(async () => {
+      // Optimistic -- this is just clearing a notification, not a
+      // money-moving action, so there's nothing worth blocking the UI on if
+      // the request fails; a refresh will just show it again next time.
+      setDismissed(true);
+      await fetch("/api/therapist/acknowledge-payout-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId: request.id }),
+      }).catch(() => {});
+      router.refresh();
+    });
   }
 
   return (
@@ -65,7 +65,7 @@ function NotificationBanner({ request }: { request: CompletedRequest }) {
       </p>
       <button
         onClick={handleDismiss}
-        disabled={loading}
+        disabled={isPending}
         className="text-xs font-semibold text-teal-700 hover:underline disabled:opacity-60"
       >
         Dismiss

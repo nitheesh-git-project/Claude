@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
@@ -95,13 +95,18 @@ export default function SessionDetailDrawer({
   const [reopening, setReopening] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [clearingRole, setClearingRole] = useState<"patient" | "therapist" | null>(null);
+  const [isClearPending, startClearTransition] = useTransition();
+  // Prop-derived base: flips the toggle instantly instead of waiting on the
+  // fetch + router.refresh() round trip -- unlike Clear, which closes the
+  // drawer outright because it's a bigger, rating-erasing action. Reverts to
+  // the real prop on failure (no refresh happens); matches the new prop on
+  // success once router.refresh() lands.
+  const [optimisticExcluded, setOptimisticExcluded] = useOptimistic({
+    patient: a.patient_rating_excluded,
+    therapist: a.therapist_rating_excluded,
+  });
   const [excludingRole, setExcludingRole] = useState<"patient" | "therapist" | null>(null);
-  // Tracked locally (seeded from the prop) so the toggle reflects instantly
-  // without needing router.refresh() to re-render this already-open drawer
-  // with a fresh prop -- unlike Clear, which closes the drawer outright
-  // because it's a bigger, rating-erasing action.
-  const [patientExcluded, setPatientExcluded] = useState(a.patient_rating_excluded);
-  const [therapistExcluded, setTherapistExcluded] = useState(a.therapist_rating_excluded);
+  const [isExcludePending, startExcludeTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
   const router = useRouter();
   const { confirm, dialog: confirmDialog } = useConfirm();
@@ -233,47 +238,46 @@ export default function SessionDetailDrawer({
 
   async function handleClearRating(role: "patient" | "therapist") {
     if (!(await confirm(`Clear the ${role}'s rating so they can submit it again?`))) return;
-    setClearingRole(role);
     setActionError(null);
-    const res = await fetch("/api/admin/clear-session-rating", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId: a.id, role }),
+    startClearTransition(async () => {
+      setClearingRole(role);
+      const res = await fetch("/api/admin/clear-session-rating", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId: a.id, role }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setClearingRole(null);
+      if (!res.ok) {
+        setActionError(data.error ?? "Could not clear this rating.");
+        return;
+      }
+      router.refresh();
+      onClose();
     });
-    const data = await res.json().catch(() => ({}));
-    setClearingRole(null);
-    if (!res.ok) {
-      setActionError(data.error ?? "Could not clear this rating.");
-      return;
-    }
-    router.refresh();
-    onClose();
   }
 
-  async function handleToggleExcluded(role: "patient" | "therapist", nextExcluded: boolean) {
-    setExcludingRole(role);
+  function handleToggleExcluded(role: "patient" | "therapist", nextExcluded: boolean) {
     setActionError(null);
-    const res = await fetch("/api/admin/exclude-session-rating", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId: a.id, role, excluded: nextExcluded }),
+    startExcludeTransition(async () => {
+      setExcludingRole(role);
+      setOptimisticExcluded({ ...optimisticExcluded, [role]: nextExcluded });
+      const res = await fetch("/api/admin/exclude-session-rating", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId: a.id, role, excluded: nextExcluded }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setExcludingRole(null);
+      if (!res.ok) {
+        setActionError(data.error ?? "Could not update this rating.");
+        return;
+      }
+      // No onClose() needed here for the drawer itself, but the underlying
+      // list (average shown elsewhere on the page) does need to pick up the
+      // new excluded flag next time it's fetched.
+      router.refresh();
     });
-    const data = await res.json().catch(() => ({}));
-    setExcludingRole(null);
-    if (!res.ok) {
-      setActionError(data.error ?? "Could not update this rating.");
-      return;
-    }
-    if (role === "patient") {
-      setPatientExcluded(nextExcluded);
-    } else {
-      setTherapistExcluded(nextExcluded);
-    }
-    // No onClose()/full router.refresh()-driven re-render needed here for
-    // the drawer itself, but the underlying list (average shown elsewhere
-    // on the page) does need to pick up the new excluded flag next time
-    // it's fetched.
-    router.refresh();
   }
 
   return (
@@ -448,24 +452,24 @@ export default function SessionDetailDrawer({
                 {a.patient_rating !== null && (
                   <>
                     <button
-                      onClick={() => handleToggleExcluded("patient", !patientExcluded)}
-                      disabled={excludingRole === "patient"}
+                      onClick={() => handleToggleExcluded("patient", !optimisticExcluded.patient)}
+                      disabled={isExcludePending && excludingRole === "patient"}
                       className={`text-[10px] font-semibold hover:underline disabled:opacity-60 ${
-                        patientExcluded ? "text-amber-600" : "text-slate-500"
+                        optimisticExcluded.patient ? "text-amber-600" : "text-slate-500"
                       }`}
                     >
-                      {excludingRole === "patient"
-                        ? "Saving..."
-                        : patientExcluded
+                      {optimisticExcluded.patient
                         ? "Excluded from average — include it"
                         : "Exclude from average"}
                     </button>
                     <button
                       onClick={() => handleClearRating("patient")}
-                      disabled={clearingRole === "patient"}
+                      disabled={isClearPending && clearingRole === "patient"}
                       className="text-[10px] text-red-600 font-semibold hover:underline disabled:opacity-60"
                     >
-                      {clearingRole === "patient" ? "Clearing..." : "Clear (let them re-rate)"}
+                      {isClearPending && clearingRole === "patient"
+                        ? "Clearing..."
+                        : "Clear (let them re-rate)"}
                     </button>
                   </>
                 )}
@@ -473,7 +477,7 @@ export default function SessionDetailDrawer({
               {a.patient_rating ? (
                 <>
                   <Stars rating={a.patient_rating} />
-                  {patientExcluded && (
+                  {optimisticExcluded.patient && (
                     <span className="ml-2 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
                       Excluded from average
                     </span>
@@ -492,24 +496,26 @@ export default function SessionDetailDrawer({
                 {a.therapist_rating !== null && (
                   <>
                     <button
-                      onClick={() => handleToggleExcluded("therapist", !therapistExcluded)}
-                      disabled={excludingRole === "therapist"}
+                      onClick={() =>
+                        handleToggleExcluded("therapist", !optimisticExcluded.therapist)
+                      }
+                      disabled={isExcludePending && excludingRole === "therapist"}
                       className={`text-[10px] font-semibold hover:underline disabled:opacity-60 ${
-                        therapistExcluded ? "text-amber-600" : "text-slate-500"
+                        optimisticExcluded.therapist ? "text-amber-600" : "text-slate-500"
                       }`}
                     >
-                      {excludingRole === "therapist"
-                        ? "Saving..."
-                        : therapistExcluded
+                      {optimisticExcluded.therapist
                         ? "Excluded from average — include it"
                         : "Exclude from average"}
                     </button>
                     <button
                       onClick={() => handleClearRating("therapist")}
-                      disabled={clearingRole === "therapist"}
+                      disabled={isClearPending && clearingRole === "therapist"}
                       className="text-[10px] text-red-600 font-semibold hover:underline disabled:opacity-60"
                     >
-                      {clearingRole === "therapist" ? "Clearing..." : "Clear (let them re-rate)"}
+                      {isClearPending && clearingRole === "therapist"
+                        ? "Clearing..."
+                        : "Clear (let them re-rate)"}
                     </button>
                   </>
                 )}
@@ -517,7 +523,7 @@ export default function SessionDetailDrawer({
               {a.therapist_rating ? (
                 <>
                   <Stars rating={a.therapist_rating} />
-                  {therapistExcluded && (
+                  {optimisticExcluded.therapist && (
                     <span className="ml-2 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
                       Excluded from average
                     </span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   AVAILABILITY_HOURS,
@@ -58,11 +58,56 @@ export default function AdminRosterTab({
   const [viewYear, setViewYear] = useState(Number(year));
   const [viewMonth, setViewMonth] = useState(Number(monthStr) - 1);
   const [selectedDate, setSelectedDate] = useState(initial);
-  const [pending, setPending] = useState<string | null>(null);
+  const [pendingCellKey, setPendingCellKey] = useState<string | null>(null);
   const [pendingLeaveId, setPendingLeaveId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
+
+  // Prop-derived base: each cell's next state (available/unavailable/
+  // override) is fully known client-side the moment it's clicked, so the
+  // grid updates instantly instead of waiting on the fetch + router.refresh()
+  // round trip. Reverts to the real prop on failure (no refresh happens);
+  // matches the new prop on success once router.refresh() lands.
+  const [optimisticOverrideRows, setOverrideOverlay] = useOptimistic(
+    overrideRows,
+    (
+      state,
+      action:
+        | { type: "set"; row: OverrideRow & { therapist_id: string } }
+        | { type: "clear"; therapistId: string; date: string; hour: number }
+    ) => {
+      if (action.type === "set") {
+        const filtered = state.filter(
+          (r) =>
+            !(
+              r.therapist_id === action.row.therapist_id &&
+              r.date === action.row.date &&
+              r.hour === action.row.hour
+            )
+        );
+        return [...filtered, action.row];
+      }
+      return state.filter(
+        (r) =>
+          !(
+            r.therapist_id === action.therapistId &&
+            r.date === action.date &&
+            r.hour === action.hour
+          )
+      );
+    }
+  );
+  const [isCellPending, startCellTransition] = useTransition();
+
+  // Same prop-derived-base pattern, merging just the on_leave flag for the
+  // one therapist that was toggled.
+  const [optimisticTherapists, setOnLeaveOverlay] = useOptimistic(
+    therapists,
+    (state, overlay: { therapistId: string; onLeave: boolean }) =>
+      state.map((t) => (t.id === overlay.therapistId ? { ...t, on_leave: overlay.onLeave } : t))
+  );
+  const [isLeavePending, startLeaveTransition] = useTransition();
 
   const templateByTherapist = useMemo(() => {
     const map = new Map<string, TemplateRow[]>();
@@ -76,13 +121,13 @@ export default function AdminRosterTab({
 
   const overrideByTherapist = useMemo(() => {
     const map = new Map<string, OverrideRow[]>();
-    for (const r of overrideRows) {
+    for (const r of optimisticOverrideRows) {
       const list = map.get(r.therapist_id) ?? [];
       list.push(r);
       map.set(r.therapist_id, list);
     }
     return map;
-  }, [overrideRows]);
+  }, [optimisticOverrideRows]);
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   // Pinned to a fixed timeZone (not left to the runtime's local zone) --
@@ -130,47 +175,65 @@ export default function AdminRosterTab({
       if (!confirmed) return;
     }
     setError(null);
-    setPendingLeaveId(therapistId);
-    const res = await fetch("/api/admin/set-therapist-on-leave", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ therapistId, onLeave: next }),
+    startLeaveTransition(async () => {
+      setPendingLeaveId(therapistId);
+      setOnLeaveOverlay({ therapistId, onLeave: next });
+      const res = await fetch("/api/admin/set-therapist-on-leave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ therapistId, onLeave: next }),
+      });
+      setPendingLeaveId(null);
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not update that therapist's status. Please try again.");
+      }
     });
-    setPendingLeaveId(null);
-    if (res.ok) {
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not update that therapist's status. Please try again.");
-    }
   }
 
-  async function handleCellClick(therapistId: string, hour: number, state: SlotState) {
+  function handleCellClick(therapistId: string, hour: number, state: SlotState) {
     const key = `${therapistId}-${hour}`;
     setError(null);
-    setPending(key);
 
     let body: Record<string, unknown>;
+    let overlay:
+      | { type: "set"; row: OverrideRow & { therapist_id: string } }
+      | { type: "clear"; therapistId: string; date: string; hour: number };
     if (state === "available") {
       body = { therapistId, date: selectedDate, hour, action: "set", available: false };
+      overlay = {
+        type: "set",
+        row: { therapist_id: therapistId, date: selectedDate, hour, available: false },
+      };
     } else if (state === "unavailable") {
       body = { therapistId, date: selectedDate, hour, action: "set", available: true };
+      overlay = {
+        type: "set",
+        row: { therapist_id: therapistId, date: selectedDate, hour, available: true },
+      };
     } else {
       body = { therapistId, date: selectedDate, hour, action: "clear" };
+      overlay = { type: "clear", therapistId, date: selectedDate, hour };
     }
 
-    const res = await fetch("/api/admin/set-availability-override", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+    startCellTransition(async () => {
+      setPendingCellKey(key);
+      setOverrideOverlay(overlay);
+      const res = await fetch("/api/admin/set-availability-override", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      setPendingCellKey(null);
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not update that slot. Please try again.");
+      }
     });
-    setPending(null);
-    if (res.ok) {
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not update that slot. Please try again.");
-    }
   }
 
   return (
@@ -255,13 +318,13 @@ export default function AdminRosterTab({
         </span>
       </div>
 
-      {therapists.length === 0 ? (
+      {optimisticTherapists.length === 0 ? (
         <p className="text-xs text-slate-500 py-6 text-center">No therapists yet.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="text-xs border-collapse">
             <tbody>
-              {therapists.map((t) => {
+              {optimisticTherapists.map((t) => {
                 const dayState = computeDayAvailability(
                   selectedDate,
                   templateByTherapist.get(t.id) ?? [],
@@ -279,7 +342,7 @@ export default function AdminRosterTab({
                       <button
                         type="button"
                         onClick={() => handleToggleOnLeave(t.id, t.on_leave)}
-                        disabled={pendingLeaveId === t.id}
+                        disabled={isLeavePending && pendingLeaveId === t.id}
                         className={`mt-1 block font-semibold px-2 py-0.5 rounded-full text-[10px] disabled:opacity-50 ${
                           t.on_leave
                             ? "text-amber-800 bg-amber-100 hover:bg-amber-200"
@@ -305,7 +368,7 @@ export default function AdminRosterTab({
                           <td key={hour} className="p-0.5">
                             <button
                               type="button"
-                              disabled={pending === key}
+                              disabled={isCellPending && pendingCellKey === key}
                               onClick={() => handleCellClick(t.id, hour, state)}
                               title={STATE_TITLES[state]}
                               className={`w-24 py-2 rounded-md text-[10px] font-semibold border transition whitespace-nowrap disabled:opacity-50 ${STATE_STYLES[state]}`}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   AVAILABILITY_HOURS,
@@ -32,14 +32,22 @@ export default function TherapistAvailabilityRoster({
   initialSlots: Slot[];
   timezone: string | null;
 }) {
-  const [savedEnabled, setSavedEnabled] = useState<Set<string>>(() => toSet(initialSlots));
-  const [enabled, setEnabled] = useState<Set<string>>(() => toSet(initialSlots));
+  // Prop-derived base: recomputed fresh whenever initialSlots changes (e.g.
+  // after this component's own router.refresh() lands). While editing, the
+  // grid shows the local draft (`enabled`); once saved, the view flips back
+  // to this committed value instantly instead of waiting on the RSC payload
+  // to stream in. Reverts to the real prop on failure (no refresh happens,
+  // and editing stays open so the revert is never even visible).
+  const baseEnabled = useMemo(() => toSet(initialSlots), [initialSlots]);
+  const [optimisticEnabled, setOptimisticEnabled] = useOptimistic(baseEnabled);
+  const [enabled, setEnabled] = useState<Set<string>>(baseEnabled);
   const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const isDirty = !setsEqual(enabled, savedEnabled);
+  const isDirty = !setsEqual(enabled, optimisticEnabled);
+  const displayedEnabled = editing ? enabled : optimisticEnabled;
 
   function toggle(day: number, hour: number) {
     if (!editing) return;
@@ -54,36 +62,38 @@ export default function TherapistAvailabilityRoster({
 
   function handleEdit() {
     setError(null);
+    setEnabled(new Set(optimisticEnabled));
     setEditing(true);
   }
 
   function handleCancel() {
-    setEnabled(new Set(savedEnabled));
+    setEnabled(new Set(optimisticEnabled));
     setError(null);
     setEditing(false);
   }
 
-  async function handleSave() {
-    setSaving(true);
+  function handleSave() {
     setError(null);
-    const slots: Slot[] = Array.from(enabled).map((key) => {
+    const next = new Set(enabled);
+    const slots: Slot[] = Array.from(next).map((key) => {
       const [day, hour] = key.split("-").map(Number);
       return { day_of_week: day, hour };
     });
-    const res = await fetch("/api/therapist/save-availability", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slots }),
+    startTransition(async () => {
+      setOptimisticEnabled(next);
+      const res = await fetch("/api/therapist/save-availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slots }),
+      });
+      if (res.ok) {
+        setEditing(false);
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not save your availability. Please try again.");
+      }
     });
-    setSaving(false);
-    if (res.ok) {
-      setSavedEnabled(new Set(enabled));
-      setEditing(false);
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not save your availability. Please try again.");
-    }
   }
 
   return (
@@ -101,7 +111,7 @@ export default function TherapistAvailabilityRoster({
           <div className="flex items-center gap-2">
             <button
               onClick={handleCancel}
-              disabled={saving}
+              disabled={isPending}
               className="bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-800 text-xs font-semibold px-4 py-2 rounded-lg transition"
             >
               Cancel
@@ -109,10 +119,10 @@ export default function TherapistAvailabilityRoster({
             {isDirty && (
               <button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={isPending}
                 className="bg-teal-700 hover:bg-teal-800 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-lg transition"
               >
-                {saving ? "Saving..." : "Save"}
+                {isPending ? "Saving..." : "Save"}
               </button>
             )}
           </div>
@@ -139,7 +149,7 @@ export default function TherapistAvailabilityRoster({
                   {DAY_LABELS[day]}
                 </td>
                 {AVAILABILITY_HOURS.map((hour) => {
-                  const isOn = enabled.has(slotKey(day, hour));
+                  const isOn = displayedEnabled.has(slotKey(day, hour));
                   return (
                     <td key={hour} className="p-0.5">
                       <button

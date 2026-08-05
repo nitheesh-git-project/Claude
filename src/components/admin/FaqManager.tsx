@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import FaqForm from "./FaqForm";
 import { useConfirm } from "@/lib/useConfirm";
@@ -14,37 +14,47 @@ type Faq = {
 };
 
 function DeleteButton({ id }: { id: string }) {
-  const [loading, setLoading] = useState(false);
+  // The parent only renders this row while the FAQ still exists, so a real
+  // success unmounts it via router.refresh() before this optimistic overlay
+  // would need to clear on its own -- a failure just reverts to the base
+  // `false`. See PatientActiveToggle's comment.
+  const [optimisticDeleted, setOptimisticDeleted] = useOptimistic(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
 
   async function handleDelete() {
     if (!(await confirm("Delete this FAQ? This can't be undone."))) return;
-    setLoading(true);
     setError(null);
-    const res = await fetch("/api/admin/delete-faq", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+    startTransition(async () => {
+      setOptimisticDeleted(true);
+      const res = await fetch("/api/admin/delete-faq", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not delete. Please try again.");
+      }
     });
-    const data = await res.json().catch(() => ({}));
-    setLoading(false);
-    if (res.ok) {
-      router.refresh();
-    } else {
-      setError(data.error ?? "Could not delete. Please try again.");
-    }
+  }
+
+  if (optimisticDeleted && !error) {
+    return <span className="text-[11px] font-semibold text-slate-500">Deleting...</span>;
   }
 
   return (
     <div className="flex flex-col items-end gap-1">
       <button
         onClick={handleDelete}
-        disabled={loading}
+        disabled={isPending}
         className="text-[11px] text-red-600 font-semibold hover:underline disabled:opacity-60"
       >
-        {loading ? "Deleting..." : "Delete"}
+        Delete
       </button>
       {error && <span className="text-[11px] text-red-600 max-w-[160px] text-right">{error}</span>}
       {dialog}

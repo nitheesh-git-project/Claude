@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LeadStatusButtons({
@@ -10,48 +10,55 @@ export default function LeadStatusButtons({
   leadId: string;
   status: string;
 }) {
-  const [loading, setLoading] = useState<string | null>(null);
+  // Prop-derived base: the next status is fully known client-side the
+  // moment a button is clicked, so the button set updates instantly instead
+  // of waiting on the fetch + router.refresh() round trip. Reverts to the
+  // real prop on failure (no refresh happens); matches the new prop on
+  // success once router.refresh() lands.
+  const [optimisticStatus, setOptimisticStatus] = useOptimistic(status);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  async function setStatus(newStatus: "contacted" | "declined") {
-    setLoading(newStatus);
+  function setStatus(newStatus: "contacted" | "declined") {
     setError(null);
-    const res = await fetch("/api/admin/update-lead-status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ leadId, status: newStatus }),
+    startTransition(async () => {
+      setOptimisticStatus(newStatus);
+      const res = await fetch("/api/admin/update-lead-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId, status: newStatus }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not update. Please try again.");
+      }
     });
-    setLoading(null);
-    if (res.ok) {
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not update. Please try again.");
-    }
   }
 
-  if (status === "declined") {
+  if (optimisticStatus === "declined") {
     return null;
   }
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      {status === "new" && (
+      {optimisticStatus === "new" && (
         <button
           onClick={() => setStatus("contacted")}
-          disabled={loading !== null}
+          disabled={isPending}
           className="bg-slate-200 hover:bg-slate-300 disabled:opacity-60 text-slate-800 text-xs font-semibold px-3 py-1.5 rounded-lg transition"
         >
-          {loading === "contacted" ? "Marking..." : "Mark Contacted"}
+          Mark Contacted
         </button>
       )}
       <button
         onClick={() => setStatus("declined")}
-        disabled={loading !== null}
+        disabled={isPending}
         className="bg-red-50 hover:bg-red-100 disabled:opacity-60 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition"
       >
-        {loading === "declined" ? "Declining..." : "Decline"}
+        Decline
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
     </div>

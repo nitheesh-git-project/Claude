@@ -1,51 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 export default function ProfileChangeRequestActions({ requestId }: { requestId: string }) {
   const [declining, setDeclining] = useState(false);
   const [notes, setNotes] = useState("");
-  const [loading, setLoading] = useState<"approve" | "decline" | null>(null);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  async function handleApprove() {
-    setLoading("approve");
+  function handleApprove() {
     setError(null);
-    const res = await fetch("/api/admin/approve-profile-change", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requestId }),
+    startTransition(async () => {
+      const res = await fetch("/api/admin/approve-profile-change", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not approve. Please try again.");
+      }
     });
-    setLoading(null);
-    if (res.ok) {
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not approve. Please try again.");
-    }
   }
 
-  async function handleDecline() {
+  function handleDecline() {
     if (!notes.trim()) {
       setError("Please explain why you're declining this.");
       return;
     }
-    setLoading("decline");
     setError(null);
-    const res = await fetch("/api/admin/decline-profile-change", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requestId, notes }),
+    startTransition(async () => {
+      const res = await fetch("/api/admin/decline-profile-change", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId, notes }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not decline. Please try again.");
+      }
     });
-    setLoading(null);
-    if (res.ok) {
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not decline. Please try again.");
-    }
   }
 
   if (declining) {
@@ -68,10 +68,10 @@ export default function ProfileChangeRequestActions({ requestId }: { requestId: 
           </button>
           <button
             onClick={handleDecline}
-            disabled={loading !== null}
+            disabled={isPending}
             className="bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
           >
-            {loading === "decline" ? "Declining..." : "Confirm Decline"}
+            {isPending ? "Declining..." : "Confirm Decline"}
           </button>
         </div>
       </div>
@@ -83,17 +83,17 @@ export default function ProfileChangeRequestActions({ requestId }: { requestId: 
       <div className="flex gap-2">
         <button
           onClick={() => setDeclining(true)}
-          disabled={loading !== null}
+          disabled={isPending}
           className="bg-red-50 hover:bg-red-100 disabled:opacity-60 text-red-700 text-xs font-semibold px-3 py-2 rounded-lg transition"
         >
           Decline
         </button>
         <button
           onClick={handleApprove}
-          disabled={loading !== null}
+          disabled={isPending}
           className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-3 py-2 rounded-lg transition"
         >
-          {loading === "approve" ? "Approving..." : "Approve"}
+          {isPending ? "Approving..." : "Approve"}
         </button>
       </div>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
