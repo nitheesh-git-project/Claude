@@ -52,6 +52,13 @@ export default function AdminFeatureControlTab({
   const [joinWindowError, setJoinWindowError] = useState<string | null>(null);
   const [joinWindowSaved, setJoinWindowSaved] = useState(false);
 
+  const [joinWindowAfterInput, setJoinWindowAfterInput] = useState(
+    String(settings.joinWindowAfterMinutes)
+  );
+  const [savingJoinWindowAfter, setSavingJoinWindowAfter] = useState(false);
+  const [joinWindowAfterError, setJoinWindowAfterError] = useState<string | null>(null);
+  const [joinWindowAfterSaved, setJoinWindowAfterSaved] = useState(false);
+
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
 
@@ -116,6 +123,23 @@ export default function AdminFeatureControlTab({
       setJoinWindowError(e instanceof Error ? e.message : "Could not save. Please try again.");
     } finally {
       setSavingJoinWindow(false);
+    }
+  }
+
+  async function handleSaveJoinWindowAfter() {
+    const minutes = Math.max(0, Math.floor(Number(joinWindowAfterInput) || 0));
+    setSavingJoinWindowAfter(true);
+    setJoinWindowAfterError(null);
+    setJoinWindowAfterSaved(false);
+    try {
+      await saveSetting("join_window_after_minutes", minutes);
+      setJoinWindowAfterInput(String(minutes));
+      setJoinWindowAfterSaved(true);
+      router.refresh();
+    } catch (e) {
+      setJoinWindowAfterError(e instanceof Error ? e.message : "Could not save. Please try again.");
+    } finally {
+      setSavingJoinWindowAfter(false);
     }
   }
 
@@ -256,8 +280,9 @@ export default function AdminFeatureControlTab({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-sm text-slate-800">Join Button Window</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
-          How many minutes before a session&apos;s slot time the &quot;Tap to Join&quot; button
-          becomes active, everywhere it appears.
+          Controls when the &quot;Tap to Join&quot; button is active for patients and
+          therapists — admin&apos;s own button always stays active regardless of these
+          settings.
         </p>
         <div className="flex items-center gap-2 mt-3">
           <input
@@ -282,6 +307,34 @@ export default function AdminFeatureControlTab({
           {joinWindowSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
         </div>
         {joinWindowError && <p className="text-[11px] text-red-600 mt-2">{joinWindowError}</p>}
+
+        <div className="flex items-center gap-2 mt-3">
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={joinWindowAfterInput}
+            onChange={(e) => {
+              setJoinWindowAfterInput(e.target.value);
+              setJoinWindowAfterSaved(false);
+            }}
+            className="w-24 text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
+          />
+          <span className="text-xs text-slate-500">minutes after slot time ends</span>
+          <button
+            onClick={handleSaveJoinWindowAfter}
+            disabled={savingJoinWindowAfter}
+            className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
+          >
+            {savingJoinWindowAfter ? "Saving..." : "Save"}
+          </button>
+          {joinWindowAfterSaved && (
+            <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>
+          )}
+        </div>
+        {joinWindowAfterError && (
+          <p className="text-[11px] text-red-600 mt-2">{joinWindowAfterError}</p>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

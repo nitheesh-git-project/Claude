@@ -1288,6 +1288,12 @@ alter table site_settings add column if not exists session_timeout_minutes integ
 -- operationally-safe knobs to expose in the admin UI.
 alter table site_settings add column if not exists google_meet_enabled boolean not null default true;
 alter table site_settings add column if not exists join_window_minutes integer not null default 15;
+-- How many minutes after a session's slot_time + duration_minutes the Join
+-- button stays active for patient/therapist -- admin's own Join button
+-- ignores both this and join_window_minutes entirely (see JoinSessionButton's
+-- alwaysActive prop), since an admin should always be able to check a
+-- session's Meet link/call.
+alter table site_settings add column if not exists join_window_after_minutes integer not null default 15;
 
 -- Specialist Team profile popup (Feature 38): an admin-curated public blurb
 -- shown alongside the therapist's own self-reported bio/credentials in the

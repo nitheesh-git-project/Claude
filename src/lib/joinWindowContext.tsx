@@ -3,19 +3,38 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 
-// Carries the admin-configured "minutes before slot_time" Join button
-// activation window down to every JoinSessionButton instance without
-// prop-drilling through the many nested components that render one
-// (SessionDetailDrawer, ProfileSessionList, AdminCalendarTab,
-// AdminSessionStoryTab, SessionCalendarTab...). Each top-level dashboard
-// page/admin detail page fetches site_settings once and wraps its JSX in a
-// single Provider; everything underneath just reads the context.
-const JoinWindowContext = createContext<number>(DEFAULT_ADMIN_SETTINGS.joinWindowMinutes);
+export type JoinWindow = { beforeMinutes: number; afterMinutes: number };
 
-export function JoinWindowProvider({ minutes, children }: { minutes: number; children: ReactNode }) {
-  return <JoinWindowContext.Provider value={minutes}>{children}</JoinWindowContext.Provider>;
+// Carries the admin-configured Join button activation window (minutes
+// before slot_time, minutes after slot_time + duration) down to every
+// JoinSessionButton instance without prop-drilling through the many nested
+// components that render one (SessionDetailDrawer, ProfileSessionList,
+// AdminCalendarTab, AdminSessionStoryTab, SessionCalendarTab...). Each
+// top-level dashboard page/admin detail page fetches site_settings once and
+// wraps its JSX in a single Provider; everything underneath just reads the
+// context. Admin's own JoinSessionButton instances pass alwaysActive and
+// never consult this window at all -- see JoinSessionButton's own comment.
+const JoinWindowContext = createContext<JoinWindow>({
+  beforeMinutes: DEFAULT_ADMIN_SETTINGS.joinWindowMinutes,
+  afterMinutes: DEFAULT_ADMIN_SETTINGS.joinWindowAfterMinutes,
+});
+
+export function JoinWindowProvider({
+  beforeMinutes,
+  afterMinutes,
+  children,
+}: {
+  beforeMinutes: number;
+  afterMinutes: number;
+  children: ReactNode;
+}) {
+  return (
+    <JoinWindowContext.Provider value={{ beforeMinutes, afterMinutes }}>
+      {children}
+    </JoinWindowContext.Provider>
+  );
 }
 
-export function useJoinWindowMinutes() {
+export function useJoinWindow() {
   return useContext(JoinWindowContext);
 }

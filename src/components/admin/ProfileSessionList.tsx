@@ -145,7 +145,13 @@ export default function ProfileSessionList({
                 </div>
               )}
               <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-                <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
+                <JoinSessionButton
+                  meetLink={a.meet_link}
+                  slotTime={a.slot_time}
+                  status={a.status}
+                  durationMinutes={durationMinutes}
+                  alwaysActive
+                />
                 {a.status === "confirmed" && (
                   <>
                     <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />

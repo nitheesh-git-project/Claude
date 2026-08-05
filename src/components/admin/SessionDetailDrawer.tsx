@@ -383,7 +383,13 @@ export default function SessionDetailDrawer({
           {a.meet_link && (
             <div>
               <p className="text-slate-400">Session Meeting</p>
-              <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
+              <JoinSessionButton
+                meetLink={a.meet_link}
+                slotTime={a.slot_time}
+                status={a.status}
+                durationMinutes={durationMinutes}
+                alwaysActive
+              />
             </div>
           )}
 

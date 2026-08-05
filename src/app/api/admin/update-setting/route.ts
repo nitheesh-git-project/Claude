@@ -7,6 +7,7 @@ const ALLOWED_COLUMNS = new Set([
   "session_timeout_minutes",
   "google_meet_enabled",
   "join_window_minutes",
+  "join_window_after_minutes",
 ]);
 
 // Writes one Feature Control column on the site_settings singleton row --
@@ -30,7 +31,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
   }
   if (
-    (key === "session_timeout_minutes" || key === "join_window_minutes") &&
+    (key === "session_timeout_minutes" ||
+      key === "join_window_minutes" ||
+      key === "join_window_after_minutes") &&
     (typeof value !== "number" || value < 0)
   ) {
     return NextResponse.json({ error: "value must be a non-negative number" }, { status: 400 });

@@ -145,7 +145,7 @@ export default async function AdminDashboardPage() {
   // than blanking the whole dashboard.
   const { data: settingsRow } = await admin
     .from("site_settings")
-    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes")
+    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
     .maybeSingle();
   const adminSettings = parseAdminSettings(settingsRow);
 
@@ -572,7 +572,13 @@ export default async function AdminDashboardPage() {
                       preferredTherapistId={a.preferred_therapist_id}
                     />
                   )}
-                  <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
+                  <JoinSessionButton
+                    meetLink={a.meet_link}
+                    slotTime={a.slot_time}
+                    status={a.status}
+                    durationMinutes={durationMinutes}
+                    alwaysActive
+                  />
                 </li>
               );
             })}
@@ -1209,7 +1215,7 @@ export default async function AdminDashboardPage() {
       process.env.NODE_ENV !== "production");
 
   return (
-    <JoinWindowProvider minutes={adminSettings.joinWindowMinutes}>
+    <JoinWindowProvider beforeMinutes={adminSettings.joinWindowMinutes} afterMinutes={adminSettings.joinWindowAfterMinutes}>
     <AdminTabs
       overview={metricsTab}
       approvalBookings={approvalBookingsTab}

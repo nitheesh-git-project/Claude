@@ -59,7 +59,7 @@ export default async function PatientDashboardPage() {
   // whole page.
   const { data: settingsRow } = await supabase
     .from("site_settings")
-    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes")
+    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
     .maybeSingle();
   const adminSettings = parseAdminSettings(settingsRow);
 
@@ -275,7 +275,12 @@ export default async function PatientDashboardPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
+          <JoinSessionButton
+            meetLink={a.meet_link}
+            slotTime={a.slot_time}
+            status={a.status}
+            durationMinutes={a.duration_minutes}
+          />
           {(a.status === "requested" || a.status === "confirmed") && (
             <CancelSessionButton
               appointmentId={a.id}
@@ -306,7 +311,7 @@ export default async function PatientDashboardPage() {
       process.env.NODE_ENV !== "production");
 
   return (
-    <JoinWindowProvider minutes={adminSettings.joinWindowMinutes}>
+    <JoinWindowProvider beforeMinutes={adminSettings.joinWindowMinutes} afterMinutes={adminSettings.joinWindowAfterMinutes}>
     <DashboardShell
       brandLabel="Patient Panel"
       brandIcon="fa-user-injured"

@@ -52,7 +52,7 @@ export default async function TherapistProfilePage() {
   // whole page.
   const { data: settingsRow } = await supabase
     .from("site_settings")
-    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes")
+    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
     .maybeSingle();
   const adminSettings = parseAdminSettings(settingsRow);
 

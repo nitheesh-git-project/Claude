@@ -294,7 +294,13 @@ export default function AdminSessionStoryTab({
                     )}
                   </td>
                   <td className="py-2 pr-3" onClick={(e) => e.stopPropagation()}>
-                    <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} />
+                    <JoinSessionButton
+                      meetLink={a.meet_link}
+                      slotTime={a.slot_time}
+                      status={a.status}
+                      durationMinutes={a.duration_minutes}
+                      alwaysActive
+                    />
                   </td>
                 </tr>
               ))

@@ -45,7 +45,7 @@ export default async function HospitalDashboardPage() {
   // whole page.
   const { data: settingsRow } = await supabase
     .from("site_settings")
-    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes")
+    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
     .maybeSingle();
   const adminSettings = parseAdminSettings(settingsRow);
 
@@ -158,7 +158,7 @@ export default async function HospitalDashboardPage() {
       process.env.NODE_ENV !== "production");
 
   return (
-    <JoinWindowProvider minutes={adminSettings.joinWindowMinutes}>
+    <JoinWindowProvider beforeMinutes={adminSettings.joinWindowMinutes} afterMinutes={adminSettings.joinWindowAfterMinutes}>
     <DashboardShell
       brandLabel="Partner Panel"
       brandIcon="fa-hospital"
@@ -304,7 +304,12 @@ export default async function HospitalDashboardPage() {
                   >
                     {s.payment_status}
                   </span>
-                  <JoinSessionButton meetLink={s.meet_link} slotTime={s.slot_time} status={s.status} />
+                  <JoinSessionButton
+                    meetLink={s.meet_link}
+                    slotTime={s.slot_time}
+                    status={s.status}
+                    durationMinutes={null}
+                  />
                 </div>
               </li>
             ))}

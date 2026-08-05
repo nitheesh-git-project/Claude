@@ -3,6 +3,7 @@ export type AdminSettings = {
   sessionTimeoutMinutes: number;
   googleMeetEnabled: boolean;
   joinWindowMinutes: number;
+  joinWindowAfterMinutes: number;
 };
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
@@ -10,6 +11,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   sessionTimeoutMinutes: 0,
   googleMeetEnabled: true,
   joinWindowMinutes: 15,
+  joinWindowAfterMinutes: 15,
 };
 
 type SiteSettingsRow = {
@@ -17,6 +19,7 @@ type SiteSettingsRow = {
   session_timeout_minutes?: number | null;
   google_meet_enabled?: boolean | null;
   join_window_minutes?: number | null;
+  join_window_after_minutes?: number | null;
 };
 
 // Turns the site_settings singleton row's Feature Control columns (see
@@ -44,5 +47,9 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
       typeof row?.join_window_minutes === "number"
         ? row.join_window_minutes
         : DEFAULT_ADMIN_SETTINGS.joinWindowMinutes,
+    joinWindowAfterMinutes:
+      typeof row?.join_window_after_minutes === "number"
+        ? row.join_window_after_minutes
+        : DEFAULT_ADMIN_SETTINGS.joinWindowAfterMinutes,
   };
 }
