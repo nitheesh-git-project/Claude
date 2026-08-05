@@ -48,75 +48,98 @@ export default async function PatientDashboardPage() {
     return null;
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, email, avatar_url")
-    .eq("id", user.id)
-    .single();
+  // All of these are independent of each other -- run in parallel instead
+  // of one at a time, since router.refresh() re-runs this whole page on
+  // every button click (Pay Now, Cancel Session, feedback, package
+  // purchase) and this is the single most-hit page in the app. See
+  // admin/dashboard/page.tsx's identical Promise.all for the reasoning.
+  // categoryPrices and therapists further below stay sequential -- they
+  // genuinely need appointments/allPackagePurchases to resolve first.
+  const [
+    { data: profile },
+    { data: settingsRow },
+    { data: patientCodeRow },
+    { data: rawAppointments },
+    { data: sessionCodeLinks },
+    { data: meetLinkRows },
+    { data: allPackagePurchases },
+    { data: paymentFailures },
+    { data: activeCategories },
+    { data: availablePackages },
+    { data: ownedPackages },
+  ] = await Promise.all([
+    supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
 
-  // These site_settings columns are new/migration-dependent -- isolated so
-  // a missing migration only disables Feature Control's effects, not the
-  // whole page.
-  const { data: settingsRow } = await supabase
-    .from("site_settings")
-    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
-    .maybeSingle();
+    // These site_settings columns are new/migration-dependent -- isolated
+    // so a missing migration only disables Feature Control's effects, not
+    // the whole page.
+    supabase
+      .from("site_settings")
+      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
+      .maybeSingle(),
+
+    // patient_code is new and migration-dependent -- its own isolated query
+    // (rather than folded into the select above) so a missing-column error
+    // before the migration runs only hides this one badge, not the whole
+    // profile fetch this page's header depends on.
+    supabase.from("profiles").select("patient_code").eq("id", user.id).maybeSingle(),
+
+    supabase
+      .from("appointments")
+      .select(
+        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, paid_at, razorpay_payment_id, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id, no_show, therapist_payout_paid_at"
+      )
+      .eq("patient_id", user.id)
+      .order("created_at", { ascending: false }),
+
+    // session_code is also new/migration-dependent -- same isolation
+    // reasoning as patientCodeRow above.
+    supabase.from("appointments").select("id, session_code").eq("patient_id", user.id),
+
+    // meet_link is also new/migration-dependent -- same isolation reasoning
+    // as sessionCodeLinks above.
+    supabase.from("appointments").select("id, meet_link").eq("patient_id", user.id),
+
+    // Full purchase history (not just currently-usable packages -- that's
+    // ownedPackages below, filtered to paid ones with sessions remaining) so
+    // the Receipts section can show a payment-confirmed receipt for every
+    // package ever bought, same as every other paid appointment.
+    supabase
+      .from("patient_package_purchases")
+      .select("id, category_id, session_count, payment_status, amount_paid_paise, paid_at, razorpay_payment_id")
+      .eq("patient_id", user.id)
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("payment_failure_log")
+      .select(
+        "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
+      )
+      .eq("patient_id", user.id)
+      .order("created_at", { ascending: false }),
+
+    supabase.from("treatment_categories").select("id, title").eq("active", true),
+
+    supabase
+      .from("treatment_category_packages")
+      .select("id, category_id, title, session_count, price_paise")
+      .eq("active", true)
+      .order("display_order", { ascending: true }),
+
+    supabase
+      .from("patient_package_purchases")
+      .select("id, category_id, session_count, sessions_used")
+      .eq("patient_id", user.id)
+      .eq("payment_status", "paid")
+      .order("created_at", { ascending: false }),
+  ]);
+
   const adminSettings = parseAdminSettings(settingsRow);
-
-  // patient_code is new and migration-dependent -- its own isolated query
-  // (rather than folded into the select above) so a missing-column error
-  // before the migration runs only hides this one badge, not the whole
-  // profile fetch this page's header depends on.
-  const { data: patientCodeRow } = await supabase
-    .from("profiles")
-    .select("patient_code")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const { data: rawAppointments } = await supabase
-    .from("appointments")
-    .select(
-      "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, paid_at, razorpay_payment_id, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id, no_show, therapist_payout_paid_at"
-    )
-    .eq("patient_id", user.id)
-    .order("created_at", { ascending: false });
-
-  // session_code is also new/migration-dependent -- same isolation
-  // reasoning as patientCodeRow above.
-  const { data: sessionCodeLinks } = await supabase
-    .from("appointments")
-    .select("id, session_code")
-    .eq("patient_id", user.id);
-
-  // meet_link is also new/migration-dependent -- same isolation reasoning
-  // as sessionCodeLinks above.
-  const { data: meetLinkRows } = await supabase
-    .from("appointments")
-    .select("id, meet_link")
-    .eq("patient_id", user.id);
 
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
   );
-
-  // Full purchase history (not just currently-usable packages -- that's
-  // ownedPackages below, filtered to paid ones with sessions remaining) so
-  // the Receipts section can show a payment-confirmed receipt for every
-  // package ever bought, same as every other paid appointment.
-  const { data: allPackagePurchases } = await supabase
-    .from("patient_package_purchases")
-    .select("id, category_id, session_count, payment_status, amount_paid_paise, paid_at, razorpay_payment_id")
-    .eq("patient_id", user.id)
-    .order("created_at", { ascending: false });
-
-  const { data: paymentFailures } = await supabase
-    .from("payment_failure_log")
-    .select(
-      "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
-    )
-    .eq("patient_id", user.id)
-    .order("created_at", { ascending: false });
 
   // Unpaid bookings won't have amount_paid_paise set yet (that's only
   // recorded once a payment order is created), so fall back to the linked
@@ -134,19 +157,6 @@ export default async function PatientDashboardPage() {
       ].filter(Boolean)
     ),
   ];
-  const admin = createAdminClient();
-  const { data: categoryPrices } =
-    categoryIds.length > 0
-      ? await admin
-          .from("treatment_categories")
-          .select("id, price_paise, title")
-          .in("id", categoryIds as string[])
-      : { data: [] as { id: string; price_paise: number; title: string }[] };
-  const categoryPriceMap = new Map(
-    (categoryPrices ?? []).map((c) => [c.id, c.price_paise])
-  );
-  const categoryTitleMap = new Map((categoryPrices ?? []).map((c) => [c.id, c.title]));
-
   // A patient can read their own appointment rows via RLS, but not the
   // linked therapist's profile (that policy only allows a user to read
   // their own row) — so the assigned therapist's name has to be looked up
@@ -155,30 +165,21 @@ export default async function PatientDashboardPage() {
   const therapistIds = [
     ...new Set((appointments ?? []).map((a) => a.therapist_id).filter(Boolean)),
   ];
-  const { data: therapists } =
+  const admin = createAdminClient();
+  const [{ data: categoryPrices }, { data: therapists }] = await Promise.all([
+    categoryIds.length > 0
+      ? admin.from("treatment_categories").select("id, price_paise, title").in("id", categoryIds as string[])
+      : Promise.resolve({ data: [] as { id: string; price_paise: number; title: string }[] }),
     therapistIds.length > 0
-      ? await admin.from("profiles").select("id, full_name").in("id", therapistIds as string[])
-      : { data: [] as { id: string; full_name: string }[] };
+      ? admin.from("profiles").select("id, full_name").in("id", therapistIds as string[])
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+  ]);
+  const categoryPriceMap = new Map(
+    (categoryPrices ?? []).map((c) => [c.id, c.price_paise])
+  );
+  const categoryTitleMap = new Map((categoryPrices ?? []).map((c) => [c.id, c.title]));
   const therapistMap = new Map((therapists ?? []).map((t) => [t.id, t.full_name]));
-
-  const { data: activeCategories } = await supabase
-    .from("treatment_categories")
-    .select("id, title")
-    .eq("active", true);
   const activeCategoryMap = new Map((activeCategories ?? []).map((c) => [c.id, c.title]));
-
-  const { data: availablePackages } = await supabase
-    .from("treatment_category_packages")
-    .select("id, category_id, title, session_count, price_paise")
-    .eq("active", true)
-    .order("display_order", { ascending: true });
-
-  const { data: ownedPackages } = await supabase
-    .from("patient_package_purchases")
-    .select("id, category_id, session_count, sessions_used")
-    .eq("patient_id", user.id)
-    .eq("payment_status", "paid")
-    .order("created_at", { ascending: false });
 
   const hasOwnedPackages = !!ownedPackages && ownedPackages.length > 0;
   const hasAvailablePackages =

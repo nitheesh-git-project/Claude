@@ -23,37 +23,42 @@ export default async function TherapistProfilePage() {
     return null;
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select(
-      "full_name, email, avatar_url, phone, credentials, specialization, years_experience, bio, languages"
-    )
-    .eq("id", user.id)
-    .single();
+  // Independent of each other -- run in parallel instead of one at a time.
+  // See admin/dashboard/page.tsx's identical Promise.all for the reasoning.
+  const [
+    { data: profile },
+    { data: changeRequests },
+    { data: therapistCodeRow },
+    { data: settingsRow },
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(
+        "full_name, email, avatar_url, phone, credentials, specialization, years_experience, bio, languages"
+      )
+      .eq("id", user.id)
+      .single(),
 
-  const { data: changeRequests } = await supabase
-    .from("profile_change_requests")
-    .select("id, status, admin_notes, changes, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+    supabase
+      .from("profile_change_requests")
+      .select("id, status, admin_notes, changes, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+
+    // therapist_code is new/migration-dependent -- kept isolated (same
+    // convention used throughout this codebase) so an unknown-column error
+    // here only degrades this one badge.
+    supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
+
+    // These site_settings columns are new/migration-dependent -- isolated
+    // so a missing migration only disables Feature Control's effects, not
+    // the whole page.
+    supabase
+      .from("site_settings")
+      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
+      .maybeSingle(),
+  ]);
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
-
-  // therapist_code is new/migration-dependent -- kept isolated (same
-  // convention used throughout this codebase) so an unknown-column error
-  // here only degrades this one badge.
-  const { data: therapistCodeRow } = await supabase
-    .from("profiles")
-    .select("therapist_code")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  // These site_settings columns are new/migration-dependent -- isolated so
-  // a missing migration only disables Feature Control's effects, not the
-  // whole page.
-  const { data: settingsRow } = await supabase
-    .from("site_settings")
-    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
-    .maybeSingle();
   const adminSettings = parseAdminSettings(settingsRow);
 
   // Same computation as the root layout's own showDebugNav -- duplicated

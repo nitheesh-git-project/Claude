@@ -36,7 +36,7 @@ function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
 }
 
-export default function BookingWizard() {
+export default function BookingWizard({ initialCategories }: { initialCategories: Category[] }) {
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -68,9 +68,16 @@ export default function BookingWizard() {
   const [referralCheck, setReferralCheck] = useState<ReferralCodeCheck>({
     status: "idle",
   });
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
-  const [categoryId, setCategoryId] = useState("");
+  const [categories] = useState<Category[]>(initialCategories);
+  // Only preselect when the patient arrived via a specific "Book X" link
+  // from the Conditions page -- that's a deliberate choice. Never default
+  // to the first category in the list just because one exists; since each
+  // one can carry a different price now, silently picking one for the
+  // patient risks booking (and charging) them for a concern they never
+  // actually chose.
+  const [categoryId, setCategoryId] = useState(
+    () => initialCategories.find((c) => c.id === searchParams.get("category"))?.id ?? ""
+  );
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
   const [previousTherapists, setPreviousTherapists] = useState<
@@ -113,27 +120,6 @@ export default function BookingWizard() {
         // Not logged in / session check failed — proceed as a guest booking.
       })
       .finally(() => setCheckingAuth(false));
-
-    (async () => {
-      const { data } = await supabase
-        .from("treatment_categories")
-        .select("id, title, price_paise, duration_minutes")
-        .eq("active", true)
-        .order("display_order", { ascending: true })
-        .order("id", { ascending: true });
-      const list = data ?? [];
-      setCategories(list);
-      // Only preselect when the patient arrived via a specific "Book X"
-      // link from the Conditions page — that's a deliberate choice. Never
-      // default to the first category in the list just because one
-      // exists; since each one can carry a different price now, silently
-      // picking one for the patient risks booking (and charging) them for
-      // a concern they never actually chose.
-      const fromQuery = searchParams.get("category");
-      const preselect = list.find((c) => c.id === fromQuery);
-      setCategoryId(preselect?.id ?? "");
-      setCategoriesLoaded(true);
-    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -558,7 +544,7 @@ export default function BookingWizard() {
             <label className="block font-semibold mb-1.5 text-slate-900">
               What would you like help with?
             </label>
-            {categoriesLoaded && categories.length === 0 ? (
+            {categories.length === 0 ? (
               <p className="text-xs text-red-600">
                 No condition categories are available right now — please
                 contact us directly to book.

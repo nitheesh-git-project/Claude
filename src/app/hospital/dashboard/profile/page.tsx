@@ -18,27 +18,27 @@ export default async function HospitalProfilePage() {
     return null;
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, organization_name, email, avatar_url")
-    .eq("id", user.id)
-    .single();
+  // Independent of each other -- run in parallel instead of one at a time.
+  // See admin/dashboard/page.tsx's identical Promise.all for the reasoning.
+  const [{ data: profile }, { data: hospitalCodeRow }, { data: settingsRow }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, organization_name, email, avatar_url")
+      .eq("id", user.id)
+      .single(),
 
-  // hospital_code is new/migration-dependent -- kept isolated, same
-  // convention as the main hospital dashboard page.
-  const { data: hospitalCodeRow } = await supabase
-    .from("profiles")
-    .select("hospital_code")
-    .eq("id", user.id)
-    .maybeSingle();
+    // hospital_code is new/migration-dependent -- kept isolated, same
+    // convention as the main hospital dashboard page.
+    supabase.from("profiles").select("hospital_code").eq("id", user.id).maybeSingle(),
 
-  // These site_settings columns are new/migration-dependent -- isolated so
-  // a missing migration only disables Feature Control's effects, not the
-  // whole page.
-  const { data: settingsRow } = await supabase
-    .from("site_settings")
-    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
-    .maybeSingle();
+    // These site_settings columns are new/migration-dependent -- isolated
+    // so a missing migration only disables Feature Control's effects, not
+    // the whole page.
+    supabase
+      .from("site_settings")
+      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
+      .maybeSingle(),
+  ]);
   const adminSettings = parseAdminSettings(settingsRow);
 
   // Same array as the main hospital dashboard page's navItems, plus this

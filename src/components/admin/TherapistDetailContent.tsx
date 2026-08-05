@@ -31,84 +31,80 @@ import { JoinWindowProvider } from "@/lib/joinWindowContext";
 export default async function TherapistDetailContent({ id }: { id: string }) {
   const admin = createAdminClient();
 
-  // Isolated query, same migration-dependent convention as everything else
-  // on this page -- only feeds the Join button's window here, never blocks
-  // the rest of the detail page if the columns aren't migrated yet.
-  const { data: settingsRow } = await admin
-    .from("site_settings")
-    .select("join_window_minutes")
-    .maybeSingle();
-  const adminSettings = parseAdminSettings(settingsRow);
+  // Independent of each other -- run in parallel instead of one at a time.
+  // See admin/dashboard/page.tsx's identical Promise.all for the reasoning.
+  const [
+    { data: settingsRow },
+    { data: therapist },
+    { data: therapistCodeRow },
+    { data: displayContentRow },
+  ] = await Promise.all([
+    // Isolated query, same migration-dependent convention as everything
+    // else on this page -- only feeds the Join button's window here, never
+    // blocks the rest of the detail page if the columns aren't migrated yet.
+    admin.from("site_settings").select("join_window_minutes").maybeSingle(),
 
-  const { data: therapist } = await admin
-    .from("profiles")
-    .select(
-      "id, full_name, email, phone, avatar_url, active, approved, created_at, credentials, specialization, years_experience, bio, languages, revenue_share_percent, visible_on_team, rating_visible, on_leave"
-    )
-    .eq("id", id)
-    .eq("role", "therapist")
-    .single();
+    admin
+      .from("profiles")
+      .select(
+        "id, full_name, email, phone, avatar_url, active, approved, created_at, credentials, specialization, years_experience, bio, languages, revenue_share_percent, visible_on_team, rating_visible, on_leave"
+      )
+      .eq("id", id)
+      .eq("role", "therapist")
+      .single(),
+
+    // therapist_code is new/migration-dependent -- kept isolated (see
+    // sessionCode.ts's comment) so an unknown-column error here only
+    // degrades this one badge, not the whole page.
+    admin.from("profiles").select("therapist_code").eq("id", id).maybeSingle(),
+
+    // public_display_note is also new/migration-dependent (Feature 38) --
+    // same isolation reasoning as therapistCodeRow above.
+    admin.from("profiles").select("public_display_note").eq("id", id).maybeSingle(),
+  ]);
+  const adminSettings = parseAdminSettings(settingsRow);
 
   if (!therapist) {
     notFound();
   }
 
-  // therapist_code is new/migration-dependent -- kept isolated (see
-  // sessionCode.ts's comment) so an unknown-column error here only
-  // degrades this one badge, not the whole page.
-  const { data: therapistCodeRow } = await admin
-    .from("profiles")
-    .select("therapist_code")
-    .eq("id", id)
-    .maybeSingle();
-
-  // public_display_note is also new/migration-dependent (Feature 38) --
-  // same isolation reasoning as therapistCodeRow above.
-  const { data: displayContentRow } = await admin
-    .from("profiles")
-    .select("public_display_note")
-    .eq("id", id)
-    .maybeSingle();
-
-  const [{ data: note }, { data: rawAppointments }, { data: changeRequests }, { data: openPayoutRequests }] =
-    await Promise.all([
-      admin
-        .from("therapist_admin_notes")
-        .select("note, temp_password, temp_password_set_at")
-        .eq("therapist_id", id)
-        .maybeSingle(),
-      admin
-        .from("appointments")
-        .select(
-          "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note"
-        )
-        .eq("therapist_id", id)
-        .order("created_at", { ascending: false }),
-      admin
-        .from("profile_change_requests")
-        .select("id, status, admin_notes, changes, created_at")
-        .eq("user_id", id)
-        .order("created_at", { ascending: false }),
-      admin
-        .from("therapist_payout_requests")
-        .select("id")
-        .eq("therapist_id", id)
-        .in("status", ["pending", "reviewing"]),
-    ]);
-
-  // session_code is also new/migration-dependent -- same isolation
-  // reasoning as therapistCodeRow above.
-  const { data: sessionCodeLinks } = await admin
-    .from("appointments")
-    .select("id, session_code")
-    .eq("therapist_id", id);
-
-  // meet_link is also new/migration-dependent -- same isolation reasoning
-  // as sessionCodeLinks above.
-  const { data: meetLinkRows } = await admin
-    .from("appointments")
-    .select("id, meet_link")
-    .eq("therapist_id", id);
+  const [
+    { data: note },
+    { data: rawAppointments },
+    { data: changeRequests },
+    { data: openPayoutRequests },
+    { data: sessionCodeLinks },
+    { data: meetLinkRows },
+  ] = await Promise.all([
+    admin
+      .from("therapist_admin_notes")
+      .select("note, temp_password, temp_password_set_at")
+      .eq("therapist_id", id)
+      .maybeSingle(),
+    admin
+      .from("appointments")
+      .select(
+        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note"
+      )
+      .eq("therapist_id", id)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("profile_change_requests")
+      .select("id, status, admin_notes, changes, created_at")
+      .eq("user_id", id)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("therapist_payout_requests")
+      .select("id")
+      .eq("therapist_id", id)
+      .in("status", ["pending", "reviewing"]),
+    // session_code is also new/migration-dependent -- same isolation
+    // reasoning as therapistCodeRow above.
+    admin.from("appointments").select("id, session_code").eq("therapist_id", id),
+    // meet_link is also new/migration-dependent -- same isolation reasoning
+    // as sessionCodeLinks above.
+    admin.from("appointments").select("id, meet_link").eq("therapist_id", id),
+  ]);
 
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),

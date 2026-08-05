@@ -1405,3 +1405,17 @@ begin
   alter publication supabase_realtime add table profile_change_requests;
 exception when duplicate_object then null;
 end $$;
+
+-- Performance: non-unique indexes for the app's highest-traffic filters/
+-- joins. Every one of these columns was previously scanned sequentially --
+-- .eq("role", ...) alone appears at ~28 call sites across the codebase.
+create index if not exists appointments_patient_id_idx on appointments (patient_id);
+create index if not exists appointments_therapist_id_idx on appointments (therapist_id);
+create index if not exists appointments_status_idx on appointments (status);
+create index if not exists appointments_slot_time_idx on appointments (slot_time);
+create index if not exists profiles_role_idx on profiles (role);
+create index if not exists profiles_role_approved_idx on profiles (role, approved);
+create index if not exists profiles_referred_by_hospital_id_idx on profiles (referred_by_hospital_id);
+create index if not exists patient_referrals_hospital_id_idx on patient_referrals (hospital_id);
+create index if not exists patient_referrals_status_idx on patient_referrals (status);
+create index if not exists therapist_payout_requests_therapist_id_idx on therapist_payout_requests (therapist_id);

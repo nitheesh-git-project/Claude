@@ -49,81 +49,96 @@ export default async function TherapistDashboardPage() {
     return null;
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, credentials, avatar_url, revenue_share_percent, rating_visible, timezone")
-    .eq("id", user.id)
-    .single();
+  // All of these are independent of each other -- run in parallel instead
+  // of one at a time, since router.refresh() re-runs this whole page on
+  // every button click (Complete Session, Mark No-Show, availability edits,
+  // payout requests). See admin/dashboard/page.tsx's identical Promise.all
+  // for the reasoning. upcomingOverrides and patients further below stay
+  // sequential -- they genuinely need profile.timezone and appointments'
+  // patient_id list to resolve first.
+  const [
+    { data: profile },
+    { data: settingsRow },
+    { data: therapistCodeRow },
+    { data: onLeaveProfile },
+    { data: availabilitySlots },
+    { data: rawAppointments },
+    { data: sessionCodeLinks },
+    { data: meetLinkRows },
+    { data: payoutBatches },
+    { data: treatmentCategories },
+    { data: payoutRequests },
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, credentials, avatar_url, revenue_share_percent, rating_visible, timezone")
+      .eq("id", user.id)
+      .single(),
 
-  // These site_settings columns are new/migration-dependent -- isolated so
-  // a missing migration only disables Feature Control's effects, not the
-  // whole page.
-  const { data: settingsRow } = await supabase
-    .from("site_settings")
-    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
-    .maybeSingle();
+    // These site_settings columns are new/migration-dependent -- isolated
+    // so a missing migration only disables Feature Control's effects, not
+    // the whole page.
+    supabase
+      .from("site_settings")
+      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
+      .maybeSingle(),
+
+    // therapist_code is new/migration-dependent -- kept isolated for the
+    // same reason as onLeaveProfile below (see its own comment).
+    supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
+
+    // Kept as its own query rather than folded into the profile select
+    // above -- on_leave is new and migration-dependent, and that select
+    // feeds the whole page header (name, credentials, rating). An unknown-
+    // column error there would blank the entire dashboard; isolated, only
+    // the On Leave toggle degrades (defaults to "available") until the
+    // migration runs.
+    supabase.from("profiles").select("on_leave").eq("id", user.id).single(),
+
+    supabase.from("therapist_availability_template").select("day_of_week, hour").eq("therapist_id", user.id),
+
+    supabase
+      .from("appointments")
+      .select(
+        "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id"
+      )
+      .eq("therapist_id", user.id)
+      .order("created_at", { ascending: false }),
+
+    // session_code is also new/migration-dependent -- same isolation
+    // reasoning as therapistCodeRow above.
+    supabase.from("appointments").select("id, session_code").eq("therapist_id", user.id),
+
+    // meet_link is also new/migration-dependent -- same isolation reasoning
+    // as sessionCodeLinks above.
+    supabase.from("appointments").select("id, meet_link").eq("therapist_id", user.id),
+
+    // Kept as its own query rather than folded into the profile select for
+    // the same reason as onLeaveProfile -- therapist_payout_batches is new
+    // and migration-dependent, and an unknown-table error here should only
+    // degrade the Payout Receipts section (empty until the migration runs),
+    // not blank the whole dashboard.
+    supabase
+      .from("therapist_payout_batches")
+      .select("id, therapist_id, amount_paise, method, note, created_at")
+      .eq("therapist_id", user.id)
+      .order("created_at", { ascending: false }),
+
+    supabase.from("treatment_categories").select("id, title"),
+
+    // therapist_payout_requests is new/migration-dependent -- kept isolated
+    // (it's its own brand-new table, so this is inherently its own query
+    // already) so an unknown-table error here only empties the Earnings
+    // tab's pending-request state, not the whole dashboard.
+    supabase
+      .from("therapist_payout_requests")
+      .select("id, requested_amount_paise, status, requested_at, acknowledged_at")
+      .eq("therapist_id", user.id)
+      .order("requested_at", { ascending: false }),
+  ]);
+
   const adminSettings = parseAdminSettings(settingsRow);
-
-  // therapist_code is new/migration-dependent -- kept isolated for the same
-  // reason as onLeaveProfile below (see its own comment).
-  const { data: therapistCodeRow } = await supabase
-    .from("profiles")
-    .select("therapist_code")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  // Kept as its own query rather than folded into the select above --
-  // on_leave is new and migration-dependent, and the query above feeds the
-  // whole page header (name, credentials, rating). An unknown-column error
-  // there would blank the entire dashboard; isolated, only the On Leave
-  // toggle degrades (defaults to "available") until the migration runs.
-  const { data: onLeaveProfile } = await supabase
-    .from("profiles")
-    .select("on_leave")
-    .eq("id", user.id)
-    .single();
-
-  const { data: availabilitySlots } = await supabase
-    .from("therapist_availability_template")
-    .select("day_of_week, hour")
-    .eq("therapist_id", user.id);
-
-  // Computed in the therapist's OWN timezone, not the server's UTC clock --
-  // override dates are plain calendar dates meant to match the therapist's
-  // own local "today" (see schema.sql's comment on this table). A UTC-based
-  // cutoff would show a just-past override as "upcoming" for hours after
-  // local midnight in timezones ahead of UTC, or hide a genuinely-still-
-  // upcoming one in timezones behind UTC.
-  const todayKey = new Date().toLocaleDateString("en-CA", {
-    timeZone: profile?.timezone || "UTC",
-  });
-  const { data: upcomingOverrides } = await supabase
-    .from("therapist_availability_override")
-    .select("date, hour, available, note")
-    .eq("therapist_id", user.id)
-    .gte("date", todayKey);
-
-  const { data: rawAppointments } = await supabase
-    .from("appointments")
-    .select(
-      "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id"
-    )
-    .eq("therapist_id", user.id)
-    .order("created_at", { ascending: false });
-
-  // session_code is also new/migration-dependent -- same isolation
-  // reasoning as therapistCodeRow above.
-  const { data: sessionCodeLinks } = await supabase
-    .from("appointments")
-    .select("id, session_code")
-    .eq("therapist_id", user.id);
-
-  // meet_link is also new/migration-dependent -- same isolation reasoning
-  // as sessionCodeLinks above.
-  const { data: meetLinkRows } = await supabase
-    .from("appointments")
-    .select("id, meet_link")
-    .eq("therapist_id", user.id);
+  const categoryTitleById = new Map((treatmentCategories ?? []).map((c) => [c.id, c.title]));
 
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
@@ -132,17 +147,6 @@ export default async function TherapistDashboardPage() {
   const sessionCodeByAppointmentId = Object.fromEntries(
     appointments.map((a) => [a.id, a.session_code])
   );
-
-  // Kept as its own query rather than folded into the select above for the
-  // same reason as onLeaveProfile -- therapist_payout_batches is new and
-  // migration-dependent, and an unknown-table error here should only
-  // degrade the Payout Receipts section (empty until the migration runs),
-  // not blank the whole dashboard.
-  const { data: payoutBatches } = await supabase
-    .from("therapist_payout_batches")
-    .select("id, therapist_id, amount_paise, method, note, created_at")
-    .eq("therapist_id", user.id)
-    .order("created_at", { ascending: false });
 
   // What patients rated THIS therapist -- the therapist's own standing,
   // shown to them regardless of whether it's currently visible to the
@@ -155,6 +159,16 @@ export default async function TherapistDashboardPage() {
     }))
   );
 
+  // Computed in the therapist's OWN timezone, not the server's UTC clock --
+  // override dates are plain calendar dates meant to match the therapist's
+  // own local "today" (see schema.sql's comment on this table). A UTC-based
+  // cutoff would show a just-past override as "upcoming" for hours after
+  // local midnight in timezones ahead of UTC, or hide a genuinely-still-
+  // upcoming one in timezones behind UTC.
+  const todayKey = new Date().toLocaleDateString("en-CA", {
+    timeZone: profile?.timezone || "UTC",
+  });
+
   // A therapist can read their own appointment rows via RLS, but not the
   // linked patients' profiles (that policy only allows a user to read
   // their own row) — so their patients' names/contact info have to be
@@ -162,13 +176,18 @@ export default async function TherapistDashboardPage() {
   // needed to actually run the session.
   const patientIds = [...new Set((appointments ?? []).map((a) => a.patient_id))];
   const admin = createAdminClient();
-  const { data: patients } =
+  const [{ data: upcomingOverrides }, { data: patients }] = await Promise.all([
+    supabase
+      .from("therapist_availability_override")
+      .select("date, hour, available, note")
+      .eq("therapist_id", user.id)
+      .gte("date", todayKey),
     patientIds.length > 0
-      ? await admin
-          .from("profiles")
-          .select("id, full_name, phone, email")
-          .in("id", patientIds)
-      : { data: [] as { id: string; full_name: string; phone: string | null; email: string }[] };
+      ? admin.from("profiles").select("id, full_name, phone, email").in("id", patientIds)
+      : Promise.resolve({
+          data: [] as { id: string; full_name: string; phone: string | null; email: string }[],
+        }),
+  ]);
   const patientMap = new Map((patients ?? []).map((p) => [p.id, p]));
   const patientNameById = new Map(
     (patients ?? []).map((p) => [p.id, p.full_name ?? "Unknown patient"])
@@ -179,21 +198,6 @@ export default async function TherapistDashboardPage() {
     appointments ?? [],
     patientNameById
   );
-
-  const { data: treatmentCategories } = await supabase
-    .from("treatment_categories")
-    .select("id, title");
-  const categoryTitleById = new Map((treatmentCategories ?? []).map((c) => [c.id, c.title]));
-
-  // therapist_payout_requests is new/migration-dependent -- kept isolated
-  // (it's its own brand-new table, so this is inherently its own query
-  // already) so an unknown-table error here only empties the Earnings
-  // tab's pending-request state, not the whole dashboard.
-  const { data: payoutRequests } = await supabase
-    .from("therapist_payout_requests")
-    .select("id, requested_amount_paise, status, requested_at, acknowledged_at")
-    .eq("therapist_id", user.id)
-    .order("requested_at", { ascending: false });
 
   const earningRows = computeTherapistEarningRows(
     appointments ?? [],

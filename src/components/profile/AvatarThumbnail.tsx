@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 function initialsOf(name: string) {
   return name
     .split(" ")
@@ -25,8 +27,13 @@ export default function AvatarThumbnail({
       className={`rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold overflow-hidden shrink-0 ${className}`}
     >
       {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt="" className="w-full h-full object-cover" />
+        <Image
+          src={url}
+          alt=""
+          width={size}
+          height={size}
+          className="w-full h-full object-cover"
+        />
       ) : (
         <span style={{ fontSize: size * 0.4 }}>{initialsOf(name)}</span>
       )}

@@ -28,78 +28,73 @@ import { JoinWindowProvider } from "@/lib/joinWindowContext";
 export default async function PatientDetailContent({ id }: { id: string }) {
   const admin = createAdminClient();
 
-  // Isolated query, same migration-dependent convention as everything else
-  // on this page -- only feeds the Join button's window here, never blocks
-  // the rest of the detail page if the columns aren't migrated yet.
-  const { data: settingsRow } = await admin
-    .from("site_settings")
-    .select("join_window_minutes")
-    .maybeSingle();
-  const adminSettings = parseAdminSettings(settingsRow);
+  // Independent of each other -- run in parallel instead of one at a time.
+  // See admin/dashboard/page.tsx's identical Promise.all for the reasoning.
+  const [{ data: settingsRow }, { data: patient }, { data: patientCodeRow }] = await Promise.all([
+    // Isolated query, same migration-dependent convention as everything
+    // else on this page -- only feeds the Join button's window here, never
+    // blocks the rest of the detail page if the columns aren't migrated yet.
+    admin.from("site_settings").select("join_window_minutes").maybeSingle(),
 
-  const { data: patient } = await admin
-    .from("profiles")
-    .select(
-      "id, full_name, email, phone, avatar_url, active, created_at, referred_by_hospital_id, emergency_contact_name, emergency_contact_phone, date_of_birth, gender, preferred_language"
-    )
-    .eq("id", id)
-    .eq("role", "patient")
-    .single();
+    admin
+      .from("profiles")
+      .select(
+        "id, full_name, email, phone, avatar_url, active, created_at, referred_by_hospital_id, emergency_contact_name, emergency_contact_phone, date_of_birth, gender, preferred_language"
+      )
+      .eq("id", id)
+      .eq("role", "patient")
+      .single(),
+
+    // patient_code is new/migration-dependent -- kept isolated (see
+    // sessionCode.ts's comment) so an unknown-column error here only
+    // degrades this one badge, not the whole page.
+    admin.from("profiles").select("patient_code").eq("id", id).maybeSingle(),
+  ]);
+  const adminSettings = parseAdminSettings(settingsRow);
 
   if (!patient) {
     notFound();
   }
 
-  // patient_code is new/migration-dependent -- kept isolated (see
-  // sessionCode.ts's comment) so an unknown-column error here only
-  // degrades this one badge, not the whole page.
-  const { data: patientCodeRow } = await admin
-    .from("profiles")
-    .select("patient_code")
-    .eq("id", id)
-    .maybeSingle();
-
-  const [{ data: rawAppointments }, { data: note }, { data: changeRequests }, { data: hospital }] =
-    await Promise.all([
-      admin
-        .from("appointments")
-        .select(
-          "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, razorpay_payment_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at"
-        )
-        .eq("patient_id", id)
-        .order("created_at", { ascending: false }),
-      admin
-        .from("patient_admin_notes")
-        .select("note, temp_password, temp_password_set_at")
-        .eq("patient_id", id)
-        .maybeSingle(),
-      admin
-        .from("profile_change_requests")
-        .select("id, status, admin_notes, changes, created_at")
-        .eq("user_id", id)
-        .order("created_at", { ascending: false }),
-      patient.referred_by_hospital_id
-        ? admin
-            .from("profiles")
-            .select("organization_name")
-            .eq("id", patient.referred_by_hospital_id)
-            .single()
-        : Promise.resolve({ data: null }),
-    ]);
-
-  // session_code is also new/migration-dependent -- same isolation
-  // reasoning as patientCodeRow above.
-  const { data: sessionCodeLinks } = await admin
-    .from("appointments")
-    .select("id, session_code")
-    .eq("patient_id", id);
-
-  // meet_link is also new/migration-dependent -- same isolation reasoning
-  // as sessionCodeLinks above.
-  const { data: meetLinkRows } = await admin
-    .from("appointments")
-    .select("id, meet_link")
-    .eq("patient_id", id);
+  const [
+    { data: rawAppointments },
+    { data: note },
+    { data: changeRequests },
+    { data: hospital },
+    { data: sessionCodeLinks },
+    { data: meetLinkRows },
+  ] = await Promise.all([
+    admin
+      .from("appointments")
+      .select(
+        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, razorpay_payment_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at"
+      )
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("patient_admin_notes")
+      .select("note, temp_password, temp_password_set_at")
+      .eq("patient_id", id)
+      .maybeSingle(),
+    admin
+      .from("profile_change_requests")
+      .select("id, status, admin_notes, changes, created_at")
+      .eq("user_id", id)
+      .order("created_at", { ascending: false }),
+    patient.referred_by_hospital_id
+      ? admin
+          .from("profiles")
+          .select("organization_name")
+          .eq("id", patient.referred_by_hospital_id)
+          .single()
+      : Promise.resolve({ data: null }),
+    // session_code is also new/migration-dependent -- same isolation
+    // reasoning as patientCodeRow above.
+    admin.from("appointments").select("id, session_code").eq("patient_id", id),
+    // meet_link is also new/migration-dependent -- same isolation reasoning
+    // as sessionCodeLinks above.
+    admin.from("appointments").select("id, meet_link").eq("patient_id", id),
+  ]);
 
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),

@@ -24,51 +24,58 @@ export default async function PatientProfilePage() {
     return null;
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select(
-      "full_name, email, avatar_url, phone, date_of_birth, gender, emergency_contact_name, emergency_contact_phone, preferred_language"
-    )
-    .eq("id", user.id)
-    .single();
+  // Independent of each other -- run in parallel instead of one at a time.
+  // See admin/dashboard/page.tsx's identical Promise.all for the reasoning.
+  const [
+    { data: profile },
+    { data: patientCodeRow },
+    { data: changeRequests },
+    { count: ownedPackagesCount },
+    { count: availablePackagesCount },
+    { data: settingsRow },
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(
+        "full_name, email, avatar_url, phone, date_of_birth, gender, emergency_contact_name, emergency_contact_phone, preferred_language"
+      )
+      .eq("id", user.id)
+      .single(),
 
-  // patient_code is new/migration-dependent -- kept isolated (see
-  // sessionCode.ts's comment / this codebase's established convention) so
-  // an unknown-column error here only degrades this one badge.
-  const { data: patientCodeRow } = await supabase
-    .from("profiles")
-    .select("patient_code")
-    .eq("id", user.id)
-    .maybeSingle();
+    // patient_code is new/migration-dependent -- kept isolated (see
+    // sessionCode.ts's comment / this codebase's established convention) so
+    // an unknown-column error here only degrades this one badge.
+    supabase.from("profiles").select("patient_code").eq("id", user.id).maybeSingle(),
 
-  const { data: changeRequests } = await supabase
-    .from("profile_change_requests")
-    .select("id, status, admin_notes, changes, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+    supabase
+      .from("profile_change_requests")
+      .select("id, status, admin_notes, changes, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+
+    // Cheap existence-only checks, not the full rows the dashboard page
+    // itself fetches -- this page only needs to know whether to show these
+    // two sidebar nav items, so the dashboard page and this one always agree
+    // on what's in the sidebar (see buildPatientNavItems).
+    supabase
+      .from("patient_package_purchases")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", user.id)
+      .eq("payment_status", "paid"),
+    supabase
+      .from("treatment_category_packages")
+      .select("id", { count: "exact", head: true })
+      .eq("active", true),
+
+    // These site_settings columns are new/migration-dependent -- isolated
+    // so a missing migration only disables Feature Control's effects, not
+    // the whole page.
+    supabase
+      .from("site_settings")
+      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
+      .maybeSingle(),
+  ]);
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
-
-  // Cheap existence-only checks, not the full rows the dashboard page
-  // itself fetches -- this page only needs to know whether to show these
-  // two sidebar nav items, so the dashboard page and this one always agree
-  // on what's in the sidebar (see buildPatientNavItems).
-  const { count: ownedPackagesCount } = await supabase
-    .from("patient_package_purchases")
-    .select("id", { count: "exact", head: true })
-    .eq("patient_id", user.id)
-    .eq("payment_status", "paid");
-  const { count: availablePackagesCount } = await supabase
-    .from("treatment_category_packages")
-    .select("id", { count: "exact", head: true })
-    .eq("active", true);
-
-  // These site_settings columns are new/migration-dependent -- isolated so
-  // a missing migration only disables Feature Control's effects, not the
-  // whole page.
-  const { data: settingsRow } = await supabase
-    .from("site_settings")
-    .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
-    .maybeSingle();
   const adminSettings = parseAdminSettings(settingsRow);
 
   const navItems = buildPatientNavItems({
