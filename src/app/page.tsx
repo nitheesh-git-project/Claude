@@ -9,9 +9,9 @@ import {
   AnimatedCard,
 } from "@/components/motion/primitives";
 import SpineStory from "@/components/home/SpineStory";
-import HeroPanel from "@/components/home/HeroPanel";
 import JourneySteps from "@/components/home/JourneySteps";
 import CareAreas from "@/components/home/CareAreas";
+import ParkinsonsCare from "@/components/home/ParkinsonsCare";
 import CareIllustration from "@/components/visuals/CareIllustration";
 
 const PROGRAM_ART = ["neckback", "mobility", "sports", "ergonomics"] as const;
@@ -128,9 +128,12 @@ export default async function Home() {
           </Reveal>
 
           <Reveal delay={0.15}>
-            <HeroPanel
-              priceLabel={`From ₹${(startingPricePaise / 100).toLocaleString("en-IN")}`}
-            />
+            <div>
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-teal-700">
+                Booking to recovery
+              </p>
+              <JourneySteps variant="compact" />
+            </div>
           </Reveal>
         </div>
       </div>
@@ -152,28 +155,7 @@ export default async function Home() {
       {/* SCROLL STORY — what we treat, read off the spine itself */}
       <SpineStory />
 
-      {/* JOURNEY — interactive, so the whole path can be explored in place */}
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <Reveal className="mx-auto mb-12 max-w-2xl text-center">
-          <span className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
-            Booking to recovery
-          </span>
-          <h2 className="font-display mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
-            Three steps, and you know exactly what each one involves
-          </h2>
-          <p className="mt-3 text-sm text-slate-600">
-            Select a step to see what actually happens in it.
-          </p>
-        </Reveal>
-        <Reveal delay={0.05}>
-          <JourneySteps />
-        </Reveal>
-        <Reveal delay={0.1} className="mt-12 text-center">
-          <MotionButton href="/how-it-works" variant="secondary">
-            Walk through a full session <i className="fa-solid fa-arrow-right text-xs" />
-          </MotionButton>
-        </Reveal>
-      </div>
+      <ParkinsonsCare />
 
       {/* BREADTH OF CARE — credibility across more than one complaint */}
       <div className="border-y border-slate-100 bg-slate-50 py-20">

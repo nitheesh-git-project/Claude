@@ -70,14 +70,30 @@ const STEPS: Step[] = [
   },
 ];
 
-export default function JourneySteps() {
+export default function JourneySteps({
+  variant = "full",
+}: {
+  /** "compact" stacks selector above panel, for narrow column placement. */
+  variant?: "full" | "compact";
+} = {}) {
   const [active, setActive] = useState(0);
   const step = STEPS[active];
+  const compact = variant === "compact";
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-12">
+    <div
+      className={
+        compact
+          ? "flex flex-col gap-4"
+          : "grid gap-8 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-12"
+      }
+    >
       {/* Selector */}
-      <div role="tablist" aria-label="How the process works" className="flex flex-col gap-3">
+      <div
+        role="tablist"
+        aria-label="How the process works"
+        className={compact ? "grid grid-cols-3 gap-2" : "flex flex-col gap-3"}
+      >
         {STEPS.map((s, i) => {
           const selected = i === active;
           return (
@@ -88,39 +104,51 @@ export default function JourneySteps() {
               aria-selected={selected}
               aria-controls={`journey-panel-${s.id}`}
               onClick={() => setActive(i)}
-              className={`group relative cursor-pointer rounded-2xl border p-5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+              className={`group relative cursor-pointer rounded-2xl border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+                compact ? "p-3" : "p-5"
+              } ${
                 selected
                   ? "border-teal-600 bg-white shadow-lg shadow-slate-900/5"
                   : "border-slate-200 bg-white/60 hover:border-teal-300 hover:bg-white"
               }`}
             >
-              {selected && (
+              {selected && !compact && (
                 <motion.span
                   layoutId="journey-active-rail"
                   className="absolute inset-y-4 left-0 w-1 rounded-full bg-teal-600"
                   transition={{ type: "spring", stiffness: 420, damping: 34 }}
                 />
               )}
-              <div className="flex items-center gap-4">
+              <div className={compact ? "flex flex-col gap-1" : "flex items-center gap-4"}>
                 <span
-                  className={`font-display text-2xl font-extrabold transition-colors ${
+                  className={`font-display font-extrabold transition-colors ${
+                    compact ? "text-lg" : "text-2xl"
+                  } ${
                     selected ? "text-teal-700" : "text-slate-200 group-hover:text-slate-300"
                   }`}
                 >
                   {s.num}
                 </span>
                 <span className="min-w-0">
-                  <span className="font-display block text-base font-bold text-slate-900">
+                  <span
+                    className={`font-display block font-bold text-slate-900 ${
+                      compact ? "text-xs leading-snug" : "text-base"
+                    }`}
+                  >
                     {s.title}
                   </span>
-                  <span className="mt-0.5 block text-xs text-slate-500">{s.short}</span>
+                  {!compact && (
+                    <span className="mt-0.5 block text-xs text-slate-500">{s.short}</span>
+                  )}
                 </span>
+                {!compact && (
                 <i
                   aria-hidden="true"
                   className={`fa-solid fa-arrow-right ml-auto shrink-0 text-xs transition-all ${
                     selected ? "text-teal-600" : "-translate-x-1 text-slate-300 opacity-0 group-hover:translate-x-0 group-hover:opacity-100"
                   }`}
                 />
+                )}
               </div>
             </button>
           );
@@ -128,7 +156,7 @@ export default function JourneySteps() {
       </div>
 
       {/* Detail panel */}
-      <div className="relative min-h-[21rem]">
+      <div className={compact ? "relative min-h-[19rem]" : "relative min-h-[21rem]"}>
         <AnimatePresence mode="wait">
           <motion.div
             key={step.id}
@@ -139,26 +167,30 @@ export default function JourneySteps() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.35, ease: EASE }}
-            className="h-full rounded-2xl border border-slate-200 bg-white p-7 shadow-sm sm:p-8"
+            className={`h-full rounded-2xl border border-slate-200 bg-white shadow-sm ${
+              compact ? "p-5" : "p-7 sm:p-8"
+            }`}
           >
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-              <div className="h-28 w-36 shrink-0 rounded-xl bg-teal-50/70 p-3">
+            <div className={`flex gap-5 ${compact ? "flex-row items-start" : "flex-col sm:flex-row sm:items-start sm:gap-6"}`}>
+              <div className={`shrink-0 rounded-xl bg-teal-50/70 p-3 ${compact ? "h-20 w-24" : "h-28 w-36"}`}>
                 <CareIllustration id={step.illustration} className="h-full w-full text-teal-700" />
               </div>
               <div className="min-w-0">
                 <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700">
                   Step {step.num}
                 </span>
-                <h3 className="font-display mt-1 text-xl font-bold text-slate-900 sm:text-2xl">
+                <h3 className={`font-display mt-1 font-bold text-slate-900 ${compact ? "text-lg" : "text-xl sm:text-2xl"}`}>
                   {step.title}
                 </h3>
-                <p className="mt-3 text-sm leading-relaxed text-slate-600">{step.detail}</p>
+                <p className={`mt-2 leading-relaxed text-slate-600 ${compact ? "text-xs" : "mt-3 text-sm"}`}>
+                  {step.detail}
+                </p>
               </div>
             </div>
 
-            <ul className="mt-6 grid gap-2.5 border-t border-slate-100 pt-6 sm:grid-cols-2">
+            <ul className={`grid gap-2.5 border-t border-slate-100 ${compact ? "mt-4 pt-4" : "mt-6 pt-6 sm:grid-cols-2"}`}>
               {step.bullets.map((b) => (
-                <li key={b} className="flex items-start gap-2.5 text-sm text-slate-700">
+                <li key={b} className={`flex items-start gap-2.5 text-slate-700 ${compact ? "text-xs" : "text-sm"}`}>
                   <i aria-hidden="true" className="fa-solid fa-circle-check mt-0.5 shrink-0 text-teal-600" />
                   {b}
                 </li>

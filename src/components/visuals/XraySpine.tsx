@@ -72,7 +72,7 @@ function ExposedVertebra({
 
   return (
     <motion.g style={{ opacity }}>
-      <BoneGroup v={v} fill={`url(#${gradientId})`} stroke="#eaf7ff" strokeWidth={1.15} />
+      <BoneGroup v={v} fill={`url(#${gradientId})`} stroke="#f4f8ff" strokeWidth={1.3} />
     </motion.g>
   );
 }
@@ -97,7 +97,7 @@ export default function XraySpine({
   const uid = useId().replace(/:/g, "");
   const id = (name: string) => `${name}-${uid}`;
 
-  const rotateY = useTransform(progress, [0, 1], reduced ? [0, 0] : [-9, 7]);
+  const rotateY = useTransform(progress, [0, 1], reduced ? [0, 0] : [-19, 15]);
   const scanY = useTransform(progress, [0, 1], [VIEWBOX.height * 0.05, VIEWBOX.height * 0.9]);
   const scanOpacity = useTransform(progress, [0, 0.04, 0.96, 1], [0, 1, 1, 0]);
 
@@ -120,26 +120,27 @@ export default function XraySpine({
         <defs>
           {/* Cancellous interior reads dimmer than the cortical shell. */}
           <linearGradient id={id("bone")} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#dcf1fb" stopOpacity="0.95" />
-            <stop offset="42%" stopColor="#9dc9e0" stopOpacity="0.62" />
-            <stop offset="100%" stopColor="#e8f7ff" stopOpacity="0.9" />
+            <stop offset="0%" stopColor="#f2f6ff" stopOpacity="0.98" />
+            <stop offset="38%" stopColor="#b9c8ee" stopOpacity="0.72" />
+            <stop offset="72%" stopColor="#8fa3d8" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#eef3ff" stopOpacity="0.95" />
           </linearGradient>
           <linearGradient id={id("boneDim")} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#6d9fbb" stopOpacity="0.5" />
-            <stop offset="45%" stopColor="#4b7891" stopOpacity="0.32" />
-            <stop offset="100%" stopColor="#7cb0cc" stopOpacity="0.48" />
+            <stop offset="0%" stopColor="#8b9bc9" stopOpacity="0.5" />
+            <stop offset="45%" stopColor="#46557f" stopOpacity="0.42" />
+            <stop offset="100%" stopColor="#8d9dcb" stopOpacity="0.6" />
           </linearGradient>
 
-          <radialGradient id={id("plate")} cx="0.5" cy="0.42" r="0.75">
-            <stop offset="0%" stopColor="#132433" />
-            <stop offset="70%" stopColor="#0a1420" />
-            <stop offset="100%" stopColor="#050b12" />
+          <radialGradient id={id("plate")} cx="0.5" cy="0.42" r="0.8">
+            <stop offset="0%" stopColor="#05070d" />
+            <stop offset="65%" stopColor="#020409" />
+            <stop offset="100%" stopColor="#000000" />
           </radialGradient>
 
           <linearGradient id={id("sweep")} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#7fdcff" stopOpacity="0" />
-            <stop offset="50%" stopColor="#bdefff" stopOpacity="0.85" />
-            <stop offset="100%" stopColor="#7fdcff" stopOpacity="0" />
+            <stop offset="0%" stopColor="#a9beff" stopOpacity="0" />
+            <stop offset="50%" stopColor="#dbe6ff" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#a9beff" stopOpacity="0" />
           </linearGradient>
 
           <filter id={id("bloom")} x="-30%" y="-12%" width="160%" height="124%">
@@ -164,11 +165,14 @@ export default function XraySpine({
         )}
 
         {/* Soft halo around the whole column, drawn once. */}
-        <g filter={`url(#${id("bloom")})`} opacity={0.42}>
+        <g filter={`url(#${id("bloom")})`} opacity={0.55}>
           {VERTEBRAE.map((v) => (
-            <BoneGroup key={`bloom-${v.index}`} v={v} fill="#4aa8cc" stroke="#4aa8cc" strokeWidth={2} />
+            <BoneGroup key={`bloom-${v.index}`} v={v} fill="#7f97e0" stroke="#7f97e0" strokeWidth={2.4} />
           ))}
-          <path d={SACRUM.path} fill="#4aa8cc" stroke="#4aa8cc" strokeWidth={2} />
+          <>
+            <path d={SACRUM.path} fill="#7f97e0" stroke="#7f97e0" strokeWidth={2.4} />
+            <path d={SACRUM.coccyx} fill="#7f97e0" stroke="#7f97e0" strokeWidth={2.4} />
+          </>
         </g>
 
         {/* Unexposed baseline */}
@@ -178,15 +182,22 @@ export default function XraySpine({
               key={`base-${v.index}`}
               v={v}
               fill={`url(#${id("boneDim")})`}
-              stroke="#8fc3dd"
-              strokeWidth={0.9}
+              stroke="#94a6d6"
+              strokeWidth={1}
             />
           ))}
           <path
             d={SACRUM.path}
             fill={`url(#${id("boneDim")})`}
-            stroke="#8fc3dd"
-            strokeWidth={0.9}
+            stroke="#94a6d6"
+            strokeWidth={1}
+            strokeLinejoin="round"
+          />
+          <path
+            d={SACRUM.coccyx}
+            fill={`url(#${id("boneDim")})`}
+            stroke="#94a6d6"
+            strokeWidth={1}
             strokeLinejoin="round"
           />
         </g>
@@ -198,9 +209,9 @@ export default function XraySpine({
             cx={d.cx}
             cy={d.cy}
             rx={d.rx}
-            ry={Math.max(1.4, d.ry)}
-            fill="#040a12"
-            opacity={0.55}
+            ry={Math.min(3.2, Math.max(1.2, d.ry))}
+            fill="#000000"
+            opacity={0.6}
           />
         ))}
 
@@ -225,7 +236,7 @@ export default function XraySpine({
             fill={`url(#${id("sweep")})`}
             opacity={0.24}
           />
-          <rect x={6} y={-0.6} width={VIEWBOX.width - 12} height={1.2} fill="#cdf2ff" opacity={0.85} />
+          <rect x={6} y={-0.6} width={VIEWBOX.width - 12} height={1.2} fill="#dee8ff" opacity={0.85} />
         </motion.g>
         )}
 

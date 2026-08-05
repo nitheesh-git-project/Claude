@@ -126,6 +126,25 @@ function facetPath(w: number, h: number, arch: number, up: boolean): string {
   ].join(" ");
 }
 
+/**
+ * Transverse process pair. In a slightly-rotated lateral view both sides
+ * are visible, offset from each other — that overlap is what reads as
+ * depth rather than a flat silhouette.
+ */
+function transversePath(w: number, h: number, arch: number, near: boolean): string {
+  const px = -w / 2 - arch * 0.55;
+  const len = w * (near ? 0.5 : 0.4);
+  const drop = near ? h * 0.06 : -h * 0.12;
+  const thick = h * (near ? 0.15 : 0.12);
+  return [
+    `M ${q(px)} ${q(drop - thick)}`,
+    `Q ${q(px - len * 0.6)} ${q(drop - thick * 1.1)} ${q(px - len)} ${q(drop - thick * 0.2)}`,
+    `Q ${q(px - len * 1.08)} ${q(drop + thick * 0.4)} ${q(px - len * 0.92)} ${q(drop + thick)}`,
+    `Q ${q(px - len * 0.5)} ${q(drop + thick * 1.2)} ${q(px)} ${q(drop + thick)}`,
+    "Z",
+  ].join(" ");
+}
+
 /** Spinous process — long and steeply raked in the thoracic spine. */
 function spinousPath(w: number, h: number, arch: number, rake: number, len: number): string {
   const baseX = -w / 2 - arch * 0.9;
@@ -179,6 +198,8 @@ export const VERTEBRAE: Vertebra[] = Array.from({ length: VERTEBRA_COUNT }, (_, 
     paths: [
       bodyPath(width, height),
       archPath(width, height, arch),
+      transversePath(width, height, arch, false),
+      transversePath(width, height, arch, true),
       facetPath(width, height, arch, true),
       facetPath(width, height, arch, false),
       spinousPath(width, height, arch, rake, spineLen),
@@ -199,12 +220,20 @@ export const DISCS = VERTEBRAE.slice(0, -1).map((a, i) => {
   };
 });
 
-/** Sacrum, anchoring the base of the column. */
+/** Sacrum and coccyx, anchoring the base of the column. */
 export const SACRUM = (() => {
   const last = VERTEBRAE[VERTEBRA_COUNT - 1];
   const w = last.width * 1.02;
   const top = q(last.y + last.height * 0.62);
+  const coccyx = [
+    `M ${q(last.x - w * 0.2)} ${q(top + 74)}`,
+    `Q ${q(last.x - w * 0.34)} ${q(top + 96)} ${q(last.x - w * 0.22)} ${q(top + 116)}`,
+    `Q ${q(last.x - w * 0.1)} ${q(top + 126)} ${q(last.x - w * 0.02)} ${q(top + 112)}`,
+    `Q ${q(last.x - w * 0.08)} ${q(top + 92)} ${q(last.x - w * 0.04)} ${q(top + 74)}`,
+    "Z",
+  ].join(" ");
   return {
+    coccyx,
     path: [
       `M ${q(last.x - w / 2)} ${q(top)}`,
       `L ${q(last.x + w / 2)} ${q(top)}`,
