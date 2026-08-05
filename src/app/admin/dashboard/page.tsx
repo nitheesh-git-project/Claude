@@ -178,7 +178,7 @@ export default async function AdminDashboardPage() {
     // than blanking the whole dashboard.
     admin
       .from("site_settings")
-      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
+      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, booking_languages")
       .maybeSingle(),
 
     // session_code is also new/migration-dependent -- same isolation

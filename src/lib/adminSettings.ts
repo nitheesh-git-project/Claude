@@ -4,7 +4,14 @@ export type AdminSettings = {
   googleMeetEnabled: boolean;
   joinWindowMinutes: number;
   joinWindowAfterMinutes: number;
+  bookingLanguages: string[];
 };
+
+// The sole hardcoded language in the app, and only as the fallback for an
+// unconfigured/emptied list -- the real list is admin-managed in Feature
+// Control → Booking Languages. Booking must never present an empty language
+// picker, so an empty stored list degrades to this rather than to nothing.
+export const DEFAULT_BOOKING_LANGUAGES = ["English"];
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   sessionPackagesVisible: true,
@@ -12,6 +19,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   googleMeetEnabled: true,
   joinWindowMinutes: 15,
   joinWindowAfterMinutes: 15,
+  bookingLanguages: DEFAULT_BOOKING_LANGUAGES,
 };
 
 type SiteSettingsRow = {
@@ -20,7 +28,26 @@ type SiteSettingsRow = {
   google_meet_enabled?: boolean | null;
   join_window_minutes?: number | null;
   join_window_after_minutes?: number | null;
+  booking_languages?: unknown;
 };
+
+// Normalizes the stored jsonb array: drops non-strings and blanks, trims,
+// and de-duplicates case-insensitively so admin can't create two chips that
+// look identical to a patient. Any shape that isn't a usable list falls
+// back to DEFAULT_BOOKING_LANGUAGES.
+export function parseBookingLanguages(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return DEFAULT_BOOKING_LANGUAGES;
+  const seen = new Set<string>();
+  const languages: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "string") continue;
+    const trimmed = entry.trim();
+    if (!trimmed || seen.has(trimmed.toLowerCase())) continue;
+    seen.add(trimmed.toLowerCase());
+    languages.push(trimmed);
+  }
+  return languages.length > 0 ? languages : DEFAULT_BOOKING_LANGUAGES;
+}
 
 // Turns the site_settings singleton row's Feature Control columns (see
 // schema.sql's "Admin Feature Control" section) into a typed object,
@@ -51,5 +78,6 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
       typeof row?.join_window_after_minutes === "number"
         ? row.join_window_after_minutes
         : DEFAULT_ADMIN_SETTINGS.joinWindowAfterMinutes,
+    bookingLanguages: parseBookingLanguages(row?.booking_languages),
   };
 }

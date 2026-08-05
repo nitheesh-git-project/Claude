@@ -1419,3 +1419,22 @@ create index if not exists profiles_referred_by_hospital_id_idx on profiles (ref
 create index if not exists patient_referrals_hospital_id_idx on patient_referrals (hospital_id);
 create index if not exists patient_referrals_status_idx on patient_referrals (status);
 create index if not exists therapist_payout_requests_therapist_id_idx on therapist_payout_requests (therapist_id);
+
+-- Booking Languages (Feature Control tab): the list of preferred-language
+-- chips offered in /book Step 1. Stored as jsonb on the site_settings
+-- singleton rather than a new table -- it's a short, ordered, admin-curated
+-- list with no per-row metadata, same reasoning as the other Feature
+-- Control columns above. Publicly readable via site_settings_select_public
+-- so the (ISR-cached, anon-client) /book page can render the chips without
+-- an authenticated round trip; writes still go only through the
+-- service-role /api/admin/update-setting route.
+--
+-- Defaults to ["English"] so booking always has at least one selectable
+-- language before an admin configures anything; parseBookingLanguages()
+-- applies the same fallback client-side if the list is ever emptied.
+alter table site_settings add column if not exists booking_languages jsonb not null default '["English"]'::jsonb;
+
+-- Patient's preferred session language, captured in /book Step 1 alongside
+-- date/time. Nullable and additive: existing rows (and any booking made
+-- before this column existed) simply carry no stated preference.
+alter table appointments add column if not exists preferred_language text;

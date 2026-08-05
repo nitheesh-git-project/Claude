@@ -7,10 +7,16 @@ import { createClient } from "@/lib/supabase/client";
 import { payForAppointment } from "@/lib/razorpay";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
-import { AVAILABILITY_HOURS, formatHourRange } from "@/lib/therapistAvailability";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
 import ConfirmPasswordField from "@/components/auth/ConfirmPasswordField";
+import BookingStepOne from "@/components/booking/BookingStepOne";
+import {
+  BOOKING_LEAD_TIME_HOURS,
+  BOOKING_LEAD_TIME_MS,
+  bookableHoursForDate,
+  earliestBookableDateKey,
+} from "@/lib/bookingSlots";
 import { debugNow } from "@/lib/debugNow";
 
 type Category = {
@@ -26,17 +32,20 @@ type Category = {
 // Pay Now button their dashboard already shows for any unpaid session.
 const MAX_ATTEMPTS_BEFORE_ESCAPE = 3;
 
-function todayDateStr() {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
 function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
 }
 
-export default function BookingWizard({ initialCategories }: { initialCategories: Category[] }) {
+export default function BookingWizard({
+  initialCategories,
+  bookingLanguages,
+}: {
+  initialCategories: Category[];
+  // Admin-configured (Feature Control → Booking Languages), never a
+  // hardcoded list here -- see lib/adminSettings.ts for the "English"
+  // fallback that applies when admin hasn't configured any yet.
+  bookingLanguages: string[];
+}) {
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -54,9 +63,28 @@ export default function BookingWizard({ initialCategories }: { initialCategories
   // fresh, not tick-perfect. Reads the QA debug tool's simulated clock
   // (Feature 44) when set, real time otherwise.
   const [nowMs] = useState(() => debugNow());
+
+  // Step 1's automatic preselection. Computed in lazy initializers rather
+  // than an effect, which is safe *specifically* because Step 1's markup
+  // never appears in the server HTML: the `checkingAuth` branch below
+  // renders "Loading..." on both server and first client render, so
+  // hydration compares two identical trees and these clock-derived values
+  // only reach the DOM afterwards, from the client's own clock. That
+  // matters more than usual here -- /book is ISR-cached (revalidate = 300),
+  // so a server-rendered date could be up to five minutes stale and would
+  // mismatch on hydration if it were ever emitted.
   const [timezone, setTimezone] = useState("");
-  const [bookDate, setBookDate] = useState("");
-  const [bookHour, setBookHour] = useState<number | "">("");
+  const [bookDate, setBookDate] = useState(() => earliestBookableDateKey(nowMs) ?? "");
+  const [bookHour, setBookHour] = useState<number | "">(
+    () => bookableHoursForDate(earliestBookableDateKey(nowMs) ?? "", nowMs)[0] ?? ""
+  );
+  const [language, setLanguage] = useState(() => bookingLanguages[0] ?? "");
+
+  // Tracks which of the three are still our automatic pick. Each flips
+  // false the moment the patient chooses for themselves, so the "we picked
+  // this for you" animation plays once and never re-fires on their input.
+  const [autoPicked, setAutoPicked] = useState({ date: true, hour: true, language: true });
+
   const slotDateTime =
     bookDate && bookHour !== "" ? `${bookDate}T${String(bookHour).padStart(2, "0")}:00` : "";
   const [fullName, setFullName] = useState("");
@@ -123,14 +151,44 @@ export default function BookingWizard({ initialCategories }: { initialCategories
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function handleDateChange(nextDate: string) {
+    setBookDate(nextDate);
+    setError(null);
+    // The previously-picked hour may not clear the lead time on the new
+    // date, so re-preselect that day's earliest eligible slot instead of
+    // carrying a now-invalid one forward. (The old date input cleared the
+    // hour outright; preselecting keeps Step 1 complete after every change,
+    // which is the point of the rework.)
+    setBookHour(bookableHoursForDate(nextDate, nowMs)[0] ?? "");
+    setAutoPicked((prev) => ({ ...prev, date: false, hour: true }));
+  }
+
+  function handleHourChange(nextHour: number) {
+    setBookHour(nextHour);
+    setError(null);
+    setAutoPicked((prev) => ({ ...prev, hour: false }));
+  }
+
+  function handleLanguageChange(nextLanguage: string) {
+    setLanguage(nextLanguage);
+    setError(null);
+    setAutoPicked((prev) => ({ ...prev, language: false }));
+  }
+
   function goToStep2() {
     setError(null);
     if (!bookDate || bookHour === "") {
       setError("Please select a preferred date and time.");
       return;
     }
-    if (new Date(slotDateTime).getTime() < nowMs + 12 * 60 * 60 * 1000) {
-      setError("Please choose a time at least 12 hours from now.");
+    // Unchanged rule, now sourced from the same constant the picker filters
+    // on, so the calendar can't offer a slot this check would reject.
+    if (new Date(slotDateTime).getTime() < nowMs + BOOKING_LEAD_TIME_MS) {
+      setError(`Please choose a time at least ${BOOKING_LEAD_TIME_HOURS} hours from now.`);
+      return;
+    }
+    if (!language) {
+      setError("Please select a preferred language.");
       return;
     }
     setStep(2);
@@ -248,6 +306,7 @@ export default function BookingWizard({ initialCategories }: { initialCategories
         duration_minutes: selectedCategory?.duration_minutes ?? BASE_DURATION_MINUTES,
         notes,
         preferred_therapist_id: preferredTherapistId || null,
+        preferred_language: language || null,
         status: "requested",
       })
       .select("id")
@@ -353,7 +412,10 @@ export default function BookingWizard({ initialCategories }: { initialCategories
   return (
     <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
       {header}
-      <div className="p-8 space-y-5 text-sm">
+      {/* p-5 on phones rather than a flat p-8: Step 1's calendar is a
+          7-column grid whose cells are squeezed directly by this padding.
+          Restores p-8 from sm: up, where there's room to spare. */}
+      <div className="p-5 sm:p-8 space-y-5 text-sm">
       {error && (
         <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
           {error}
@@ -361,71 +423,19 @@ export default function BookingWizard({ initialCategories }: { initialCategories
       )}
 
       {step === 1 && (
-        <>
-          <div>
-            <label className="block font-semibold mb-1.5 text-slate-900">
-              Your Detected Timezone
-            </label>
-            <div className="w-full p-3 rounded-xl border border-slate-300 bg-slate-50 font-medium text-slate-700">
-              {timezone || "Detecting..."}
-            </div>
-          </div>
-          <div>
-            <label className="block font-semibold mb-1.5 text-slate-900">
-              Preferred Date & Time
-              <span className="font-normal text-xs text-slate-500">
-                {" "}
-                (at least 12 hours from now)
-              </span>
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="date"
-                value={bookDate}
-                min={todayDateStr()}
-                onChange={(e) => {
-                  setBookDate(e.target.value);
-                  // Previously-picked hour may no longer be >=12hrs out for
-                  // the new date -- clear it rather than silently submitting
-                  // a stale, now-filtered-out value.
-                  setBookHour("");
-                }}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
-              <select
-                aria-label="Preferred time"
-                value={bookHour}
-                onChange={(e) => setBookHour(e.target.value ? Number(e.target.value) : "")}
-                className="w-full p-3 rounded-xl border border-slate-300 bg-white"
-              >
-                <option value="" disabled>
-                  — Time —
-                </option>
-                {AVAILABILITY_HOURS.filter((hour) => {
-                  if (!bookDate) return true;
-                  return (
-                    new Date(`${bookDate}T${String(hour).padStart(2, "0")}:00`).getTime() >=
-                    nowMs + 12 * 60 * 60 * 1000
-                  );
-                }).map((hour) => (
-                  <option key={hour} value={hour}>
-                    {formatHourRange(hour)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <p className="text-xs text-slate-400">
-            This is your preferred time — we&apos;ll confirm the exact slot
-            with you before the session.
-          </p>
-          <button
-            onClick={goToStep2}
-            className="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-3.5 rounded-xl text-sm transition shadow-lg flex justify-center items-center gap-2"
-          >
-            Continue to Medical Details <i className="fa-solid fa-arrow-right"></i>
-          </button>
-        </>
+        <BookingStepOne
+          timezone={timezone}
+          nowMs={nowMs}
+          dateKey={bookDate}
+          onDateChange={handleDateChange}
+          hour={bookHour}
+          onHourChange={handleHourChange}
+          language={language}
+          onLanguageChange={handleLanguageChange}
+          languages={bookingLanguages}
+          autoPicked={autoPicked}
+          onContinue={goToStep2}
+        />
       )}
 
       {step === 2 && (
@@ -657,6 +667,10 @@ export default function BookingWizard({ initialCategories }: { initialCategories
               <span className="font-bold text-slate-900">
                 {slotDateTime && new Date(slotDateTime).toLocaleString()}
               </span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-500">Language</span>
+              <span className="font-bold text-slate-900">{language || "—"}</span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">Concern</span>

@@ -4,8 +4,9 @@ import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AdminSettings } from "@/lib/adminSettings";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
+import BookingLanguagesSection from "@/components/admin/BookingLanguagesSection";
 
-async function saveSetting(key: string, value: boolean | number) {
+async function saveSetting(key: string, value: boolean | number | string[]) {
   const res = await fetch("/api/admin/update-setting", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -248,6 +249,11 @@ export default function AdminFeatureControlTab({
         </div>
         {timeoutError && <p className="text-[11px] text-red-600 mt-2">{timeoutError}</p>}
       </div>
+
+      <BookingLanguagesSection
+        languages={settings.bookingLanguages}
+        onSave={(languages) => saveSetting("booking_languages", languages)}
+      />
 
       <div>
         <h2 className="font-bold text-lg text-slate-900">Google Meet / Calendar</h2>
