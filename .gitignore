@@ -44,3 +44,6 @@ next-env.d.ts
 # Python bytecode from the .claude/skills tooling
 __pycache__/
 *.pyc
+
+# graphify knowledge-graph build output (regenerate with /graphify)
+graphify-out/
