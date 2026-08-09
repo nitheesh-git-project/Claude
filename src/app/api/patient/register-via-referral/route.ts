@@ -54,9 +54,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // approved: true is set here because self-serve patient signups now start
+  // unapproved and wait on the admin (same gate therapist applications go
+  // through). A hospital-referred patient has already been vetted by the
+  // admin — they assigned the therapist and issued this invite link — so
+  // making them wait again would strand a patient who is about to pay for a
+  // session that's already scheduled.
   const { error: attributionError } = await admin
     .from("profiles")
-    .update({ referred_by_hospital_id: referral.hospital_id })
+    .update({ referred_by_hospital_id: referral.hospital_id, approved: true })
     .eq("id", created.user.id);
   if (attributionError) {
     // Not fatal to the patient's flow, but would silently break revenue

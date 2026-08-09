@@ -135,13 +135,18 @@ export default function PatientAuthCard() {
 
     if (!data.session) {
       setLoading(false);
-      setInfo("Account created! Check your email to confirm it, then sign in.");
+      setInfo(
+        "Account created! Check your email to confirm it. An admin also needs to approve your account before you can sign in."
+      );
       setTab("login");
       return;
     }
 
-    // Left in the loading state deliberately -- see handleLogin's comment.
-    window.location.href = "/patient/dashboard";
+    // Not straight to the dashboard: a brand-new patient account starts
+    // unapproved and the proxy would bounce them to /pending-approval
+    // anyway, so send them there directly. Left in the loading state
+    // deliberately -- see handleLogin's comment.
+    window.location.href = "/pending-approval";
   }
 
   return (
@@ -373,6 +378,10 @@ export default function PatientAuthCard() {
                 </p>
               )}
             </div>
+            <p className="text-slate-400 leading-relaxed">
+              New accounts are reviewed by our team — you&apos;ll be able to
+              sign in and book sessions once an admin approves yours.
+            </p>
             <button
               type="submit"
               disabled={loading}

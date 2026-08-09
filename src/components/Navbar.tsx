@@ -32,8 +32,8 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
   // Sign In / Get Started buttons.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [dashboardHref, setDashboardHref] = useState("/patient/dashboard");
-  // A therapist whose application hasn't been approved yet has nowhere to
-  // go -- /therapist/dashboard just redirects them straight back out to
+  // An account (patient or therapist) that hasn't been approved yet has
+  // nowhere to go -- its dashboard just redirects them straight back out to
   // /pending-approval -- so the button is hidden entirely rather than
   // sending them on a round trip. Starts hidden (fail-closed) rather than
   // defaulting to visible, so a failed/slow role lookup can't briefly show
@@ -75,7 +75,10 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
         .maybeSingle();
       if (active && profile?.role) {
         setDashboardHref(ROLE_DASHBOARD_HREF[profile.role] ?? "/patient/dashboard");
-        setDashboardVisible(!(profile.role === "therapist" && profile.approved === false));
+        // Applies to patients as well as therapists now that both roles wait
+        // on admin approval -- an unapproved account of either kind just
+        // bounces off its dashboard to /pending-approval.
+        setDashboardVisible(profile.approved !== false);
       }
     }
 

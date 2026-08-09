@@ -160,7 +160,7 @@ begin
   -- auth.signUp() — for a public signup that's fully client-controlled, so
   -- it must NEVER be trusted to grant 'admin' or 'hospital'. 'therapist' is
   -- the only self-serve role beyond the 'patient' default; both of those
-  -- still start unapproved/gated appropriately below. Admin accounts are
+  -- start unapproved and gated behind admin approval below. Admin accounts are
   -- promoted by hand in the Table Editor; hospital accounts are created by
   -- the onboard-hospital route, which sets role via a service-role update
   -- *after* this trigger runs, bypassing this restriction entirely (as
@@ -187,7 +187,14 @@ begin
     new.email,
     new.raw_user_meta_data->>'phone',
     new.raw_user_meta_data->>'credentials',
-    (v_role = 'patient'),
+    -- Both self-serve roles start unapproved: a patient signing up from the
+    -- Patient Portal now waits on the same admin approval gate a therapist
+    -- application does (see the "Pending Approvals" section of the admin
+    -- dashboard). The only patients that skip this are hospital-referred
+    -- ones, created by /api/patient/register-via-referral with the service
+    -- role -- the admin already vetted those by assigning the referral and
+    -- sending the invite, so that route sets approved = true itself.
+    false,
     v_referred_by
   );
   return new;
@@ -885,6 +892,12 @@ create policy "appointments_insert_own" on appointments
 -- the same reason: it was previously any client-supplied integer,
 -- including zero/negative, which findTherapistConflict trusts as-is for
 -- every other appointment's overlap math.
+--
+-- The approved check closes the same class of hole for the patient
+-- approval gate: a patient signup now starts unapproved and is bounced off
+-- /patient/dashboard by the proxy, but that's navigation-only -- a valid
+-- session cookie could still raw-insert a booking. Server routes check
+-- this too (isProfileActiveAndApproved), this is the database-level backstop.
 drop policy if exists "appointments_insert_own" on appointments;
 create policy "appointments_insert_own" on appointments
   for insert with check (
@@ -898,6 +911,10 @@ create policy "appointments_insert_own" on appointments
     and duration_minutes = coalesce(
       (select duration_minutes from treatment_categories where id = category_id),
       60
+    )
+    and exists (
+      select 1 from public.profiles
+      where id = auth.uid() and approved = true and active = true
     )
   );
 

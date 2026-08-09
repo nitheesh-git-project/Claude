@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
+import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import PatientActiveToggle from "@/components/admin/PatientActiveToggle";
 import PatientContactEditForm from "@/components/admin/PatientContactEditForm";
 import PatientNotesForm from "@/components/admin/PatientNotesForm";
@@ -39,7 +40,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     admin
       .from("profiles")
       .select(
-        "id, full_name, email, phone, avatar_url, active, created_at, referred_by_hospital_id, emergency_contact_name, emergency_contact_phone, date_of_birth, gender, preferred_language"
+        "id, full_name, email, phone, avatar_url, active, approved, created_at, referred_by_hospital_id, emergency_contact_name, emergency_contact_phone, date_of_birth, gender, preferred_language"
       )
       .eq("id", id)
       .eq("role", "patient")
@@ -245,6 +246,11 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                     Suspended
                   </span>
                 )}
+                {!patient.approved && (
+                  <span className="text-[10px] font-bold uppercase text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                    Pending Approval
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-1">
                 Joined {new Date(patient.created_at).toLocaleDateString()}
@@ -254,11 +260,14 @@ export default async function PatientDetailContent({ id }: { id: string }) {
               </p>
             </div>
           </div>
-          <PatientActiveToggle
-            patientId={patient.id}
-            active={patient.active}
-            upcomingSessionCount={upcomingSessionCount}
-          />
+          <div className="flex items-center gap-2">
+            {!patient.approved && <ApproveAccountButton userId={patient.id} />}
+            <PatientActiveToggle
+              patientId={patient.id}
+              active={patient.active}
+              upcomingSessionCount={upcomingSessionCount}
+            />
+          </div>
         </div>
       </div>
 

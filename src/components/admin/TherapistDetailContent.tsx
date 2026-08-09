@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
-import ApproveTherapistButton from "@/components/admin/ApproveTherapistButton";
+import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import TherapistActiveToggle from "@/components/admin/TherapistActiveToggle";
 import TherapistTeamVisibilityToggle from "@/components/admin/TherapistTeamVisibilityToggle";
 import TherapistNotAvailableToggle from "@/components/admin/TherapistNotAvailableToggle";
@@ -249,7 +249,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {!therapist.approved && <ApproveTherapistButton therapistId={therapist.id} />}
+            {!therapist.approved && <ApproveAccountButton userId={therapist.id} />}
             <TherapistTeamVisibilityToggle
               therapistId={therapist.id}
               visibleOnTeam={therapist.visible_on_team}

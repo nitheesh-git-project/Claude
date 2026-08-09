@@ -4,12 +4,8 @@ import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 
-export default function ApproveTherapistButton({
-  therapistId,
-}: {
-  therapistId: string;
-}) {
-  // The parent only renders this button for pending applications, so a real
+export default function ApproveAccountButton({ userId }: { userId: string }) {
+  // The parent only renders this button for pending signups, so a real
   // success unmounts it via router.refresh() before this optimistic overlay
   // would need to clear on its own -- a failure just reverts to the base
   // `false`. See PatientActiveToggle's comment.
@@ -23,10 +19,10 @@ export default function ApproveTherapistButton({
     setError(null);
     startTransition(async () => {
       setOptimisticApproved(true);
-      const res = await fetch("/api/admin/approve-therapist", {
+      const res = await fetch("/api/admin/approve-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ therapistId }),
+        body: JSON.stringify({ userId }),
         keepalive: true,
       });
       if (res.ok) {

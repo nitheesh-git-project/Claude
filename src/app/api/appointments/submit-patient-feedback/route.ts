@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 
 const MAX_FEEDBACK_LENGTH = 1000;
 
@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (!(await isProfileActive(user.id))) {
-    return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
+  if (!(await isProfileActiveAndApproved(user.id))) {
+    return NextResponse.json({ error: "Your account is not active — it is either awaiting admin approval or has been suspended." }, { status: 403 });
   }
 
   const admin = createAdminClient();

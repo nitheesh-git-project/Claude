@@ -89,6 +89,12 @@ export async function updateSession(request: NextRequest) {
       if (profile?.role !== "patient") {
         return NextResponse.redirect(new URL("/get-started", request.url));
       }
+      // Same gate as the therapist branch above: a patient account is not
+      // usable until an admin approves it from the dashboard's Pending
+      // Approvals list.
+      if (!profile.approved) {
+        return NextResponse.redirect(new URL("/pending-approval", request.url));
+      }
       if (!profile.active) {
         return NextResponse.redirect(new URL("/account-suspended", request.url));
       }

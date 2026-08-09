@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import ApproveTherapistButton from "@/components/admin/ApproveTherapistButton";
-import DeclineTherapistButton from "@/components/admin/DeclineTherapistButton";
+import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
+import DeclineAccountButton from "@/components/admin/DeclineAccountButton";
 import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
 import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
 import AssignReferralForm from "@/components/admin/AssignReferralForm";
@@ -76,7 +76,7 @@ export default async function AdminDashboardPage() {
   // isolation/migration-dependent reasoning for that particular fetch, same
   // as before this was parallelized.
   const [
-    { data: pendingTherapists },
+    { data: pendingAccounts },
     { data: pendingProfileChanges },
     { data: approvedTherapists },
     { data: appointments, error: appointmentsError },
@@ -104,10 +104,15 @@ export default async function AdminDashboardPage() {
     { data: siteSettings },
     { data: payoutRequests },
   ] = await Promise.all([
+    // Both self-serve roles wait on admin approval, so this one query feeds
+    // the single "Pending Approvals" list -- therapist applications and
+    // patient registrations together, newest first. Hospital-referred
+    // patients never show up here: that route creates them already approved
+    // (the admin vetted them when issuing the invite).
     admin
       .from("profiles")
-      .select("id, full_name, email, phone, credentials, avatar_url, created_at")
-      .eq("role", "therapist")
+      .select("id, role, full_name, email, phone, credentials, avatar_url, created_at")
+      .in("role", ["therapist", "patient"])
       .eq("approved", false)
       .order("created_at", { ascending: false }),
 
@@ -430,39 +435,62 @@ export default async function AdminDashboardPage() {
     <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
-          Pending Therapist Approvals
-          {pendingTherapists && pendingTherapists.length > 0 && (
+          Pending Approvals
+          {pendingAccounts && pendingAccounts.length > 0 && (
             <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
-              {pendingTherapists.length}
+              {pendingAccounts.length}
             </span>
           )}
         </h2>
-        {!pendingTherapists || pendingTherapists.length === 0 ? (
+        {!pendingAccounts || pendingAccounts.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">
-            No pending applications.
+            No pending applications or registrations.
           </p>
         ) : (
           <ul className="space-y-3">
-            {pendingTherapists.map((t) => (
-              <li
-                key={t.id}
-                className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 text-xs"
-              >
-                <div className="flex items-center gap-3">
-                  <AvatarThumbnail url={t.avatar_url} name={t.full_name ?? "T"} size={36} />
-                  <div>
-                    <p className="font-bold text-slate-900">{t.full_name}</p>
-                    <p className="text-slate-500 mt-1">{t.email}</p>
-                    {t.phone && <p className="text-slate-500 mt-1">{t.phone}</p>}
-                    <p className="text-slate-500 mt-1">{t.credentials}</p>
+            {pendingAccounts.map((p) => {
+              const isTherapist = p.role === "therapist";
+              return (
+                <li
+                  key={p.id}
+                  className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 text-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <AvatarThumbnail
+                      url={p.avatar_url}
+                      name={p.full_name ?? (isTherapist ? "T" : "P")}
+                      size={36}
+                    />
+                    <div>
+                      <p className="font-bold text-slate-900 flex items-center gap-2">
+                        {p.full_name}
+                        <span
+                          className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                            isTherapist
+                              ? "text-purple-700 bg-purple-100"
+                              : "text-teal-700 bg-teal-100"
+                          }`}
+                        >
+                          {isTherapist ? "Therapist" : "Patient"}
+                        </span>
+                      </p>
+                      <p className="text-slate-500 mt-1">{p.email}</p>
+                      {p.phone && <p className="text-slate-500 mt-1">{p.phone}</p>}
+                      {isTherapist && p.credentials && (
+                        <p className="text-slate-500 mt-1">{p.credentials}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <DeclineTherapistButton therapistId={t.id} />
-                  <ApproveTherapistButton therapistId={t.id} />
-                </div>
-              </li>
-            ))}
+                  <div className="flex items-center gap-2">
+                    <DeclineAccountButton
+                      userId={p.id}
+                      role={isTherapist ? "therapist" : "patient"}
+                    />
+                    <ApproveAccountButton userId={p.id} />
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -923,6 +951,7 @@ export default async function AdminDashboardPage() {
             subtitle: p.email,
             avatar_url: p.avatar_url,
             active: p.active,
+            approved: p.approved,
             created_at: p.created_at,
             code: roleCodeMap.get(p.id)?.patient_code ?? null,
           }))}
