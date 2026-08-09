@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
-import { isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
+import { isAuthCtaHiddenRoute, isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
 
 const links = [
   { href: "/", label: "Home" },
@@ -70,15 +70,17 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
       // anything else down with it.
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role, approved")
+        .select("role, approved, active")
         .eq("id", session.user.id)
         .maybeSingle();
       if (active && profile?.role) {
         setDashboardHref(ROLE_DASHBOARD_HREF[profile.role] ?? "/patient/dashboard");
         // Applies to patients as well as therapists now that both roles wait
         // on admin approval -- an unapproved account of either kind just
-        // bounces off its dashboard to /pending-approval.
-        setDashboardVisible(profile.approved !== false);
+        // bounces off its dashboard to /pending-approval. Suspended accounts
+        // bounce the same way (to /account-suspended), so they're hidden for
+        // the same reason rather than being sent on a round trip.
+        setDashboardVisible(profile.approved !== false && profile.active !== false);
       }
     }
 
@@ -101,6 +103,11 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
   if (isNavHiddenRoute(pathname)) {
     return null;
   }
+
+  // See isAuthCtaHiddenRoute -- on the auth pages themselves the nav shows
+  // no Sign In / Get Started / Go to Dashboard at all, so signing in can't
+  // flash a dashboard button before the page it belongs to has opened.
+  const authCtaHidden = isAuthCtaHiddenRoute(pathname);
 
   return (
     <nav
@@ -150,7 +157,7 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
             })}
           </div>
 
-          {!isLoggedIn ? (
+          {authCtaHidden ? null : !isLoggedIn ? (
             <div className="hidden md:flex items-center space-x-3">
               <Link
                 href="/patient/login"
@@ -218,7 +225,7 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
                     {link.label}
                   </Link>
                 ))}
-                {!isLoggedIn ? (
+                {authCtaHidden ? null : !isLoggedIn ? (
                   <>
                     <Link
                       href="/patient/login"

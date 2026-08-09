@@ -27,3 +27,34 @@ const NAV_HIDDEN_ROUTES = new Set([...DASHBOARD_SHELL_ROUTES, "/book"]);
 export function isNavHiddenRoute(pathname: string | null): boolean {
   return pathname !== null && NAV_HIDDEN_ROUTES.has(pathname);
 }
+
+// Routes where the nav keeps its links but drops its auth call-to-action
+// (Sign In / Get Started / Go to Dashboard) entirely.
+//
+// These are the pages where the user is mid-authentication, and the nav's
+// idea of "logged in" is briefly true while the page hasn't caught up yet:
+// signInWithPassword() writes the session and fires onAuthStateChange the
+// instant it resolves, so the nav flipped to "Go to Dashboard" for the
+// whole duration of the auth card's own hard navigation -- a flash of a
+// button that shouldn't exist yet, on every login card. There's nothing
+// useful for the nav to offer on these pages anyway (a Sign In link on the
+// sign-in page, a Get Started button on the registration page), so the
+// cluster is dropped rather than raced.
+//
+// /patient/register is included for a second reason: the invite flow signs
+// the patient in and then keeps them on the page for payment, so the button
+// would otherwise sit there inviting them to abandon a half-paid booking.
+const AUTH_CTA_HIDDEN_ROUTES = new Set([
+  "/patient/login",
+  "/therapist/login",
+  "/admin/login",
+  "/hospital/login",
+  "/patient/register",
+  "/reset-password",
+  "/pending-approval",
+  "/account-suspended",
+]);
+
+export function isAuthCtaHiddenRoute(pathname: string | null): boolean {
+  return pathname !== null && AUTH_CTA_HIDDEN_ROUTES.has(pathname);
+}
