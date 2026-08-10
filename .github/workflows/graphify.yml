@@ -1,0 +1,66 @@
+name: Refresh graphify graph
+
+# Rebuilds the knowledge graph whenever code lands on main and commits the
+# result back, so a fresh clone always has a current graph without anyone
+# remembering to run /graphify.
+on:
+  push:
+    branches: [main]
+    # Without this, the commit made at the end of this workflow would push to
+    # main and trigger the workflow again, forever. The "[skip ci]" in that
+    # commit message is the second guard.
+    paths-ignore:
+      - "graphify-out/**"
+
+# A burst of merges shouldn't run overlapping rebuilds that race each other
+# to commit. Newer run wins; the in-flight one is cancelled.
+concurrency:
+  group: graphify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      # Needed to push the refreshed graph back to main.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install graphify
+        run: pip install graphifyy
+
+      - name: Rebuild the graph
+        env:
+          # Optional: enables semantic extraction. Without it graphify still
+          # builds a graph, just a structural one -- so a repo with no secret
+          # configured gets a working (if shallower) graph rather than a
+          # failing workflow.
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          # --no-viz: the interactive HTML is large and regenerable locally,
+          # and is gitignored anyway. CI produces the committed text outputs
+          # (graph.json, GRAPH_REPORT.md) only.
+          if [ -f graphify-out/graph.json ]; then
+            graphify . --update --no-viz
+          else
+            graphify . --no-viz
+          fi
+
+      - name: Commit the refreshed graph
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add graphify-out/
+          # Nothing to do when the merge didn't change anything the graph
+          # cares about -- `git commit` would fail the job on an empty commit.
+          if git diff --cached --quiet; then
+            echo "Graph unchanged, nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore: refresh graphify knowledge graph [skip ci]"
+          git push

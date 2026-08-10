@@ -1,0 +1,37 @@
+#!/bin/sh
+# Refresh the graphify knowledge graph after a merge lands on main.
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# Deliberately incremental (--update re-extracts only new/changed files) and
+# deliberately unable to fail a merge: if graphify isn't installed, or the
+# rebuild errors, this warns and exits 0. A stale knowledge graph is a
+# nuisance; a merge that appears to fail is a real problem.
+#
+# CI does the same thing on every push to main (.github/workflows/graphify.yml)
+# and commits the result, so this hook mostly matters for merges you do
+# locally -- it keeps your working copy's graph current without waiting for
+# the next pull.
+
+set -e
+
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+if [ "$branch" != "main" ]; then
+  exit 0
+fi
+
+if ! command -v graphify >/dev/null 2>&1; then
+  echo "post-merge: graphify not installed, skipping graph refresh." >&2
+  echo "post-merge: install with 'pip install graphifyy' to enable it." >&2
+  exit 0
+fi
+
+echo "post-merge: refreshing graphify knowledge graph..."
+if [ -f graphify-out/graph.json ]; then
+  graphify . --update || echo "post-merge: graph refresh failed, leaving the existing graph in place." >&2
+else
+  graphify . || echo "post-merge: initial graph build failed." >&2
+fi
+
+exit 0

@@ -17,6 +17,20 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) to view it.
 
+### Knowledge graph (optional, one-time)
+
+`graphify-out/graph.json` and `GRAPH_REPORT.md` are committed and refreshed by
+CI on every merge to `main`, so a fresh clone already has a current graph. To
+also refresh it locally whenever you merge into `main`:
+
+```bash
+pip install graphifyy               # the graphify CLI
+git config core.hooksPath .githooks # enables .githooks/post-merge
+```
+
+Git hooks aren't shared by a clone, so this is per-machine. Skipping it costs
+nothing — the graph still arrives with the next `git pull`.
+
 ## Tech Stack
 
 - [Next.js](https://nextjs.org) (App Router)
