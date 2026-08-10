@@ -4,8 +4,12 @@
 :root {
   --background: #f8fafc;
   --foreground: #1e293b;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  /* Composed from the next/font families set on <html> in layout.tsx --
+     never the literal "Inter" / "Plus Jakarta Sans" names, which would ask
+     the browser for a font nobody installs and quietly fall through to a
+     system face instead of the self-hosted files. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
 }
 
 @theme inline {
@@ -29,6 +33,22 @@ body {
   color: #0f172a;
 }
 
+/* Every heading is display type, everywhere -- marketing pages, all four
+   dashboards, and any dialog rendered inside them. Set once here rather
+   than by remembering a class on each of the ~140 headings in the app,
+   which is how most dashboard headings ended up in the body face. Body
+   copy inherits --font-sans from <body>. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+}
+
+/* Still available for display type that isn't a heading element -- the
+   brand wordmark, hero numerals, callout figures. */
 .font-display {
   font-family: var(--font-display);
 }

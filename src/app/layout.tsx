@@ -11,14 +11,26 @@ import DebugNav from "@/components/DebugNav";
 // which matters here given how much clinical/pricing detail patients read.
 // Plus Jakarta Sans for headings/display — geometric and confident without
 // tipping into a cold "tech" register, which suits a healthcare brand.
+//
+// Both are self-hosted at build time by next/font/google — the font files
+// are emitted into this app's own build output, so a page load makes no
+// runtime request to Google. display: "swap" means text paints immediately
+// in the fallback and swaps once the file lands, rather than flashing
+// invisible.
+//
+// These expose the raw families only. --font-sans / --font-display (the
+// full stacks, fallbacks included) are composed from them in globals.css:
+// if next/font wrote those names directly, a stylesheet declaring its own
+// --font-sans would silently shadow the self-hosted family and quietly send
+// everyone back to a system font.
 const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-inter",
   display: "swap",
 });
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  variable: "--font-display",
+  variable: "--font-jakarta",
   weight: ["500", "600", "700", "800"],
   display: "swap",
 });
