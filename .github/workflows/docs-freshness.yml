@@ -1,0 +1,42 @@
+name: Docs freshness
+
+# The docs (README.md, AGENTS.md, CLAUDE.md) describe the app itself: its
+# routes, roles, env vars, schema conventions, and payment/booking rules. They
+# go stale silently, because nothing in a normal change forces anyone to look
+# at them. This flags a pull request that changes the app but leaves the docs
+# untouched, so the decision to skip them is deliberate rather than forgotten.
+#
+# It warns, it does not block: plenty of real changes (a CSS tweak, a
+# refactor) genuinely need no doc update, and a required check that is
+# routinely wrong just teaches people to ignore it.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need the base branch too, to diff against it.
+          fetch-depth: 0
+
+      - name: Compare app changes against doc changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE" "$HEAD")
+
+          app=$(echo "$changed" | grep -E '^(src/|supabase/|scripts/|package\.json|next\.config\.ts|\.env\.example)' || true)
+          docs=$(echo "$changed" | grep -E '^(README\.md|AGENTS\.md|CLAUDE\.md)$' || true)
+
+          if [ -n "$app" ] && [ -z "$docs" ]; then
+            echo "::warning title=Docs may be stale::This PR changes the app but not README.md / AGENTS.md / CLAUDE.md. Confirm the docs still describe the routes, roles, env vars, schema conventions, and flows accurately."
+            echo "App files changed without a doc update:"
+            echo "$app"
+          else
+            echo "Docs check OK."
+          fi

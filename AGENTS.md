@@ -101,6 +101,26 @@ role, an id, or an amount sent from the client — re-derive it server-side.
   package visibility, booking languages) is read through
   `src/lib/adminSettings.ts` with defaults — don't hardcode these.
 
+## Keeping the docs current
+
+`README.md`, `AGENTS.md`, and `CLAUDE.md` describe the app itself, so they go
+stale the moment the app changes. Update them **in the same change** that
+makes them wrong — do not leave it for later, and do not merge to `main`
+without checking. Anything in this list means the docs need a look:
+
+- a new or removed route, page, or API route handler
+- a new role, or a change to how `approved` / `active` gate access
+- a new environment variable, or a changed meaning for an existing one
+- a schema change in `supabase/schema.sql` that affects a documented flow
+- a change to a documented rule: booking lead time, cancellation/refund
+  window, payment verification, Meet sync behavior, payout math
+- a new npm script, dependency, or build/deploy step
+
+`.github/workflows/docs-freshness.yml` warns on a pull request that touches
+`src/`, `supabase/`, `scripts/`, `package.json`, `next.config.ts`, or
+`.env.example` without touching a doc. It is a reminder, not a gate — a
+change that genuinely needs no doc update can ignore it.
+
 ## Style
 
 - TypeScript throughout; no `any` escapes for convenience.

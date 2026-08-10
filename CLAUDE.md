@@ -19,4 +19,10 @@ Before writing code: read the relevant guide in `node_modules/next/dist/docs/`
 Quick commands: `npm run dev`, `npm run build`, `npm run lint`. No test runner
 is configured; verify with a build and a lint.
 
+These three docs describe the app, so keep them current: whenever a change
+adds or removes a route, role, environment variable, npm script, or alters a
+documented rule (booking lead time, refund window, payment verification, Meet
+sync, payout math) or a schema flow, update the docs in that same change
+before it reaches `main`. See "Keeping the docs current" in `AGENTS.md`.
+
 @AGENTS.md
