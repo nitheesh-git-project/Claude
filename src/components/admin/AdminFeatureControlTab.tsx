@@ -222,8 +222,12 @@ export default function AdminFeatureControlTab({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-sm text-slate-800">Session Timeout of Inactivity</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
-          Automatically sign out any patient, therapist, hospital, or admin after this many
-          minutes of no activity (mouse, keyboard, or touch). Set to 0 to disable.
+          Automatically sign out any patient, therapist or hospital after this many minutes
+          of no activity (mouse, keyboard, or touch). They&apos;re shown a notice explaining
+          what happened, with a link back to their own login page. Set to 0 to disable.
+        </p>
+        <p className="text-xs text-slate-400 mt-1 max-w-md">
+          Admin sessions are exempt — this dashboard stays open however long you leave it.
         </p>
         <div className="flex items-center gap-2 mt-3">
           <input

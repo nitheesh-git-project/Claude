@@ -55,3 +55,14 @@ export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
     ],
   },
 ];
+
+// Which login page each dashboard's own users belong to, keyed by the
+// DashboardShell `basePath` that dashboard already passes. Used by the
+// idle-timeout dialog to send someone back to the door they came in
+// through rather than a generic sign-in page. Admin isn't here: admins are
+// exempt from the inactivity timeout entirely (see AdminTabs).
+export const LOGIN_HREF_BY_BASE_PATH: Record<string, string> = {
+  "/patient/dashboard": "/patient/login",
+  "/therapist/dashboard": "/therapist/login",
+  "/hospital/dashboard": "/hospital/login",
+};

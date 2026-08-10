@@ -1297,7 +1297,6 @@ export default async function AdminDashboardPage() {
       adminEmail={adminProfile?.email ?? user.email ?? ""}
       adminAvatarUrl={adminProfile?.avatar_url ?? null}
       offsetTop={showDebugNav}
-      sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
     />
     </JoinWindowProvider>
   );

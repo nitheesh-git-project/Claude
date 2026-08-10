@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { useIdleTimeout } from "@/lib/useIdleTimeout";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
+import SessionTimeoutDialog from "@/components/SessionTimeoutDialog";
+import { LOGIN_HREF_BY_BASE_PATH } from "@/lib/dashboardNavItems";
 
 // `href` marks a real page navigation (e.g. "Edit Profile") rather than a
 // same-page anchor -- it always renders as a plain link to that page. An
@@ -93,6 +95,7 @@ export default function DashboardShell({
   const activeParent = navItems.find((item) => item.children && item.href === pathname);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(() => {
     if (pathname === basePath) return navItems.find((item) => !item.href)?.id ?? null;
     const parent = navItems.find((item) => item.children && item.href === pathname);
@@ -147,7 +150,19 @@ export default function DashboardShell({
     window.location.href = "/?farewell=1";
   }
 
-  useIdleTimeout(sessionTimeoutMinutes, handleSignOut);
+  // Signing out on idle takes the same steps as the sidebar's own Log Out,
+  // minus the navigation: the session is cleared immediately (that's the
+  // point of the timeout), but the user is shown SessionTimeoutDialog
+  // explaining what happened and choosing where to go, rather than being
+  // silently dropped on the homepage. Passing 0 once it has fired stops the
+  // timer re-arming behind the dialog -- there's no session left to end.
+  async function handleIdleTimeout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setTimedOut(true);
+  }
+
+  useIdleTimeout(timedOut ? 0 : sessionTimeoutMinutes, handleIdleTimeout);
 
   function scrollToSection(id: string) {
     const el = document.getElementById(id);
@@ -313,6 +328,10 @@ export default function DashboardShell({
     // pathname checks) so this component owns the entire viewport, matching
     // the Admin Dashboard's own shell.
     <div className="min-h-screen bg-slate-50">
+      <SessionTimeoutDialog
+        open={timedOut}
+        loginHref={LOGIN_HREF_BY_BASE_PATH[basePath] ?? "/patient/login"}
+      />
       {realtimeTables && realtimeTables.length > 0 && (
         <RealtimeRefresh tables={realtimeTables} />
       )}

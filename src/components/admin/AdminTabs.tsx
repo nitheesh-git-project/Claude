@@ -3,7 +3,6 @@
 import { useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
-import { useIdleTimeout } from "@/lib/useIdleTimeout";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 
 // Every table an admin action anywhere on this dashboard reads that another
@@ -57,7 +56,6 @@ export default function AdminTabs({
   adminEmail,
   adminAvatarUrl,
   offsetTop,
-  sessionTimeoutMinutes,
 }: {
   // The at-a-glance landing tab -- the Metrics dashboard (cards/charts),
   // not the old approvals/bookings list. See approvalBookings below for
@@ -89,9 +87,6 @@ export default function AdminTabs({
   // own fixed sidebar has to account for that offset itself instead of
   // inheriting it for free from normal document flow.
   offsetTop: boolean;
-  // Admin-configured Session Timeout of Inactivity, in minutes (0 =
-  // disabled) -- see src/lib/useIdleTimeout.ts and Feature 16.
-  sessionTimeoutMinutes: number;
 }) {
   const [tab, setTab] = useState<TabKey>("overview");
   // Desktop full <-> mini collapse. Independent of the mobile drawer below --
@@ -130,7 +125,12 @@ export default function AdminTabs({
     window.location.href = "/?farewell=1";
   }
 
-  useIdleTimeout(sessionTimeoutMinutes, handleSignOut);
+  // No useIdleTimeout here on purpose: the Session Timeout of Inactivity
+  // set in Feature Control applies to patient, therapist and hospital
+  // sessions only. An admin is the one who configures that timeout and
+  // routinely leaves this dashboard open while working elsewhere (waiting
+  // on a payout, watching for a new approval), so timing them out of their
+  // own control panel costs work and protects nothing they didn't choose.
 
   // A plain render function, not a nested component -- called directly as
   // renderNavItem(...) rather than <NavItem ... />, so React never treats it
