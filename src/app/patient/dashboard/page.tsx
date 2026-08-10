@@ -6,7 +6,8 @@ import PayNowButton from "@/components/PayNowButton";
 import CancelSessionButton from "@/components/CancelSessionButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import BuyPackageButton from "@/components/BuyPackageButton";
-import BookWithPackageForm from "@/components/BookWithPackageForm";
+import PatientPackageWidget from "@/components/packages/PatientPackageWidget";
+import PackageChip from "@/components/packages/PackageChip";
 import ReceiptsSection from "@/components/ReceiptsSection";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
@@ -19,6 +20,7 @@ import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
+import { computePackageSavings } from "@/lib/packageProgress";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 export const metadata: Metadata = {
@@ -38,6 +40,15 @@ const STATUS_STYLES: Record<string, string> = {
 // status badge itself says, so there was no way to tell the two apart from
 // the dashboard.
 const NO_SHOW_STYLE = "text-orange-700 bg-orange-50";
+
+// A plain module-level helper, not a bare Date.now() inline in the
+// component body -- same reasoning as admin/dashboard/page.tsx's
+// nowTimestamp(): a Server Component's render must stay pure, so the one
+// clock read this page needs (classifying package sessions as
+// completed/scheduled) is isolated here instead.
+function nowTimestamp() {
+  return Date.now();
+}
 
 export default async function PatientDashboardPage() {
   const supabase = await createClient();
@@ -123,13 +134,18 @@ export default async function PatientDashboardPage() {
 
     supabase
       .from("treatment_category_packages")
-      .select("id, category_id, title, session_count, price_paise")
+      .select(
+        "id, category_id, title, subtitle, image_url, promises, badge_label, session_count, price_paise, compare_at_paise, validity_days, therapist_locked"
+      )
       .eq("active", true)
+      .eq("visible_in_dashboard", true)
       .order("display_order", { ascending: true }),
 
     supabase
       .from("patient_package_purchases")
-      .select("id, category_id, session_count, sessions_used")
+      .select(
+        "id, package_id, category_id, purchase_code, session_count, sessions_used, status, locked_therapist_id, expires_at"
+      )
       .eq("patient_id", user.id)
       .eq("payment_status", "paid")
       .order("created_at", { ascending: false }),
@@ -164,16 +180,34 @@ export default async function PatientDashboardPage() {
   // here via the admin client, same pattern as the therapist dashboard
   // looking up its patients' names.
   const therapistIds = [
-    ...new Set((appointments ?? []).map((a) => a.therapist_id).filter(Boolean)),
+    ...new Set(
+      [
+        ...(appointments ?? []).map((a) => a.therapist_id),
+        ...(ownedPackages ?? []).map((p) => p.locked_therapist_id),
+      ].filter(Boolean)
+    ),
+  ];
+  // Owned packages can reference a package that's since been deactivated
+  // or hidden (visible_in_dashboard flipped off) -- availablePackages'
+  // active/visible-only policy wouldn't cover that, so this is its own
+  // admin-client lookup, same reasoning as categoryPrices below.
+  const ownedPackageIds = [
+    ...new Set((ownedPackages ?? []).map((p) => p.package_id).filter(Boolean)),
   ];
   const admin = createAdminClient();
-  const [{ data: categoryPrices }, { data: therapists }] = await Promise.all([
+  const [{ data: categoryPrices }, { data: therapists }, { data: ownedPackageInfo }] = await Promise.all([
     categoryIds.length > 0
       ? admin.from("treatment_categories").select("id, price_paise, title").in("id", categoryIds as string[])
       : Promise.resolve({ data: [] as { id: string; price_paise: number; title: string }[] }),
     therapistIds.length > 0
       ? admin.from("profiles").select("id, full_name").in("id", therapistIds as string[])
       : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    ownedPackageIds.length > 0
+      ? admin
+          .from("treatment_category_packages")
+          .select("id, title, image_url")
+          .in("id", ownedPackageIds as string[])
+      : Promise.resolve({ data: [] as { id: string; title: string; image_url: string | null }[] }),
   ]);
   const categoryPriceMap = new Map(
     (categoryPrices ?? []).map((c) => [c.id, c.price_paise])
@@ -181,6 +215,34 @@ export default async function PatientDashboardPage() {
   const categoryTitleMap = new Map((categoryPrices ?? []).map((c) => [c.id, c.title]));
   const therapistMap = new Map((therapists ?? []).map((t) => [t.id, t.full_name]));
   const activeCategoryMap = new Map((activeCategories ?? []).map((c) => [c.id, c.title]));
+  const ownedPackageInfoMap = new Map((ownedPackageInfo ?? []).map((p) => [p.id, p]));
+  const purchaseCodeById = new Map((ownedPackages ?? []).map((p) => [p.id, p.purchase_code]));
+
+  // completed/scheduled per purchase, derived from the appointments already
+  // loaded above rather than a fresh query -- same counter semantics as
+  // package_purchase_summary (schema.sql), just computed in memory since
+  // this page already has every one of this patient's appointments.
+  const nowMsForPackages = nowTimestamp();
+  const completedCountByPurchase = new Map<string, number>();
+  const scheduledCountByPurchase = new Map<string, number>();
+  for (const a of appointments ?? []) {
+    if (!a.package_purchase_id) continue;
+    if (a.status === "completed") {
+      completedCountByPurchase.set(
+        a.package_purchase_id,
+        (completedCountByPurchase.get(a.package_purchase_id) ?? 0) + 1
+      );
+    } else if (
+      (a.status === "requested" || a.status === "confirmed") &&
+      a.slot_time &&
+      new Date(a.slot_time).getTime() > nowMsForPackages
+    ) {
+      scheduledCountByPurchase.set(
+        a.package_purchase_id,
+        (scheduledCountByPurchase.get(a.package_purchase_id) ?? 0) + 1
+      );
+    }
+  }
 
   const hasOwnedPackages = !!ownedPackages && ownedPackages.length > 0;
   const hasAvailablePackages =
@@ -217,7 +279,7 @@ export default async function PatientDashboardPage() {
               </span>
             </p>
             {a.package_purchase_id && (
-              <p className="text-teal-700 mt-1">Paid via package</p>
+              <PackageChip purchaseId={a.package_purchase_id} label={purchaseCodeById.get(a.package_purchase_id)} />
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -365,31 +427,23 @@ export default async function PatientDashboardPage() {
       </div>
 
       {ownedPackages && ownedPackages.length > 0 && (
-        <div id="your-packages" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
-          <h2 className="font-bold text-lg text-slate-800 mb-4">Your Packages</h2>
-          <ul className="space-y-3">
-            {ownedPackages.map((p) => {
-              const remaining = p.session_count - p.sessions_used;
-              return (
-                <li
-                  key={p.id}
-                  className="p-4 rounded-xl border border-slate-200 text-xs"
-                >
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div>
-                      <p className="font-bold text-slate-900">
-                        {activeCategoryMap.get(p.category_id) ?? "General Consultation"}
-                      </p>
-                      <p className="text-slate-500 mt-1">
-                        {remaining} of {p.session_count} sessions remaining
-                      </p>
-                    </div>
-                    {remaining > 0 && <BookWithPackageForm packagePurchaseId={p.id} />}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+        <div id="your-packages" className="mt-8">
+          <PatientPackageWidget
+            bulkScheduleMax={adminSettings.packageBulkScheduleMax}
+            purchases={ownedPackages.map((p) => ({
+              id: p.id,
+              purchaseCode: p.purchase_code,
+              title: ownedPackageInfoMap.get(p.package_id)?.title ?? activeCategoryMap.get(p.category_id) ?? "Session Package",
+              imageUrl: ownedPackageInfoMap.get(p.package_id)?.image_url ?? null,
+              sessionCount: p.session_count,
+              sessionsUsed: p.sessions_used,
+              completedCount: completedCountByPurchase.get(p.id) ?? 0,
+              scheduledCount: scheduledCountByPurchase.get(p.id) ?? 0,
+              status: p.status,
+              expiresAt: p.expires_at,
+              therapistName: p.locked_therapist_id ? therapistMap.get(p.locked_therapist_id) ?? null : null,
+            }))}
+          />
         </div>
       )}
 
@@ -401,28 +455,44 @@ export default async function PatientDashboardPage() {
             whenever you&apos;re ready to book.
           </p>
           <ul className="space-y-3">
-            {availablePackages.map((pkg) => (
-              <li
-                key={pkg.id}
-                className="p-4 rounded-xl border border-slate-200 text-xs flex items-center justify-between gap-2 flex-wrap"
-              >
-                <div>
-                  <p className="font-bold text-slate-900">{pkg.title}</p>
-                  <p className="text-slate-500 mt-1">
-                    {activeCategoryMap.get(pkg.category_id) ?? "General Consultation"} •{" "}
-                    {pkg.session_count} sessions • ₹
-                    {(pkg.price_paise / pkg.session_count / 100).toFixed(0)}/session
-                  </p>
-                </div>
-                <BuyPackageButton
-                  packageId={pkg.id}
-                  name={profile?.full_name ?? ""}
-                  email={profile?.email ?? ""}
-                  description={pkg.title}
-                  priceInPaise={pkg.price_paise}
-                />
-              </li>
-            ))}
+            {availablePackages.map((pkg) => {
+              const savings = computePackageSavings({
+                sessionCount: pkg.session_count,
+                pricePaise: pkg.price_paise,
+                compareAtPaise: pkg.compare_at_paise,
+                categoryPricePaise: categoryPriceMap.get(pkg.category_id) ?? null,
+              });
+              return (
+                <li
+                  key={pkg.id}
+                  className="p-4 rounded-xl border border-slate-200 text-xs flex items-center justify-between gap-3 flex-wrap"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {pkg.image_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={pkg.image_url} alt="" className="h-12 w-12 rounded-lg object-cover shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900">{pkg.title}</p>
+                      <p className="text-slate-500 mt-1">
+                        {activeCategoryMap.get(pkg.category_id) ?? "General Consultation"} •{" "}
+                        {pkg.session_count} sessions • ₹{(savings.perSessionPaise / 100).toFixed(0)}/session
+                        {savings.savingsPercent !== null && (
+                          <span className="text-teal-700 font-semibold"> · Save {savings.savingsPercent}%</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <BuyPackageButton
+                    packageId={pkg.id}
+                    name={profile?.full_name ?? ""}
+                    email={profile?.email ?? ""}
+                    description={pkg.title}
+                    priceInPaise={pkg.price_paise}
+                  />
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

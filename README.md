@@ -150,6 +150,22 @@ still-scheduled future sessions). `sessions_used` counts sessions
 next to `patient_package_purchases` in `supabase/schema.sql` for the exact
 completed/scheduled/pending math every surface relies on.
 
+The patient dashboard's **Your Packages** widget shows that math per
+purchase — progress, days left, the locked therapist — with a **Schedule
+sessions** button opening a multi-select calendar
+(`src/components/packages/PackageBulkScheduler.tsx`) that books up to
+`package_bulk_schedule_max` sessions in one request via
+`/api/appointments/book-package-sessions`, enforcing the package's minimum
+gap and max-sessions-per-week rules and reporting exactly which slots made
+it in. Any package-covered session card (patient or therapist dashboard)
+carries a tappable chip that opens the same
+`src/components/packages/PackageDetailModal.tsx` — accessible (Escape,
+focus management, scroll lock, like `TeamTherapistPopup`) and backed by
+`/api/packages/purchase-detail`, which scopes fields by viewer: the patient
+sees what they paid, the locked therapist sees the clinical picture without
+the money. The therapist dashboard's **Programme Patients** section lists
+every purchase locked to that therapist the same way.
+
 **Video sessions.** Confirming an appointment creates a Google Calendar event
 with a Meet link (`src/lib/googleCalendar.ts`,
 `src/lib/googleCalendarSync.ts`). Calendar failures never block a booking —

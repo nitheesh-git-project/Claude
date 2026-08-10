@@ -104,7 +104,20 @@ role, an id, or an amount sent from the client — re-derive it server-side.
   locked therapist never fails the booking; the session lands `requested`
   and unassigned in the admin queue instead. Reassigning a whole programme
   (`/api/admin/reassign-package-therapist`) only ever touches future
-  sessions — completed ones keep whoever actually ran them.
+  sessions — completed ones keep whoever actually ran them. A patient can
+  schedule several remaining sessions in one request via
+  `/api/appointments/book-package-sessions`, which loops
+  `bookPackageSession()` per slot after enforcing the package's own
+  minimum-gap/max-per-week rules and the bulk limit — it's the batch-level
+  rules layer, not a second booking implementation.
+- **Package detail is viewer-scoped, not role-branched.**
+  `/api/packages/purchase-detail` queries `patient_package_purchases` with
+  the caller's own RLS-scoped client rather than checking role: the two
+  `package_purchases_select_*` policies already encode exactly who may see
+  a given purchase, so a row coming back at all *is* the authorization
+  check. Only the one cross-role name lookup RLS can't provide (the other
+  party's name) uses the admin client. Don't add a manual ownership branch
+  here or you'll duplicate what the policies already guarantee.
 - **Business math lives in dependency-free `src/lib/` modules** (`pricing`,
   `adminMetrics`, `therapistEarnings`, `therapistPayouts`, `ratingAggregate`,
   `packageProgress`) so it can be reasoned about without rendering. Keep new

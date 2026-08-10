@@ -9,6 +9,8 @@ import TherapistOnLeaveToggle from "@/components/TherapistOnLeaveToggle";
 import TherapistUpcomingOverrides from "@/components/TherapistUpcomingOverrides";
 import TherapistPayoutReceiptsSection from "@/components/TherapistPayoutReceiptsSection";
 import TherapistEarningsTab from "@/components/TherapistEarningsTab";
+import PackageChip from "@/components/packages/PackageChip";
+import TherapistProgrammePatients from "@/components/packages/TherapistProgrammePatients";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
 import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
@@ -39,6 +41,13 @@ export const metadata: Metadata = {
   title: "Therapist Dashboard | Dr. Pooja's Physio",
 };
 
+// A plain module-level helper, not a bare Date.now() inline in the
+// component body -- same reasoning as admin/dashboard/page.tsx's
+// nowTimestamp(): a Server Component's render must stay pure.
+function nowTimestamp() {
+  return Date.now();
+}
+
 export default async function TherapistDashboardPage() {
   const supabase = await createClient();
   const {
@@ -68,6 +77,7 @@ export default async function TherapistDashboardPage() {
     { data: payoutBatches },
     { data: treatmentCategories },
     { data: payoutRequests },
+    { data: programmePurchases },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -100,7 +110,7 @@ export default async function TherapistDashboardPage() {
     supabase
       .from("appointments")
       .select(
-        "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id"
+        "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id, package_purchase_id"
       )
       .eq("therapist_id", user.id)
       .order("created_at", { ascending: false }),
@@ -135,6 +145,17 @@ export default async function TherapistDashboardPage() {
       .select("id, requested_amount_paise, status, requested_at, acknowledged_at")
       .eq("therapist_id", user.id)
       .order("requested_at", { ascending: false }),
+
+    // Package purchases locked onto this therapist -- readable directly
+    // via package_purchases_select_locked_therapist (schema.sql), no
+    // admin client needed for the row itself. Feeds the Programme Patients
+    // section: the whole point is seeing the arc of a package patient's
+    // care, not just a flat list of disconnected sessions.
+    supabase
+      .from("patient_package_purchases")
+      .select("id, purchase_code, patient_id, package_id, category_id, session_count, sessions_used, status, expires_at")
+      .eq("locked_therapist_id", user.id)
+      .order("created_at", { ascending: false }),
   ]);
 
   const adminSettings = parseAdminSettings(settingsRow);
@@ -174,24 +195,57 @@ export default async function TherapistDashboardPage() {
   // their own row) — so their patients' names/contact info have to be
   // looked up here via the admin client, scoped to just the columns
   // needed to actually run the session.
-  const patientIds = [...new Set((appointments ?? []).map((a) => a.patient_id))];
+  const patientIds = [
+    ...new Set(
+      [
+        ...(appointments ?? []).map((a) => a.patient_id),
+        ...(programmePurchases ?? []).map((p) => p.patient_id),
+      ].filter(Boolean)
+    ),
+  ];
+  const programmePackageIds = [
+    ...new Set((programmePurchases ?? []).map((p) => p.package_id).filter(Boolean)),
+  ];
   const admin = createAdminClient();
-  const [{ data: upcomingOverrides }, { data: patients }] = await Promise.all([
+  const [{ data: upcomingOverrides }, { data: patients }, { data: programmePackageInfo }] = await Promise.all([
     supabase
       .from("therapist_availability_override")
       .select("date, hour, available, note")
       .eq("therapist_id", user.id)
       .gte("date", todayKey),
     patientIds.length > 0
-      ? admin.from("profiles").select("id, full_name, phone, email").in("id", patientIds)
+      ? admin.from("profiles").select("id, full_name, phone, email, patient_code").in("id", patientIds)
       : Promise.resolve({
-          data: [] as { id: string; full_name: string; phone: string | null; email: string }[],
+          data: [] as { id: string; full_name: string; phone: string | null; email: string; patient_code: string | null }[],
         }),
+    programmePackageIds.length > 0
+      ? admin.from("treatment_category_packages").select("id, title").in("id", programmePackageIds as string[])
+      : Promise.resolve({ data: [] as { id: string; title: string }[] }),
   ]);
   const patientMap = new Map((patients ?? []).map((p) => [p.id, p]));
   const patientNameById = new Map(
     (patients ?? []).map((p) => [p.id, p.full_name ?? "Unknown patient"])
   );
+  const programmePackageTitleById = new Map((programmePackageInfo ?? []).map((p) => [p.id, p.title]));
+
+  // Same in-memory completed/scheduled derivation as the patient
+  // dashboard's package widget -- every session on a purchase locked to
+  // this therapist already carries their own therapist_id, so it's
+  // already inside `appointments` above; no extra query needed.
+  const programmeCompletedByPurchase = new Map<string, number>();
+  const programmeScheduledByPurchase = new Map<string, number>();
+  for (const a of appointments ?? []) {
+    if (!a.package_purchase_id) continue;
+    if (a.status === "completed") {
+      programmeCompletedByPurchase.set(a.package_purchase_id, (programmeCompletedByPurchase.get(a.package_purchase_id) ?? 0) + 1);
+    } else if (
+      (a.status === "requested" || a.status === "confirmed") &&
+      a.slot_time &&
+      new Date(a.slot_time).getTime() > nowTimestamp()
+    ) {
+      programmeScheduledByPurchase.set(a.package_purchase_id, (programmeScheduledByPurchase.get(a.package_purchase_id) ?? 0) + 1);
+    }
+  }
 
   const payoutReceipts = buildTherapistPayoutReceipts(
     payoutBatches ?? [],
@@ -262,6 +316,7 @@ export default async function TherapistDashboardPage() {
             <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
           </p>
         )}
+        {a.package_purchase_id && <PackageChip purchaseId={a.package_purchase_id} />}
         <div className="flex items-center gap-2 flex-wrap">
           <JoinSessionButton
             meetLink={a.meet_link}
@@ -374,6 +429,27 @@ export default async function TherapistDashboardPage() {
             ))}
           </ul>
         )}
+      </div>
+
+      <div id="programmes" className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Programme Patients</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          Package purchases locked to you for their whole programme — tap one for the full completed/upcoming/pending picture.
+        </p>
+        <TherapistProgrammePatients
+          purchases={(programmePurchases ?? []).map((p) => ({
+            id: p.id,
+            purchaseCode: p.purchase_code,
+            patientName: patientNameById.get(p.patient_id) ?? "Unknown patient",
+            patientCode: patientMap.get(p.patient_id)?.patient_code ?? null,
+            packageTitle: programmePackageTitleById.get(p.package_id) ?? "Session Package",
+            sessionCount: p.session_count,
+            sessionsUsed: p.sessions_used,
+            completedCount: programmeCompletedByPurchase.get(p.id) ?? 0,
+            scheduledCount: programmeScheduledByPurchase.get(p.id) ?? 0,
+            status: p.status,
+          }))}
+        />
       </div>
 
       <div id="calendar" className="mt-8">

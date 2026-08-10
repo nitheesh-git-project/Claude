@@ -99,6 +99,21 @@ export type PackageCounts = {
   pending: number;
 };
 
+// Shared between the admin, patient, and therapist package detail modals
+// so a timeline event reads identically everywhere it's shown.
+export const PACKAGE_EVENT_LABELS: Record<string, string> = {
+  purchased: "Purchased",
+  session_scheduled: "Session scheduled",
+  session_cancelled: "Session cancelled",
+  session_completed: "Session completed",
+  session_restored: "Session restored",
+  therapist_locked: "Therapist locked",
+  therapist_reassigned: "Programme reassigned",
+  expiry_extended: "Expiry extended",
+  refunded: "Refunded",
+  expired: "Expired",
+};
+
 export function computePackageCounts({
   sessionCount,
   sessionsUsed,

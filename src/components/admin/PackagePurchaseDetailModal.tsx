@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/admin/Modal";
 import { useConfirm } from "@/lib/useConfirm";
 import { usePrompt } from "@/lib/usePrompt";
-import { computePackageCounts, daysUntilExpiry } from "@/lib/packageProgress";
+import { computePackageCounts, daysUntilExpiry, PACKAGE_EVENT_LABELS } from "@/lib/packageProgress";
 
 type AppointmentRow = {
   id: string;
@@ -49,19 +49,6 @@ type DetailResponse = {
   pendingCount: number;
   restorable: AppointmentRow[];
   events: EventRow[];
-};
-
-const EVENT_LABELS: Record<string, string> = {
-  purchased: "Purchased",
-  session_scheduled: "Session scheduled",
-  session_cancelled: "Session cancelled",
-  session_completed: "Session completed",
-  session_restored: "Session restored",
-  therapist_locked: "Therapist locked",
-  therapist_reassigned: "Programme reassigned",
-  expiry_extended: "Expiry extended",
-  refunded: "Refunded",
-  expired: "Expired",
 };
 
 export default function PackagePurchaseDetailModal({
@@ -368,7 +355,7 @@ export default function PackagePurchaseDetailModal({
                   <li key={e.id} className="flex items-center justify-between text-slate-500">
                     <span>
                       <span className="font-semibold text-slate-700">
-                        {EVENT_LABELS[e.event_type] ?? e.event_type}
+                        {PACKAGE_EVENT_LABELS[e.event_type] ?? e.event_type}
                       </span>{" "}
                       by {e.actorName}
                     </span>
