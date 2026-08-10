@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
 import BookingWizard from "@/components/BookingWizard";
+import BookingBackToSessions from "@/components/BookingBackToSessions";
 import { Reveal } from "@/components/motion/primitives";
 import { parseBookingLanguages } from "@/lib/adminSettings";
 
@@ -50,6 +51,9 @@ export default async function BookPage() {
           </p>
         </Reveal>
         <Suspense fallback={null}>
+          {/* Both read the query string, so they share the page's one
+              Suspense boundary. */}
+          <BookingBackToSessions />
           <BookingWizard
             initialCategories={categories ?? []}
             bookingLanguages={parseBookingLanguages(settingsRow?.booking_languages)}

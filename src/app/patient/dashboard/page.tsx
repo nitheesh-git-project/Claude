@@ -17,6 +17,7 @@ import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
+import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
 import { parseAdminSettings } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
@@ -331,8 +332,10 @@ export default async function PatientDashboardPage() {
       <div id="sessions" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-lg text-slate-800">Your Sessions</h2>
+          {/* ?from=dashboard so Back off the booking page returns here, to
+              Your Sessions -- see BookingBackToSessions. */}
           <Link
-            href="/book"
+            href={BOOKING_FROM_DASHBOARD}
             className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"
           >
             Book New Session

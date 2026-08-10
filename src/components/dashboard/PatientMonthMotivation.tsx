@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { MonthStats } from "@/components/dashboard/SessionCalendarTab";
+import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
 
 // Patient-only motivational block shown below the Calendar tab's tap-a-date
 // list, tied to whichever month is currently displayed so it updates as they
@@ -58,8 +59,11 @@ export default function PatientMonthMotivation({ stats }: { stats: MonthStats })
         <p className="text-xs text-slate-500 mt-1 mb-3">
           Book one today to keep your recovery moving forward!
         </p>
+        {/* ?from=dashboard so Back off the booking page returns to Your
+            Sessions rather than wherever history happens to point -- see
+            BookingBackToSessions. */}
         <Link
-          href="/book"
+          href={BOOKING_FROM_DASHBOARD}
           className="inline-block bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"
         >
           Book New Session
