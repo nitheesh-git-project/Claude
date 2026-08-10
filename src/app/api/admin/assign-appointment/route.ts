@@ -42,7 +42,9 @@ export async function POST(request: NextRequest) {
       .single(),
     admin
       .from("appointments")
-      .select("patient_id, payment_status, slot_time, duration_minutes, timezone, therapist_id, status")
+      .select(
+        "patient_id, payment_status, slot_time, duration_minutes, timezone, therapist_id, status, package_purchase_id"
+      )
       .eq("id", appointmentId)
       .single(),
   ]);
@@ -141,6 +143,66 @@ export async function POST(request: NextRequest) {
     });
     if (logError) {
       console.error("Failed to record appointment_reassignment_log entry:", logError);
+    }
+  }
+
+  // Package continuity: the first therapist ever assigned to a session on
+  // a package purchase locks onto that purchase -- every later session on
+  // the same purchase then auto-assigns them (see
+  // src/lib/bookPackageSession.ts), which is the whole point of selling
+  // "one therapist for your programme". Only fires once per purchase
+  // (locked_therapist_id starts null and this only ever sets it, never
+  // overwrites it -- see /api/admin/reassign-package-therapist for
+  // deliberately moving a locked purchase to someone else) and only when
+  // both the package itself and the site-wide switch allow locking.
+  if (appointment.package_purchase_id) {
+    const { data: purchase } = await admin
+      .from("patient_package_purchases")
+      .select("id, package_id, locked_therapist_id")
+      .eq("id", appointment.package_purchase_id)
+      .single();
+    if (purchase && !purchase.locked_therapist_id) {
+      const [{ data: packageRow }, { data: settingsRow }] = await Promise.all([
+        admin
+          .from("treatment_category_packages")
+          .select("therapist_locked")
+          .eq("id", purchase.package_id)
+          .maybeSingle(),
+        admin.from("site_settings").select("package_therapist_lock_enabled").maybeSingle(),
+      ]);
+      const packageAllowsLock = packageRow?.therapist_locked !== false;
+      const siteAllowsLock = settingsRow?.package_therapist_lock_enabled !== false;
+      if (packageAllowsLock && siteAllowsLock) {
+        // CAS on locked_therapist_id staying null -- two appointments on
+        // the same purchase being assigned near-simultaneously (e.g. an
+        // admin double-clicking, or assigning session 1 while a bulk
+        // schedule is mid-flight) must not both "win" the lock.
+        const { data: lockClaimed, error: lockError } = await admin
+          .from("patient_package_purchases")
+          .update({ locked_therapist_id: therapistId })
+          .eq("id", purchase.id)
+          .is("locked_therapist_id", null)
+          .select("id")
+          .maybeSingle();
+        if (lockError) {
+          console.error("Failed to lock package therapist for purchase", purchase.id, lockError);
+        } else if (lockClaimed) {
+          const { error: lockEventError } = await admin.from("package_purchase_events").insert({
+            purchase_id: purchase.id,
+            event_type: "therapist_locked",
+            actor_id: adminUser.id,
+            appointment_id: appointmentId,
+            detail: { therapistId },
+          });
+          if (lockEventError) {
+            console.error(
+              "Failed to log therapist_locked event for purchase",
+              purchase.id,
+              lockEventError
+            );
+          }
+        }
+      }
     }
   }
 

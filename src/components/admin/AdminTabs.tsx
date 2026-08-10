@@ -17,6 +17,7 @@ const ADMIN_REALTIME_TABLES = [
   "b2b_leads",
   "profiles",
   "profile_change_requests",
+  "patient_package_purchases",
 ];
 
 type TabKey =
@@ -32,6 +33,7 @@ type TabKey =
   | "payoutRequests"
   | "paymentHistory"
   | "content"
+  | "sessionManager"
   | "featureControl";
 
 type TabDef = { key: TabKey; label: string; icon: string; badge?: number };
@@ -51,6 +53,7 @@ export default function AdminTabs({
   payoutRequestsBadgeCount,
   paymentHistory,
   siteContent,
+  sessionManager,
   featureControl,
   adminName,
   adminEmail,
@@ -77,6 +80,7 @@ export default function AdminTabs({
   payoutRequestsBadgeCount: number;
   paymentHistory: ReactNode;
   siteContent: ReactNode;
+  sessionManager: ReactNode;
   featureControl: ReactNode;
   adminName: string;
   adminEmail: string;
@@ -111,6 +115,7 @@ export default function AdminTabs({
       badge: payoutRequestsBadgeCount,
     },
     { key: "paymentHistory", label: "Payment History", icon: "fa-receipt" },
+    { key: "sessionManager", label: "Session Manager", icon: "fa-layer-group" },
     { key: "content", label: "Site Content", icon: "fa-pen-to-square" },
     { key: "featureControl", label: "Feature Control", icon: "fa-sliders" },
   ];
@@ -310,6 +315,7 @@ export default function AdminTabs({
           <div className={tab === "payouts" ? "" : "hidden"}>{payouts}</div>
           <div className={tab === "payoutRequests" ? "" : "hidden"}>{payoutRequests}</div>
           <div className={tab === "paymentHistory" ? "" : "hidden"}>{paymentHistory}</div>
+          <div className={tab === "sessionManager" ? "" : "hidden"}>{sessionManager}</div>
           <div className={tab === "content" ? "" : "hidden"}>{siteContent}</div>
           <div className={tab === "featureControl" ? "" : "hidden"}>{featureControl}</div>
         </div>

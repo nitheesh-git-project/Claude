@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
 import DashboardShell, { type ShellNavItem } from "@/components/dashboard/DashboardShell";
-import { parseAdminSettings } from "@/lib/adminSettings";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
   title: "Account Security | Dr. Pooja's Physio",
@@ -36,7 +36,7 @@ export default async function HospitalProfilePage() {
     // the whole page.
     supabase
       .from("site_settings")
-      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
+      .select(SITE_SETTINGS_SELECT)
       .maybeSingle(),
   ]);
   const adminSettings = parseAdminSettings(settingsRow);

@@ -86,7 +86,7 @@ so a still-valid session cookie can't call the API around the UI gate.
 
 **Admin:** `/admin/login`, `/admin/dashboard` (tabbed: metrics, calendar,
 roster, people directory, payments, payouts, payout requests, session story,
-feature control), plus per-person detail pages at
+session manager, site content, feature control), plus per-person detail pages at
 `/admin/dashboard/patients/[id]` and `/admin/dashboard/therapists/[id]`.
 Those detail pages use a parallel `@modal` route with intercepting routes, so
 clicking a person from the dashboard opens an overlay while a direct link
@@ -118,6 +118,27 @@ with `/api/appointments/book-with-package`. The standard session fee and the
 Cancellations inside the window get no refund; outside it, a Razorpay refund
 is issued and stamped on the appointment.
 
+**Session packages.** A package is a programme, not just a discount: bundle
+price, an optional struck-through compare-at price (derived from the
+category's per-session price when left blank), promises, validity, and
+per-programme rules (minimum gap between sessions, max sessions/week, max
+purchases/patient) — configured field-by-field in the admin **Session
+Manager** tab, not Site Content or Feature Control. When a package has
+`therapist_locked` on (the default) and the site-wide switch
+(`package_therapist_lock_enabled`) allows it, the first therapist assigned to
+any session on a purchase locks onto `locked_therapist_id`; every later
+session booked on that purchase (`src/lib/bookPackageSession.ts`)
+auto-assigns that therapist, auto-confirms (payment is already collected),
+and creates its own Meet link — a scheduling conflict never costs the
+patient a session, it just leaves that one `requested` and unassigned for
+the admin queue. Admin can reassign a whole programme to a new therapist in
+one action, extend or view a purchase's expiry, restore a forfeited session,
+or issue a pro-rata refund on the unused balance (which also cancels any
+still-scheduled future sessions). `sessions_used` counts sessions
+**claimed** (scheduled or completed) — see the counter-semantics comment
+next to `patient_package_purchases` in `supabase/schema.sql` for the exact
+completed/scheduled/pending math every surface relies on.
+
 **Video sessions.** Confirming an appointment creates a Google Calendar event
 with a Meet link (`src/lib/googleCalendar.ts`,
 `src/lib/googleCalendarSync.ts`). Calendar failures never block a booking —
@@ -142,11 +163,15 @@ share an invite link / referral code. Referred patients carry
 public `/hospitals` page also captures anonymous B2B leads into `b2b_leads`,
 which only the admin can read back.
 
-**Admin-managed content.** Treatment categories (with ordering), packages,
-FAQs, testimonials, booking languages, and feature toggles (Meet on/off, join
-window, idle-timeout minutes, package visibility) are all editable from the
-dashboard and stored in `site_settings` and their own tables — see
-`src/lib/adminSettings.ts`.
+**Admin-managed content.** Treatment categories (with ordering), FAQs,
+testimonials, and feature toggles (Meet on/off, join window, idle-timeout
+minutes, booking languages) are all editable from the dashboard's Site
+Content and Feature Control tabs, stored in `site_settings` and their own
+tables — see `src/lib/adminSettings.ts`. Session packages have their own
+**Session Manager** tab instead (catalog, every purchase ever made, and the
+package-wide settings — visibility, default validity, the therapist-lock
+switch, the bulk-scheduler limit, the expiry reminder window); see "Session
+packages" above.
 
 **Realtime.** `src/components/RealtimeRefresh.tsx` subscribes to Supabase
 Realtime so dashboards refresh when the underlying rows change.

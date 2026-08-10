@@ -8,7 +8,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { LANGUAGE_OPTIONS } from "@/lib/languageOptions";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
-import { parseAdminSettings } from "@/lib/adminSettings";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
   title: "Edit Profile | Dr. Pooja's Physio",
@@ -72,7 +72,7 @@ export default async function PatientProfilePage() {
     // the whole page.
     supabase
       .from("site_settings")
-      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
+      .select(SITE_SETTINGS_SELECT)
       .maybeSingle(),
   ]);
   const fieldStatus = computeFieldStatus(changeRequests ?? []);

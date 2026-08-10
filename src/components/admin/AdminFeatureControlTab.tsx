@@ -35,15 +35,6 @@ export default function AdminFeatureControlTab({
   adminEmail: string;
 }) {
   const router = useRouter();
-  // Prop-derived base: flips the label instantly instead of waiting on the
-  // fetch + router.refresh() round trip. Reverts to the real prop on
-  // failure (no refresh happens); matches the new prop on success once
-  // router.refresh() lands. See PatientActiveToggle's comment.
-  const [optimisticPackagesVisible, setOptimisticPackagesVisible] = useOptimistic(
-    settings.sessionPackagesVisible
-  );
-  const [isPackagesPending, startPackagesTransition] = useTransition();
-  const [packagesError, setPackagesError] = useState<string | null>(null);
 
   const [timeoutInput, setTimeoutInput] = useState(String(settings.sessionTimeoutMinutes));
   const [isTimeoutPending, startTimeoutTransition] = useTransition();
@@ -70,20 +61,6 @@ export default function AdminFeatureControlTab({
 
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
-
-  function handleTogglePackages() {
-    const next = !optimisticPackagesVisible;
-    setPackagesError(null);
-    startPackagesTransition(async () => {
-      setOptimisticPackagesVisible(next);
-      try {
-        await saveSetting("session_packages_visible", next);
-        router.refresh();
-      } catch (e) {
-        setPackagesError(e instanceof Error ? e.message : "Could not save. Please try again.");
-      }
-    });
-  }
 
   function handleSaveTimeout() {
     const minutes = Math.max(0, Math.floor(Number(timeoutInput) || 0));
@@ -193,30 +170,6 @@ export default function AdminFeatureControlTab({
         <p className="text-xs text-slate-500 mt-1">
           Platform-wide toggles and settings, applied everywhere immediately.
         </p>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h3 className="font-bold text-sm text-slate-800">Session Packages</h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-md">
-              When off, patients can&apos;t buy or see session packages anywhere on the site —
-              existing package purchases and their remaining sessions are unaffected.
-            </p>
-          </div>
-          <button
-            onClick={handleTogglePackages}
-            disabled={isPackagesPending}
-            className={`text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-60 ${
-              optimisticPackagesVisible
-                ? "bg-teal-700 hover:bg-teal-800 text-white"
-                : "bg-slate-200 hover:bg-slate-300 text-slate-800"
-            }`}
-          >
-            {optimisticPackagesVisible ? "Visible" : "Hidden"}
-          </button>
-        </div>
-        {packagesError && <p className="text-[11px] text-red-600 mt-2">{packagesError}</p>}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

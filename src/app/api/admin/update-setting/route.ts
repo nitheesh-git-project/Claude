@@ -10,6 +10,10 @@ const ALLOWED_COLUMNS = new Set([
   "join_window_minutes",
   "join_window_after_minutes",
   "booking_languages",
+  "package_default_validity_days",
+  "package_therapist_lock_enabled",
+  "package_bulk_schedule_max",
+  "package_expiry_reminder_days",
 ]);
 
 // Bounds on the admin-managed /book language list -- not business rules so
@@ -33,7 +37,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unknown setting key" }, { status: 400 });
   }
   if (
-    (key === "session_packages_visible" || key === "google_meet_enabled") &&
+    (key === "session_packages_visible" ||
+      key === "google_meet_enabled" ||
+      key === "package_therapist_lock_enabled") &&
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
@@ -41,10 +47,22 @@ export async function POST(request: NextRequest) {
   if (
     (key === "session_timeout_minutes" ||
       key === "join_window_minutes" ||
-      key === "join_window_after_minutes") &&
+      key === "join_window_after_minutes" ||
+      key === "package_expiry_reminder_days") &&
     (typeof value !== "number" || value < 0)
   ) {
     return NextResponse.json({ error: "value must be a non-negative number" }, { status: 400 });
+  }
+  // Unlike the timers above, these two are a divisor and a loop bound
+  // downstream (per-session validity math, the bulk scheduler's date
+  // limit) -- zero is meaningless for either, so they're held to > 0
+  // rather than >= 0, matching the DB check constraints on the matching
+  // site_settings columns.
+  if (
+    (key === "package_default_validity_days" || key === "package_bulk_schedule_max") &&
+    (typeof value !== "number" || !Number.isInteger(value) || value < 1)
+  ) {
+    return NextResponse.json({ error: "value must be a positive whole number" }, { status: 400 });
   }
 
   // Normalized here rather than trusted from the client: this list is

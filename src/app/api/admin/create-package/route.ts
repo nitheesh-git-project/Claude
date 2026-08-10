@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { validatePackagePayload, type PackagePayload } from "@/lib/validatePackagePayload";
 
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
@@ -9,38 +10,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { data: body, error: parseError } = await parseJsonBody<{
-    categoryId?: string;
-    title?: string;
-    sessionCount?: number | string;
-    priceInr?: number | string;
-    displayOrder?: number | string;
-  }>(request);
+  const { data: body, error: parseError } = await parseJsonBody<
+    PackagePayload & { categoryId?: string }
+  >(request);
   if (parseError) return parseError;
-  const { categoryId, title, sessionCount, priceInr, displayOrder } = body;
+  const { categoryId, ...payload } = body;
 
-  if (!categoryId || !title || sessionCount === undefined || priceInr === undefined) {
-    return NextResponse.json(
-      { error: "Missing categoryId, title, sessionCount, or priceInr" },
-      { status: 400 }
-    );
+  if (!categoryId) {
+    return NextResponse.json({ error: "Missing categoryId" }, { status: 400 });
   }
 
-  const count = Number(sessionCount);
-  const price = Number(priceInr);
-  const order = displayOrder === undefined ? 0 : Number(displayOrder);
-
-  if (!Number.isInteger(count) || count < 2) {
-    return NextResponse.json(
-      { error: "Session count must be a whole number of 2 or more" },
-      { status: 400 }
-    );
-  }
-  if (Number.isNaN(price) || price <= 0) {
-    return NextResponse.json({ error: "Price must be a positive number" }, { status: 400 });
-  }
-  if (Number.isNaN(order)) {
-    return NextResponse.json({ error: "Order must be a number" }, { status: 400 });
+  const validated = validatePackagePayload(payload, { requireTitleAndPricing: true });
+  if ("error" in validated) {
+    return NextResponse.json({ error: validated.error }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -57,17 +39,14 @@ export async function POST(request: NextRequest) {
     .from("treatment_category_packages")
     .insert({
       category_id: categoryId,
-      title,
-      session_count: Math.round(count),
-      price_paise: Math.round(price * 100),
-      display_order: Math.round(order),
+      ...validated.columns,
     })
-    .select("id")
+    .select("id, package_code")
     .single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, id: data.id });
+  return NextResponse.json({ success: true, id: data.id, packageCode: data.package_code });
 }

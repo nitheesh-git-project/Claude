@@ -18,7 +18,7 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
-import { parseAdminSettings } from "@/lib/adminSettings";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 export const metadata: Metadata = {
@@ -76,7 +76,7 @@ export default async function PatientDashboardPage() {
     // the whole page.
     supabase
       .from("site_settings")
-      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
+      .select(SITE_SETTINGS_SELECT)
       .maybeSingle(),
 
     // patient_code is new and migration-dependent -- its own isolated query

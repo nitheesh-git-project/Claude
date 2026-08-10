@@ -10,7 +10,7 @@ import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
-import { parseAdminSettings } from "@/lib/adminSettings";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 export const metadata: Metadata = {
@@ -66,7 +66,7 @@ export default async function HospitalDashboardPage() {
     // the whole page.
     supabase
       .from("site_settings")
-      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
+      .select(SITE_SETTINGS_SELECT)
       .maybeSingle(),
 
     // hospital_code is new/migration-dependent -- kept isolated (see

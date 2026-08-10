@@ -93,13 +93,30 @@ role, an id, or an amount sent from the client — re-derive it server-side.
 - **Google Calendar/Meet sync must never block a booking.** Failures are
   recorded on the appointment (`google_calendar_sync_error`) and retried by
   the admin (`/api/admin/retry-meet-sync`).
+- **Session packages lock to one therapist by default.** The first therapist
+  assigned to any session on a `patient_package_purchases` row sets
+  `locked_therapist_id`; every later session on that purchase auto-assigns,
+  auto-confirms, and gets its own Meet link via
+  `src/lib/bookPackageSession.ts`, never through the normal per-session admin
+  assignment flow. `sessions_used` counts sessions **claimed** (scheduled or
+  completed), not completed — see the counter-semantics comment beside
+  `patient_package_purchases` in `schema.sql`. A scheduling conflict on the
+  locked therapist never fails the booking; the session lands `requested`
+  and unassigned in the admin queue instead. Reassigning a whole programme
+  (`/api/admin/reassign-package-therapist`) only ever touches future
+  sessions — completed ones keep whoever actually ran them.
 - **Business math lives in dependency-free `src/lib/` modules** (`pricing`,
-  `adminMetrics`, `therapistEarnings`, `therapistPayouts`,
-  `ratingAggregate`) so it can be reasoned about without rendering. Keep new
+  `adminMetrics`, `therapistEarnings`, `therapistPayouts`, `ratingAggregate`,
+  `packageProgress`) so it can be reasoned about without rendering. Keep new
   math there rather than inside components.
 - **Admin-configurable behavior** (Meet on/off, join window, idle timeout,
-  package visibility, booking languages) is read through
-  `src/lib/adminSettings.ts` with defaults — don't hardcode these.
+  booking languages, and the package-wide settings — visibility, default
+  validity, therapist-lock switch, bulk-scheduler limit, expiry reminder
+  window) is read through `src/lib/adminSettings.ts` with defaults — don't
+  hardcode these. Every dashboard page must select
+  `SITE_SETTINGS_SELECT` from that module rather than its own column list,
+  or a new setting silently reads as its default on whichever page forgot
+  it.
 
 ## Keeping the docs current
 

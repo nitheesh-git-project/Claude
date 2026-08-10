@@ -1455,3 +1455,329 @@ alter table site_settings add column if not exists booking_languages jsonb not n
 -- date/time. Nullable and additive: existing rows (and any booking made
 -- before this column existed) simply carry no stated preference.
 alter table appointments add column if not exists preferred_language text;
+
+-- ============================================================================
+-- Session Packages v2: a package is a sellable programme (image, promises,
+-- discount math, therapist continuity, validity), not just a bundle of N
+-- sessions at a price. This section turns treatment_category_packages and
+-- patient_package_purchases into that -- see the Session Manager admin tab
+-- and the "Session Packages" section on the public site for the surfaces
+-- that read these columns.
+-- ============================================================================
+
+-- Human-readable, permanent ID for a catalog product -- same idea as the
+-- PT####/TH####/BB####/SS#### codes assigned above, just for the package
+-- itself. Quoted in support conversations and shown read-only in the
+-- admin catalog form.
+create sequence if not exists package_code_seq;
+alter table treatment_category_packages add column if not exists package_code text;
+
+-- Card copy. subtitle is the one-liner under the name; description is the
+-- paragraph on the expanded/detail view; promises mirrors
+-- treatment_categories.points (same jsonb-array-of-strings shape, same
+-- reasoning: a short admin-curated list with no per-row metadata).
+alter table treatment_category_packages add column if not exists subtitle text;
+alter table treatment_category_packages add column if not exists description text;
+alter table treatment_category_packages add column if not exists image_url text;
+alter table treatment_category_packages add column if not exists promises jsonb not null default '[]'::jsonb;
+alter table treatment_category_packages add column if not exists badge_label text;
+alter table treatment_category_packages add column if not exists highlight boolean not null default false;
+alter table treatment_category_packages add column if not exists terms text;
+
+-- The "was ₹X" struck-through price. Nullable on purpose: when null, every
+-- surface that renders it computes session_count * treatment_categories
+-- .price_paise instead, so the advertised saving can never contradict the
+-- category's real per-session price. Set explicitly only to advertise a
+-- saving deeper than the category's list price would produce.
+alter table treatment_category_packages add column if not exists compare_at_paise integer;
+alter table treatment_category_packages drop constraint if exists treatment_category_packages_compare_at_check;
+alter table treatment_category_packages
+  add constraint treatment_category_packages_compare_at_check
+  check (compare_at_paise is null or compare_at_paise >= price_paise);
+
+-- Programme rules. validity_days/session_duration_minutes null through to
+-- the site_settings default / the category's own duration respectively --
+-- see parseAdminSettings() and the booking wizard's package mode.
+-- therapist_locked is the per-package switch for the continuity promise;
+-- the site-wide kill switch is site_settings.package_therapist_lock_enabled
+-- below, and either one being off skips locking.
+alter table treatment_category_packages add column if not exists validity_days integer check (validity_days is null or validity_days > 0);
+alter table treatment_category_packages add column if not exists session_duration_minutes integer check (session_duration_minutes is null or session_duration_minutes > 0);
+alter table treatment_category_packages add column if not exists therapist_locked boolean not null default true;
+alter table treatment_category_packages add column if not exists min_gap_hours integer check (min_gap_hours is null or min_gap_hours > 0);
+alter table treatment_category_packages add column if not exists max_sessions_per_week integer check (max_sessions_per_week is null or max_sessions_per_week > 0);
+alter table treatment_category_packages add column if not exists max_purchases_per_patient integer check (max_purchases_per_patient is null or max_purchases_per_patient > 0);
+
+-- Whether a package session's therapist payout is computed on the
+-- discounted per-session amount actually collected (the historical
+-- behaviour: amount_paid_paise / session_count) or on the category's full
+-- list price, letting the business absorb the bundle discount instead of
+-- passing it to the therapist. Read by src/lib/therapistEarnings.ts /
+-- therapistPayouts.ts once a package session's payout is computed.
+alter table treatment_category_packages add column if not exists therapist_rate_basis text
+  not null default 'package_actual'
+  check (therapist_rate_basis in ('package_actual', 'category_list'));
+
+-- Where the package is offered. active (existing column) is the master
+-- switch; these three narrow *which* active surfaces show it, independent
+-- of each other -- a package can be dashboard-only, for instance.
+alter table treatment_category_packages add column if not exists visible_on_home boolean not null default true;
+alter table treatment_category_packages add column if not exists visible_on_conditions boolean not null default true;
+alter table treatment_category_packages add column if not exists visible_in_dashboard boolean not null default true;
+
+create or replace function assign_package_code() returns trigger as $$
+begin
+  if new.package_code is null then
+    new.package_code := 'PK' || lpad(nextval('package_code_seq')::text, 4, '0');
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_assign_package_code on treatment_category_packages;
+create trigger trg_assign_package_code
+  before insert on treatment_category_packages
+  for each row execute function assign_package_code();
+
+-- Backfill existing packages (oldest first) and advance the sequence past
+-- the highest code actually in use -- same idempotent, deletion-safe
+-- pattern as the patient/therapist/hospital/session code backfills above
+-- (derived from max(existing code number), never count(*)).
+do $$
+begin
+  if exists (select 1 from treatment_category_packages where package_code is null) then
+    with ordered as (
+      select id, row_number() over (order by created_at asc, id asc) as rn
+      from treatment_category_packages where package_code is null
+    )
+    update treatment_category_packages p set package_code = 'PK' || lpad(ordered.rn::text, 4, '0')
+    from ordered where p.id = ordered.id;
+  end if;
+  perform setval(
+    'package_code_seq',
+    coalesce((select max(substring(package_code from 3)::int) from treatment_category_packages), 0),
+    true
+  );
+end $$;
+
+create unique index if not exists treatment_category_packages_code_unique_idx
+  on treatment_category_packages (package_code) where package_code is not null;
+
+-- What a patient bought, extended: a purchase code (the "package ID" shown
+-- on the admin Purchases table -- PK#### identifies the product, this
+-- identifies the sale), the therapist locked onto the whole programme,
+-- an expiry window, and a stored lifecycle status.
+create sequence if not exists purchase_code_seq;
+alter table patient_package_purchases add column if not exists purchase_code text;
+
+-- Set the first time any session on this purchase gets a therapist
+-- assigned (see /api/admin/assign-appointment and
+-- src/lib/bookPackageSession.ts). Every later session on the same
+-- purchase auto-assigns this therapist rather than going through the
+-- normal admin assignment queue -- the continuity promise the package is
+-- sold on. on delete set null so a deleted therapist profile doesn't
+-- take the purchase row down with it.
+alter table patient_package_purchases add column if not exists locked_therapist_id uuid references profiles(id) on delete set null;
+
+alter table patient_package_purchases add column if not exists expires_at timestamptz;
+
+-- Stored rather than purely derived so the admin Purchases table can
+-- filter/index on it directly. Kept in step by the same service-role
+-- routes that move sessions_used -- see the counter-semantics comment
+-- below for exactly what each status/count means.
+alter table patient_package_purchases add column if not exists status text
+  not null default 'active'
+  check (status in ('active', 'completed', 'expired', 'refunded', 'cancelled'));
+
+alter table patient_package_purchases add column if not exists notes text;
+alter table patient_package_purchases add column if not exists expiry_extended_at timestamptz;
+alter table patient_package_purchases add column if not exists expiry_extended_by uuid references profiles(id);
+alter table patient_package_purchases add column if not exists expiry_extension_reason text;
+alter table patient_package_purchases add column if not exists refund_amount_paise integer;
+alter table patient_package_purchases add column if not exists refunded_at timestamptz;
+alter table patient_package_purchases add column if not exists refund_id text;
+
+create or replace function assign_purchase_code() returns trigger as $$
+begin
+  if new.purchase_code is null then
+    new.purchase_code := 'SP' || lpad(nextval('purchase_code_seq')::text, 4, '0');
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_assign_purchase_code on patient_package_purchases;
+create trigger trg_assign_purchase_code
+  before insert on patient_package_purchases
+  for each row execute function assign_purchase_code();
+
+-- Backfill: same idempotent, max()-derived pattern as every other code
+-- sequence in this file. Also backfills status for pre-existing rows --
+-- fully consumed purchases become 'completed', everything else 'active',
+-- since none of them can be 'expired'/'refunded'/'cancelled' without the
+-- columns that record why (those only ever get set going forward).
+do $$
+begin
+  if exists (select 1 from patient_package_purchases where purchase_code is null) then
+    with ordered as (
+      select id, row_number() over (order by created_at asc, id asc) as rn
+      from patient_package_purchases where purchase_code is null
+    )
+    update patient_package_purchases p set purchase_code = 'SP' || lpad(ordered.rn::text, 4, '0')
+    from ordered where p.id = ordered.id;
+  end if;
+  perform setval(
+    'purchase_code_seq',
+    coalesce((select max(substring(purchase_code from 3)::int) from patient_package_purchases), 0),
+    true
+  );
+
+  update patient_package_purchases
+  set status = 'completed'
+  where status = 'active' and sessions_used >= session_count and session_count > 0;
+end $$;
+
+create unique index if not exists patient_package_purchases_code_unique_idx
+  on patient_package_purchases (purchase_code) where purchase_code is not null;
+
+create index if not exists patient_package_purchases_patient_id_idx on patient_package_purchases (patient_id);
+create index if not exists patient_package_purchases_locked_therapist_id_idx on patient_package_purchases (locked_therapist_id);
+create index if not exists patient_package_purchases_status_idx on patient_package_purchases (status);
+create index if not exists patient_package_purchases_expires_at_idx on patient_package_purchases (expires_at);
+
+-- The existing package_purchases_select_own policy only covers the
+-- patient who owns the purchase; the admin Session Manager tab needs to
+-- read every purchase. Mirrors appointments_select_admin above, reusing
+-- the same is_admin() helper so this doesn't recurse back into profiles'
+-- own RLS.
+drop policy if exists "package_purchases_select_admin" on patient_package_purchases;
+create policy "package_purchases_select_admin" on patient_package_purchases
+  for select using (is_admin());
+
+-- The therapist locked onto a programme needs to see it on their own
+-- dashboard's Programme Patients section -- same "assigned party can read
+-- it" shape as appointments_select_own's therapist_id half above.
+drop policy if exists "package_purchases_select_locked_therapist" on patient_package_purchases;
+create policy "package_purchases_select_locked_therapist" on patient_package_purchases
+  for select using (auth.uid() = locked_therapist_id);
+
+-- Counter semantics (depended on by the patient widget, the admin
+-- Purchases table, and the therapist Programme Patients list -- keep
+-- these three in agreement with this comment, not with each other):
+--   sessions_used   = sessions CLAIMED: scheduled or completed. This is
+--                      exactly what the CAS claim in
+--                      src/lib/bookPackageSession.ts increments/decrements.
+--   completed       = appointments on this purchase with status='completed'
+--   scheduled       = appointments on this purchase with
+--                      status in ('requested','confirmed') and slot_time
+--                      in the future
+--   pending         = session_count - sessions_used
+-- A cancellation outside the 24-hour refund window (see
+-- CANCELLATION_FULL_REFUND_HOURS in src/lib/pricing.ts) decrements
+-- sessions_used, so pending correctly grows back; a late cancellation
+-- forfeits the session and leaves sessions_used untouched.
+
+-- Audit trail for a purchase's whole lifecycle -- mirrors
+-- appointment_reassignment_log above, but for events a single
+-- appointment_id can't capture (a purchase, a therapist lock, an expiry
+-- extension). Powers the timeline in the admin package detail popup.
+-- Service-role only, same as appointment_reassignment_log.
+create table if not exists package_purchase_events (
+  id uuid primary key default gen_random_uuid(),
+  purchase_id uuid not null references patient_package_purchases(id) on delete cascade,
+  event_type text not null check (event_type in (
+    'purchased', 'session_scheduled', 'session_cancelled', 'session_completed',
+    'session_restored', 'therapist_locked', 'therapist_reassigned',
+    'expiry_extended', 'refunded', 'expired'
+  )),
+  actor_id uuid references profiles(id),
+  appointment_id uuid references appointments(id) on delete set null,
+  detail jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table package_purchase_events enable row level security;
+
+drop policy if exists "package_purchase_events_select_own" on package_purchase_events;
+create policy "package_purchase_events_select_own" on package_purchase_events
+  for select using (
+    exists (
+      select 1 from patient_package_purchases pp
+      where pp.id = package_purchase_events.purchase_id and pp.patient_id = auth.uid()
+    )
+  );
+
+drop policy if exists "package_purchase_events_select_admin" on package_purchase_events;
+create policy "package_purchase_events_select_admin" on package_purchase_events
+  for select using (is_admin());
+
+create index if not exists package_purchase_events_purchase_id_idx on package_purchase_events (purchase_id);
+
+-- One row per purchase with the derived counts every list view needs, so
+-- the admin Purchases table and the therapist Programme Patients list
+-- don't each run their own N+1 across appointments. security_invoker so
+-- it respects the caller's own RLS (patient sees their own row via
+-- package_purchases_select_own, the locked therapist sees theirs via
+-- package_purchases_select_locked_therapist, admin sees every row via
+-- package_purchases_select_admin) rather than the view owner's.
+--
+-- Deliberately does NOT join profiles for the patient's or therapist's
+-- name -- profiles_select_own only lets a caller read their own row, so
+-- that join would silently come back null for every other viewer, same
+-- trap documented on the patient dashboard's therapist-name lookup.
+-- Every consumer resolves patient_id/locked_therapist_id to a name the
+-- same way the dashboards already resolve therapist_id today: a
+-- follow-up admin-client lookup, gated by the page already being behind
+-- the proxy/requireAdmin check -- see patient/dashboard/page.tsx's
+-- therapistMap for the pattern to copy.
+create or replace view package_purchase_summary
+  with (security_invoker = true) as
+select
+  pp.id,
+  pp.purchase_code,
+  pp.patient_id,
+  pp.package_id,
+  pp.category_id,
+  pp.session_count,
+  pp.sessions_used,
+  pp.amount_paid_paise,
+  pp.payment_status,
+  pp.status,
+  pp.locked_therapist_id,
+  pp.expires_at,
+  pp.paid_at,
+  pp.created_at,
+  coalesce(a.completed_count, 0) as completed_count,
+  coalesce(a.scheduled_count, 0) as scheduled_count,
+  greatest(pp.session_count - pp.sessions_used, 0) as pending_count,
+  a.next_slot_time
+from patient_package_purchases pp
+left join lateral (
+  select
+    count(*) filter (where ap.status = 'completed') as completed_count,
+    count(*) filter (where ap.status in ('requested', 'confirmed') and ap.slot_time > now()) as scheduled_count,
+    min(ap.slot_time) filter (where ap.status in ('requested', 'confirmed') and ap.slot_time > now()) as next_slot_time
+  from appointments ap
+  where ap.package_purchase_id = pp.id
+) a on true;
+
+grant select on package_purchase_summary to authenticated;
+
+-- Session Manager (Feature Control's former Session Packages toggle moved
+-- here, plus new package-wide defaults). session_packages_visible itself
+-- already exists above and keeps its column/meaning -- only which admin
+-- tab controls it changes.
+alter table site_settings add column if not exists package_default_validity_days integer not null default 90 check (package_default_validity_days > 0);
+alter table site_settings add column if not exists package_therapist_lock_enabled boolean not null default true;
+alter table site_settings add column if not exists package_bulk_schedule_max integer not null default 8 check (package_bulk_schedule_max > 0);
+alter table site_settings add column if not exists package_expiry_reminder_days integer not null default 14 check (package_expiry_reminder_days >= 0);
+
+-- Live-refreshes the admin Purchases table (RealtimeRefresh) the same way
+-- appointments/profiles/etc. already do above -- a patient paying for a
+-- package, or another admin session extending/refunding one, shows up
+-- without a manual reload. Same duplicate-object-safe DO block idiom.
+do $$
+begin
+  alter publication supabase_realtime add table patient_package_purchases;
+exception when duplicate_object then null;
+end $$;

@@ -20,7 +20,7 @@ import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { computeTherapistEarningRows, computeTherapistPendingOwed } from "@/lib/therapistEarnings";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
-import { parseAdminSettings } from "@/lib/adminSettings";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
@@ -80,7 +80,7 @@ export default async function TherapistDashboardPage() {
     // the whole page.
     supabase
       .from("site_settings")
-      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes")
+      .select(SITE_SETTINGS_SELECT)
       .maybeSingle(),
 
     // therapist_code is new/migration-dependent -- kept isolated for the

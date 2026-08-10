@@ -18,7 +18,7 @@ import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswor
 import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
-import PackageManager from "@/components/admin/PackageManager";
+import AdminSessionManagerTab from "@/components/admin/AdminSessionManagerTab";
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
@@ -37,7 +37,7 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
-import { parseAdminSettings } from "@/lib/adminSettings";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 export const metadata: Metadata = {
@@ -99,6 +99,7 @@ export default async function AdminDashboardPage() {
     { data: roleCodeRows },
     { data: treatmentCategories },
     { data: packages },
+    { data: packagePurchaseSummaries },
     { data: testimonials },
     { data: faqs },
     { data: siteSettings },
@@ -183,7 +184,7 @@ export default async function AdminDashboardPage() {
     // than blanking the whole dashboard.
     admin
       .from("site_settings")
-      .select("session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, booking_languages")
+      .select(SITE_SETTINGS_SELECT)
       .maybeSingle(),
 
     // session_code is also new/migration-dependent -- same isolation
@@ -262,11 +263,27 @@ export default async function AdminDashboardPage() {
       .order("display_order", { ascending: true })
       .order("id", { ascending: true }),
 
+    // Session Manager's Catalog section -- every column the admin catalog
+    // form can edit (see PackageCatalogForm / validatePackagePayload.ts).
     admin
       .from("treatment_category_packages")
-      .select("id, category_id, title, session_count, price_paise, display_order, active")
+      .select(
+        "id, package_code, category_id, title, subtitle, description, image_url, promises, badge_label, highlight, terms, session_count, price_paise, compare_at_paise, display_order, therapist_rate_basis, validity_days, session_duration_minutes, therapist_locked, min_gap_hours, max_sessions_per_week, max_purchases_per_patient, visible_on_home, visible_on_conditions, visible_in_dashboard, active"
+      )
       .order("display_order", { ascending: true })
       .order("id", { ascending: true }),
+
+    // Session Manager's Purchases section -- the view already derives
+    // completed/scheduled/pending; names are resolved below via the
+    // allProfiles/roleCodeMap lookups this page already has, same
+    // avoid-a-blocked-RLS-join reasoning as the view's own comment in
+    // schema.sql.
+    admin
+      .from("package_purchase_summary")
+      .select(
+        "id, purchase_code, patient_id, package_id, category_id, session_count, sessions_used, amount_paid_paise, payment_status, status, locked_therapist_id, expires_at, paid_at, created_at, completed_count, scheduled_count, pending_count"
+      )
+      .order("created_at", { ascending: false }),
 
     admin
       .from("testimonials")
@@ -1157,6 +1174,46 @@ export default async function AdminDashboardPage() {
     (b2bLeads?.filter((l) => l.status === "new").length ?? 0) +
     (referrals?.filter((r) => r.status === "pending_review").length ?? 0);
 
+  const packageTitleMap = new Map((packages ?? []).map((p) => [p.id, p.title]));
+  const categoryTitleMap = new Map((treatmentCategories ?? []).map((c) => [c.id, c.title]));
+  const packagePurchaseRows = (packagePurchaseSummaries ?? []).map((p) => ({
+    id: p.id,
+    purchaseCode: p.purchase_code,
+    patientId: p.patient_id,
+    patientName: profileMap.get(p.patient_id)?.full_name ?? "Unknown patient",
+    patientCode: roleCodeMap.get(p.patient_id)?.patient_code ?? null,
+    packageId: p.package_id,
+    packageTitle: packageTitleMap.get(p.package_id) ?? "Session Package",
+    categoryId: p.category_id,
+    categoryTitle: categoryTitleMap.get(p.category_id) ?? "—",
+    therapistId: p.locked_therapist_id,
+    therapistName: p.locked_therapist_id ? profileMap.get(p.locked_therapist_id)?.full_name ?? "Unknown therapist" : null,
+    sessionCount: p.session_count,
+    sessionsUsed: p.sessions_used,
+    completedCount: p.completed_count,
+    scheduledCount: p.scheduled_count,
+    pendingCount: p.pending_count,
+    amountPaidPaise: p.amount_paid_paise,
+    paymentStatus: p.payment_status,
+    status: p.status,
+    expiresAt: p.expires_at,
+    createdAt: p.created_at,
+  }));
+
+  const sessionManagerTab = (
+    <AdminSessionManagerTab
+      packages={packages ?? []}
+      categories={(treatmentCategories ?? []).map((c) => ({
+        id: c.id,
+        title: c.title,
+        price_paise: c.price_paise,
+      }))}
+      purchases={packagePurchaseRows}
+      therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
+      settings={adminSettings}
+    />
+  );
+
   const siteContent = (
     <>
       <SiteRatingsVisibilityToggle
@@ -1229,18 +1286,6 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Session Packages</h2>
-        <p className="text-xs text-slate-500 mb-4">
-          Bundles of sessions a patient can buy upfront at a bundle price,
-          then use one at a time when booking — shown on their dashboard.
-        </p>
-        <PackageManager
-          packages={packages ?? []}
-          categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
-        />
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
         <h2 className="font-bold text-lg text-slate-800 mb-1">Testimonials</h2>
         <p className="text-xs text-slate-500 mb-4">
           Controls what shows in the &quot;What Our Patients Say&quot; section on the Home page.
@@ -1292,6 +1337,7 @@ export default async function AdminDashboardPage() {
       payoutRequestsBadgeCount={payoutRequestsBadgeCount}
       paymentHistory={paymentHistoryTab}
       siteContent={siteContent}
+      sessionManager={sessionManagerTab}
       featureControl={featureControl}
       adminName={adminProfile?.full_name ?? "Admin"}
       adminEmail={adminProfile?.email ?? user.email ?? ""}
