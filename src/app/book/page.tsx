@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
 import BookingWizard from "@/components/BookingWizard";
@@ -54,6 +55,23 @@ export default async function BookPage() {
             bookingLanguages={parseBookingLanguages(settingsRow?.booking_languages)}
           />
         </Suspense>
+        {/* Outside the wizard card, bottom-right. /book deliberately hides
+            the site nav (see NAV_HIDDEN_ROUTES) so a stray link can't lose
+            someone's booking progress mid-payment, which left the page with
+            no way out at all -- this is the one deliberate exit, placed
+            clear of the wizard's own Back/Continue controls so it can't be
+            hit by mistake. Sits here rather than inside BookingWizard so it
+            shows for every one of the wizard's states (loading, in-progress,
+            email-confirmation, paid) without being repeated four times. */}
+        <div className="flex justify-end mt-6">
+          <Link
+            href="/"
+            className="text-xs font-semibold text-slate-500 hover:text-teal-700 bg-white/70 hover:bg-white border border-slate-200 px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2"
+          >
+            <i className="fa-solid fa-arrow-left text-[10px]"></i>
+            Back to Home
+          </Link>
+        </div>
       </div>
     </section>
   );
