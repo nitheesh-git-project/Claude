@@ -7,6 +7,7 @@ import {
   MotionButton,
   FloatingOrbs,
 } from "@/components/motion/primitives";
+import SessionPackages from "@/components/home/SessionPackages";
 
 export const metadata: Metadata = {
   title: "Conditions Treated | Dr. Pooja's Physio",
@@ -38,6 +39,31 @@ export default async function ConditionsPage() {
     .order("id", { ascending: true });
 
   const rows = (categories ?? []) as Category[];
+
+  // Same isolated-query, migration-dependent-degrades-gracefully reasoning
+  // as the home page's own package section.
+  const { data: settingsRow } = await supabase
+    .from("site_settings")
+    .select("session_packages_visible")
+    .maybeSingle();
+
+  const { data: rawPackages } = settingsRow?.session_packages_visible
+    ? await supabase
+        .from("treatment_category_packages")
+        .select(
+          "id, title, subtitle, image_url, promises, badge_label, highlight, session_count, price_paise, compare_at_paise, validity_days, therapist_locked, category_id"
+        )
+        .eq("active", true)
+        .eq("visible_on_conditions", true)
+        .order("display_order", { ascending: true })
+        .order("id", { ascending: true })
+    : { data: null };
+
+  const categoryPriceById = new Map(rows.map((c) => [c.id, c.price_paise]));
+  const packages = (rawPackages ?? []).map((p) => ({
+    ...p,
+    category_price_paise: categoryPriceById.get(p.category_id) ?? null,
+  }));
 
   return (
     <>
@@ -127,6 +153,11 @@ export default async function ConditionsPage() {
           </Stagger>
         )}
 
+      </section>
+
+      <SessionPackages packages={packages} />
+
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <Reveal delay={0.1} className="mt-14 rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
           <h2 className="font-display text-xl font-bold text-slate-900">
             Not sure which program fits?

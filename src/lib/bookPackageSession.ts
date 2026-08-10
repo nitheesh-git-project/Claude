@@ -59,6 +59,7 @@ export async function bookPackageSession(
     notes,
     actorId,
     sessionDurationMinutesOverride,
+    preferredTherapistId,
   }: {
     purchase: PurchaseForBooking;
     slotDateTime: string;
@@ -74,6 +75,13 @@ export async function bookPackageSession(
     // this function looking up the package row itself) since callers
     // already have it loaded from their own package fetch.
     sessionDurationMinutesOverride?: number | null;
+    // Only meaningful when the purchase isn't already locked to a
+    // therapist (session 1, from the booking wizard's "continue with same
+    // therapist" picker) -- a hint the admin sees on the assignment queue,
+    // same as appointments.preferred_therapist_id on a direct booking.
+    // Never auto-assigns; auto-assignment only ever happens from an
+    // existing lock, never from a preference.
+    preferredTherapistId?: string | null;
   }
 ): Promise<BookPackageSessionResult> {
   if (purchase.payment_status !== "paid") {
@@ -175,6 +183,7 @@ export async function bookPackageSession(
       notes: notes || null,
       status: shouldAutoConfirm ? "confirmed" : "requested",
       therapist_id: assignedTherapistId,
+      preferred_therapist_id: assignedTherapistId ? null : preferredTherapistId || null,
       payment_status: "paid",
       amount_paid_paise: perSessionAmountPaise,
       paid_at: new Date().toISOString(),

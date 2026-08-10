@@ -31,12 +31,22 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { data: pkg } = await admin
-    .from("treatment_category_packages")
-    .select("id, category_id, session_count, price_paise, active")
-    .eq("id", packageId)
-    .single();
+  const [{ data: pkg }, { data: settingsRow }] = await Promise.all([
+    admin
+      .from("treatment_category_packages")
+      .select("id, category_id, session_count, price_paise, active")
+      .eq("id", packageId)
+      .single(),
+    admin.from("site_settings").select("session_packages_visible").maybeSingle(),
+  ]);
 
+  // The admin's global kill switch (Session Manager → Settings) wasn't
+  // enforced here before -- it only hid the UI, so a direct POST could
+  // still buy a package while packages were supposedly "Hidden". Now it's
+  // the same hard gate the UI already implies.
+  if (settingsRow?.session_packages_visible === false) {
+    return NextResponse.json({ error: "Session packages aren't available right now." }, { status: 403 });
+  }
   if (!pkg || !pkg.active) {
     return NextResponse.json({ error: "That package isn't available." }, { status: 400 });
   }

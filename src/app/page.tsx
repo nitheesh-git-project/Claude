@@ -13,6 +13,7 @@ import JourneySteps from "@/components/home/JourneySteps";
 import CareAreas from "@/components/home/CareAreas";
 import ParkinsonsCare from "@/components/home/ParkinsonsCare";
 import CareIllustration from "@/components/visuals/CareIllustration";
+import SessionPackages from "@/components/home/SessionPackages";
 
 const PROGRAM_ART = ["neckback", "mobility", "sports", "ergonomics"] as const;
 
@@ -43,6 +44,33 @@ export default async function Home() {
     categories && categories.length > 0
       ? Math.min(...categories.map((c) => c.price_paise))
       : SESSION_FEE_PAISE;
+
+  // Isolated from the categories query above -- session_packages_visible
+  // and the package-specific columns are all migration-dependent, and a
+  // missing migration should only hide this section, never blank the
+  // categories that already render fine without it.
+  const { data: settingsRow } = await supabase
+    .from("site_settings")
+    .select("session_packages_visible")
+    .maybeSingle();
+
+  const { data: rawPackages } = settingsRow?.session_packages_visible
+    ? await supabase
+        .from("treatment_category_packages")
+        .select(
+          "id, title, subtitle, image_url, promises, badge_label, highlight, session_count, price_paise, compare_at_paise, validity_days, therapist_locked, category_id"
+        )
+        .eq("active", true)
+        .eq("visible_on_home", true)
+        .order("display_order", { ascending: true })
+        .order("id", { ascending: true })
+    : { data: null };
+
+  const categoryPriceById = new Map((categories ?? []).map((c) => [c.id, c.price_paise]));
+  const packages = (rawPackages ?? []).map((p) => ({
+    ...p,
+    category_price_paise: categoryPriceById.get(p.category_id) ?? null,
+  }));
 
   const { data: testimonials } = await supabase
     .from("testimonials")
@@ -263,6 +291,8 @@ export default async function Home() {
           </div>
         </div>
       )}
+
+      <SessionPackages packages={packages} />
 
       {/* TESTIMONIALS */}
       {testimonials && testimonials.length > 0 && (

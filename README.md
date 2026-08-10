@@ -106,24 +106,35 @@ and time slot. Slots respect a 12-hour minimum lead time
 (`src/lib/bookingSlots.ts`), the therapist's weekly availability template
 plus per-date overrides (`therapist_availability_template`,
 `therapist_availability_override`), leave flags, and conflict checks
-(`src/lib/checkTherapistConflict.ts`).
+(`src/lib/checkTherapistConflict.ts`). `/book?package=<id>` switches the same
+wizard into package-purchase mode instead: the category step is replaced by
+a read-only package summary, Step 1's date/time becomes session 1's slot,
+and the review step pays for the whole bundle.
 
 **Payments.** Razorpay checkout: `/api/razorpay/create-order` creates the
 order, the browser opens the widget, and `/api/razorpay/verify` verifies the
 signature server-side before the appointment is confirmed. Failures are
 recorded in `payment_failure_log`. Session packages are bought the same way
-via `/api/packages/create-order` and `/api/packages/verify`, then redeemed
-with `/api/appointments/book-with-package`. The standard session fee and the
-24-hour full-refund cancellation window live in `src/lib/pricing.ts`.
-Cancellations inside the window get no refund; outside it, a Razorpay refund
-is issued and stamped on the appointment.
+via `/api/packages/create-order` and `/api/packages/verify` — the latter
+also books session 1 when the wizard supplied a slot, via
+`src/lib/bookPackageSession.ts` — then any later sessions are redeemed with
+`/api/appointments/book-with-package`. Both package routes enforce the
+Session Manager visibility switch server-side, not just in the UI. The
+standard session fee and the 24-hour full-refund cancellation window live in
+`src/lib/pricing.ts`. Cancellations inside the window get no refund; outside
+it, a Razorpay refund is issued and stamped on the appointment.
 
 **Session packages.** A package is a programme, not just a discount: bundle
 price, an optional struck-through compare-at price (derived from the
 category's per-session price when left blank), promises, validity, and
 per-programme rules (minimum gap between sessions, max sessions/week, max
 purchases/patient) — configured field-by-field in the admin **Session
-Manager** tab, not Site Content or Feature Control. When a package has
+Manager** tab, not Site Content or Feature Control. Active packages appear as
+cards on `/` and `/conditions` (each gated by its own `visible_on_home` /
+`visible_on_conditions` flag, plus the site-wide visibility switch) and link
+to `/book?package=<id>`. A purchase's `expires_at` is set the moment payment
+clears — an abandoned checkout never eats into a validity window — using the
+package's own `validity_days` or the site default. When a package has
 `therapist_locked` on (the default) and the site-wide switch
 (`package_therapist_lock_enabled`) allows it, the first therapist assigned to
 any session on a purchase locks onto `locked_therapist_id`; every later

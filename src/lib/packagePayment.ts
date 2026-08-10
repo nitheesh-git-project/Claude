@@ -1,11 +1,25 @@
 import { loadRazorpayScript } from "@/lib/razorpay";
 
+export type PackagePaymentResult = {
+  sessionBooked: boolean;
+  appointmentId?: string;
+  sessionBookingError?: string;
+};
+
 type PayForPackageArgs = {
   packageId: string;
   name: string;
   email: string;
   description: string;
-  onSuccess: () => void;
+  // Present only in the booking wizard's package-purchase flow, where
+  // Step 1 already picked session 1's slot before checkout opened. Omit
+  // entirely for a plain "buy now, schedule later" purchase (the dashboard's
+  // BuyPackageButton) -- verify then just marks the purchase paid.
+  slotDateTime?: string;
+  timezone?: string;
+  notes?: string;
+  preferredTherapistId?: string;
+  onSuccess: (result: PackagePaymentResult) => void;
   onError: (message: string) => void;
   onDismiss: () => void;
 };
@@ -16,6 +30,10 @@ export async function payForPackage({
   name,
   email,
   description,
+  slotDateTime,
+  timezone,
+  notes,
+  preferredTherapistId,
   onSuccess,
   onError,
   onDismiss,
@@ -54,13 +72,21 @@ export async function payForPackage({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             packagePurchaseId: orderData.packagePurchaseId,
+            slotDateTime,
+            timezone,
+            notes,
+            preferredTherapistId,
             ...response,
           }),
         });
+        const verifyData = await verifyRes.json().catch(() => ({}));
         if (verifyRes.ok) {
-          onSuccess();
+          onSuccess({
+            sessionBooked: !!verifyData.sessionBooked,
+            appointmentId: verifyData.appointmentId,
+            sessionBookingError: verifyData.sessionBookingError,
+          });
         } else {
-          const verifyData = await verifyRes.json().catch(() => ({}));
           onError(
             verifyData.error
               ? `Payment received but verification failed: ${verifyData.error}`
