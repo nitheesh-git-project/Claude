@@ -158,7 +158,11 @@ export default function DashboardShell({
   // timer re-arming behind the dialog -- there's no session left to end.
   async function handleIdleTimeout() {
     const supabase = createClient();
-    await supabase.auth.signOut();
+    // scope: "local" -- this ends the idle session on this device only. The
+    // default global scope revokes every refresh token the user has, which
+    // for an inactivity timeout would also sign them out of their phone and
+    // any other tab they're actively using.
+    await supabase.auth.signOut({ scope: "local" });
     setTimedOut(true);
   }
 

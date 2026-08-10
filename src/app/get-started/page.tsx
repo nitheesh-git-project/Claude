@@ -4,7 +4,7 @@ import { Reveal, Stagger, StaggerItem, MotionButton, FloatingOrbs } from "@/comp
 export const metadata: Metadata = {
   title: "Get Started | Dr. Pooja's Physio",
   description:
-    "Book a consultation, sign in to the patient portal, or join the therapist network.",
+    "Book a consultation, sign in to the patient or partner portal, or join the therapist network.",
 };
 
 const PATHS = [
@@ -59,12 +59,33 @@ const PATHS = [
     accent: "purple",
     featured: false,
   },
+  {
+    key: "hospital",
+    eyebrow: "Hospitals & clinics",
+    icon: "fa-hospital",
+    title: "Partner portal",
+    lede: "You're an onboarded hospital or clinic partner referring patients to us.",
+    points: [
+      "Refer a patient in a few fields",
+      "Track which referrals converted",
+      "See your revenue share per session",
+    ],
+    href: "/hospital/login",
+    // No "/ Sign Up" like the other two: partner accounts aren't self-serve,
+    // they're provisioned by the admin (see the onboard-hospital route), so
+    // this card only ever offers a login.
+    cta: "Partner Login",
+    variant: "dark" as const,
+    accent: "indigo",
+    featured: false,
+  },
 ];
 
 const ACCENTS: Record<string, { chip: string; icon: string; check: string }> = {
   teal: { chip: "text-teal-700", icon: "bg-teal-100 text-teal-700", check: "text-teal-600" },
   blue: { chip: "text-blue-700", icon: "bg-blue-100 text-blue-700", check: "text-blue-600" },
   purple: { chip: "text-purple-700", icon: "bg-purple-100 text-purple-700", check: "text-purple-600" },
+  indigo: { chip: "text-indigo-700", icon: "bg-indigo-100 text-indigo-700", check: "text-indigo-600" },
 };
 
 export default function GetStartedPage() {
@@ -80,14 +101,14 @@ export default function GetStartedPage() {
             Which of these is you?
           </h1>
           <p className="mt-4 text-base text-slate-600">
-            Three ways into the platform — pick the one that matches where you
+            Four ways into the platform — pick the one that matches where you
             are right now.
           </p>
         </Reveal>
       </div>
 
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <Stagger className="grid gap-8 md:grid-cols-3">
+        <Stagger className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {PATHS.map((p) => {
             const a = ACCENTS[p.accent];
             return (

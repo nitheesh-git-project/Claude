@@ -31,20 +31,36 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
+  // Every redirect below has to be built through this rather than a bare
+  // NextResponse.redirect. getUser() above refreshes an expired access
+  // token, and @supabase/ssr hands the new tokens back through the setAll
+  // callback, which writes them onto `response` -- a brand-new redirect
+  // response carries none of them, so those cookies are lost while the
+  // refresh token that produced them has already been consumed. The user
+  // ends up bounced to the login page with a session the browser can no
+  // longer refresh: they sign in, get redirected straight back to signing
+  // in, and repeat. It bites hardest right after an idle timeout, when the
+  // access token is guaranteed to be stale on the very next request.
+  function redirectTo(destination: string) {
+    const redirect = NextResponse.redirect(new URL(destination, request.url));
+    response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    return redirect;
+  }
+
   if (path.startsWith("/patient/dashboard") && !user) {
-    return NextResponse.redirect(new URL("/patient/login", request.url));
+    return redirectTo("/patient/login");
   }
 
   if (path.startsWith("/therapist/dashboard") && !user) {
-    return NextResponse.redirect(new URL("/therapist/login", request.url));
+    return redirectTo("/therapist/login");
   }
 
   if (path.startsWith("/admin/dashboard") && !user) {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+    return redirectTo("/admin/login");
   }
 
   if (path.startsWith("/hospital/dashboard") && !user) {
-    return NextResponse.redirect(new URL("/hospital/login", request.url));
+    return redirectTo("/hospital/login");
   }
 
   if (
@@ -75,38 +91,38 @@ export async function updateSession(request: NextRequest) {
 
     if (path.startsWith("/therapist/dashboard")) {
       if (profile?.role !== "therapist") {
-        return NextResponse.redirect(new URL("/get-started", request.url));
+        return redirectTo("/get-started");
       }
       if (!profile.approved) {
-        return NextResponse.redirect(new URL("/pending-approval", request.url));
+        return redirectTo("/pending-approval");
       }
       if (!profile.active) {
-        return NextResponse.redirect(new URL("/account-suspended", request.url));
+        return redirectTo("/account-suspended");
       }
     }
 
     if (path.startsWith("/patient/dashboard")) {
       if (profile?.role !== "patient") {
-        return NextResponse.redirect(new URL("/get-started", request.url));
+        return redirectTo("/get-started");
       }
       // Same gate as the therapist branch above: a patient account is not
       // usable until an admin approves it from the dashboard's Pending
       // Approvals list.
       if (!profile.approved) {
-        return NextResponse.redirect(new URL("/pending-approval", request.url));
+        return redirectTo("/pending-approval");
       }
       if (!profile.active) {
-        return NextResponse.redirect(new URL("/account-suspended", request.url));
+        return redirectTo("/account-suspended");
       }
     }
 
     if (path.startsWith("/admin/dashboard") && profile?.role !== "admin") {
-      return NextResponse.redirect(new URL("/admin/login", request.url));
+      return redirectTo("/admin/login");
     }
 
     if (path.startsWith("/hospital/dashboard")) {
       if (profile?.role !== "hospital") {
-        return NextResponse.redirect(new URL("/hospital/login", request.url));
+        return redirectTo("/hospital/login");
       }
       // Consistent with the patient/therapist gates above -- there's no
       // admin control to suspend a hospital account today, but if `active`
@@ -114,7 +130,7 @@ export async function updateSession(request: NextRequest) {
       // already lock the dashboard out the same way it does for the other
       // two roles rather than silently doing nothing.
       if (!profile.active) {
-        return NextResponse.redirect(new URL("/account-suspended", request.url));
+        return redirectTo("/account-suspended");
       }
     }
   }
