@@ -32,7 +32,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install graphify
-        run: pip install graphifyy
+        run: pip install "graphifyy[gemini]"
 
       - name: Rebuild the graph
         env:
@@ -50,6 +50,11 @@ jobs:
           else
             graphify . --no-viz
           fi
+          # `extract`/`update` intentionally stop at graph.json -- GRAPH_REPORT.md
+          # and named communities are a separate step (graphify's own
+          # "next: run graphify cluster-only" hint), so without this the report
+          # never gets produced even though the run succeeds.
+          graphify cluster-only . --no-viz
 
       - name: Commit the refreshed graph
         run: |
