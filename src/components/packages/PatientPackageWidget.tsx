@@ -28,9 +28,14 @@ export type PatientPackageCard = {
 export default function PatientPackageWidget({
   purchases,
   bulkScheduleMax,
+  expiryReminderDays,
 }: {
   purchases: PatientPackageCard[];
   bulkScheduleMax: number;
+  // Admin-configured (Session Manager → Settings) -- a purchase this close
+  // to expires_at gets a highlighted warning instead of the plain "N days
+  // left" line, so it's visible without opening the detail modal.
+  expiryReminderDays: number;
 }) {
   const [now] = useState(() => Date.now());
   const [schedulingId, setSchedulingId] = useState<string | null>(null);
@@ -92,7 +97,16 @@ export default function PatientPackageWidget({
                   </p>
                 )}
                 {daysLeft !== null && p.status === "active" && (
-                  <p className="text-slate-400">{daysLeft} day{daysLeft === 1 ? "" : "s"} left</p>
+                  daysLeft <= expiryReminderDays && counts.pending > 0 ? (
+                    <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1 font-semibold text-amber-800">
+                      <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+                      {daysLeft <= 0
+                        ? "Expires today — schedule your remaining sessions now"
+                        : `Only ${daysLeft} day${daysLeft === 1 ? "" : "s"} left to use ${counts.pending} remaining session${counts.pending === 1 ? "" : "s"}`}
+                    </p>
+                  ) : (
+                    <p className="text-slate-400">{daysLeft} day{daysLeft === 1 ? "" : "s"} left</p>
+                  )
                 )}
 
                 <div className="flex items-center gap-3 pt-2">

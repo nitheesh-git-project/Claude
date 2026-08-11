@@ -21,6 +21,7 @@ import JoinSessionButton from "@/components/JoinSessionButton";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { computePackageSavings } from "@/lib/packageProgress";
+import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 export const metadata: Metadata = {
@@ -59,6 +60,14 @@ export default async function PatientDashboardPage() {
   if (!user) {
     return null;
   }
+
+  // Runs before the big read below so this same request already sees any
+  // of this patient's purchases this sweep just flipped to 'expired' --
+  // see the helper's own comment for why this is a lazy sweep rather than
+  // a scheduled job. This admin client instance is reused further down for
+  // the category/therapist/package-info lookups that already needed one.
+  const admin = createAdminClient();
+  await expireDuePackagePurchases(admin);
 
   // All of these are independent of each other -- run in parallel instead
   // of one at a time, since router.refresh() re-runs this whole page on
@@ -194,7 +203,6 @@ export default async function PatientDashboardPage() {
   const ownedPackageIds = [
     ...new Set((ownedPackages ?? []).map((p) => p.package_id).filter(Boolean)),
   ];
-  const admin = createAdminClient();
   const [{ data: categoryPrices }, { data: therapists }, { data: ownedPackageInfo }] = await Promise.all([
     categoryIds.length > 0
       ? admin.from("treatment_categories").select("id, price_paise, title").in("id", categoryIds as string[])
@@ -430,6 +438,7 @@ export default async function PatientDashboardPage() {
         <div id="your-packages" className="mt-8">
           <PatientPackageWidget
             bulkScheduleMax={adminSettings.packageBulkScheduleMax}
+            expiryReminderDays={adminSettings.packageExpiryReminderDays}
             purchases={ownedPackages.map((p) => ({
               id: p.id,
               purchaseCode: p.purchase_code,

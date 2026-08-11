@@ -40,6 +40,15 @@ export type MetricsAppointment = {
 
 export type Person = { id: string; full_name: string | null };
 
+// Deliberately narrow -- just what packageRevenueInRange needs, not the
+// full package_purchase_summary shape AdminSessionManagerTab reads.
+export type MetricsPackagePurchase = {
+  category_id: string;
+  payment_status: string;
+  amount_paid_paise: number | null;
+  paid_at: string | null;
+};
+
 export type PeriodBucket = { label: string; startMs: number; endMs: number };
 
 export function filterByDimension(
@@ -146,6 +155,35 @@ export function revenueByBucketFor(
     (a) => (a.amount_paid_paise ?? SESSION_FEE_PAISE) / 100,
     buckets
   );
+}
+
+// Cash collected on package purchases in [fromMs, toMs), bucketed by
+// paid_at -- deliberately a *separate* figure from revenueByBucketFor
+// above, not folded into it. revenueByBucketFor already counts a package
+// session's own amount_paid_paise (the bundle price divided across its
+// sessions) as that session gets scheduled/paid, which is accrual-correct
+// but means the full bundle price only shows up gradually, one session at
+// a time, as the patient actually uses the package -- see
+// AdminSessionManagerTab's "Sessions Banked" stat for the mirror image of
+// this (unscheduled sessions' still-unrecognized value). This function is
+// the cash view: what was actually collected up front, regardless of how
+// much of it has been recognized as session revenue yet. Showing both
+// side by side is the point -- collected minus recognized is real,
+// interest-bearing float the business is sitting on.
+export function packageRevenueInRange(
+  purchases: MetricsPackagePurchase[],
+  categoryFilter: string,
+  fromMs: number,
+  toMs: number
+): number {
+  let total = 0;
+  for (const p of purchases) {
+    if (p.payment_status !== "paid" || !p.paid_at) continue;
+    if (categoryFilter !== "all" && p.category_id !== categoryFilter) continue;
+    const ms = new Date(p.paid_at).getTime();
+    if (ms >= fromMs && ms < toMs) total += p.amount_paid_paise ?? 0;
+  }
+  return total;
 }
 
 // Paise (not rupees, unlike revenueByBucketFor above) -- matches

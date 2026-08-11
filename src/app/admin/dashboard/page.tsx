@@ -38,6 +38,7 @@ import { mergeMeetLinks } from "@/lib/meetLink";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
+import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 export const metadata: Metadata = {
@@ -63,6 +64,11 @@ export default async function AdminDashboardPage() {
   }
 
   const admin = createAdminClient();
+
+  // Runs before the big read below so this same request already sees any
+  // purchase this sweep just flipped to 'expired' -- see the helper's own
+  // comment for why this is a lazy sweep rather than a scheduled job.
+  await expireDuePackagePurchases(admin);
 
   // All of these are independent reads -- none needs another query's data,
   // only fixed filters -- so they run as one parallel batch instead of the
@@ -428,7 +434,7 @@ export default async function AdminDashboardPage() {
   // the same flat fee.
   const categoryStats = new Map<
     string,
-    { totalBookings: number; paidBookings: number; totalRevenue: number }
+    { totalBookings: number; paidBookings: number; totalRevenue: number; packageCashCollected: number }
   >();
   for (const appt of appointments ?? []) {
     if (!appt.category_id) continue;
@@ -436,13 +442,34 @@ export default async function AdminDashboardPage() {
       totalBookings: 0,
       paidBookings: 0,
       totalRevenue: 0,
+      packageCashCollected: 0,
     };
     entry.totalBookings += 1;
     if (appt.payment_status === "paid") {
       entry.paidBookings += 1;
+      // A package-covered session's own amount_paid_paise is its slice of
+      // the bundle price, so this already recognizes package revenue one
+      // session at a time as sessions get scheduled -- see
+      // packageRevenueInRange's comment in adminMetrics.ts for why that's
+      // deliberately not the same number as packageCashCollected below.
       entry.totalRevenue += (appt.amount_paid_paise ?? SESSION_FEE_PAISE) / 100;
     }
     categoryStats.set(appt.category_id, entry);
+  }
+  // Full package purchase amounts, collected up front regardless of how
+  // many of that purchase's sessions have been scheduled yet -- see
+  // packageRevenueInRange's own comment for why this is kept separate from
+  // totalRevenue rather than merged into it.
+  for (const p of packagePurchaseSummaries ?? []) {
+    if (p.payment_status !== "paid") continue;
+    const entry = categoryStats.get(p.category_id) ?? {
+      totalBookings: 0,
+      paidBookings: 0,
+      totalRevenue: 0,
+      packageCashCollected: 0,
+    };
+    entry.packageCashCollected += (p.amount_paid_paise ?? 0) / 100;
+    categoryStats.set(p.category_id, entry);
   }
 
   // What used to be the "Overview" tab's own content (pending approvals +
@@ -1084,6 +1111,12 @@ export default async function AdminDashboardPage() {
   const metricsTab = (
     <AdminMetricsTab
       appointments={appointments ?? []}
+      packagePurchases={(packagePurchaseSummaries ?? []).map((p) => ({
+        category_id: p.category_id,
+        payment_status: p.payment_status,
+        amount_paid_paise: p.amount_paid_paise,
+        paid_at: p.paid_at,
+      }))}
       therapists={allTherapists}
       categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
       patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
@@ -1235,6 +1268,7 @@ export default async function AdminDashboardPage() {
                 totalBookings: 0,
                 paidBookings: 0,
                 totalRevenue: 0,
+                packageCashCollected: 0,
               };
               return (
                 <li
@@ -1242,7 +1276,7 @@ export default async function AdminDashboardPage() {
                   className="p-4 rounded-xl border border-slate-200 text-xs"
                 >
                   <p className="font-bold text-slate-900 mb-2">{c.title}</p>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-4 gap-3">
                     <div>
                       <p className="text-slate-400">Bookings</p>
                       <p className="font-bold text-slate-900">
@@ -1259,6 +1293,12 @@ export default async function AdminDashboardPage() {
                       <p className="text-slate-400">Revenue</p>
                       <p className="font-bold text-teal-700">
                         ₹{stats.totalRevenue.toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <div title="Package purchases paid for under this category, collected up front -- Revenue to the left already recognizes its share one session at a time as those sessions get scheduled.">
+                      <p className="text-slate-400">Package Cash</p>
+                      <p className="font-bold text-teal-700">
+                        ₹{stats.packageCashCollected.toLocaleString("en-IN")}
                       </p>
                     </div>
                   </div>

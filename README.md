@@ -166,6 +166,24 @@ sees what they paid, the locked therapist sees the clinical picture without
 the money. The therapist dashboard's **Programme Patients** section lists
 every purchase locked to that therapist the same way.
 
+There's no cron or background worker in this deployment, so a purchase's
+`status` moves from `active` to `expired` lazily: `src/lib/expirePackagePurchases.ts`
+sweeps any purchase past its `expires_at` at the top of the admin and
+patient dashboard page renders (idempotent — a concurrent sweep just finds
+nothing left to update). `bookPackageSession` also checks `expires_at`
+directly, so a booking is blocked the instant a package lapses regardless
+of whether that request's sweep has run yet. Package revenue shows up two
+ways, deliberately kept apart: the Metrics tab's **Revenue (range)** and
+Site Content's **Category Performance** already recognize a package
+session's own slice of the bundle price as that session gets scheduled
+(package sessions are ordinary paid appointments); **Package Cash
+(range)**/**Package Cash** alongside them is the full amount actually
+collected up front, which the Session Manager's **Sessions Banked** stat
+mirrors from the other side — the still-unrecognized value of every
+purchase's unscheduled sessions. A purchase within `package_expiry_reminder_days`
+of expiring gets a highlighted warning in the patient's package widget and
+counts toward Session Manager's `Expiring ≤Nd` stat.
+
 **Video sessions.** Confirming an appointment creates a Google Calendar event
 with a Meet link (`src/lib/googleCalendar.ts`,
 `src/lib/googleCalendarSync.ts`). Calendar failures never block a booking —

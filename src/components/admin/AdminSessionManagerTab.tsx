@@ -67,7 +67,7 @@ export default function AdminSessionManagerTab({
     }, 0);
     const expiringSoon = activePurchases.filter((p) => {
       const days = daysUntilExpiry(p.expiresAt, now);
-      return days !== null && days <= 30;
+      return days !== null && days <= settings.packageExpiryReminderDays;
     }).length;
     const totalRevenuePaise = purchases
       .filter((p) => p.paymentStatus === "paid")
@@ -80,7 +80,7 @@ export default function AdminSessionManagerTab({
       expiringSoon,
       totalRevenuePaise,
     };
-  }, [purchases, now]);
+  }, [purchases, now, settings.packageExpiryReminderDays]);
 
   return (
     <div className="space-y-6">
@@ -100,7 +100,11 @@ export default function AdminSessionManagerTab({
           value={String(stats.sessionsBanked)}
           sub={`≈ ₹${(stats.bankedValuePaise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
         />
-        <StatCard label="Expiring ≤30d" value={String(stats.expiringSoon)} tone={stats.expiringSoon > 0 ? "text-amber-700" : undefined} />
+        <StatCard
+          label={`Expiring ≤${settings.packageExpiryReminderDays}d`}
+          value={String(stats.expiringSoon)}
+          tone={stats.expiringSoon > 0 ? "text-amber-700" : undefined}
+        />
         <StatCard label="Package Revenue" value={`₹${(stats.totalRevenuePaise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`} />
       </div>
 

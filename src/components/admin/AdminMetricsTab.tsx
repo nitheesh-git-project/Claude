@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type MetricsAppointment,
+  type MetricsPackagePurchase,
   type Person,
   type PeriodBucket,
   filterByDimension,
@@ -12,6 +13,7 @@ import {
   bookingsByBucketFor,
   moneyByBucketFor,
   refundedPaiseByBucketFor,
+  packageRevenueInRange,
   computeNoShowRate,
   computeCancellationRate,
   computeRepeatBookingRate,
@@ -257,6 +259,7 @@ function TrendLineChart({
 
 export default function AdminMetricsTab({
   appointments,
+  packagePurchases,
   therapists,
   categories,
   patients,
@@ -266,6 +269,10 @@ export default function AdminMetricsTab({
   nowMs,
 }: {
   appointments: MetricsAppointment[];
+  // Cash collected on package purchases -- see packageRevenueInRange's own
+  // comment for why this is shown separately from the appointment-based
+  // Revenue (range) stat rather than merged into it.
+  packagePurchases: MetricsPackagePurchase[];
   therapists: Person[];
   categories: Category[];
   patients: Person[];
@@ -360,6 +367,11 @@ export default function AdminMetricsTab({
 
   const totalRevenuePaise = revenueByBucket.reduce((s, v) => s + v, 0) * 100;
   const totalBookings = bookingsByBucket.reduce((s, v) => s + v, 0);
+
+  const packageRevenuePaise = useMemo(
+    () => packageRevenueInRange(packagePurchases, categoryFilter, fromMs, toMs),
+    [packagePurchases, categoryFilter, fromMs, toMs]
+  );
 
   const totalMoneyRevenuePaise = money.revenuePaise.reduce((s, v) => s + v, 0);
   const totalProfitPaise = money.profitPaise.reduce((s, v) => s + v, 0);
@@ -946,10 +958,14 @@ export default function AdminMetricsTab({
         </Modal>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="bg-slate-50 rounded-xl p-3 text-center">
           <p className="text-[11px] text-slate-500">Revenue (range)</p>
           <p className="text-base font-bold text-slate-900">{formatInr(totalRevenuePaise)}</p>
+        </div>
+        <div className="bg-slate-50 rounded-xl p-3 text-center" title="Package purchases paid for in this range -- collected up front, only recognized above as sessions get scheduled. See Session Manager for unscheduled balance.">
+          <p className="text-[11px] text-slate-500">Package Cash (range)</p>
+          <p className="text-base font-bold text-slate-900">{formatInr(packageRevenuePaise)}</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3 text-center">
           <p className="text-[11px] text-slate-500">Bookings (range)</p>

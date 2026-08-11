@@ -110,6 +110,13 @@ role, an id, or an amount sent from the client — re-derive it server-side.
   `bookPackageSession()` per slot after enforcing the package's own
   minimum-gap/max-per-week rules and the bulk limit — it's the batch-level
   rules layer, not a second booking implementation.
+- **No cron or background worker exists in this deployment.** Anything that
+  needs to happen "when time passes" (a package purchase's `status` moving
+  from `active` to `expired` past `expires_at`) runs as a lazy, idempotent
+  sweep at the top of a relevant page's render instead of on a schedule —
+  see `src/lib/expirePackagePurchases.ts`, called from both the admin and
+  patient dashboard pages before their own reads. Follow this pattern
+  rather than reaching for a cron job or a queue.
 - **Package detail is viewer-scoped, not role-branched.**
   `/api/packages/purchase-detail` queries `patient_package_purchases` with
   the caller's own RLS-scoped client rather than checking role: the two
