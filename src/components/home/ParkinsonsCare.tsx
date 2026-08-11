@@ -59,7 +59,7 @@ const OUTCOMES = [
 
 export default function ParkinsonsCare() {
   return (
-    <section className="relative overflow-hidden bg-white py-20">
+    <section id="parkinsons-care" className="relative scroll-mt-28 overflow-hidden bg-white py-20">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -left-32 top-24 h-96 w-96 rounded-full bg-teal-100/40 blur-3xl"

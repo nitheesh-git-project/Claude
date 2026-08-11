@@ -25,7 +25,7 @@ export default function SessionPackages({ packages }: { packages: PublicPackage[
   if (packages.length === 0) return null;
 
   return (
-    <div className="border-y border-slate-100 bg-slate-50 py-20">
+    <div id="packages" className="scroll-mt-28 border-y border-slate-100 bg-slate-50 py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal className="mx-auto mb-12 max-w-2xl text-center">
           <span className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">

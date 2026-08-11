@@ -14,6 +14,7 @@ import CareAreas from "@/components/home/CareAreas";
 import ParkinsonsCare from "@/components/home/ParkinsonsCare";
 import CareIllustration from "@/components/visuals/CareIllustration";
 import SessionPackages from "@/components/home/SessionPackages";
+import SectionNav, { type SectionNavItem } from "@/components/home/SectionNav";
 
 const PROGRAM_ART = ["neckback", "mobility", "sports", "ergonomics"] as const;
 
@@ -89,8 +90,28 @@ export default async function Home() {
     .single();
   const hasRealRatings = !!ratingSummary && ratingSummary.rating_count > 0;
 
+  // Only lists sections that actually render -- several of these blocks
+  // below are conditional on admin-controlled data (categories, packages,
+  // testimonials), so a nav item pointing at a section that isn't on the
+  // page would just do nothing when clicked.
+  const sectionNavItems: SectionNavItem[] = [
+    { id: "what-we-treat", label: "What We Treat", icon: "fa-bone" },
+    { id: "parkinsons-care", label: "Parkinson's Care", icon: "fa-person-walking" },
+    { id: "areas-of-care", label: "Areas of Care", icon: "fa-layer-group" },
+    ...(categories && categories.length > 0
+      ? [{ id: "programs", label: "Programs", icon: "fa-clipboard-list" }]
+      : []),
+    ...(packages.length > 0 ? [{ id: "packages", label: "Packages", icon: "fa-box-open" }] : []),
+    ...(testimonials && testimonials.length > 0
+      ? [{ id: "reviews", label: "Reviews", icon: "fa-star" }]
+      : []),
+    { id: "get-started", label: "Get Started", icon: "fa-rocket" },
+  ];
+
   return (
     <>
+      <SectionNav items={sectionNavItems} />
+
       {/* HERO — the session itself is the hero image, so what we sell is
           legible before a single line of copy is read. */}
       <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/70 via-white to-white py-16 lg:py-24">
@@ -186,7 +207,7 @@ export default async function Home() {
       <ParkinsonsCare />
 
       {/* BREADTH OF CARE — credibility across more than one complaint */}
-      <div className="border-y border-slate-100 bg-slate-50 py-20">
+      <div id="areas-of-care" className="scroll-mt-28 border-y border-slate-100 bg-slate-50 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal className="mx-auto mb-12 max-w-2xl text-center">
             <span className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
@@ -207,7 +228,7 @@ export default async function Home() {
       {/* CONDITIONS — admin-controlled content, so the layout stays generic
           and simply adapts to whatever categories are configured. */}
       {categories && categories.length > 0 && (
-        <div className="bg-white py-20">
+        <div id="programs" className="scroll-mt-28 bg-white py-20">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <Reveal className="mx-auto mb-12 max-w-2xl text-center">
               <span className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
@@ -296,7 +317,7 @@ export default async function Home() {
 
       {/* TESTIMONIALS */}
       {testimonials && testimonials.length > 0 && (
-        <div className="py-20">
+        <div id="reviews" className="scroll-mt-28 py-20">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <Reveal className="mx-auto mb-14 max-w-2xl text-center">
               <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
@@ -338,7 +359,7 @@ export default async function Home() {
       )}
 
       {/* FINAL CTA */}
-      <div className="relative overflow-hidden py-20">
+      <div id="get-started" className="relative scroll-mt-28 overflow-hidden py-20">
         <div className="absolute inset-0 bg-gradient-to-br from-teal-800 to-emerald-700" />
         <FloatingOrbs className="opacity-40" />
         <Reveal className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">

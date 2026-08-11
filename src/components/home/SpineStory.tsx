@@ -160,7 +160,7 @@ export default function SpineStory() {
   const bottomShift = useTransform(centre, (c) => `${Math.min(1, c + BAND) * 100}%`);
 
   return (
-    <section ref={ref} className="relative h-[250vh] bg-slate-950">
+    <section id="what-we-treat" ref={ref} className="relative h-[250vh] scroll-mt-28 bg-slate-950">
       <div className="sticky top-0 flex h-screen items-center overflow-hidden">
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
           <div className="absolute left-1/2 top-1/2 h-[46rem] w-[46rem] -translate-x-1/4 -translate-y-1/2 rounded-full bg-teal-500/10 blur-3xl" />
