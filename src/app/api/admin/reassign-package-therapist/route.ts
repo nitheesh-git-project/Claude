@@ -122,27 +122,41 @@ export async function POST(request: NextRequest) {
     reassigned.push(appointment.id);
   }
 
-  const { error: purchaseUpdateError } = await admin
+  // CAS on the value this request actually read above -- two concurrent
+  // clicks both read the same old locked_therapist_id and would otherwise
+  // both "win" (the appointment-level updates are individually idempotent,
+  // so the final assignment state is fine either way, but without this
+  // guard both requests would each log their own therapist_reassigned
+  // event, leaving a false "reassigned twice" entry in the timeline). Only
+  // the request whose read is still current gets to log the event; a
+  // second, truly simultaneous request finds the row already moved and
+  // treats it as a no-op success rather than writing a duplicate.
+  const { data: claimedPurchase, error: purchaseUpdateError } = await admin
     .from("patient_package_purchases")
     .update({ locked_therapist_id: therapistId })
-    .eq("id", purchaseId);
+    .eq("id", purchaseId)
+    .eq("locked_therapist_id", purchase.locked_therapist_id)
+    .select("id")
+    .maybeSingle();
   if (purchaseUpdateError) {
     return NextResponse.json({ error: purchaseUpdateError.message }, { status: 500 });
   }
 
-  const { error: eventError } = await admin.from("package_purchase_events").insert({
-    purchase_id: purchaseId,
-    event_type: "therapist_reassigned",
-    actor_id: adminUser.id,
-    detail: {
-      oldTherapistId: purchase.locked_therapist_id,
-      newTherapistId: therapistId,
-      reassignedAppointmentIds: reassigned,
-      skipped,
-    },
-  });
-  if (eventError) {
-    console.error("Failed to log therapist_reassigned event for purchase", purchaseId, eventError);
+  if (claimedPurchase) {
+    const { error: eventError } = await admin.from("package_purchase_events").insert({
+      purchase_id: purchaseId,
+      event_type: "therapist_reassigned",
+      actor_id: adminUser.id,
+      detail: {
+        oldTherapistId: purchase.locked_therapist_id,
+        newTherapistId: therapistId,
+        reassignedAppointmentIds: reassigned,
+        skipped,
+      },
+    });
+    if (eventError) {
+      console.error("Failed to log therapist_reassigned event for purchase", purchaseId, eventError);
+    }
   }
 
   return NextResponse.json({ success: true, reassigned, skipped });
