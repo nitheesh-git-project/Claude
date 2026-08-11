@@ -99,7 +99,7 @@ export default function StepScroller() {
             return (
               <section
                 key={step.num}
-                className="relative flex min-h-[52vh] flex-col justify-center py-8 md:min-h-[78vh]"
+                className="relative flex flex-col justify-center py-8 md:min-h-[60vh]"
               >
                 <div className="sm:pl-14">
                   <span className="absolute left-0 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-teal-700 font-display text-sm font-bold text-white shadow-lg sm:flex">
