@@ -5,11 +5,14 @@ import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 
-// Every table an admin action anywhere on this dashboard reads that another
-// user (a therapist, patient, or hospital) can also write to -- see the
-// *_select_admin RLS policies + supabase_realtime publication entries at
-// the end of schema.sql. Fixed at module scope so RealtimeRefresh's own
-// tables prop is referentially stable across renders.
+// Every base table this page's Promise.all queries (src/app/admin/dashboard/
+// page.tsx) -- so any change, whether from another admin tab, a therapist/
+// patient/hospital action, or a second admin logged in elsewhere, refreshes
+// this dashboard. package_purchase_summary is deliberately excluded: it's a
+// view, and postgres_changes only streams base tables -- its underlying
+// patient_package_purchases is covered instead. See the supabase_realtime
+// publication entries at the end of schema.sql. Fixed at module scope so
+// RealtimeRefresh's own tables prop is referentially stable across renders.
 const ADMIN_REALTIME_TABLES = [
   "appointments",
   "therapist_payout_requests",
@@ -18,6 +21,16 @@ const ADMIN_REALTIME_TABLES = [
   "profiles",
   "profile_change_requests",
   "patient_package_purchases",
+  "payment_failure_log",
+  "therapist_payout_batches",
+  "site_settings",
+  "therapist_availability_template",
+  "therapist_availability_override",
+  "appointment_reassignment_log",
+  "treatment_categories",
+  "treatment_category_packages",
+  "testimonials",
+  "faqs",
 ];
 
 type TabKey =

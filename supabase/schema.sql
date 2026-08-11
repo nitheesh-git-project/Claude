@@ -1799,3 +1799,64 @@ create policy "package_purchase_events_select_locked_therapist" on package_purch
       where pp.id = package_purchase_events.purchase_id and pp.locked_therapist_id = auth.uid()
     )
   );
+
+-- Every table the admin dashboard's big Promise.all (src/app/admin/dashboard/
+-- page.tsx) reads that wasn't already streaming -- ADMIN_REALTIME_TABLES in
+-- AdminTabs.tsx previously covered only 7 of the ~17 tables that page
+-- actually queries, so edits to payouts, availability, the catalog, or
+-- content tabs sat there until something else triggered a refresh. Same
+-- do-block-per-table pattern as the original six above, for the same
+-- reason: idempotent on re-run. package_purchase_summary is deliberately
+-- excluded -- it's a view (schema.sql's own package_purchase_summary
+-- comment), and postgres_changes only streams base tables; its underlying
+-- patient_package_purchases is already covered.
+do $$
+begin
+  alter publication supabase_realtime add table payment_failure_log;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table therapist_payout_batches;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table site_settings;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table therapist_availability_template;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table therapist_availability_override;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table appointment_reassignment_log;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table treatment_categories;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table treatment_category_packages;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table testimonials;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table faqs;
+exception when duplicate_object then null;
+end $$;
