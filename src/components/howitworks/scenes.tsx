@@ -192,7 +192,21 @@ export function FindingsScene() {
           variants={rise}
           initial="hidden"
           animate="show"
-          custom={6}
+          custom={5}
+          className="mt-3 flex items-center gap-2.5 rounded-xl border border-teal-100 bg-teal-50 px-3 py-2.5"
+        >
+          <i aria-hidden="true" className="fa-solid fa-heart-pulse text-teal-600" />
+          <span className="text-xs font-semibold leading-snug text-teal-900">
+            Good news — this is a pattern we treat all the time. Most patients
+            feel real relief within the first couple of weeks.
+          </span>
+        </motion.div>
+
+        <motion.div
+          variants={rise}
+          initial="hidden"
+          animate="show"
+          custom={7}
           className="mt-auto rounded-xl bg-slate-900 p-4"
         >
           <p className="text-[10px] font-bold uppercase tracking-wider text-teal-400">
@@ -250,7 +264,55 @@ export function PlanScene() {
           </div>
         </div>
 
-        <div className="mt-5 space-y-2.5">
+        <motion.div
+          variants={rise}
+          initial="hidden"
+          animate="show"
+          custom={0.5}
+          className="mt-4 rounded-xl border border-teal-100 bg-teal-50/60 px-3 py-2.5"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700">
+              Feeling better, week by week
+            </span>
+            <span className="flex items-center gap-1 text-[10px] font-bold text-teal-700">
+              <i aria-hidden="true" className="fa-solid fa-arrow-trend-up" />
+              Mobility up 68%
+            </span>
+          </div>
+          <svg viewBox="0 0 200 40" className="mt-2 h-9 w-full" preserveAspectRatio="none">
+            <motion.path
+              d="M0,36 L55,26 L110,15 L165,7 L200,3"
+              fill="none"
+              stroke="#0d9488"
+              strokeWidth={3}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 1.1, ease: EASE, delay: 0.5 }}
+            />
+            {[
+              [0, 36], [55, 26], [110, 15], [165, 7], [200, 3],
+            ].map(([cx, cy], i) => (
+              <motion.circle
+                key={i}
+                cx={cx} cy={cy} r={3.5} fill="#0d9488"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.55 + i * 0.12, type: "spring", stiffness: 320, damping: 14 }}
+              />
+            ))}
+          </svg>
+          <div className="mt-0.5 flex justify-between text-[9px] font-medium text-teal-700/70">
+            <span>Week 1</span>
+            <span>Week 2</span>
+            <span>Week 3</span>
+            <span>Week 4</span>
+          </div>
+        </motion.div>
+
+        <div className="mt-3 space-y-2.5">
           {EXERCISES.map((ex, i) => (
             <motion.div
               key={ex.name}

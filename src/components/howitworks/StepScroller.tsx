@@ -75,7 +75,7 @@ export default function StepScroller() {
           {/* Centred in the viewport so the panel lines up with whichever
               step block is currently centred beside it. */}
           <div className="sticky top-0 flex h-screen items-center">
-            <div className="h-[27rem] w-full">
+            <div className="h-[35rem] w-full">
               {/* Keyed directly so each scene's own motion root handles the
                   exit transition — a plain wrapper div would swallow it. */}
               <AnimatePresence mode="wait">
@@ -129,7 +129,7 @@ export default function StepScroller() {
                       ))}
                     </ul>
 
-                    <div className="mt-8 h-[26rem] md:hidden">
+                    <div className="mt-8 h-[34rem] md:hidden">
                       <Scene />
                     </div>
                   </motion.div>
