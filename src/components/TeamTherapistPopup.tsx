@@ -202,7 +202,7 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                   <i aria-hidden="true" className="fa-solid fa-xmark" />
                 </button>
 
-                <div className="relative flex flex-col items-start gap-5 sm:flex-row sm:items-center">
+                <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center">
                   <span className="shrink-0 rounded-2xl bg-white/15 p-1.5 ring-1 ring-white/25">
                     <AvatarThumbnail
                       url={open.avatar_url}
