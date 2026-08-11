@@ -365,7 +365,18 @@ export default async function TherapistDashboardPage() {
       userCode={therapistCodeRow?.therapist_code ?? null}
       offsetTop={showDebugNav}
       sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
-      realtimeTables={["appointments", "therapist_payout_requests", "profile_change_requests"]}
+      realtimeTables={[
+        "appointments",
+        "therapist_payout_requests",
+        "profile_change_requests",
+        "profiles",
+        "site_settings",
+        "therapist_availability_template",
+        "therapist_availability_override",
+        "therapist_payout_batches",
+        "treatment_categories",
+        "patient_package_purchases",
+      ]}
       headerTitle={`Welcome, ${profile?.full_name ?? "there"}`}
       headerSubtitle={
         <>

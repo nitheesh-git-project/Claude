@@ -167,7 +167,7 @@ export default async function HospitalDashboardPage() {
       userCode={hospitalCodeRow?.hospital_code ?? null}
       offsetTop={showDebugNav}
       sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
-      realtimeTables={["patient_referrals"]}
+      realtimeTables={["patient_referrals", "profiles", "site_settings", "appointments"]}
       headerTitle={`${profile?.organization_name ?? "Partner"} Dashboard`}
       headerSubtitle={`Welcome, ${profile?.full_name}`}
     >
