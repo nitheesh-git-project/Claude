@@ -59,9 +59,16 @@ export default function AdminSessionManagerTab({
   const [now] = useState(() => Date.now());
 
   const stats = useMemo(() => {
-    const activePurchases = purchases.filter((p) => p.status === "active");
-    const sessionsBanked = purchases.reduce((sum, p) => sum + p.pendingCount, 0);
-    const bankedValuePaise = purchases.reduce((sum, p) => {
+    // An unpaid/abandoned checkout row (create-order runs before payment
+    // clears -- see that route's own comment) still has status='active'
+    // by default and a speculative amount_paid_paise, so it must be
+    // excluded here or it inflates Active Packages and Sessions Banked
+    // with a liability that was never actually collected. Package
+    // Revenue below already filtered on this; Active/Banked hadn't.
+    const paidPurchases = purchases.filter((p) => p.paymentStatus === "paid");
+    const activePurchases = paidPurchases.filter((p) => p.status === "active");
+    const sessionsBanked = activePurchases.reduce((sum, p) => sum + p.pendingCount, 0);
+    const bankedValuePaise = activePurchases.reduce((sum, p) => {
       const perSession = p.sessionCount > 0 ? (p.amountPaidPaise ?? 0) / p.sessionCount : 0;
       return sum + perSession * p.pendingCount;
     }, 0);
@@ -69,11 +76,9 @@ export default function AdminSessionManagerTab({
       const days = daysUntilExpiry(p.expiresAt, now);
       return days !== null && days <= settings.packageExpiryReminderDays;
     }).length;
-    const totalRevenuePaise = purchases
-      .filter((p) => p.paymentStatus === "paid")
-      .reduce((sum, p) => sum + (p.amountPaidPaise ?? 0), 0);
+    const totalRevenuePaise = paidPurchases.reduce((sum, p) => sum + (p.amountPaidPaise ?? 0), 0);
     return {
-      totalSold: purchases.length,
+      totalSold: paidPurchases.length,
       activeCount: activePurchases.length,
       sessionsBanked,
       bankedValuePaise,

@@ -1781,3 +1781,21 @@ begin
   alter publication supabase_realtime add table patient_package_purchases;
 exception when duplicate_object then null;
 end $$;
+
+-- package_purchase_events was only ever given a patient-facing select
+-- policy (package_purchase_events_select_own) -- unlike
+-- patient_package_purchases itself, which has both _select_own AND
+-- _select_locked_therapist. That gap meant the locked therapist's own
+-- PackageDetailModal timeline silently came back empty (RLS filtered it
+-- to nothing, not an error), even though there's no privacy reason to
+-- withhold a programme's own event history (scheduled/locked/reassigned)
+-- from the therapist actually running it -- it's operational context, not
+-- money. Mirrors package_purchases_select_locked_therapist exactly.
+drop policy if exists "package_purchase_events_select_locked_therapist" on package_purchase_events;
+create policy "package_purchase_events_select_locked_therapist" on package_purchase_events
+  for select using (
+    exists (
+      select 1 from patient_package_purchases pp
+      where pp.id = package_purchase_events.purchase_id and pp.locked_therapist_id = auth.uid()
+    )
+  );
