@@ -58,3 +58,24 @@ const AUTH_CTA_HIDDEN_ROUTES = new Set([
 export function isAuthCtaHiddenRoute(pathname: string | null): boolean {
   return pathname !== null && AUTH_CTA_HIDDEN_ROUTES.has(pathname);
 }
+
+// The public marketing site -- home plus the top-level content sections
+// reachable from the public Navbar's own link list. Deliberately an
+// allowlist by top-level segment (matches "/x" and "/x/*") rather than the
+// inverse (excluding dashboards/auth/booking one by one) -- new account or
+// system routes default to *not* being a front page instead of silently
+// picking up front-page-only chrome like the scroll hint.
+const FRONT_PAGE_PREFIXES = [
+  "/conditions",
+  "/faq",
+  "/get-started",
+  "/hospitals",
+  "/how-it-works",
+  "/team",
+];
+
+export function isFrontPageRoute(pathname: string | null): boolean {
+  if (pathname === null) return false;
+  if (pathname === "/") return true;
+  return FRONT_PAGE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}

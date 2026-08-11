@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import FarewellBanner from "@/components/FarewellBanner";
 import Footer from "@/components/Footer";
 import DebugNav from "@/components/DebugNav";
+import ScrollHint from "@/components/ScrollHint";
 
 // Inter for body copy — optimized for on-screen reading at small sizes,
 // which matters here given how much clinical/pricing detail patients read.
@@ -65,6 +66,7 @@ export default function RootLayout({
         </Suspense>
         <main className="flex-grow">{children}</main>
         <Footer />
+        <ScrollHint />
       </body>
     </html>
   );
