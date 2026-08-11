@@ -4,7 +4,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isDashboardShellRoute } from "@/lib/dashboardShellRoutes";
 
-export default function Footer() {
+export default function Footer({
+  siteName,
+  siteDescription,
+  contactEmail,
+  whatsappNumber,
+  contactPhone,
+  footerCopyrightText,
+}: {
+  siteName: string;
+  siteDescription: string;
+  contactEmail: string;
+  whatsappNumber: string;
+  contactPhone: string;
+  footerCopyrightText: string;
+}) {
   const pathname = usePathname();
   // See Navbar's matching check -- each role dashboard is its own
   // full-height dark app shell with no page scroll, so a footer below it
@@ -21,12 +35,9 @@ export default function Footer() {
             <div className="w-9 h-9 rounded-xl bg-teal-700 text-white flex items-center justify-center font-bold shadow-md">
               <i className="fa-solid fa-user-doctor"></i>
             </div>
-            <span className="font-display text-white font-bold">Dr. Pooja&apos;s Physio</span>
+            <span className="font-display text-white font-bold">{siteName}</span>
           </div>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Certified global telehealth physical therapy practice, restoring
-            mobility from home.
-          </p>
+          <p className="text-xs text-slate-400 leading-relaxed">{siteDescription}</p>
         </div>
 
         <div>
@@ -50,13 +61,14 @@ export default function Footer() {
         <div>
           <h4 className="text-white text-sm font-semibold mb-3">Contact</h4>
           <ul className="space-y-2 text-xs text-slate-400">
-            <li><i className="fa-solid fa-envelope text-teal-500 mr-2"></i>hello@drpoojaphysio.com</li>
-            <li><i className="fa-brands fa-whatsapp text-teal-500 mr-2"></i>+91 XXXXX XXXXX</li>
+            <li><i className="fa-solid fa-envelope text-teal-500 mr-2"></i>{contactEmail}</li>
+            <li><i className="fa-brands fa-whatsapp text-teal-500 mr-2"></i>{whatsappNumber}</li>
+            <li><i className="fa-solid fa-phone text-teal-500 mr-2"></i>{contactPhone}</li>
           </ul>
         </div>
       </div>
       <div className="border-t border-slate-800 py-4 text-center text-[11px] text-slate-500">
-        © {new Date().getFullYear()} Dr. Pooja&apos;s Physio. All rights reserved.
+        © {new Date().getFullYear()} {footerCopyrightText}
       </div>
     </footer>
   );

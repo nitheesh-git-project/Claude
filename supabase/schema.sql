@@ -1860,3 +1860,19 @@ begin
   alter publication supabase_realtime add table faqs;
 exception when duplicate_object then null;
 end $$;
+
+-- Brand & Contact Details (Site Content tab): the handful of strings that
+-- disclose the practice's identity across the app -- Navbar brand/tagline,
+-- Footer name/description/contact block/copyright -- made admin-editable
+-- instead of hardcoded, on the same site_settings singleton as every other
+-- Site Content / Feature Control setting. Same isolation reasoning as the
+-- Session Manager columns above: a missing migration degrades to the
+-- literal defaults every one of these previously hardcoded to, via
+-- parseAdminSettings(), rather than breaking the nav/footer.
+alter table site_settings add column if not exists site_name text not null default 'Dr. Pooja''s Physio';
+alter table site_settings add column if not exists site_tagline text not null default 'Global Telehealth Platform';
+alter table site_settings add column if not exists site_description text not null default 'Certified global telehealth physical therapy practice, restoring mobility from home.';
+alter table site_settings add column if not exists contact_email text not null default 'hello@drpoojaphysio.com';
+alter table site_settings add column if not exists whatsapp_number text not null default '+91 XXXXX XXXXX';
+alter table site_settings add column if not exists contact_phone text not null default '+91 XXXXX XXXXX';
+alter table site_settings add column if not exists footer_copyright_text text not null default 'Dr. Pooja''s Physio. All rights reserved.';

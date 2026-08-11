@@ -209,10 +209,17 @@ public `/hospitals` page also captures anonymous B2B leads into `b2b_leads`,
 which only the admin can read back.
 
 **Admin-managed content.** Treatment categories (with ordering), FAQs,
-testimonials, and feature toggles (Meet on/off, join window, idle-timeout
-minutes, booking languages) are all editable from the dashboard's Site
-Content and Feature Control tabs, stored in `site_settings` and their own
-tables — see `src/lib/adminSettings.ts`. Session packages have their own
+testimonials, feature toggles (Meet on/off, join window, idle-timeout
+minutes, booking languages), and **Brand & Contact Details** (website name,
+tagline, description, contact email, WhatsApp number, contact phone, footer
+copyright text — the strings the public Navbar and Footer render) are all
+editable from the dashboard's Site Content and Feature Control tabs, stored
+in `site_settings` and their own tables — see `src/lib/adminSettings.ts`.
+Brand & Contact Details fields save individually (click Edit on a field,
+change it, Save) via `/api/admin/update-setting`, same as every other
+`site_settings` column; the root layout reads them on every request to pass
+into `Navbar`/`Footer`, so a change is live everywhere those render, not
+just on the admin page. Session packages have their own
 **Session Manager** tab instead (catalog, every purchase ever made, and the
 package-wide settings — visibility, default validity, the therapist-lock
 switch, the bulk-scheduler limit, the expiry reminder window); see "Session

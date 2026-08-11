@@ -130,13 +130,18 @@ role, an id, or an amount sent from the client — re-derive it server-side.
   `packageProgress`) so it can be reasoned about without rendering. Keep new
   math there rather than inside components.
 - **Admin-configurable behavior** (Meet on/off, join window, idle timeout,
-  booking languages, and the package-wide settings — visibility, default
+  booking languages, the package-wide settings — visibility, default
   validity, therapist-lock switch, bulk-scheduler limit, expiry reminder
-  window) is read through `src/lib/adminSettings.ts` with defaults — don't
-  hardcode these. Every dashboard page must select
-  `SITE_SETTINGS_SELECT` from that module rather than its own column list,
-  or a new setting silently reads as its default on whichever page forgot
-  it.
+  window — and Brand & Contact Details — site name, tagline, description,
+  contact email, WhatsApp number, contact phone, footer copyright text) is
+  read through `src/lib/adminSettings.ts` with defaults — don't hardcode
+  these. Every dashboard page must select `SITE_SETTINGS_SELECT` from that
+  module rather than its own column list, or a new setting silently reads
+  as its default on whichever page forgot it. The root layout is the one
+  place that reads Brand & Contact Details (via a public/anon client, so
+  ISR-cached pages under it aren't forced dynamic) and passes it into
+  `Navbar`/`Footer` as props — those two components take the strings as
+  props rather than hardcoding or fetching their own copy.
 
 ## Keeping the docs current
 

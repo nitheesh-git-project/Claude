@@ -22,6 +22,7 @@ import AdminSessionManagerTab from "@/components/admin/AdminSessionManagerTab";
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
+import BrandContactDetailsForm from "@/components/admin/BrandContactDetailsForm";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
@@ -1252,6 +1253,20 @@ export default async function AdminDashboardPage() {
       <SiteRatingsVisibilityToggle
         visible={siteSettings?.ratings_visible_publicly ?? true}
       />
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
+        <BrandContactDetailsForm
+          details={{
+            siteName: adminSettings.siteName,
+            siteTagline: adminSettings.siteTagline,
+            siteDescription: adminSettings.siteDescription,
+            contactEmail: adminSettings.contactEmail,
+            whatsappNumber: adminSettings.whatsappNumber,
+            contactPhone: adminSettings.contactPhone,
+            footerCopyrightText: adminSettings.footerCopyrightText,
+          }}
+        />
+      </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-bold text-lg text-slate-800 mb-4">

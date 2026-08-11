@@ -23,7 +23,15 @@ const ROLE_DASHBOARD_HREF: Record<string, string> = {
   hospital: "/hospital/dashboard",
 };
 
-export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
+export default function Navbar({
+  offsetTop = false,
+  siteName,
+  siteTagline,
+}: {
+  offsetTop?: boolean;
+  siteName: string;
+  siteTagline: string;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   // Just a boolean -- every role's dashboard is now its own app shell with
@@ -140,10 +148,10 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
             </motion.div>
             <div>
               <span className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight">
-                Dr. Pooja&apos;s Physio
+                {siteName}
               </span>
               <span className="text-[10px] font-semibold text-teal-700 uppercase tracking-widest block">
-                Global Telehealth Platform
+                {siteTagline}
               </span>
             </div>
           </Link>

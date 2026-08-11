@@ -7,6 +7,8 @@ import FarewellBanner from "@/components/FarewellBanner";
 import Footer from "@/components/Footer";
 import DebugNav from "@/components/DebugNav";
 import ScrollHint from "@/components/ScrollHint";
+import { createPublicClient } from "@/lib/supabase/public";
+import { parseAdminSettings } from "@/lib/adminSettings";
 
 // Inter for body copy — optimized for on-screen reading at small sizes,
 // which matters here given how much clinical/pricing detail patients read.
@@ -42,7 +44,7 @@ export const metadata: Metadata = {
     "Expert 1-on-1 virtual physical therapy for global patients. Evidence-based rehabilitation from licensed specialists, from the comfort of home.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -56,16 +58,39 @@ export default function RootLayout({
     (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
       process.env.NODE_ENV !== "production");
 
+  // Brand & Contact Details (admin Site Content tab) -- the Navbar/Footer
+  // used to hardcode these. Fetched here rather than in each component
+  // since both need it and this is the one place they share: the root
+  // layout. Public/anon client (no cookies()) so pages under this layout
+  // can stay statically generated/ISR-cached; parseAdminSettings() already
+  // degrades to the old hardcoded strings as defaults if the migration
+  // adding these columns hasn't run yet.
+  const supabase = createPublicClient();
+  const { data: settingsRow } = await supabase
+    .from("site_settings")
+    .select(
+      "site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text"
+    )
+    .maybeSingle();
+  const brand = parseAdminSettings(settingsRow);
+
   return (
     <html lang="en" className={`h-full antialiased ${inter.variable} ${jakarta.variable}`}>
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-800 font-sans">
         {showDebugNav && <DebugNav />}
-        <Navbar offsetTop={showDebugNav} />
+        <Navbar offsetTop={showDebugNav} siteName={brand.siteName} siteTagline={brand.siteTagline} />
         <Suspense fallback={null}>
           <FarewellBanner />
         </Suspense>
         <main className="flex-grow">{children}</main>
-        <Footer />
+        <Footer
+          siteName={brand.siteName}
+          siteDescription={brand.siteDescription}
+          contactEmail={brand.contactEmail}
+          whatsappNumber={brand.whatsappNumber}
+          contactPhone={brand.contactPhone}
+          footerCopyrightText={brand.footerCopyrightText}
+        />
         <ScrollHint />
       </body>
     </html>

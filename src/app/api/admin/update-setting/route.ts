@@ -14,6 +14,13 @@ const ALLOWED_COLUMNS = new Set([
   "package_therapist_lock_enabled",
   "package_bulk_schedule_max",
   "package_expiry_reminder_days",
+  "site_name",
+  "site_tagline",
+  "site_description",
+  "contact_email",
+  "whatsapp_number",
+  "contact_phone",
+  "footer_copyright_text",
 ]);
 
 // Bounds on the admin-managed /book language list -- not business rules so
@@ -21,6 +28,17 @@ const ALLOWED_COLUMNS = new Set([
 // wall of chips on the booking page.
 const MAX_BOOKING_LANGUAGES = 25;
 const MAX_LANGUAGE_LENGTH = 40;
+
+// Bounds on the Brand & Contact Details text fields -- these render in the
+// Navbar/Footer on every public page, so a blank or wildly long value would
+// break layout there, not just look odd in the admin form.
+const BRAND_TEXT_FIELDS = new Set(["site_name", "site_tagline", "footer_copyright_text"]);
+const MAX_BRAND_TEXT_LENGTH = 120;
+const LONG_TEXT_FIELDS = new Set(["site_description"]);
+const MAX_LONG_TEXT_LENGTH = 300;
+const CONTACT_FIELDS = new Set(["whatsapp_number", "contact_phone"]);
+const MAX_CONTACT_LENGTH = 40;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Writes one Feature Control column on the site_settings singleton row --
 // same table/pattern as /api/admin/set-ratings-visible-publicly, just
@@ -102,6 +120,31 @@ export async function POST(request: NextRequest) {
     nextValue = languages;
   }
 
+  if (BRAND_TEXT_FIELDS.has(key) || LONG_TEXT_FIELDS.has(key) || CONTACT_FIELDS.has(key)) {
+    if (typeof value !== "string" || value.trim().length === 0) {
+      return NextResponse.json({ error: "value must not be blank" }, { status: 400 });
+    }
+    const maxLength = BRAND_TEXT_FIELDS.has(key)
+      ? MAX_BRAND_TEXT_LENGTH
+      : LONG_TEXT_FIELDS.has(key)
+        ? MAX_LONG_TEXT_LENGTH
+        : MAX_CONTACT_LENGTH;
+    if (value.length > maxLength) {
+      return NextResponse.json(
+        { error: `Please keep this to ${maxLength} characters or fewer.` },
+        { status: 400 }
+      );
+    }
+    nextValue = value.trim();
+  }
+
+  if (key === "contact_email") {
+    if (typeof value !== "string" || !EMAIL_RE.test(value.trim())) {
+      return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+    }
+    nextValue = value.trim();
+  }
+
   const admin = createAdminClient();
   const { error } = await admin
     .from("site_settings")
@@ -117,6 +160,19 @@ export async function POST(request: NextRequest) {
   // the path stale so the next visitor renders the new list instead.
   if (key === "booking_languages") {
     revalidatePath("/book");
+  }
+
+  // Brand & Contact Details render in the Navbar/Footer, which sit in the
+  // root layout wrapping every statically-rendered page -- "layout" scope
+  // invalidates the whole site's cache under it in one call, rather than
+  // guessing which individual routes need a fresh copy.
+  if (
+    BRAND_TEXT_FIELDS.has(key) ||
+    LONG_TEXT_FIELDS.has(key) ||
+    CONTACT_FIELDS.has(key) ||
+    key === "contact_email"
+  ) {
+    revalidatePath("/", "layout");
   }
 
   return NextResponse.json({ success: true });

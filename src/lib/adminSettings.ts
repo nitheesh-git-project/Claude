@@ -9,6 +9,13 @@ export type AdminSettings = {
   packageTherapistLockEnabled: boolean;
   packageBulkScheduleMax: number;
   packageExpiryReminderDays: number;
+  siteName: string;
+  siteTagline: string;
+  siteDescription: string;
+  contactEmail: string;
+  whatsappNumber: string;
+  contactPhone: string;
+  footerCopyrightText: string;
 };
 
 // The sole hardcoded language in the app, and only as the fallback for an
@@ -16,6 +23,18 @@ export type AdminSettings = {
 // Control → Booking Languages. Booking must never present an empty language
 // picker, so an empty stored list degrades to this rather than to nothing.
 export const DEFAULT_BOOKING_LANGUAGES = ["English"];
+
+// Brand & Contact Details' defaults -- the literal strings the Navbar,
+// Footer, and checkout previously hardcoded, kept here as the fallback for
+// a database that hasn't run the migration adding these columns yet.
+export const DEFAULT_SITE_NAME = "Dr. Pooja's Physio";
+export const DEFAULT_SITE_TAGLINE = "Global Telehealth Platform";
+export const DEFAULT_SITE_DESCRIPTION =
+  "Certified global telehealth physical therapy practice, restoring mobility from home.";
+export const DEFAULT_CONTACT_EMAIL = "hello@drpoojaphysio.com";
+export const DEFAULT_WHATSAPP_NUMBER = "+91 XXXXX XXXXX";
+export const DEFAULT_CONTACT_PHONE = "+91 XXXXX XXXXX";
+export const DEFAULT_FOOTER_COPYRIGHT_TEXT = "Dr. Pooja's Physio. All rights reserved.";
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   sessionPackagesVisible: true,
@@ -28,6 +47,13 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   packageTherapistLockEnabled: true,
   packageBulkScheduleMax: 8,
   packageExpiryReminderDays: 14,
+  siteName: DEFAULT_SITE_NAME,
+  siteTagline: DEFAULT_SITE_TAGLINE,
+  siteDescription: DEFAULT_SITE_DESCRIPTION,
+  contactEmail: DEFAULT_CONTACT_EMAIL,
+  whatsappNumber: DEFAULT_WHATSAPP_NUMBER,
+  contactPhone: DEFAULT_CONTACT_PHONE,
+  footerCopyrightText: DEFAULT_FOOTER_COPYRIGHT_TEXT,
 };
 
 // The one column list every dashboard page selects from the site_settings
@@ -48,7 +74,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
 // .select(SITE_SETTINGS_SELECT) call fall back to an unusable
 // GenericStringError result type instead of a real row shape.
 export const SITE_SETTINGS_SELECT =
-  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days";
+  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text";
 
 type SiteSettingsRow = {
   session_packages_visible?: boolean | null;
@@ -61,6 +87,13 @@ type SiteSettingsRow = {
   package_therapist_lock_enabled?: boolean | null;
   package_bulk_schedule_max?: number | null;
   package_expiry_reminder_days?: number | null;
+  site_name?: string | null;
+  site_tagline?: string | null;
+  site_description?: string | null;
+  contact_email?: string | null;
+  whatsapp_number?: string | null;
+  contact_phone?: string | null;
+  footer_copyright_text?: string | null;
 };
 
 // Normalizes the stored jsonb array: drops non-strings and blanks, trims,
@@ -79,6 +112,14 @@ export function parseBookingLanguages(raw: unknown): string[] {
     languages.push(trimmed);
   }
   return languages.length > 0 ? languages : DEFAULT_BOOKING_LANGUAGES;
+}
+
+// A stored-but-blank string (e.g. a field an admin cleared and never
+// re-filled) should still fall back to the default rather than rendering an
+// empty brand name in the Navbar/Footer -- unlike the numeric/boolean
+// settings above, `typeof === "string"` alone would accept "".
+function stringOrDefault(value: string | null | undefined, fallback: string): string {
+  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
 }
 
 // Turns the site_settings singleton row's Feature Control / Session
@@ -128,5 +169,12 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
       typeof row?.package_expiry_reminder_days === "number"
         ? row.package_expiry_reminder_days
         : DEFAULT_ADMIN_SETTINGS.packageExpiryReminderDays,
+    siteName: stringOrDefault(row?.site_name, DEFAULT_SITE_NAME),
+    siteTagline: stringOrDefault(row?.site_tagline, DEFAULT_SITE_TAGLINE),
+    siteDescription: stringOrDefault(row?.site_description, DEFAULT_SITE_DESCRIPTION),
+    contactEmail: stringOrDefault(row?.contact_email, DEFAULT_CONTACT_EMAIL),
+    whatsappNumber: stringOrDefault(row?.whatsapp_number, DEFAULT_WHATSAPP_NUMBER),
+    contactPhone: stringOrDefault(row?.contact_phone, DEFAULT_CONTACT_PHONE),
+    footerCopyrightText: stringOrDefault(row?.footer_copyright_text, DEFAULT_FOOTER_COPYRIGHT_TEXT),
   };
 }
