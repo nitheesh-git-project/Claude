@@ -43,6 +43,19 @@ export default function Navbar({ offsetTop = false }: { offsetTop?: boolean }) {
   const [navigating, setNavigating] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
+  // Link's onClick sets navigating=true optimistically, but this is a soft
+  // client-side nav -- it never resolves to false if the navigation gets
+  // interrupted (browser back button, the BookingWizard's unsaved-progress
+  // confirm dialog, etc.) and lands back on a route where this Navbar is
+  // still mounted. Reset during render on every pathname change (React's
+  // adjust-state-while-rendering pattern, not an effect) so the button
+  // can't get stuck showing "Loading..." forever.
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    if (navigating) setNavigating(false);
+  }
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
