@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConditionIntakeForm from "@/components/profile/ConditionIntakeForm";
-import PainMapSummary from "@/components/profile/PainMapSummary";
+import PainMapView from "@/components/profile/PainMapView";
 import PainAssessmentForm from "@/components/therapist/PainAssessmentForm";
 import RequestConditionAccessButton from "@/components/therapist/RequestConditionAccessButton";
 import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
@@ -48,7 +48,11 @@ export default async function TherapistPatientHealthProfilePage({
     supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
     supabase.from("profiles").select("id, full_name, email").eq("id", patientId).eq("role", "patient").maybeSingle(),
-    supabase.from("patient_condition_profiles").select("data, status").eq("patient_id", patientId).maybeSingle(),
+    supabase
+      .from("patient_condition_profiles")
+      .select("data, draft_data, status")
+      .eq("patient_id", patientId)
+      .maybeSingle(),
     supabase
       .from("condition_change_requests")
       .select("status, proposed_data, created_at")
@@ -80,10 +84,13 @@ export default async function TherapistPatientHealthProfilePage({
 
   const status = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
   const currentData = (conditionProfile?.data ?? {}) as Record<string, string>;
-  // Same "don't make them retype a declined submission" behavior as the
-  // patient's own Health Profile page — see that page's comment.
-  const formInitialData =
-    lastRequest?.status === "declined"
+  // Same resume-priority behavior as the patient's own Health Profile
+  // page — see that page's comment.
+  const draftData = (conditionProfile?.draft_data ?? null) as Record<string, string> | null;
+  const hasDraft = !!draftData && Object.values(draftData).some(Boolean);
+  const formInitialData = hasDraft
+    ? draftData!
+    : lastRequest?.status === "declined"
       ? ((lastRequest.proposed_data ?? {}) as Record<string, string>)
       : currentData;
   const hasApprovedAccess = grant?.status === "approved";
@@ -144,6 +151,7 @@ export default async function TherapistPatientHealthProfilePage({
           {hasApprovedAccess ? (
             <ConditionIntakeForm
               endpoint="/api/therapist/condition-profile/submit"
+              draftEndpoint="/api/therapist/condition-profile/save-draft"
               patientId={patientId}
               currentData={formInitialData}
               disabled={status === "pending_review"}
@@ -162,12 +170,14 @@ export default async function TherapistPatientHealthProfilePage({
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-bold text-lg text-slate-800 mb-4">Pain Map</h2>
-          <PainMapSummary assessments={assessments ?? []} />
-          {hasApprovedAccess && (
-            <div className="mt-6 pt-6 border-t border-slate-100">
-              <h3 className="text-sm font-bold text-slate-700 mb-3">New assessment</h3>
-              <PainAssessmentForm patientId={patientId} overridesByRegion={overridesByRegion} />
-            </div>
+          {hasApprovedAccess ? (
+            <PainAssessmentForm
+              patientId={patientId}
+              assessments={assessments ?? []}
+              overridesByRegion={overridesByRegion}
+            />
+          ) : (
+            <PainMapView assessments={assessments ?? []} />
           )}
         </div>
       </div>

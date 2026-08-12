@@ -10,6 +10,7 @@ import PatientPackageWidget from "@/components/packages/PatientPackageWidget";
 import PackageChip from "@/components/packages/PackageChip";
 import ReceiptsSection from "@/components/ReceiptsSection";
 import DashboardShell from "@/components/dashboard/DashboardShell";
+import OnboardingWelcomeModal from "@/components/patient/OnboardingWelcomeModal";
 import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
@@ -88,6 +89,8 @@ export default async function PatientDashboardPage() {
     { data: activeCategories },
     { data: availablePackages },
     { data: ownedPackages },
+    { data: onboardingRow },
+    { data: conditionProfile },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
 
@@ -158,6 +161,13 @@ export default async function PatientDashboardPage() {
       .eq("patient_id", user.id)
       .eq("payment_status", "paid")
       .order("created_at", { ascending: false }),
+
+    // onboarding_seen_at / patient_condition_profiles.status are both
+    // new/migration-dependent -- kept isolated so an unknown-column error
+    // only hides the welcome modal / health-profile reminder banner, not
+    // the whole dashboard.
+    supabase.from("profiles").select("onboarding_seen_at").eq("id", user.id).maybeSingle(),
+    supabase.from("patient_condition_profiles").select("status").eq("patient_id", user.id).maybeSingle(),
   ]);
 
   const adminSettings = parseAdminSettings(settingsRow);
@@ -404,10 +414,25 @@ export default async function PatientDashboardPage() {
         "payment_failure_log",
         "treatment_categories",
         "treatment_category_packages",
+        "patient_condition_profiles",
       ]}
       headerTitle={`Welcome back, ${profile?.full_name ?? "there"}`}
       headerSubtitle="Your virtual physical therapy dashboard"
     >
+      {!onboardingRow?.onboarding_seen_at && <OnboardingWelcomeModal />}
+
+      {(!conditionProfile || conditionProfile.status === "not_started" || conditionProfile.status === "draft") && (
+        <Link
+          href="/patient/dashboard/health-profile"
+          className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 transition hover:bg-amber-100"
+        >
+          <span className="text-sm font-semibold text-amber-800">
+            Complete your health profile so your therapist knows your condition before your first session.
+          </span>
+          <span className="shrink-0 text-xs font-bold text-amber-700">Fill it in →</span>
+        </Link>
+      )}
+
       <div id="sessions" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-lg text-slate-800">Your Sessions</h2>

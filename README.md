@@ -245,7 +245,12 @@ and the admin's **Patient Conditions** tab.
   admin approves it; declining keeps the proposed data intact so the
   submitter can amend and resubmit. Admin's own edits (`ConditionDirectEditForm`)
   apply immediately, no review needed. One pending submission per patient at
-  a time.
+  a time. Answers autosave to `patient_condition_profiles.draft_data` as the
+  form is filled (`/api/patient/condition-profile/save-draft`,
+  `/api/therapist/condition-profile/save-draft`) so closing mid-fill loses
+  nothing; a submission clears the draft. Reopening the form prioritizes an
+  in-progress draft, then a declined submission's answers, then the last
+  approved data.
 - *Pain Map* (`pain_assessments`, `pain_map_question_templates`,
   `src/lib/painMap.ts`) is a 17-region clinical exam a therapist fills in
   after examining the patient — region-specific question sets with an
@@ -254,7 +259,11 @@ and the admin's **Patient Conditions** tab.
   therapist's own clinical judgement, not an administrative edit); rows are
   append-only so the patient's dashboard can show a trend against the
   previous assessment for that region. The patient can only view this, never
-  edit it.
+  edit it. All three surfaces render the same tap-point body diagram
+  (`src/components/profile/BodyMapDiagram.tsx`, a jointed lay figure rather
+  than a muscle chart — every joint doubles as a clinical landmark); the
+  therapist's version is interactive, tapping a point picks that
+  region+side directly instead of a manual dropdown.
 
 Both layers share one write-access model (`condition_access_grants`): a
 therapist may only write to a patient's condition data after the patient's
@@ -263,6 +272,13 @@ admin approves an access request (`/therapist/dashboard/health-profile` →
 assigned therapist — only *write* is gated. "Assigned" means the therapist
 has ever had an appointment with the patient, or holds a package's
 `locked_therapist_id`.
+
+A patient's first dashboard visit also shows a one-time, skippable welcome
+modal (`src/components/patient/OnboardingWelcomeModal.tsx`,
+`profiles.onboarding_seen_at`) introducing the dashboard sections. It's
+separate from the persistent "complete your health profile" banner on the
+main patient dashboard, which keeps nudging based on intake status
+regardless of whether the welcome modal was seen or skipped.
 
 ## Project layout
 

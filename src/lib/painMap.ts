@@ -285,6 +285,30 @@ export const PAIN_BAND_LABEL: Record<PainBand, string> = {
   high: "High",
 };
 
+export type PainAssessmentRow = {
+  region: string;
+  side: string;
+  pain_percent: number;
+  created_at: string;
+};
+
+/** Latest row per (region, side), keyed "region:side" — the shape every
+ *  Pain Map display (diagram dots, summary list, admin grid) needs, built
+ *  once here instead of three slightly different reimplementations. */
+export function latestAssessmentByRegionSide(
+  assessments: PainAssessmentRow[]
+): Map<string, PainAssessmentRow> {
+  const latest = new Map<string, PainAssessmentRow>();
+  for (const a of assessments) {
+    const key = `${a.region}:${a.side}`;
+    const existing = latest.get(key);
+    if (!existing || new Date(a.created_at).getTime() > new Date(existing.created_at).getTime()) {
+      latest.set(key, a);
+    }
+  }
+  return latest;
+}
+
 export type PainTrend = "up" | "down" | "flat" | "new";
 
 /** Compares the latest assessment's percent against the one before it for

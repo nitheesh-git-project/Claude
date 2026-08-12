@@ -4,14 +4,9 @@ import ConditionRequestActions from "@/components/admin/ConditionRequestActions"
 import ConditionAccessActions from "@/components/admin/ConditionAccessActions";
 import ConditionDirectEditForm from "@/components/admin/ConditionDirectEditForm";
 import PainMapQuestionEditor from "@/components/admin/PainMapQuestionEditor";
+import PainMapView from "@/components/profile/PainMapView";
 import { INTAKE_QUESTIONS, CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
-import { PAIN_MAP_REGIONS, painBand, painTrend, PAIN_BAND_LABEL, type QuestionOverrideRow } from "@/lib/painMap";
-
-const PAIN_BAND_STYLE: Record<string, string> = {
-  low: "bg-emerald-100 text-emerald-700",
-  mid: "bg-amber-100 text-amber-700",
-  high: "bg-red-100 text-red-700",
-};
+import type { QuestionOverrideRow } from "@/lib/painMap";
 
 // Shared body for both the standalone /admin/dashboard/conditions/[id]
 // page and its @modal intercepted overlay — same split as
@@ -64,14 +59,6 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
   const requestedGrants = (grants ?? []).filter((g) => g.status === "requested");
   const approvedGrants = (grants ?? []).filter((g) => g.status === "approved");
 
-  // Latest + previous assessment per (region, side), for the trend arrow.
-  const byRegionSide = new Map<string, typeof assessments>();
-  for (const a of assessments ?? []) {
-    const key = `${a.region}:${a.side}`;
-    const list = byRegionSide.get(key) ?? [];
-    list.push(a);
-    byRegionSide.set(key, list);
-  }
   const overridesByRegion: Record<string, QuestionOverrideRow[]> = {};
   for (const row of overrideRows ?? []) {
     (overridesByRegion[row.region] ??= []).push(row);
@@ -161,43 +148,9 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-4">Pain Map</h2>
-        {byRegionSide.size === 0 ? (
-          <p className="text-xs text-slate-500 mb-4">No pain assessments recorded yet.</p>
-        ) : (
-          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
-            {PAIN_MAP_REGIONS.flatMap((r) => {
-              const sides = r.paired ? ["left", "right"] : ["na"];
-              return sides.map((side) => {
-                const list = byRegionSide.get(`${r.key}:${side}`);
-                if (!list || list.length === 0) return null;
-                const latest = list[0];
-                const previous = list[1] ?? null;
-                const band = painBand(latest.pain_percent);
-                const trend = painTrend(latest.pain_percent, previous?.pain_percent ?? null);
-                return (
-                  <li
-                    key={`${r.key}:${side}`}
-                    className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 px-3 py-2"
-                  >
-                    <span className="text-xs font-semibold text-slate-700">
-                      {r.label}
-                      {r.paired && side !== "na" ? ` (${side})` : ""}
-                    </span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${PAIN_BAND_STYLE[band]}`}
-                    >
-                      {latest.pain_percent}% · {PAIN_BAND_LABEL[band]}
-                      {trend === "down" && " ↓"}
-                      {trend === "up" && " ↑"}
-                    </span>
-                  </li>
-                );
-              });
-            })}
-          </ul>
-        )}
+        <PainMapView assessments={assessments ?? []} />
 
-        <details>
+        <details className="mt-6">
           <summary className="text-xs font-semibold text-slate-500 cursor-pointer">
             Edit Pain Map question wording
           </summary>

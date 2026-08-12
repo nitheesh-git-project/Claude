@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConditionIntakeForm from "@/components/profile/ConditionIntakeForm";
-import PainMapSummary from "@/components/profile/PainMapSummary";
+import PainMapView from "@/components/profile/PainMapView";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
@@ -39,7 +39,11 @@ export default async function PatientHealthProfilePage() {
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("patient_code").eq("id", user.id).maybeSingle(),
-    supabase.from("patient_condition_profiles").select("data, status").eq("patient_id", user.id).maybeSingle(),
+    supabase
+      .from("patient_condition_profiles")
+      .select("data, draft_data, status")
+      .eq("patient_id", user.id)
+      .maybeSingle(),
     supabase
       .from("condition_change_requests")
       .select("status, admin_notes, proposed_data, created_at")
@@ -73,11 +77,16 @@ export default async function PatientHealthProfilePage() {
   const status = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
   const currentData = (conditionProfile?.data ?? {}) as Record<string, string>;
   const isPending = status === "pending_review";
-  // A declined submission's answers stay loaded in the form so the
-  // submitter edits and resubmits instead of retyping everything — see
-  // condition_change_requests' "preserve proposed_data on decline" design.
-  const formInitialData =
-    lastRequest?.status === "declined"
+  // Resume priority: an in-progress autosaved draft beats everything else
+  // (it's the most recent thing the patient was actually doing); then a
+  // declined submission's answers, so the submitter edits and resubmits
+  // instead of retyping (see condition_change_requests' "preserve
+  // proposed_data on decline" design); otherwise the last approved data.
+  const draftData = (conditionProfile?.draft_data ?? null) as Record<string, string> | null;
+  const hasDraft = !!draftData && Object.values(draftData).some(Boolean);
+  const formInitialData = hasDraft
+    ? draftData!
+    : lastRequest?.status === "declined"
       ? ((lastRequest.proposed_data ?? {}) as Record<string, string>)
       : currentData;
 
@@ -124,6 +133,7 @@ export default async function PatientHealthProfilePage() {
           </p>
           <ConditionIntakeForm
             endpoint="/api/patient/condition-profile/submit"
+            draftEndpoint="/api/patient/condition-profile/save-draft"
             currentData={formInitialData}
             disabled={isPending}
           />
@@ -134,7 +144,7 @@ export default async function PatientHealthProfilePage() {
           <p className="text-xs text-slate-500 mb-4">
             Filled in by your therapist after an exam — you can&apos;t edit this, only view it.
           </p>
-          <PainMapSummary assessments={assessments ?? []} />
+          <PainMapView assessments={assessments ?? []} />
         </div>
       </div>
     </DashboardShell>

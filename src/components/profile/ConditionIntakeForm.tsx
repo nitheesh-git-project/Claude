@@ -1,21 +1,32 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { INTAKE_QUESTIONS } from "@/lib/conditionIntake";
 
+const AUTOSAVE_DELAY_MS = 1500;
+
 // Shared by the patient's own Health Profile page and a therapist's
 // on-behalf fill (once their access grant is approved) — same form, just
-// a different submit endpoint and, for the therapist, an explicit
+// a different submit/draft endpoint and, for the therapist, an explicit
 // patientId. Both submissions land in condition_change_requests and wait
 // for admin review; see the API routes for the actual gating.
+//
+// Answers autosave to draftEndpoint (debounced) as the form is filled, so
+// closing mid-way doesn't lose progress — see the save-draft routes and
+// patient_condition_profiles.draft_data. initialData is whatever the
+// caller decided is most relevant to resume from (draft > a declined
+// resubmit > the last approved answers) — this component doesn't need to
+// know which.
 export default function ConditionIntakeForm({
   endpoint,
+  draftEndpoint,
   patientId,
   currentData,
   disabled,
 }: {
   endpoint: string;
+  draftEndpoint?: string;
   patientId?: string;
   currentData: Record<string, string>;
   disabled: boolean;
@@ -28,7 +39,34 @@ export default function ConditionIntakeForm({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
   const router = useRouter();
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextAutosave = useRef(true); // don't autosave the initial prefill
+
+  useEffect(() => {
+    if (!draftEndpoint || disabled) return;
+    if (skipNextAutosave.current) {
+      skipNextAutosave.current = false;
+      return;
+    }
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(() => {
+      fetch(draftEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patientId ? { patientId, data: values } : { data: values }),
+      })
+        .then((res) => {
+          if (res.ok) setDraftSavedAt(new Date());
+        })
+        .catch(() => {});
+    }, AUTOSAVE_DELAY_MS);
+    return () => {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values]);
 
   function handleSubmit() {
     setError(null);
@@ -84,6 +122,9 @@ export default function ConditionIntakeForm({
         </button>
         {submitted && !error && (
           <span className="text-xs text-emerald-600">Submitted — waiting for admin review.</span>
+        )}
+        {!submitted && draftSavedAt && !disabled && (
+          <span className="text-xs text-slate-400">Draft saved {draftSavedAt.toLocaleTimeString()}</span>
         )}
         {error && <span className="text-xs text-red-600">{error}</span>}
       </div>

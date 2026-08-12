@@ -70,7 +70,10 @@ export async function POST(request: NextRequest) {
 
   const { error: upsertError } = await admin
     .from("patient_condition_profiles")
-    .upsert({ patient_id: user.id, status: "pending_review" }, { onConflict: "patient_id" });
+    .upsert(
+      { patient_id: user.id, status: "pending_review", draft_data: null },
+      { onConflict: "patient_id" }
+    );
   if (upsertError) {
     return NextResponse.json({ error: upsertError.message }, { status: 500 });
   }

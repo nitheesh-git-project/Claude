@@ -2159,3 +2159,21 @@ begin
   alter publication supabase_realtime add table pain_assessments;
 exception when duplicate_object then null;
 end $$;
+
+-- Onboarding tour + intake draft autosave --------------------------------
+--
+-- onboarding_seen_at: set once a patient dismisses (or acts on) the
+-- first-login welcome modal on their dashboard. Skippable by design (see
+-- the product decision in the Patient Care Intake planning thread) --
+-- this only silences the one-time welcome modal, not the persistent
+-- "complete your health profile" reminder banner, which instead reads
+-- patient_condition_profiles.status directly.
+alter table profiles add column if not exists onboarding_seen_at timestamptz;
+
+-- draft_data: a scratch buffer for an in-progress Patient Care Intake
+-- fill, autosaved as the patient or therapist types, completely separate
+-- from `data` (which only ever holds the latest *approved* snapshot).
+-- Never touched by the review flow -- only the save-draft routes write it,
+-- and it's cleared once a real submission is made so a stale draft can't
+-- resurface after the thing it was drafting has already been decided.
+alter table patient_condition_profiles add column if not exists draft_data jsonb;

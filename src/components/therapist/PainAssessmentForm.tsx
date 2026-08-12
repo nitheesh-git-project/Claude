@@ -7,19 +7,27 @@ import {
   regionRequiresSide,
   getDefaultQuestionsForRegion,
   mergeQuestionOverrides,
+  latestAssessmentByRegionSide,
   type PainMapRegionKey,
+  type PainMapSide,
+  type PainAssessmentRow,
   type QuestionOverrideRow,
 } from "@/lib/painMap";
+import BodyMapDiagram from "@/components/profile/BodyMapDiagram";
 
 // Therapist's per-region clinical exam entry. Posts straight to
 // pain_assessments — no admin review step (see the schema.sql section
 // comment) — so this is live on the patient's dashboard the moment it's
-// submitted.
+// submitted. Region + side are picked by tapping the body diagram (side
+// is implied by which dot is tapped); the dropdowns underneath drive the
+// same state for keyboard/screen-reader use.
 export default function PainAssessmentForm({
   patientId,
+  assessments,
   overridesByRegion,
 }: {
   patientId: string;
+  assessments: PainAssessmentRow[];
   overridesByRegion: Record<string, QuestionOverrideRow[]>;
 }) {
   const [region, setRegion] = useState<PainMapRegionKey>(PAIN_MAP_REGIONS[0].key);
@@ -36,11 +44,18 @@ export default function PainAssessmentForm({
     getDefaultQuestionsForRegion(region),
     overridesByRegion[region] ?? []
   );
+  const latestByKey = latestAssessmentByRegionSide(assessments);
 
-  function handleRegionChange(next: PainMapRegionKey) {
+  function resetForRegion(next: PainMapRegionKey) {
     setRegion(next);
     setAnswers({});
+    setPainPercent(0);
     setSubmitted(false);
+  }
+
+  function handleDiagramSelect(nextRegion: PainMapRegionKey, nextSide: PainMapSide) {
+    resetForRegion(nextRegion);
+    if (nextSide === "left" || nextSide === "right") setSide(nextSide);
   }
 
   function handleSubmit() {
@@ -71,12 +86,20 @@ export default function PainAssessmentForm({
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-slate-500">Tap a point on the diagram, or use the dropdowns below.</p>
+      <BodyMapDiagram
+        latestByKey={latestByKey}
+        selected={{ region, side: needsSide ? side : "na" }}
+        interactive
+        onSelect={handleDiagramSelect}
+      />
+
       <div className="flex flex-wrap gap-3">
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1">Region</label>
           <select
             value={region}
-            onChange={(e) => handleRegionChange(e.target.value as PainMapRegionKey)}
+            onChange={(e) => resetForRegion(e.target.value as PainMapRegionKey)}
             className="p-2 rounded-lg border border-slate-300 text-sm"
           >
             {PAIN_MAP_REGIONS.map((r) => (
