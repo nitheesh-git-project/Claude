@@ -5,7 +5,11 @@ import ConditionIntakeForm from "@/components/profile/ConditionIntakeForm";
 import PainMapView from "@/components/profile/PainMapView";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
-import { CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
+import {
+  CONDITION_STATUS_LABEL,
+  INTAKE_QUESTIONS_VERSION,
+  type ConditionProfileStatus,
+} from "@/lib/conditionIntake";
 
 export const metadata: Metadata = {
   title: "Health Profile | Dr. Pooja's Physio",
@@ -41,7 +45,7 @@ export default async function PatientHealthProfilePage() {
     supabase.from("profiles").select("patient_code").eq("id", user.id).maybeSingle(),
     supabase
       .from("patient_condition_profiles")
-      .select("data, draft_data, status")
+      .select("data, draft_data, schema_version, status")
       .eq("patient_id", user.id)
       .maybeSingle(),
     supabase
@@ -77,6 +81,10 @@ export default async function PatientHealthProfilePage() {
   const status = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
   const currentData = (conditionProfile?.data ?? {}) as Record<string, string>;
   const isPending = status === "pending_review";
+  const isOutdatedVersion =
+    status === "active" &&
+    typeof conditionProfile?.schema_version === "number" &&
+    conditionProfile.schema_version < INTAKE_QUESTIONS_VERSION;
   // Resume priority: an in-progress autosaved draft beats everything else
   // (it's the most recent thing the patient was actually doing); then a
   // declined submission's answers, so the submitter edits and resubmits
@@ -122,6 +130,11 @@ export default async function PatientHealthProfilePage() {
           {!isPending && lastRequest?.status === "declined" && (
             <p className="mt-1 text-xs font-normal">
               Your last submission was declined: {lastRequest.admin_notes}. You can edit and resubmit below.
+            </p>
+          )}
+          {!isPending && isOutdatedVersion && (
+            <p className="mt-1 text-xs font-normal">
+              We&apos;ve updated some of these questions since you last answered — worth a quick review.
             </p>
           )}
         </div>

@@ -11,6 +11,13 @@ export type IntakeQuestion = {
   inputType: "text" | "textarea" | "scale_0_10";
 };
 
+// Bump this whenever INTAKE_QUESTIONS' wording or field set changes.
+// Stamped onto patient_condition_profiles.schema_version whenever a
+// submission is approved (or admin edits directly), so a later wording
+// change doesn't silently misrepresent what an already-approved answer was
+// actually responding to — see that column's comment in schema.sql.
+export const INTAKE_QUESTIONS_VERSION = 1;
+
 export const INTAKE_QUESTIONS: IntakeQuestion[] = [
   { key: "chief_complaint", label: "What's the main issue you'd like help with?", inputType: "textarea" },
   { key: "since_when", label: "How long has this been going on?", inputType: "text" },

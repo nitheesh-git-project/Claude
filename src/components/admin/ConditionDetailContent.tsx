@@ -5,7 +5,12 @@ import ConditionAccessActions from "@/components/admin/ConditionAccessActions";
 import ConditionDirectEditForm from "@/components/admin/ConditionDirectEditForm";
 import PainMapQuestionEditor from "@/components/admin/PainMapQuestionEditor";
 import PainMapView from "@/components/profile/PainMapView";
-import { INTAKE_QUESTIONS, CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
+import {
+  INTAKE_QUESTIONS,
+  INTAKE_QUESTIONS_VERSION,
+  CONDITION_STATUS_LABEL,
+  type ConditionProfileStatus,
+} from "@/lib/conditionIntake";
 import type { QuestionOverrideRow } from "@/lib/painMap";
 
 // Shared body for both the standalone /admin/dashboard/conditions/[id]
@@ -19,7 +24,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       admin.from("profiles").select("id, full_name, email").eq("id", id).eq("role", "patient").single(),
       admin
         .from("patient_condition_profiles")
-        .select("data, status, updated_at, last_submitted_role")
+        .select("data, schema_version, status, updated_at, last_submitted_role")
         .eq("patient_id", id)
         .maybeSingle(),
       admin
@@ -53,6 +58,8 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
 
   const status = (profile?.status ?? "not_started") as ConditionProfileStatus;
   const currentData = (profile?.data ?? {}) as Record<string, string>;
+  const isOutdatedVersion =
+    status === "active" && typeof profile?.schema_version === "number" && profile.schema_version < INTAKE_QUESTIONS_VERSION;
   const pendingRequest = (changeRequests ?? []).find((r) => r.status === "pending");
   const requestHistory = (changeRequests ?? []).filter((r) => r.status !== "pending");
 
@@ -74,10 +81,24 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-lg text-slate-800">Patient Care Intake</h2>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-            {CONDITION_STATUS_LABEL[status]}
-          </span>
+          <div className="flex items-center gap-2">
+            {status === "active" && (
+              <span className="rounded-full bg-slate-100 px-2 py-1 font-mono text-[10px] font-semibold text-slate-400">
+                v{profile?.schema_version ?? 1}
+              </span>
+            )}
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+              {CONDITION_STATUS_LABEL[status]}
+            </span>
+          </div>
         </div>
+
+        {isOutdatedVersion && (
+          <p className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Answered under an earlier version of this questionnaire (v{profile?.schema_version} vs current v
+            {INTAKE_QUESTIONS_VERSION}) — question wording may have changed since.
+          </p>
+        )}
 
         {pendingRequest && (
           <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">

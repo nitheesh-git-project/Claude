@@ -10,7 +10,7 @@ import PatientPackageWidget from "@/components/packages/PatientPackageWidget";
 import PackageChip from "@/components/packages/PackageChip";
 import ReceiptsSection from "@/components/ReceiptsSection";
 import DashboardShell from "@/components/dashboard/DashboardShell";
-import OnboardingWelcomeModal from "@/components/patient/OnboardingWelcomeModal";
+import OnboardingTour from "@/components/patient/OnboardingTour";
 import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
@@ -419,7 +419,7 @@ export default async function PatientDashboardPage() {
       headerTitle={`Welcome back, ${profile?.full_name ?? "there"}`}
       headerSubtitle="Your virtual physical therapy dashboard"
     >
-      {!onboardingRow?.onboarding_seen_at && <OnboardingWelcomeModal />}
+      {!onboardingRow?.onboarding_seen_at && <OnboardingTour />}
 
       {(!conditionProfile || conditionProfile.status === "not_started" || conditionProfile.status === "draft") && (
         <Link

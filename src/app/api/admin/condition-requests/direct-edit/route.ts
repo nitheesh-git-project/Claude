@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { INTAKE_QUESTIONS } from "@/lib/conditionIntake";
+import { INTAKE_QUESTIONS, INTAKE_QUESTIONS_VERSION } from "@/lib/conditionIntake";
 
 const ALLOWED_KEYS = new Set(INTAKE_QUESTIONS.map((q) => q.key));
 
@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     {
       patient_id: patientId,
       data: answers,
+      schema_version: INTAKE_QUESTIONS_VERSION,
       status: "active",
       last_submitted_by: adminUser.id,
       last_submitted_role: "admin",
