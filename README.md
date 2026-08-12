@@ -76,18 +76,20 @@ so a still-valid session cookie can't call the API around the UI gate.
 `/hospitals`, `/faq`, `/get-started`, `/book`.
 
 **Patient:** `/patient/register`, `/patient/login`, `/patient/dashboard`,
-`/patient/dashboard/profile`.
+`/patient/dashboard/profile`, `/patient/dashboard/health-profile`.
 
 **Therapist:** `/therapist/login`, `/therapist/dashboard`,
-`/therapist/dashboard/profile`.
+`/therapist/dashboard/profile`, `/therapist/dashboard/health-profile`,
+`/therapist/dashboard/health-profile/[patientId]`.
 
 **Hospital:** `/hospital/login`, `/hospital/dashboard`,
 `/hospital/dashboard/profile`.
 
 **Admin:** `/admin/login`, `/admin/dashboard` (tabbed: metrics, calendar,
-roster, people directory, payments, payouts, payout requests, session story,
-session manager, site content, feature control), plus per-person detail pages at
-`/admin/dashboard/patients/[id]` and `/admin/dashboard/therapists/[id]`.
+roster, people directory, patient conditions, payments, payouts, payout
+requests, session story, session manager, site content, feature control),
+plus per-person detail pages at `/admin/dashboard/patients/[id]`,
+`/admin/dashboard/therapists/[id]`, and `/admin/dashboard/conditions/[id]`.
 Those detail pages use a parallel `@modal` route with intercepting routes, so
 clicking a person from the dashboard opens an overlay while a direct link
 still renders the full page.
@@ -227,6 +229,40 @@ packages" above.
 
 **Realtime.** `src/components/RealtimeRefresh.tsx` subscribes to Supabase
 Realtime so dashboards refresh when the underlying rows change.
+
+**Patient Care Intake and Pain Map.** Two linked but separate layers of a
+patient's condition data, both surfaced on `/patient/dashboard/health-profile`
+(patient), the therapist's `/therapist/dashboard/health-profile/[patientId]`,
+and the admin's **Patient Conditions** tab.
+
+- *Patient Care Intake* (`patient_condition_profiles`,
+  `condition_change_requests`) is general history/severity answers
+  (`src/lib/conditionIntake.ts` — the current question set is a placeholder
+  pending a full content design pass). The patient fills it themselves, or a
+  therapist fills it on their behalf once granted access. Every
+  submission — first fill or a later edit, from either role — queues in
+  `condition_change_requests` and only becomes the live profile once an
+  admin approves it; declining keeps the proposed data intact so the
+  submitter can amend and resubmit. Admin's own edits (`ConditionDirectEditForm`)
+  apply immediately, no review needed. One pending submission per patient at
+  a time.
+- *Pain Map* (`pain_assessments`, `pain_map_question_templates`,
+  `src/lib/painMap.ts`) is a 17-region clinical exam a therapist fills in
+  after examining the patient — region-specific question sets with an
+  admin-editable question bank, ending in a 0–100 pain percentage per
+  region. Unlike the intake, this posts live immediately (it's the
+  therapist's own clinical judgement, not an administrative edit); rows are
+  append-only so the patient's dashboard can show a trend against the
+  previous assessment for that region. The patient can only view this, never
+  edit it.
+
+Both layers share one write-access model (`condition_access_grants`): a
+therapist may only write to a patient's condition data after the patient's
+admin approves an access request (`/therapist/dashboard/health-profile` →
+"Request access to edit"). Read access is automatic for the patient's
+assigned therapist — only *write* is gated. "Assigned" means the therapist
+has ever had an appointment with the patient, or holds a package's
+`locked_therapist_id`.
 
 ## Project layout
 

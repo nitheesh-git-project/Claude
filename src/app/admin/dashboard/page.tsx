@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
@@ -111,6 +112,9 @@ export default async function AdminDashboardPage() {
     { data: faqs },
     { data: siteSettings },
     { data: payoutRequests },
+    { data: conditionProfiles },
+    { count: conditionRequestsPendingCount },
+    { count: conditionAccessPendingCount },
   ] = await Promise.all([
     // Both self-serve roles wait on admin approval, so this one query feeds
     // the single "Pending Approvals" list -- therapist applications and
@@ -314,6 +318,20 @@ export default async function AdminDashboardPage() {
       .from("therapist_payout_requests")
       .select("id, therapist_id, requested_amount_paise, status, requested_at, completed_at")
       .order("requested_at", { ascending: false }),
+
+    // Patient Care Intake / Pain Map -- new/migration-dependent tables,
+    // same isolation reasoning as therapist_payout_requests above: an
+    // unknown-table error here only empties the Patient Conditions tab and
+    // its badge, not the rest of the dashboard.
+    admin.from("patient_condition_profiles").select("patient_id, status, updated_at"),
+    admin
+      .from("condition_change_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending"),
+    admin
+      .from("condition_access_grants")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "requested"),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -1005,6 +1023,67 @@ export default async function AdminDashboardPage() {
     </div>
   );
 
+  const conditionStatusByPatientId = new Map(
+    (conditionProfiles ?? []).map((c) => [c.patient_id, c.status as string])
+  );
+  const conditionsBadgeCount = (conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0);
+  const CONDITION_STATUS_STYLE: Record<string, string> = {
+    not_started: "bg-slate-100 text-slate-500",
+    draft: "bg-slate-100 text-slate-500",
+    pending_review: "bg-amber-100 text-amber-700",
+    active: "bg-emerald-100 text-emerald-700",
+  };
+  const CONDITION_STATUS_LABEL: Record<string, string> = {
+    not_started: "Not started",
+    draft: "Draft",
+    pending_review: "Pending review",
+    active: "Complete",
+  };
+
+  const conditionsTab = (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <h2 className="font-bold text-lg text-slate-800 mb-1">
+        Patient Conditions
+        {conditionsBadgeCount > 0 && (
+          <span className="ml-2 rounded-full bg-amber-300 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
+            {conditionsBadgeCount} pending
+          </span>
+        )}
+      </h2>
+      <p className="text-xs text-slate-500 mb-4">
+        Patient Care Intake and Pain Map data for every patient. Open a patient to review
+        submissions, therapist access requests, and pain assessments.
+      </p>
+      {patients.length === 0 ? (
+        <p className="text-xs text-slate-500 py-4 text-center">No patients have signed up yet.</p>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {patients.map((p) => {
+            const status = conditionStatusByPatientId.get(p.id) ?? "not_started";
+            return (
+              <li key={p.id}>
+                <Link
+                  href={`/admin/dashboard/conditions/${p.id}`}
+                  className="flex items-center justify-between gap-3 py-3 hover:bg-slate-50 -mx-2 px-2 rounded-lg transition"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{p.full_name}</p>
+                    <p className="text-xs text-slate-400 truncate">{p.email}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${CONDITION_STATUS_STYLE[status] ?? CONDITION_STATUS_STYLE.not_started}`}
+                  >
+                    {CONDITION_STATUS_LABEL[status] ?? "Not started"}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+
   const therapistsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-bold text-lg text-slate-800 mb-4">
@@ -1382,6 +1461,8 @@ export default async function AdminDashboardPage() {
       approvalBookings={approvalBookingsTab}
       sessionStory={sessionStoryTab}
       patients={patientsTab}
+      conditions={conditionsTab}
+      conditionsBadgeCount={conditionsBadgeCount}
       therapists={therapistsTab}
       roster={rosterTab}
       calendar={calendarTab}
