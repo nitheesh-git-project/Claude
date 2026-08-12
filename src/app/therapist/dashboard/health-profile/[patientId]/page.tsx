@@ -39,6 +39,7 @@ export default async function TherapistPatientHealthProfilePage({
     { data: therapistCodeRow },
     { data: patient },
     { data: conditionProfile },
+    { data: lastRequest },
     { data: assessments },
     { data: grant },
     { data: overrideRows },
@@ -48,6 +49,13 @@ export default async function TherapistPatientHealthProfilePage({
     supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
     supabase.from("profiles").select("id, full_name, email").eq("id", patientId).eq("role", "patient").maybeSingle(),
     supabase.from("patient_condition_profiles").select("data, status").eq("patient_id", patientId).maybeSingle(),
+    supabase
+      .from("condition_change_requests")
+      .select("status, proposed_data, created_at")
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
     supabase.from("pain_assessments").select("region, side, pain_percent, created_at").eq("patient_id", patientId),
     supabase
       .from("condition_access_grants")
@@ -72,6 +80,12 @@ export default async function TherapistPatientHealthProfilePage({
 
   const status = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
   const currentData = (conditionProfile?.data ?? {}) as Record<string, string>;
+  // Same "don't make them retype a declined submission" behavior as the
+  // patient's own Health Profile page — see that page's comment.
+  const formInitialData =
+    lastRequest?.status === "declined"
+      ? ((lastRequest.proposed_data ?? {}) as Record<string, string>)
+      : currentData;
   const hasApprovedAccess = grant?.status === "approved";
   const adminSettings = parseAdminSettings(settingsRow);
 
@@ -131,7 +145,7 @@ export default async function TherapistPatientHealthProfilePage({
             <ConditionIntakeForm
               endpoint="/api/therapist/condition-profile/submit"
               patientId={patientId}
-              currentData={currentData}
+              currentData={formInitialData}
               disabled={status === "pending_review"}
             />
           ) : (

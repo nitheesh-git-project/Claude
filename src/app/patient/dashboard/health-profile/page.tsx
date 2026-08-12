@@ -42,7 +42,7 @@ export default async function PatientHealthProfilePage() {
     supabase.from("patient_condition_profiles").select("data, status").eq("patient_id", user.id).maybeSingle(),
     supabase
       .from("condition_change_requests")
-      .select("status, admin_notes, created_at")
+      .select("status, admin_notes, proposed_data, created_at")
       .eq("patient_id", user.id)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -73,6 +73,13 @@ export default async function PatientHealthProfilePage() {
   const status = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
   const currentData = (conditionProfile?.data ?? {}) as Record<string, string>;
   const isPending = status === "pending_review";
+  // A declined submission's answers stay loaded in the form so the
+  // submitter edits and resubmits instead of retyping everything — see
+  // condition_change_requests' "preserve proposed_data on decline" design.
+  const formInitialData =
+    lastRequest?.status === "declined"
+      ? ((lastRequest.proposed_data ?? {}) as Record<string, string>)
+      : currentData;
 
   const showDebugNav =
     process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
@@ -117,7 +124,7 @@ export default async function PatientHealthProfilePage() {
           </p>
           <ConditionIntakeForm
             endpoint="/api/patient/condition-profile/submit"
-            currentData={currentData}
+            currentData={formInitialData}
             disabled={isPending}
           />
         </div>
