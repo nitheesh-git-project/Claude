@@ -3,15 +3,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import ConditionRequestActions from "@/components/admin/ConditionRequestActions";
 import ConditionAccessActions from "@/components/admin/ConditionAccessActions";
 import ConditionDirectEditForm from "@/components/admin/ConditionDirectEditForm";
-import PainMapQuestionEditor from "@/components/admin/PainMapQuestionEditor";
 import PainMapView from "@/components/profile/PainMapView";
 import {
   INTAKE_QUESTIONS,
   INTAKE_QUESTIONS_VERSION,
   CONDITION_STATUS_LABEL,
+  mergeIntakeQuestionOverrides,
+  parseAreaPain,
   type ConditionProfileStatus,
 } from "@/lib/conditionIntake";
-import type { QuestionOverrideRow } from "@/lib/painMap";
+import { PAIN_MAP_REGIONS } from "@/lib/painMap";
 
 // Shared body for both the standalone /admin/dashboard/conditions/[id]
 // page and its @modal intercepted overlay — same split as
@@ -19,35 +20,43 @@ import type { QuestionOverrideRow } from "@/lib/painMap";
 export default async function ConditionDetailContent({ id }: { id: string }) {
   const admin = createAdminClient();
 
-  const [{ data: patient }, { data: profile }, { data: changeRequests }, { data: grants }, { data: assessments }, { data: overrideRows }] =
-    await Promise.all([
-      admin.from("profiles").select("id, full_name, email").eq("id", id).eq("role", "patient").single(),
-      admin
-        .from("patient_condition_profiles")
-        .select("data, schema_version, status, updated_at, last_submitted_role")
-        .eq("patient_id", id)
-        .maybeSingle(),
-      admin
-        .from("condition_change_requests")
-        .select("id, submitted_by, submitted_by_role, proposed_data, status, admin_notes, created_at")
-        .eq("patient_id", id)
-        .order("created_at", { ascending: false }),
-      admin
-        .from("condition_access_grants")
-        .select("id, therapist_id, status, requested_at, decided_at")
-        .eq("patient_id", id)
-        .order("requested_at", { ascending: false }),
-      admin
-        .from("pain_assessments")
-        .select("id, region, side, pain_percent, submitted_by_role, created_at")
-        .eq("patient_id", id)
-        .order("created_at", { ascending: false }),
-      admin.from("pain_map_question_templates").select("region, question_key, question_text"),
-    ]);
+  const [
+    { data: patient },
+    { data: profile },
+    { data: changeRequests },
+    { data: grants },
+    { data: assessments },
+    { data: intakeOverrideRows },
+  ] = await Promise.all([
+    admin.from("profiles").select("id, full_name, email").eq("id", id).eq("role", "patient").single(),
+    admin
+      .from("patient_condition_profiles")
+      .select("data, schema_version, status, updated_at, last_submitted_role")
+      .eq("patient_id", id)
+      .maybeSingle(),
+    admin
+      .from("condition_change_requests")
+      .select("id, submitted_by, submitted_by_role, proposed_data, status, admin_notes, created_at")
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("condition_access_grants")
+      .select("id, therapist_id, status, requested_at, decided_at")
+      .eq("patient_id", id)
+      .order("requested_at", { ascending: false }),
+    admin
+      .from("pain_assessments")
+      .select("id, region, side, pain_percent, submitted_by_role, created_at")
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false }),
+    admin.from("intake_question_templates").select("question_key, question_text, required"),
+  ]);
 
   if (!patient) {
     notFound();
   }
+
+  const questions = mergeIntakeQuestionOverrides(INTAKE_QUESTIONS, intakeOverrideRows ?? []);
 
   const therapistIds = [...new Set((grants ?? []).map((g) => g.therapist_id))];
   const { data: therapists } =
@@ -65,11 +74,6 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
 
   const requestedGrants = (grants ?? []).filter((g) => g.status === "requested");
   const approvedGrants = (grants ?? []).filter((g) => g.status === "approved");
-
-  const overridesByRegion: Record<string, QuestionOverrideRow[]> = {};
-  for (const row of overrideRows ?? []) {
-    (overridesByRegion[row.region] ??= []).push(row);
-  }
 
   return (
     <div className="space-y-6">
@@ -107,9 +111,26 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
               {new Date(pendingRequest.created_at).toLocaleString()}
             </p>
             <dl className="space-y-1 mb-3">
-              {INTAKE_QUESTIONS.map((q) => {
+              {questions.map((q) => {
                 const value = (pendingRequest.proposed_data as Record<string, string>)[q.key];
                 if (!value) return null;
+                if (q.inputType === "area_pain_list") {
+                  const areas = parseAreaPain(value);
+                  if (areas.length === 0) return null;
+                  return (
+                    <div key={q.key} className="text-xs">
+                      <dt className="font-semibold text-slate-600">{q.label}</dt>
+                      <dd className="text-slate-700">
+                        {areas
+                          .map((a) => {
+                            const label = PAIN_MAP_REGIONS.find((r) => r.key === a.region)?.label ?? a.region;
+                            return `${label}${a.side !== "na" ? ` (${a.side})` : ""}: ${a.pain}/10`;
+                          })
+                          .join(" · ")}
+                      </dd>
+                    </div>
+                  );
+                }
                 return (
                   <div key={q.key} className="text-xs">
                     <dt className="font-semibold text-slate-600">{q.label}</dt>
@@ -123,7 +144,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
         )}
 
         <p className="text-xs font-semibold text-slate-500 mb-2">Current (approved) data — admin can edit directly</p>
-        <ConditionDirectEditForm patientId={id} currentData={currentData} />
+        <ConditionDirectEditForm questions={questions} patientId={id} currentData={currentData} />
 
         {requestHistory.length > 0 && (
           <details className="mt-5">
@@ -170,15 +191,6 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-4">Pain Map</h2>
         <PainMapView assessments={assessments ?? []} />
-
-        <details className="mt-6">
-          <summary className="text-xs font-semibold text-slate-500 cursor-pointer">
-            Edit Pain Map question wording
-          </summary>
-          <div className="mt-3">
-            <PainMapQuestionEditor overridesByRegion={overridesByRegion} />
-          </div>
-        </details>
       </section>
     </div>
   );

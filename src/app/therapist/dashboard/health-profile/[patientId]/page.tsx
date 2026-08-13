@@ -9,8 +9,14 @@ import PainAssessmentForm from "@/components/therapist/PainAssessmentForm";
 import RequestConditionAccessButton from "@/components/therapist/RequestConditionAccessButton";
 import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
-import { CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
-import type { QuestionOverrideRow } from "@/lib/painMap";
+import {
+  CONDITION_STATUS_LABEL,
+  INTAKE_QUESTIONS,
+  mergeIntakeQuestionOverrides,
+  parseAreaPain,
+  type ConditionProfileStatus,
+} from "@/lib/conditionIntake";
+import { PAIN_MAP_REGIONS, type QuestionOverrideRow } from "@/lib/painMap";
 
 export const metadata: Metadata = {
   title: "Patient Health Profile | Dr. Pooja's Physio",
@@ -44,6 +50,7 @@ export default async function TherapistPatientHealthProfilePage({
     { data: grant },
     { data: overrideRows },
     { data: settingsRow },
+    { data: intakeOverrideRows },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
@@ -71,6 +78,7 @@ export default async function TherapistPatientHealthProfilePage({
       .maybeSingle(),
     supabase.from("pain_map_question_templates").select("region, question_key, question_text"),
     supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
+    supabase.from("intake_question_templates").select("question_key, question_text, required"),
   ]);
 
   if (!patient) {
@@ -81,6 +89,7 @@ export default async function TherapistPatientHealthProfilePage({
   for (const row of overrideRows ?? []) {
     (overridesByRegion[row.region] ??= []).push(row);
   }
+  const questions = mergeIntakeQuestionOverrides(INTAKE_QUESTIONS, intakeOverrideRows ?? []);
 
   const status = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
   const currentData = (conditionProfile?.data ?? {}) as Record<string, string>;
@@ -112,7 +121,12 @@ export default async function TherapistPatientHealthProfilePage({
       userCode={therapistCodeRow?.therapist_code ?? null}
       offsetTop={showDebugNav}
       sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
-      realtimeTables={["condition_access_grants", "patient_condition_profiles", "pain_assessments"]}
+      realtimeTables={[
+        "condition_access_grants",
+        "patient_condition_profiles",
+        "pain_assessments",
+        "intake_question_templates",
+      ]}
       headerTitle={patient.full_name}
       headerSubtitle={patient.email}
     >
@@ -150,6 +164,7 @@ export default async function TherapistPatientHealthProfilePage({
           </div>
           {hasApprovedAccess ? (
             <ConditionIntakeForm
+              questions={questions}
               endpoint="/api/therapist/condition-profile/submit"
               draftEndpoint="/api/therapist/condition-profile/save-draft"
               patientId={patientId}
@@ -157,14 +172,31 @@ export default async function TherapistPatientHealthProfilePage({
               disabled={status === "pending_review"}
             />
           ) : (
-            <p className="text-sm text-slate-600 whitespace-pre-line">
-              {Object.values(currentData).some(Boolean)
-                ? Object.entries(currentData)
-                    .filter(([, v]) => v)
-                    .map(([, v]) => v)
-                    .join("\n")
-                : "No intake submitted yet."}
-            </p>
+            <div className="text-sm text-slate-600 space-y-1">
+              {questions.some((q) => currentData[q.key]) ? (
+                questions.map((q) => {
+                  const value = currentData[q.key];
+                  if (!value) return null;
+                  if (q.inputType === "area_pain_list") {
+                    const areas = parseAreaPain(value);
+                    if (areas.length === 0) return null;
+                    return (
+                      <p key={q.key}>
+                        {areas
+                          .map((a) => {
+                            const label = PAIN_MAP_REGIONS.find((r) => r.key === a.region)?.label ?? a.region;
+                            return `${label}${a.side !== "na" ? ` (${a.side})` : ""}: ${a.pain}/10`;
+                          })
+                          .join(" · ")}
+                      </p>
+                    );
+                  }
+                  return <p key={q.key}>{value}</p>;
+                })
+              ) : (
+                <p>No intake submitted yet.</p>
+              )}
+            </div>
           )}
         </div>
 

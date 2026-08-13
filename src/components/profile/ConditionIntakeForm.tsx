@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { INTAKE_QUESTIONS } from "@/lib/conditionIntake";
+import { findMissingRequiredKeys, type IntakeQuestion } from "@/lib/conditionIntake";
+import AreaPainPicker from "@/components/profile/AreaPainPicker";
 
 const AUTOSAVE_DELAY_MS = 1500;
 
@@ -12,6 +13,11 @@ const AUTOSAVE_DELAY_MS = 1500;
 // patientId. Both submissions land in condition_change_requests and wait
 // for admin review; see the API routes for the actual gating.
 //
+// `questions` is the caller's already-merged list (code defaults +
+// intake_question_templates overrides — see mergeIntakeQuestionOverrides),
+// not a static import, so wording/required edits from the admin question
+// bank show up here without a deploy.
+//
 // Answers autosave to draftEndpoint (debounced) as the form is filled, so
 // closing mid-way doesn't lose progress — see the save-draft routes and
 // patient_condition_profiles.draft_data. initialData is whatever the
@@ -19,12 +25,14 @@ const AUTOSAVE_DELAY_MS = 1500;
 // resubmit > the last approved answers) — this component doesn't need to
 // know which.
 export default function ConditionIntakeForm({
+  questions,
   endpoint,
   draftEndpoint,
   patientId,
   currentData,
   disabled,
 }: {
+  questions: IntakeQuestion[];
   endpoint: string;
   draftEndpoint?: string;
   patientId?: string;
@@ -33,11 +41,12 @@ export default function ConditionIntakeForm({
 }) {
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
-    for (const q of INTAKE_QUESTIONS) initial[q.key] = currentData[q.key] ?? "";
+    for (const q of questions) initial[q.key] = currentData[q.key] ?? "";
     return initial;
   });
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [missingKeys, setMissingKeys] = useState<Set<string>>(new Set());
   const [submitted, setSubmitted] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
   const router = useRouter();
@@ -70,6 +79,13 @@ export default function ConditionIntakeForm({
 
   function handleSubmit() {
     setError(null);
+    const missing = findMissingRequiredKeys(questions, values);
+    if (missing.length > 0) {
+      setMissingKeys(new Set(missing));
+      setError("Please fill in the required fields highlighted below.");
+      return;
+    }
+    setMissingKeys(new Set());
     startTransition(async () => {
       const res = await fetch(endpoint, {
         method: "POST",
@@ -88,30 +104,45 @@ export default function ConditionIntakeForm({
 
   return (
     <div className="space-y-4">
-      {INTAKE_QUESTIONS.map((q) => (
-        <div key={q.key}>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">{q.label}</label>
-          {q.inputType === "textarea" ? (
-            <textarea
-              value={values[q.key]}
-              onChange={(e) => setValues((v) => ({ ...v, [q.key]: e.target.value }))}
-              rows={3}
-              disabled={disabled}
-              className="w-full p-2.5 rounded-lg border border-slate-300 text-sm disabled:bg-slate-50 disabled:text-slate-400"
-            />
-          ) : (
-            <input
-              type={q.inputType === "scale_0_10" ? "number" : "text"}
-              min={q.inputType === "scale_0_10" ? 0 : undefined}
-              max={q.inputType === "scale_0_10" ? 10 : undefined}
-              value={values[q.key]}
-              onChange={(e) => setValues((v) => ({ ...v, [q.key]: e.target.value }))}
-              disabled={disabled}
-              className="w-full p-2.5 rounded-lg border border-slate-300 text-sm disabled:bg-slate-50 disabled:text-slate-400"
-            />
-          )}
-        </div>
-      ))}
+      {questions.map((q) => {
+        const isMissing = missingKeys.has(q.key);
+        const fieldClass = `w-full p-2.5 rounded-lg border text-sm disabled:bg-slate-50 disabled:text-slate-400 ${
+          isMissing ? "border-red-400" : "border-slate-300"
+        }`;
+        return (
+          <div key={q.key}>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              {q.label}
+              {q.required && <span className="text-red-500"> *</span>}
+            </label>
+            {q.inputType === "area_pain_list" ? (
+              <AreaPainPicker
+                value={values[q.key]}
+                onChange={(next) => setValues((v) => ({ ...v, [q.key]: next }))}
+                disabled={disabled}
+              />
+            ) : q.inputType === "textarea" ? (
+              <textarea
+                value={values[q.key]}
+                onChange={(e) => setValues((v) => ({ ...v, [q.key]: e.target.value }))}
+                rows={3}
+                disabled={disabled}
+                className={fieldClass}
+              />
+            ) : (
+              <input
+                type={q.inputType === "scale_0_10" ? "number" : "text"}
+                min={q.inputType === "scale_0_10" ? 0 : undefined}
+                max={q.inputType === "scale_0_10" ? 10 : undefined}
+                value={values[q.key]}
+                onChange={(e) => setValues((v) => ({ ...v, [q.key]: e.target.value }))}
+                disabled={disabled}
+                className={fieldClass}
+              />
+            )}
+          </div>
+        );
+      })}
       <div className="flex items-center gap-3 pt-1">
         <button
           onClick={handleSubmit}

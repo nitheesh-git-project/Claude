@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 import { hasApprovedConditionAccess } from "@/lib/conditionAccess";
-import { INTAKE_QUESTIONS } from "@/lib/conditionIntake";
+import { INTAKE_QUESTIONS, findMissingRequiredKeys, mergeIntakeQuestionOverrides } from "@/lib/conditionIntake";
 
 const ALLOWED_KEYS = new Set(INTAKE_QUESTIONS.map((q) => q.key));
 
@@ -49,6 +49,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "You don't have an approved access grant for this patient's health profile." },
       { status: 403 }
+    );
+  }
+
+  // Re-check required fields server-side against the current admin
+  // question bank -- never trust the client-side check alone.
+  const { data: intakeOverrideRows } = await admin
+    .from("intake_question_templates")
+    .select("question_key, question_text, required");
+  const questions = mergeIntakeQuestionOverrides(INTAKE_QUESTIONS, intakeOverrideRows ?? []);
+  const missingKeys = findMissingRequiredKeys(questions, answers as Record<string, string>);
+  if (missingKeys.length > 0) {
+    return NextResponse.json(
+      { error: "Please fill in all required fields before submitting." },
+      { status: 400 }
     );
   }
 

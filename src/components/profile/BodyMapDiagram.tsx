@@ -22,11 +22,16 @@ type LatestAssessment = { pain_percent: number; created_at: string };
 // drive a read-only detail panel below the diagram.
 export default function BodyMapDiagram({
   latestByKey,
+  includedKeys,
   selected,
   interactive = false,
   onSelect,
 }: {
   latestByKey: Map<string, LatestAssessment>;
+  // Picker mode (AreaPainPicker): dots whose "region:side" key is in this
+  // set render filled in accent teal regardless of latestByKey -- there's
+  // no severity color to show yet in that context, only inclusion.
+  includedKeys?: Set<string>;
   selected?: { region: PainMapRegionKey; side: PainMapSide } | null;
   interactive?: boolean;
   onSelect?: (region: PainMapRegionKey, side: PainMapSide) => void;
@@ -37,8 +42,9 @@ export default function BodyMapDiagram({
   function renderDot(region: (typeof PAIN_MAP_REGIONS)[number], side: PainMapSide, cx: number, cy: number) {
     const key = `${region.key}:${side}`;
     const latest = latestByKey.get(key);
+    const isIncluded = includedKeys?.has(key);
     const isSelected = selected?.region === region.key && selected?.side === side;
-    const fill = latest ? PAIN_DOT_COLOR[painBand(latest.pain_percent)] : "none";
+    const fill = isIncluded ? "#0d9488" : latest ? PAIN_DOT_COLOR[painBand(latest.pain_percent)] : "none";
     const clickable = interactive || !!latest;
 
     return (

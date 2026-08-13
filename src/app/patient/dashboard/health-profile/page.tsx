@@ -7,7 +7,9 @@ import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
   CONDITION_STATUS_LABEL,
+  INTAKE_QUESTIONS,
   INTAKE_QUESTIONS_VERSION,
+  mergeIntakeQuestionOverrides,
   type ConditionProfileStatus,
 } from "@/lib/conditionIntake";
 
@@ -40,6 +42,7 @@ export default async function PatientHealthProfilePage() {
     { count: ownedPackagesCount },
     { count: availablePackagesCount },
     { data: settingsRow },
+    { data: intakeOverrideRows },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("patient_code").eq("id", user.id).maybeSingle(),
@@ -69,8 +72,10 @@ export default async function PatientHealthProfilePage() {
       .select("id", { count: "exact", head: true })
       .eq("active", true),
     supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
+    supabase.from("intake_question_templates").select("question_key, question_text, required"),
   ]);
 
+  const questions = mergeIntakeQuestionOverrides(INTAKE_QUESTIONS, intakeOverrideRows ?? []);
   const adminSettings = parseAdminSettings(settingsRow);
   const navItems = buildPatientNavItems({
     hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
@@ -114,7 +119,12 @@ export default async function PatientHealthProfilePage() {
       userCode={patientCodeRow?.patient_code ?? null}
       offsetTop={showDebugNav}
       sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
-      realtimeTables={["patient_condition_profiles", "condition_change_requests", "pain_assessments"]}
+      realtimeTables={[
+        "patient_condition_profiles",
+        "condition_change_requests",
+        "pain_assessments",
+        "intake_question_templates",
+      ]}
       headerTitle="Health Profile"
       headerSubtitle="Your condition history and your therapist's pain assessments."
     >
@@ -145,6 +155,7 @@ export default async function PatientHealthProfilePage() {
             Tell us about what brought you here — your therapist and admin can see this.
           </p>
           <ConditionIntakeForm
+            questions={questions}
             endpoint="/api/patient/condition-profile/submit"
             draftEndpoint="/api/patient/condition-profile/save-draft"
             currentData={formInitialData}

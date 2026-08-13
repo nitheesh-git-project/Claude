@@ -2,18 +2,21 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { INTAKE_QUESTIONS } from "@/lib/conditionIntake";
+import type { IntakeQuestion } from "@/lib/conditionIntake";
+import AreaPainPicker from "@/components/profile/AreaPainPicker";
 
 export default function ConditionDirectEditForm({
+  questions,
   patientId,
   currentData,
 }: {
+  questions: IntakeQuestion[];
   patientId: string;
   currentData: Record<string, string>;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
-    for (const q of INTAKE_QUESTIONS) initial[q.key] = currentData[q.key] ?? "";
+    for (const q of questions) initial[q.key] = currentData[q.key] ?? "";
     return initial;
   });
   const [isPending, startTransition] = useTransition();
@@ -42,10 +45,15 @@ export default function ConditionDirectEditForm({
 
   return (
     <div className="space-y-3">
-      {INTAKE_QUESTIONS.map((q) => (
+      {questions.map((q) => (
         <div key={q.key}>
-          <label className="block text-xs font-semibold text-slate-600 mb-1">{q.label}</label>
-          {q.inputType === "textarea" ? (
+          <label className="block text-xs font-semibold text-slate-600 mb-1">
+            {q.label}
+            {q.required && <span className="text-red-500"> *</span>}
+          </label>
+          {q.inputType === "area_pain_list" ? (
+            <AreaPainPicker value={values[q.key]} onChange={(next) => setValues((v) => ({ ...v, [q.key]: next }))} />
+          ) : q.inputType === "textarea" ? (
             <textarea
               value={values[q.key]}
               onChange={(e) => setValues((v) => ({ ...v, [q.key]: e.target.value }))}

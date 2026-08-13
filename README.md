@@ -236,11 +236,19 @@ patient's condition data, both surfaced on `/patient/dashboard/health-profile`
 and the admin's **Patient Conditions** tab.
 
 - *Patient Care Intake* (`patient_condition_profiles`,
-  `condition_change_requests`) is general history/severity answers
-  (`src/lib/conditionIntake.ts` — the current question set is a placeholder
-  pending a full content design pass). The patient fills it themselves, or a
-  therapist fills it on their behalf once granted access. Every
-  submission — first fill or a later edit, from either role — queues in
+  `condition_change_requests`) is general history/severity answers plus a
+  self-reported per-area pain scale (`src/lib/conditionIntake.ts` —
+  `chief_complaint`, `since_when`, `severity`, `area_pain`, `worsens`,
+  `helps`, `notes`). `area_pain` reuses the same 17 regions and
+  `BodyMapDiagram` as the Pain Map below, but is the *patient's own*
+  self-report (0–10 per tapped area, `AreaPainPicker.tsx`) — a separate
+  dataset from the therapist's clinical exam, so the two can later be
+  compared. Question wording and which questions are mandatory are both
+  admin-editable (`intake_question_templates`, same override-table pattern
+  as Pain Map's question bank — see below), enforced both client- and
+  server-side on submit. The patient fills it themselves, or a therapist
+  fills it on their behalf once granted access. Every submission — first
+  fill or a later edit, from either role — queues in
   `condition_change_requests` and only becomes the live profile once an
   admin approves it; declining keeps the proposed data intact so the
   submitter can amend and resubmit. Admin's own edits (`ConditionDirectEditForm`)
@@ -264,6 +272,12 @@ and the admin's **Patient Conditions** tab.
   than a muscle chart — every joint doubles as a clinical landmark); the
   therapist's version is interactive, tapping a point picks that
   region+side directly instead of a manual dropdown.
+
+Both question banks (Patient Care Intake and Pain Map) are managed from
+one place — a **Manage Questions** section at the top of the admin's
+**Patient Conditions** tab (`QuestionBankManager.tsx`), not per-patient —
+since question wording/required-ness is global config, not something tied
+to one patient's record.
 
 Both layers share one write-access model (`condition_access_grants`): a
 therapist may only write to a patient's condition data after the patient's

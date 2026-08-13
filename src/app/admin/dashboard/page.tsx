@@ -29,6 +29,7 @@ import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
 import AdminSessionStoryTab from "@/components/admin/AdminSessionStoryTab";
 import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
+import QuestionBankManager from "@/components/admin/QuestionBankManager";
 import AdminFeatureControlTab from "@/components/admin/AdminFeatureControlTab";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -1054,6 +1055,14 @@ export default async function AdminDashboardPage() {
         Patient Care Intake and Pain Map data for every patient. Open a patient to review
         submissions, therapist access requests, and pain assessments.
       </p>
+
+      <details className="mb-6 rounded-xl border border-slate-200 p-4">
+        <summary className="text-sm font-bold text-slate-700 cursor-pointer">Manage Questions</summary>
+        <div className="mt-4">
+          <QuestionBankManager />
+        </div>
+      </details>
+
       {patients.length === 0 ? (
         <p className="text-xs text-slate-500 py-4 text-center">No patients have signed up yet.</p>
       ) : (

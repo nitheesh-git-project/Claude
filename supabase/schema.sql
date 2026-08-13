@@ -2177,3 +2177,34 @@ alter table profiles add column if not exists onboarding_seen_at timestamptz;
 -- and it's cleared once a real submission is made so a stale draft can't
 -- resurface after the thing it was drafting has already been decided.
 alter table patient_condition_profiles add column if not exists draft_data jsonb;
+
+-- Admin-editable Patient Care Intake question bank (mirrors
+-- pain_map_question_templates -- see that table's comment). A row's mere
+-- existence is an override: both question_text and required are always
+-- saved together per question (one admin editor row = one save), so
+-- there's no separate "override just the wording" vs "override just
+-- required" state to reconcile. No row = use the code default in
+-- src/lib/conditionIntake.ts. Not region-scoped like the Pain Map table --
+-- intake questions are a single global list -- so question_key alone is
+-- the unique key.
+create table if not exists intake_question_templates (
+  id uuid primary key default gen_random_uuid(),
+  question_key text not null unique,
+  question_text text not null,
+  required boolean not null,
+  updated_by uuid references profiles(id),
+  updated_at timestamptz not null default now()
+);
+
+alter table intake_question_templates enable row level security;
+
+drop policy if exists "intake_question_templates_select_all" on intake_question_templates;
+create policy "intake_question_templates_select_all" on intake_question_templates
+  for select using (true);
+
+revoke insert, update, delete on intake_question_templates from authenticated;
+do $$
+begin
+  alter publication supabase_realtime add table intake_question_templates;
+exception when duplicate_object then null;
+end $$;
