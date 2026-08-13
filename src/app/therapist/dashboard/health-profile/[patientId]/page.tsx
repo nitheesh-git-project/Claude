@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConditionIntakeForm from "@/components/profile/ConditionIntakeForm";
 import PainMapView from "@/components/profile/PainMapView";
-import PainAssessmentForm from "@/components/therapist/PainAssessmentForm";
+import PainAssessmentForm from "@/components/profile/PainAssessmentForm";
 import RequestConditionAccessButton from "@/components/therapist/RequestConditionAccessButton";
 import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
@@ -204,6 +204,7 @@ export default async function TherapistPatientHealthProfilePage({
           <h2 className="font-bold text-lg text-slate-800 mb-4">Pain Map</h2>
           {hasApprovedAccess ? (
             <PainAssessmentForm
+              endpoint="/api/therapist/pain-assessments/submit"
               patientId={patientId}
               assessments={assessments ?? []}
               overridesByRegion={overridesByRegion}

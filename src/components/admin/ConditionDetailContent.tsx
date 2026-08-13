@@ -4,6 +4,7 @@ import ConditionRequestActions from "@/components/admin/ConditionRequestActions"
 import ConditionAccessActions from "@/components/admin/ConditionAccessActions";
 import ConditionDirectEditForm from "@/components/admin/ConditionDirectEditForm";
 import PainMapView from "@/components/profile/PainMapView";
+import PainAssessmentForm from "@/components/profile/PainAssessmentForm";
 import {
   INTAKE_QUESTIONS,
   INTAKE_QUESTIONS_VERSION,
@@ -12,7 +13,7 @@ import {
   parseAreaPain,
   type ConditionProfileStatus,
 } from "@/lib/conditionIntake";
-import { PAIN_MAP_REGIONS } from "@/lib/painMap";
+import { PAIN_MAP_REGIONS, type QuestionOverrideRow } from "@/lib/painMap";
 
 // Shared body for both the standalone /admin/dashboard/conditions/[id]
 // page and its @modal intercepted overlay — same split as
@@ -27,6 +28,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
     { data: grants },
     { data: assessments },
     { data: intakeOverrideRows },
+    { data: painMapOverrideRows },
   ] = await Promise.all([
     admin.from("profiles").select("id, full_name, email").eq("id", id).eq("role", "patient").single(),
     admin
@@ -50,6 +52,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       .eq("patient_id", id)
       .order("created_at", { ascending: false }),
     admin.from("intake_question_templates").select("question_key, question_text, required"),
+    admin.from("pain_map_question_templates").select("region, question_key, question_text"),
   ]);
 
   if (!patient) {
@@ -57,6 +60,10 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
   }
 
   const questions = mergeIntakeQuestionOverrides(INTAKE_QUESTIONS, intakeOverrideRows ?? []);
+  const painMapOverridesByRegion: Record<string, QuestionOverrideRow[]> = {};
+  for (const row of painMapOverrideRows ?? []) {
+    (painMapOverridesByRegion[row.region] ??= []).push(row);
+  }
 
   const therapistIds = [...new Set((grants ?? []).map((g) => g.therapist_id))];
   const { data: therapists } =
@@ -191,6 +198,22 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-4">Pain Map</h2>
         <PainMapView assessments={assessments ?? []} />
+
+        <details className="mt-6">
+          <summary className="text-xs font-semibold text-slate-500 cursor-pointer">
+            Add a Pain Map entry directly
+          </summary>
+          <p className="mt-2 mb-3 text-xs text-slate-400">
+            Posts live immediately, same as a therapist&apos;s own entry — this doesn&apos;t edit or remove any
+            past assessment, it adds a new one (Pain Map history is append-only).
+          </p>
+          <PainAssessmentForm
+            endpoint="/api/admin/pain-assessments/submit"
+            patientId={id}
+            assessments={assessments ?? []}
+            overridesByRegion={painMapOverridesByRegion}
+          />
+        </details>
       </section>
     </div>
   );

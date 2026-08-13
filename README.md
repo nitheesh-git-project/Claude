@@ -267,11 +267,18 @@ and the admin's **Patient Conditions** tab.
   therapist's own clinical judgement, not an administrative edit); rows are
   append-only so the patient's dashboard can show a trend against the
   previous assessment for that region. The patient can only view this, never
-  edit it. All three surfaces render the same tap-point body diagram
+  edit it. Admin can also post an entry directly (`/api/admin/pain-assessments/submit`,
+  no access-grant needed — admin is the final authority, same reasoning as
+  the intake's direct-edit path), collapsed under "Add a Pain Map entry
+  directly" on the patient's condition detail page; like every other write
+  here it's a new row, never an edit of a past one. All three surfaces
+  render the same tap-point body diagram
   (`src/components/profile/BodyMapDiagram.tsx`, a jointed lay figure rather
-  than a muscle chart — every joint doubles as a clinical landmark); the
-  therapist's version is interactive, tapping a point picks that
-  region+side directly instead of a manual dropdown.
+  than a muscle chart — every joint doubles as a clinical landmark) via the
+  shared `PainAssessmentForm`/`PainMapView`; tapping a point in fill mode
+  (therapist or admin) picks that region+side directly instead of a manual
+  dropdown, and tapping an assessed point in view mode (patient/admin)
+  opens a popup with that region's detail.
 
 Both question banks (Patient Care Intake and Pain Map) are managed from
 one place — a **Manage Questions** section at the top of the admin's

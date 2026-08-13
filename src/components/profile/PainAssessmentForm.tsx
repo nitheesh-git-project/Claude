@@ -15,17 +15,23 @@ import {
 } from "@/lib/painMap";
 import BodyMapDiagram from "@/components/profile/BodyMapDiagram";
 
-// Therapist's per-region clinical exam entry. Posts straight to
-// pain_assessments — no admin review step (see the schema.sql section
-// comment) — so this is live on the patient's dashboard the moment it's
-// submitted. Region + side are picked by tapping the body diagram (side
-// is implied by which dot is tapped); the dropdowns underneath drive the
-// same state for keyboard/screen-reader use.
+// One region's clinical Pain Map exam entry, shared by the therapist's
+// own fill and admin's direct-entry path (endpoint differs — the
+// therapist route gates on an approved access grant, the admin route
+// doesn't, admin is the final authority). Either way this posts straight
+// to pain_assessments — no admin review step (see the schema.sql section
+// comment) — so it's live on the patient's dashboard the moment it's
+// submitted, and is itself append-only: a re-assessment is a new row,
+// never an edit. Region + side are picked by tapping the body diagram
+// (side is implied by which dot is tapped); the dropdowns underneath
+// drive the same state for keyboard/screen-reader use.
 export default function PainAssessmentForm({
+  endpoint,
   patientId,
   assessments,
   overridesByRegion,
 }: {
+  endpoint: string;
   patientId: string;
   assessments: PainAssessmentRow[];
   overridesByRegion: Record<string, QuestionOverrideRow[]>;
@@ -61,7 +67,7 @@ export default function PainAssessmentForm({
   function handleSubmit() {
     setError(null);
     startTransition(async () => {
-      const res = await fetch("/api/therapist/pain-assessments/submit", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
