@@ -34,7 +34,12 @@ export default function BodyMapDiagram({
   includedKeys?: Set<string>;
   selected?: { region: PainMapRegionKey; side: PainMapSide } | null;
   interactive?: boolean;
-  onSelect?: (region: PainMapRegionKey, side: PainMapSide) => void;
+  // `rect` is the tapped dot's own on-screen bounding box (from the click
+  // event's target) -- callers that want a popup anchored at the tap
+  // point (PainMapView) use it directly instead of re-deriving SVG-to-
+  // screen coordinates themselves; callers that don't (picker/fill modes)
+  // just ignore the third argument.
+  onSelect?: (region: PainMapRegionKey, side: PainMapSide, rect: DOMRect) => void;
 }) {
   const backRegions = PAIN_MAP_REGIONS.filter((r) => r.view === "back");
   const frontRegions = PAIN_MAP_REGIONS.filter((r) => r.view === "front");
@@ -50,7 +55,11 @@ export default function BodyMapDiagram({
     return (
       <g
         key={key}
-        onClick={clickable && onSelect ? () => onSelect(region.key, side) : undefined}
+        onClick={
+          clickable && onSelect
+            ? (e) => onSelect(region.key, side, e.currentTarget.getBoundingClientRect())
+            : undefined
+        }
         style={clickable ? { cursor: "pointer" } : undefined}
       >
         {isSelected && <circle cx={cx} cy={cy} r={12} fill="none" stroke="#0d9488" strokeWidth={2} />}
