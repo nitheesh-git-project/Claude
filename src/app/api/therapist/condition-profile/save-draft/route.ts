@@ -38,6 +38,11 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+  const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).single();
+  if (profile?.role !== "therapist") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   if (!(await hasApprovedConditionAccess(admin, user.id, patientId))) {
     return NextResponse.json(
       { error: "You don't have an approved access grant for this patient's health profile." },

@@ -63,7 +63,7 @@ export default async function TherapistPatientHealthProfilePage({
       .maybeSingle(),
     supabase
       .from("condition_change_requests")
-      .select("status, proposed_data, created_at")
+      .select("status, admin_notes, proposed_data, created_at")
       .eq("patient_id", patientId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -166,6 +166,11 @@ export default async function TherapistPatientHealthProfilePage({
               {CONDITION_STATUS_LABEL[status]}
             </span>
           </div>
+          {status !== "pending_review" && lastRequest?.status === "declined" && (
+            <p className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Your last submission was declined: {lastRequest.admin_notes}. You can edit and resubmit below.
+            </p>
+          )}
           {hasApprovedAccess ? (
             <ConditionIntakeForm
               questions={questions}

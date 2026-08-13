@@ -9,10 +9,12 @@ export default function ConditionDirectEditForm({
   questions,
   patientId,
   currentData,
+  disabled,
 }: {
   questions: IntakeQuestion[];
   patientId: string;
   currentData: Record<string, string>;
+  disabled?: boolean;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
@@ -45,6 +47,12 @@ export default function ConditionDirectEditForm({
 
   return (
     <div className="space-y-3">
+      {disabled && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          A submission is pending review above -- approve or decline it before editing directly, so the two
+          don&apos;t overwrite each other.
+        </p>
+      )}
       {questions.map((q) => (
         <div key={q.key}>
           <label className="block text-xs font-semibold text-slate-600 mb-1">
@@ -52,13 +60,18 @@ export default function ConditionDirectEditForm({
             {q.required && <span className="text-red-500"> *</span>}
           </label>
           {q.inputType === "area_pain_list" ? (
-            <AreaPainPicker value={values[q.key]} onChange={(next) => setValues((v) => ({ ...v, [q.key]: next }))} />
+            <AreaPainPicker
+              value={values[q.key]}
+              onChange={(next) => setValues((v) => ({ ...v, [q.key]: next }))}
+              disabled={disabled}
+            />
           ) : q.inputType === "textarea" ? (
             <textarea
               value={values[q.key]}
               onChange={(e) => setValues((v) => ({ ...v, [q.key]: e.target.value }))}
               rows={2}
-              className="w-full p-2 rounded-lg border border-slate-300 text-sm"
+              disabled={disabled}
+              className="w-full p-2 rounded-lg border border-slate-300 text-sm disabled:bg-slate-50 disabled:text-slate-400"
             />
           ) : (
             <input
@@ -67,7 +80,8 @@ export default function ConditionDirectEditForm({
               max={q.inputType === "scale_0_10" ? 10 : undefined}
               value={values[q.key]}
               onChange={(e) => setValues((v) => ({ ...v, [q.key]: e.target.value }))}
-              className="w-full p-2 rounded-lg border border-slate-300 text-sm"
+              disabled={disabled}
+              className="w-full p-2 rounded-lg border border-slate-300 text-sm disabled:bg-slate-50 disabled:text-slate-400"
             />
           )}
         </div>
@@ -75,7 +89,7 @@ export default function ConditionDirectEditForm({
       <div className="flex items-center gap-3 pt-1">
         <button
           onClick={handleSave}
-          disabled={isPending}
+          disabled={isPending || disabled}
           className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
         >
           {isPending ? "Saving..." : "Save"}

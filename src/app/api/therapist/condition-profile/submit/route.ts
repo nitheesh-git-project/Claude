@@ -45,6 +45,11 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+  const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).single();
+  if (profile?.role !== "therapist") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   if (!(await hasApprovedConditionAccess(admin, user.id, patientId))) {
     return NextResponse.json(
       { error: "You don't have an approved access grant for this patient's health profile." },
@@ -86,6 +91,16 @@ export async function POST(request: NextRequest) {
     status: "pending",
   });
   if (insertError) {
+    // See the matching comment in patient/condition-profile/submit --
+    // condition_change_requests_one_pending (schema.sql) is the real
+    // guard against a patient/therapist submission race; the count check
+    // above is just the fast path.
+    if (insertError.code === "23505") {
+      return NextResponse.json(
+        { error: "A submission for this patient's health profile is already awaiting admin review." },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 

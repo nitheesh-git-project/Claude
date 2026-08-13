@@ -53,7 +53,34 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+  }
 
+  // Atomic guard: the initial read above is only for validation and early
+  // messaging -- two admins acting on the same row near-simultaneously
+  // could both pass it. This conditional update is the real race guard --
+  // only the caller whose write actually flips a still-"pending" row wins,
+  // so the side effects below only ever run once per request.
+  const { data: reviewedRow, error: reviewError } = await admin
+    .from("condition_change_requests")
+    .update({
+      status: action === "approve" ? "approved" : "declined",
+      admin_notes: adminNotes?.trim() || null,
+      reviewed_by: adminUser.id,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", requestId)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (reviewError) {
+    return NextResponse.json({ error: reviewError.message }, { status: 500 });
+  }
+  if (!reviewedRow) {
+    return NextResponse.json({ error: "This request has already been reviewed" }, { status: 409 });
+  }
+
+  if (action === "approve") {
+    const proposedData = changeRequest.proposed_data as Record<string, unknown>;
     const { error: profileError } = await admin
       .from("patient_condition_profiles")
       .upsert(
@@ -88,19 +115,6 @@ export async function POST(request: NextRequest) {
       .from("patient_condition_profiles")
       .update({ status: fallbackStatus })
       .eq("patient_id", changeRequest.patient_id);
-  }
-
-  const { error: reviewError } = await admin
-    .from("condition_change_requests")
-    .update({
-      status: action === "approve" ? "approved" : "declined",
-      admin_notes: adminNotes?.trim() || null,
-      reviewed_by: adminUser.id,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", requestId);
-  if (reviewError) {
-    return NextResponse.json({ error: reviewError.message }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

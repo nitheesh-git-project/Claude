@@ -144,8 +144,11 @@ const REGION_COORDS: Record<PainMapRegionKey, { dx: number; dy: number }> = {
   neck: { dx: 0, dy: 112 },
   upper_back: { dx: 0, dy: 165 },
   triceps: { dx: 69, dy: 179 },
-  lower_back: { dx: 0, dy: 250 },
-  glutes: { dx: 0, dy: 268 },
+  // lower_back/glutes used to sit only 18 units apart against a 34-unit
+  // (2x17 tap radius) combined hit-circle -- taps near the boundary were
+  // landing on whichever region painted last. Widened to 38 units apart.
+  lower_back: { dx: 0, dy: 240 },
+  glutes: { dx: 0, dy: 278 },
   hamstrings: { dx: 49, dy: 346 },
   calves: { dx: 43, dy: 490 },
   shoulder: { dx: 64, dy: 128 },

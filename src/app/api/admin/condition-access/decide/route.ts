@@ -43,7 +43,13 @@ export async function POST(request: NextRequest) {
   }
 
   const nextStatus = action === "approve" ? "approved" : action === "decline" ? "declined" : "revoked";
-  const { error } = await admin
+  // The reads above are a fast path only -- two admins racing the same
+  // grant could both pass them. Conditioning the update on the exact
+  // status it's expected to be leaving means only one caller's write
+  // actually matches a row; the other gets told it's already handled
+  // instead of both applying.
+  const expectedCurrentStatus = action === "revoke" ? "approved" : "requested";
+  const { data: updatedRow, error } = await admin
     .from("condition_access_grants")
     .update({
       status: nextStatus,
@@ -51,9 +57,18 @@ export async function POST(request: NextRequest) {
       decided_by: adminUser.id,
       decided_at: new Date().toISOString(),
     })
-    .eq("id", grantId);
+    .eq("id", grantId)
+    .eq("status", expectedCurrentStatus)
+    .select("id")
+    .maybeSingle();
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!updatedRow) {
+    return NextResponse.json(
+      { error: action === "revoke" ? "This grant is no longer approved" : "This request has already been reviewed" },
+      { status: 409 }
+    );
   }
 
   return NextResponse.json({ success: true });

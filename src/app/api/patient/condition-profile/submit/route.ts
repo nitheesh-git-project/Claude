@@ -80,6 +80,17 @@ export async function POST(request: NextRequest) {
     status: "pending",
   });
   if (insertError) {
+    // The count check above is a fast, friendly-error path -- the real
+    // guard is condition_change_requests_one_pending (schema.sql), which
+    // closes the race where two submissions for this patient land at
+    // once. A unique violation here means we lost that race, not a real
+    // server error.
+    if (insertError.code === "23505") {
+      return NextResponse.json(
+        { error: "A submission for your health profile is already awaiting admin review." },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 

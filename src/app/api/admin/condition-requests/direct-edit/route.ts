@@ -33,6 +33,25 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+
+  // A pending submission (patient's own or a therapist's on-behalf edit) is
+  // sitting in the review queue for this patient -- overwriting `data` here
+  // would be silently discarded the moment that submission is later
+  // approved (decide/route.ts upserts `data` from the *original* proposal,
+  // with no idea this direct edit ever happened). Resolve the pending item
+  // first instead of racing it.
+  const { count: pendingCount } = await admin
+    .from("condition_change_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("patient_id", patientId)
+    .eq("status", "pending");
+  if (pendingCount && pendingCount > 0) {
+    return NextResponse.json(
+      { error: "This patient has a pending submission awaiting review -- approve or decline it before editing directly." },
+      { status: 409 }
+    );
+  }
+
   const { error } = await admin.from("patient_condition_profiles").upsert(
     {
       patient_id: patientId,

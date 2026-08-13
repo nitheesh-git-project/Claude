@@ -63,6 +63,15 @@ export async function POST(request: NextRequest) {
     status: "requested",
   });
   if (insertError) {
+    // condition_access_grants_one_open (schema.sql) is the real guard
+    // against two near-simultaneous requests for the same patient; the
+    // count check above is just the fast, friendly-error path.
+    if (insertError.code === "23505") {
+      return NextResponse.json(
+        { error: "You already have a pending or approved request for this patient." },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 

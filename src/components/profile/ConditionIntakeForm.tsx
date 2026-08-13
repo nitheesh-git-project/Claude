@@ -52,6 +52,42 @@ export default function ConditionIntakeForm({
   const router = useRouter();
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextAutosave = useRef(true); // don't autosave the initial prefill
+  // Autosave sends a full snapshot every debounce cycle, not a diff. With
+  // more than one save in flight at once, network jitter can let an
+  // earlier cycle's response land after a later one's and silently
+  // overwrite draft_data with older text. Serializing to at most one
+  // in-flight request -- queueing the newest values instead of firing a
+  // second request -- means there's never a pair of responses left to
+  // race, so whichever one is in flight is always superseded by the very
+  // next save rather than clobbered by it.
+  const savingRef = useRef(false);
+  const queuedValuesRef = useRef<Record<string, string> | null>(null);
+
+  function fireAutosave(vals: Record<string, string>) {
+    if (!draftEndpoint) return;
+    if (savingRef.current) {
+      queuedValuesRef.current = vals;
+      return;
+    }
+    savingRef.current = true;
+    fetch(draftEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patientId ? { patientId, data: vals } : { data: vals }),
+    })
+      .then((res) => {
+        if (res.ok) setDraftSavedAt(new Date());
+      })
+      .catch(() => {})
+      .finally(() => {
+        savingRef.current = false;
+        const next = queuedValuesRef.current;
+        if (next) {
+          queuedValuesRef.current = null;
+          fireAutosave(next);
+        }
+      });
+  }
 
   useEffect(() => {
     if (!draftEndpoint || disabled) return;
@@ -61,15 +97,7 @@ export default function ConditionIntakeForm({
     }
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
-      fetch(draftEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patientId ? { patientId, data: values } : { data: values }),
-      })
-        .then((res) => {
-          if (res.ok) setDraftSavedAt(new Date());
-        })
-        .catch(() => {});
+      fireAutosave(values);
     }, AUTOSAVE_DELAY_MS);
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);

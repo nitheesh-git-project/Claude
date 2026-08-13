@@ -2208,3 +2208,21 @@ begin
   alter publication supabase_realtime add table intake_question_templates;
 exception when duplicate_object then null;
 end $$;
+
+-- Race-closing constraints -------------------------------------------------
+--
+-- Both "one pending submission per patient" and "one open access request
+-- per (patient, therapist)" were previously enforced only by an
+-- application-level select-count-then-insert, which has a real race
+-- window: two near-simultaneous requests can both pass the count check
+-- before either insert lands. These partial unique indexes make the
+-- invariant a DB-level guarantee instead -- the routes still do the
+-- select-count check first as a fast, friendly-error path, but the insert
+-- itself is now the real guard (see the 23505-catch in each route).
+create unique index if not exists condition_change_requests_one_pending
+  on condition_change_requests (patient_id)
+  where status = 'pending';
+
+create unique index if not exists condition_access_grants_one_open
+  on condition_access_grants (patient_id, therapist_id)
+  where status in ('requested', 'approved');

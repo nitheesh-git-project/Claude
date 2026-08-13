@@ -128,7 +128,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
                 Submitted by {pendingRequest.submitted_by_role} —{" "}
                 {new Date(pendingRequest.created_at).toLocaleString()}
               </span>
-              {pendingDaysOld >= 3 && (
+              {pendingDaysOld > 3 && (
                 <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
                   Waiting {pendingDaysOld} days
                 </span>
@@ -169,7 +169,12 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
         )}
 
         <p className="text-xs font-semibold text-slate-500 mb-2">Current (approved) data — admin can edit directly</p>
-        <ConditionDirectEditForm questions={questions} patientId={id} currentData={currentData} />
+        <ConditionDirectEditForm
+          questions={questions}
+          patientId={id}
+          currentData={currentData}
+          disabled={!!pendingRequest}
+        />
 
         {requestHistory.length > 0 && (
           <details className="mt-5">

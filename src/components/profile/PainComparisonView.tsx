@@ -23,7 +23,15 @@ const POPUP_WIDTH = 240;
 const POPUP_HALF = POPUP_WIDTH / 2;
 const POPUP_MARGIN = 8;
 
-type Selection = { region: PainMapRegionKey; side: PainMapSide; left: number; top: number };
+type Selection = {
+  region: PainMapRegionKey;
+  side: PainMapSide;
+  left: number;
+  top: number;
+  placeAbove: boolean;
+};
+
+const MIN_SPACE_ABOVE = 160; // rough floor for "popup fits above without help"
 
 // The payoff of sharing one region list between the patient's own
 // self-report (area_pain, patient_condition_profiles) and the therapist's
@@ -67,7 +75,14 @@ export default function PainComparisonView({
         Math.max(rawLeft, POPUP_HALF + POPUP_MARGIN),
         containerRect.width - POPUP_HALF - POPUP_MARGIN
       );
-      return { region, side, left, top: rect.top - containerRect.top };
+      // Same above/below flip as PainMapView -- a fixed upward translate
+      // would push the popup off the top of the container for regions
+      // near the top of the diagram.
+      const spaceAbove = rect.top - containerRect.top;
+      const spaceBelow = containerRect.bottom - rect.bottom;
+      const placeAbove = spaceAbove >= MIN_SPACE_ABOVE || spaceAbove >= spaceBelow;
+      const top = placeAbove ? spaceAbove : rect.bottom - containerRect.top;
+      return { region, side, left, top, placeAbove };
     });
   }
 
@@ -109,7 +124,9 @@ export default function PainComparisonView({
         {selection && selectedRegionDef && (
           <div
             ref={popupRef}
-            className="absolute z-10 w-60 -translate-x-1/2 -translate-y-[calc(100%+12px)] rounded-xl border border-slate-200 bg-white p-3 shadow-lg"
+            className={`absolute z-10 w-60 -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-3 shadow-lg ${
+              selection.placeAbove ? "-translate-y-[calc(100%+12px)]" : "translate-y-3"
+            }`}
             style={{ left: selection.left, top: selection.top }}
           >
             <div className="flex items-start justify-between gap-2">
