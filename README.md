@@ -23,11 +23,18 @@ Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`.
 ### Database
 
 `supabase/schema.sql` is the whole schema — tables, row-level security
-policies, views, triggers, and functions. Run it in the Supabase SQL Editor
-(Project → SQL Editor → New query) after creating the project. It is written
-to be safe to re-run: every statement is guarded with `if not exists` /
-`or replace`, and later sections add columns to earlier tables, so applying
-the file top to bottom always converges on the current schema.
+policies, views, triggers, and functions. It is written to be safe to
+re-run: every statement is guarded with `if not exists` / `or replace`, and
+later sections add columns to earlier tables, so applying the file top to
+bottom always converges on the current schema.
+
+Apply it either:
+
+- In the Supabase SQL Editor (Project → SQL Editor → New query), paste and
+  run the whole file, or
+- `node scripts/run-schema.mjs`, which applies it over the Supabase
+  Management API — needs `SUPABASE_ACCESS_TOKEN` set (see below). Useful for
+  re-applying after every change to the file without the manual copy/paste.
 
 ### Environment variables
 
@@ -43,6 +50,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` | OAuth2 Web application credentials from Google Cloud Console |
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer |
+| `SUPABASE_ACCESS_TOKEN` | Optional. A Supabase Personal Access Token (Account → Access Tokens on supabase.com, **not** the service role key or DB password), only needed to run `node scripts/run-schema.mjs` |
 
 Use Razorpay Test Mode keys (`rzp_test_…`) until the payment flow has been
 verified end to end.

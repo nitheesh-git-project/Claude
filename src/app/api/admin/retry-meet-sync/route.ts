@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: appointment } = await admin
     .from("appointments")
-    .select("id, status, patient_id, therapist_id, slot_time, duration_minutes, timezone")
+    .select("id, status, patient_id, therapist_id, slot_time, duration_minutes, timezone, meet_link")
     .eq("id", appointmentId)
     .maybeSingle();
 
@@ -39,6 +39,17 @@ export async function POST(request: NextRequest) {
       { error: "Only confirmed sessions with an assigned therapist can retry Meet sync" },
       { status: 400 }
     );
+  }
+  // A session can already have a link and still show up in the sync health
+  // list (its filter is "no link OR an error is recorded", and the two
+  // aren't mutually exclusive -- e.g. a stale error from a prior failed
+  // attempt never got cleared once a later attempt succeeded some other
+  // way). createSessionMeetEvent has no update-in-place path, only create,
+  // so calling it again here would leave a second, orphaned event sitting
+  // on the calendar under the old link while this row silently moves on to
+  // the new one. Nothing to retry once a link exists -- return it as-is.
+  if (appointment.meet_link) {
+    return NextResponse.json({ success: true, meetLink: appointment.meet_link });
   }
 
   await createMeetEventForConfirmedAppointment(admin, {

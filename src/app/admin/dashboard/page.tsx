@@ -1203,22 +1203,80 @@ export default async function AdminDashboardPage() {
   );
 
   const metricsTab = (
-    <AdminMetricsTab
-      appointments={appointments ?? []}
-      packagePurchases={(packagePurchaseSummaries ?? []).map((p) => ({
-        category_id: p.category_id,
-        payment_status: p.payment_status,
-        amount_paid_paise: p.amount_paid_paise,
-        paid_at: p.paid_at,
-      }))}
-      therapists={allTherapists}
-      categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
-      patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
-      therapistSharePercent={therapistSharePercent}
-      patientHospitalSharePercent={patientHospitalSharePercent}
-      hospitalReferredPatientIds={hospitalReferredPatientIds}
-      nowMs={nowTimestamp()}
-    />
+    <>
+      <AdminMetricsTab
+        appointments={appointments ?? []}
+        packagePurchases={(packagePurchaseSummaries ?? []).map((p) => ({
+          category_id: p.category_id,
+          payment_status: p.payment_status,
+          amount_paid_paise: p.amount_paid_paise,
+          paid_at: p.paid_at,
+        }))}
+        therapists={allTherapists}
+        categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+        patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+        therapistSharePercent={therapistSharePercent}
+        patientHospitalSharePercent={patientHospitalSharePercent}
+        hospitalReferredPatientIds={hospitalReferredPatientIds}
+        nowMs={nowTimestamp()}
+      />
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
+        <h2 className="font-bold text-lg text-slate-800 mb-4">
+          Category Performance
+        </h2>
+        {!treatmentCategories || treatmentCategories.length === 0 ? (
+          <p className="text-xs text-slate-500 py-4 text-center">
+            No categories yet — add one in Site Content to start tracking bookings.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {treatmentCategories.map((c) => {
+              const stats = categoryStats.get(c.id) ?? {
+                totalBookings: 0,
+                paidBookings: 0,
+                totalRevenue: 0,
+                packageCashCollected: 0,
+              };
+              return (
+                <li
+                  key={c.id}
+                  className="p-4 rounded-xl border border-slate-200 text-xs"
+                >
+                  <p className="font-bold text-slate-900 mb-2">{c.title}</p>
+                  <div className="grid grid-cols-4 gap-3">
+                    <div>
+                      <p className="text-slate-400">Bookings</p>
+                      <p className="font-bold text-slate-900">
+                        {stats.totalBookings}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Paid</p>
+                      <p className="font-bold text-slate-900">
+                        {stats.paidBookings}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Revenue</p>
+                      <p className="font-bold text-teal-700">
+                        ₹{stats.totalRevenue.toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <div title="Package purchases paid for under this category, collected up front -- Revenue to the left already recognizes its share one session at a time as those sessions get scheduled.">
+                      <p className="text-slate-400">Package Cash</p>
+                      <p className="font-bold text-teal-700">
+                        ₹{stats.packageCashCollected.toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </>
   );
 
   const payoutsTab = (
@@ -1359,62 +1417,6 @@ export default async function AdminDashboardPage() {
             footerCopyrightText: adminSettings.footerCopyrightText,
           }}
         />
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">
-          Category Performance
-        </h2>
-        {!treatmentCategories || treatmentCategories.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">
-            No categories yet — add one below to start tracking bookings.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {treatmentCategories.map((c) => {
-              const stats = categoryStats.get(c.id) ?? {
-                totalBookings: 0,
-                paidBookings: 0,
-                totalRevenue: 0,
-                packageCashCollected: 0,
-              };
-              return (
-                <li
-                  key={c.id}
-                  className="p-4 rounded-xl border border-slate-200 text-xs"
-                >
-                  <p className="font-bold text-slate-900 mb-2">{c.title}</p>
-                  <div className="grid grid-cols-4 gap-3">
-                    <div>
-                      <p className="text-slate-400">Bookings</p>
-                      <p className="font-bold text-slate-900">
-                        {stats.totalBookings}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400">Paid</p>
-                      <p className="font-bold text-slate-900">
-                        {stats.paidBookings}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400">Revenue</p>
-                      <p className="font-bold text-teal-700">
-                        ₹{stats.totalRevenue.toLocaleString("en-IN")}
-                      </p>
-                    </div>
-                    <div title="Package purchases paid for under this category, collected up front -- Revenue to the left already recognizes its share one session at a time as those sessions get scheduled.">
-                      <p className="text-slate-400">Package Cash</p>
-                      <p className="font-bold text-teal-700">
-                        ₹{stats.packageCashCollected.toLocaleString("en-IN")}
-                      </p>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
