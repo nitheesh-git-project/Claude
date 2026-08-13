@@ -1133,23 +1133,33 @@ create trigger trg_assign_session_code
 -- advance each sequence to the highest code number actually in use so the
 -- next real INSERT continues the same series instead of colliding with it.
 -- The backfill itself is guarded by "is null", so it only ever touches rows
--- that predate the triggers. The setval calls are deliberately NOT based on
--- row count: count(*) looks equivalent right after a fresh backfill, but
--- silently regresses every sequence backward the moment any row of that
--- role/table is ever deleted afterward -- the next real signup/booking would
--- then collide with a still-existing higher-numbered code and fail with a
--- duplicate-key error. Deriving from max(existing code number) instead means
--- this block is genuinely idempotent and safe to re-run at any time, no
--- matter how many rows have since been deleted.
+-- that predate the triggers. Numbering starts from the current max existing
+-- code (not from 1) -- a plain row_number() over just the null rows repeats
+-- 1, 2, 3... on every run, which collided with already-assigned codes the
+-- moment any new codeless row showed up after the first successful backfill
+-- (e.g. inserted before this trigger existed on a given database). The
+-- setval calls are deliberately NOT based on row count: count(*) looks
+-- equivalent right after a fresh backfill, but silently regresses every
+-- sequence backward the moment any row of that role/table is ever deleted
+-- afterward -- the next real signup/booking would then collide with a still-
+-- existing higher-numbered code and fail with a duplicate-key error.
+-- Deriving from max(existing code number) instead means this block is
+-- genuinely idempotent and safe to re-run at any time, no matter how many
+-- rows have since been deleted or how many codeless rows accumulate between
+-- runs.
 do $$
 begin
   if exists (select 1 from profiles where role = 'patient' and patient_code is null) then
-    with ordered as (
+    with existing_max as (
+      select coalesce(max(substring(patient_code from 3)::int), 0) as n
+      from profiles where role = 'patient'
+    ),
+    ordered as (
       select id, row_number() over (order by created_at asc, id asc) as rn
       from profiles where role = 'patient' and patient_code is null
     )
-    update profiles p set patient_code = 'PT' || lpad(ordered.rn::text, 4, '0')
-    from ordered where p.id = ordered.id;
+    update profiles p set patient_code = 'PT' || lpad((ordered.rn + existing_max.n)::text, 4, '0')
+    from ordered, existing_max where p.id = ordered.id;
   end if;
   perform setval(
     'patient_code_seq',
@@ -1158,12 +1168,16 @@ begin
   );
 
   if exists (select 1 from profiles where role = 'therapist' and therapist_code is null) then
-    with ordered as (
+    with existing_max as (
+      select coalesce(max(substring(therapist_code from 3)::int), 0) as n
+      from profiles where role = 'therapist'
+    ),
+    ordered as (
       select id, row_number() over (order by created_at asc, id asc) as rn
       from profiles where role = 'therapist' and therapist_code is null
     )
-    update profiles p set therapist_code = 'TH' || lpad(ordered.rn::text, 4, '0')
-    from ordered where p.id = ordered.id;
+    update profiles p set therapist_code = 'TH' || lpad((ordered.rn + existing_max.n)::text, 4, '0')
+    from ordered, existing_max where p.id = ordered.id;
   end if;
   perform setval(
     'therapist_code_seq',
@@ -1172,12 +1186,16 @@ begin
   );
 
   if exists (select 1 from profiles where role = 'hospital' and hospital_code is null) then
-    with ordered as (
+    with existing_max as (
+      select coalesce(max(substring(hospital_code from 3)::int), 0) as n
+      from profiles where role = 'hospital'
+    ),
+    ordered as (
       select id, row_number() over (order by created_at asc, id asc) as rn
       from profiles where role = 'hospital' and hospital_code is null
     )
-    update profiles p set hospital_code = 'BB' || lpad(ordered.rn::text, 4, '0')
-    from ordered where p.id = ordered.id;
+    update profiles p set hospital_code = 'BB' || lpad((ordered.rn + existing_max.n)::text, 4, '0')
+    from ordered, existing_max where p.id = ordered.id;
   end if;
   perform setval(
     'hospital_code_seq',
@@ -1186,12 +1204,16 @@ begin
   );
 
   if exists (select 1 from appointments where session_code is null) then
-    with ordered as (
+    with existing_max as (
+      select coalesce(max(substring(session_code from 3)::int), 0) as n
+      from appointments
+    ),
+    ordered as (
       select id, row_number() over (order by created_at asc, id asc) as rn
       from appointments where session_code is null
     )
-    update appointments a set session_code = 'SS' || lpad(ordered.rn::text, 4, '0')
-    from ordered where a.id = ordered.id;
+    update appointments a set session_code = 'SS' || lpad((ordered.rn + existing_max.n)::text, 4, '0')
+    from ordered, existing_max where a.id = ordered.id;
   end if;
   perform setval(
     'session_code_seq',
