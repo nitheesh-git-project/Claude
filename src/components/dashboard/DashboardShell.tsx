@@ -214,6 +214,11 @@ export default function DashboardShell({
     return (
       <a
         key={item.id}
+        // Only the expanded (non-mini) render gets this id -- it's a
+        // guided-tour target (OnboardingTour), and the collapsed icon-only
+        // rail and the off-canvas mobile drawer can otherwise coexist with
+        // it in the DOM at once, which would mean duplicate ids.
+        id={!mini ? `nav-${item.id}` : undefined}
         href={targetHref}
         onClick={(e) => {
           if (!item.href && onBasePage) {

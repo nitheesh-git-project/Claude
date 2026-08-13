@@ -22,6 +22,12 @@ export function buildPatientNavItems({
       : []),
     { id: "receipts", label: "Receipts", icon: "fa-receipt" },
     {
+      id: "health-profile",
+      label: "Health Profile",
+      icon: "fa-notes-medical",
+      href: "/patient/dashboard/health-profile",
+    },
+    {
       id: "edit-profile",
       label: "Edit Profile",
       icon: "fa-user-pen",
@@ -43,6 +49,12 @@ export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
   { id: "calendar", label: "Calendar", icon: "fa-calendar" },
   { id: "earnings", label: "Earnings", icon: "fa-chart-line" },
   { id: "receipts", label: "Payout Receipts", icon: "fa-sack-dollar" },
+  {
+    id: "health-profiles",
+    label: "Health Profiles",
+    icon: "fa-notes-medical",
+    href: "/therapist/dashboard/health-profile",
+  },
   {
     id: "edit-profile",
     label: "Edit Profile",

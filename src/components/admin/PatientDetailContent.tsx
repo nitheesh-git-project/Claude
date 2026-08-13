@@ -12,6 +12,7 @@ import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
 import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawer";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
+import { CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { computeNoShowRate, computeCancellationRate } from "@/lib/adminMetrics";
@@ -31,26 +32,32 @@ export default async function PatientDetailContent({ id }: { id: string }) {
 
   // Independent of each other -- run in parallel instead of one at a time.
   // See admin/dashboard/page.tsx's identical Promise.all for the reasoning.
-  const [{ data: settingsRow }, { data: patient }, { data: patientCodeRow }] = await Promise.all([
-    // Isolated query, same migration-dependent convention as everything
-    // else on this page -- only feeds the Join button's window here, never
-    // blocks the rest of the detail page if the columns aren't migrated yet.
-    admin.from("site_settings").select("join_window_minutes").maybeSingle(),
+  const [{ data: settingsRow }, { data: patient }, { data: patientCodeRow }, { data: conditionProfile }] =
+    await Promise.all([
+      // Isolated query, same migration-dependent convention as everything
+      // else on this page -- only feeds the Join button's window here, never
+      // blocks the rest of the detail page if the columns aren't migrated yet.
+      admin.from("site_settings").select("join_window_minutes").maybeSingle(),
 
-    admin
-      .from("profiles")
-      .select(
-        "id, full_name, email, phone, avatar_url, active, approved, created_at, referred_by_hospital_id, emergency_contact_name, emergency_contact_phone, date_of_birth, gender, preferred_language"
-      )
-      .eq("id", id)
-      .eq("role", "patient")
-      .single(),
+      admin
+        .from("profiles")
+        .select(
+          "id, full_name, email, phone, avatar_url, active, approved, created_at, referred_by_hospital_id, emergency_contact_name, emergency_contact_phone, date_of_birth, gender, preferred_language"
+        )
+        .eq("id", id)
+        .eq("role", "patient")
+        .single(),
 
-    // patient_code is new/migration-dependent -- kept isolated (see
-    // sessionCode.ts's comment) so an unknown-column error here only
-    // degrades this one badge, not the whole page.
-    admin.from("profiles").select("patient_code").eq("id", id).maybeSingle(),
-  ]);
+      // patient_code is new/migration-dependent -- kept isolated (see
+      // sessionCode.ts's comment) so an unknown-column error here only
+      // degrades this one badge, not the whole page.
+      admin.from("profiles").select("patient_code").eq("id", id).maybeSingle(),
+
+      // New/migration-dependent table, same isolation reasoning -- only
+      // feeds the "Health Profile" status badge below, so it degrades to
+      // "not started" rather than breaking this page if it's not migrated.
+      admin.from("patient_condition_profiles").select("status").eq("patient_id", id).maybeSingle(),
+    ]);
   const adminSettings = parseAdminSettings(settingsRow);
 
   if (!patient) {
@@ -227,6 +234,14 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   );
   const cancellationStats = computeCancellationRate(appointments ?? []);
 
+  const conditionStatus = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
+  const CONDITION_BADGE_STYLE: Record<ConditionProfileStatus, string> = {
+    not_started: "text-slate-500 bg-slate-100",
+    draft: "text-slate-500 bg-slate-100",
+    pending_review: "text-amber-700 bg-amber-100",
+    active: "text-emerald-700 bg-emerald-100",
+  };
+
   return (
     <JoinWindowProvider beforeMinutes={adminSettings.joinWindowMinutes} afterMinutes={adminSettings.joinWindowAfterMinutes}>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
@@ -251,6 +266,12 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                     Pending Approval
                   </span>
                 )}
+                <Link
+                  href={`/admin/dashboard/conditions/${patient.id}`}
+                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full transition hover:opacity-80 ${CONDITION_BADGE_STYLE[conditionStatus]}`}
+                >
+                  Health Profile: {CONDITION_STATUS_LABEL[conditionStatus]}
+                </Link>
               </div>
               <p className="text-xs text-slate-500 mt-1">
                 Joined {new Date(patient.created_at).toLocaleDateString()}

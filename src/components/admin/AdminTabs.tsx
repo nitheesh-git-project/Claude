@@ -31,6 +31,10 @@ const ADMIN_REALTIME_TABLES = [
   "treatment_category_packages",
   "testimonials",
   "faqs",
+  "patient_condition_profiles",
+  "condition_change_requests",
+  "condition_access_grants",
+  "pain_assessments",
 ];
 
 type TabKey =
@@ -38,6 +42,7 @@ type TabKey =
   | "approvalBookings"
   | "sessionStory"
   | "patients"
+  | "conditions"
   | "therapists"
   | "roster"
   | "calendar"
@@ -56,6 +61,8 @@ export default function AdminTabs({
   approvalBookings,
   sessionStory,
   patients,
+  conditions,
+  conditionsBadgeCount,
   therapists,
   roster,
   calendar,
@@ -83,6 +90,8 @@ export default function AdminTabs({
   approvalBookings: ReactNode;
   sessionStory: ReactNode;
   patients: ReactNode;
+  conditions: ReactNode;
+  conditionsBadgeCount: number;
   therapists: ReactNode;
   roster: ReactNode;
   calendar: ReactNode;
@@ -116,6 +125,7 @@ export default function AdminTabs({
     { key: "approvalBookings", label: "Approval & Bookings", icon: "fa-clipboard-check" },
     { key: "sessionStory", label: "Session Story", icon: "fa-book-open" },
     { key: "patients", label: "Patients", icon: "fa-user-injured" },
+    { key: "conditions", label: "Patient Conditions", icon: "fa-notes-medical", badge: conditionsBadgeCount },
     { key: "therapists", label: "Therapists", icon: "fa-user-doctor" },
     { key: "roster", label: "Manage Roster", icon: "fa-calendar-days" },
     { key: "calendar", label: "Calendar", icon: "fa-calendar" },
@@ -321,6 +331,7 @@ export default function AdminTabs({
           <div className={tab === "approvalBookings" ? "" : "hidden"}>{approvalBookings}</div>
           <div className={tab === "sessionStory" ? "" : "hidden"}>{sessionStory}</div>
           <div className={tab === "patients" ? "" : "hidden"}>{patients}</div>
+          <div className={tab === "conditions" ? "" : "hidden"}>{conditions}</div>
           <div className={tab === "therapists" ? "" : "hidden"}>{therapists}</div>
           <div className={tab === "roster" ? "" : "hidden"}>{roster}</div>
           <div className={tab === "calendar" ? "" : "hidden"}>{calendar}</div>

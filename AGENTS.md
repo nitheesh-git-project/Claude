@@ -129,6 +129,22 @@ role, an id, or an amount sent from the client — re-derive it server-side.
   `adminMetrics`, `therapistEarnings`, `therapistPayouts`, `ratingAggregate`,
   `packageProgress`) so it can be reasoned about without rendering. Keep new
   math there rather than inside components.
+- **Patient Care Intake and Pain Map are two separate data layers**, both
+  gated behind one write-access model. Patient Care Intake
+  (`patient_condition_profiles` / `condition_change_requests`, question set
+  in `src/lib/conditionIntake.ts`) is patient- or therapist-submitted
+  general history and always queues for admin review before it goes live —
+  first fill and later edits alike. Pain Map (`pain_assessments` /
+  `pain_map_question_templates`, region + question logic in
+  `src/lib/painMap.ts`) is therapist-only, per-region clinical exam data
+  that posts live immediately with no review step, and is append-only (a
+  re-assessment is a new row, never an edit) so the UI can show a trend
+  against the previous visit. A therapist may only *write* to either layer
+  after the patient's admin approves a `condition_access_grants` request;
+  *read* access needs no request and is automatic for the patient's
+  assigned therapist (ever had an appointment with them, or holds a
+  package's `locked_therapist_id`). See the "Patient Care Intake and Pain
+  Map" section in README.md for the full flow.
 - **Admin-configurable behavior** (Meet on/off, join window, idle timeout,
   booking languages, the package-wide settings — visibility, default
   validity, therapist-lock switch, bulk-scheduler limit, expiry reminder
