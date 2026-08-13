@@ -28,6 +28,9 @@ import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
 import AdminSessionStoryTab from "@/components/admin/AdminSessionStoryTab";
 import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
+import QuestionBankManager from "@/components/admin/QuestionBankManager";
+import ConditionsListFilter from "@/components/admin/ConditionsListFilter";
+import { parseAreaPain } from "@/lib/conditionIntake";
 import AdminFeatureControlTab from "@/components/admin/AdminFeatureControlTab";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -111,6 +114,9 @@ export default async function AdminDashboardPage() {
     { data: faqs },
     { data: siteSettings },
     { data: payoutRequests },
+    { data: conditionProfiles },
+    { count: conditionRequestsPendingCount },
+    { count: conditionAccessPendingCount },
   ] = await Promise.all([
     // Both self-serve roles wait on admin approval, so this one query feeds
     // the single "Pending Approvals" list -- therapist applications and
@@ -314,6 +320,20 @@ export default async function AdminDashboardPage() {
       .from("therapist_payout_requests")
       .select("id, therapist_id, requested_amount_paise, status, requested_at, completed_at")
       .order("requested_at", { ascending: false }),
+
+    // Patient Care Intake / Pain Map -- new/migration-dependent tables,
+    // same isolation reasoning as therapist_payout_requests above: an
+    // unknown-table error here only empties the Patient Conditions tab and
+    // its badge, not the rest of the dashboard.
+    admin.from("patient_condition_profiles").select("patient_id, status, updated_at, data"),
+    admin
+      .from("condition_change_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending"),
+    admin
+      .from("condition_access_grants")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "requested"),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -975,6 +995,21 @@ export default async function AdminDashboardPage() {
     </>
   );
 
+  // Severity signal for the Patients tab -- surfacing what the patient
+  // self-reported right where admin already manages patients, rather than
+  // requiring a separate trip to Patient Conditions to see it. Not a
+  // recommendation engine (that's a bigger product decision on its own) --
+  // just visibility of the existing signal at the point admin is already
+  // looking.
+  const conditionSignalByPatientId = new Map(
+    (conditionProfiles ?? []).map((c) => {
+      const data = (c.data ?? {}) as Record<string, string>;
+      const severity = data.severity ? Number(data.severity) : null;
+      const areaCount = parseAreaPain(data.area_pain).length;
+      return [c.patient_id, { severity, areaCount }];
+    })
+  );
+
   const patientsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-bold text-lg text-slate-800 mb-4">
@@ -990,15 +1025,73 @@ export default async function AdminDashboardPage() {
       ) : (
         <AdminPeopleDirectory
           basePath="/admin/dashboard/patients"
-          people={patients.map((p) => ({
+          people={patients.map((p) => {
+            const signal = conditionSignalByPatientId.get(p.id);
+            const signalText =
+              signal && (signal.severity != null || signal.areaCount > 0)
+                ? [
+                    signal.severity != null ? `Severity ${signal.severity}/10` : null,
+                    signal.areaCount > 0 ? `${signal.areaCount} pain area${signal.areaCount > 1 ? "s" : ""}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                : null;
+            return {
+              id: p.id,
+              full_name: p.full_name,
+              subtitle: signalText ? `${p.email} · ${signalText}` : p.email,
+              avatar_url: p.avatar_url,
+              active: p.active,
+              approved: p.approved,
+              created_at: p.created_at,
+              code: roleCodeMap.get(p.id)?.patient_code ?? null,
+            };
+          })}
+        />
+      )}
+    </div>
+  );
+
+  const conditionStatusByPatientId = new Map(
+    (conditionProfiles ?? []).map((c) => [c.patient_id, c.status as string])
+  );
+  const conditionUpdatedAtByPatientId = new Map(
+    (conditionProfiles ?? []).map((c) => [c.patient_id, c.updated_at as string])
+  );
+  const conditionsBadgeCount = (conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0);
+
+  const conditionsTab = (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <h2 className="font-bold text-lg text-slate-800 mb-1">
+        Patient Conditions
+        {conditionsBadgeCount > 0 && (
+          <span className="ml-2 rounded-full bg-amber-300 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
+            {conditionsBadgeCount} pending
+          </span>
+        )}
+      </h2>
+      <p className="text-xs text-slate-500 mb-4">
+        Patient Care Intake and Pain Map data for every patient. Open a patient to review
+        submissions, therapist access requests, and pain assessments.
+      </p>
+
+      <details className="mb-6 rounded-xl border border-slate-200 p-4">
+        <summary className="text-sm font-bold text-slate-700 cursor-pointer">Manage Questions</summary>
+        <div className="mt-4">
+          <QuestionBankManager />
+        </div>
+      </details>
+
+      {patients.length === 0 ? (
+        <p className="text-xs text-slate-500 py-4 text-center">No patients have signed up yet.</p>
+      ) : (
+        <ConditionsListFilter
+          rows={patients.map((p) => ({
             id: p.id,
             full_name: p.full_name,
-            subtitle: p.email,
-            avatar_url: p.avatar_url,
-            active: p.active,
-            approved: p.approved,
-            created_at: p.created_at,
-            code: roleCodeMap.get(p.id)?.patient_code ?? null,
+            email: p.email,
+            status: conditionStatusByPatientId.get(p.id) ?? "not_started",
+            updatedAt: conditionUpdatedAtByPatientId.get(p.id) ?? null,
           }))}
         />
       )}
@@ -1384,6 +1477,8 @@ export default async function AdminDashboardPage() {
       approvalBookings={approvalBookingsTab}
       sessionStory={sessionStoryTab}
       patients={patientsTab}
+      conditions={conditionsTab}
+      conditionsBadgeCount={conditionsBadgeCount}
       therapists={therapistsTab}
       roster={rosterTab}
       calendar={calendarTab}

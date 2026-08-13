@@ -1898,3 +1898,353 @@ alter table site_settings add column if not exists contact_email text not null d
 alter table site_settings add column if not exists whatsapp_number text not null default '+91 XXXXX XXXXX';
 alter table site_settings add column if not exists contact_phone text not null default '+91 XXXXX XXXXX';
 alter table site_settings add column if not exists footer_copyright_text text not null default 'Dr. Pooja''s Physio. All rights reserved.';
+
+-- Patient Care Intake + Pain Map ---------------------------------------
+--
+-- Two linked but separate data layers for a patient's clinical picture:
+--
+-- 1. General intake (patient_condition_profiles / condition_change_requests):
+--    free-form history/severity answers. Patient fills it themselves, or a
+--    therapist fills it on their behalf after the patient grants access.
+--    Every submission -- first fill or a later edit, from either role --
+--    queues in condition_change_requests and only becomes the profile's
+--    live `data` once an admin approves it. Admin's own edits apply
+--    directly (no self-review). Rows in condition_change_requests are
+--    never deleted, so the table doubles as the change audit log.
+--
+-- 2. Pain Map (pain_assessments / pain_map_question_templates): a
+--    per-region clinical exam, entered by a therapist after actually
+--    examining the patient. Unlike the general intake, this does NOT go
+--    through admin review -- it's the therapist's own clinical judgement,
+--    posted live immediately (like a clinical note), same as an admin's
+--    direct edit. One row per region per assessment; rows are append-only
+--    (never updated or deleted) so the UI can show a trend against the
+--    previous assessment for that region -- overwriting would destroy the
+--    "is this improving" comparison the whole feature exists to show.
+--
+-- Both layers share one write-access model: a therapist may only write to
+-- a patient's condition data (general intake on their behalf, or a pain
+-- map entry) after the patient's admin approves a condition_access_grants
+-- request. Read access to both is automatic for the patient's assigned
+-- therapist -- gating a treating therapist out of a patient's own exam
+-- history would be actively harmful to care, so only WRITE is gated.
+-- "Assigned" here means the therapist has ever had an appointment with
+-- this patient, or holds a package's locked_therapist_id -- broader than
+-- strictly "current", but read access is not the side where that
+-- imprecision matters (only write is).
+
+create table if not exists patient_condition_profiles (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null unique references profiles(id) on delete cascade,
+  data jsonb not null default '{}'::jsonb,
+  -- Tags which version of the intake question set `data` was answered
+  -- against, so a later question-wording change doesn't silently
+  -- misattribute an old answer to a question it was never actually shown.
+  schema_version integer not null default 1,
+  status text not null default 'not_started'
+    check (status in ('not_started', 'draft', 'pending_review', 'active')),
+  last_submitted_by uuid references profiles(id),
+  last_submitted_role text check (last_submitted_role in ('patient', 'therapist', 'admin')),
+  updated_at timestamptz not null default now()
+);
+
+alter table patient_condition_profiles enable row level security;
+
+drop policy if exists "condition_profiles_select_own" on patient_condition_profiles;
+create policy "condition_profiles_select_own" on patient_condition_profiles
+  for select using (auth.uid() = patient_id);
+
+drop policy if exists "condition_profiles_select_assigned_therapist" on patient_condition_profiles;
+create policy "condition_profiles_select_assigned_therapist" on patient_condition_profiles
+  for select using (
+    exists (
+      select 1 from appointments a
+      where a.patient_id = patient_condition_profiles.patient_id
+        and a.therapist_id = auth.uid()
+    )
+    or exists (
+      select 1 from patient_package_purchases pp
+      where pp.patient_id = patient_condition_profiles.patient_id
+        and pp.locked_therapist_id = auth.uid()
+    )
+  );
+
+-- No client insert/update/delete -- the row is created and kept in sync
+-- only by the admin-approve route and the therapist pain-map route, both
+-- using the service role, same reasoning as profile_change_requests.
+revoke insert, update, delete on patient_condition_profiles from authenticated;
+
+create table if not exists condition_access_grants (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  therapist_id uuid not null references profiles(id) on delete cascade,
+  status text not null default 'requested'
+    check (status in ('requested', 'approved', 'declined', 'revoked')),
+  admin_notes text,
+  requested_at timestamptz not null default now(),
+  decided_by uuid references profiles(id),
+  decided_at timestamptz
+);
+
+alter table condition_access_grants enable row level security;
+
+drop policy if exists "condition_access_grants_select_involved" on condition_access_grants;
+create policy "condition_access_grants_select_involved" on condition_access_grants
+  for select using (auth.uid() = patient_id or auth.uid() = therapist_id);
+
+-- A therapist may only request access for a patient they're actually
+-- assigned to -- same "ever had an appointment, or holds the package's
+-- locked_therapist_id" definition used for read access above.
+drop policy if exists "condition_access_grants_insert_own" on condition_access_grants;
+create policy "condition_access_grants_insert_own" on condition_access_grants
+  for insert with check (
+    auth.uid() = therapist_id and status = 'requested'
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = condition_access_grants.patient_id
+          and a.therapist_id = auth.uid()
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = condition_access_grants.patient_id
+          and pp.locked_therapist_id = auth.uid()
+      )
+    )
+  );
+
+-- Approve/decline/revoke only ever happen through the admin API routes
+-- using the service role -- same as profile_change_requests.
+revoke update on condition_access_grants from authenticated;
+
+-- A therapist can withdraw their own request while it's still pending.
+drop policy if exists "condition_access_grants_delete_own_requested" on condition_access_grants;
+create policy "condition_access_grants_delete_own_requested" on condition_access_grants
+  for delete using (auth.uid() = therapist_id and status = 'requested');
+
+create table if not exists condition_change_requests (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  submitted_by uuid not null references profiles(id),
+  submitted_by_role text not null check (submitted_by_role in ('patient', 'therapist', 'admin')),
+  proposed_data jsonb not null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'declined')),
+  admin_notes text,
+  reviewed_by uuid references profiles(id),
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table condition_change_requests enable row level security;
+
+drop policy if exists "condition_change_requests_select_involved" on condition_change_requests;
+create policy "condition_change_requests_select_involved" on condition_change_requests
+  for select using (auth.uid() = submitted_by or auth.uid() = patient_id);
+
+-- A patient may submit for themselves; a therapist may only submit for a
+-- patient who currently has an *approved* access grant for them -- this is
+-- the write gate the whole access-request flow exists to enforce.
+drop policy if exists "condition_change_requests_insert_gated" on condition_change_requests;
+create policy "condition_change_requests_insert_gated" on condition_change_requests
+  for insert with check (
+    auth.uid() = submitted_by and status = 'pending'
+    and (
+      (submitted_by_role = 'patient' and auth.uid() = patient_id)
+      or (
+        submitted_by_role = 'therapist'
+        and exists (
+          select 1 from condition_access_grants g
+          where g.patient_id = condition_change_requests.patient_id
+            and g.therapist_id = auth.uid()
+            and g.status = 'approved'
+        )
+      )
+    )
+  );
+
+-- Approve/decline (and applying an approved change to
+-- patient_condition_profiles) only ever happen through the admin API
+-- routes using the service role.
+revoke update on condition_change_requests from authenticated;
+
+-- Submitter can withdraw their own still-pending submission (e.g. to
+-- amend before admin looks at it) -- not one already reviewed, so the
+-- audit trail of what was approved/declined and why stays intact.
+drop policy if exists "condition_change_requests_delete_own_pending" on condition_change_requests;
+create policy "condition_change_requests_delete_own_pending" on condition_change_requests
+  for delete using (auth.uid() = submitted_by and status = 'pending');
+
+-- The admin-editable question bank behind the Pain Map's per-region forms
+-- (see src/lib/painMap.ts for the region list and the seed content). Not
+-- sensitive -- readable by any authenticated user so the therapist's fill
+-- form and the admin's editor both render from the same source. Writes are
+-- admin-only via the service role (same as site_settings).
+create table if not exists pain_map_question_templates (
+  id uuid primary key default gen_random_uuid(),
+  region text not null,
+  question_key text not null,
+  question_text text not null,
+  input_type text not null check (input_type in ('text', 'scale_0_10', 'yes_no', 'select')),
+  display_order integer not null default 0,
+  updated_by uuid references profiles(id),
+  updated_at timestamptz not null default now(),
+  unique (region, question_key)
+);
+
+alter table pain_map_question_templates enable row level security;
+
+drop policy if exists "pain_map_question_templates_select_all" on pain_map_question_templates;
+create policy "pain_map_question_templates_select_all" on pain_map_question_templates
+  for select using (true);
+
+revoke insert, update, delete on pain_map_question_templates from authenticated;
+
+-- One row per region per assessment -- never updated or deleted. The
+-- latest row per (patient_id, region, side) is what the body map renders;
+-- the one before it is what the trend arrow compares against. See the
+-- section comment above for why this doesn't go through admin review the
+-- way condition_change_requests does.
+create table if not exists pain_assessments (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  region text not null,
+  side text not null default 'na' check (side in ('left', 'right', 'na')),
+  submitted_by uuid not null references profiles(id),
+  submitted_by_role text not null check (submitted_by_role in ('therapist', 'admin')),
+  -- Snapshot of the question bank as it was actually presented at submit
+  -- time: [{ question_key, question_text, input_type, answer }, ...]. Never
+  -- read the live template retroactively for a past answer -- an editor
+  -- change to question_text must not rewrite what a historical answer was
+  -- actually responding to.
+  answers jsonb not null,
+  pain_percent integer not null check (pain_percent between 0 and 100),
+  created_at timestamptz not null default now()
+);
+
+alter table pain_assessments enable row level security;
+
+drop policy if exists "pain_assessments_select_own" on pain_assessments;
+create policy "pain_assessments_select_own" on pain_assessments
+  for select using (auth.uid() = patient_id);
+
+drop policy if exists "pain_assessments_select_assigned_therapist" on pain_assessments;
+create policy "pain_assessments_select_assigned_therapist" on pain_assessments
+  for select using (
+    exists (
+      select 1 from appointments a
+      where a.patient_id = pain_assessments.patient_id
+        and a.therapist_id = auth.uid()
+    )
+    or exists (
+      select 1 from patient_package_purchases pp
+      where pp.patient_id = pain_assessments.patient_id
+        and pp.locked_therapist_id = auth.uid()
+    )
+  );
+
+-- A therapist may only post an assessment for a patient who has approved
+-- their access grant -- the same write gate as condition_change_requests,
+-- shared across both data layers rather than duplicated as a second
+-- approval flow.
+drop policy if exists "pain_assessments_insert_gated" on pain_assessments;
+create policy "pain_assessments_insert_gated" on pain_assessments
+  for insert with check (
+    auth.uid() = submitted_by and submitted_by_role = 'therapist'
+    and exists (
+      select 1 from condition_access_grants g
+      where g.patient_id = pain_assessments.patient_id
+        and g.therapist_id = auth.uid()
+        and g.status = 'approved'
+    )
+  );
+
+-- Append-only audit trail -- no correction path except posting a new row.
+revoke update, delete on pain_assessments from authenticated;
+
+do $$
+begin
+  alter publication supabase_realtime add table patient_condition_profiles;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table condition_access_grants;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table condition_change_requests;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table pain_assessments;
+exception when duplicate_object then null;
+end $$;
+
+-- Onboarding tour + intake draft autosave --------------------------------
+--
+-- onboarding_seen_at: set once a patient dismisses (or acts on) the
+-- first-login welcome modal on their dashboard. Skippable by design (see
+-- the product decision in the Patient Care Intake planning thread) --
+-- this only silences the one-time welcome modal, not the persistent
+-- "complete your health profile" reminder banner, which instead reads
+-- patient_condition_profiles.status directly.
+alter table profiles add column if not exists onboarding_seen_at timestamptz;
+
+-- draft_data: a scratch buffer for an in-progress Patient Care Intake
+-- fill, autosaved as the patient or therapist types, completely separate
+-- from `data` (which only ever holds the latest *approved* snapshot).
+-- Never touched by the review flow -- only the save-draft routes write it,
+-- and it's cleared once a real submission is made so a stale draft can't
+-- resurface after the thing it was drafting has already been decided.
+alter table patient_condition_profiles add column if not exists draft_data jsonb;
+
+-- Admin-editable Patient Care Intake question bank (mirrors
+-- pain_map_question_templates -- see that table's comment). A row's mere
+-- existence is an override: both question_text and required are always
+-- saved together per question (one admin editor row = one save), so
+-- there's no separate "override just the wording" vs "override just
+-- required" state to reconcile. No row = use the code default in
+-- src/lib/conditionIntake.ts. Not region-scoped like the Pain Map table --
+-- intake questions are a single global list -- so question_key alone is
+-- the unique key.
+create table if not exists intake_question_templates (
+  id uuid primary key default gen_random_uuid(),
+  question_key text not null unique,
+  question_text text not null,
+  required boolean not null,
+  updated_by uuid references profiles(id),
+  updated_at timestamptz not null default now()
+);
+
+alter table intake_question_templates enable row level security;
+
+drop policy if exists "intake_question_templates_select_all" on intake_question_templates;
+create policy "intake_question_templates_select_all" on intake_question_templates
+  for select using (true);
+
+revoke insert, update, delete on intake_question_templates from authenticated;
+do $$
+begin
+  alter publication supabase_realtime add table intake_question_templates;
+exception when duplicate_object then null;
+end $$;
+
+-- Race-closing constraints -------------------------------------------------
+--
+-- Both "one pending submission per patient" and "one open access request
+-- per (patient, therapist)" were previously enforced only by an
+-- application-level select-count-then-insert, which has a real race
+-- window: two near-simultaneous requests can both pass the count check
+-- before either insert lands. These partial unique indexes make the
+-- invariant a DB-level guarantee instead -- the routes still do the
+-- select-count check first as a fast, friendly-error path, but the insert
+-- itself is now the real guard (see the 23505-catch in each route).
+create unique index if not exists condition_change_requests_one_pending
+  on condition_change_requests (patient_id)
+  where status = 'pending';
+
+create unique index if not exists condition_access_grants_one_open
+  on condition_access_grants (patient_id, therapist_id)
+  where status in ('requested', 'approved');

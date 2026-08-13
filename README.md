@@ -84,18 +84,20 @@ so a still-valid session cookie can't call the API around the UI gate.
 `/hospitals`, `/faq`, `/get-started`, `/book`.
 
 **Patient:** `/patient/register`, `/patient/login`, `/patient/dashboard`,
-`/patient/dashboard/profile`.
+`/patient/dashboard/profile`, `/patient/dashboard/health-profile`.
 
 **Therapist:** `/therapist/login`, `/therapist/dashboard`,
-`/therapist/dashboard/profile`.
+`/therapist/dashboard/profile`, `/therapist/dashboard/health-profile`,
+`/therapist/dashboard/health-profile/[patientId]`.
 
 **Hospital:** `/hospital/login`, `/hospital/dashboard`,
 `/hospital/dashboard/profile`.
 
 **Admin:** `/admin/login`, `/admin/dashboard` (tabbed: metrics, calendar,
-roster, people directory, payments, payouts, payout requests, session story,
-session manager, site content, feature control), plus per-person detail pages at
-`/admin/dashboard/patients/[id]` and `/admin/dashboard/therapists/[id]`.
+roster, people directory, patient conditions, payments, payouts, payout
+requests, session story, session manager, site content, feature control),
+plus per-person detail pages at `/admin/dashboard/patients/[id]`,
+`/admin/dashboard/therapists/[id]`, and `/admin/dashboard/conditions/[id]`.
 Those detail pages use a parallel `@modal` route with intercepting routes, so
 clicking a person from the dashboard opens an overlay while a direct link
 still renders the full page.
@@ -235,6 +237,125 @@ packages" above.
 
 **Realtime.** `src/components/RealtimeRefresh.tsx` subscribes to Supabase
 Realtime so dashboards refresh when the underlying rows change.
+
+**Patient Care Intake and Pain Map.** Two linked but separate layers of a
+patient's condition data, both surfaced on `/patient/dashboard/health-profile`
+(patient), the therapist's `/therapist/dashboard/health-profile/[patientId]`,
+and the admin's **Patient Conditions** tab.
+
+- *Patient Care Intake* (`patient_condition_profiles`,
+  `condition_change_requests`) is general history/severity answers plus a
+  self-reported per-area pain scale (`src/lib/conditionIntake.ts` —
+  `chief_complaint`, `since_when`, `severity`, `area_pain`, `worsens`,
+  `helps`, `notes`). `area_pain` reuses the same 17 regions and
+  `BodyMapDiagram` as the Pain Map below, but is the *patient's own*
+  self-report (0–10 per tapped area, `AreaPainPicker.tsx`) — a separate
+  dataset from the therapist's clinical exam, so the two can later be
+  compared. Question wording and which questions are mandatory are both
+  admin-editable (`intake_question_templates`, same override-table pattern
+  as Pain Map's question bank — see below), enforced both client- and
+  server-side on submit. The patient fills it themselves, or a therapist
+  fills it on their behalf once granted access. Every submission — first
+  fill or a later edit, from either role — queues in
+  `condition_change_requests` and only becomes the live profile once an
+  admin approves it; declining keeps the proposed data intact so the
+  submitter can amend and resubmit. Admin's own edits (`ConditionDirectEditForm`)
+  apply immediately, no review needed. One pending submission per patient at
+  a time. Answers autosave to `patient_condition_profiles.draft_data` as the
+  form is filled (`/api/patient/condition-profile/save-draft`,
+  `/api/therapist/condition-profile/save-draft`) so closing mid-fill loses
+  nothing; a submission clears the draft. Reopening the form prioritizes an
+  in-progress draft, then a declined submission's answers, then the last
+  approved data.
+- *Pain Map* (`pain_assessments`, `pain_map_question_templates`,
+  `src/lib/painMap.ts`) is a 17-region clinical exam a therapist fills in
+  after examining the patient — region-specific question sets with an
+  admin-editable question bank, ending in a 0–100 pain percentage per
+  region. Unlike the intake, this posts live immediately (it's the
+  therapist's own clinical judgement, not an administrative edit); rows are
+  append-only so the patient's dashboard can show a trend against the
+  previous assessment for that region. The patient can only view this, never
+  edit it. Admin can also post an entry directly (`/api/admin/pain-assessments/submit`,
+  no access-grant needed — admin is the final authority, same reasoning as
+  the intake's direct-edit path), collapsed under "Add a Pain Map entry
+  directly" on the patient's condition detail page; like every other write
+  here it's a new row, never an edit of a past one. All three surfaces
+  render the same tap-point body diagram
+  (`src/components/profile/BodyMapDiagram.tsx`, a jointed lay figure rather
+  than a muscle chart — every joint doubles as a clinical landmark) via the
+  shared `PainAssessmentForm`/`PainMapView`; tapping a point in fill mode
+  (therapist or admin) picks that region+side directly instead of a manual
+  dropdown, and tapping an assessed point in view mode (patient/admin)
+  opens a popup with that region's detail.
+
+Both question banks (Patient Care Intake and Pain Map) are managed from
+one place — a **Manage Questions** section at the top of the admin's
+**Patient Conditions** tab (`QuestionBankManager.tsx`), not per-patient —
+since question wording/required-ness is global config, not something tied
+to one patient's record.
+
+Both layers share one write-access model (`condition_access_grants`): a
+therapist may only write to a patient's condition data after the patient's
+admin approves an access request (`/therapist/dashboard/health-profile` →
+"Request access to edit"). Read access is automatic for the patient's
+assigned therapist — only *write* is gated. "Assigned" means the therapist
+has ever had an appointment with the patient, or holds a package's
+`locked_therapist_id`. Write access is exclusive to one therapist per
+patient at a time — approving a new therapist's request automatically
+revokes any other therapist's currently-approved grant for that same
+patient, rather than leaving two therapists able to edit the same
+condition data at once.
+
+A patient's first dashboard visit also shows a one-time, skippable guided
+spotlight tour (`src/components/patient/OnboardingTour.tsx`,
+`profiles.onboarding_seen_at`) that highlights the actual sidebar nav items
+in sequence. The Health Profile step also carries a "Fill it in now" CTA
+that jumps straight there (marking the tour seen, same as Skip/Done) instead
+of requiring the rest of the tour to finish first. The tour is separate from
+the persistent "complete your health profile" banner on the main patient
+dashboard, which keeps nudging based on intake status regardless of whether
+the tour was seen or skipped.
+
+Beyond the core workflow, a few surfaces exist specifically to make the
+data useful once it's collected, not just to collect it:
+
+- **Comparison view** (`PainComparisonView.tsx`) — the patient's
+  self-reported `area_pain` and the therapist's clinical Pain Map overlaid
+  on one figure (fill = clinical finding, blue ring = patient also flagged
+  it), so it's obvious where the two agree or don't. Shown to patient,
+  therapist, and admin.
+- **Point of care** — the therapist's Assigned Sessions cards link straight
+  to that patient's Health Profile, and the Health Profiles list flags
+  patients with no *approved* access grant yet as "New" (a merely-requested,
+  not-yet-approved grant still counts as new — it still needs admin's
+  attention) so a first-time assignment doesn't go unnoticed.
+- **Admin audit trail** — a direct intake edit (`ConditionDirectEditForm`)
+  also inserts an already-"approved" `condition_change_requests` row, so it
+  shows up in the same Review History as every reviewed submission instead
+  of silently overwriting `data` with no record of the prior value.
+- **List search/filter/sort** (`ConditionsListFilter.tsx`) on the Patient
+  Conditions tab, and an aging flag ("Waiting N days") on a pending request
+  once it's sat for 3+ days.
+- **Patient data export** (`/api/patient/condition-profile/export`) — a
+  JSON download of the patient's own intake, submission history, and Pain
+  Map assessments. Print uses the browser's own print-to-PDF. No deletion
+  path yet — that's a retention-policy decision for the practice, not
+  something to build without that call being made first.
+- Pain Map's popup shows a full per-region history list and a trend
+  sparkline (not just the latest-vs-previous arrow), and who posted the
+  latest entry (therapist or admin).
+- `area_pain` entries can carry an optional free-text note per area (e.g.
+  "started after a fall"), shown alongside the pain score everywhere it's
+  displayed.
+- The admin Patients tab (not Patient Conditions) shows a compact severity
+  signal — self-reported severity and pain-area count — right where admin
+  already manages patients, without a separate trip.
+
+Deliberately not done: a hard gate blocking booking on intake completion
+(a real business-risk decision, not something to make unilaterally — the
+dashboard banner and onboarding tour are the current nudge mechanism), and
+push/email notifications for any of this workflow's state changes (separate
+planned work).
 
 ## Project layout
 
