@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConditionIntakeForm from "@/components/profile/ConditionIntakeForm";
 import PainMapView from "@/components/profile/PainMapView";
@@ -40,10 +42,18 @@ export default async function TherapistPatientHealthProfilePage({
   // Reads rely on RLS (condition_profiles_select_assigned_therapist /
   // pain_assessments_select_assigned_therapist in schema.sql) rather than
   // an app-level role check — a row coming back at all is the
-  // authorization, same reasoning as /api/packages/purchase-detail.
+  // authorization, same reasoning as /api/packages/purchase-detail. The
+  // one exception is the patient's own profile row (name/email): profiles
+  // has no RLS policy letting a therapist read a *patient's* row directly
+  // (only their own, or admin — same gap the main therapist dashboard's
+  // appointment-patient lookup already works around via the admin
+  // client), so that one lookup is admin-client + an explicit
+  // isTherapistAssignedToPatient gate below instead of relying on RLS.
+  const admin = createAdminClient();
   const [
     { data: profile },
     { data: therapistCodeRow },
+    isAssigned,
     { data: patient },
     { data: conditionProfile },
     { data: lastRequest },
@@ -55,7 +65,8 @@ export default async function TherapistPatientHealthProfilePage({
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
-    supabase.from("profiles").select("id, full_name, email").eq("id", patientId).eq("role", "patient").maybeSingle(),
+    isTherapistAssignedToPatient(admin, user.id, patientId),
+    admin.from("profiles").select("id, full_name, email").eq("id", patientId).eq("role", "patient").maybeSingle(),
     supabase
       .from("patient_condition_profiles")
       .select("data, draft_data, status")
@@ -85,7 +96,7 @@ export default async function TherapistPatientHealthProfilePage({
     supabase.from("intake_question_templates").select("question_key, question_text, required"),
   ]);
 
-  if (!patient) {
+  if (!patient || !isAssigned) {
     notFound();
   }
 

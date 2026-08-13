@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
@@ -44,10 +45,18 @@ export default async function TherapistHealthProfilesPage() {
     ...new Set([...(appointmentPatients ?? []), ...(packagePatients ?? [])].map((r) => r.patient_id)),
   ];
 
+  // profiles has no RLS policy letting a therapist read a *patient's* row
+  // directly (only their own, or admin) -- same reason the main therapist
+  // dashboard's appointment-patient lookup already goes through the admin
+  // client (see src/app/therapist/dashboard/page.tsx). The therapist is
+  // already established here (an authenticated session, reading only the
+  // patient ids their own appointments/packages name), so this is scoped,
+  // not a broad admin-client exposure.
+  const admin = createAdminClient();
   const [{ data: patients }, { data: grants }] =
     patientIds.length > 0
       ? await Promise.all([
-          supabase.from("profiles").select("id, full_name, email").in("id", patientIds),
+          admin.from("profiles").select("id, full_name, email").in("id", patientIds),
           supabase
             .from("condition_access_grants")
             .select("patient_id, status")
