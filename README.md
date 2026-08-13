@@ -292,14 +292,21 @@ admin approves an access request (`/therapist/dashboard/health-profile` →
 "Request access to edit"). Read access is automatic for the patient's
 assigned therapist — only *write* is gated. "Assigned" means the therapist
 has ever had an appointment with the patient, or holds a package's
-`locked_therapist_id`.
+`locked_therapist_id`. Write access is exclusive to one therapist per
+patient at a time — approving a new therapist's request automatically
+revokes any other therapist's currently-approved grant for that same
+patient, rather than leaving two therapists able to edit the same
+condition data at once.
 
 A patient's first dashboard visit also shows a one-time, skippable guided
 spotlight tour (`src/components/patient/OnboardingTour.tsx`,
 `profiles.onboarding_seen_at`) that highlights the actual sidebar nav items
-in sequence. It's separate from the persistent "complete your health
-profile" banner on the main patient dashboard, which keeps nudging based on
-intake status regardless of whether the tour was seen or skipped.
+in sequence. The Health Profile step also carries a "Fill it in now" CTA
+that jumps straight there (marking the tour seen, same as Skip/Done) instead
+of requiring the rest of the tour to finish first. The tour is separate from
+the persistent "complete your health profile" banner on the main patient
+dashboard, which keeps nudging based on intake status regardless of whether
+the tour was seen or skipped.
 
 Beyond the core workflow, a few surfaces exist specifically to make the
 data useful once it's collected, not just to collect it:
@@ -311,8 +318,9 @@ data useful once it's collected, not just to collect it:
   therapist, and admin.
 - **Point of care** — the therapist's Assigned Sessions cards link straight
   to that patient's Health Profile, and the Health Profiles list flags
-  patients with no access-grant history yet as "New" so a first-time
-  assignment doesn't go unnoticed.
+  patients with no *approved* access grant yet as "New" (a merely-requested,
+  not-yet-approved grant still counts as new — it still needs admin's
+  attention) so a first-time assignment doesn't go unnoticed.
 - **Admin audit trail** — a direct intake edit (`ConditionDirectEditForm`)
   also inserts an already-"approved" `condition_change_requests` row, so it
   shows up in the same Review History as every reviewed submission instead

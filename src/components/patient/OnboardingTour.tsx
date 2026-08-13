@@ -7,6 +7,8 @@ type Step = {
   targetId?: string; // DOM id (see DashboardShell's `nav-${item.id}`) — omitted for the intro step
   title: string;
   body: string;
+  ctaHref?: string; // optional direct link out of the tour, for a step worth acting on right away
+  ctaLabel?: string;
 };
 
 const STEPS: Step[] = [
@@ -24,6 +26,8 @@ const STEPS: Step[] = [
     targetId: "nav-health-profile",
     title: "Health Profile",
     body: "Tell us about your condition, and see your therapist's pain assessments after each exam.",
+    ctaHref: "/patient/dashboard/health-profile",
+    ctaLabel: "Fill it in now",
   },
   { targetId: "nav-edit-profile", title: "Edit Profile", body: "Your contact and account details." },
 ];
@@ -98,6 +102,15 @@ export default function OnboardingTour() {
     }
   }
 
+  // A CTA jumps straight to the thing the step is describing instead of
+  // finishing the rest of the tour first -- still counts as "seen" like
+  // Skip/Done, so it never shows again either.
+  function goToCta(href: string) {
+    markSeen();
+    setOpen(false);
+    router.push(href);
+  }
+
   function prev() {
     setStepIndex((i) => Math.max(0, i - 1));
   }
@@ -130,7 +143,16 @@ export default function OnboardingTour() {
           {stepIndex + 1} of {steps.length}
         </p>
         <h2 className="text-base font-bold text-slate-800 mb-1">{step.title}</h2>
-        <p className="text-sm text-slate-600 mb-4">{step.body}</p>
+        <p className="text-sm text-slate-600 mb-2">{step.body}</p>
+        {step.ctaHref && (
+          <button
+            type="button"
+            onClick={() => goToCta(step.ctaHref!)}
+            className="mb-4 text-xs font-semibold text-teal-700 hover:text-teal-800"
+          >
+            {step.ctaLabel ?? "Go now"} →
+          </button>
+        )}
         <div className="flex items-center gap-3">
           <button onClick={finish} className="text-xs font-semibold text-slate-500 hover:text-slate-700">
             Skip

@@ -57,17 +57,22 @@ export default async function TherapistHealthProfilesPage() {
       : [{ data: [] as { id: string; full_name: string; email: string }[] }, { data: [] as { patient_id: string; status: string }[] }];
 
   const grantByPatientId = new Map((grants ?? []).map((g) => [g.patient_id, g.status]));
-  // A patient with no grant row at all -- never requested, so this
-  // therapist has likely never looked at their Health Profile. Surfaced
-  // as a "New" tag and sorted to the top instead of requiring the
-  // therapist to think to go check every new assignment themselves.
+  // "New" (sort-to-top + count banner) clears only once admin actually
+  // approves the access request -- a merely-requested grant still means
+  // this therapist can't edit anything yet, so it still needs admin
+  // attention, not just the therapist's own. The per-row badge below
+  // still shows "Access requested" etc. for any existing grant regardless
+  // of this -- this only governs which patients count as still-new.
+  const approvedPatientIds = new Set(
+    (grants ?? []).filter((g) => g.status === "approved").map((g) => g.patient_id)
+  );
   const sortedPatients = [...(patients ?? [])].sort((a, b) => {
-    const aNew = !grantByPatientId.has(a.id);
-    const bNew = !grantByPatientId.has(b.id);
+    const aNew = !approvedPatientIds.has(a.id);
+    const bNew = !approvedPatientIds.has(b.id);
     if (aNew === bNew) return a.full_name.localeCompare(b.full_name);
     return aNew ? -1 : 1;
   });
-  const newPatientCount = sortedPatients.filter((p) => !grantByPatientId.has(p.id)).length;
+  const newPatientCount = sortedPatients.filter((p) => !approvedPatientIds.has(p.id)).length;
   const adminSettings = parseAdminSettings(settingsRow);
 
   const showDebugNav =

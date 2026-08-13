@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: grant } = await admin
     .from("condition_access_grants")
-    .select("id, status")
+    .select("id, status, patient_id, therapist_id")
     .eq("id", grantId)
     .single();
   if (!grant) {
@@ -69,6 +69,24 @@ export async function POST(request: NextRequest) {
       { error: action === "revoke" ? "This grant is no longer approved" : "This request has already been reviewed" },
       { status: 409 }
     );
+  }
+
+  // Write access is exclusive to one therapist per patient at a time --
+  // approving this grant auto-revokes any other therapist's approved
+  // grant for the same patient, instead of leaving two therapists able to
+  // edit the same condition data simultaneously.
+  if (action === "approve") {
+    await admin
+      .from("condition_access_grants")
+      .update({
+        status: "revoked",
+        admin_notes: "Automatically revoked — another therapist's access request for this patient was approved.",
+        decided_by: adminUser.id,
+        decided_at: new Date().toISOString(),
+      })
+      .eq("patient_id", grant.patient_id)
+      .eq("status", "approved")
+      .neq("therapist_id", grant.therapist_id);
   }
 
   return NextResponse.json({ success: true });
