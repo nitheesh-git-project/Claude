@@ -23,6 +23,7 @@ type LatestAssessment = { pain_percent: number; created_at: string };
 export default function BodyMapDiagram({
   latestByKey,
   includedKeys,
+  secondaryByKey,
   selected,
   interactive = false,
   onSelect,
@@ -32,6 +33,11 @@ export default function BodyMapDiagram({
   // set render filled in accent teal regardless of latestByKey -- there's
   // no severity color to show yet in that context, only inclusion.
   includedKeys?: Set<string>;
+  // Comparison mode (PainComparisonView): a second data source (patient's
+  // own self-reported 0-10 per area) drawn as a blue outer ring around the
+  // existing dot, so both datasets are visible on one figure at once
+  // without needing two separate diagrams.
+  secondaryByKey?: Map<string, number>;
   selected?: { region: PainMapRegionKey; side: PainMapSide } | null;
   interactive?: boolean;
   // `rect` is the tapped dot's own on-screen bounding box (from the click
@@ -47,10 +53,11 @@ export default function BodyMapDiagram({
   function renderDot(region: (typeof PAIN_MAP_REGIONS)[number], side: PainMapSide, cx: number, cy: number) {
     const key = `${region.key}:${side}`;
     const latest = latestByKey.get(key);
+    const hasSecondary = secondaryByKey?.has(key);
     const isIncluded = includedKeys?.has(key);
     const isSelected = selected?.region === region.key && selected?.side === side;
     const fill = isIncluded ? "#0d9488" : latest ? PAIN_DOT_COLOR[painBand(latest.pain_percent)] : "none";
-    const clickable = interactive || !!latest;
+    const clickable = interactive || !!latest || hasSecondary;
 
     return (
       <g
@@ -63,8 +70,11 @@ export default function BodyMapDiagram({
         style={clickable ? { cursor: "pointer" } : undefined}
       >
         {isSelected && <circle cx={cx} cy={cy} r={12} fill="none" stroke="#0d9488" strokeWidth={2} />}
+        {hasSecondary && <circle cx={cx} cy={cy} r={11} fill="none" stroke="#2563eb" strokeWidth={2} />}
         <circle cx={cx} cy={cy} r={7} fill={fill} stroke="#64748b" strokeWidth={fill === "none" ? 1.6 : 0} />
-        {clickable && <circle cx={cx} cy={cy} r={13} fill="transparent" />}
+        {/* Larger invisible target than the visible dot -- easier to tap
+            accurately on a small/scaled-down mobile screen. */}
+        {clickable && <circle cx={cx} cy={cy} r={17} fill="transparent" />}
       </g>
     );
   }

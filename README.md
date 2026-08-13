@@ -294,12 +294,52 @@ assigned therapist — only *write* is gated. "Assigned" means the therapist
 has ever had an appointment with the patient, or holds a package's
 `locked_therapist_id`.
 
-A patient's first dashboard visit also shows a one-time, skippable welcome
-modal (`src/components/patient/OnboardingWelcomeModal.tsx`,
-`profiles.onboarding_seen_at`) introducing the dashboard sections. It's
-separate from the persistent "complete your health profile" banner on the
-main patient dashboard, which keeps nudging based on intake status
-regardless of whether the welcome modal was seen or skipped.
+A patient's first dashboard visit also shows a one-time, skippable guided
+spotlight tour (`src/components/patient/OnboardingTour.tsx`,
+`profiles.onboarding_seen_at`) that highlights the actual sidebar nav items
+in sequence. It's separate from the persistent "complete your health
+profile" banner on the main patient dashboard, which keeps nudging based on
+intake status regardless of whether the tour was seen or skipped.
+
+Beyond the core workflow, a few surfaces exist specifically to make the
+data useful once it's collected, not just to collect it:
+
+- **Comparison view** (`PainComparisonView.tsx`) — the patient's
+  self-reported `area_pain` and the therapist's clinical Pain Map overlaid
+  on one figure (fill = clinical finding, blue ring = patient also flagged
+  it), so it's obvious where the two agree or don't. Shown to patient,
+  therapist, and admin.
+- **Point of care** — the therapist's Assigned Sessions cards link straight
+  to that patient's Health Profile, and the Health Profiles list flags
+  patients with no access-grant history yet as "New" so a first-time
+  assignment doesn't go unnoticed.
+- **Admin audit trail** — a direct intake edit (`ConditionDirectEditForm`)
+  also inserts an already-"approved" `condition_change_requests` row, so it
+  shows up in the same Review History as every reviewed submission instead
+  of silently overwriting `data` with no record of the prior value.
+- **List search/filter/sort** (`ConditionsListFilter.tsx`) on the Patient
+  Conditions tab, and an aging flag ("Waiting N days") on a pending request
+  once it's sat for 3+ days.
+- **Patient data export** (`/api/patient/condition-profile/export`) — a
+  JSON download of the patient's own intake, submission history, and Pain
+  Map assessments. Print uses the browser's own print-to-PDF. No deletion
+  path yet — that's a retention-policy decision for the practice, not
+  something to build without that call being made first.
+- Pain Map's popup shows a full per-region history list and a trend
+  sparkline (not just the latest-vs-previous arrow), and who posted the
+  latest entry (therapist or admin).
+- `area_pain` entries can carry an optional free-text note per area (e.g.
+  "started after a fall"), shown alongside the pain score everywhere it's
+  displayed.
+- The admin Patients tab (not Patient Conditions) shows a compact severity
+  signal — self-reported severity and pain-area count — right where admin
+  already manages patients, without a separate trip.
+
+Deliberately not done: a hard gate blocking booking on intake completion
+(a real business-risk decision, not something to make unilaterally — the
+dashboard banner and onboarding tour are the current nudge mechanism), and
+push/email notifications for any of this workflow's state changes (separate
+planned work).
 
 ## Project layout
 

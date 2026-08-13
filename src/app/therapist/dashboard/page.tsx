@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import CompleteSessionButton from "@/components/CompleteSessionButton";
@@ -290,6 +291,14 @@ export default async function TherapistDashboardPage() {
             <p className="text-slate-500">
               {patient?.phone || patient?.email || "No contact on file"}
             </p>
+            {a.patient_id && (
+              <Link
+                href={`/therapist/dashboard/health-profile/${a.patient_id}`}
+                className="inline-block mt-1 text-[11px] font-semibold text-teal-700 hover:text-teal-800"
+              >
+                View Health Profile →
+              </Link>
+            )}
           </div>
           <span
             className={`capitalize font-semibold px-3 py-1 rounded-full ${

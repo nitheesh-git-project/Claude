@@ -39,6 +39,12 @@ export default function AreaPainPicker({
     );
   }
 
+  function updateNote(region: PainMapRegionKey, side: PainMapSide, note: string) {
+    onChange(
+      serializeAreaPain(entries.map((e) => (e.region === region && e.side === side ? { ...e, note } : e)))
+    );
+  }
+
   function remove(region: PainMapRegionKey, side: PainMapSide) {
     onChange(serializeAreaPain(entries.filter((e) => !(e.region === region && e.side === side))));
   }
@@ -56,31 +62,41 @@ export default function AreaPainPicker({
       ) : (
         <div className="mt-4 space-y-3">
           {entries.map((e) => (
-            <div key={`${e.region}:${e.side}`} className="flex items-center gap-3">
-              <span className="w-32 shrink-0 text-xs font-semibold text-slate-700">
-                {regionLabel(e.region)}
-                {e.side !== "na" ? ` (${e.side})` : ""}
-              </span>
+            <div key={`${e.region}:${e.side}`} className="rounded-lg border border-slate-100 p-2.5">
+              <div className="flex items-center gap-3">
+                <span className="w-32 shrink-0 text-xs font-semibold text-slate-700">
+                  {regionLabel(e.region)}
+                  {e.side !== "na" ? ` (${e.side})` : ""}
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={10}
+                  value={e.pain}
+                  disabled={disabled}
+                  onChange={(ev) => updatePain(e.region, e.side, Number(ev.target.value))}
+                  className="flex-1"
+                />
+                <span className="w-8 shrink-0 text-xs font-semibold text-slate-600 text-right">{e.pain}/10</span>
+                {!disabled && (
+                  <button
+                    type="button"
+                    onClick={() => remove(e.region, e.side)}
+                    className="shrink-0 text-xs text-slate-400 hover:text-red-600"
+                    aria-label={`Remove ${regionLabel(e.region)}`}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
               <input
-                type="range"
-                min={0}
-                max={10}
-                value={e.pain}
+                type="text"
+                value={e.note ?? ""}
                 disabled={disabled}
-                onChange={(ev) => updatePain(e.region, e.side, Number(ev.target.value))}
-                className="flex-1"
+                onChange={(ev) => updateNote(e.region, e.side, ev.target.value)}
+                placeholder="Add a note (optional) — e.g. started after a fall"
+                className="mt-2 w-full p-1.5 rounded-md border border-slate-200 text-xs disabled:bg-slate-50"
               />
-              <span className="w-8 shrink-0 text-xs font-semibold text-slate-600 text-right">{e.pain}/10</span>
-              {!disabled && (
-                <button
-                  type="button"
-                  onClick={() => remove(e.region, e.side)}
-                  className="shrink-0 text-xs text-slate-400 hover:text-red-600"
-                  aria-label={`Remove ${regionLabel(e.region)}`}
-                >
-                  ✕
-                </button>
-              )}
             </div>
           ))}
         </div>

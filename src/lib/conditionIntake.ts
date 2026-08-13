@@ -66,7 +66,10 @@ export const CONDITION_STATUS_LABEL: Record<ConditionProfileStatus, string> = {
   active: "Complete",
 };
 
-export type AreaPainEntry = { region: PainMapRegionKey; side: PainMapSide; pain: number };
+// `note` is optional and freeform -- e.g. "started after a fall" -- so the
+// picker isn't just a bare number with no context. Older stored entries
+// from before this field existed simply parse with note undefined.
+export type AreaPainEntry = { region: PainMapRegionKey; side: PainMapSide; pain: number; note?: string };
 
 /** Parses the JSON string stored under the "area_pain" answer key. Never
  *  throws -- a malformed or empty value just reads as no areas picked. */
@@ -75,10 +78,12 @@ export function parseAreaPain(raw: string | undefined | null): AreaPainEntry[] {
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (e): e is AreaPainEntry =>
-        e && typeof e.region === "string" && typeof e.side === "string" && typeof e.pain === "number"
-    );
+    return parsed
+      .filter(
+        (e): e is AreaPainEntry =>
+          e && typeof e.region === "string" && typeof e.side === "string" && typeof e.pain === "number"
+      )
+      .map((e) => (typeof e.note === "string" && e.note.trim() ? e : { ...e, note: undefined }));
   } catch {
     return [];
   }

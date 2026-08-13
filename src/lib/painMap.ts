@@ -290,6 +290,10 @@ export type PainAssessmentRow = {
   side: string;
   pain_percent: number;
   created_at: string;
+  // Optional -- older call sites that only select the four fields above
+  // still satisfy this type; callers that want "who assessed this" (the
+  // popup, the comparison view) select it explicitly.
+  submitted_by_role?: string;
 };
 
 /** Latest row per (region, side), keyed "region:side" — the shape every
@@ -307,6 +311,18 @@ export function latestAssessmentByRegionSide(
     }
   }
   return latest;
+}
+
+/** Every row for one (region, side), newest first -- the popup's "full
+ *  history" list and sparkline both want the same ordering. */
+export function historyForRegionSide(
+  assessments: PainAssessmentRow[],
+  region: string,
+  side: string
+): PainAssessmentRow[] {
+  return assessments
+    .filter((a) => a.region === region && a.side === side)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
 export type PainTrend = "up" | "down" | "flat" | "new";

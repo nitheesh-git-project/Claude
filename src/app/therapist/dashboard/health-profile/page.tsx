@@ -57,6 +57,17 @@ export default async function TherapistHealthProfilesPage() {
       : [{ data: [] as { id: string; full_name: string; email: string }[] }, { data: [] as { patient_id: string; status: string }[] }];
 
   const grantByPatientId = new Map((grants ?? []).map((g) => [g.patient_id, g.status]));
+  // A patient with no grant row at all -- never requested, so this
+  // therapist has likely never looked at their Health Profile. Surfaced
+  // as a "New" tag and sorted to the top instead of requiring the
+  // therapist to think to go check every new assignment themselves.
+  const sortedPatients = [...(patients ?? [])].sort((a, b) => {
+    const aNew = !grantByPatientId.has(a.id);
+    const bNew = !grantByPatientId.has(b.id);
+    if (aNew === bNew) return a.full_name.localeCompare(b.full_name);
+    return aNew ? -1 : 1;
+  });
+  const newPatientCount = sortedPatients.filter((p) => !grantByPatientId.has(p.id)).length;
   const adminSettings = parseAdminSettings(settingsRow);
 
   const showDebugNav =
@@ -80,13 +91,19 @@ export default async function TherapistHealthProfilesPage() {
       headerSubtitle="View your patients' condition history, and request access to fill it in on their behalf."
     >
       <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        {(patients ?? []).length === 0 ? (
+        {newPatientCount > 0 && (
+          <p className="mb-4 rounded-lg bg-teal-50 border border-teal-200 px-3 py-2 text-xs font-semibold text-teal-800">
+            {newPatientCount} new patient{newPatientCount > 1 ? "s" : ""} — you haven&apos;t looked at their Health
+            Profile yet.
+          </p>
+        )}
+        {sortedPatients.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">
             You don&apos;t have any assigned patients yet.
           </p>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {(patients ?? []).map((p) => {
+            {sortedPatients.map((p) => {
               const grantStatus = grantByPatientId.get(p.id);
               return (
                 <li key={p.id}>
@@ -98,11 +115,15 @@ export default async function TherapistHealthProfilesPage() {
                       <p className="text-sm font-semibold text-slate-800 truncate">{p.full_name}</p>
                       <p className="text-xs text-slate-400 truncate">{p.email}</p>
                     </div>
-                    {grantStatus && (
+                    {grantStatus ? (
                       <span
                         className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${GRANT_STYLE[grantStatus] ?? GRANT_STYLE.requested}`}
                       >
                         {GRANT_LABEL[grantStatus] ?? grantStatus}
+                      </span>
+                    ) : (
+                      <span className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-teal-100 text-teal-700">
+                        New
                       </span>
                     )}
                   </Link>

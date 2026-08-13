@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConditionIntakeForm from "@/components/profile/ConditionIntakeForm";
 import PainMapView from "@/components/profile/PainMapView";
+import PainComparisonView from "@/components/profile/PainComparisonView";
+import HealthProfileActions from "@/components/profile/HealthProfileActions";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
@@ -10,6 +12,7 @@ import {
   INTAKE_QUESTIONS,
   INTAKE_QUESTIONS_VERSION,
   mergeIntakeQuestionOverrides,
+  parseAreaPain,
   type ConditionProfileStatus,
 } from "@/lib/conditionIntake";
 
@@ -60,7 +63,7 @@ export default async function PatientHealthProfilePage() {
       .maybeSingle(),
     supabase
       .from("pain_assessments")
-      .select("region, side, pain_percent, created_at")
+      .select("region, side, pain_percent, created_at, submitted_by_role")
       .eq("patient_id", user.id),
     supabase
       .from("patient_package_purchases")
@@ -129,6 +132,10 @@ export default async function PatientHealthProfilePage() {
       headerSubtitle="Your condition history and your therapist's pain assessments."
     >
       <div className="max-w-2xl mx-auto space-y-6">
+        <div className="flex justify-end">
+          <HealthProfileActions />
+        </div>
+
         <div className={`rounded-2xl border p-4 text-sm font-semibold ${STATUS_BANNER_STYLE[status]}`}>
           {CONDITION_STATUS_LABEL[status]}
           {isPending && lastRequest?.status === "pending" && (
@@ -169,6 +176,14 @@ export default async function PatientHealthProfilePage() {
             Filled in by your therapist after an exam — you can&apos;t edit this, only view it.
           </p>
           <PainMapView assessments={assessments ?? []} />
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h2 className="font-bold text-lg text-slate-800 mb-1">What You Reported vs What Was Found</h2>
+          <p className="text-xs text-slate-500 mb-4">
+            Your own answers above, alongside your therapist&apos;s exam findings, on one figure.
+          </p>
+          <PainComparisonView assessments={assessments ?? []} areaPain={parseAreaPain(currentData.area_pain)} />
         </div>
       </div>
     </DashboardShell>

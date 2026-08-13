@@ -6,6 +6,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConditionIntakeForm from "@/components/profile/ConditionIntakeForm";
 import PainMapView from "@/components/profile/PainMapView";
 import PainAssessmentForm from "@/components/profile/PainAssessmentForm";
+import PainComparisonView from "@/components/profile/PainComparisonView";
 import RequestConditionAccessButton from "@/components/therapist/RequestConditionAccessButton";
 import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
@@ -67,7 +68,10 @@ export default async function TherapistPatientHealthProfilePage({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase.from("pain_assessments").select("region, side, pain_percent, created_at").eq("patient_id", patientId),
+    supabase
+      .from("pain_assessments")
+      .select("region, side, pain_percent, created_at, submitted_by_role")
+      .eq("patient_id", patientId),
     supabase
       .from("condition_access_grants")
       .select("id, status")
@@ -185,7 +189,8 @@ export default async function TherapistPatientHealthProfilePage({
                         {areas
                           .map((a) => {
                             const label = PAIN_MAP_REGIONS.find((r) => r.key === a.region)?.label ?? a.region;
-                            return `${label}${a.side !== "na" ? ` (${a.side})` : ""}: ${a.pain}/10`;
+                            const base = `${label}${a.side !== "na" ? ` (${a.side})` : ""}: ${a.pain}/10`;
+                            return a.note ? `${base} — "${a.note}"` : base;
                           })
                           .join(" · ")}
                       </p>
@@ -198,6 +203,14 @@ export default async function TherapistPatientHealthProfilePage({
               )}
             </div>
           )}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h2 className="font-bold text-lg text-slate-800 mb-1">Patient vs Therapist</h2>
+          <p className="text-xs text-slate-500 mb-4">
+            What the patient reported themselves against what you found on exam, on one figure.
+          </p>
+          <PainComparisonView assessments={assessments ?? []} areaPain={parseAreaPain(currentData.area_pain)} />
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

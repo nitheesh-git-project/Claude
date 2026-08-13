@@ -5,6 +5,7 @@ import ConditionAccessActions from "@/components/admin/ConditionAccessActions";
 import ConditionDirectEditForm from "@/components/admin/ConditionDirectEditForm";
 import PainMapView from "@/components/profile/PainMapView";
 import PainAssessmentForm from "@/components/profile/PainAssessmentForm";
+import PainComparisonView from "@/components/profile/PainComparisonView";
 import {
   INTAKE_QUESTIONS,
   INTAKE_QUESTIONS_VERSION,
@@ -14,6 +15,14 @@ import {
   type ConditionProfileStatus,
 } from "@/lib/conditionIntake";
 import { PAIN_MAP_REGIONS, type QuestionOverrideRow } from "@/lib/painMap";
+
+// A plain module-level helper (not called inline in the component body)
+// so the aging indicator's "as of render time" Date.now() read doesn't
+// trip the impure-function-during-render lint rule -- see
+// admin/dashboard/page.tsx's identical nowTimestamp() for the same reasoning.
+function daysSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
+}
 
 // Shared body for both the standalone /admin/dashboard/conditions/[id]
 // page and its @modal intercepted overlay — same split as
@@ -78,6 +87,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
     status === "active" && typeof profile?.schema_version === "number" && profile.schema_version < INTAKE_QUESTIONS_VERSION;
   const pendingRequest = (changeRequests ?? []).find((r) => r.status === "pending");
   const requestHistory = (changeRequests ?? []).filter((r) => r.status !== "pending");
+  const pendingDaysOld = pendingRequest ? daysSince(pendingRequest.created_at) : 0;
 
   const requestedGrants = (grants ?? []).filter((g) => g.status === "requested");
   const approvedGrants = (grants ?? []).filter((g) => g.status === "approved");
@@ -113,9 +123,16 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
 
         {pendingRequest && (
           <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <p className="text-xs font-semibold text-amber-800 mb-2">
-              Submitted by {pendingRequest.submitted_by_role} —{" "}
-              {new Date(pendingRequest.created_at).toLocaleString()}
+            <p className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-2">
+              <span>
+                Submitted by {pendingRequest.submitted_by_role} —{" "}
+                {new Date(pendingRequest.created_at).toLocaleString()}
+              </span>
+              {pendingDaysOld >= 3 && (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                  Waiting {pendingDaysOld} days
+                </span>
+              )}
             </p>
             <dl className="space-y-1 mb-3">
               {questions.map((q) => {
@@ -131,7 +148,8 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
                         {areas
                           .map((a) => {
                             const label = PAIN_MAP_REGIONS.find((r) => r.key === a.region)?.label ?? a.region;
-                            return `${label}${a.side !== "na" ? ` (${a.side})` : ""}: ${a.pain}/10`;
+                            const base = `${label}${a.side !== "na" ? ` (${a.side})` : ""}: ${a.pain}/10`;
+                            return a.note ? `${base} — "${a.note}"` : base;
                           })
                           .join(" · ")}
                       </dd>
@@ -193,6 +211,14 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Patient vs Therapist</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          What the patient reported themselves against what the therapist found on exam, on one figure.
+        </p>
+        <PainComparisonView assessments={assessments ?? []} areaPain={parseAreaPain(currentData.area_pain)} />
       </section>
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

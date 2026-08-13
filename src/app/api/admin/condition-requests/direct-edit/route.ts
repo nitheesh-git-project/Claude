@@ -49,5 +49,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Direct edits skip the review queue, but not the audit trail -- insert
+  // an already-"approved" condition_change_requests row so this edit
+  // still shows up in the same Review history list as every reviewed
+  // submission, instead of silently overwriting `data` with no record of
+  // what it was before or who changed it.
+  await admin.from("condition_change_requests").insert({
+    patient_id: patientId,
+    submitted_by: adminUser.id,
+    submitted_by_role: "admin",
+    proposed_data: answers,
+    status: "approved",
+    admin_notes: "Direct edit by admin.",
+    reviewed_by: adminUser.id,
+    reviewed_at: new Date().toISOString(),
+  });
+
   return NextResponse.json({ success: true });
 }

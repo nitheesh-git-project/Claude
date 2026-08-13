@@ -20,9 +20,37 @@ const PAIN_BAND_STYLE: Record<string, string> = {
   high: "bg-red-100 text-red-700",
 };
 
-const POPUP_WIDTH = 224; // matches w-56
+const POPUP_WIDTH = 256; // matches w-64
 const POPUP_HALF = POPUP_WIDTH / 2;
 const POPUP_MARGIN = 8;
+
+const SUBMITTER_LABEL: Record<string, string> = {
+  therapist: "your therapist",
+  admin: "an admin",
+};
+
+// Tiny trend sparkline across every assessment on record for one region,
+// oldest to newest -- the up/down arrow next to the latest number only
+// tells you the last move, not the shape of the whole trend.
+function Sparkline({ history }: { history: PainAssessmentRow[] }) {
+  const chronological = [...history].reverse();
+  const width = 200;
+  const height = 32;
+  const points = chronological.map((a, i) => {
+    const x = chronological.length > 1 ? (i / (chronological.length - 1)) * width : width / 2;
+    const y = height - (a.pain_percent / 100) * height;
+    return `${x},${y}`;
+  });
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-8 mt-1">
+      <polyline points={points.join(" ")} fill="none" stroke="#0d9488" strokeWidth={2} />
+      {chronological.map((a, i) => {
+        const [x, y] = points[i].split(",").map(Number);
+        return <circle key={a.created_at} cx={x} cy={y} r={2.5} fill="#0d9488" />;
+      })}
+    </svg>
+  );
+}
 
 type Selection = { region: PainMapRegionKey; side: PainMapSide; left: number; top: number };
 
@@ -84,7 +112,7 @@ export default function PainMapView({ assessments }: { assessments: PainAssessme
         {selection && selectedRegionDef && (
           <div
             ref={popupRef}
-            className="absolute z-10 w-56 -translate-x-1/2 -translate-y-[calc(100%+12px)] rounded-xl border border-slate-200 bg-white p-3 shadow-lg"
+            className="absolute z-10 w-64 -translate-x-1/2 -translate-y-[calc(100%+12px)] rounded-xl border border-slate-200 bg-white p-3 shadow-lg"
             style={{ left: selection.left, top: selection.top }}
           >
             <div className="flex items-start justify-between gap-2">
@@ -116,8 +144,27 @@ export default function PainMapView({ assessments }: { assessments: PainAssessme
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
                   Last assessed {new Date(selectedLatest.created_at).toLocaleString()}
-                  {selectedHistory.length > 1 && ` · ${selectedHistory.length} assessments on record`}
+                  {selectedLatest.submitted_by_role &&
+                    ` by ${SUBMITTER_LABEL[selectedLatest.submitted_by_role] ?? selectedLatest.submitted_by_role}`}
                 </p>
+                {selectedHistory.length > 1 && (
+                  <>
+                    <Sparkline history={selectedHistory} />
+                    <details className="mt-1">
+                      <summary className="text-[11px] font-semibold text-teal-700 cursor-pointer">
+                        {selectedHistory.length} assessments on record
+                      </summary>
+                      <ul className="mt-1.5 space-y-1 max-h-32 overflow-y-auto">
+                        {selectedHistory.map((a) => (
+                          <li key={a.created_at} className="text-[11px] text-slate-500 flex justify-between gap-2">
+                            <span>{new Date(a.created_at).toLocaleDateString()}</span>
+                            <span className="font-semibold text-slate-600">{a.pain_percent}%</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  </>
+                )}
               </>
             ) : (
               <p className="text-xs text-slate-500 mt-1">Not assessed yet.</p>

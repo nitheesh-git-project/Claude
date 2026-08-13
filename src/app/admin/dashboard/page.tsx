@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
@@ -30,6 +29,8 @@ import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
 import AdminSessionStoryTab from "@/components/admin/AdminSessionStoryTab";
 import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
+import ConditionsListFilter from "@/components/admin/ConditionsListFilter";
+import { parseAreaPain } from "@/lib/conditionIntake";
 import AdminFeatureControlTab from "@/components/admin/AdminFeatureControlTab";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -324,7 +325,7 @@ export default async function AdminDashboardPage() {
     // same isolation reasoning as therapist_payout_requests above: an
     // unknown-table error here only empties the Patient Conditions tab and
     // its badge, not the rest of the dashboard.
-    admin.from("patient_condition_profiles").select("patient_id, status, updated_at"),
+    admin.from("patient_condition_profiles").select("patient_id, status, updated_at, data"),
     admin
       .from("condition_change_requests")
       .select("id", { count: "exact", head: true })
@@ -994,6 +995,21 @@ export default async function AdminDashboardPage() {
     </>
   );
 
+  // Severity signal for the Patients tab -- surfacing what the patient
+  // self-reported right where admin already manages patients, rather than
+  // requiring a separate trip to Patient Conditions to see it. Not a
+  // recommendation engine (that's a bigger product decision on its own) --
+  // just visibility of the existing signal at the point admin is already
+  // looking.
+  const conditionSignalByPatientId = new Map(
+    (conditionProfiles ?? []).map((c) => {
+      const data = (c.data ?? {}) as Record<string, string>;
+      const severity = data.severity ? Number(data.severity) : null;
+      const areaCount = parseAreaPain(data.area_pain).length;
+      return [c.patient_id, { severity, areaCount }];
+    })
+  );
+
   const patientsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-bold text-lg text-slate-800 mb-4">
@@ -1009,16 +1025,28 @@ export default async function AdminDashboardPage() {
       ) : (
         <AdminPeopleDirectory
           basePath="/admin/dashboard/patients"
-          people={patients.map((p) => ({
-            id: p.id,
-            full_name: p.full_name,
-            subtitle: p.email,
-            avatar_url: p.avatar_url,
-            active: p.active,
-            approved: p.approved,
-            created_at: p.created_at,
-            code: roleCodeMap.get(p.id)?.patient_code ?? null,
-          }))}
+          people={patients.map((p) => {
+            const signal = conditionSignalByPatientId.get(p.id);
+            const signalText =
+              signal && (signal.severity != null || signal.areaCount > 0)
+                ? [
+                    signal.severity != null ? `Severity ${signal.severity}/10` : null,
+                    signal.areaCount > 0 ? `${signal.areaCount} pain area${signal.areaCount > 1 ? "s" : ""}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                : null;
+            return {
+              id: p.id,
+              full_name: p.full_name,
+              subtitle: signalText ? `${p.email} · ${signalText}` : p.email,
+              avatar_url: p.avatar_url,
+              active: p.active,
+              approved: p.approved,
+              created_at: p.created_at,
+              code: roleCodeMap.get(p.id)?.patient_code ?? null,
+            };
+          })}
         />
       )}
     </div>
@@ -1027,19 +1055,10 @@ export default async function AdminDashboardPage() {
   const conditionStatusByPatientId = new Map(
     (conditionProfiles ?? []).map((c) => [c.patient_id, c.status as string])
   );
+  const conditionUpdatedAtByPatientId = new Map(
+    (conditionProfiles ?? []).map((c) => [c.patient_id, c.updated_at as string])
+  );
   const conditionsBadgeCount = (conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0);
-  const CONDITION_STATUS_STYLE: Record<string, string> = {
-    not_started: "bg-slate-100 text-slate-500",
-    draft: "bg-slate-100 text-slate-500",
-    pending_review: "bg-amber-100 text-amber-700",
-    active: "bg-emerald-100 text-emerald-700",
-  };
-  const CONDITION_STATUS_LABEL: Record<string, string> = {
-    not_started: "Not started",
-    draft: "Draft",
-    pending_review: "Pending review",
-    active: "Complete",
-  };
 
   const conditionsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -1066,29 +1085,15 @@ export default async function AdminDashboardPage() {
       {patients.length === 0 ? (
         <p className="text-xs text-slate-500 py-4 text-center">No patients have signed up yet.</p>
       ) : (
-        <ul className="divide-y divide-slate-100">
-          {patients.map((p) => {
-            const status = conditionStatusByPatientId.get(p.id) ?? "not_started";
-            return (
-              <li key={p.id}>
-                <Link
-                  href={`/admin/dashboard/conditions/${p.id}`}
-                  className="flex items-center justify-between gap-3 py-3 hover:bg-slate-50 -mx-2 px-2 rounded-lg transition"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{p.full_name}</p>
-                    <p className="text-xs text-slate-400 truncate">{p.email}</p>
-                  </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${CONDITION_STATUS_STYLE[status] ?? CONDITION_STATUS_STYLE.not_started}`}
-                  >
-                    {CONDITION_STATUS_LABEL[status] ?? "Not started"}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <ConditionsListFilter
+          rows={patients.map((p) => ({
+            id: p.id,
+            full_name: p.full_name,
+            email: p.email,
+            status: conditionStatusByPatientId.get(p.id) ?? "not_started",
+            updatedAt: conditionUpdatedAtByPatientId.get(p.id) ?? null,
+          }))}
+        />
       )}
     </div>
   );
