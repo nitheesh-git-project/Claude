@@ -1,27 +1,28 @@
 "use client";
 
 import type { HomeVisitAddressForm } from "@/lib/homeVisitPayment";
-import AddressMapPicker from "@/components/AddressMapPicker";
 
 function inputCls() {
   return "w-full p-3 rounded-xl border border-slate-300 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100";
 }
 
 /**
- * The address fields for a home visit, plus a map picker for dropping a
- * precise pin.
+ * The address fields for a home visit, plus a placeholder where the map pin
+ * will go.
  *
- * The picker degrades to nothing (see AddressMapPicker) if
- * NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is unset or the script fails to load --
- * the typed fields are always enough on their own to complete a booking.
- * That's why `landmark` sits directly under the street lines rather than
- * hidden in an optional group: with or without a pin, the landmark is what
- * actually gets a therapist to the right gate.
+ * The map is deliberately not built yet: it needs Maps JavaScript + Places
+ * enabled on the Google Cloud project and a referrer-restricted
+ * NEXT_PUBLIC_GOOGLE_MAPS_API_KEY, which is a separate piece of setup. The
+ * schema already carries latitude, longitude and map_place_id on both
+ * patient_addresses and appointments, and every route already accepts and
+ * stores them -- they simply stay null until the picker lands. Dropping a
+ * <AddressMapPicker> in below is therefore a component swap: no migration,
+ * no route change, no change to this component's own contract.
  *
- * Autocomplete selection deliberately does not overwrite `pincode` -- the
- * wizard already collected and serviceability-checked it in an earlier
- * step, and silently replacing it from an autocomplete guess could point a
- * booking at a pincode that was never checked for serviceability.
+ * Until then the typed fields ARE the address, which is why `landmark` sits
+ * directly under the street lines rather than hidden in an optional group:
+ * without a pin, the landmark is the main thing that gets a therapist to
+ * the right gate.
  */
 export default function AddressForm({
   value,
@@ -102,26 +103,20 @@ export default function AddressForm({
         </label>
       </div>
 
-      <AddressMapPicker
-        latitude={value.latitude ?? null}
-        longitude={value.longitude ?? null}
-        onPinChange={(latitude, longitude, mapPlaceId) =>
-          onChange({ ...value, latitude, longitude, mapPlaceId })
-        }
-        onPlaceSelect={(place) =>
-          onChange({
-            ...value,
-            line1: place.line1 || value.line1,
-            city: place.city || value.city,
-            state: place.state || value.state,
-            latitude: place.latitude,
-            longitude: place.longitude,
-            mapPlaceId: place.placeId,
-          })
-        }
-        initialQuery={value.line1}
-        disabled={disabled}
-      />
+      {/* Placeholder for the Google Maps pin picker. See this file's header
+          comment: the fields above already carry everything a booking needs,
+          so this is additive precision rather than a missing requirement. */}
+      <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center">
+        <i className="fa-solid fa-map-location-dot text-2xl text-slate-300" />
+        <p className="mt-2 text-xs font-semibold text-slate-600">
+          Map pin coming soon
+        </p>
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+          Soon you&apos;ll be able to drop a pin on the exact spot. For now, the
+          landmark above is what your therapist will navigate by — please make
+          it as specific as you can.
+        </p>
+      </div>
 
       <label className="block">
         <span className="text-xs font-semibold text-slate-700">

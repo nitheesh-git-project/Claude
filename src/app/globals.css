@@ -52,13 +52,3 @@ h6 {
 .font-display {
   font-family: var(--font-display);
 }
-
-/* Google renders the Places Autocomplete suggestion list (AddressMapPicker)
-   in a portal appended to <body>, outside any component's own stacking
-   context -- it otherwise renders behind modals (the booking wizard, the
-   highest z-index elsewhere in the app is ConfirmDialog's z-50) and in
-   Google's own default font instead of this app's. */
-.pac-container {
-  z-index: 9999;
-  font-family: var(--font-sans);
-}

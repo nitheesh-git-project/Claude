@@ -65,7 +65,6 @@ Copy `.env.example` to `.env.local` and fill in:
 | `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` | OAuth2 Web application credentials from Google Cloud Console |
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer |
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Places autocomplete + map pin on the home-visit address form. Browser-exposed by nature (like the Razorpay Key ID); restrict it to your domain(s) via HTTP referrer restrictions in Google Cloud Console — see `.env.example`'s comment for the enable/restrict steps |
 | `SUPABASE_ACCESS_TOKEN` | Optional. A Supabase Personal Access Token (Account → Access Tokens on supabase.com, **not** the service role key or DB password), only needed to run `node scripts/run-schema.mjs` |
 
 Use Razorpay Test Mode keys (`rzp_test_…`) until the payment flow has been
@@ -236,16 +235,14 @@ only appear once a patient actually has that kind of session.
   1-visit package, so there are exactly three purchasable products, not
   four.
 - *Address.* `patient_addresses` is the patient's reusable address book
-  (label, lines, landmark, pincode, map pin, contact phone, access notes);
-  every booked visit snapshots its own copy onto the appointment
+  (label, lines, landmark, pincode, optional map pin, contact phone, access
+  notes); every booked visit snapshots its own copy onto the appointment
   (`visit_address_*` columns) so a later edit to a saved address never
-  rewrites where a past visit was actually delivered. The address form
-  (both the booking wizard and the patient's My Addresses page) offers a
-  `AddressMapPicker` — India-restricted Google Places autocomplete plus a
-  draggable pin — backed by `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`. It's a
-  progressive enhancement: the typed fields above it are always enough on
-  their own, and the picker silently doesn't render if the key is unset or
-  the Maps script fails to load, so a Maps outage never blocks a booking.
+  rewrites where a past visit was actually delivered. The map picker
+  (Google Places autocomplete + draggable pin) was deferred — the address
+  step ships with typed fields today, and `latitude`/`longitude`/
+  `map_place_id` simply stay null until it lands, with no migration needed
+  when it does.
 - *Payment.* Prepaid via Razorpay (`/api/home-visit/create-order` +
   `/api/home-visit/verify`, mirroring the online package flow) or cash
   collected at the door (`/api/home-visit/book-cash` — books immediately,
