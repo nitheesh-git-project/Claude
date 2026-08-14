@@ -34,6 +34,15 @@ export type HomeVisitRow = {
   visit_contact_phone: string | null;
   visit_access_notes: string | null;
   cash_collected_at: string | null;
+  // Read by HomeVisitCashLedger, not by this component -- carried on the
+  // same row rather than a second fetch, since AdminHomeVisitsTab already
+  // has this exact query loaded for the queue above.
+  cash_collected_amount_paise: number | null;
+  cash_remitted_at: string | null;
+  payment_method: string | null;
+  home_visit_purchase_id: string | null;
+  refund_status: string | null;
+  refund_amount_paise: number | null;
   patientName: string;
   patientCode: string | null;
   therapistName: string | null;

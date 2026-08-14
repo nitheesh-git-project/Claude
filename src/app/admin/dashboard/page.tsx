@@ -123,6 +123,7 @@ export default async function AdminDashboardPage() {
     { data: homeVisitWaitlist },
     { data: homeVisitAreaUsage },
     { data: homeVisitAppointments },
+    { data: homeVisitShareRows },
   ] = await Promise.all([
     // Both self-serve roles wait on admin approval, so this one query feeds
     // the single "Pending Approvals" list -- therapist applications and
@@ -375,10 +376,16 @@ export default async function AdminDashboardPage() {
     admin
       .from("appointments")
       .select(
-        "id, session_code, slot_time, timezone, concern, status, duration_minutes, patient_id, therapist_id, payment_status, amount_paid_paise, travel_fee_paise, no_show, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_contact_phone, visit_access_notes, cash_collected_at"
+        "id, session_code, slot_time, timezone, concern, status, duration_minutes, patient_id, therapist_id, payment_status, amount_paid_paise, travel_fee_paise, no_show, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_contact_phone, visit_access_notes, cash_collected_at, cash_collected_amount_paise, cash_remitted_at, payment_method, home_visit_purchase_id, refund_status, refund_amount_paise"
       )
       .eq("visit_mode", "home_visit")
       .order("slot_time", { ascending: true }),
+
+    // The Payouts tab needs each therapist's home-visit-specific rate. Its
+    // own isolated query, same reasoning as roleCodeRows -- this column
+    // postdates the big shared profiles select, and an unknown-column error
+    // there would blank the whole page, not just this one figure.
+    admin.from("profiles").select("id, home_visit_revenue_share_percent").eq("role", "therapist"),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -1324,14 +1331,41 @@ export default async function AdminDashboardPage() {
     </>
   );
 
+  // Enriches the page's main appointments array with the home-visit columns
+  // needed for correct payout math (visit_mode, travel_fee_paise, and the
+  // cash collection/remittance pair the net-off reads). Left-joined via a
+  // map rather than adding these columns to the shared select above -- that
+  // select feeds Overview/Calendar/Session Story/Metrics too, so an
+  // unknown-column error there would blank all of those, not just Payouts.
+  const homeVisitPayoutDetailById = new Map(
+    (homeVisitAppointments ?? []).map((v) => [
+      v.id,
+      {
+        visit_mode: "home_visit" as const,
+        travel_fee_paise: v.travel_fee_paise,
+        cash_collected_at: v.cash_collected_at,
+        cash_collected_amount_paise: v.cash_collected_amount_paise,
+        cash_remitted_at: v.cash_remitted_at,
+      },
+    ])
+  );
+  const appointmentsForPayouts = (appointments ?? []).map((a) => ({
+    ...a,
+    ...(homeVisitPayoutDetailById.get(a.id) ?? { visit_mode: "online" as const }),
+  }));
+  const homeVisitShareById = new Map(
+    (homeVisitShareRows ?? []).map((r) => [r.id, r.home_visit_revenue_share_percent])
+  );
+
   const payoutsTab = (
     <AdminPayoutsTab
       therapists={allTherapists.map((t) => ({
         id: t.id,
         full_name: t.full_name,
         revenue_share_percent: t.revenue_share_percent,
+        home_visit_revenue_share_percent: homeVisitShareById.get(t.id) ?? null,
       }))}
-      appointments={appointments ?? []}
+      appointments={appointmentsForPayouts}
       patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
       categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
       nowMs={nowTimestamp()}
@@ -1345,8 +1379,9 @@ export default async function AdminDashboardPage() {
         ? computeTherapistPayoutSummary(
             r.therapist_id,
             therapist?.revenue_share_percent ?? null,
-            (appointments ?? []).filter((a) => a.therapist_id === r.therapist_id),
-            nowTimestamp()
+            appointmentsForPayouts.filter((a) => a.therapist_id === r.therapist_id),
+            nowTimestamp(),
+            homeVisitShareById.get(r.therapist_id) ?? null
           ).owedPaise
         : 0;
     return {
@@ -1479,6 +1514,7 @@ export default async function AdminDashboardPage() {
       waitlist={homeVisitWaitlist ?? []}
       categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
       settings={adminSettings}
+      nowMs={nowTimestamp()}
     />
   );
 

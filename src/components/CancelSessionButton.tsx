@@ -9,10 +9,17 @@ export default function CancelSessionButton({
   appointmentId,
   paid,
   slotTime,
+  refundWindowHours = CANCELLATION_FULL_REFUND_HOURS,
 }: {
   appointmentId: string;
   paid: boolean;
   slotTime: string | null;
+  // Home visits use their own, admin-configurable window
+  // (home_visit_cancellation_refund_hours) instead of the fixed online one
+  // -- passed in by the caller so this dialog's "will this be refunded?"
+  // warning agrees with what the server will actually decide, rather than
+  // hardcoding the online number for every session.
+  refundWindowHours?: number;
 }) {
   // The parent only renders this button for requested/confirmed sessions,
   // so a real success unmounts it via router.refresh() before this
@@ -28,10 +35,10 @@ export default function CancelSessionButton({
     const hoursUntilSlot = slotTime
       ? (new Date(slotTime).getTime() - Date.now()) / (1000 * 60 * 60)
       : null;
-    const isLate = hoursUntilSlot !== null && hoursUntilSlot < CANCELLATION_FULL_REFUND_HOURS;
+    const isLate = hoursUntilSlot !== null && hoursUntilSlot < refundWindowHours;
     const reason = await prompt(
       paid && isLate
-        ? `Cancel this session? It's within ${CANCELLATION_FULL_REFUND_HOURS} hours of your slot, so this won't be refunded. You can add a reason (optional):`
+        ? `Cancel this session? It's within ${refundWindowHours} hours of your slot, so this won't be refunded. You can add a reason (optional):`
         : paid
         ? "Cancel this session and refund the payment? You can add a reason (optional):"
         : "Cancel this session? You can add a reason (optional):"

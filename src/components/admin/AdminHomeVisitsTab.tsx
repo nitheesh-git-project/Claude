@@ -10,11 +10,12 @@ import HomeVisitAreaManager, {
 } from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
 import HomeVisitQueue, { type HomeVisitRow } from "@/components/admin/HomeVisitQueue";
+import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 
-// Programmes and Cash Ledger join this union in Phases 6 and 5 -- the shell
-// is deliberately the same one AdminSessionManagerTab uses so adding them is
-// a switch case, not a rewrite.
-type SubTab = "visits" | "catalog" | "areas" | "settings";
+// Programmes joins this union in Phase 6 -- the shell is deliberately the
+// same one AdminSessionManagerTab uses so adding it is a switch case, not a
+// rewrite.
+type SubTab = "visits" | "catalog" | "areas" | "cashLedger" | "settings";
 
 export default function AdminHomeVisitsTab({
   visits,
@@ -24,6 +25,7 @@ export default function AdminHomeVisitsTab({
   waitlist,
   categories,
   settings,
+  nowMs,
 }: {
   visits: HomeVisitRow[];
   therapists: { id: string; full_name: string }[];
@@ -32,6 +34,7 @@ export default function AdminHomeVisitsTab({
   waitlist: WaitlistRow[];
   categories: { id: string; title: string }[];
   settings: AdminSettings;
+  nowMs: number;
 }) {
   // Visits first: once the service is live this is the tab an admin opens
   // to do today's work, and the catalogue is set up once and rarely touched.
@@ -42,6 +45,10 @@ export default function AdminHomeVisitsTab({
   const newRequests = waitlist.filter((w) => w.status === "new").length;
   const cities = new Set(areas.filter((a) => a.active).map((a) => a.city.toLowerCase())).size;
   const unassigned = visits.filter((v) => !v.therapist_id && v.status !== "cancelled").length;
+  const cashHeldPaise = visits
+    .filter((v) => v.cash_collected_at && !v.cash_remitted_at)
+    .reduce((sum, v) => sum + (v.cash_collected_amount_paise ?? 0), 0);
+  const manualRefundsOwed = visits.filter((v) => v.refund_status === "manual_pending").length;
 
   return (
     <div className="space-y-6">
@@ -60,7 +67,7 @@ export default function AdminHomeVisitsTab({
         </p>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
         <StatCard
           label="Needs a Therapist"
           value={String(unassigned)}
@@ -74,6 +81,11 @@ export default function AdminHomeVisitsTab({
           value={String(newRequests)}
           tone={newRequests > 0 ? "text-amber-700" : undefined}
         />
+        <StatCard
+          label="Cash Held"
+          value={`₹${(cashHeldPaise / 100).toLocaleString("en-IN")}`}
+          tone={cashHeldPaise > 0 ? "text-amber-700" : undefined}
+        />
       </div>
 
       <div className="flex gap-2 border-b border-slate-200">
@@ -82,6 +94,7 @@ export default function AdminHomeVisitsTab({
             { key: "visits", label: "Visits" },
             { key: "catalog", label: "Catalog" },
             { key: "areas", label: "Service Areas" },
+            { key: "cashLedger", label: "Cash Ledger", badge: manualRefundsOwed },
             { key: "settings", label: "Settings" },
           ] as const
         ).map((t) => (
@@ -95,6 +108,11 @@ export default function AdminHomeVisitsTab({
             }`}
           >
             {t.label}
+            {"badge" in t && t.badge > 0 && (
+              <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
+                {t.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -119,6 +137,12 @@ export default function AdminHomeVisitsTab({
       {subTab === "areas" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <HomeVisitAreaManager areas={areas} waitlist={waitlist} />
+        </div>
+      )}
+
+      {subTab === "cashLedger" && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <HomeVisitCashLedger visits={visits} nowMs={nowMs} />
         </div>
       )}
 

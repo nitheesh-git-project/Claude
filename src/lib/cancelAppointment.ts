@@ -2,6 +2,7 @@ import Razorpay from "razorpay";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { deleteMeetEventForAppointment } from "@/lib/googleCalendarSync";
+import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 
 type CancelResult =
   | { error: string; status: number; payoutSettled?: boolean }
@@ -39,7 +40,7 @@ export async function cancelAppointmentAndRefund(
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "id, status, slot_time, payment_status, amount_paid_paise, razorpay_payment_id, therapist_payout_paid_at, package_purchase_id, google_event_id"
+      "id, status, slot_time, payment_status, amount_paid_paise, razorpay_payment_id, therapist_payout_paid_at, package_purchase_id, google_event_id, visit_mode, home_visit_purchase_id, payment_method, cash_collected_at, cash_collected_amount_paise"
     )
     .eq("id", appointmentId)
     .single();
@@ -73,19 +74,61 @@ export async function cancelAppointmentAndRefund(
   const isDirectPayment = appointment.payment_status === "paid" && !!appointment.razorpay_payment_id;
   const isPackagePayment = appointment.payment_status === "paid" && !!appointment.package_purchase_id;
 
+  // Home visits, both payment modes. A prepaid home visit is paid on the
+  // *purchase* (like a package), never on the appointment itself, so it can
+  // never be isDirectPayment. A cash-on-visit appointment is purchase-backed
+  // too, and legitimately sits at payment_status 'unpaid' until the
+  // therapist actually collects -- see bookHomeVisitSession's own comment.
+  const isHomeVisit = appointment.visit_mode === "home_visit";
+  const isHomeVisitPurchaseBacked = isHomeVisit && !!appointment.home_visit_purchase_id;
+  const isPrepaidHomeVisit = isHomeVisit && appointment.payment_status === "paid";
+  const isCashHomeVisit = isHomeVisit && appointment.payment_method === "cash";
+  const cashAlreadyCollected = isCashHomeVisit && !!appointment.cash_collected_at;
+
+  // Home visits use their own, admin-configurable refund window rather than
+  // the fixed online CANCELLATION_FULL_REFUND_HOURS -- a therapist has to
+  // physically travel, so the business may reasonably want a longer notice
+  // period than a video call needs.
+  let refundWindowHours = CANCELLATION_FULL_REFUND_HOURS;
+  if (isHomeVisit) {
+    const { data: hvSettings } = await admin
+      .from("site_settings")
+      .select("home_visit_cancellation_refund_hours")
+      .maybeSingle();
+    refundWindowHours =
+      hvSettings?.home_visit_cancellation_refund_hours ??
+      DEFAULT_ADMIN_SETTINGS.homeVisitCancellationRefundHours;
+  }
+
   // Missing slot_time shouldn't happen for a real, paid booking, but if it
   // ever does there's no way to judge lateness — don't penalize for a data
   // gap that isn't the patient's fault.
   const hoursUntilSlot = appointment.slot_time
     ? (new Date(appointment.slot_time).getTime() - Date.now()) / (1000 * 60 * 60)
     : null;
+  // Home-visit purchase-backed appointments are late-checked regardless of
+  // payment mode: the operational problem ("the therapist's slot is
+  // essentially unfillable") is about the slot being claimed, not about
+  // whether money has changed hands yet.
   const isLateCancellation =
-    (isDirectPayment || isPackagePayment) &&
+    (isDirectPayment || isPackagePayment || isHomeVisitPurchaseBacked) &&
     hoursUntilSlot !== null &&
-    hoursUntilSlot < CANCELLATION_FULL_REFUND_HOURS;
+    hoursUntilSlot < refundWindowHours;
 
   const willRefund = isDirectPayment && !isLateCancellation;
   const willRestorePackageSession = isPackagePayment && !isLateCancellation;
+  // Covers both payment modes: a prepaid visit gives its slot back to the
+  // purchase balance (no money moves, same as a package session), and a
+  // cash visit gives its slot back regardless of whether cash was ever
+  // collected -- the counter tracks claimed visits, not paid ones.
+  const willRestoreHomeVisit = isHomeVisitPurchaseBacked && !isLateCancellation;
+  // Cash has no Razorpay payment to reverse. If it was already collected
+  // and the cancellation isn't late, the business owes that cash back --
+  // flagged for a human to actually hand over, via refund_status
+  // 'manual_pending' surfaced on the admin Cash Ledger. Without this a
+  // cancelled cash booking with money already collected would silently
+  // strand: no refund record, no reminder, no trace.
+  const willRefundCashManually = cashAlreadyCollected && !isLateCancellation;
 
   // Atomically claim the cancellation — only succeeds if the appointment is
   // still in an upcoming state. Closes the race where two concurrent cancel
@@ -149,6 +192,32 @@ export async function cancelAppointmentAndRefund(
     }
   }
 
+  // The home-visit twin of the package restore above, against its own
+  // purchases table. Same best-effort CAS reasoning: a losing race against
+  // another cancellation on the same purchase just doesn't restore, rather
+  // than risking a double-restore.
+  if (willRestoreHomeVisit && appointment.home_visit_purchase_id) {
+    const { data: purchase } = await admin
+      .from("home_visit_package_purchases")
+      .select("id, visits_used")
+      .eq("id", appointment.home_visit_purchase_id)
+      .single();
+    if (purchase && purchase.visits_used > 0) {
+      const { error: restoreError } = await admin
+        .from("home_visit_package_purchases")
+        .update({ visits_used: purchase.visits_used - 1 })
+        .eq("id", purchase.id)
+        .eq("visits_used", purchase.visits_used);
+      if (restoreError) {
+        console.error(
+          "Failed to restore home visit for appointment",
+          appointmentId,
+          restoreError
+        );
+      }
+    }
+  }
+
   let refundId: string | null = null;
   let refundFailed = false;
 
@@ -171,6 +240,14 @@ export async function cancelAppointmentAndRefund(
     }
   }
 
+  // The isLateCancellation check above was broadened to cover any
+  // home-visit purchase-backed appointment regardless of payment mode, so
+  // it can be true for a cash visit that never collected anything -- that
+  // case has no money to be "not eligible" for, so this final write only
+  // records a forfeiture where money was actually on the line.
+  const isLateWithMoneyAtStake =
+    isLateCancellation && (isDirectPayment || isPackagePayment || isPrepaidHomeVisit || cashAlreadyCollected);
+
   const { error: recordError } = await admin
     .from("appointments")
     .update(
@@ -182,7 +259,12 @@ export async function cancelAppointmentAndRefund(
             refund_status: "processed",
             refund_amount_paise: appointment.amount_paid_paise,
           }
-        : isLateCancellation
+        : willRefundCashManually
+        ? {
+            refund_status: "manual_pending",
+            refund_amount_paise: appointment.cash_collected_amount_paise ?? 0,
+          }
+        : isLateWithMoneyAtStake
         ? { refund_status: "not_eligible", refund_amount_paise: 0 }
         : {}
     )

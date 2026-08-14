@@ -9,7 +9,12 @@ import {
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
 
-type Therapist = { id: string; full_name: string | null; revenue_share_percent: number | null };
+type Therapist = {
+  id: string;
+  full_name: string | null;
+  revenue_share_percent: number | null;
+  home_visit_revenue_share_percent?: number | null;
+};
 type Patient = { id: string; full_name: string | null };
 type Category = { id: string; title: string };
 
@@ -129,16 +134,20 @@ export default function AdminPayoutsTab({
         t.id,
         t.revenue_share_percent,
         theirAppointments,
-        nowMs
+        nowMs,
+        t.home_visit_revenue_share_percent ?? null
       );
       return { therapist: t, summary };
     })
-    // Therapists with money currently owed float to the top -- that's the
-    // whole point of this tab (find who needs paying), not an alphabetical
-    // roster the Therapists tab already covers.
-    .sort((a, b) => b.summary.owedPaise - a.summary.owedPaise);
+    // Therapists who actually need a transfer float to the top -- ranked by
+    // net, not gross, since that's the whole point of this tab (find who
+    // needs paying right now) and a therapist sitting on enough cash to
+    // cover what they're owed doesn't need one.
+    .sort((a, b) => b.summary.netOwedPaise - a.summary.netOwedPaise);
 
   const totalOwedPaise = rows.reduce((sum, r) => sum + r.summary.owedPaise, 0);
+  const totalCashHeldPaise = rows.reduce((sum, r) => sum + r.summary.cashHeldPaise, 0);
+  const totalNetPayablePaise = rows.reduce((sum, r) => sum + r.summary.netOwedPaise, 0);
 
   return (
     <div className="space-y-4">
@@ -146,14 +155,23 @@ export default function AdminPayoutsTab({
         <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
           <h2 className="font-bold text-lg text-slate-800">Therapist Payouts</h2>
           <p className="text-xs text-slate-500">
-            Total currently owed:{" "}
-            <strong className="text-teal-700">{formatInr(totalOwedPaise)}</strong>
+            Owed: <strong className="text-slate-700">{formatInr(totalOwedPaise)}</strong>
+            {totalCashHeldPaise > 0 && (
+              <>
+                {" "}
+                · Cash held: <strong className="text-amber-700">{formatInr(totalCashHeldPaise)}</strong>
+              </>
+            )}
+            {" "}
+            · Net payable: <strong className="text-teal-700">{formatInr(totalNetPayablePaise)}</strong>
           </p>
         </div>
         <p className="text-[11px] text-slate-400 mb-4">
           All-time, not date-filtered — a payout balance can&apos;t depend on which dates happen
           to be in view. Revenue/cut count a session once it&apos;s paid; cut and profit only once
-          it&apos;s completed too, matching how payouts are actually settled.
+          it&apos;s completed too, matching how payouts are actually settled. Net payable is what
+          owed subtracts any cash a therapist is currently holding from home-visit collections —
+          that&apos;s the figure the Pay button actually transfers.
         </p>
 
         <div className="overflow-x-auto">
@@ -203,6 +221,15 @@ export default function AdminPayoutsTab({
                           <span className="font-semibold text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
                             Paid
                           </span>
+                        ) : summary.cashHeldPaise > 0 ? (
+                          <span className="font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full">
+                            {formatInr(summary.netOwedPaise)} net
+                            <span className="font-normal text-amber-600">
+                              {" "}
+                              ({formatInr(summary.owedPaise)} owed − {formatInr(summary.cashHeldPaise)}{" "}
+                              held)
+                            </span>
+                          </span>
                         ) : (
                           <span className="font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full">
                             {formatInr(summary.owedPaise)} owed
@@ -218,7 +245,11 @@ export default function AdminPayoutsTab({
                             Set % first
                           </Link>
                         ) : (
-                          <TherapistPayoutButton therapistId={therapist.id} owedPaise={summary.owedPaise} />
+                          <TherapistPayoutButton
+                            therapistId={therapist.id}
+                            owedPaise={summary.owedPaise}
+                            cashHeldPaise={summary.cashHeldPaise}
+                          />
                         )}
                       </td>
                     </tr>

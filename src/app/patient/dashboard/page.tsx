@@ -499,6 +499,11 @@ export default async function PatientDashboardPage() {
               appointmentId={a.id}
               paid={a.payment_status === "paid"}
               slotTime={a.slot_time}
+              refundWindowHours={
+                visit?.visit_mode === "home_visit"
+                  ? adminSettings.homeVisitCancellationRefundHours
+                  : undefined
+              }
             />
           )}
         </div>

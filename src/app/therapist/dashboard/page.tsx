@@ -30,6 +30,8 @@ import { computeTherapistEarningRows, computeTherapistPendingOwed } from "@/lib/
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
+import CollectCashButton from "@/components/CollectCashButton";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -75,6 +77,7 @@ export default async function TherapistDashboardPage() {
     { data: profile },
     { data: settingsRow },
     { data: therapistCodeRow },
+    { data: homeVisitShareRow },
     { data: onLeaveProfile },
     { data: availabilitySlots },
     { data: rawAppointments },
@@ -103,6 +106,16 @@ export default async function TherapistDashboardPage() {
     // therapist_code is new/migration-dependent -- kept isolated for the
     // same reason as onLeaveProfile below (see its own comment).
     supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
+
+    // home_visit_revenue_share_percent is new/migration-dependent -- kept
+    // isolated for the same reason as therapistCodeRow above. Feeds the
+    // Earnings tab's home-visit-aware payout math; a missing migration just
+    // means home visits fall back to the regular revenue_share_percent.
+    supabase
+      .from("profiles")
+      .select("home_visit_revenue_share_percent")
+      .eq("id", user.id)
+      .maybeSingle(),
 
     // Kept as its own query rather than folded into the profile select
     // above -- on_leave is new and migration-dependent, and that select
@@ -233,8 +246,24 @@ export default async function TherapistDashboardPage() {
   const programmePackageIds = [
     ...new Set((programmePurchases ?? []).map((p) => p.package_id).filter(Boolean)),
   ];
+  // Which home-visit purchases this therapist's own visits reference --
+  // needed only to compute the exact "Collect ₹X" figure on a cash-on-visit
+  // card (per-visit fee derived from the purchase's total, same math
+  // bookHomeVisitSession used when the visit was created).
+  const homeVisitPurchaseIds = [
+    ...new Set(
+      (visitDetailRows ?? [])
+        .map((v) => v.home_visit_purchase_id)
+        .filter((id): id is string => !!id)
+    ),
+  ];
   const admin = createAdminClient();
-  const [{ data: upcomingOverrides }, { data: patients }, { data: programmePackageInfo }] = await Promise.all([
+  const [
+    { data: upcomingOverrides },
+    { data: patients },
+    { data: programmePackageInfo },
+    { data: homeVisitPurchasesForFees },
+  ] = await Promise.all([
     supabase
       .from("therapist_availability_override")
       .select("date, hour, available, note")
@@ -248,12 +277,24 @@ export default async function TherapistDashboardPage() {
     programmePackageIds.length > 0
       ? admin.from("treatment_category_packages").select("id, title").in("id", programmePackageIds as string[])
       : Promise.resolve({ data: [] as { id: string; title: string }[] }),
+    homeVisitPurchaseIds.length > 0
+      ? admin
+          .from("home_visit_package_purchases")
+          .select("id, amount_paid_paise, visit_count")
+          .in("id", homeVisitPurchaseIds)
+      : Promise.resolve({ data: [] as { id: string; amount_paid_paise: number | null; visit_count: number }[] }),
   ]);
   const patientMap = new Map((patients ?? []).map((p) => [p.id, p]));
   const patientNameById = new Map(
     (patients ?? []).map((p) => [p.id, p.full_name ?? "Unknown patient"])
   );
   const programmePackageTitleById = new Map((programmePackageInfo ?? []).map((p) => [p.id, p.title]));
+  const homeVisitPerVisitFeeByPurchaseId = new Map(
+    (homeVisitPurchasesForFees ?? []).map((p) => [
+      p.id,
+      computePerVisitFeePaise(p.amount_paid_paise, p.visit_count),
+    ])
+  );
 
   // Same in-memory completed/scheduled derivation as the patient
   // dashboard's package widget -- every session on a purchase locked to
@@ -281,11 +322,16 @@ export default async function TherapistDashboardPage() {
   );
 
   const earningRows = computeTherapistEarningRows(
-    appointments ?? [],
+    (appointments ?? []).map((a) => ({
+      ...a,
+      visit_mode: a.visit?.visit_mode ?? null,
+      travel_fee_paise: a.visit?.travel_fee_paise ?? null,
+    })),
     profile?.revenue_share_percent ?? null,
     categoryTitleById,
     patientNameById,
-    SESSION_FEE_PAISE
+    SESSION_FEE_PAISE,
+    homeVisitShareRow?.home_visit_revenue_share_percent ?? null
   );
   const pendingOwedPaise = computeTherapistPendingOwed(earningRows);
   const openRequest = (payoutRequests ?? []).find(
@@ -477,10 +523,20 @@ export default async function TherapistDashboardPage() {
         )}
 
         {cashDue && (
-          <p className="rounded-lg bg-amber-50 px-3 py-2 font-semibold text-amber-800">
-            <i className="fa-solid fa-indian-rupee-sign mr-1.5" />
-            Collect payment at the door
-          </p>
+          <div className="rounded-lg bg-amber-50 px-3 py-2">
+            <p className="mb-2 font-semibold text-amber-800">
+              <i className="fa-solid fa-indian-rupee-sign mr-1.5" />
+              Collect payment at the door
+            </p>
+            <CollectCashButton
+              appointmentId={a.id}
+              amountPaise={
+                (visit?.home_visit_purchase_id
+                  ? homeVisitPerVisitFeeByPurchaseId.get(visit.home_visit_purchase_id) ?? 0
+                  : 0) + Math.max(0, visit?.travel_fee_paise ?? 0)
+              }
+            />
+          </div>
         )}
         {visit?.cash_collected_at && (
           <p className="text-teal-700 font-semibold">

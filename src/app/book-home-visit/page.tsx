@@ -25,7 +25,7 @@ export default async function BookHomeVisitPage() {
 
   const { data: settingsRow } = await supabase
     .from("site_settings")
-    .select("home_visit_enabled, home_visit_lead_time_hours")
+    .select("home_visit_enabled, home_visit_lead_time_hours, home_visit_cash_enabled")
     .maybeSingle();
 
   if (settingsRow?.home_visit_enabled !== true) {
@@ -41,6 +41,9 @@ export default async function BookHomeVisitPage() {
 
   const leadTimeHours =
     settingsRow?.home_visit_lead_time_hours ?? DEFAULT_ADMIN_SETTINGS.homeVisitLeadTimeHours;
+  // Defaults to true (DEFAULT_ADMIN_SETTINGS.homeVisitCashEnabled) -- only
+  // an explicit false hides the pay-at-the-door option.
+  const cashEnabled = settingsRow?.home_visit_cash_enabled !== false;
 
   return (
     <section className="min-h-screen bg-gradient-to-b from-teal-50/50 to-slate-100 px-4 py-12 sm:px-6 lg:px-8">
@@ -57,6 +60,7 @@ export default async function BookHomeVisitPage() {
           <HomeVisitBookingWizard
             packages={(packages ?? []) as WizardPackage[]}
             leadTimeHours={leadTimeHours}
+            cashEnabled={cashEnabled}
           />
         </Suspense>
         {/* This route hides the site nav (see NAV_HIDDEN_ROUTES) so a stray

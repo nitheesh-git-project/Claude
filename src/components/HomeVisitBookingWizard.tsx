@@ -51,9 +51,14 @@ function inputCls() {
 export default function HomeVisitBookingWizard({
   packages,
   leadTimeHours,
+  cashEnabled = false,
 }: {
   packages: WizardPackage[];
   leadTimeHours: number;
+  // site_settings.home_visit_cash_enabled. When false, the wizard never
+  // offers "pay at the door" and behaves exactly as it did before this
+  // option existed.
+  cashEnabled?: boolean;
 }) {
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -103,6 +108,12 @@ export default function HomeVisitBookingWizard({
   const [concern, setConcern] = useState("");
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
+
+  // Step 4 -- how to pay. Defaults to prepaid regardless of cashEnabled: a
+  // prepaid visit needs no admin approval before it is confirmed (see
+  // bookHomeVisitSession's isPrepaid branch), so it's the faster path for
+  // anyone indifferent between the two.
+  const [paymentMode, setPaymentMode] = useState<"prepaid" | "cash">("prepaid");
 
   const selectedPackage = packages.find((p) => p.id === packageId) ?? packages[0] ?? null;
 
@@ -315,6 +326,41 @@ export default function HomeVisitBookingWizard({
       }
     }
 
+    if (paymentMode === "cash") {
+      try {
+        const res = await fetch("/api/home-visit/book-cash", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            packageId: selectedPackage.id,
+            address: { ...address, pincode: normalizePincode(address.pincode) },
+            slotDateTime,
+            timezone,
+            notes,
+            concern: concern || undefined,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        setLoading(false);
+        if (!res.ok) {
+          setError(data.error ?? "Could not book this visit. Please try again.");
+          setFailedAttempts((n) => n + 1);
+          return;
+        }
+        setPaymentResult({
+          visitBooked: !!data.visitBooked,
+          appointmentId: data.appointmentId,
+          visitBookingError: data.visitBookingError,
+        });
+        setDone(true);
+      } catch {
+        setLoading(false);
+        setError("Could not book this visit. Please check your connection and try again.");
+        setFailedAttempts((n) => n + 1);
+      }
+      return;
+    }
+
     await payForHomeVisit({
       packageId: selectedPackage.id,
       address: { ...address, pincode: normalizePincode(address.pincode) },
@@ -369,13 +415,19 @@ export default function HomeVisitBookingWizard({
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <i className="fa-solid fa-circle-check text-4xl text-teal-600" />
         <h2 className="font-display mt-4 text-xl font-bold text-slate-900">
-          {paymentResult?.visitBooked ? "Your home visit is booked" : "Payment received"}
+          {paymentResult?.visitBooked
+            ? "Your home visit is requested"
+            : paymentMode === "cash"
+              ? "Your home visit is requested"
+              : "Payment received"}
         </h2>
         <p className="mt-2 text-sm text-slate-600">
           {paymentResult?.visitBooked
-            ? "We'll confirm your therapist shortly. You'll get a calendar invite with the address and time."
+            ? "We'll confirm your therapist and send a calendar invite with the address and time once everything's set."
             : paymentResult?.visitBookingError ??
-              "Your package is paid for. Schedule your visit from your dashboard."}
+              (paymentMode === "cash"
+                ? "We've saved your request. Schedule your visit from your dashboard if it doesn't show up shortly."
+                : "Your package is paid for. Schedule your visit from your dashboard.")}
         </p>
         <Link
           href="/patient/dashboard"
@@ -796,11 +848,48 @@ export default function HomeVisitBookingWizard({
             </div>
           </dl>
 
+          {cashEnabled && (
+            <div>
+              <p className="mb-2 text-xs font-semibold text-slate-700">How would you like to pay?</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode("prepaid")}
+                  className={`rounded-xl border p-3 text-left text-xs transition ${
+                    paymentMode === "prepaid"
+                      ? "border-teal-500 bg-teal-50 ring-2 ring-teal-100"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <span className="block font-bold text-slate-900">Pay online now</span>
+                  <span className="mt-1 block text-slate-500">
+                    Confirmed faster — a locked-in therapist doesn&apos;t need admin approval.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode("cash")}
+                  className={`rounded-xl border p-3 text-left text-xs transition ${
+                    paymentMode === "cash"
+                      ? "border-teal-500 bg-teal-50 ring-2 ring-teal-100"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <span className="block font-bold text-slate-900">Pay at the door</span>
+                  <span className="mt-1 block text-slate-500">
+                    Nothing charged now. Your therapist collects cash at the visit.
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           {failedAttempts >= MAX_ATTEMPTS_BEFORE_ESCAPE && (
             <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-              Payment isn&apos;t going through. Your details are saved — you can{" "}
+              {paymentMode === "cash" ? "Something's not going through." : "Payment isn't going through."}{" "}
+              Your details are saved — you can{" "}
               <Link href="/patient/dashboard" className="font-semibold underline">
                 try again from your dashboard
               </Link>{" "}
@@ -823,7 +912,13 @@ export default function HomeVisitBookingWizard({
               disabled={loading}
               className="flex-1 rounded-xl bg-teal-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-teal-700 disabled:opacity-60"
             >
-              {loading ? "Opening payment..." : `Pay ₹${(total.totalPaise / 100).toLocaleString("en-IN")}`}
+              {loading
+                ? paymentMode === "cash"
+                  ? "Booking..."
+                  : "Opening payment..."
+                : paymentMode === "cash"
+                  ? `Book — pay ₹${(total.totalPaise / 100).toLocaleString("en-IN")} at the door`
+                  : `Pay ₹${(total.totalPaise / 100).toLocaleString("en-IN")}`}
             </button>
           </div>
         </div>
