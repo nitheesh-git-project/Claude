@@ -9,10 +9,11 @@ const MAX_REASON_LENGTH = 500;
 
 // The home-visit twin of /api/admin/refund-package: pro-rata refunds a
 // prepaid programme for every visit never actually delivered, then closes
-// it out and cancels any still-scheduled future visits. Same
-// refund-before-any-terminal-write ordering as refund-package, for the same
-// reason -- a Razorpay failure must leave the purchase exactly as it was,
-// refundable again on retry.
+// it out and cancels any still-scheduled future visits. Claims the purchase
+// (status active -> refunded) via CAS *before* calling Razorpay, and
+// reverts the claim if the Razorpay call fails -- so a failure still leaves
+// the purchase exactly as it was, refundable again on retry, and two
+// concurrent requests can never both reach Razorpay's refund endpoint.
 //
 // Cash-on-visit purchases are out of scope here: there is no single
 // Razorpay payment behind the whole programme to reverse (money was
@@ -117,6 +118,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Nothing to refund on this package." }, { status: 400 });
   }
 
+  // CAS claim BEFORE calling Razorpay, not after -- two concurrent refund
+  // requests (double-click, two open tabs) would otherwise both pass the
+  // status === "active" read-check above and both issue a real Razorpay
+  // refund before either write landed. Only the request that wins this
+  // claim is allowed anywhere near razorpay.payments.refund; the loser
+  // exits here having moved no money. Tentatively marks the purchase
+  // refunded (refund_id filled in once Razorpay actually confirms it) and
+  // reverted back to "active" below if the Razorpay call fails, so a
+  // failure still leaves the purchase refundable again on retry.
+  const { data: claimed, error: claimError } = await admin
+    .from("home_visit_package_purchases")
+    .update({ status: "refunded", refund_amount_paise: refundAmountPaise, refunded_at: new Date().toISOString() })
+    .eq("id", purchaseId)
+    .eq("status", "active")
+    .select("id")
+    .maybeSingle();
+  if (claimError) {
+    return NextResponse.json({ error: claimError.message }, { status: 500 });
+  }
+  if (!claimed) {
+    return NextResponse.json(
+      { error: "This package was already refunded or changed concurrently — please refresh." },
+      { status: 409 }
+    );
+  }
+
   let refundId: string;
   try {
     const refund = await razorpay.payments.refund(purchase.razorpay_payment_id, {
@@ -125,6 +152,18 @@ export async function POST(request: NextRequest) {
     refundId = refund.id;
   } catch (err) {
     console.error("Home visit package refund failed for purchase", purchaseId, err);
+    const { error: revertError } = await admin
+      .from("home_visit_package_purchases")
+      .update({ status: "active", refund_amount_paise: null, refunded_at: null })
+      .eq("id", purchaseId)
+      .eq("status", "refunded");
+    if (revertError) {
+      console.error(
+        "Failed to revert home visit purchase claim after Razorpay refund failure",
+        purchaseId,
+        revertError
+      );
+    }
     return NextResponse.json(
       { error: "The refund could not be processed by Razorpay. Nothing was changed — please retry." },
       { status: 502 }
@@ -154,19 +193,16 @@ export async function POST(request: NextRequest) {
       .in("status", ["requested", "confirmed"]);
   }
 
+  // status/refund_amount_paise/refunded_at were already written by the CAS
+  // claim above -- this only fills in the refund_id Razorpay just returned.
   const { error: updateError } = await admin
     .from("home_visit_package_purchases")
-    .update({
-      status: "refunded",
-      refund_id: refundId,
-      refund_amount_paise: refundAmountPaise,
-      refunded_at: new Date().toISOString(),
-    })
+    .update({ refund_id: refundId })
     .eq("id", purchaseId);
 
   if (updateError) {
     console.error(
-      "Refunded via Razorpay but failed to update home visit purchase record",
+      "Refunded via Razorpay but failed to record refund_id on home visit purchase",
       purchaseId,
       updateError
     );

@@ -90,12 +90,28 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    const { error: updateError } = await admin
+    // CAS on the therapist_id this request actually read -- without this,
+    // two concurrent reassigns of the same purchase to different
+    // therapists could both pass the conflict check above and then both
+    // write, leaving whichever wrote last as the silent winner with no
+    // trace of the race. A lost claim here means someone else already
+    // moved this session; it's correctly reported as skipped, not retried.
+    const { data: claimedAppointment, error: updateError } = await admin
       .from("appointments")
       .update({ therapist_id: therapistId })
-      .eq("id", appointment.id);
+      .eq("id", appointment.id)
+      .eq("therapist_id", appointment.therapist_id)
+      .select("id")
+      .maybeSingle();
     if (updateError) {
       skipped.push({ appointmentId: appointment.id, reason: updateError.message });
+      continue;
+    }
+    if (!claimedAppointment) {
+      skipped.push({
+        appointmentId: appointment.id,
+        reason: "This session's therapist was changed concurrently by another request.",
+      });
       continue;
     }
 

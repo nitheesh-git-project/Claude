@@ -103,23 +103,32 @@ export default function HomeVisitBulkScheduler({
     if (selected.length === 0) return;
     setSubmitting(true);
     setError(null);
-    const res = await fetch("/api/home-visit/book-visits", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        homeVisitPurchaseId: purchaseId,
-        slots: selected.map((s) => ({ slotDateTime: slotDateTimeOf(s) })),
-        notes: notes || undefined,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setSubmitting(false);
-    if (!res.ok) {
-      setError(data.error ?? "Could not schedule these visits. Please try again.");
-      return;
+    // try/catch around the fetch itself, not just the response -- a raw
+    // network failure (not a non-2xx response) would otherwise throw
+    // unhandled here, leaving submitting stuck true and the button
+    // disabled forever with no way to retry.
+    try {
+      const res = await fetch("/api/home-visit/book-visits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          homeVisitPurchaseId: purchaseId,
+          slots: selected.map((s) => ({ slotDateTime: slotDateTimeOf(s) })),
+          notes: notes || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Could not schedule these visits. Please try again.");
+        return;
+      }
+      setResults(data.results ?? []);
+      router.refresh();
+    } catch {
+      setError("Could not reach the server. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
     }
-    setResults(data.results ?? []);
-    router.refresh();
   }
 
   const bookedCount = results?.filter((r) => r.success).length ?? 0;

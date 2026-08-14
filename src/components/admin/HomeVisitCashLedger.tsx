@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatSlotTime } from "@/lib/formatSlotTime";
+import { useConfirm } from "@/lib/useConfirm";
 import {
   computeTherapistCashSummary,
   oldestUnremittedAgeDays,
@@ -14,11 +15,20 @@ function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
 }
 
-function MarkRemittedButton({ appointmentId }: { appointmentId: string }) {
+function MarkRemittedButton({ appointmentId, amountPaise }: { appointmentId: string; amountPaise: number }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
-  function handleClick() {
+  async function handleClick() {
+    // Every other money-moving button in this app (TherapistPayoutButton,
+    // CollectCashButton) confirms before firing -- this one and its refund
+    // twin below were the two exceptions. The server-side CAS guard already
+    // makes a double-click harmless, but that's not the same thing as
+    // meaning to click it once.
+    if (!(await confirm(`Mark ${formatInr(amountPaise)} as remitted by this therapist? This can't be undone.`))) {
+      return;
+    }
     startTransition(async () => {
       const res = await fetch("/api/admin/mark-cash-remitted", {
         method: "POST",
@@ -30,21 +40,32 @@ function MarkRemittedButton({ appointmentId }: { appointmentId: string }) {
   }
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={isPending}
-      className="rounded-lg bg-teal-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-teal-700 disabled:opacity-60"
-    >
-      {isPending ? "Saving..." : "Mark remitted"}
-    </button>
+    <>
+      <button
+        onClick={handleClick}
+        disabled={isPending}
+        className="rounded-lg bg-teal-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-teal-700 disabled:opacity-60"
+      >
+        {isPending ? "Saving..." : "Mark remitted"}
+      </button>
+      {dialog}
+    </>
   );
 }
 
-function MarkRefundReturnedButton({ appointmentId }: { appointmentId: string }) {
+function MarkRefundReturnedButton({ appointmentId, amountPaise }: { appointmentId: string; amountPaise: number }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
 
-  function handleClick() {
+  async function handleClick() {
+    if (
+      !(await confirm(
+        `Mark ${formatInr(amountPaise)} as handed back to the patient? This can't be undone.`
+      ))
+    ) {
+      return;
+    }
     startTransition(async () => {
       const res = await fetch("/api/admin/mark-cash-refund-returned", {
         method: "POST",
@@ -56,13 +77,16 @@ function MarkRefundReturnedButton({ appointmentId }: { appointmentId: string }) 
   }
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={isPending}
-      className="rounded-lg bg-red-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
-    >
-      {isPending ? "Saving..." : "Mark refunded"}
-    </button>
+    <>
+      <button
+        onClick={handleClick}
+        disabled={isPending}
+        className="rounded-lg bg-red-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+      >
+        {isPending ? "Saving..." : "Mark refunded"}
+      </button>
+      {dialog}
+    </>
   );
 }
 
@@ -127,7 +151,7 @@ function TherapistCashCard({
                   {formatInr(v.cash_collected_amount_paise ?? 0)}
                 </span>
               </span>
-              <MarkRemittedButton appointmentId={v.id} />
+              <MarkRemittedButton appointmentId={v.id} amountPaise={v.cash_collected_amount_paise ?? 0} />
             </li>
           ))}
         </ul>
@@ -190,7 +214,10 @@ export default function HomeVisitCashLedger({
                   <span className="font-mono">{v.session_code ?? "—"}</span> · {v.patientName} ·{" "}
                   <span className="font-semibold">{formatInr(v.refund_amount_paise ?? v.cash_collected_amount_paise ?? 0)}</span>
                 </span>
-                <MarkRefundReturnedButton appointmentId={v.id} />
+                <MarkRefundReturnedButton
+                  appointmentId={v.id}
+                  amountPaise={v.refund_amount_paise ?? v.cash_collected_amount_paise ?? 0}
+                />
               </li>
             ))}
           </ul>

@@ -55,7 +55,10 @@ export async function POST(request: NextRequest) {
   }
 
   const newExpiryIso = new Date(newExpiresAt).toISOString();
-  const { error: updateError } = await admin
+  // CAS on the expires_at this request actually read -- see
+  // extend-package-expiry's identical comment; two concurrent extensions on
+  // the same purchase could otherwise silently overwrite one another.
+  let query = admin
     .from("home_visit_package_purchases")
     .update({
       expires_at: newExpiryIso,
@@ -65,9 +68,17 @@ export async function POST(request: NextRequest) {
       ...(purchase.status === "expired" ? { status: "active" } : {}),
     })
     .eq("id", purchaseId);
+  query = purchase.expires_at === null ? query.is("expires_at", null) : query.eq("expires_at", purchase.expires_at);
+  const { data: claimed, error: updateError } = await query.select("id").maybeSingle();
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
+  }
+  if (!claimed) {
+    return NextResponse.json(
+      { error: "This package's expiry was changed concurrently — please refresh and try again." },
+      { status: 409 }
+    );
   }
 
   const { error: eventError } = await admin.from("home_visit_purchase_events").insert({

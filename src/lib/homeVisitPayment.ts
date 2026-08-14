@@ -94,34 +94,45 @@ export async function payForHomeVisit({
         razorpay_payment_id: string;
         razorpay_signature: string;
       }) => {
-        const verifyRes = await fetch("/api/home-visit/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            homeVisitPurchaseId: orderData.homeVisitPurchaseId,
-            slotDateTime,
-            timezone,
-            notes,
-            concern,
-            // The id create-order just wrote, so verify re-reads the copy
-            // that actually passed the serviceability check rather than
-            // trusting this payload again.
-            address: { ...address, id: orderData.addressId ?? address.id ?? null },
-            ...response,
-          }),
-        });
-        const verifyData = await verifyRes.json().catch(() => ({}));
-        if (verifyRes.ok) {
-          onSuccess({
-            visitBooked: !!verifyData.visitBooked,
-            appointmentId: verifyData.appointmentId,
-            visitBookingError: verifyData.visitBookingError,
+        // This runs after Razorpay has already taken the patient's money,
+        // outside the outer try/catch above -- a raw network failure on
+        // this fetch (not just a non-2xx response) would otherwise throw
+        // as an unhandled rejection, leaving the caller's loading state
+        // stuck forever with no error shown to someone who just paid.
+        try {
+          const verifyRes = await fetch("/api/home-visit/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              homeVisitPurchaseId: orderData.homeVisitPurchaseId,
+              slotDateTime,
+              timezone,
+              notes,
+              concern,
+              // The id create-order just wrote, so verify re-reads the copy
+              // that actually passed the serviceability check rather than
+              // trusting this payload again.
+              address: { ...address, id: orderData.addressId ?? address.id ?? null },
+              ...response,
+            }),
           });
-        } else {
+          const verifyData = await verifyRes.json().catch(() => ({}));
+          if (verifyRes.ok) {
+            onSuccess({
+              visitBooked: !!verifyData.visitBooked,
+              appointmentId: verifyData.appointmentId,
+              visitBookingError: verifyData.visitBookingError,
+            });
+          } else {
+            onError(
+              verifyData.error
+                ? `Payment received but verification failed: ${verifyData.error}`
+                : `Payment received but verification failed. Please contact us with payment ID ${response.razorpay_payment_id}.`
+            );
+          }
+        } catch {
           onError(
-            verifyData.error
-              ? `Payment received but verification failed: ${verifyData.error}`
-              : `Payment received but verification failed. Please contact us with payment ID ${response.razorpay_payment_id}.`
+            `Payment received but we couldn't verify it — please check your connection and contact us with payment ID ${response.razorpay_payment_id} if this doesn't resolve.`
           );
         }
       },
