@@ -89,10 +89,48 @@ role, an id, or an amount sent from the client — re-derive it server-side.
 - **Payments** must be verified server-side: `/api/razorpay/verify` checks the
   signature before anything is confirmed. Never confirm on a client callback.
 - **Cancellation/refund**: full refund only outside the 24-hour window in
-  `src/lib/pricing.ts`; inside it, none.
+  `src/lib/pricing.ts`; inside it, none. Home visits use their own window
+  instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) —
+  see the Home Visit bullet below.
 - **Google Calendar/Meet sync must never block a booking.** Failures are
   recorded on the appointment (`google_calendar_sync_error`) and retried by
-  the admin (`/api/admin/retry-meet-sync`).
+  the admin (`/api/admin/retry-meet-sync`). A home visit still gets a
+  calendar event even when `google_meet_enabled` is off — that toggle only
+  gates the Meet conferencing, not event creation, since the invite email is
+  the only outbound notification this platform sends.
+- **Home Visit is a delivery mode, not a parallel booking system.**
+  `appointments.visit_mode` (`'online'` / `'home_visit'`) is the only new
+  column that matters at read time; everything else about an appointment —
+  patient, therapist, payout, rating, refund — works identically either way.
+  Anyone can book either mode; there is no "home-visit patient" vs.
+  "online patient". A visit's address is snapshotted onto the appointment
+  (`visit_address_*`) from the patient's reusable `patient_addresses` book,
+  never referenced live, so editing a saved address later can't rewrite a
+  visit already delivered. The travel fee (`travel_fee_paise`) is a
+  pass-through reimbursement paid to the therapist in full and always
+  excluded from revenue (`src/lib/homeVisitPricing.ts`) — never fold it into
+  a price or a therapist funds their own transport. `home_visit_areas`
+  (pincode → travel fee) gates what can be sold at all:
+  `/api/home-visit/check-area` is checked before an address is even
+  collected, and re-checked server-side at every purchase route — never
+  trust a serviceability answer the browser already has. A locked
+  therapist's conflict check is padded by
+  `home_visit_travel_buffer_minutes` on both sides of the new slot
+  (`findTherapistConflict`'s `bufferMinutes` option) since a therapist
+  finishing one visit cannot be at another minutes later; online passes 0.
+  Cash-on-visit purchases legitimately sit at `payment_status: 'unpaid'`
+  for their whole life with real confirmed visits hanging off them — never
+  assume `payment_status` reflects whether money changed hands for a home
+  visit purchase the way it does everywhere else; check `payment_mode`
+  first. Cash collected and not yet remitted is real exposure: it nets off
+  what a therapist's payout actually transfers
+  (`src/lib/therapistCashLedger.ts`), and a cash refund with no Razorpay
+  payment behind it becomes `refund_status: 'manual_pending'`, surfaced on
+  the admin Cash Ledger until an admin confirms the cash was handed back.
+  `visits_used` counts visits **claimed** (scheduled or completed), never
+  completed — identical rule to `sessions_used`, see the counter-semantics
+  comment beside `home_visit_package_purchases` in `schema.sql`. See the
+  "Home Visit" section in README.md for the full flow.
 - **Session packages lock to one therapist by default.** The first therapist
   assigned to any session on a `patient_package_purchases` row sets
   `locked_therapist_id`; every later session on that purchase auto-assigns,
@@ -116,19 +154,22 @@ role, an id, or an amount sent from the client — re-derive it server-side.
   sweep at the top of a relevant page's render instead of on a schedule —
   see `src/lib/expirePackagePurchases.ts`, called from both the admin and
   patient dashboard pages before their own reads. Follow this pattern
-  rather than reaching for a cron job or a queue.
-- **Package detail is viewer-scoped, not role-branched.**
-  `/api/packages/purchase-detail` queries `patient_package_purchases` with
-  the caller's own RLS-scoped client rather than checking role: the two
-  `package_purchases_select_*` policies already encode exactly who may see
-  a given purchase, so a row coming back at all *is* the authorization
-  check. Only the one cross-role name lookup RLS can't provide (the other
-  party's name) uses the admin client. Don't add a manual ownership branch
-  here or you'll duplicate what the policies already guarantee.
+  rather than reaching for a cron job or a queue. Home-visit purchases get
+  the identical treatment via `src/lib/expireHomeVisitPurchases.ts`.
+- **Package (and home-visit package) detail is viewer-scoped, not
+  role-branched.** `/api/packages/purchase-detail` and
+  `/api/home-visit/purchase-detail` both query the purchases table with the
+  caller's own RLS-scoped client rather than checking role: the
+  `*_purchases_select_*` policies already encode exactly who may see a given
+  purchase, so a row coming back at all *is* the authorization check. Only
+  the one cross-role name lookup RLS can't provide (the other party's name)
+  uses the admin client. Don't add a manual ownership branch here or you'll
+  duplicate what the policies already guarantee.
 - **Business math lives in dependency-free `src/lib/` modules** (`pricing`,
   `adminMetrics`, `therapistEarnings`, `therapistPayouts`, `ratingAggregate`,
-  `packageProgress`) so it can be reasoned about without rendering. Keep new
-  math there rather than inside components.
+  `packageProgress`, `homeVisitPricing`, `homeVisitProgress`,
+  `therapistCashLedger`) so it can be reasoned about without rendering. Keep
+  new math there rather than inside components.
 - **Patient Care Intake and Pain Map are two separate data layers**, both
   gated behind one write-access model. Patient Care Intake
   (`patient_condition_profiles` / `condition_change_requests`, question set
@@ -148,13 +189,16 @@ role, an id, or an amount sent from the client — re-derive it server-side.
 - **Admin-configurable behavior** (Meet on/off, join window, idle timeout,
   booking languages, the package-wide settings — visibility, default
   validity, therapist-lock switch, bulk-scheduler limit, expiry reminder
-  window — and Brand & Contact Details — site name, tagline, description,
-  contact email, WhatsApp number, contact phone, footer copyright text) is
-  read through `src/lib/adminSettings.ts` with defaults — don't hardcode
-  these. Every dashboard page must select `SITE_SETTINGS_SELECT` from that
-  module rather than its own column list, or a new setting silently reads
-  as its default on whichever page forgot it. The root layout is the one
-  place that reads Brand & Contact Details (via a public/anon client, so
+  window — the nine `home_visit_*` settings — master switch, cash on/off,
+  lead time, cancellation refund window, default validity, bulk-scheduler
+  limit, travel buffer minutes, and the public page's heading/subheading —
+  and Brand & Contact Details — site name, tagline, description, contact
+  email, WhatsApp number, contact phone, footer copyright text) is read
+  through `src/lib/adminSettings.ts` with defaults — don't hardcode these.
+  Every dashboard page must select `SITE_SETTINGS_SELECT` from that module
+  rather than its own column list, or a new setting silently reads as its
+  default on whichever page forgot it. The root layout is the one place
+  that reads Brand & Contact Details (via a public/anon client, so
   ISR-cached pages under it aren't forced dynamic) and passes it into
   `Navbar`/`Footer` as props — those two components take the strings as
   props rather than hardcoding or fetching their own copy.

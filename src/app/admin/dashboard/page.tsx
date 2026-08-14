@@ -19,6 +19,7 @@ import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
 import AdminSessionManagerTab from "@/components/admin/AdminSessionManagerTab";
+import AdminHomeVisitsTab from "@/components/admin/AdminHomeVisitsTab";
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
@@ -117,6 +118,13 @@ export default async function AdminDashboardPage() {
     { data: conditionProfiles },
     { count: conditionRequestsPendingCount },
     { count: conditionAccessPendingCount },
+    { data: homeVisitPackages },
+    { data: homeVisitAreas },
+    { data: homeVisitWaitlist },
+    { data: homeVisitAreaUsage },
+    { data: homeVisitAppointments },
+    { data: homeVisitShareRows },
+    { data: homeVisitPurchases },
   ] = await Promise.all([
     // Both self-serve roles wait on admin approval, so this one query feeds
     // the single "Pending Approvals" list -- therapist applications and
@@ -247,7 +255,7 @@ export default async function AdminDashboardPage() {
     admin
       .from("patient_referrals")
       .select(
-        "id, hospital_id, patient_name, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at"
+        "id, hospital_id, patient_name, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at, visit_mode, pincode"
       )
       .order("created_at", { ascending: false }),
 
@@ -334,6 +342,64 @@ export default async function AdminDashboardPage() {
       .from("condition_access_grants")
       .select("id", { count: "exact", head: true })
       .eq("status", "requested"),
+
+    // Home Visit tab. These four tables are new, so on a database that
+    // hasn't re-run schema.sql each query fails on its own and comes back
+    // as null -- emptying only the Home Visit tab, not the rest of this
+    // page, same reasoning as the condition tables above.
+    admin
+      .from("home_visit_packages")
+      .select(
+        "id, package_code, title, subtitle, description, image_url, benefits, badge_label, highlight, terms, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked, min_gap_hours, max_visits_per_week, max_purchases_per_patient, category_id, display_order, visible_on_home, visible_on_home_visit_page, visible_in_dashboard, active"
+      )
+      .order("display_order", { ascending: true })
+      .order("id", { ascending: true }),
+    admin
+      .from("home_visit_areas")
+      .select("id, city, area_name, pincode, travel_fee_paise, notes, active")
+      .order("city", { ascending: true })
+      .order("pincode", { ascending: true }),
+    admin
+      .from("home_visit_waitlist")
+      .select("id, name, phone, email, pincode, city, note, status, created_at")
+      .order("created_at", { ascending: false }),
+    // Which areas are actually referenced by a booked visit. Drives whether
+    // the Service Areas row offers Delete at all -- deleting an area that a
+    // past visit points at would strip the fee context off that visit, so
+    // the UI offers Deactivate instead. The route enforces this too (on the
+    // foreign key); this is only so the button isn't shown to be refused.
+    admin.from("appointments").select("visit_area_id").not("visit_area_id", "is", null),
+
+    // The Visits queue. Its own query rather than a filter over the page's
+    // main appointments read: that select predates the visit_ columns, and
+    // adding them there would let one unknown column blank every session
+    // list on this dashboard.
+    admin
+      .from("appointments")
+      .select(
+        "id, session_code, slot_time, timezone, concern, status, duration_minutes, patient_id, therapist_id, payment_status, amount_paid_paise, travel_fee_paise, no_show, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_contact_phone, visit_access_notes, cash_collected_at, cash_collected_amount_paise, cash_remitted_at, payment_method, home_visit_purchase_id, refund_status, refund_amount_paise"
+      )
+      .eq("visit_mode", "home_visit")
+      .order("slot_time", { ascending: true }),
+
+    // The Payouts tab needs each therapist's home-visit-specific rate. Its
+    // own isolated query, same reasoning as roleCodeRows -- this column
+    // postdates the big shared profiles select, and an unknown-column error
+    // there would blank the whole page, not just this one figure.
+    admin.from("profiles").select("id, home_visit_revenue_share_percent").eq("role", "therapist"),
+
+    // The Programmes sub-tab -- every home-visit purchase, not just the
+    // current admin's session. No completed_count/scheduled_count view
+    // exists for this table the way package_purchase_summary does for the
+    // online side, so those are derived below from homeVisitAppointments
+    // (already loaded, one purchase's visits are a handful of rows at
+    // most) rather than adding a schema-level view for it.
+    admin
+      .from("home_visit_package_purchases")
+      .select(
+        "id, purchase_code, patient_id, package_id, visit_count, visits_used, amount_paid_paise, payment_mode, payment_status, status, locked_therapist_id, expires_at, created_at"
+      )
+      .order("created_at", { ascending: false }),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -943,9 +1009,16 @@ export default async function AdminDashboardPage() {
                         {hospital?.full_name ?? "Unknown partner"}
                       </p>
                     </div>
-                    <span className="font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full">
-                      {formatReferralStatus(r.status)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {r.visit_mode === "home_visit" && (
+                        <span className="font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
+                          Home Visit{r.pincode ? ` · ${r.pincode}` : ""}
+                        </span>
+                      )}
+                      <span className="font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full">
+                        {formatReferralStatus(r.status)}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-slate-600">
                     <strong>{r.medical_issue}</strong>
@@ -1279,14 +1352,41 @@ export default async function AdminDashboardPage() {
     </>
   );
 
+  // Enriches the page's main appointments array with the home-visit columns
+  // needed for correct payout math (visit_mode, travel_fee_paise, and the
+  // cash collection/remittance pair the net-off reads). Left-joined via a
+  // map rather than adding these columns to the shared select above -- that
+  // select feeds Overview/Calendar/Session Story/Metrics too, so an
+  // unknown-column error there would blank all of those, not just Payouts.
+  const homeVisitPayoutDetailById = new Map(
+    (homeVisitAppointments ?? []).map((v) => [
+      v.id,
+      {
+        visit_mode: "home_visit" as const,
+        travel_fee_paise: v.travel_fee_paise,
+        cash_collected_at: v.cash_collected_at,
+        cash_collected_amount_paise: v.cash_collected_amount_paise,
+        cash_remitted_at: v.cash_remitted_at,
+      },
+    ])
+  );
+  const appointmentsForPayouts = (appointments ?? []).map((a) => ({
+    ...a,
+    ...(homeVisitPayoutDetailById.get(a.id) ?? { visit_mode: "online" as const }),
+  }));
+  const homeVisitShareById = new Map(
+    (homeVisitShareRows ?? []).map((r) => [r.id, r.home_visit_revenue_share_percent])
+  );
+
   const payoutsTab = (
     <AdminPayoutsTab
       therapists={allTherapists.map((t) => ({
         id: t.id,
         full_name: t.full_name,
         revenue_share_percent: t.revenue_share_percent,
+        home_visit_revenue_share_percent: homeVisitShareById.get(t.id) ?? null,
       }))}
-      appointments={appointments ?? []}
+      appointments={appointmentsForPayouts}
       patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
       categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
       nowMs={nowTimestamp()}
@@ -1300,8 +1400,9 @@ export default async function AdminDashboardPage() {
         ? computeTherapistPayoutSummary(
             r.therapist_id,
             therapist?.revenue_share_percent ?? null,
-            (appointments ?? []).filter((a) => a.therapist_id === r.therapist_id),
-            nowTimestamp()
+            appointmentsForPayouts.filter((a) => a.therapist_id === r.therapist_id),
+            nowTimestamp(),
+            homeVisitShareById.get(r.therapist_id) ?? null
           ).owedPaise
         : 0;
     return {
@@ -1399,6 +1500,99 @@ export default async function AdminDashboardPage() {
     />
   );
 
+  // An area is "in use" if any visit already points at it. patient_addresses
+  // also reference areas, but an address is editable by its owner and never
+  // needs the historical fee context a delivered visit does, so a visit is
+  // the thing that makes an area permanent.
+  const usedAreaIds = new Set(
+    (homeVisitAreaUsage ?? []).map((a) => a.visit_area_id as string).filter(Boolean)
+  );
+
+  const homeVisitPackageTitleMap = new Map((homeVisitPackages ?? []).map((p) => [p.id, p]));
+  const homeVisitNowMs = nowTimestamp();
+  const homeVisitCompletedByPurchase = new Map<string, number>();
+  const homeVisitScheduledByPurchase = new Map<string, number>();
+  for (const v of homeVisitAppointments ?? []) {
+    if (!v.home_visit_purchase_id) continue;
+    if (v.status === "completed") {
+      homeVisitCompletedByPurchase.set(
+        v.home_visit_purchase_id,
+        (homeVisitCompletedByPurchase.get(v.home_visit_purchase_id) ?? 0) + 1
+      );
+    } else if (
+      (v.status === "requested" || v.status === "confirmed") &&
+      v.slot_time &&
+      new Date(v.slot_time).getTime() > homeVisitNowMs
+    ) {
+      homeVisitScheduledByPurchase.set(
+        v.home_visit_purchase_id,
+        (homeVisitScheduledByPurchase.get(v.home_visit_purchase_id) ?? 0) + 1
+      );
+    }
+  }
+  const homeVisitPurchaseRows = (homeVisitPurchases ?? []).map((p) => {
+    const completedCount = homeVisitCompletedByPurchase.get(p.id) ?? 0;
+    const scheduledCount = homeVisitScheduledByPurchase.get(p.id) ?? 0;
+    return {
+      id: p.id,
+      purchaseCode: p.purchase_code,
+      patientId: p.patient_id,
+      patientName: profileMap.get(p.patient_id)?.full_name ?? "Unknown patient",
+      patientCode: roleCodeMap.get(p.patient_id)?.patient_code ?? null,
+      packageId: p.package_id,
+      packageTitle: homeVisitPackageTitleMap.get(p.package_id)?.title ?? "Home Visit Package",
+      therapistId: p.locked_therapist_id,
+      therapistName: p.locked_therapist_id
+        ? profileMap.get(p.locked_therapist_id)?.full_name ?? "Unknown therapist"
+        : null,
+      visitCount: p.visit_count,
+      visitsUsed: p.visits_used,
+      completedCount,
+      scheduledCount,
+      pendingCount: Math.max(p.visit_count - p.visits_used, 0),
+      amountPaidPaise: p.amount_paid_paise,
+      paymentMode: p.payment_mode,
+      paymentStatus: p.payment_status,
+      status: p.status,
+      expiresAt: p.expires_at,
+      createdAt: p.created_at,
+    };
+  });
+
+  const homeVisitsTab = (
+    <AdminHomeVisitsTab
+      purchases={homeVisitPurchaseRows}
+      visits={(homeVisitAppointments ?? []).map((v) => ({
+        ...v,
+        // Names resolved from the profile map this page already builds --
+        // the same avoid-a-blocked-RLS-join approach used everywhere else
+        // on this dashboard.
+        patientName: profileMap.get(v.patient_id)?.full_name ?? "Unknown patient",
+        patientCode: roleCodeMap.get(v.patient_id)?.patient_code ?? null,
+        therapistName: v.therapist_id
+          ? profileMap.get(v.therapist_id)?.full_name ?? "Unknown therapist"
+          : null,
+      }))}
+      therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
+      packages={(homeVisitPackages ?? []).map((p) => ({
+        ...p,
+        // benefits is jsonb -- defaults to '[]' in the schema, but a row
+        // written before that default (or by hand) can still be null.
+        benefits: Array.isArray(p.benefits) ? (p.benefits as string[]) : [],
+      }))}
+      areas={(homeVisitAreas ?? []).map((a) => ({
+        ...a,
+        in_use: usedAreaIds.has(a.id),
+      }))}
+      waitlist={homeVisitWaitlist ?? []}
+      categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+      settings={adminSettings}
+      nowMs={nowTimestamp()}
+    />
+  );
+
+  const homeVisitsBadgeCount = (homeVisitWaitlist ?? []).filter((w) => w.status === "new").length;
+
   const siteContent = (
     <>
       <SiteRatingsVisibilityToggle
@@ -1490,6 +1684,8 @@ export default async function AdminDashboardPage() {
       paymentHistory={paymentHistoryTab}
       siteContent={siteContent}
       sessionManager={sessionManagerTab}
+      homeVisits={homeVisitsTab}
+      homeVisitsBadgeCount={homeVisitsBadgeCount}
       featureControl={featureControl}
       adminName={adminProfile?.full_name ?? "Admin"}
       adminEmail={adminProfile?.email ?? user.email ?? ""}

@@ -46,6 +46,9 @@ export default async function PatientHealthProfilePage() {
     { count: availablePackagesCount },
     { data: settingsRow },
     { data: intakeOverrideRows },
+    { count: onlineSessionCount },
+    { count: homeVisitCount },
+    { count: ownedHomeVisitCount },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("patient_code").eq("id", user.id).maybeSingle(),
@@ -76,6 +79,26 @@ export default async function PatientHealthProfilePage() {
       .eq("active", true),
     supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
     supabase.from("intake_question_templates").select("question_key, question_text, required"),
+
+    // The Home Visit nav entries are conditional, and every page rendering
+    // this shell has to pass the same booleans or the sidebar gains and
+    // loses entries as you move between them. Count-only queries: a round
+    // trip each, no rows.
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", user.id)
+      .not("visit_mode", "eq", "home_visit"),
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", user.id)
+      .eq("visit_mode", "home_visit"),
+    supabase
+      .from("home_visit_package_purchases")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", user.id)
+      .eq("payment_status", "paid"),
   ]);
 
   const questions = mergeIntakeQuestionOverrides(INTAKE_QUESTIONS, intakeOverrideRows ?? []);
@@ -84,6 +107,9 @@ export default async function PatientHealthProfilePage() {
     hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
     hasAvailablePackages:
       adminSettings.sessionPackagesVisible && !!availablePackagesCount && availablePackagesCount > 0,
+    hasOnlineSessions: (onlineSessionCount ?? 0) > 0,
+    hasHomeVisits: (homeVisitCount ?? 0) > 0,
+    hasOwnedHomeVisitPackages: (ownedHomeVisitCount ?? 0) > 0,
   });
 
   const status = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;

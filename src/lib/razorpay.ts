@@ -78,19 +78,32 @@ export async function payForAppointment({
         razorpay_payment_id: string;
         razorpay_signature: string;
       }) => {
-        const verifyRes = await fetch("/api/razorpay/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ appointmentId, ...response }),
-        });
-        if (verifyRes.ok) {
-          onSuccess();
-        } else {
-          const verifyData = await verifyRes.json().catch(() => ({}));
+        // This callback runs after Razorpay has already taken the
+        // patient's money, outside the outer try/catch above (that only
+        // covers the synchronous setup before razorpay.open()) -- a raw
+        // network failure on this fetch (not just a non-2xx response)
+        // would otherwise throw as an unhandled rejection, leaving the
+        // caller's loading state stuck forever with no error shown to
+        // someone who just paid. Never let that happen silently.
+        try {
+          const verifyRes = await fetch("/api/razorpay/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ appointmentId, ...response }),
+          });
+          if (verifyRes.ok) {
+            onSuccess();
+          } else {
+            const verifyData = await verifyRes.json().catch(() => ({}));
+            onError(
+              verifyData.error
+                ? `Payment received but verification failed: ${verifyData.error}`
+                : `Payment received but verification failed. Please contact us with payment ID ${response.razorpay_payment_id}.`
+            );
+          }
+        } catch {
           onError(
-            verifyData.error
-              ? `Payment received but verification failed: ${verifyData.error}`
-              : `Payment received but verification failed. Please contact us with payment ID ${response.razorpay_payment_id}.`
+            `Payment received but we couldn't verify it — please check your connection and contact us with payment ID ${response.razorpay_payment_id} if this doesn't resolve.`
           );
         }
       },

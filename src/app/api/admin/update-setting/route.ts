@@ -21,6 +21,15 @@ const ALLOWED_COLUMNS = new Set([
   "whatsapp_number",
   "contact_phone",
   "footer_copyright_text",
+  "home_visit_enabled",
+  "home_visit_cash_enabled",
+  "home_visit_lead_time_hours",
+  "home_visit_cancellation_refund_hours",
+  "home_visit_default_validity_days",
+  "home_visit_bulk_schedule_max",
+  "home_visit_travel_buffer_minutes",
+  "home_visit_page_heading",
+  "home_visit_page_subheading",
 ]);
 
 // Bounds on the admin-managed /book language list -- not business rules so
@@ -40,6 +49,18 @@ const CONTACT_FIELDS = new Set(["whatsapp_number", "contact_phone"]);
 const MAX_CONTACT_LENGTH = 40;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// The /home-visit page's hero copy. Longer bounds than the brand fields --
+// this is a headline and a supporting sentence on one page, not a string
+// repeated in the Navbar on every page -- and blank is allowed, since
+// parseAdminSettings() falls back to DEFAULT_HOME_VISIT_PAGE_* for an empty
+// value rather than rendering nothing.
+const HOME_VISIT_COPY_FIELDS = new Set([
+  "home_visit_page_heading",
+  "home_visit_page_subheading",
+]);
+const MAX_HOME_VISIT_HEADING_LENGTH = 120;
+const MAX_HOME_VISIT_SUBHEADING_LENGTH = 300;
+
 // Writes one Feature Control column on the site_settings singleton row --
 // same table/pattern as /api/admin/set-ratings-visible-publicly, just
 // generalized to any of this feature's columns instead of one dedicated
@@ -57,7 +78,9 @@ export async function POST(request: NextRequest) {
   if (
     (key === "session_packages_visible" ||
       key === "google_meet_enabled" ||
-      key === "package_therapist_lock_enabled") &&
+      key === "package_therapist_lock_enabled" ||
+      key === "home_visit_enabled" ||
+      key === "home_visit_cash_enabled") &&
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
@@ -66,7 +89,14 @@ export async function POST(request: NextRequest) {
     (key === "session_timeout_minutes" ||
       key === "join_window_minutes" ||
       key === "join_window_after_minutes" ||
-      key === "package_expiry_reminder_days") &&
+      key === "package_expiry_reminder_days" ||
+      // A zero travel buffer is meaningful: it means "don't pad home-visit
+      // conflict checks at all", which is the correct setting for a
+      // single-neighbourhood operation.
+      key === "home_visit_travel_buffer_minutes" ||
+      // Zero here means "no cancellation grace period" -- every
+      // cancellation forfeits. A real (if harsh) policy, so not excluded.
+      key === "home_visit_cancellation_refund_hours") &&
     (typeof value !== "number" || value < 0)
   ) {
     return NextResponse.json({ error: "value must be a non-negative number" }, { status: 400 });
@@ -77,7 +107,15 @@ export async function POST(request: NextRequest) {
   // rather than >= 0, matching the DB check constraints on the matching
   // site_settings columns.
   if (
-    (key === "package_default_validity_days" || key === "package_bulk_schedule_max") &&
+    (key === "package_default_validity_days" ||
+      key === "package_bulk_schedule_max" ||
+      key === "home_visit_default_validity_days" ||
+      key === "home_visit_bulk_schedule_max" ||
+      // A zero-hour lead time would let someone book a visit for a slot
+      // that has already started, with no chance of a therapist reaching
+      // the address -- the whole point of this setting being separate from
+      // the online lead time is that travel takes real hours.
+      key === "home_visit_lead_time_hours") &&
     (typeof value !== "number" || !Number.isInteger(value) || value < 1)
   ) {
     return NextResponse.json({ error: "value must be a positive whole number" }, { status: 400 });
@@ -138,6 +176,23 @@ export async function POST(request: NextRequest) {
     nextValue = value.trim();
   }
 
+  if (HOME_VISIT_COPY_FIELDS.has(key)) {
+    if (typeof value !== "string") {
+      return NextResponse.json({ error: "value must be text" }, { status: 400 });
+    }
+    const maxLength =
+      key === "home_visit_page_heading"
+        ? MAX_HOME_VISIT_HEADING_LENGTH
+        : MAX_HOME_VISIT_SUBHEADING_LENGTH;
+    if (value.length > maxLength) {
+      return NextResponse.json(
+        { error: `Please keep this to ${maxLength} characters or fewer.` },
+        { status: 400 }
+      );
+    }
+    nextValue = value.trim();
+  }
+
   if (key === "contact_email") {
     if (typeof value !== "string" || !EMAIL_RE.test(value.trim())) {
       return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
@@ -160,6 +215,19 @@ export async function POST(request: NextRequest) {
   // the path stale so the next visitor renders the new list instead.
   if (key === "booking_languages") {
     revalidatePath("/book");
+  }
+
+  // /home-visit is ISR-cached the same way /book is, and both the master
+  // switch and the hero copy change what it renders -- including whether it
+  // renders at all. The Navbar's Home Visit link is driven by the same flag
+  // from the root layout, so flipping the switch also has to invalidate the
+  // layout, not just this one page.
+  if (HOME_VISIT_COPY_FIELDS.has(key)) {
+    revalidatePath("/home-visit");
+  }
+  if (key === "home_visit_enabled") {
+    revalidatePath("/home-visit");
+    revalidatePath("/", "layout");
   }
 
   // Brand & Contact Details render in the Navbar/Footer, which sit in the

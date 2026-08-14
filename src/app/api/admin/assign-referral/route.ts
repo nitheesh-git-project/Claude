@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { findTherapistConflict } from "@/lib/checkTherapistConflict";
+import {
+  findTherapistConflict,
+  findConflictingAppointmentOnly,
+  findTieBrokenReferralConflict,
+} from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
@@ -55,7 +60,7 @@ export async function POST(request: NextRequest) {
   // fields to roll back below if needed) closes that too.
   const { data: referral } = await admin
     .from("patient_referrals")
-    .select("id, assigned_therapist_id, assigned_slot_time, invite_token, status")
+    .select("id, assigned_therapist_id, assigned_slot_time, invite_token, status, visit_mode, created_at")
     .eq("id", referralId)
     .single();
 
@@ -63,12 +68,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Referral not found" }, { status: 404 });
   }
 
+  // A home-visit referral needs the same travel-time padding as every
+  // other home-visit scheduling decision -- the therapist finishing one
+  // visit cannot be at another minutes later, and a referral's assignment
+  // is the one place that check was still missing.
+  let travelBufferMinutes = 0;
+  if (referral.visit_mode === "home_visit") {
+    const { data: settingsRow } = await admin
+      .from("site_settings")
+      .select("home_visit_travel_buffer_minutes")
+      .maybeSingle();
+    travelBufferMinutes =
+      settingsRow?.home_visit_travel_buffer_minutes ?? DEFAULT_ADMIN_SETTINGS.homeVisitTravelBufferMinutes;
+  }
+
   const conflict = await findTherapistConflict(
     admin,
     therapistId,
     new Date(slotDateTime).toISOString(),
     BASE_DURATION_MINUTES,
-    { excludeReferralId: referralId }
+    { excludeReferralId: referralId, bufferMinutes: travelBufferMinutes }
   );
   if (conflict) {
     return NextResponse.json(
@@ -96,16 +115,34 @@ export async function POST(request: NextRequest) {
   // Re-check for a conflict now that the write has landed — the earlier
   // check and this write aren't atomic, so two concurrent assignments of
   // the same therapist to overlapping slots could both pass the earlier
-  // check before either write committed. Whichever request's write lands
-  // second will see the other's now-committed row here and can roll its
-  // own assignment back instead of leaving a real double-booking in place.
-  const conflictAfterWrite = await findTherapistConflict(
-    admin,
-    therapistId,
-    new Date(slotDateTime).toISOString(),
-    BASE_DURATION_MINUTES,
-    { excludeReferralId: referralId }
-  );
+  // check before either write committed.
+  //
+  // The appointment half of this is unconditional: a real appointment
+  // isn't itself racing against this request, so any overlap it finds is a
+  // genuine conflict and this assignment must roll back.
+  //
+  // The referral half needs a tiebreak instead of a plain re-check. Two
+  // referrals assigned to the same therapist/slot at once both write, then
+  // both land here — a plain "does a conflicting invite_sent referral
+  // exist" re-check sees the OTHER row as a conflict from BOTH sides, so
+  // both would roll back and the admin would have to retry blind instead
+  // of exactly one assignment landing. findTieBrokenReferralConflict
+  // applies the same deterministic rule (earlier created_at wins, ties
+  // broken by id) from both requests' perspectives, so exactly one of them
+  // finds no disqualifying conflict and keeps its assignment — the other
+  // sees a real conflict against the winner and rolls back as before.
+  const conflictAfterWrite =
+    (await findConflictingAppointmentOnly(admin, therapistId, new Date(slotDateTime).toISOString(), BASE_DURATION_MINUTES, {
+      bufferMinutes: travelBufferMinutes,
+    })) ||
+    (await findTieBrokenReferralConflict(
+      admin,
+      therapistId,
+      new Date(slotDateTime).toISOString(),
+      BASE_DURATION_MINUTES,
+      { id: referral.id, createdAt: referral.created_at },
+      { excludeReferralId: referralId, bufferMinutes: travelBufferMinutes }
+    ));
   if (conflictAfterWrite) {
     await admin
       .from("patient_referrals")

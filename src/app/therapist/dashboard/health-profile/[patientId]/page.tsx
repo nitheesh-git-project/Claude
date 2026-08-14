@@ -10,7 +10,7 @@ import PainMapView from "@/components/profile/PainMapView";
 import PainAssessmentForm from "@/components/profile/PainAssessmentForm";
 import PainComparisonView from "@/components/profile/PainComparisonView";
 import RequestConditionAccessButton from "@/components/therapist/RequestConditionAccessButton";
-import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
+import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
   CONDITION_STATUS_LABEL,
@@ -62,6 +62,7 @@ export default async function TherapistPatientHealthProfilePage({
     { data: overrideRows },
     { data: settingsRow },
     { data: intakeOverrideRows },
+    { count: homeVisitCount },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
@@ -94,6 +95,16 @@ export default async function TherapistPatientHealthProfilePage({
     supabase.from("pain_map_question_templates").select("region, question_key, question_text"),
     supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
     supabase.from("intake_question_templates").select("question_key, question_text, required"),
+
+    // Whether this therapist has any home visits at all -- the sidebar's
+    // Home Visits entry is conditional, and every page rendering this shell
+    // has to pass the same boolean or the nav flickers between pages. Count
+    // only (head: true), so this costs a round trip and no rows.
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("therapist_id", user.id)
+      .eq("visit_mode", "home_visit"),
   ]);
 
   if (!patient || !isAssigned) {
@@ -129,7 +140,7 @@ export default async function TherapistPatientHealthProfilePage({
       brandLabel="Therapist Panel"
       brandIcon="fa-user-doctor"
       basePath="/therapist/dashboard"
-      navItems={THERAPIST_NAV_ITEMS}
+      navItems={buildTherapistNavItems({ hasHomeVisits: (homeVisitCount ?? 0) > 0 })}
       userName={profile?.full_name ?? "Therapist"}
       userEmail={user.email ?? ""}
       userAvatarUrl={profile?.avatar_url ?? null}

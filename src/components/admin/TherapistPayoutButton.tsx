@@ -16,10 +16,17 @@ const NOTE_PLACEHOLDER: Record<PayoutMethod, string> = {
 export default function TherapistPayoutButton({
   therapistId,
   owedPaise,
+  cashHeldPaise = 0,
 }: {
   therapistId: string;
   owedPaise: number;
+  // Cash the therapist is already holding from home-visit collections,
+  // netted off what this button actually transfers -- the server computes
+  // the authoritative figure itself either way, this is only for what the
+  // button and confirm dialog say before that call happens.
+  cashHeldPaise?: number;
 }) {
+  const netPayablePaise = Math.max(0, owedPaise - cashHeldPaise);
   const [view, setView] = useState<View>("closed");
   const [method, setMethod] = useState<PayoutMethod>("cash");
   const [note, setNote] = useState("");
@@ -37,11 +44,11 @@ export default function TherapistPayoutButton({
   }
 
   async function handleConfirm() {
-    if (
-      !(await confirm(
-        `Mark ₹${(owedPaise / 100).toLocaleString("en-IN")} as paid via ${METHOD_LABEL[method]} to this therapist? This can't be undone.`
-      ))
-    ) {
+    const confirmMessage =
+      cashHeldPaise > 0
+        ? `Mark ₹${(netPayablePaise / 100).toLocaleString("en-IN")} as paid via ${METHOD_LABEL[method]} to this therapist? (₹${(owedPaise / 100).toLocaleString("en-IN")} owed, minus ₹${(cashHeldPaise / 100).toLocaleString("en-IN")} they're already holding in cash.) This can't be undone.`
+        : `Mark ₹${(netPayablePaise / 100).toLocaleString("en-IN")} as paid via ${METHOD_LABEL[method]} to this therapist? This can't be undone.`;
+    if (!(await confirm(confirmMessage))) {
       return;
     }
     setLoading(true);
@@ -104,7 +111,7 @@ export default function TherapistPayoutButton({
         onClick={() => setView("choose")}
         className="text-xs font-semibold px-3 py-2 rounded-lg bg-teal-700 hover:bg-teal-800 text-white transition"
       >
-        Pay ₹{(owedPaise / 100).toLocaleString("en-IN")} to Therapist
+        Pay ₹{(netPayablePaise / 100).toLocaleString("en-IN")} to Therapist
       </button>
     );
   }
@@ -139,9 +146,16 @@ export default function TherapistPayoutButton({
       {error && <p className="text-red-600">{error}</p>}
       <p className="text-slate-600">
         Confirming pays out{" "}
-        <strong className="text-slate-900">₹{(owedPaise / 100).toLocaleString("en-IN")}</strong> via{" "}
-        {METHOD_LABEL[method]} and clears the owed balance. This records that the payment already
-        happened — it doesn&apos;t send any money itself.
+        <strong className="text-slate-900">₹{(netPayablePaise / 100).toLocaleString("en-IN")}</strong> via{" "}
+        {METHOD_LABEL[method]} and clears the owed balance
+        {cashHeldPaise > 0 && (
+          <>
+            {" "}
+            (₹{(owedPaise / 100).toLocaleString("en-IN")} owed, minus ₹
+            {(cashHeldPaise / 100).toLocaleString("en-IN")} already held in cash)
+          </>
+        )}
+        . This records that the payment already happened — it doesn&apos;t send any money itself.
       </p>
       <textarea
         value={note}

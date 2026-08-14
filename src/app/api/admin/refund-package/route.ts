@@ -11,13 +11,17 @@ const MAX_REASON_LENGTH = 500;
 // actually delivered (session_count - completed sessions), then closes
 // out the purchase: any still-scheduled future sessions on it are
 // cancelled (their Meet events removed) so nothing is left confirmed on a
-// programme the patient is no longer paying for. Deliberately calls
-// Razorpay *before* writing any terminal state -- unlike
+// programme the patient is no longer paying for. Claims the purchase
+// (status active -> refunded) via CAS *before* calling Razorpay, and
+// reverts the claim if the Razorpay call fails -- unlike
 // cancelAppointmentAndRefund (which commits the cancellation regardless of
 // refund outcome, since a single session's cancellation is a real event
 // independent of the refund), a package refund's whole point is "did we
-// actually give the money back" -- so a Razorpay failure here must leave
-// the purchase exactly as it was, refundable again on retry.
+// actually give the money back", so a Razorpay failure here must leave the
+// purchase exactly as it was, refundable again on retry. The CAS claim also
+// closes a real race: two concurrent refund requests (double-click, two
+// open tabs) could otherwise both pass the status==="active" read-check
+// below and both issue a real Razorpay refund before either write landed.
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
   if (!adminUser) {
@@ -92,6 +96,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Nothing to refund on this package." }, { status: 400 });
   }
 
+  // CAS claim BEFORE calling Razorpay -- see the file header comment. Only
+  // the request that wins this claim is allowed anywhere near
+  // razorpay.payments.refund; the loser exits here having moved no money.
+  const { data: claimed, error: claimError } = await admin
+    .from("patient_package_purchases")
+    .update({ status: "refunded", refund_amount_paise: refundAmountPaise, refunded_at: new Date().toISOString() })
+    .eq("id", purchaseId)
+    .eq("status", "active")
+    .select("id")
+    .maybeSingle();
+  if (claimError) {
+    return NextResponse.json({ error: claimError.message }, { status: 500 });
+  }
+  if (!claimed) {
+    return NextResponse.json(
+      { error: "This package was already refunded or changed concurrently — please refresh." },
+      { status: 409 }
+    );
+  }
+
   let refundId: string;
   try {
     const razorpay = new Razorpay({
@@ -104,6 +128,14 @@ export async function POST(request: NextRequest) {
     refundId = refund.id;
   } catch (err) {
     console.error("Package refund failed for purchase", purchaseId, err);
+    const { error: revertError } = await admin
+      .from("patient_package_purchases")
+      .update({ status: "active", refund_amount_paise: null, refunded_at: null })
+      .eq("id", purchaseId)
+      .eq("status", "refunded");
+    if (revertError) {
+      console.error("Failed to revert package purchase claim after Razorpay refund failure", purchaseId, revertError);
+    }
     return NextResponse.json(
       { error: "The refund could not be processed by Razorpay. Nothing was changed — please retry." },
       { status: 502 }
@@ -135,14 +167,11 @@ export async function POST(request: NextRequest) {
       .in("status", ["requested", "confirmed"]);
   }
 
+  // status/refund_amount_paise/refunded_at were already written by the CAS
+  // claim above -- this only fills in the refund_id Razorpay just returned.
   const { error: updateError } = await admin
     .from("patient_package_purchases")
-    .update({
-      status: "refunded",
-      refund_id: refundId,
-      refund_amount_paise: refundAmountPaise,
-      refunded_at: new Date().toISOString(),
-    })
+    .update({ refund_id: refundId })
     .eq("id", purchaseId);
 
   if (updateError) {
@@ -150,7 +179,7 @@ export async function POST(request: NextRequest) {
     // loudly for manual reconciliation rather than pretending this failed
     // outright.
     console.error(
-      "Refunded via Razorpay but failed to update purchase record",
+      "Refunded via Razorpay but failed to record refund_id on purchase",
       purchaseId,
       updateError
     );

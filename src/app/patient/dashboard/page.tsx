@@ -7,6 +7,7 @@ import CancelSessionButton from "@/components/CancelSessionButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import BuyPackageButton from "@/components/BuyPackageButton";
 import PatientPackageWidget from "@/components/packages/PatientPackageWidget";
+import HomeVisitPackageWidget from "@/components/patient/HomeVisitPackageWidget";
 import PackageChip from "@/components/packages/PackageChip";
 import ReceiptsSection from "@/components/ReceiptsSection";
 import DashboardShell from "@/components/dashboard/DashboardShell";
@@ -22,6 +23,13 @@ import JoinSessionButton from "@/components/JoinSessionButton";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { computePackageSavings } from "@/lib/packageProgress";
+import PatientBookingHub from "@/components/patient/PatientBookingHub";
+import {
+  formatAddressBlock,
+  mapsSearchUrl,
+  visitAddressFromAppointment,
+} from "@/lib/formatAddress";
+import { expireDueHomeVisitPurchases } from "@/lib/expireHomeVisitPurchases";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
@@ -69,6 +77,7 @@ export default async function PatientDashboardPage() {
   // the category/therapist/package-info lookups that already needed one.
   const admin = createAdminClient();
   await expireDuePackagePurchases(admin);
+  await expireDueHomeVisitPurchases(admin);
 
   // All of these are independent of each other -- run in parallel instead
   // of one at a time, since router.refresh() re-runs this whole page on
@@ -91,6 +100,10 @@ export default async function PatientDashboardPage() {
     { data: ownedPackages },
     { data: onboardingRow },
     { data: conditionProfile },
+    { data: visitDetailRows },
+    { data: homeVisitPackages },
+    { data: ownedHomeVisitPackages },
+    { data: bookableCategories },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
 
@@ -168,6 +181,53 @@ export default async function PatientDashboardPage() {
     // the whole dashboard.
     supabase.from("profiles").select("onboarding_seen_at").eq("id", user.id).maybeSingle(),
     supabase.from("patient_condition_profiles").select("status").eq("patient_id", user.id).maybeSingle(),
+
+    // The home-visit columns for this patient's own appointments. Isolated
+    // from the main appointments select above for the same reason as
+    // everywhere else: that select feeds every session card, the calendar
+    // and the receipts, so one unknown column there would blank the page.
+    supabase
+      .from("appointments")
+      .select(
+        "id, visit_mode, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_access_notes, travel_fee_paise, home_visit_purchase_id"
+      )
+      .eq("patient_id", user.id),
+
+    // The Book a Session hub's home-visit group.
+    supabase
+      .from("home_visit_packages")
+      .select(
+        "id, title, subtitle, image_url, benefits, badge_label, highlight, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked"
+      )
+      .eq("active", true)
+      .eq("visible_in_dashboard", true)
+      .order("display_order", { ascending: true }),
+
+    // Cash-on-visit purchases legitimately sit at payment_status 'unpaid'
+    // for the life of the programme (see home_visit_package_purchases'
+    // own schema comment) -- filtering on payment_status alone, the way
+    // the online packages query does, would hide every cash programme
+    // from the patient's own widget. A purchase counts as "owned" here
+    // when it's either a settled prepaid purchase or any cash purchase
+    // that made it past checkout.
+    supabase
+      .from("home_visit_package_purchases")
+      .select(
+        "id, package_id, purchase_code, visit_count, visits_used, status, locked_therapist_id, expires_at, travel_fee_paise, payment_mode"
+      )
+      .eq("patient_id", user.id)
+      .or("payment_status.eq.paid,payment_mode.eq.cash_on_visit")
+      .order("created_at", { ascending: false }),
+
+    // Single online consultations for the hub. activeCategories above is
+    // only id+title (it resolves names on existing bookings); the hub needs
+    // the price and length it is selling.
+    supabase
+      .from("treatment_categories")
+      .select("id, title, description, price_paise, duration_minutes, cta_label")
+      .eq("active", true)
+      .order("display_order", { ascending: true })
+      .order("id", { ascending: true }),
   ]);
 
   const adminSettings = parseAdminSettings(settingsRow);
@@ -203,6 +263,7 @@ export default async function PatientDashboardPage() {
       [
         ...(appointments ?? []).map((a) => a.therapist_id),
         ...(ownedPackages ?? []).map((p) => p.locked_therapist_id),
+        ...(ownedHomeVisitPackages ?? []).map((p) => p.locked_therapist_id),
       ].filter(Boolean)
     ),
   ];
@@ -213,20 +274,30 @@ export default async function PatientDashboardPage() {
   const ownedPackageIds = [
     ...new Set((ownedPackages ?? []).map((p) => p.package_id).filter(Boolean)),
   ];
-  const [{ data: categoryPrices }, { data: therapists }, { data: ownedPackageInfo }] = await Promise.all([
-    categoryIds.length > 0
-      ? admin.from("treatment_categories").select("id, price_paise, title").in("id", categoryIds as string[])
-      : Promise.resolve({ data: [] as { id: string; price_paise: number; title: string }[] }),
-    therapistIds.length > 0
-      ? admin.from("profiles").select("id, full_name").in("id", therapistIds as string[])
-      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
-    ownedPackageIds.length > 0
-      ? admin
-          .from("treatment_category_packages")
-          .select("id, title, image_url")
-          .in("id", ownedPackageIds as string[])
-      : Promise.resolve({ data: [] as { id: string; title: string; image_url: string | null }[] }),
-  ]);
+  const ownedHomeVisitPackageIds = [
+    ...new Set((ownedHomeVisitPackages ?? []).map((p) => p.package_id).filter(Boolean)),
+  ];
+  const [{ data: categoryPrices }, { data: therapists }, { data: ownedPackageInfo }, { data: ownedHomeVisitPackageInfo }] =
+    await Promise.all([
+      categoryIds.length > 0
+        ? admin.from("treatment_categories").select("id, price_paise, title").in("id", categoryIds as string[])
+        : Promise.resolve({ data: [] as { id: string; price_paise: number; title: string }[] }),
+      therapistIds.length > 0
+        ? admin.from("profiles").select("id, full_name").in("id", therapistIds as string[])
+        : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+      ownedPackageIds.length > 0
+        ? admin
+            .from("treatment_category_packages")
+            .select("id, title, image_url")
+            .in("id", ownedPackageIds as string[])
+        : Promise.resolve({ data: [] as { id: string; title: string; image_url: string | null }[] }),
+      ownedHomeVisitPackageIds.length > 0
+        ? admin
+            .from("home_visit_packages")
+            .select("id, title, image_url")
+            .in("id", ownedHomeVisitPackageIds as string[])
+        : Promise.resolve({ data: [] as { id: string; title: string; image_url: string | null }[] }),
+    ]);
   const categoryPriceMap = new Map(
     (categoryPrices ?? []).map((c) => [c.id, c.price_paise])
   );
@@ -234,6 +305,7 @@ export default async function PatientDashboardPage() {
   const therapistMap = new Map((therapists ?? []).map((t) => [t.id, t.full_name]));
   const activeCategoryMap = new Map((activeCategories ?? []).map((c) => [c.id, c.title]));
   const ownedPackageInfoMap = new Map((ownedPackageInfo ?? []).map((p) => [p.id, p]));
+  const ownedHomeVisitPackageInfoMap = new Map((ownedHomeVisitPackageInfo ?? []).map((p) => [p.id, p]));
   const purchaseCodeById = new Map((ownedPackages ?? []).map((p) => [p.id, p.purchase_code]));
 
   // completed/scheduled per purchase, derived from the appointments already
@@ -266,14 +338,81 @@ export default async function PatientDashboardPage() {
   const hasAvailablePackages =
     adminSettings.sessionPackagesVisible && !!availablePackages && availablePackages.length > 0;
 
-  const navItems = buildPatientNavItems({ hasOwnedPackages, hasAvailablePackages });
+  const visitDetailById = new Map((visitDetailRows ?? []).map((r) => [r.id, r]));
+  const onlineAppointments = appointments.filter(
+    (a) => visitDetailById.get(a.id)?.visit_mode !== "home_visit"
+  );
+  const homeVisitAppointments = appointments.filter(
+    (a) => visitDetailById.get(a.id)?.visit_mode === "home_visit"
+  );
+
+  // Same completed/scheduled derivation as completedCountByPurchase above,
+  // keyed by home_visit_purchase_id instead -- that column lives on
+  // visitDetailRows (isolated, migration-dependent), not the main
+  // appointments select, so this loop has to wait until visitDetailById
+  // exists.
+  const completedCountByHomeVisitPurchase = new Map<string, number>();
+  const scheduledCountByHomeVisitPurchase = new Map<string, number>();
+  for (const a of homeVisitAppointments) {
+    const purchaseId = visitDetailById.get(a.id)?.home_visit_purchase_id;
+    if (!purchaseId) continue;
+    if (a.status === "completed") {
+      completedCountByHomeVisitPurchase.set(
+        purchaseId,
+        (completedCountByHomeVisitPurchase.get(purchaseId) ?? 0) + 1
+      );
+    } else if (
+      (a.status === "requested" || a.status === "confirmed") &&
+      a.slot_time &&
+      new Date(a.slot_time).getTime() > nowMsForPackages
+    ) {
+      scheduledCountByHomeVisitPurchase.set(
+        purchaseId,
+        (scheduledCountByHomeVisitPurchase.get(purchaseId) ?? 0) + 1
+      );
+    }
+  }
+
+  const hasOwnedHomeVisitPackages =
+    !!ownedHomeVisitPackages && ownedHomeVisitPackages.length > 0;
+
+  const navItems = buildPatientNavItems({
+    hasOwnedPackages,
+    hasAvailablePackages,
+    hasOnlineSessions: onlineAppointments.length > 0,
+    hasHomeVisits: homeVisitAppointments.length > 0,
+    hasOwnedHomeVisitPackages,
+  });
+
+  // What the Book a Session hub offers. Both master switches are honoured
+  // here rather than inside the hub, so that component stays a pure display
+  // of whatever it is handed -- same split as SessionPackages on the public
+  // pages.
+  const hubOnlinePackages = adminSettings.sessionPackagesVisible ? availablePackages ?? [] : [];
+  const hubHomeVisitPackages = adminSettings.homeVisitEnabled ? homeVisitPackages ?? [] : [];
+  const categoryPriceById = new Map(
+    (bookableCategories ?? []).map((c) => [c.id, c.price_paise])
+  );
 
   // Shared between "Your Sessions" and the Calendar tab's tap-a-date detail
   // list, so both ever show one true card style for a session rather than
   // two copies that can quietly drift apart.
-  function renderAppointmentCard(a: (typeof appointments)[number]) {
+  type VisitDetail = NonNullable<typeof visitDetailRows>[number];
+
+  function renderAppointmentCard(
+    a: (typeof appointments)[number],
+    visit: VisitDetail | null = null
+  ) {
+    const visitAddress = visit ? visitAddressFromAppointment(visit) : null;
+    const addressLines = visitAddress ? formatAddressBlock(visitAddress) : [];
+    const mapsUrl = visitAddress ? mapsSearchUrl(visitAddress) : null;
     return (
       <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-3">
+        {visit?.visit_mode === "home_visit" && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-teal-700">
+            <i className="fa-solid fa-house-medical" /> Home visit
+          </span>
+        )}
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <p className="font-bold text-sm text-slate-900">
@@ -356,18 +495,62 @@ export default async function PatientDashboardPage() {
             )}
           </div>
         </div>
+
+        {addressLines.length > 0 && (
+          <div className="rounded-lg bg-slate-50 p-3 space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Your therapist is coming to
+            </p>
+            {addressLines.map((line) => (
+              <p key={line} className="text-slate-700">
+                {line}
+              </p>
+            ))}
+            {visit?.visit_access_notes && (
+              <p className="pt-1 text-slate-600">
+                <span className="font-semibold text-slate-400">Getting in:</span>{" "}
+                {visit.visit_access_notes}
+              </p>
+            )}
+            {mapsUrl && (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 pt-1 text-[11px] font-semibold text-teal-700 hover:text-teal-800"
+              >
+                <i className="fa-solid fa-location-dot" /> View on map
+              </a>
+            )}
+            {visit?.travel_fee_paise !== null && (visit?.travel_fee_paise ?? 0) > 0 && (
+              <p className="pt-1 text-[11px] text-slate-400">
+                Includes ₹{((visit?.travel_fee_paise ?? 0) / 100).toLocaleString("en-IN")} travel
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 flex-wrap">
-          <JoinSessionButton
-            meetLink={a.meet_link}
-            slotTime={a.slot_time}
-            status={a.status}
-            durationMinutes={a.duration_minutes}
-          />
+          {/* A home visit has no Meet link to join -- the therapist is
+              travelling to the address above. */}
+          {visit?.visit_mode !== "home_visit" && (
+            <JoinSessionButton
+              meetLink={a.meet_link}
+              slotTime={a.slot_time}
+              status={a.status}
+              durationMinutes={a.duration_minutes}
+            />
+          )}
           {(a.status === "requested" || a.status === "confirmed") && (
             <CancelSessionButton
               appointmentId={a.id}
               paid={a.payment_status === "paid"}
               slotTime={a.slot_time}
+              refundWindowHours={
+                visit?.visit_mode === "home_visit"
+                  ? adminSettings.homeVisitCancellationRefundHours
+                  : undefined
+              }
             />
           )}
         </div>
@@ -433,37 +616,79 @@ export default async function PatientDashboardPage() {
         </Link>
       )}
 
-      <div id="sessions" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-lg text-slate-800">Your Sessions</h2>
-          {/* ?from=dashboard so Back off the booking page returns here, to
-              Your Sessions -- see BookingBackToSessions. */}
-          <Link
-            href={BOOKING_FROM_DASHBOARD}
-            className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"
-          >
-            Book New Session
-          </Link>
-        </div>
+      {/* Always visible, unlike the history sections below. A patient who
+          has only ever had video calls must still be able to find home
+          visits -- hiding a product until someone has already used it is
+          how they never discover it. */}
+      <div id="book" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Book a Session</h2>
+        <p className="text-xs text-slate-500 mb-5">
+          Everything you can book, in one place.
+        </p>
+        <PatientBookingHub
+          categories={bookableCategories ?? []}
+          onlinePackages={hubOnlinePackages}
+          homeVisitPackages={hubHomeVisitPackages}
+          categoryPriceById={categoryPriceById}
+        />
+      </div>
 
-        {!appointments || appointments.length === 0 ? (
-          <p className="text-xs text-slate-500 py-8 text-center">
-            You don&apos;t have any sessions yet. Book your first consultation
-            to get started.
-          </p>
-        ) : (
+      {onlineAppointments.length > 0 && (
+        <div id="sessions" className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-lg text-slate-800">Your Sessions</h2>
+            {/* ?from=dashboard so Back off the booking page returns here, to
+                Your Sessions -- see BookingBackToSessions. */}
+            <Link
+              href={BOOKING_FROM_DASHBOARD}
+              className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"
+            >
+              Book New Session
+            </Link>
+          </div>
+
           <ul className="space-y-3">
-            {appointments.map((a) => (
+            {onlineAppointments.map((a) => (
               <li key={a.id}>{renderAppointmentCard(a)}</li>
             ))}
           </ul>
-        )}
-      </div>
+        </div>
+      )}
+
+      {homeVisitAppointments.length > 0 && (
+        <div
+          id="home-visits"
+          className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-6"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-lg text-slate-800">Your Home Visits</h2>
+            <Link
+              href="/book-home-visit"
+              className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"
+            >
+              Book a Home Visit
+            </Link>
+          </div>
+
+          <ul className="space-y-3">
+            {homeVisitAppointments.map((a) => (
+              <li key={a.id}>{renderAppointmentCard(a, visitDetailById.get(a.id) ?? null)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div id="calendar" className="mt-8">
+        {/* Both kinds share one calendar -- a patient's week is one week,
+            whether a slot is a call or someone coming round. */}
         <SessionCalendarTab
           sessions={appointments}
-          cardsById={Object.fromEntries(appointments.map((a) => [a.id, renderAppointmentCard(a)]))}
+          cardsById={Object.fromEntries(
+            appointments.map((a) => [
+              a.id,
+              renderAppointmentCard(a, visitDetailById.get(a.id) ?? null),
+            ])
+          )}
           showMotivation
         />
       </div>
@@ -485,6 +710,30 @@ export default async function PatientDashboardPage() {
               status: p.status,
               expiresAt: p.expires_at,
               therapistName: p.locked_therapist_id ? therapistMap.get(p.locked_therapist_id) ?? null : null,
+            }))}
+          />
+        </div>
+      )}
+
+      {ownedHomeVisitPackages && ownedHomeVisitPackages.length > 0 && (
+        <div id="your-home-visit-packages" className="mt-8">
+          <HomeVisitPackageWidget
+            bulkScheduleMax={adminSettings.homeVisitBulkScheduleMax}
+            expiryReminderDays={adminSettings.packageExpiryReminderDays}
+            leadTimeHours={adminSettings.homeVisitLeadTimeHours}
+            purchases={ownedHomeVisitPackages.map((p) => ({
+              id: p.id,
+              purchaseCode: p.purchase_code,
+              title: ownedHomeVisitPackageInfoMap.get(p.package_id)?.title ?? "Home Visit Package",
+              imageUrl: ownedHomeVisitPackageInfoMap.get(p.package_id)?.image_url ?? null,
+              visitCount: p.visit_count,
+              visitsUsed: p.visits_used,
+              completedCount: completedCountByHomeVisitPurchase.get(p.id) ?? 0,
+              scheduledCount: scheduledCountByHomeVisitPurchase.get(p.id) ?? 0,
+              status: p.status,
+              expiresAt: p.expires_at,
+              therapistName: p.locked_therapist_id ? therapistMap.get(p.locked_therapist_id) ?? null : null,
+              paymentMode: p.payment_mode,
             }))}
           />
         </div>

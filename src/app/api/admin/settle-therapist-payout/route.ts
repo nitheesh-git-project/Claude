@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { computeNetPayout } from "@/lib/therapistCashLedger";
 
 // "online" here means the admin already sent the money themselves (UPI,
 // bank transfer) outside the platform and is logging it after the fact --
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
   const { data: therapist } = await admin
     .from("profiles")
-    .select("id, revenue_share_percent")
+    .select("id, revenue_share_percent, home_visit_revenue_share_percent")
     .eq("id", therapistId)
     .eq("role", "therapist")
     .single();
@@ -54,9 +55,15 @@ export async function POST(request: NextRequest) {
   // delivered yet, and settling its payout early would then block the
   // patient from cancelling/refunding it (cancelAppointmentAndRefund
   // refuses once a payout is settled, to avoid an inconsistent ledger).
+  //
+  // visit_mode/travel_fee_paise are read here too -- a home visit's payout
+  // is share-of-fee PLUS the travel fee in full (a pass-through
+  // reimbursement, never revenue -- see homeVisitPricing.ts), which the
+  // original version of this route didn't know existed and silently
+  // under-paid.
   const { data: unsettled } = await admin
     .from("appointments")
-    .select("id, amount_paid_paise")
+    .select("id, amount_paid_paise, visit_mode, travel_fee_paise")
     .eq("therapist_id", therapistId)
     .eq("payment_status", "paid")
     .eq("status", "completed")
@@ -68,6 +75,22 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  // Cash currently held by this therapist across ANY of their visits --
+  // not scoped to the sessions being settled here, since the business
+  // question is "how much should actually change hands right now" across
+  // the whole relationship, not per-session. A visit whose cash was already
+  // remitted (or never had cash collected) doesn't appear here.
+  const { data: cashHeldRows } = await admin
+    .from("appointments")
+    .select("cash_collected_amount_paise")
+    .eq("therapist_id", therapistId)
+    .not("cash_collected_at", "is", null)
+    .is("cash_remitted_at", null);
+  const cashHeldPaise = (cashHeldRows ?? []).reduce(
+    (sum, r) => sum + (r.cash_collected_amount_paise ?? 0),
+    0
+  );
 
   const paidAt = new Date().toISOString();
 
@@ -112,12 +135,22 @@ export async function POST(request: NextRequest) {
   // exactly what this request actually claimed, never a phantom amount.
   const claims = await Promise.all(
     unsettled.map(async (a) => {
+      const isHomeVisit = a.visit_mode === "home_visit";
+      const effectiveShare = isHomeVisit
+        ? therapist.home_visit_revenue_share_percent ?? therapist.revenue_share_percent!
+        : therapist.revenue_share_percent!;
       const paidPaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
-      const payoutPaise = Math.round((paidPaise * therapist.revenue_share_percent!) / 100);
+      const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
+      const payoutPaise = Math.round((paidPaise * effectiveShare) / 100) + travelPaise;
       const { data: claimed, error } = await admin
         .from("appointments")
         .update({
           therapist_payout_paid_at: paidAt,
+          // Per-session amount stays the full gross figure (share + travel)
+          // regardless of any cash net-off below -- this is what that
+          // specific session was worth, for receipts and the therapist's
+          // own Earnings tab. The net-off only affects how much of the
+          // total actually needs to change hands via this batch.
           therapist_payout_amount_paise: payoutPaise,
           therapist_payout_method: method,
           therapist_payout_note: note || null,
@@ -147,15 +180,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const totalSettledPaise = actuallySettled.reduce((sum, c) => sum + c.payoutPaise, 0);
+  const grossSettledPaise = actuallySettled.reduce((sum, c) => sum + c.payoutPaise, 0);
+  const net = computeNetPayout({ owedPaise: grossSettledPaise, cashHeldPaise });
 
-  // Correct the batch's placeholder amount now that the real claimed total
-  // is known -- not fatal to the payout itself if this write fails (the
-  // sessions are already genuinely settled), just means that one receipt's
-  // header total would need reconciling against its own session list.
+  // The batch records what actually changes hands via this settlement --
+  // net of cash the therapist is already holding, not the gross session
+  // total. Without this, "settle payout" would tell an admin to hand over
+  // money the therapist has, in effect, already taken at the door.
+  const noteWithCashContext =
+    net.cashHeldPaise > 0
+      ? `${note ? `${note} — ` : ""}Gross owed ₹${(grossSettledPaise / 100).toLocaleString(
+          "en-IN"
+        )}, netted against ₹${(net.cashHeldPaise / 100).toLocaleString(
+          "en-IN"
+        )} cash already held.`
+      : note || null;
+
   const { error: batchAmountError } = await admin
     .from("therapist_payout_batches")
-    .update({ amount_paise: totalSettledPaise })
+    .update({ amount_paise: net.netPayablePaise, note: noteWithCashContext })
     .eq("id", batch.id);
   if (batchAmountError) {
     console.error("Failed to set final amount on payout batch", batch.id, batchAmountError);
@@ -169,6 +212,10 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     settledCount: actuallySettled.length,
-    settledAmountPaise: totalSettledPaise,
+    // What actually needs to change hands right now, after the cash net-off
+    // -- the figure the confirmation banner should show as "paid".
+    settledAmountPaise: net.netPayablePaise,
+    grossOwedPaise: grossSettledPaise,
+    cashHeldPaise: net.cashHeldPaise,
   });
 }

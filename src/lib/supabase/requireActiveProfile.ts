@@ -24,3 +24,29 @@ export async function isProfileActiveAndApproved(userId: string): Promise<boolea
     .single();
   return data?.active !== false && data?.approved !== false;
 }
+
+// The suspension half of the check above, without the approval gate.
+//
+// Used only by the home-visit purchase routes. A self-signup patient starts
+// approved = false, so requiring approval there would mean nobody could buy
+// a home visit on the same visit they discovered it -- they would sign up,
+// be told to wait for a human, and mostly not come back. For that product
+// the gate buys nothing anyway: a completed Razorpay payment against an
+// address inside a serviceable pincode is itself the vetting `approved`
+// provides, and an admin still assigns a therapist before anyone travels.
+// /api/patient/register-via-referral already applies the same judgement from
+// the other direction, setting approved = true because the admin vetted the
+// patient by another route.
+//
+// Suspension is still enforced, so a suspended account cannot buy its way
+// back in. Do not reach for this in place of isProfileActiveAndApproved on
+// any other route -- everywhere else, the approval gate is doing real work.
+export async function isProfileActive(userId: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("profiles")
+    .select("active")
+    .eq("id", userId)
+    .single();
+  return data?.active !== false;
+}

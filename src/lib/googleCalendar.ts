@@ -55,18 +55,51 @@ type SessionEventInput = {
   timezone?: string | null;
 };
 
+type CalendarEventInput = SessionEventInput & {
+  // Physical address for a home visit. Rendered by Google Maps inside the
+  // event, on both the patient's and the therapist's copy.
+  location?: string | null;
+  // Free-text shown under the event -- access notes for a home visit
+  // ("2nd floor, ring twice"), which are the difference between the
+  // therapist finding the door and phoning support.
+  description?: string | null;
+  // Whether to attach a Meet conference. False for home visits: there is
+  // nothing to join, the therapist is coming to the address.
+  withMeet: boolean;
+  summary?: string;
+};
+
 /**
- * Creates a Calendar event with an auto-generated Meet link, inviting the
- * patient and therapist. Never throws -- a Calendar-API failure must never
- * block a booking/payment/reassignment from completing (same graceful-
- * degradation philosophy as Razorpay elsewhere in this codebase). Returns
- * null on failure; callers should record the error message via a second
- * call's caught reason, not by inspecting this return value.
+ * Creates a Calendar event inviting the patient and therapist, optionally
+ * with an auto-generated Meet link. Never throws -- a Calendar-API failure
+ * must never block a booking/payment/reassignment from completing (same
+ * graceful-degradation philosophy as Razorpay elsewhere in this codebase).
+ *
+ * `withMeet: false` is what home visits use. The event still matters, and
+ * arguably matters more: Calendar's `sendUpdates: "all"` invite email is the
+ * ONLY outbound message this platform sends to a patient (there is no email,
+ * SMS or WhatsApp integration anywhere in the codebase), so skipping the
+ * event for home visits would mean someone books a therapist to come to
+ * their house and receives no confirmation of any kind.
+ *
+ * Returns the created event's id, plus a Meet link only when one was
+ * requested and issued.
  */
-export async function createSessionMeetEvent(
-  input: SessionEventInput
-): Promise<{ eventId: string; meetLink: string } | { error: string }> {
-  const { appointmentId, patientEmail, therapistEmail, slotTime, durationMinutes, timezone } = input;
+export async function createSessionCalendarEvent(
+  input: CalendarEventInput
+): Promise<{ eventId: string; meetLink: string | null } | { error: string }> {
+  const {
+    appointmentId,
+    patientEmail,
+    therapistEmail,
+    slotTime,
+    durationMinutes,
+    timezone,
+    location,
+    description,
+    withMeet,
+    summary,
+  } = input;
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
   if (!calendarId) {
     return { error: "GOOGLE_CALENDAR_ID is not configured" };
@@ -79,33 +112,65 @@ export async function createSessionMeetEvent(
 
     const res = await calendar.events.insert({
       calendarId,
-      conferenceDataVersion: 1,
+      // Only meaningful when a conference is actually requested; harmless
+      // otherwise, but kept conditional so a home-visit insert doesn't
+      // advertise conference support it isn't using.
+      conferenceDataVersion: withMeet ? 1 : 0,
       sendUpdates: "all",
       requestBody: {
-        summary: "Physiotherapy Session",
+        summary: summary ?? "Physiotherapy Session",
         start: { dateTime: start.toISOString(), timeZone: tz },
         end: { dateTime: end.toISOString(), timeZone: tz },
         attendees: [{ email: patientEmail }, { email: therapistEmail }],
-        conferenceData: {
-          // Stable, not random -- makes conference-data creation idempotent
-          // against an accidental duplicate call for the same appointment.
-          createRequest: {
-            requestId: appointmentId,
-            conferenceSolutionKey: { type: "hangoutsMeet" },
-          },
-        },
+        ...(location ? { location } : {}),
+        ...(description ? { description } : {}),
+        ...(withMeet
+          ? {
+              conferenceData: {
+                // Stable, not random -- makes conference-data creation
+                // idempotent against an accidental duplicate call for the
+                // same appointment.
+                createRequest: {
+                  requestId: appointmentId,
+                  conferenceSolutionKey: { type: "hangoutsMeet" },
+                },
+              },
+            }
+          : {}),
       },
     });
 
     const eventId = res.data.id;
-    const meetLink = res.data.hangoutLink;
-    if (!eventId || !meetLink) {
-      return { error: "Calendar API did not return an event id / Meet link" };
+    if (!eventId) {
+      return { error: "Calendar API did not return an event id" };
     }
-    return { eventId, meetLink };
+    if (withMeet) {
+      const meetLink = res.data.hangoutLink;
+      if (!meetLink) {
+        return { error: "Calendar API did not return an event id / Meet link" };
+      }
+      return { eventId, meetLink };
+    }
+    return { eventId, meetLink: null };
   } catch (err) {
     return { error: logCalendarError("create", appointmentId, err) };
   }
+}
+
+/**
+ * The original online-session entry point, preserved verbatim in behaviour
+ * so no existing caller had to change: a Meet event, and a `meetLink` that
+ * is always a string when the call succeeds.
+ */
+export async function createSessionMeetEvent(
+  input: SessionEventInput
+): Promise<{ eventId: string; meetLink: string } | { error: string }> {
+  const result = await createSessionCalendarEvent({ ...input, withMeet: true });
+  if ("error" in result) return result;
+  if (!result.meetLink) {
+    return { error: "Calendar API did not return an event id / Meet link" };
+  }
+  return { eventId: result.eventId, meetLink: result.meetLink };
 }
 
 type SessionEventUpdateInput = {
@@ -116,6 +181,13 @@ type SessionEventUpdateInput = {
   slotTime: string;
   durationMinutes?: number | null;
   timezone?: string | null;
+  // Home visits only. Passing it patches the event's address; omitting it
+  // leaves whatever is there alone, which is what every online caller
+  // wants. Both matter: an admin correcting a wrong flat number has to
+  // reach the invite the therapist is actually navigating by, or they drive
+  // to the old house.
+  location?: string | null;
+  description?: string | null;
 };
 
 /**
@@ -125,7 +197,17 @@ type SessionEventUpdateInput = {
  * Never throws; returns false on failure.
  */
 export async function updateSessionMeetEvent(input: SessionEventUpdateInput): Promise<true | { error: string }> {
-  const { appointmentId, eventId, patientEmail, therapistEmail, slotTime, durationMinutes, timezone } = input;
+  const {
+    appointmentId,
+    eventId,
+    patientEmail,
+    therapistEmail,
+    slotTime,
+    durationMinutes,
+    timezone,
+    location,
+    description,
+  } = input;
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
   if (!calendarId) {
     return { error: "GOOGLE_CALENDAR_ID is not configured" };
@@ -144,6 +226,10 @@ export async function updateSessionMeetEvent(input: SessionEventUpdateInput): Pr
         start: { dateTime: start.toISOString(), timeZone: tz },
         end: { dateTime: end.toISOString(), timeZone: tz },
         attendees: [{ email: patientEmail }, { email: therapistEmail }],
+        // Only sent when the caller supplied one -- PATCH leaves an omitted
+        // field untouched, so online sessions are unaffected.
+        ...(location !== undefined && location !== null ? { location } : {}),
+        ...(description !== undefined && description !== null ? { description } : {}),
       },
     });
     return true;

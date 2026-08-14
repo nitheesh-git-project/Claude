@@ -35,6 +35,11 @@ const ADMIN_REALTIME_TABLES = [
   "condition_change_requests",
   "condition_access_grants",
   "pain_assessments",
+  "home_visit_areas",
+  "home_visit_packages",
+  "home_visit_package_purchases",
+  "home_visit_waitlist",
+  "patient_addresses",
 ];
 
 type TabKey =
@@ -52,6 +57,7 @@ type TabKey =
   | "paymentHistory"
   | "content"
   | "sessionManager"
+  | "homeVisits"
   | "featureControl";
 
 type TabDef = { key: TabKey; label: string; icon: string; badge?: number };
@@ -74,6 +80,8 @@ export default function AdminTabs({
   paymentHistory,
   siteContent,
   sessionManager,
+  homeVisits,
+  homeVisitsBadgeCount,
   featureControl,
   adminName,
   adminEmail,
@@ -103,6 +111,10 @@ export default function AdminTabs({
   paymentHistory: ReactNode;
   siteContent: ReactNode;
   sessionManager: ReactNode;
+  homeVisits: ReactNode;
+  // Out-of-area requests waiting to be looked at -- the one thing on this
+  // tab that arrives on its own and needs chasing, so it earns the badge.
+  homeVisitsBadgeCount: number;
   featureControl: ReactNode;
   adminName: string;
   adminEmail: string;
@@ -139,6 +151,12 @@ export default function AdminTabs({
     },
     { key: "paymentHistory", label: "Payment History", icon: "fa-receipt" },
     { key: "sessionManager", label: "Session Manager", icon: "fa-layer-group" },
+    {
+      key: "homeVisits",
+      label: "Home Visit",
+      icon: "fa-house-medical",
+      badge: homeVisitsBadgeCount,
+    },
     { key: "content", label: "Site Content", icon: "fa-pen-to-square" },
     { key: "featureControl", label: "Feature Control", icon: "fa-sliders" },
   ];
@@ -340,6 +358,7 @@ export default function AdminTabs({
           <div className={tab === "payoutRequests" ? "" : "hidden"}>{payoutRequests}</div>
           <div className={tab === "paymentHistory" ? "" : "hidden"}>{paymentHistory}</div>
           <div className={tab === "sessionManager" ? "" : "hidden"}>{sessionManager}</div>
+          <div className={tab === "homeVisits" ? "" : "hidden"}>{homeVisits}</div>
           <div className={tab === "content" ? "" : "hidden"}>{siteContent}</div>
           <div className={tab === "featureControl" ? "" : "hidden"}>{featureControl}</div>
         </div>

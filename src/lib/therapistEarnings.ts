@@ -17,6 +17,12 @@ export type EarningsAppointment = {
   payment_status: string;
   amount_paid_paise: number | null;
   therapist_payout_paid_at: string | null;
+  therapist_payout_amount_paise?: number | null;
+  // Home-visit fields, optional so every existing online-only caller is
+  // unaffected -- see the matching comment on PayoutAppointment in
+  // therapistPayouts.ts. Travel fee is paid in full on top of the share.
+  visit_mode?: string | null;
+  travel_fee_paise?: number | null;
 };
 
 export type TherapistEarningRow = {
@@ -32,18 +38,25 @@ export type TherapistEarningRow = {
   status: "paid_out" | "pending";
 };
 
+// homeVisitSharePercent is profiles.home_visit_revenue_share_percent,
+// nullable -- when unset, a home-visit session falls back to `sharePercent`,
+// same rule as computeTherapistPayoutSummary in therapistPayouts.ts.
 export function computeTherapistEarningRows(
   appointments: EarningsAppointment[],
   sharePercent: number | null,
   categoryTitleById: Map<string, string>,
   patientNameById: Map<string, string>,
-  sessionFeePaiseFallback: number
+  sessionFeePaiseFallback: number,
+  homeVisitSharePercent: number | null = null
 ): TherapistEarningRow[] {
   if (sharePercent === null) return [];
   return appointments
     .filter((a) => a.status === "completed" && a.payment_status === "paid")
     .map((a): TherapistEarningRow => {
+      const isHomeVisit = a.visit_mode === "home_visit";
+      const effectiveShare = isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent;
       const feePaise = a.amount_paid_paise ?? sessionFeePaiseFallback;
+      const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
       return {
         id: a.id,
         sessionCode: a.session_code ?? null,
@@ -52,8 +65,8 @@ export function computeTherapistEarningRows(
         date: a.slot_time ?? new Date(0).toISOString(),
         categoryId: a.category_id,
         categoryTitle: a.category_id ? categoryTitleById.get(a.category_id) ?? "—" : "—",
-        feePaise,
-        earningPaise: Math.round((feePaise * sharePercent) / 100),
+        feePaise: feePaise + travelPaise,
+        earningPaise: Math.round((feePaise * effectiveShare) / 100) + travelPaise,
         status: a.therapist_payout_paid_at ? "paid_out" : "pending",
       };
     })

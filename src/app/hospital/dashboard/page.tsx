@@ -77,7 +77,7 @@ export default async function HospitalDashboardPage() {
 
     supabase
       .from("patient_referrals")
-      .select("id, patient_name, medical_issue, status, assigned_slot_time, created_at")
+      .select("id, patient_name, medical_issue, status, assigned_slot_time, created_at, visit_mode, pincode")
       .eq("hospital_id", user.id)
       .order("created_at", { ascending: false }),
 
@@ -185,7 +185,7 @@ export default async function HospitalDashboardPage() {
           <h2 className="font-bold text-lg text-slate-800 mb-4">
             Refer a Patient
           </h2>
-          <SubmitReferralForm hospitalId={user.id} />
+          <SubmitReferralForm hospitalId={user.id} homeVisitEnabled={adminSettings.homeVisitEnabled} />
         </div>
 
         <div id="referrals" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -207,9 +207,16 @@ export default async function HospitalDashboardPage() {
                     <p className="font-bold text-slate-900">
                       {r.patient_name}
                     </p>
-                    <span className="font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full">
-                      {formatReferralStatus(r.status)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {r.visit_mode === "home_visit" && (
+                        <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
+                          Home Visit
+                        </span>
+                      )}
+                      <span className="font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full">
+                        {formatReferralStatus(r.status)}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-slate-500">{r.medical_issue}</p>
                   {r.assigned_slot_time && (
