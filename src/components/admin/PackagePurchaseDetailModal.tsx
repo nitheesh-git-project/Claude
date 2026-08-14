@@ -115,10 +115,11 @@ export default function PackagePurchaseDetailModal({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setActionError(json.error ?? "Action failed. Please try again.");
-        return;
+        return null;
       }
       await refetch();
       router.refresh();
+      return json;
     } finally {
       setActionPending(false);
     }
@@ -128,10 +129,23 @@ export default function PackagePurchaseDetailModal({
     if (!reassignTherapistId || !data) return;
     const label = therapists.find((t) => t.id === reassignTherapistId)?.full_name ?? "this therapist";
     if (!(await confirm(`Move every future session on this package to ${label}?`))) return;
-    await runAction("/api/admin/reassign-package-therapist", {
+    const result = await runAction("/api/admin/reassign-package-therapist", {
       purchaseId,
       therapistId: reassignTherapistId,
     });
+    // The purchase locks to the new therapist regardless (future sessions
+    // should still go to them), but any already-scheduled session that
+    // couldn't move -- a real scheduling conflict with the new therapist --
+    // stays with whoever it's currently assigned to. Silently refreshing
+    // would hide that from the admin; they need to know which session
+    // still needs manual attention.
+    if (result?.skipped?.length > 0) {
+      setActionError(
+        `Locked to ${label} for future sessions, but ${result.skipped.length} already-scheduled session(s) couldn't move: ${result.skipped
+          .map((s: { reason: string }) => s.reason)
+          .join("; ")}`
+      );
+    }
   }
 
   async function handleExtendExpiry() {

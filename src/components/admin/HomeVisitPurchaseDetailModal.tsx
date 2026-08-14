@@ -111,10 +111,11 @@ export default function HomeVisitPurchaseDetailModal({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setActionError(json.error ?? "Action failed. Please try again.");
-        return;
+        return null;
       }
       await refetch();
       router.refresh();
+      return json;
     } finally {
       setActionPending(false);
     }
@@ -124,10 +125,23 @@ export default function HomeVisitPurchaseDetailModal({
     if (!reassignTherapistId || !data) return;
     const label = therapists.find((t) => t.id === reassignTherapistId)?.full_name ?? "this therapist";
     if (!(await confirm(`Move every future visit on this package to ${label}?`))) return;
-    await runAction("/api/admin/reassign-home-visit-therapist", {
+    const result = await runAction("/api/admin/reassign-home-visit-therapist", {
       purchaseId,
       therapistId: reassignTherapistId,
     });
+    // The purchase locks to the new therapist regardless (future visits
+    // should still go to them), but any already-scheduled visit that
+    // couldn't move -- a real scheduling conflict with the new therapist --
+    // stays with whoever it's currently assigned to. Silently refreshing
+    // would hide that from the admin; they need to know which visit still
+    // needs manual attention.
+    if (result?.skipped?.length > 0) {
+      setActionError(
+        `Locked to ${label} for future visits, but ${result.skipped.length} already-scheduled visit(s) couldn't move: ${result.skipped
+          .map((s: { reason: string }) => s.reason)
+          .join("; ")}`
+      );
+    }
   }
 
   async function handleExtendExpiry() {

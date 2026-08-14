@@ -29,10 +29,12 @@ export default function HomeVisitPackageWidget({
   purchases,
   bulkScheduleMax,
   expiryReminderDays,
+  leadTimeHours,
 }: {
   purchases: PatientHomeVisitCard[];
   bulkScheduleMax: number;
   expiryReminderDays: number;
+  leadTimeHours: number;
 }) {
   const [now] = useState(() => Date.now());
   const [schedulingId, setSchedulingId] = useState<string | null>(null);
@@ -139,6 +141,7 @@ export default function HomeVisitPackageWidget({
           purchaseId={schedulingId}
           pendingCount={schedulingCounts.pending}
           bulkScheduleMax={bulkScheduleMax}
+          leadTimeHours={leadTimeHours}
           onClose={() => setSchedulingId(null)}
         />
       )}

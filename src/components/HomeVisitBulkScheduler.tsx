@@ -9,6 +9,7 @@ import {
   bookableHoursForDate,
   formatDateKeyLong,
   isMonthEntirelyUnbookable,
+  leadTimeMsFromHours,
 } from "@/lib/bookingSlots";
 import { formatHourRange } from "@/lib/therapistAvailability";
 import { bookingCellClass, BOOKING_DAY_CELL, BOOKING_OPTION_GRID, BOOKING_OPTION_CELL } from "@/lib/bookingCellStyles";
@@ -33,15 +34,22 @@ export default function HomeVisitBulkScheduler({
   purchaseId,
   pendingCount,
   bulkScheduleMax,
+  leadTimeHours,
   onClose,
 }: {
   purchaseId: string;
   pendingCount: number;
   bulkScheduleMax: number;
+  // site_settings.home_visit_lead_time_hours -- every date/hour helper below
+  // defaults to the ONLINE session's fixed lead time otherwise, which would
+  // let a patient bulk-schedule a home visit with less notice than the
+  // admin actually configured for this delivery mode.
+  leadTimeHours: number;
   onClose: () => void;
 }) {
   const router = useRouter();
   const [nowMs] = useState(() => Date.now());
+  const leadTimeMs = useMemo(() => leadTimeMsFromHours(leadTimeHours), [leadTimeHours]);
   const [view, setView] = useState(() => {
     const now = new Date(nowMs);
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -56,7 +64,7 @@ export default function HomeVisitBulkScheduler({
   const lastFocused = useRef<HTMLElement | null>(null);
 
   const maxSelectable = Math.max(0, Math.min(pendingCount, bulkScheduleMax));
-  const calendar = buildCalendarMonth(view.year, view.month, nowMs);
+  const calendar = buildCalendarMonth(view.year, view.month, nowMs, leadTimeMs);
 
   const close = useCallback(() => onClose(), [onClose]);
 
@@ -83,7 +91,7 @@ export default function HomeVisitBulkScheduler({
     });
   }
   const previousMonth = new Date(view.year, view.month - 1, 1);
-  const canGoBack = !isMonthEntirelyUnbookable(previousMonth.getFullYear(), previousMonth.getMonth(), nowMs);
+  const canGoBack = !isMonthEntirelyUnbookable(previousMonth.getFullYear(), previousMonth.getMonth(), nowMs, leadTimeMs);
 
   function toggleHour(dateKey: string, hour: number) {
     setSelected((prev) => {
@@ -95,8 +103,8 @@ export default function HomeVisitBulkScheduler({
   }
 
   const activeHours = useMemo(
-    () => (activeDateKey ? bookableHoursForDate(activeDateKey, nowMs) : []),
-    [activeDateKey, nowMs]
+    () => (activeDateKey ? bookableHoursForDate(activeDateKey, nowMs, leadTimeMs) : []),
+    [activeDateKey, nowMs, leadTimeMs]
   );
 
   async function handleSubmit() {

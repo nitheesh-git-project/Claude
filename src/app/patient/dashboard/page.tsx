@@ -720,6 +720,7 @@ export default async function PatientDashboardPage() {
           <HomeVisitPackageWidget
             bulkScheduleMax={adminSettings.homeVisitBulkScheduleMax}
             expiryReminderDays={adminSettings.packageExpiryReminderDays}
+            leadTimeHours={adminSettings.homeVisitLeadTimeHours}
             purchases={ownedHomeVisitPackages.map((p) => ({
               id: p.id,
               purchaseCode: p.purchase_code,
