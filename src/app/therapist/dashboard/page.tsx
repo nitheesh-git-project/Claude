@@ -14,7 +14,12 @@ import PackageChip from "@/components/packages/PackageChip";
 import TherapistProgrammePatients from "@/components/packages/TherapistProgrammePatients";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
-import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
+import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
+import {
+  formatAddressBlock,
+  mapsSearchUrl,
+  visitAddressFromAppointment,
+} from "@/lib/formatAddress";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { buildTherapistPayoutReceipts } from "@/lib/receipts";
@@ -73,6 +78,7 @@ export default async function TherapistDashboardPage() {
     { data: onLeaveProfile },
     { data: availabilitySlots },
     { data: rawAppointments },
+    { data: visitDetailRows },
     { data: sessionCodeLinks },
     { data: meetLinkRows },
     { data: payoutBatches },
@@ -115,6 +121,18 @@ export default async function TherapistDashboardPage() {
       )
       .eq("therapist_id", user.id)
       .order("created_at", { ascending: false }),
+
+    // The home-visit columns, kept as their own query rather than added to
+    // the select above: they are new and migration-dependent, and that
+    // select feeds every session list, the calendar and the earnings math.
+    // An unknown-column error there would blank the whole dashboard;
+    // isolated, a missing migration only means no Home Visits section.
+    supabase
+      .from("appointments")
+      .select(
+        "id, visit_mode, visit_label, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_contact_phone, visit_access_notes, travel_fee_paise, home_visit_purchase_id, cash_collected_at, cash_collected_amount_paise"
+      )
+      .eq("therapist_id", user.id),
 
     // session_code is also new/migration-dependent -- same isolation
     // reasoning as therapistCodeRow above.
@@ -162,10 +180,18 @@ export default async function TherapistDashboardPage() {
   const adminSettings = parseAdminSettings(settingsRow);
   const categoryTitleById = new Map((treatmentCategories ?? []).map((c) => [c.id, c.title]));
 
+  const visitDetailById = new Map((visitDetailRows ?? []).map((r) => [r.id, r]));
+
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
-  );
+  ).map((a) => ({ ...a, visit: visitDetailById.get(a.id) ?? null }));
+
+  // One query, split in memory -- a therapist's list is small, and a second
+  // round trip to the same table filtered the other way would cost more
+  // than the filter does.
+  const onlineAppointments = appointments.filter((a) => a.visit?.visit_mode !== "home_visit");
+  const homeVisits = appointments.filter((a) => a.visit?.visit_mode === "home_visit");
   const sessionCodeByAppointmentId = Object.fromEntries(
     appointments.map((a) => [a.id, a.session_code])
   );
@@ -274,7 +300,7 @@ export default async function TherapistDashboardPage() {
     (r) => r.status === "completed" && !r.acknowledged_at
   );
 
-  const navItems = THERAPIST_NAV_ITEMS;
+  const navItems = buildTherapistNavItems({ hasHomeVisits: homeVisits.length > 0 });
 
   // Shared between "Assigned Patient Sessions" and the Calendar tab's
   // tap-a-date detail list -- one true card style for a session, not two
@@ -340,6 +366,141 @@ export default async function TherapistDashboardPage() {
             </>
           )}
         </div>
+        {a.status === "completed" && !a.no_show && (
+          <SessionFeedbackForm
+            appointmentId={a.id}
+            role="therapist"
+            existingRating={a.therapist_rating}
+            existingFeedback={a.therapist_feedback}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // The home-visit twin of renderAppointmentCard. A separate function
+  // rather than branches inside that one: almost every line differs (an
+  // address block and a map link instead of a Join button, a cash badge,
+  // no Meet link at all), and interleaving the two would make both harder
+  // to read than having them side by side.
+  function renderHomeVisitCard(a: (typeof appointments)[number]) {
+    const patient = patientMap.get(a.patient_id);
+    const visit = a.visit;
+    const visitAddress = visit ? visitAddressFromAppointment(visit) : null;
+    const addressLines = visitAddress ? formatAddressBlock(visitAddress) : [];
+    const mapsUrl = visitAddress ? mapsSearchUrl(visitAddress) : null;
+    // The number to ring at the door, which may deliberately differ from
+    // the account holder's -- an elderly patient's booking is often made
+    // by a relative.
+    const callNumber = visit?.visit_contact_phone || patient?.phone || null;
+    // An unpaid home visit is a cash-at-the-door booking by definition:
+    // the prepaid path marks the appointment paid at creation, so anything
+    // still unpaid here is money the therapist collects on arrival.
+    const cashDue = a.payment_status !== "paid" && !visit?.cash_collected_at;
+
+    return (
+      <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <p className="font-bold text-slate-900">{patient?.full_name ?? "Unknown patient"}</p>
+            {callNumber ? (
+              <a href={`tel:${callNumber}`} className="text-teal-700 font-semibold hover:underline">
+                {callNumber}
+              </a>
+            ) : (
+              <p className="text-slate-500">{patient?.email || "No contact on file"}</p>
+            )}
+            {a.patient_id && (
+              <Link
+                href={`/therapist/dashboard/health-profile/${a.patient_id}`}
+                className="inline-block mt-1 text-[11px] font-semibold text-teal-700 hover:text-teal-800"
+              >
+                View Health Profile →
+              </Link>
+            )}
+          </div>
+          <span
+            className={`capitalize font-semibold px-3 py-1 rounded-full ${
+              a.no_show ? NO_SHOW_STYLE : STATUS_BADGE_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
+            }`}
+          >
+            {a.no_show ? "No-Show" : a.status}
+          </span>
+        </div>
+
+        <p className="font-bold text-sm text-slate-900">
+          {a.concern ?? "Home Physiotherapy Visit"}
+          {a.session_code && (
+            <span className="ml-2 font-mono font-normal text-[11px] text-slate-400">
+              {a.session_code}
+            </span>
+          )}
+        </p>
+        <p className="text-sm text-slate-500">
+          {formatSlotTime(a.slot_time, a.timezone)}
+          {a.duration_minutes && ` • ${a.duration_minutes} min`}
+        </p>
+
+        {addressLines.length > 0 && (
+          <div className="rounded-lg bg-slate-50 p-3 space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Address
+            </p>
+            {addressLines.map((line) => (
+              <p key={line} className="text-slate-700">
+                {line}
+              </p>
+            ))}
+            {visit?.visit_access_notes && (
+              <p className="text-slate-600 pt-1">
+                <span className="font-semibold text-slate-400">Getting in:</span>{" "}
+                {visit.visit_access_notes}
+              </p>
+            )}
+            {mapsUrl && (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 pt-1 text-[11px] font-semibold text-teal-700 hover:text-teal-800"
+              >
+                <i className="fa-solid fa-location-dot" /> Open in Maps
+              </a>
+            )}
+          </div>
+        )}
+
+        {a.notes && (
+          <p className="text-slate-500">
+            <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
+          </p>
+        )}
+
+        {cashDue && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 font-semibold text-amber-800">
+            <i className="fa-solid fa-indian-rupee-sign mr-1.5" />
+            Collect payment at the door
+          </p>
+        )}
+        {visit?.cash_collected_at && (
+          <p className="text-teal-700 font-semibold">
+            <i className="fa-solid fa-circle-check mr-1.5" />
+            Cash collected
+            {visit.cash_collected_amount_paise
+              ? ` — ₹${(visit.cash_collected_amount_paise / 100).toLocaleString("en-IN")}`
+              : ""}
+          </p>
+        )}
+
+        {/* No JoinSessionButton: there is nothing to join, the therapist is
+            travelling to the address above. */}
+        {a.status === "confirmed" && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+            <MarkNoShowButton appointmentId={a.id} />
+          </div>
+        )}
+
         {a.status === "completed" && !a.no_show && (
           <SessionFeedbackForm
             appointmentId={a.id}
@@ -438,18 +599,35 @@ export default async function TherapistDashboardPage() {
           Assigned Patient Sessions
         </h2>
 
-        {!appointments || appointments.length === 0 ? (
+        {onlineAppointments.length === 0 ? (
           <p className="text-xs text-slate-500 py-8 text-center">
             No sessions have been assigned to you yet.
           </p>
         ) : (
           <ul className="space-y-3">
-            {appointments.map((a) => (
+            {onlineAppointments.map((a) => (
               <li key={a.id}>{renderAppointmentCard(a)}</li>
             ))}
           </ul>
         )}
       </div>
+
+      {homeVisits.length > 0 && (
+        <div
+          id="home-visits"
+          className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-6"
+        >
+          <h2 className="font-bold text-lg text-slate-800 mb-1">Home Visits</h2>
+          <p className="text-xs text-slate-500 mb-4">
+            Sessions you travel to. Check the address and access notes before you set off.
+          </p>
+          <ul className="space-y-3">
+            {homeVisits.map((a) => (
+              <li key={a.id}>{renderHomeVisitCard(a)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div id="programmes" className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-1">Programme Patients</h2>
@@ -473,9 +651,19 @@ export default async function TherapistDashboardPage() {
       </div>
 
       <div id="calendar" className="mt-8">
+        {/* Both kinds share the calendar -- a therapist's day is one day,
+            whether a slot is a call or a journey. Each entry renders the
+            card that matches its own mode. */}
         <SessionCalendarTab
           sessions={appointments}
-          cardsById={Object.fromEntries(appointments.map((a) => [a.id, renderAppointmentCard(a)]))}
+          cardsById={Object.fromEntries(
+            appointments.map((a) => [
+              a.id,
+              a.visit?.visit_mode === "home_visit"
+                ? renderHomeVisitCard(a)
+                : renderAppointmentCard(a),
+            ])
+          )}
         />
       </div>
 

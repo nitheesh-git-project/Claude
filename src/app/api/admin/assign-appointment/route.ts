@@ -5,6 +5,8 @@ import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
+import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
 
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
@@ -49,6 +51,36 @@ export async function POST(request: NextRequest) {
       .single(),
   ]);
 
+  // The home-visit columns in their own query: they are newer than this
+  // route, and folding them into the select above would mean an unknown
+  // column breaks assignment for every ordinary online session too. A null
+  // here degrades to "treat it as an online session", which is exactly the
+  // behaviour this route had before home visits existed.
+  const { data: visit } = await admin
+    .from("appointments")
+    .select(
+      "visit_mode, home_visit_purchase_id, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_access_notes"
+    )
+    .eq("id", appointmentId)
+    .maybeSingle();
+
+  const isHomeVisit = visit?.visit_mode === "home_visit";
+
+  // A therapist finishing at one address cannot be at another minutes
+  // later, and time overlap is the only signal available -- the app holds
+  // no distance data. Online assignments pass 0 and behave exactly as
+  // before.
+  let travelBufferMinutes = 0;
+  if (isHomeVisit) {
+    const { data: bufferRow } = await admin
+      .from("site_settings")
+      .select("home_visit_travel_buffer_minutes")
+      .maybeSingle();
+    travelBufferMinutes =
+      bufferRow?.home_visit_travel_buffer_minutes ??
+      DEFAULT_ADMIN_SETTINGS.homeVisitTravelBufferMinutes;
+  }
+
   if (!therapist) {
     return NextResponse.json(
       { error: "That therapist is not an approved therapist" },
@@ -76,7 +108,7 @@ export async function POST(request: NextRequest) {
       therapistId,
       appointment.slot_time,
       appointment.duration_minutes ?? BASE_DURATION_MINUTES,
-      { excludeAppointmentId: appointmentId }
+      { excludeAppointmentId: appointmentId, bufferMinutes: travelBufferMinutes }
     );
     if (conflict) {
       return NextResponse.json(
@@ -117,7 +149,7 @@ export async function POST(request: NextRequest) {
       therapistId,
       appointment.slot_time,
       appointment.duration_minutes ?? BASE_DURATION_MINUTES,
-      { excludeAppointmentId: appointmentId }
+      { excludeAppointmentId: appointmentId, bufferMinutes: travelBufferMinutes }
     );
     if (conflictAfterWrite) {
       await admin
@@ -206,6 +238,58 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // The home-visit twin of the package lock above, against its own
+  // purchases table. Same contract: set once, never overwritten, CAS'd on
+  // staying null so two near-simultaneous assignments on one programme
+  // can't both win it.
+  if (visit?.home_visit_purchase_id) {
+    const { data: purchase } = await admin
+      .from("home_visit_package_purchases")
+      .select("id, package_id, locked_therapist_id")
+      .eq("id", visit.home_visit_purchase_id)
+      .single();
+    if (purchase && !purchase.locked_therapist_id) {
+      const { data: packageRow } = await admin
+        .from("home_visit_packages")
+        .select("therapist_locked")
+        .eq("id", purchase.package_id)
+        .maybeSingle();
+      // No site-wide switch here, unlike the online packages: continuity on
+      // a home visit is about a stranger entering someone's home, which is
+      // the package's own promise to make or not, not a platform default to
+      // override.
+      if (packageRow?.therapist_locked !== false) {
+        const { data: lockClaimed, error: lockError } = await admin
+          .from("home_visit_package_purchases")
+          .update({ locked_therapist_id: therapistId })
+          .eq("id", purchase.id)
+          .is("locked_therapist_id", null)
+          .select("id")
+          .maybeSingle();
+        if (lockError) {
+          console.error("Failed to lock home visit therapist for purchase", purchase.id, lockError);
+        } else if (lockClaimed) {
+          const { error: lockEventError } = await admin
+            .from("home_visit_purchase_events")
+            .insert({
+              purchase_id: purchase.id,
+              event_type: "therapist_locked",
+              actor_id: adminUser.id,
+              appointment_id: appointmentId,
+              detail: { therapistId },
+            });
+          if (lockEventError) {
+            console.error(
+              "Failed to log therapist_locked event for home visit purchase",
+              purchase.id,
+              lockEventError
+            );
+          }
+        }
+      }
+    }
+  }
+
   // Past the post-write conflict re-check above -- the assignment (and any
   // status: "confirmed") is confirmed to have actually stuck, so it's safe
   // to create the Meet event now.
@@ -217,6 +301,16 @@ export async function POST(request: NextRequest) {
       slotTime: appointment.slot_time,
       durationMinutes: appointment.duration_minutes,
       timezone: appointment.timezone,
+      // A home visit's event carries the street address and no Meet link.
+      // It is not optional: Calendar's invite email is the only outbound
+      // message this platform sends, so skipping it would leave the patient
+      // with no confirmation that someone is coming to their home.
+      visitMode: isHomeVisit ? "home_visit" : "online",
+      location: isHomeVisit && visit ? formatAddressOneLine(visitAddressFromAppointment(visit)) : null,
+      description:
+        isHomeVisit && visit?.visit_access_notes
+          ? `Access notes: ${visit.visit_access_notes}`
+          : null,
     });
   }
 

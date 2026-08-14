@@ -13,6 +13,35 @@ export type VisitAddress = {
   longitude?: number | string | null;
 };
 
+// The same address as it is stored on an appointment, where every column
+// carries a `visit_` prefix to keep it distinguishable from the patient's
+// own address book. Adapting here rather than at each call site means the
+// therapist card, the admin queue and the calendar event all agree on which
+// column maps to which line.
+export type AppointmentVisitColumns = {
+  visit_address_line1?: string | null;
+  visit_address_line2?: string | null;
+  visit_landmark?: string | null;
+  visit_city?: string | null;
+  visit_state?: string | null;
+  visit_pincode?: string | null;
+  visit_latitude?: number | string | null;
+  visit_longitude?: number | string | null;
+};
+
+export function visitAddressFromAppointment(a: AppointmentVisitColumns): VisitAddress {
+  return {
+    line1: a.visit_address_line1,
+    line2: a.visit_address_line2,
+    landmark: a.visit_landmark,
+    city: a.visit_city,
+    state: a.visit_state,
+    pincode: a.visit_pincode,
+    latitude: a.visit_latitude,
+    longitude: a.visit_longitude,
+  };
+}
+
 function parts(address: VisitAddress): string[] {
   return [
     address.line1,

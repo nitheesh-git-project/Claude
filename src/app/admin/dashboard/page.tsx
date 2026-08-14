@@ -122,6 +122,7 @@ export default async function AdminDashboardPage() {
     { data: homeVisitAreas },
     { data: homeVisitWaitlist },
     { data: homeVisitAreaUsage },
+    { data: homeVisitAppointments },
   ] = await Promise.all([
     // Both self-serve roles wait on admin approval, so this one query feeds
     // the single "Pending Approvals" list -- therapist applications and
@@ -366,6 +367,18 @@ export default async function AdminDashboardPage() {
     // the UI offers Deactivate instead. The route enforces this too (on the
     // foreign key); this is only so the button isn't shown to be refused.
     admin.from("appointments").select("visit_area_id").not("visit_area_id", "is", null),
+
+    // The Visits queue. Its own query rather than a filter over the page's
+    // main appointments read: that select predates the visit_ columns, and
+    // adding them there would let one unknown column blank every session
+    // list on this dashboard.
+    admin
+      .from("appointments")
+      .select(
+        "id, session_code, slot_time, timezone, concern, status, duration_minutes, patient_id, therapist_id, payment_status, amount_paid_paise, travel_fee_paise, no_show, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_contact_phone, visit_access_notes, cash_collected_at"
+      )
+      .eq("visit_mode", "home_visit")
+      .order("slot_time", { ascending: true }),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -1441,6 +1454,18 @@ export default async function AdminDashboardPage() {
 
   const homeVisitsTab = (
     <AdminHomeVisitsTab
+      visits={(homeVisitAppointments ?? []).map((v) => ({
+        ...v,
+        // Names resolved from the profile map this page already builds --
+        // the same avoid-a-blocked-RLS-join approach used everywhere else
+        // on this dashboard.
+        patientName: profileMap.get(v.patient_id)?.full_name ?? "Unknown patient",
+        patientCode: roleCodeMap.get(v.patient_id)?.patient_code ?? null,
+        therapistName: v.therapist_id
+          ? profileMap.get(v.therapist_id)?.full_name ?? "Unknown therapist"
+          : null,
+      }))}
+      therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
       packages={(homeVisitPackages ?? []).map((p) => ({
         ...p,
         // benefits is jsonb -- defaults to '[]' in the schema, but a row

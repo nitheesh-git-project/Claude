@@ -42,6 +42,26 @@ export function buildPatientNavItems({
   ];
 }
 
+// Home Visits is conditional on the therapist actually having any, for the
+// same reason the patient's package items are: a nav entry that scrolls to
+// an empty section is worse than no entry. Built as a function rather than
+// a const so both pages sharing this shell pass the same boolean and cannot
+// drift -- same shape as buildPatientNavItems above.
+export function buildTherapistNavItems({
+  hasHomeVisits,
+}: {
+  hasHomeVisits: boolean;
+}): ShellNavItem[] {
+  return [
+    { id: "availability", label: "Availability", icon: "fa-calendar-days" },
+    { id: "sessions", label: "Assigned Sessions", icon: "fa-clipboard-list" },
+    ...(hasHomeVisits
+      ? [{ id: "home-visits", label: "Home Visits", icon: "fa-house-medical" }]
+      : []),
+    ...THERAPIST_NAV_ITEMS.slice(2),
+  ];
+}
+
 export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
   { id: "availability", label: "Availability", icon: "fa-calendar-days" },
   { id: "sessions", label: "Assigned Sessions", icon: "fa-clipboard-list" },

@@ -181,6 +181,13 @@ type SessionEventUpdateInput = {
   slotTime: string;
   durationMinutes?: number | null;
   timezone?: string | null;
+  // Home visits only. Passing it patches the event's address; omitting it
+  // leaves whatever is there alone, which is what every online caller
+  // wants. Both matter: an admin correcting a wrong flat number has to
+  // reach the invite the therapist is actually navigating by, or they drive
+  // to the old house.
+  location?: string | null;
+  description?: string | null;
 };
 
 /**
@@ -190,7 +197,17 @@ type SessionEventUpdateInput = {
  * Never throws; returns false on failure.
  */
 export async function updateSessionMeetEvent(input: SessionEventUpdateInput): Promise<true | { error: string }> {
-  const { appointmentId, eventId, patientEmail, therapistEmail, slotTime, durationMinutes, timezone } = input;
+  const {
+    appointmentId,
+    eventId,
+    patientEmail,
+    therapistEmail,
+    slotTime,
+    durationMinutes,
+    timezone,
+    location,
+    description,
+  } = input;
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
   if (!calendarId) {
     return { error: "GOOGLE_CALENDAR_ID is not configured" };
@@ -209,6 +226,10 @@ export async function updateSessionMeetEvent(input: SessionEventUpdateInput): Pr
         start: { dateTime: start.toISOString(), timeZone: tz },
         end: { dateTime: end.toISOString(), timeZone: tz },
         attendees: [{ email: patientEmail }, { email: therapistEmail }],
+        // Only sent when the caller supplied one -- PATCH leaves an omitted
+        // field untouched, so online sessions are unaffected.
+        ...(location !== undefined && location !== null ? { location } : {}),
+        ...(description !== undefined && description !== null ? { description } : {}),
       },
     });
     return true;

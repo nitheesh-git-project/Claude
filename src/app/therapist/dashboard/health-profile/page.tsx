@@ -3,7 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import DashboardShell from "@/components/dashboard/DashboardShell";
-import { THERAPIST_NAV_ITEMS } from "@/lib/dashboardNavItems";
+import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
@@ -32,13 +32,23 @@ export default async function TherapistHealthProfilesPage() {
     return null;
   }
 
-  const [{ data: profile }, { data: therapistCodeRow }, { data: appointmentPatients }, { data: packagePatients }, { data: settingsRow }] =
+  const [{ data: profile }, { data: therapistCodeRow }, { data: appointmentPatients }, { data: packagePatients }, { data: settingsRow }, { count: homeVisitCount }] =
     await Promise.all([
       supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).single(),
       supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
       supabase.from("appointments").select("patient_id").eq("therapist_id", user.id),
       supabase.from("patient_package_purchases").select("patient_id").eq("locked_therapist_id", user.id),
       supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
+
+      // Whether this therapist has any home visits at all -- the sidebar's
+      // Home Visits entry is conditional, and every page rendering this shell
+      // has to pass the same boolean or the nav flickers between pages. Count
+      // only (head: true), so this costs a round trip and no rows.
+      supabase
+        .from("appointments")
+        .select("id", { count: "exact", head: true })
+        .eq("therapist_id", user.id)
+        .eq("visit_mode", "home_visit"),
     ]);
 
   const patientIds = [
@@ -93,7 +103,7 @@ export default async function TherapistHealthProfilesPage() {
       brandLabel="Therapist Panel"
       brandIcon="fa-user-doctor"
       basePath="/therapist/dashboard"
-      navItems={THERAPIST_NAV_ITEMS}
+      navItems={buildTherapistNavItems({ hasHomeVisits: (homeVisitCount ?? 0) > 0 })}
       userName={profile?.full_name ?? "Therapist"}
       userEmail={user.email ?? ""}
       userAvatarUrl={profile?.avatar_url ?? null}

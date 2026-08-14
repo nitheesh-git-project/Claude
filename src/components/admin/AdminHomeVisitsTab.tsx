@@ -9,31 +9,39 @@ import HomeVisitAreaManager, {
   type WaitlistRow,
 } from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
+import HomeVisitQueue, { type HomeVisitRow } from "@/components/admin/HomeVisitQueue";
 
-// Visits, Programmes and Cash Ledger join this union in later phases -- the
-// shell is deliberately the same one AdminSessionManagerTab uses so adding
-// them is a switch case, not a rewrite.
-type SubTab = "catalog" | "areas" | "settings";
+// Programmes and Cash Ledger join this union in Phases 6 and 5 -- the shell
+// is deliberately the same one AdminSessionManagerTab uses so adding them is
+// a switch case, not a rewrite.
+type SubTab = "visits" | "catalog" | "areas" | "settings";
 
 export default function AdminHomeVisitsTab({
+  visits,
+  therapists,
   packages,
   areas,
   waitlist,
   categories,
   settings,
 }: {
+  visits: HomeVisitRow[];
+  therapists: { id: string; full_name: string }[];
   packages: HomeVisitPackage[];
   areas: ServiceAreaRow[];
   waitlist: WaitlistRow[];
   categories: { id: string; title: string }[];
   settings: AdminSettings;
 }) {
-  const [subTab, setSubTab] = useState<SubTab>("catalog");
+  // Visits first: once the service is live this is the tab an admin opens
+  // to do today's work, and the catalogue is set up once and rarely touched.
+  const [subTab, setSubTab] = useState<SubTab>("visits");
 
   const activeAreas = areas.filter((a) => a.active).length;
   const livePackages = packages.filter((p) => p.active).length;
   const newRequests = waitlist.filter((w) => w.status === "new").length;
   const cities = new Set(areas.filter((a) => a.active).map((a) => a.city.toLowerCase())).size;
+  const unassigned = visits.filter((v) => !v.therapist_id && v.status !== "cancelled").length;
 
   return (
     <div className="space-y-6">
@@ -52,7 +60,12 @@ export default function AdminHomeVisitsTab({
         </p>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <StatCard
+          label="Needs a Therapist"
+          value={String(unassigned)}
+          tone={unassigned > 0 ? "text-amber-700" : undefined}
+        />
         <StatCard label="Pincodes Served" value={String(activeAreas)} />
         <StatCard label="Cities" value={String(cities)} />
         <StatCard label="Packages Live" value={String(livePackages)} />
@@ -66,6 +79,7 @@ export default function AdminHomeVisitsTab({
       <div className="flex gap-2 border-b border-slate-200">
         {(
           [
+            { key: "visits", label: "Visits" },
             { key: "catalog", label: "Catalog" },
             { key: "areas", label: "Service Areas" },
             { key: "settings", label: "Settings" },
@@ -84,6 +98,12 @@ export default function AdminHomeVisitsTab({
           </button>
         ))}
       </div>
+
+      {subTab === "visits" && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <HomeVisitQueue visits={visits} therapists={therapists} />
+        </div>
+      )}
 
       {subTab === "catalog" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

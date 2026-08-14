@@ -144,6 +144,8 @@ export async function updateMeetEventForAppointment(
     slotTime,
     durationMinutes,
     timezone,
+    location = null,
+    description = null,
   }: {
     appointmentId: string;
     googleEventId: string | null;
@@ -152,6 +154,11 @@ export async function updateMeetEventForAppointment(
     slotTime: string;
     durationMinutes: number | null;
     timezone: string | null;
+    // Home visits only. An admin correcting a wrong flat number has to
+    // reach the invite the therapist is actually navigating by -- without
+    // this the event keeps the old address and they drive to the old house.
+    location?: string | null;
+    description?: string | null;
   }
 ) {
   if (!googleEventId) return;
@@ -182,6 +189,8 @@ export async function updateMeetEventForAppointment(
       slotTime,
       durationMinutes,
       timezone,
+      location,
+      description,
     });
 
     await admin
