@@ -19,6 +19,7 @@ import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
 import AdminSessionManagerTab from "@/components/admin/AdminSessionManagerTab";
+import AdminHomeVisitsTab from "@/components/admin/AdminHomeVisitsTab";
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
@@ -117,6 +118,10 @@ export default async function AdminDashboardPage() {
     { data: conditionProfiles },
     { count: conditionRequestsPendingCount },
     { count: conditionAccessPendingCount },
+    { data: homeVisitPackages },
+    { data: homeVisitAreas },
+    { data: homeVisitWaitlist },
+    { data: homeVisitAreaUsage },
   ] = await Promise.all([
     // Both self-serve roles wait on admin approval, so this one query feeds
     // the single "Pending Approvals" list -- therapist applications and
@@ -334,6 +339,33 @@ export default async function AdminDashboardPage() {
       .from("condition_access_grants")
       .select("id", { count: "exact", head: true })
       .eq("status", "requested"),
+
+    // Home Visit tab. These four tables are new, so on a database that
+    // hasn't re-run schema.sql each query fails on its own and comes back
+    // as null -- emptying only the Home Visit tab, not the rest of this
+    // page, same reasoning as the condition tables above.
+    admin
+      .from("home_visit_packages")
+      .select(
+        "id, package_code, title, subtitle, description, image_url, benefits, badge_label, highlight, terms, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked, min_gap_hours, max_visits_per_week, max_purchases_per_patient, category_id, display_order, visible_on_home, visible_on_home_visit_page, visible_in_dashboard, active"
+      )
+      .order("display_order", { ascending: true })
+      .order("id", { ascending: true }),
+    admin
+      .from("home_visit_areas")
+      .select("id, city, area_name, pincode, travel_fee_paise, notes, active")
+      .order("city", { ascending: true })
+      .order("pincode", { ascending: true }),
+    admin
+      .from("home_visit_waitlist")
+      .select("id, name, phone, email, pincode, city, note, status, created_at")
+      .order("created_at", { ascending: false }),
+    // Which areas are actually referenced by a booked visit. Drives whether
+    // the Service Areas row offers Delete at all -- deleting an area that a
+    // past visit points at would strip the fee context off that visit, so
+    // the UI offers Deactivate instead. The route enforces this too (on the
+    // foreign key); this is only so the button isn't shown to be refused.
+    admin.from("appointments").select("visit_area_id").not("visit_area_id", "is", null),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -1399,6 +1431,34 @@ export default async function AdminDashboardPage() {
     />
   );
 
+  // An area is "in use" if any visit already points at it. patient_addresses
+  // also reference areas, but an address is editable by its owner and never
+  // needs the historical fee context a delivered visit does, so a visit is
+  // the thing that makes an area permanent.
+  const usedAreaIds = new Set(
+    (homeVisitAreaUsage ?? []).map((a) => a.visit_area_id as string).filter(Boolean)
+  );
+
+  const homeVisitsTab = (
+    <AdminHomeVisitsTab
+      packages={(homeVisitPackages ?? []).map((p) => ({
+        ...p,
+        // benefits is jsonb -- defaults to '[]' in the schema, but a row
+        // written before that default (or by hand) can still be null.
+        benefits: Array.isArray(p.benefits) ? (p.benefits as string[]) : [],
+      }))}
+      areas={(homeVisitAreas ?? []).map((a) => ({
+        ...a,
+        in_use: usedAreaIds.has(a.id),
+      }))}
+      waitlist={homeVisitWaitlist ?? []}
+      categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+      settings={adminSettings}
+    />
+  );
+
+  const homeVisitsBadgeCount = (homeVisitWaitlist ?? []).filter((w) => w.status === "new").length;
+
   const siteContent = (
     <>
       <SiteRatingsVisibilityToggle
@@ -1490,6 +1550,8 @@ export default async function AdminDashboardPage() {
       paymentHistory={paymentHistoryTab}
       siteContent={siteContent}
       sessionManager={sessionManagerTab}
+      homeVisits={homeVisitsTab}
+      homeVisitsBadgeCount={homeVisitsBadgeCount}
       featureControl={featureControl}
       adminName={adminProfile?.full_name ?? "Admin"}
       adminEmail={adminProfile?.email ?? user.email ?? ""}
