@@ -19,6 +19,20 @@ import { AVAILABILITY_HOURS, DAY_ORDER, DAY_LABELS_SHORT } from "@/lib/therapist
 export const BOOKING_LEAD_TIME_HOURS = 12;
 export const BOOKING_LEAD_TIME_MS = BOOKING_LEAD_TIME_HOURS * 60 * 60 * 1000;
 
+// Home visits need a longer runway than an online session -- a therapist has
+// to physically reach the address, not just be free -- so every function
+// below takes an optional lead time and defaults to the online one.
+//
+// Deliberately a parameter rather than a second copy of this module. The
+// whole reason these helpers exist is that the picker and the validator were
+// once separate inline expressions that drifted; forking the file for a
+// second lead time would recreate exactly that bug one level up. Callers
+// pass site_settings.home_visit_lead_time_hours through
+// leadTimeMsFromHours().
+export function leadTimeMsFromHours(hours: number): number {
+  return Math.max(0, hours) * 60 * 60 * 1000;
+}
+
 // How far ahead the picker is willing to look for an eligible date. Only
 // bounds the "find the earliest bookable date" scan so a pathological
 // availability list can't spin forever -- with the standard 6AM-11PM hours
@@ -43,32 +57,48 @@ export function slotStartMs(dateKey: string, hour: number): number {
   return new Date(`${dateKey}T${String(hour).padStart(2, "0")}:00`).getTime();
 }
 
-export function isSlotBookable(dateKey: string, hour: number, nowMs: number): boolean {
-  return slotStartMs(dateKey, hour) >= nowMs + BOOKING_LEAD_TIME_MS;
+export function isSlotBookable(
+  dateKey: string,
+  hour: number,
+  nowMs: number,
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+): boolean {
+  return slotStartMs(dateKey, hour) >= nowMs + leadTimeMs;
 }
 
 // The hours on `dateKey` that clear the lead-time rule. Returned in the
 // same ascending order as AVAILABILITY_HOURS, so `[0]` is always the
 // earliest bookable hour of that day.
-export function bookableHoursForDate(dateKey: string, nowMs: number): number[] {
-  return AVAILABILITY_HOURS.filter((hour) => isSlotBookable(dateKey, hour, nowMs));
+export function bookableHoursForDate(
+  dateKey: string,
+  nowMs: number,
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+): number[] {
+  return AVAILABILITY_HOURS.filter((hour) => isSlotBookable(dateKey, hour, nowMs, leadTimeMs));
 }
 
 // A date is offerable exactly when at least one of its slots clears the
 // lead time -- "today" typically drops off entirely, and the boundary day
 // is partially available rather than all-or-nothing.
-export function isDateBookable(dateKey: string, nowMs: number): boolean {
-  return AVAILABILITY_HOURS.some((hour) => isSlotBookable(dateKey, hour, nowMs));
+export function isDateBookable(
+  dateKey: string,
+  nowMs: number,
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+): boolean {
+  return AVAILABILITY_HOURS.some((hour) => isSlotBookable(dateKey, hour, nowMs, leadTimeMs));
 }
 
 // First date (scanning forward from today) with any bookable slot. Returns
 // null only if nothing qualifies within MAX_LOOKAHEAD_DAYS, which the
 // caller must treat as "no availability" rather than assuming a date.
-export function earliestBookableDateKey(nowMs: number): string | null {
+export function earliestBookableDateKey(
+  nowMs: number,
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+): string | null {
   const cursor = new Date(nowMs);
   for (let i = 0; i < MAX_LOOKAHEAD_DAYS; i++) {
     const key = toDateKey(cursor);
-    if (isDateBookable(key, nowMs)) return key;
+    if (isDateBookable(key, nowMs, leadTimeMs)) return key;
     cursor.setDate(cursor.getDate() + 1);
     cursor.setHours(0, 0, 0, 0);
   }
@@ -103,7 +133,12 @@ function weekdayColumn(date: Date): number {
 
 // One month's grid, with each cell pre-resolved to bookable/not so the
 // calendar component stays presentational.
-export function buildCalendarMonth(year: number, month: number, nowMs: number): CalendarMonth {
+export function buildCalendarMonth(
+  year: number,
+  month: number,
+  nowMs: number,
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+): CalendarMonth {
   const first = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const todayKey = toDateKey(new Date(nowMs));
@@ -114,7 +149,7 @@ export function buildCalendarMonth(year: number, month: number, nowMs: number): 
     cells.push({
       dateKey,
       dayOfMonth: day,
-      bookable: isDateBookable(dateKey, nowMs),
+      bookable: isDateBookable(dateKey, nowMs, leadTimeMs),
       isToday: dateKey === todayKey,
     });
   }
@@ -142,6 +177,11 @@ export function formatDateKeyLong(dateKey: string): string {
 // True when `month` (of `year`) contains no bookable date at all, used to
 // stop the calendar's "previous month" arrow from walking back into fully
 // unbookable history.
-export function isMonthEntirelyUnbookable(year: number, month: number, nowMs: number): boolean {
-  return !buildCalendarMonth(year, month, nowMs).cells.some((c) => c?.bookable);
+export function isMonthEntirelyUnbookable(
+  year: number,
+  month: number,
+  nowMs: number,
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+): boolean {
+  return !buildCalendarMonth(year, month, nowMs, leadTimeMs).cells.some((c) => c?.bookable);
 }

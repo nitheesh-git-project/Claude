@@ -20,6 +20,7 @@ export default function BookingCalendar({
   onSelect,
   nowMs,
   autoSelected,
+  leadTimeMs,
 }: {
   selectedDateKey: string;
   onSelect: (dateKey: string) => void;
@@ -27,6 +28,9 @@ export default function BookingCalendar({
   // True while `selectedDateKey` is still the earliest-eligible date we
   // picked automatically, so the cue only plays for our choice.
   autoSelected: boolean;
+  // Home visits use a longer lead time than online sessions. Omitted by the
+  // online wizard, which keeps the 12-hour default.
+  leadTimeMs?: number;
 }) {
   const reduceMotion = useReducedMotion();
   // Open on the selected date's month so the preselection is on screen
@@ -36,7 +40,7 @@ export default function BookingCalendar({
     return { year: base.getFullYear(), month: base.getMonth() };
   });
 
-  const calendar = buildCalendarMonth(view.year, view.month, nowMs);
+  const calendar = buildCalendarMonth(view.year, view.month, nowMs, leadTimeMs);
 
   function shiftMonth(delta: number) {
     setView((prev) => {
@@ -52,7 +56,8 @@ export default function BookingCalendar({
   const canGoBack = !isMonthEntirelyUnbookable(
     previousMonth.getFullYear(),
     previousMonth.getMonth(),
-    nowMs
+    nowMs,
+    leadTimeMs
   );
 
   return (

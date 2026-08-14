@@ -74,11 +74,28 @@ export default async function RootLayout({
     .maybeSingle();
   const brand = parseAdminSettings(settingsRow);
 
+  // Whether the Navbar shows its Home Visit link. Its own isolated query,
+  // not folded into the brand select above: home_visit_enabled is a newer
+  // column, and an unknown-column error here would otherwise blank the
+  // site name and tagline on every page as collateral. Defaults to hidden
+  // when the column doesn't exist yet, which is also the right answer for
+  // a database that has never configured the feature.
+  const { data: homeVisitRow } = await supabase
+    .from("site_settings")
+    .select("home_visit_enabled")
+    .maybeSingle();
+  const homeVisitEnabled = homeVisitRow?.home_visit_enabled === true;
+
   return (
     <html lang="en" className={`h-full antialiased ${inter.variable} ${jakarta.variable}`}>
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-800 font-sans">
         {showDebugNav && <DebugNav />}
-        <Navbar offsetTop={showDebugNav} siteName={brand.siteName} siteTagline={brand.siteTagline} />
+        <Navbar
+          offsetTop={showDebugNav}
+          siteName={brand.siteName}
+          siteTagline={brand.siteTagline}
+          homeVisitEnabled={homeVisitEnabled}
+        />
         <Suspense fallback={null}>
           <FarewellBanner />
         </Suspense>

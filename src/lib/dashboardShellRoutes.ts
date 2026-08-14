@@ -22,7 +22,7 @@ export function isDashboardShellRoute(pathname: string | null): boolean {
 // an easy way to accidentally navigate away and lose progress. The Footer
 // isn't part of this (it's not a stray-navigation risk), so this is
 // intentionally separate from isDashboardShellRoute rather than folded in.
-const NAV_HIDDEN_ROUTES = new Set([...DASHBOARD_SHELL_ROUTES, "/book"]);
+const NAV_HIDDEN_ROUTES = new Set([...DASHBOARD_SHELL_ROUTES, "/book", "/book-home-visit"]);
 
 export function isNavHiddenRoute(pathname: string | null): boolean {
   return pathname !== null && NAV_HIDDEN_ROUTES.has(pathname);
@@ -69,6 +69,7 @@ const FRONT_PAGE_PREFIXES = [
   "/conditions",
   "/faq",
   "/get-started",
+  "/home-visit",
   "/hospitals",
   "/how-it-works",
   "/team",

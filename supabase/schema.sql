@@ -2996,3 +2996,28 @@ begin
   alter publication supabase_realtime add table home_visit_waitlist;
 exception when duplicate_object then null;
 end $$;
+
+-- Failed home-visit checkouts. payment_failure_log already links a failure
+-- to an appointment or an online package purchase; a home-visit purchase is
+-- the third thing a patient can be paying for, and without this column its
+-- failures would be logged with no link to what was being bought -- leaving
+-- the admin's Payment History unable to say which home visit was abandoned.
+alter table payment_failure_log
+  add column if not exists home_visit_purchase_id uuid references home_visit_package_purchases(id);
+
+-- payment_failure_log_target_check originally read "exactly one of
+-- appointment_id or package_purchase_id", which rejects every home-visit
+-- failure outright. Widened to three targets, still exactly one of them.
+--
+-- Safe to do from down here, unlike the refund_status list further up: that
+-- constraint is a standalone `alter table ... add constraint` that re-runs
+-- and re-narrows on every apply, whereas this one is declared inline in a
+-- `create table if not exists`, so it is only ever created once and a
+-- re-run leaves this widened version in place.
+alter table payment_failure_log drop constraint if exists payment_failure_log_target_check;
+alter table payment_failure_log add constraint payment_failure_log_target_check check (
+  (appointment_id is not null)::int
+  + (package_purchase_id is not null)::int
+  + (home_visit_purchase_id is not null)::int
+  = 1
+);

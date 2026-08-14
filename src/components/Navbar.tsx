@@ -7,7 +7,10 @@ import { AnimatePresence, motion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
 import { isAuthCtaHiddenRoute, isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
 
-const links = [
+// Home Visit is conditional (see the homeVisitEnabled prop) rather than a
+// plain entry: the page itself 404s while the feature is off, so a link to
+// it would be a dead end.
+const BASE_LINKS = [
   { href: "/", label: "Home" },
   { href: "/conditions", label: "Conditions Treated" },
   { href: "/how-it-works", label: "How It Works" },
@@ -15,6 +18,8 @@ const links = [
   { href: "/faq", label: "FAQ" },
   { href: "/hospitals", label: "For Hospitals (B2B)" },
 ];
+
+const HOME_VISIT_LINK = { href: "/home-visit", label: "Home Visit" };
 
 const ROLE_DASHBOARD_HREF: Record<string, string> = {
   patient: "/patient/dashboard",
@@ -27,11 +32,19 @@ export default function Navbar({
   offsetTop = false,
   siteName,
   siteTagline,
+  homeVisitEnabled = false,
 }: {
   offsetTop?: boolean;
   siteName: string;
   siteTagline: string;
+  homeVisitEnabled?: boolean;
 }) {
+  // Inserted after Conditions Treated rather than appended: it is a service
+  // people browse for, not a footer-tier link, and it reads oddly after the
+  // B2B entry.
+  const links = homeVisitEnabled
+    ? [BASE_LINKS[0], BASE_LINKS[1], HOME_VISIT_LINK, ...BASE_LINKS.slice(2)]
+    : BASE_LINKS;
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   // Just a boolean -- every role's dashboard is now its own app shell with

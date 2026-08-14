@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
   const { data: body, error: parseError } = await parseJsonBody<{
     appointmentId?: string;
     packagePurchaseId?: string;
+    homeVisitPurchaseId?: string;
     amountPaise?: number;
     razorpayOrderId?: string;
     razorpayPaymentId?: string;
@@ -32,16 +33,20 @@ export async function POST(request: NextRequest) {
   }>(request);
   if (parseError) return parseError;
 
-  const { appointmentId, packagePurchaseId } = body;
-  if (!appointmentId && !packagePurchaseId) {
+  const { appointmentId, packagePurchaseId, homeVisitPurchaseId } = body;
+  const provided = [appointmentId, packagePurchaseId, homeVisitPurchaseId].filter(Boolean);
+  if (provided.length === 0) {
     return NextResponse.json(
-      { error: "Missing appointmentId or packagePurchaseId" },
+      { error: "Missing appointmentId, packagePurchaseId or homeVisitPurchaseId" },
       { status: 400 }
     );
   }
-  if (appointmentId && packagePurchaseId) {
+  if (provided.length > 1) {
     return NextResponse.json(
-      { error: "Only one of appointmentId or packagePurchaseId is expected" },
+      {
+        error:
+          "Only one of appointmentId, packagePurchaseId or homeVisitPurchaseId is expected",
+      },
       { status: 400 }
     );
   }
@@ -76,12 +81,22 @@ export async function POST(request: NextRequest) {
     if (!purchase || purchase.patient_id !== user.id) {
       return NextResponse.json({ error: "Package purchase not found" }, { status: 404 });
     }
+  } else if (homeVisitPurchaseId) {
+    const { data: purchase } = await admin
+      .from("home_visit_package_purchases")
+      .select("id, patient_id")
+      .eq("id", homeVisitPurchaseId)
+      .single();
+    if (!purchase || purchase.patient_id !== user.id) {
+      return NextResponse.json({ error: "Home visit purchase not found" }, { status: 404 });
+    }
   }
 
   const { error } = await admin.from("payment_failure_log").insert({
     patient_id: user.id,
     appointment_id: appointmentId ?? null,
     package_purchase_id: packagePurchaseId ?? null,
+    home_visit_purchase_id: homeVisitPurchaseId ?? null,
     amount_paise:
       typeof body.amountPaise === "number" && Number.isFinite(body.amountPaise)
         ? body.amountPaise
