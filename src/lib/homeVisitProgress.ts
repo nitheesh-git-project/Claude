@@ -39,6 +39,17 @@ export function computeHomeVisitSavings({
   };
 }
 
+// Whole days remaining until expiry, floored (never negative) -- what the
+// patient widget's countdown and the admin "expiring in N days" filter both
+// render. Mirrors packageProgress.ts's daysUntilExpiry under its own name
+// rather than a shared import, same reasoning as this file's header comment.
+export function daysUntilHomeVisitExpiry(expiresAt: string | null, nowMs: number): number | null {
+  if (!expiresAt) return null;
+  const expiryMs = new Date(expiresAt).getTime();
+  if (Number.isNaN(expiryMs)) return null;
+  return Math.max(0, Math.floor((expiryMs - nowMs) / 86_400_000));
+}
+
 export type HomeVisitExpiryState = "no_expiry" | "active" | "expiring_soon" | "expired";
 
 export function computeHomeVisitExpiryState(

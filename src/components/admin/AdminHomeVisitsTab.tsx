@@ -11,14 +11,13 @@ import HomeVisitAreaManager, {
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
 import HomeVisitQueue, { type HomeVisitRow } from "@/components/admin/HomeVisitQueue";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
+import HomeVisitPurchasesTable, { type HomeVisitPurchaseRow } from "@/components/admin/HomeVisitPurchasesTable";
 
-// Programmes joins this union in Phase 6 -- the shell is deliberately the
-// same one AdminSessionManagerTab uses so adding it is a switch case, not a
-// rewrite.
-type SubTab = "visits" | "catalog" | "areas" | "cashLedger" | "settings";
+type SubTab = "visits" | "programmes" | "catalog" | "areas" | "cashLedger" | "settings";
 
 export default function AdminHomeVisitsTab({
   visits,
+  purchases,
   therapists,
   packages,
   areas,
@@ -28,6 +27,7 @@ export default function AdminHomeVisitsTab({
   nowMs,
 }: {
   visits: HomeVisitRow[];
+  purchases: HomeVisitPurchaseRow[];
   therapists: { id: string; full_name: string }[];
   packages: HomeVisitPackage[];
   areas: ServiceAreaRow[];
@@ -92,6 +92,7 @@ export default function AdminHomeVisitsTab({
         {(
           [
             { key: "visits", label: "Visits" },
+            { key: "programmes", label: "Programmes" },
             { key: "catalog", label: "Catalog" },
             { key: "areas", label: "Service Areas" },
             { key: "cashLedger", label: "Cash Ledger", badge: manualRefundsOwed },
@@ -120,6 +121,21 @@ export default function AdminHomeVisitsTab({
       {subTab === "visits" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <HomeVisitQueue visits={visits} therapists={therapists} />
+        </div>
+      )}
+
+      {subTab === "programmes" && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h3 className="font-bold text-sm text-slate-800 mb-1">Home Visit Programmes</h3>
+          <p className="text-xs text-slate-500 mb-4">
+            Every multi-visit package a patient has bought. Tap a row to reassign the therapist,
+            extend expiry, restore a forfeited visit, or refund what&apos;s unused.
+          </p>
+          <HomeVisitPurchasesTable
+            purchases={purchases}
+            packages={packages.map((p) => ({ id: p.id, title: p.title }))}
+            therapists={therapists}
+          />
         </div>
       )}
 

@@ -124,6 +124,7 @@ export default async function AdminDashboardPage() {
     { data: homeVisitAreaUsage },
     { data: homeVisitAppointments },
     { data: homeVisitShareRows },
+    { data: homeVisitPurchases },
   ] = await Promise.all([
     // Both self-serve roles wait on admin approval, so this one query feeds
     // the single "Pending Approvals" list -- therapist applications and
@@ -386,6 +387,19 @@ export default async function AdminDashboardPage() {
     // postdates the big shared profiles select, and an unknown-column error
     // there would blank the whole page, not just this one figure.
     admin.from("profiles").select("id, home_visit_revenue_share_percent").eq("role", "therapist"),
+
+    // The Programmes sub-tab -- every home-visit purchase, not just the
+    // current admin's session. No completed_count/scheduled_count view
+    // exists for this table the way package_purchase_summary does for the
+    // online side, so those are derived below from homeVisitAppointments
+    // (already loaded, one purchase's visits are a handful of rows at
+    // most) rather than adding a schema-level view for it.
+    admin
+      .from("home_visit_package_purchases")
+      .select(
+        "id, purchase_code, patient_id, package_id, visit_count, visits_used, amount_paid_paise, payment_mode, payment_status, status, locked_therapist_id, expires_at, created_at"
+      )
+      .order("created_at", { ascending: false }),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -1487,8 +1501,60 @@ export default async function AdminDashboardPage() {
     (homeVisitAreaUsage ?? []).map((a) => a.visit_area_id as string).filter(Boolean)
   );
 
+  const homeVisitPackageTitleMap = new Map((homeVisitPackages ?? []).map((p) => [p.id, p]));
+  const homeVisitNowMs = nowTimestamp();
+  const homeVisitCompletedByPurchase = new Map<string, number>();
+  const homeVisitScheduledByPurchase = new Map<string, number>();
+  for (const v of homeVisitAppointments ?? []) {
+    if (!v.home_visit_purchase_id) continue;
+    if (v.status === "completed") {
+      homeVisitCompletedByPurchase.set(
+        v.home_visit_purchase_id,
+        (homeVisitCompletedByPurchase.get(v.home_visit_purchase_id) ?? 0) + 1
+      );
+    } else if (
+      (v.status === "requested" || v.status === "confirmed") &&
+      v.slot_time &&
+      new Date(v.slot_time).getTime() > homeVisitNowMs
+    ) {
+      homeVisitScheduledByPurchase.set(
+        v.home_visit_purchase_id,
+        (homeVisitScheduledByPurchase.get(v.home_visit_purchase_id) ?? 0) + 1
+      );
+    }
+  }
+  const homeVisitPurchaseRows = (homeVisitPurchases ?? []).map((p) => {
+    const completedCount = homeVisitCompletedByPurchase.get(p.id) ?? 0;
+    const scheduledCount = homeVisitScheduledByPurchase.get(p.id) ?? 0;
+    return {
+      id: p.id,
+      purchaseCode: p.purchase_code,
+      patientId: p.patient_id,
+      patientName: profileMap.get(p.patient_id)?.full_name ?? "Unknown patient",
+      patientCode: roleCodeMap.get(p.patient_id)?.patient_code ?? null,
+      packageId: p.package_id,
+      packageTitle: homeVisitPackageTitleMap.get(p.package_id)?.title ?? "Home Visit Package",
+      therapistId: p.locked_therapist_id,
+      therapistName: p.locked_therapist_id
+        ? profileMap.get(p.locked_therapist_id)?.full_name ?? "Unknown therapist"
+        : null,
+      visitCount: p.visit_count,
+      visitsUsed: p.visits_used,
+      completedCount,
+      scheduledCount,
+      pendingCount: Math.max(p.visit_count - p.visits_used, 0),
+      amountPaidPaise: p.amount_paid_paise,
+      paymentMode: p.payment_mode,
+      paymentStatus: p.payment_status,
+      status: p.status,
+      expiresAt: p.expires_at,
+      createdAt: p.created_at,
+    };
+  });
+
   const homeVisitsTab = (
     <AdminHomeVisitsTab
+      purchases={homeVisitPurchaseRows}
       visits={(homeVisitAppointments ?? []).map((v) => ({
         ...v,
         // Names resolved from the profile map this page already builds --

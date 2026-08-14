@@ -7,6 +7,7 @@ import CancelSessionButton from "@/components/CancelSessionButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import BuyPackageButton from "@/components/BuyPackageButton";
 import PatientPackageWidget from "@/components/packages/PatientPackageWidget";
+import HomeVisitPackageWidget from "@/components/patient/HomeVisitPackageWidget";
 import PackageChip from "@/components/packages/PackageChip";
 import ReceiptsSection from "@/components/ReceiptsSection";
 import DashboardShell from "@/components/dashboard/DashboardShell";
@@ -202,13 +203,20 @@ export default async function PatientDashboardPage() {
       .eq("visible_in_dashboard", true)
       .order("display_order", { ascending: true }),
 
+    // Cash-on-visit purchases legitimately sit at payment_status 'unpaid'
+    // for the life of the programme (see home_visit_package_purchases'
+    // own schema comment) -- filtering on payment_status alone, the way
+    // the online packages query does, would hide every cash programme
+    // from the patient's own widget. A purchase counts as "owned" here
+    // when it's either a settled prepaid purchase or any cash purchase
+    // that made it past checkout.
     supabase
       .from("home_visit_package_purchases")
       .select(
-        "id, package_id, purchase_code, visit_count, visits_used, status, locked_therapist_id, expires_at, travel_fee_paise"
+        "id, package_id, purchase_code, visit_count, visits_used, status, locked_therapist_id, expires_at, travel_fee_paise, payment_mode"
       )
       .eq("patient_id", user.id)
-      .eq("payment_status", "paid")
+      .or("payment_status.eq.paid,payment_mode.eq.cash_on_visit")
       .order("created_at", { ascending: false }),
 
     // Single online consultations for the hub. activeCategories above is
@@ -255,6 +263,7 @@ export default async function PatientDashboardPage() {
       [
         ...(appointments ?? []).map((a) => a.therapist_id),
         ...(ownedPackages ?? []).map((p) => p.locked_therapist_id),
+        ...(ownedHomeVisitPackages ?? []).map((p) => p.locked_therapist_id),
       ].filter(Boolean)
     ),
   ];
@@ -265,20 +274,30 @@ export default async function PatientDashboardPage() {
   const ownedPackageIds = [
     ...new Set((ownedPackages ?? []).map((p) => p.package_id).filter(Boolean)),
   ];
-  const [{ data: categoryPrices }, { data: therapists }, { data: ownedPackageInfo }] = await Promise.all([
-    categoryIds.length > 0
-      ? admin.from("treatment_categories").select("id, price_paise, title").in("id", categoryIds as string[])
-      : Promise.resolve({ data: [] as { id: string; price_paise: number; title: string }[] }),
-    therapistIds.length > 0
-      ? admin.from("profiles").select("id, full_name").in("id", therapistIds as string[])
-      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
-    ownedPackageIds.length > 0
-      ? admin
-          .from("treatment_category_packages")
-          .select("id, title, image_url")
-          .in("id", ownedPackageIds as string[])
-      : Promise.resolve({ data: [] as { id: string; title: string; image_url: string | null }[] }),
-  ]);
+  const ownedHomeVisitPackageIds = [
+    ...new Set((ownedHomeVisitPackages ?? []).map((p) => p.package_id).filter(Boolean)),
+  ];
+  const [{ data: categoryPrices }, { data: therapists }, { data: ownedPackageInfo }, { data: ownedHomeVisitPackageInfo }] =
+    await Promise.all([
+      categoryIds.length > 0
+        ? admin.from("treatment_categories").select("id, price_paise, title").in("id", categoryIds as string[])
+        : Promise.resolve({ data: [] as { id: string; price_paise: number; title: string }[] }),
+      therapistIds.length > 0
+        ? admin.from("profiles").select("id, full_name").in("id", therapistIds as string[])
+        : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+      ownedPackageIds.length > 0
+        ? admin
+            .from("treatment_category_packages")
+            .select("id, title, image_url")
+            .in("id", ownedPackageIds as string[])
+        : Promise.resolve({ data: [] as { id: string; title: string; image_url: string | null }[] }),
+      ownedHomeVisitPackageIds.length > 0
+        ? admin
+            .from("home_visit_packages")
+            .select("id, title, image_url")
+            .in("id", ownedHomeVisitPackageIds as string[])
+        : Promise.resolve({ data: [] as { id: string; title: string; image_url: string | null }[] }),
+    ]);
   const categoryPriceMap = new Map(
     (categoryPrices ?? []).map((c) => [c.id, c.price_paise])
   );
@@ -286,6 +305,7 @@ export default async function PatientDashboardPage() {
   const therapistMap = new Map((therapists ?? []).map((t) => [t.id, t.full_name]));
   const activeCategoryMap = new Map((activeCategories ?? []).map((c) => [c.id, c.title]));
   const ownedPackageInfoMap = new Map((ownedPackageInfo ?? []).map((p) => [p.id, p]));
+  const ownedHomeVisitPackageInfoMap = new Map((ownedHomeVisitPackageInfo ?? []).map((p) => [p.id, p]));
   const purchaseCodeById = new Map((ownedPackages ?? []).map((p) => [p.id, p.purchase_code]));
 
   // completed/scheduled per purchase, derived from the appointments already
@@ -325,6 +345,33 @@ export default async function PatientDashboardPage() {
   const homeVisitAppointments = appointments.filter(
     (a) => visitDetailById.get(a.id)?.visit_mode === "home_visit"
   );
+
+  // Same completed/scheduled derivation as completedCountByPurchase above,
+  // keyed by home_visit_purchase_id instead -- that column lives on
+  // visitDetailRows (isolated, migration-dependent), not the main
+  // appointments select, so this loop has to wait until visitDetailById
+  // exists.
+  const completedCountByHomeVisitPurchase = new Map<string, number>();
+  const scheduledCountByHomeVisitPurchase = new Map<string, number>();
+  for (const a of homeVisitAppointments) {
+    const purchaseId = visitDetailById.get(a.id)?.home_visit_purchase_id;
+    if (!purchaseId) continue;
+    if (a.status === "completed") {
+      completedCountByHomeVisitPurchase.set(
+        purchaseId,
+        (completedCountByHomeVisitPurchase.get(purchaseId) ?? 0) + 1
+      );
+    } else if (
+      (a.status === "requested" || a.status === "confirmed") &&
+      a.slot_time &&
+      new Date(a.slot_time).getTime() > nowMsForPackages
+    ) {
+      scheduledCountByHomeVisitPurchase.set(
+        purchaseId,
+        (scheduledCountByHomeVisitPurchase.get(purchaseId) ?? 0) + 1
+      );
+    }
+  }
 
   const hasOwnedHomeVisitPackages =
     !!ownedHomeVisitPackages && ownedHomeVisitPackages.length > 0;
@@ -663,6 +710,29 @@ export default async function PatientDashboardPage() {
               status: p.status,
               expiresAt: p.expires_at,
               therapistName: p.locked_therapist_id ? therapistMap.get(p.locked_therapist_id) ?? null : null,
+            }))}
+          />
+        </div>
+      )}
+
+      {ownedHomeVisitPackages && ownedHomeVisitPackages.length > 0 && (
+        <div id="your-home-visit-packages" className="mt-8">
+          <HomeVisitPackageWidget
+            bulkScheduleMax={adminSettings.homeVisitBulkScheduleMax}
+            expiryReminderDays={adminSettings.packageExpiryReminderDays}
+            purchases={ownedHomeVisitPackages.map((p) => ({
+              id: p.id,
+              purchaseCode: p.purchase_code,
+              title: ownedHomeVisitPackageInfoMap.get(p.package_id)?.title ?? "Home Visit Package",
+              imageUrl: ownedHomeVisitPackageInfoMap.get(p.package_id)?.image_url ?? null,
+              visitCount: p.visit_count,
+              visitsUsed: p.visits_used,
+              completedCount: completedCountByHomeVisitPurchase.get(p.id) ?? 0,
+              scheduledCount: scheduledCountByHomeVisitPurchase.get(p.id) ?? 0,
+              status: p.status,
+              expiresAt: p.expires_at,
+              therapistName: p.locked_therapist_id ? therapistMap.get(p.locked_therapist_id) ?? null : null,
+              paymentMode: p.payment_mode,
             }))}
           />
         </div>
