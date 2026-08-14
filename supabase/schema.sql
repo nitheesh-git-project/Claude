@@ -429,8 +429,17 @@ create table if not exists appointment_reassignment_log (
   new_therapist_id uuid references profiles(id),
   old_slot_time timestamptz,
   new_slot_time timestamptz,
-  old_category_id uuid references treatment_categories(id),
-  new_category_id uuid references treatment_categories(id)
+  -- Deliberately declared without their `references treatment_categories(id)`
+  -- foreign keys here: that table is only created further down this file,
+  -- so inline FKs made this statement fail on any database where it didn't
+  -- already exist -- i.e. every fresh Supabase project. scripts/run-schema.mjs
+  -- posts this whole file as a single Management API query, which runs in one
+  -- transaction, so that one error rolled back the entire schema and the file
+  -- could never be applied from scratch. The constraints are added back
+  -- immediately after treatment_categories is created; see
+  -- "appointment_reassignment_log_category_fks" below.
+  old_category_id uuid,
+  new_category_id uuid
 );
 
 alter table appointment_reassignment_log enable row level security;
@@ -465,6 +474,27 @@ alter table treatment_categories enable row level security;
 drop policy if exists "treatment_categories_select_active" on treatment_categories;
 create policy "treatment_categories_select_active" on treatment_categories
   for select using (active = true);
+
+-- The two foreign keys appointment_reassignment_log couldn't declare inline,
+-- because that table is created earlier in this file than this one. Added
+-- here, now that both sides exist. Guarded by name so re-running is a no-op.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'appointment_reassignment_log_old_category_fkey'
+  ) then
+    alter table appointment_reassignment_log
+      add constraint appointment_reassignment_log_old_category_fkey
+      foreign key (old_category_id) references treatment_categories(id);
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'appointment_reassignment_log_new_category_fkey'
+  ) then
+    alter table appointment_reassignment_log
+      add constraint appointment_reassignment_log_new_category_fkey
+      foreign key (new_category_id) references treatment_categories(id);
+  end if;
+end $$;
 
 -- Seed the two categories that existed as hardcoded content before this
 -- table existed, at the platform's original flat fee/duration, so the
@@ -702,9 +732,22 @@ alter table appointments add column if not exists refund_amount_paise integer;
 -- session cancelled inside the no-refund window gets this instead of
 -- 'processed', so it stays distinguishable from "wasn't paid, so there was
 -- never anything to refund" (which leaves refund_status null).
+--
+-- 'manual_pending' added for Home Visit's cash-on-visit bookings: money
+-- collected at the patient's door has no Razorpay payment to reverse, so a
+-- cancellation that earns a refund needs a human to hand the cash back, and
+-- until they do the row is neither 'processed' nor 'failed'. The admin Cash
+-- Ledger turns these into an action queue.
+--
+-- This list is edited in place rather than widened by a later `alter table`
+-- further down the file, which is the usual convention here: this statement
+-- re-runs on every apply and would re-impose the narrower list, so a later
+-- widening would work exactly once and then fail the next apply with
+-- "check constraint is violated by some row" as soon as a real
+-- 'manual_pending' row existed.
 alter table appointments drop constraint if exists appointments_refund_status_check;
 alter table appointments add constraint appointments_refund_status_check
-  check (refund_status is null or refund_status in ('processed', 'failed', 'not_eligible'));
+  check (refund_status is null or refund_status in ('processed', 'failed', 'not_eligible', 'manual_pending'));
 
 -- Lets a patient express "book with the same therapist as before" at
 -- booking time. Purely a hint for the admin's assignment screen (which
@@ -1147,7 +1190,18 @@ create trigger trg_assign_session_code
 -- genuinely idempotent and safe to re-run at any time, no matter how many
 -- rows have since been deleted or how many codeless rows accumulate between
 -- runs.
+-- Bug fix (found by running this file against an empty database): each
+-- setval below used to be called as setval(seq, coalesce(max, 0), true).
+-- On a database with no rows of that kind yet -- i.e. every fresh
+-- Supabase project, which is exactly what the README tells you to run
+-- this file on -- the coalesce yields 0, and a sequence's MINVALUE is 1,
+-- so postgres raises "setval: value 0 is out of bounds" and aborts the
+-- whole script. setval(seq, 1, false) is the correct way to express "the
+-- next nextval should return 1", so `m` is captured once per series and
+-- the is_called flag is derived from whether any code actually exists.
 do $$
+declare
+  m integer;
 begin
   if exists (select 1 from profiles where role = 'patient' and patient_code is null) then
     with existing_max as (
@@ -1161,11 +1215,9 @@ begin
     update profiles p set patient_code = 'PT' || lpad((ordered.rn + existing_max.n)::text, 4, '0')
     from ordered, existing_max where p.id = ordered.id;
   end if;
-  perform setval(
-    'patient_code_seq',
-    coalesce((select max(substring(patient_code from 3)::int) from profiles where role = 'patient'), 0),
-    true
-  );
+  select coalesce(max(substring(patient_code from 3)::int), 0) into m
+    from profiles where role = 'patient';
+  perform setval('patient_code_seq', greatest(m, 1), m > 0);
 
   if exists (select 1 from profiles where role = 'therapist' and therapist_code is null) then
     with existing_max as (
@@ -1179,11 +1231,9 @@ begin
     update profiles p set therapist_code = 'TH' || lpad((ordered.rn + existing_max.n)::text, 4, '0')
     from ordered, existing_max where p.id = ordered.id;
   end if;
-  perform setval(
-    'therapist_code_seq',
-    coalesce((select max(substring(therapist_code from 3)::int) from profiles where role = 'therapist'), 0),
-    true
-  );
+  select coalesce(max(substring(therapist_code from 3)::int), 0) into m
+    from profiles where role = 'therapist';
+  perform setval('therapist_code_seq', greatest(m, 1), m > 0);
 
   if exists (select 1 from profiles where role = 'hospital' and hospital_code is null) then
     with existing_max as (
@@ -1197,11 +1247,9 @@ begin
     update profiles p set hospital_code = 'BB' || lpad((ordered.rn + existing_max.n)::text, 4, '0')
     from ordered, existing_max where p.id = ordered.id;
   end if;
-  perform setval(
-    'hospital_code_seq',
-    coalesce((select max(substring(hospital_code from 3)::int) from profiles where role = 'hospital'), 0),
-    true
-  );
+  select coalesce(max(substring(hospital_code from 3)::int), 0) into m
+    from profiles where role = 'hospital';
+  perform setval('hospital_code_seq', greatest(m, 1), m > 0);
 
   if exists (select 1 from appointments where session_code is null) then
     with existing_max as (
@@ -1215,11 +1263,9 @@ begin
     update appointments a set session_code = 'SS' || lpad((ordered.rn + existing_max.n)::text, 4, '0')
     from ordered, existing_max where a.id = ordered.id;
   end if;
-  perform setval(
-    'session_code_seq',
-    coalesce((select max(substring(session_code from 3)::int) from appointments), 0),
-    true
-  );
+  select coalesce(max(substring(session_code from 3)::int), 0) into m
+    from appointments;
+  perform setval('session_code_seq', greatest(m, 1), m > 0);
 end $$;
 
 create unique index if not exists profiles_patient_code_unique_idx
@@ -1566,6 +1612,8 @@ create trigger trg_assign_package_code
 -- pattern as the patient/therapist/hospital/session code backfills above
 -- (derived from max(existing code number), never count(*)).
 do $$
+declare
+  m integer;
 begin
   if exists (select 1 from treatment_category_packages where package_code is null) then
     with ordered as (
@@ -1575,11 +1623,11 @@ begin
     update treatment_category_packages p set package_code = 'PK' || lpad(ordered.rn::text, 4, '0')
     from ordered where p.id = ordered.id;
   end if;
-  perform setval(
-    'package_code_seq',
-    coalesce((select max(substring(package_code from 3)::int) from treatment_category_packages), 0),
-    true
-  );
+  -- See the "setval: value 0 is out of bounds" comment on the profile
+  -- code backfill above for why this is not setval(seq, 0, true).
+  select coalesce(max(substring(package_code from 3)::int), 0) into m
+    from treatment_category_packages;
+  perform setval('package_code_seq', greatest(m, 1), m > 0);
 end $$;
 
 create unique index if not exists treatment_category_packages_code_unique_idx
@@ -1639,6 +1687,8 @@ create trigger trg_assign_purchase_code
 -- since none of them can be 'expired'/'refunded'/'cancelled' without the
 -- columns that record why (those only ever get set going forward).
 do $$
+declare
+  m integer;
 begin
   if exists (select 1 from patient_package_purchases where purchase_code is null) then
     with ordered as (
@@ -1648,11 +1698,11 @@ begin
     update patient_package_purchases p set purchase_code = 'SP' || lpad(ordered.rn::text, 4, '0')
     from ordered where p.id = ordered.id;
   end if;
-  perform setval(
-    'purchase_code_seq',
-    coalesce((select max(substring(purchase_code from 3)::int) from patient_package_purchases), 0),
-    true
-  );
+  -- See the "setval: value 0 is out of bounds" comment on the profile
+  -- code backfill above for why this is not setval(seq, 0, true).
+  select coalesce(max(substring(purchase_code from 3)::int), 0) into m
+    from patient_package_purchases;
+  perform setval('purchase_code_seq', greatest(m, 1), m > 0);
 
   update patient_package_purchases
   set status = 'completed'
@@ -2248,3 +2298,701 @@ create unique index if not exists condition_change_requests_one_pending
 create unique index if not exists condition_access_grants_one_open
   on condition_access_grants (patient_id, therapist_id)
   where status in ('requested', 'approved');
+
+-- ============================================================================
+-- Home Visit ----------------------------------------------------------------
+--
+-- A second delivery mode: the therapist travels to the patient's home
+-- instead of meeting them on a video call. Deliberately built on the
+-- existing `appointments` table rather than a parallel session table --
+-- payouts, earnings, ratings, refunds, the Pain Map/intake access rules,
+-- the calendar and the admin session views all key off `appointments`, and
+-- forking that would mean maintaining two of each forever. One column
+-- (`visit_mode`) decides which kind a row is; everything else about an
+-- appointment behaves identically.
+--
+-- The four things a home visit has that an online session does not:
+--   1. an address (plus a map pin) instead of a Meet link
+--   2. a travel fee on top of the package price
+--   3. the option of cash collected at the door, not only prepaid
+--   4. an HV#### display code instead of SS####
+-- ============================================================================
+
+-- Where we are willing to send a therapist, and what the trip costs.
+-- Admin-managed rather than computed from a distance API: the catchment
+-- is a business decision (which therapists live where, which areas are
+-- worth the drive), not a radius. Publicly readable because the booking
+-- wizard has to answer "do you serve my pincode?" before a guest has an
+-- account, let alone a payment.
+--
+-- pincode is the unique key, not (city, area_name): a pincode is what the
+-- patient actually types and what the map pin resolves to, and it's the
+-- only one of the three that's unambiguous.
+create table if not exists home_visit_areas (
+  id uuid primary key default gen_random_uuid(),
+  city text not null,
+  area_name text,
+  pincode text not null unique,
+  travel_fee_paise integer not null default 0 check (travel_fee_paise >= 0),
+  notes text,
+  display_order integer not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table home_visit_areas enable row level security;
+
+drop policy if exists "home_visit_areas_select_active" on home_visit_areas;
+create policy "home_visit_areas_select_active" on home_visit_areas
+  for select using (active = true);
+
+drop policy if exists "home_visit_areas_select_admin" on home_visit_areas;
+create policy "home_visit_areas_select_admin" on home_visit_areas
+  for select using (is_admin());
+
+grant select on home_visit_areas to anon, authenticated;
+
+-- No client writes -- the admin Service Areas tab owns this table through
+-- service-role routes, same as treatment_categories.
+revoke insert, update, delete on home_visit_areas from authenticated;
+
+create index if not exists home_visit_areas_active_idx on home_visit_areas (active);
+
+-- The patient's saved address book. Separate from the address snapshot on
+-- each appointment (below) on purpose: this is the editable, reusable
+-- source of truth ("my flat", "mum's place"), while the appointment keeps
+-- a frozen copy of wherever a given visit was actually delivered. Editing
+-- an address here must never silently rewrite the address a completed
+-- visit was carried out at -- the same reasoning as amount_paid_paise and
+-- duration_minutes being snapshotted onto appointments.
+--
+-- latitude/longitude come from the Google Maps pin. They are the ground
+-- truth the therapist navigates to: Indian street addresses are frequently
+-- approximate, and a dropped pin is often the only thing that finds the
+-- right gate. Nullable, because the map is a progressive enhancement --
+-- if the Maps script fails to load the form falls back to typed fields and
+-- the booking still has to work.
+--
+-- access_notes is not a nice-to-have. Floor, lift, gate code, which bell,
+-- "dog in the yard" -- this is what actually gets the therapist through
+-- the door, and support calls are the alternative.
+create table if not exists patient_addresses (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  label text,
+  line1 text not null,
+  line2 text,
+  landmark text,
+  city text,
+  state text,
+  pincode text not null,
+  area_id uuid references home_visit_areas(id),
+  latitude numeric(10, 7),
+  longitude numeric(10, 7),
+  map_place_id text,
+  contact_phone text,
+  access_notes text,
+  is_default boolean not null default false,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table patient_addresses enable row level security;
+
+drop policy if exists "patient_addresses_select_own" on patient_addresses;
+create policy "patient_addresses_select_own" on patient_addresses
+  for select using (auth.uid() = patient_id);
+
+drop policy if exists "patient_addresses_select_admin" on patient_addresses;
+create policy "patient_addresses_select_admin" on patient_addresses
+  for select using (is_admin());
+
+-- An assigned therapist can read the address book of a patient they
+-- actually work with -- exactly the same "ever had an appointment with
+-- them, or holds a package's locked therapist slot" test used by
+-- condition_profiles_select_assigned_therapist, extended with the
+-- home-visit purchase table. Note this is READ only, and only for
+-- therapists already attached to the patient: a therapist with no
+-- relationship to a patient can never see where they live.
+drop policy if exists "patient_addresses_select_assigned_therapist" on patient_addresses;
+create policy "patient_addresses_select_assigned_therapist" on patient_addresses
+  for select using (
+    exists (
+      select 1 from appointments a
+      where a.patient_id = patient_addresses.patient_id
+        and a.therapist_id = auth.uid()
+    )
+    or exists (
+      select 1 from patient_package_purchases pp
+      where pp.patient_id = patient_addresses.patient_id
+        and pp.locked_therapist_id = auth.uid()
+    )
+  );
+
+-- Unlike most patient-owned data in this schema, addresses ARE
+-- client-writable. They deliberately do not go through
+-- profile_change_requests: a patient who mistyped their flat number has to
+-- be able to fix it before the therapist sets off, and an admin approval
+-- queue between them and that fix would be actively harmful. The insert
+-- check pins patient_id so nobody can file an address against someone
+-- else's account.
+drop policy if exists "patient_addresses_insert_own" on patient_addresses;
+create policy "patient_addresses_insert_own" on patient_addresses
+  for insert with check (
+    auth.uid() = patient_id
+    and exists (
+      select 1 from public.profiles
+      where id = auth.uid() and approved = true and active = true
+    )
+  );
+
+drop policy if exists "patient_addresses_update_own" on patient_addresses;
+create policy "patient_addresses_update_own" on patient_addresses
+  for update using (auth.uid() = patient_id) with check (auth.uid() = patient_id);
+
+-- Soft-delete only (active = false), so an address referenced by a past
+-- visit's visit_address_id never disappears out from under it.
+revoke delete on patient_addresses from authenticated;
+
+create index if not exists patient_addresses_patient_id_idx on patient_addresses (patient_id);
+create index if not exists patient_addresses_pincode_idx on patient_addresses (pincode);
+
+-- At most one default address per patient. Enforced here rather than in
+-- the set-default route alone, for the same reason as the
+-- condition_change_requests one-pending index: a select-then-update pair
+-- has a real race window, a partial unique index does not.
+create unique index if not exists patient_addresses_one_default
+  on patient_addresses (patient_id)
+  where is_default = true and active = true;
+
+-- The home-visit catalogue. A separate table from
+-- treatment_category_packages rather than a mode flag on it: the two
+-- share almost no fields (travel, visit duration, per-week caps vs
+-- category linkage and dashboard visibility rules), and every existing
+-- online package screen, purchase route and therapist-lock rule would
+-- otherwise have to become mode-aware -- with a leak of a home-visit
+-- package into the online booking wizard as the failure mode.
+--
+-- visit_count >= 1, deliberately not >= 2 like the online packages: a
+-- single one-off home visit is simply a one-visit package. That keeps the
+-- product catalogue at three sellable things (online single, online
+-- package, home-visit package) instead of four, and means the booking,
+-- scheduling and refund paths have exactly one shape to handle.
+create table if not exists home_visit_packages (
+  id uuid primary key default gen_random_uuid(),
+  package_code text,
+  title text not null,
+  subtitle text,
+  description text,
+  image_url text,
+  benefits jsonb not null default '[]'::jsonb,
+  visit_count integer not null check (visit_count >= 1),
+  price_paise integer not null check (price_paise > 0),
+  compare_at_paise integer,
+  visit_duration_minutes integer not null default 60 check (visit_duration_minutes > 0),
+  validity_days integer check (validity_days is null or validity_days > 0),
+  -- When true the advertised price already covers travel and no per-area
+  -- fee is added at checkout. Lets admin run "all inclusive" packages
+  -- without having to zero out every service area's fee.
+  travel_fee_included boolean not null default false,
+  therapist_locked boolean not null default true,
+  min_gap_hours integer,
+  max_visits_per_week integer,
+  max_purchases_per_patient integer,
+  badge_label text,
+  highlight boolean not null default false,
+  terms text,
+  -- Optional clinical grouping so a home-visit package can be surfaced
+  -- next to the matching condition. Nullable: most home-visit packages
+  -- are sold on the visit itself, not on a condition category.
+  category_id uuid references treatment_categories(id),
+  display_order integer not null default 0,
+  active boolean not null default true,
+  visible_on_home boolean not null default false,
+  visible_on_home_visit_page boolean not null default true,
+  visible_in_dashboard boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'home_visit_packages_compare_at_range'
+  ) then
+    alter table home_visit_packages add constraint home_visit_packages_compare_at_range
+      check (compare_at_paise is null or compare_at_paise >= price_paise);
+  end if;
+end $$;
+
+alter table home_visit_packages enable row level security;
+
+drop policy if exists "home_visit_packages_select_active" on home_visit_packages;
+create policy "home_visit_packages_select_active" on home_visit_packages
+  for select using (active = true);
+
+drop policy if exists "home_visit_packages_select_admin" on home_visit_packages;
+create policy "home_visit_packages_select_admin" on home_visit_packages
+  for select using (is_admin());
+
+grant select on home_visit_packages to anon, authenticated;
+revoke insert, update, delete on home_visit_packages from authenticated;
+
+-- What a patient actually bought. Mirrors patient_package_purchases,
+-- including its counter semantics: visits_used counts visits CLAIMED
+-- (scheduled or completed), never visits completed. A scheduled visit has
+-- already consumed its slot in the programme; only a cancellation gives it
+-- back. See the counter-semantics comment on patient_package_purchases.
+--
+-- payment_mode is the one genuinely new axis. 'prepaid' behaves exactly
+-- like an online package purchase (Razorpay before anything is booked).
+-- 'cash_on_visit' books first and collects at the door, which means the
+-- row legitimately sits at payment_status 'unpaid' with real, confirmed
+-- visits hanging off it -- something no online purchase ever does.
+create table if not exists home_visit_package_purchases (
+  id uuid primary key default gen_random_uuid(),
+  purchase_code text,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  package_id uuid not null references home_visit_packages(id),
+  visit_count integer not null,
+  visits_used integer not null default 0,
+  amount_paid_paise integer,
+  travel_fee_paise integer not null default 0,
+  payment_mode text not null default 'prepaid' check (payment_mode in ('prepaid', 'cash_on_visit')),
+  payment_status text not null default 'unpaid' check (payment_status in ('unpaid', 'paid', 'failed')),
+  razorpay_order_id text,
+  razorpay_payment_id text,
+  paid_at timestamptz,
+  expires_at timestamptz,
+  status text not null default 'active'
+    check (status in ('active', 'completed', 'expired', 'refunded', 'cancelled')),
+  locked_therapist_id uuid references profiles(id) on delete set null,
+  default_address_id uuid references patient_addresses(id),
+  notes text,
+  expiry_extended_at timestamptz,
+  expiry_extended_by uuid references profiles(id),
+  expiry_extension_reason text,
+  refund_amount_paise integer,
+  refunded_at timestamptz,
+  refund_id text,
+  created_at timestamptz not null default now()
+);
+
+alter table home_visit_package_purchases enable row level security;
+
+drop policy if exists "home_visit_purchases_select_own" on home_visit_package_purchases;
+create policy "home_visit_purchases_select_own" on home_visit_package_purchases
+  for select using (auth.uid() = patient_id);
+
+drop policy if exists "home_visit_purchases_select_admin" on home_visit_package_purchases;
+create policy "home_visit_purchases_select_admin" on home_visit_package_purchases
+  for select using (is_admin());
+
+drop policy if exists "home_visit_purchases_select_locked_therapist" on home_visit_package_purchases;
+create policy "home_visit_purchases_select_locked_therapist" on home_visit_package_purchases
+  for select using (auth.uid() = locked_therapist_id);
+
+-- No client insert or update policy at all, same as
+-- patient_package_purchases: a purchase is only ever created by the
+-- service-role booking routes, which are also the only place the price,
+-- the travel fee and the serviceability check can be trusted.
+revoke insert, update, delete on home_visit_package_purchases from authenticated;
+
+create index if not exists home_visit_purchases_patient_id_idx on home_visit_package_purchases (patient_id);
+create index if not exists home_visit_purchases_locked_therapist_idx on home_visit_package_purchases (locked_therapist_id);
+create index if not exists home_visit_purchases_status_idx on home_visit_package_purchases (status);
+create index if not exists home_visit_purchases_expires_at_idx on home_visit_package_purchases (expires_at);
+
+-- --------------------------------------------------------------------------
+-- appointments: the home-visit columns
+-- --------------------------------------------------------------------------
+
+-- The one column that decides what kind of session a row is. Defaults to
+-- 'online' so every existing appointment keeps its current meaning without
+-- a data migration.
+alter table appointments add column if not exists visit_mode text
+  not null default 'online'
+  check (visit_mode in ('online', 'home_visit'));
+
+-- Which saved address this visit was booked from. Kept alongside the
+-- snapshot columns below rather than instead of them: this points at the
+-- live, editable row (useful for "book again at the same place"), while
+-- the snapshot records where the visit was actually delivered even after
+-- the patient edits or retires that address.
+alter table appointments add column if not exists visit_address_id uuid references patient_addresses(id);
+
+alter table appointments add column if not exists visit_label text;
+alter table appointments add column if not exists visit_address_line1 text;
+alter table appointments add column if not exists visit_address_line2 text;
+alter table appointments add column if not exists visit_landmark text;
+alter table appointments add column if not exists visit_city text;
+alter table appointments add column if not exists visit_state text;
+alter table appointments add column if not exists visit_pincode text;
+alter table appointments add column if not exists visit_latitude numeric(10, 7);
+alter table appointments add column if not exists visit_longitude numeric(10, 7);
+alter table appointments add column if not exists visit_map_place_id text;
+alter table appointments add column if not exists visit_contact_phone text;
+alter table appointments add column if not exists visit_access_notes text;
+alter table appointments add column if not exists visit_area_id uuid references home_visit_areas(id);
+
+-- Charged on top of the package price and paid through to the therapist in
+-- full -- it is a reimbursement for the trip, not revenue. Kept in its own
+-- column (rather than folded into amount_paid_paise) precisely so the
+-- revenue-share math can exclude it; fold it in and the therapist ends up
+-- funding their own transport out of their own cut.
+alter table appointments add column if not exists travel_fee_paise integer;
+
+alter table appointments add column if not exists home_visit_purchase_id uuid references home_visit_package_purchases(id);
+
+-- Visit progress the patient can watch. Optional -- a therapist who never
+-- taps them costs nothing, the visit still completes normally.
+alter table appointments add column if not exists therapist_en_route_at timestamptz;
+alter table appointments add column if not exists therapist_arrived_at timestamptz;
+
+-- Cash collected at the door. cash_collected_* is the therapist's own
+-- assertion that they took the money; cash_remitted_at is the admin
+-- confirming it reached the business. Both are needed: between the two the
+-- therapist is holding company money, and that gap is exactly what the
+-- admin Cash Ledger and the payout net-off are built to surface.
+alter table appointments add column if not exists cash_collected_at timestamptz;
+alter table appointments add column if not exists cash_collected_amount_paise integer;
+alter table appointments add column if not exists cash_collected_by uuid references profiles(id);
+alter table appointments add column if not exists cash_remitted_at timestamptz;
+
+create index if not exists appointments_visit_mode_idx on appointments (visit_mode);
+create index if not exists appointments_home_visit_purchase_idx on appointments (home_visit_purchase_id);
+
+-- Note: refund_status' 'manual_pending' value (what a cancelled
+-- cash-on-visit booking gets, since there is no Razorpay payment to
+-- reverse) is declared with the rest of that constraint's value list
+-- further up this file, not here -- see the comment there for why widening
+-- it from this end cannot work.
+
+-- Audit trail for a home-visit programme, mirroring
+-- package_purchase_events. Separate table rather than a shared one because
+-- purchase_id has to be a real foreign key to exactly one purchases table.
+create table if not exists home_visit_purchase_events (
+  id uuid primary key default gen_random_uuid(),
+  purchase_id uuid not null references home_visit_package_purchases(id) on delete cascade,
+  event_type text not null check (event_type in (
+    'purchased', 'visit_scheduled', 'visit_cancelled', 'visit_completed',
+    'visit_restored', 'therapist_locked', 'therapist_reassigned',
+    'address_changed', 'cash_collected', 'cash_remitted',
+    'expiry_extended', 'refunded', 'expired'
+  )),
+  actor_id uuid references profiles(id),
+  appointment_id uuid references appointments(id) on delete set null,
+  detail jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table home_visit_purchase_events enable row level security;
+
+drop policy if exists "home_visit_events_select_own" on home_visit_purchase_events;
+create policy "home_visit_events_select_own" on home_visit_purchase_events
+  for select using (
+    exists (
+      select 1 from home_visit_package_purchases hp
+      where hp.id = home_visit_purchase_events.purchase_id and hp.patient_id = auth.uid()
+    )
+  );
+
+drop policy if exists "home_visit_events_select_admin" on home_visit_purchase_events;
+create policy "home_visit_events_select_admin" on home_visit_purchase_events
+  for select using (is_admin());
+
+drop policy if exists "home_visit_events_select_locked_therapist" on home_visit_purchase_events;
+create policy "home_visit_events_select_locked_therapist" on home_visit_purchase_events
+  for select using (
+    exists (
+      select 1 from home_visit_package_purchases hp
+      where hp.id = home_visit_purchase_events.purchase_id
+        and hp.locked_therapist_id = auth.uid()
+    )
+  );
+
+revoke insert, update, delete on home_visit_purchase_events from authenticated;
+
+create index if not exists home_visit_purchase_events_purchase_id_idx
+  on home_visit_purchase_events (purchase_id);
+
+-- Demand we had to turn away. Someone who tried to book from an
+-- unserviceable pincode is the single best signal for which area to open
+-- next, and throwing that away because the booking failed would be a
+-- waste. Anonymous INSERT (the wizard rejects them before they ever have
+-- an account) with admin-only read -- exactly the b2b_leads pattern.
+create table if not exists home_visit_waitlist (
+  id uuid primary key default gen_random_uuid(),
+  name text,
+  phone text not null,
+  email text,
+  pincode text not null,
+  city text,
+  note text,
+  status text not null default 'new' check (status in ('new', 'contacted', 'served', 'declined')),
+  created_at timestamptz not null default now()
+);
+
+alter table home_visit_waitlist enable row level security;
+
+drop policy if exists "home_visit_waitlist_insert_public" on home_visit_waitlist;
+create policy "home_visit_waitlist_insert_public" on home_visit_waitlist
+  for insert with check (true);
+
+drop policy if exists "home_visit_waitlist_select_admin" on home_visit_waitlist;
+create policy "home_visit_waitlist_select_admin" on home_visit_waitlist
+  for select using (is_admin());
+
+grant insert on home_visit_waitlist to anon, authenticated;
+revoke update, delete on home_visit_waitlist from authenticated;
+
+-- --------------------------------------------------------------------------
+-- Home Visit display codes: HV#### sessions, HP#### packages, HS#### sales
+-- --------------------------------------------------------------------------
+
+create sequence if not exists home_visit_code_seq;
+create sequence if not exists home_visit_package_code_seq;
+create sequence if not exists home_visit_purchase_code_seq;
+
+-- Home visits get their own SS-parallel series so a visit can be quoted
+-- over the phone without ambiguity about which kind of session it is.
+-- Replaces the original assign_session_code() (defined earlier in this
+-- file) rather than adding a second trigger: two BEFORE INSERT triggers
+-- both trying to own session_code would be order-dependent and impossible
+-- to reason about. Behaviour for online sessions is byte-identical to the
+-- version above.
+create or replace function assign_session_code() returns trigger as $$
+begin
+  if new.session_code is null then
+    if new.visit_mode = 'home_visit' then
+      new.session_code := 'HV' || lpad(nextval('home_visit_code_seq')::text, 4, '0');
+    else
+      new.session_code := 'SS' || lpad(nextval('session_code_seq')::text, 4, '0');
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+-- The session_code backfill earlier in this file derives its setval from
+-- max(substring(session_code from 3)::int) across ALL appointments, which
+-- predates HV codes existing and would therefore fold HV numbers into the
+-- SS counter on a re-run (harmless for uniqueness -- the prefixes differ --
+-- but it would make the SS series skip numbers for no reason). Rather than
+-- rewriting that earlier block, which this file's append-only convention
+-- forbids, correct both counters here: the file runs top to bottom, so
+-- these are the values that actually stick.
+--
+-- setval() is called through the two-argument form below rather than
+-- setval(seq, n, true) with n possibly 0: a fresh sequence has
+-- MINVALUE 1, so setval(seq, 0, true) raises "value 0 is out of bounds"
+-- and aborts the whole script on a database that has no rows of that kind
+-- yet. setval(seq, 1, false) is the correct way to say "the next nextval
+-- should return 1".
+do $$
+declare
+  max_ss integer;
+  max_hv integer;
+begin
+  select coalesce(max(substring(session_code from 3)::int), 0) into max_ss
+    from appointments where session_code like 'SS%';
+  select coalesce(max(substring(session_code from 3)::int), 0) into max_hv
+    from appointments where session_code like 'HV%';
+
+  perform setval('session_code_seq', greatest(max_ss, 1), max_ss > 0);
+  perform setval('home_visit_code_seq', greatest(max_hv, 1), max_hv > 0);
+end $$;
+
+create or replace function assign_home_visit_package_code() returns trigger as $$
+begin
+  if new.package_code is null then
+    new.package_code := 'HP' || lpad(nextval('home_visit_package_code_seq')::text, 4, '0');
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_assign_home_visit_package_code on home_visit_packages;
+create trigger trg_assign_home_visit_package_code
+  before insert on home_visit_packages
+  for each row execute function assign_home_visit_package_code();
+
+create or replace function assign_home_visit_purchase_code() returns trigger as $$
+begin
+  if new.purchase_code is null then
+    new.purchase_code := 'HS' || lpad(nextval('home_visit_purchase_code_seq')::text, 4, '0');
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_assign_home_visit_purchase_code on home_visit_package_purchases;
+create trigger trg_assign_home_visit_purchase_code
+  before insert on home_visit_package_purchases
+  for each row execute function assign_home_visit_purchase_code();
+
+-- Same idempotent, max()-derived, deletion-safe backfill pattern as every
+-- other code series in this file -- never count(*), which silently
+-- regresses the sequence the moment any row is deleted.
+do $$
+declare
+  max_hp integer;
+  max_hs integer;
+begin
+  select coalesce(max(substring(package_code from 3)::int), 0) into max_hp
+    from home_visit_packages;
+  if exists (select 1 from home_visit_packages where package_code is null) then
+    with ordered as (
+      select id, row_number() over (order by created_at asc, id asc) as rn
+      from home_visit_packages where package_code is null
+    )
+    update home_visit_packages p
+      set package_code = 'HP' || lpad((max_hp + ordered.rn)::text, 4, '0')
+    from ordered where p.id = ordered.id;
+    select coalesce(max(substring(package_code from 3)::int), 0) into max_hp
+      from home_visit_packages;
+  end if;
+  perform setval('home_visit_package_code_seq', greatest(max_hp, 1), max_hp > 0);
+
+  select coalesce(max(substring(purchase_code from 3)::int), 0) into max_hs
+    from home_visit_package_purchases;
+  if exists (select 1 from home_visit_package_purchases where purchase_code is null) then
+    with ordered as (
+      select id, row_number() over (order by created_at asc, id asc) as rn
+      from home_visit_package_purchases where purchase_code is null
+    )
+    update home_visit_package_purchases p
+      set purchase_code = 'HS' || lpad((max_hs + ordered.rn)::text, 4, '0')
+    from ordered where p.id = ordered.id;
+    select coalesce(max(substring(purchase_code from 3)::int), 0) into max_hs
+      from home_visit_package_purchases;
+  end if;
+  perform setval('home_visit_purchase_code_seq', greatest(max_hs, 1), max_hs > 0);
+end $$;
+
+create unique index if not exists home_visit_packages_code_unique_idx
+  on home_visit_packages (package_code) where package_code is not null;
+create unique index if not exists home_visit_purchases_code_unique_idx
+  on home_visit_package_purchases (purchase_code) where purchase_code is not null;
+
+-- --------------------------------------------------------------------------
+-- Home visits are never inserted by the browser
+-- --------------------------------------------------------------------------
+--
+-- Re-declares appointments_insert_own with one added clause:
+-- visit_mode = 'online'. The client-side booking wizard's direct insert
+-- (the one path where RLS is the only enforcement point) stays exactly as
+-- restricted as it is today, and every home-visit insert goes through a
+-- service-role route instead -- the same shape bookPackageSession already
+-- uses.
+--
+-- That is not defensive tidiness. A home visit's price is the package
+-- price PLUS a travel fee resolved from the pincode's service area, and
+-- whether that pincode is serviceable at all is itself a server-side
+-- lookup. None of that can be re-derived from a client insert the way
+-- duration_minutes can be pinned to the category below, so the only
+-- honest options were to widen this policy with logic it cannot express,
+-- or to keep the browser out of the home-visit path entirely.
+--
+-- Everything else in this policy is carried over verbatim from the version
+-- earlier in this file; see the long comment there for why each clause
+-- exists (each closed a real hole).
+drop policy if exists "appointments_insert_own" on appointments;
+create policy "appointments_insert_own" on appointments
+  for insert with check (
+    auth.uid() = patient_id
+    and visit_mode = 'online'
+    and status = 'requested'
+    and payment_status = 'unpaid'
+    and package_purchase_id is null
+    and home_visit_purchase_id is null
+    and slot_time is not null
+    and slot_time > now()
+    and therapist_id is null
+    and duration_minutes = coalesce(
+      (select duration_minutes from treatment_categories where id = category_id),
+      60
+    )
+    and exists (
+      select 1 from public.profiles
+      where id = auth.uid() and approved = true and active = true
+    )
+  );
+
+-- --------------------------------------------------------------------------
+-- Home Visit settings + per-mode revenue share
+-- --------------------------------------------------------------------------
+
+-- Master switch. Defaults to false so merging this schema onto a live
+-- database changes nothing visible until an admin has actually configured
+-- service areas and a catalogue.
+alter table site_settings add column if not exists home_visit_enabled boolean not null default false;
+alter table site_settings add column if not exists home_visit_cash_enabled boolean not null default true;
+
+-- Longer than the online BOOKING_LEAD_TIME_HOURS of 12: a home visit has
+-- to be routed to a therapist who can physically get there, which is not
+-- something to arrange overnight.
+alter table site_settings add column if not exists home_visit_lead_time_hours integer not null default 24;
+alter table site_settings add column if not exists home_visit_cancellation_refund_hours integer not null default 24;
+alter table site_settings add column if not exists home_visit_default_validity_days integer not null default 90;
+alter table site_settings add column if not exists home_visit_bulk_schedule_max integer not null default 8;
+
+-- Padding added on both sides of a home visit when checking a therapist's
+-- calendar for conflicts. Purely time-based travel allowance -- the app has
+-- no distance data -- but it stops the obvious failure of two visits
+-- booked back to back on opposite sides of a city.
+alter table site_settings add column if not exists home_visit_travel_buffer_minutes integer not null default 45;
+
+alter table site_settings add column if not exists home_visit_page_heading text;
+alter table site_settings add column if not exists home_visit_page_subheading text;
+
+-- profiles.revenue_share_percent is a single scalar per person with no
+-- per-mode dimension, and a home visit costs the therapist travel time an
+-- online session does not -- so the same percentage is rarely the right
+-- answer for both. Nullable on purpose: unset means "no separate
+-- home-visit rate, use revenue_share_percent", so nothing changes for
+-- therapists the admin hasn't given a distinct rate to.
+alter table profiles add column if not exists home_visit_revenue_share_percent numeric(5,2);
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'profiles_home_visit_share_range'
+  ) then
+    alter table profiles add constraint profiles_home_visit_share_range
+      check (home_visit_revenue_share_percent is null
+             or (home_visit_revenue_share_percent >= 0 and home_visit_revenue_share_percent <= 100));
+  end if;
+end $$;
+
+-- Live refresh for every dashboard that renders home-visit data, matching
+-- how the online package tables are published.
+do $$
+begin
+  alter publication supabase_realtime add table home_visit_areas;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table patient_addresses;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table home_visit_packages;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table home_visit_package_purchases;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table home_visit_purchase_events;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table home_visit_waitlist;
+exception when duplicate_object then null;
+end $$;

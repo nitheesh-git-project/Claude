@@ -1,5 +1,9 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { createSessionMeetEvent, updateSessionMeetEvent, deleteSessionMeetEvent } from "@/lib/googleCalendar";
+import {
+  createSessionCalendarEvent,
+  updateSessionMeetEvent,
+  deleteSessionMeetEvent,
+} from "@/lib/googleCalendar";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -23,6 +27,9 @@ export async function createMeetEventForConfirmedAppointment(
     durationMinutes,
     timezone,
     bypassMasterToggle = false,
+    visitMode = "online",
+    location = null,
+    description = null,
   }: {
     appointmentId: string;
     patientId: string;
@@ -35,8 +42,15 @@ export async function createMeetEventForConfirmedAppointment(
     // the site-wide default, not a new automatic creation the toggle is
     // meant to gate.
     bypassMasterToggle?: boolean;
+    // A home visit gets a calendar event with a street address and no Meet
+    // conference. Defaults to 'online' so every existing call site keeps its
+    // current behaviour without passing anything.
+    visitMode?: "online" | "home_visit";
+    location?: string | null;
+    description?: string | null;
   }
 ) {
+  const isHomeVisit = visitMode === "home_visit";
   // Never let anything here throw -- this runs after a payment/booking/
   // assignment write has already succeeded, and an unexpected error (e.g. a
   // transient network blip on the follow-up DB write) must not turn into a
@@ -49,7 +63,14 @@ export async function createMeetEventForConfirmedAppointment(
     // Doesn't block updateMeetEventForAppointment/deleteMeetEventForAppointment
     // below -- turning this off should only stop *new* events, never strand
     // an existing one out of sync or block cleanup on cancellation.
-    if (!bypassMasterToggle) {
+    //
+    // Deliberately does not gate home visits: that switch turns off Meet
+    // *conferencing*, and a home visit has no Meet link to turn off. Its
+    // event carries the address instead, and since Calendar's invite email
+    // is the only outbound message this platform sends, suppressing it
+    // would leave the patient with no confirmation that a therapist is
+    // coming to their home.
+    if (!bypassMasterToggle && !isHomeVisit) {
       const { data: settingsRow } = await admin
         .from("site_settings")
         .select("google_meet_enabled")
@@ -72,13 +93,17 @@ export async function createMeetEventForConfirmedAppointment(
       return;
     }
 
-    const result = await createSessionMeetEvent({
+    const result = await createSessionCalendarEvent({
       appointmentId,
       patientEmail,
       therapistEmail,
       slotTime,
       durationMinutes,
       timezone,
+      withMeet: !isHomeVisit,
+      summary: isHomeVisit ? "Home Physiotherapy Visit" : "Physiotherapy Session",
+      location: isHomeVisit ? location : null,
+      description: isHomeVisit ? description : null,
     });
 
     if ("error" in result) {

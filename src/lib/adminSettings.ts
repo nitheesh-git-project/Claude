@@ -16,6 +16,15 @@ export type AdminSettings = {
   whatsappNumber: string;
   contactPhone: string;
   footerCopyrightText: string;
+  homeVisitEnabled: boolean;
+  homeVisitCashEnabled: boolean;
+  homeVisitLeadTimeHours: number;
+  homeVisitCancellationRefundHours: number;
+  homeVisitDefaultValidityDays: number;
+  homeVisitBulkScheduleMax: number;
+  homeVisitTravelBufferMinutes: number;
+  homeVisitPageHeading: string;
+  homeVisitPageSubheading: string;
 };
 
 // The sole hardcoded language in the app, and only as the fallback for an
@@ -36,6 +45,14 @@ export const DEFAULT_WHATSAPP_NUMBER = "+91 XXXXX XXXXX";
 export const DEFAULT_CONTACT_PHONE = "+91 XXXXX XXXXX";
 export const DEFAULT_FOOTER_COPYRIGHT_TEXT = "Dr. Pooja's Physio. All rights reserved.";
 
+// Home Visit's own defaults. The master switch is OFF: this feature needs
+// service areas and a package catalogue configured before it means
+// anything, so a database that has merely run the migration must not
+// suddenly start advertising home visits it cannot staff.
+export const DEFAULT_HOME_VISIT_PAGE_HEADING = "Physiotherapy at your doorstep";
+export const DEFAULT_HOME_VISIT_PAGE_SUBHEADING =
+  "A certified physiotherapist visits you at home, with the same assessment and recovery plan you would get in clinic.";
+
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   sessionPackagesVisible: true,
   sessionTimeoutMinutes: 0,
@@ -54,6 +71,18 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   whatsappNumber: DEFAULT_WHATSAPP_NUMBER,
   contactPhone: DEFAULT_CONTACT_PHONE,
   footerCopyrightText: DEFAULT_FOOTER_COPYRIGHT_TEXT,
+  homeVisitEnabled: false,
+  homeVisitCashEnabled: true,
+  // Deliberately longer than BOOKING_LEAD_TIME_HOURS (12) in
+  // src/lib/bookingSlots.ts: an online session only needs a therapist to be
+  // free, a home visit needs one who can physically get to the address.
+  homeVisitLeadTimeHours: 24,
+  homeVisitCancellationRefundHours: 24,
+  homeVisitDefaultValidityDays: 90,
+  homeVisitBulkScheduleMax: 8,
+  homeVisitTravelBufferMinutes: 45,
+  homeVisitPageHeading: DEFAULT_HOME_VISIT_PAGE_HEADING,
+  homeVisitPageSubheading: DEFAULT_HOME_VISIT_PAGE_SUBHEADING,
 };
 
 // The one column list every dashboard page selects from the site_settings
@@ -74,7 +103,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
 // .select(SITE_SETTINGS_SELECT) call fall back to an unusable
 // GenericStringError result type instead of a real row shape.
 export const SITE_SETTINGS_SELECT =
-  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text";
+  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading";
 
 type SiteSettingsRow = {
   session_packages_visible?: boolean | null;
@@ -87,6 +116,15 @@ type SiteSettingsRow = {
   package_therapist_lock_enabled?: boolean | null;
   package_bulk_schedule_max?: number | null;
   package_expiry_reminder_days?: number | null;
+  home_visit_enabled?: boolean | null;
+  home_visit_cash_enabled?: boolean | null;
+  home_visit_lead_time_hours?: number | null;
+  home_visit_cancellation_refund_hours?: number | null;
+  home_visit_default_validity_days?: number | null;
+  home_visit_bulk_schedule_max?: number | null;
+  home_visit_travel_buffer_minutes?: number | null;
+  home_visit_page_heading?: string | null;
+  home_visit_page_subheading?: string | null;
   site_name?: string | null;
   site_tagline?: string | null;
   site_description?: string | null;
@@ -176,5 +214,41 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
     whatsappNumber: stringOrDefault(row?.whatsapp_number, DEFAULT_WHATSAPP_NUMBER),
     contactPhone: stringOrDefault(row?.contact_phone, DEFAULT_CONTACT_PHONE),
     footerCopyrightText: stringOrDefault(row?.footer_copyright_text, DEFAULT_FOOTER_COPYRIGHT_TEXT),
+    homeVisitEnabled:
+      typeof row?.home_visit_enabled === "boolean"
+        ? row.home_visit_enabled
+        : DEFAULT_ADMIN_SETTINGS.homeVisitEnabled,
+    homeVisitCashEnabled:
+      typeof row?.home_visit_cash_enabled === "boolean"
+        ? row.home_visit_cash_enabled
+        : DEFAULT_ADMIN_SETTINGS.homeVisitCashEnabled,
+    homeVisitLeadTimeHours:
+      typeof row?.home_visit_lead_time_hours === "number"
+        ? row.home_visit_lead_time_hours
+        : DEFAULT_ADMIN_SETTINGS.homeVisitLeadTimeHours,
+    homeVisitCancellationRefundHours:
+      typeof row?.home_visit_cancellation_refund_hours === "number"
+        ? row.home_visit_cancellation_refund_hours
+        : DEFAULT_ADMIN_SETTINGS.homeVisitCancellationRefundHours,
+    homeVisitDefaultValidityDays:
+      typeof row?.home_visit_default_validity_days === "number"
+        ? row.home_visit_default_validity_days
+        : DEFAULT_ADMIN_SETTINGS.homeVisitDefaultValidityDays,
+    homeVisitBulkScheduleMax:
+      typeof row?.home_visit_bulk_schedule_max === "number"
+        ? row.home_visit_bulk_schedule_max
+        : DEFAULT_ADMIN_SETTINGS.homeVisitBulkScheduleMax,
+    homeVisitTravelBufferMinutes:
+      typeof row?.home_visit_travel_buffer_minutes === "number"
+        ? row.home_visit_travel_buffer_minutes
+        : DEFAULT_ADMIN_SETTINGS.homeVisitTravelBufferMinutes,
+    homeVisitPageHeading: stringOrDefault(
+      row?.home_visit_page_heading,
+      DEFAULT_HOME_VISIT_PAGE_HEADING
+    ),
+    homeVisitPageSubheading: stringOrDefault(
+      row?.home_visit_page_subheading,
+      DEFAULT_HOME_VISIT_PAGE_SUBHEADING
+    ),
   };
 }
