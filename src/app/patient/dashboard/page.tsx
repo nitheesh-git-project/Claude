@@ -22,6 +22,13 @@ import JoinSessionButton from "@/components/JoinSessionButton";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { computePackageSavings } from "@/lib/packageProgress";
+import PatientBookingHub from "@/components/patient/PatientBookingHub";
+import {
+  formatAddressBlock,
+  mapsSearchUrl,
+  visitAddressFromAppointment,
+} from "@/lib/formatAddress";
+import { expireDueHomeVisitPurchases } from "@/lib/expireHomeVisitPurchases";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
@@ -69,6 +76,7 @@ export default async function PatientDashboardPage() {
   // the category/therapist/package-info lookups that already needed one.
   const admin = createAdminClient();
   await expireDuePackagePurchases(admin);
+  await expireDueHomeVisitPurchases(admin);
 
   // All of these are independent of each other -- run in parallel instead
   // of one at a time, since router.refresh() re-runs this whole page on
@@ -91,6 +99,10 @@ export default async function PatientDashboardPage() {
     { data: ownedPackages },
     { data: onboardingRow },
     { data: conditionProfile },
+    { data: visitDetailRows },
+    { data: homeVisitPackages },
+    { data: ownedHomeVisitPackages },
+    { data: bookableCategories },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
 
@@ -168,6 +180,46 @@ export default async function PatientDashboardPage() {
     // the whole dashboard.
     supabase.from("profiles").select("onboarding_seen_at").eq("id", user.id).maybeSingle(),
     supabase.from("patient_condition_profiles").select("status").eq("patient_id", user.id).maybeSingle(),
+
+    // The home-visit columns for this patient's own appointments. Isolated
+    // from the main appointments select above for the same reason as
+    // everywhere else: that select feeds every session card, the calendar
+    // and the receipts, so one unknown column there would blank the page.
+    supabase
+      .from("appointments")
+      .select(
+        "id, visit_mode, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_access_notes, travel_fee_paise, home_visit_purchase_id"
+      )
+      .eq("patient_id", user.id),
+
+    // The Book a Session hub's home-visit group.
+    supabase
+      .from("home_visit_packages")
+      .select(
+        "id, title, subtitle, image_url, benefits, badge_label, highlight, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked"
+      )
+      .eq("active", true)
+      .eq("visible_in_dashboard", true)
+      .order("display_order", { ascending: true }),
+
+    supabase
+      .from("home_visit_package_purchases")
+      .select(
+        "id, package_id, purchase_code, visit_count, visits_used, status, locked_therapist_id, expires_at, travel_fee_paise"
+      )
+      .eq("patient_id", user.id)
+      .eq("payment_status", "paid")
+      .order("created_at", { ascending: false }),
+
+    // Single online consultations for the hub. activeCategories above is
+    // only id+title (it resolves names on existing bookings); the hub needs
+    // the price and length it is selling.
+    supabase
+      .from("treatment_categories")
+      .select("id, title, description, price_paise, duration_minutes, cta_label")
+      .eq("active", true)
+      .order("display_order", { ascending: true })
+      .order("id", { ascending: true }),
   ]);
 
   const adminSettings = parseAdminSettings(settingsRow);
@@ -266,14 +318,54 @@ export default async function PatientDashboardPage() {
   const hasAvailablePackages =
     adminSettings.sessionPackagesVisible && !!availablePackages && availablePackages.length > 0;
 
-  const navItems = buildPatientNavItems({ hasOwnedPackages, hasAvailablePackages });
+  const visitDetailById = new Map((visitDetailRows ?? []).map((r) => [r.id, r]));
+  const onlineAppointments = appointments.filter(
+    (a) => visitDetailById.get(a.id)?.visit_mode !== "home_visit"
+  );
+  const homeVisitAppointments = appointments.filter(
+    (a) => visitDetailById.get(a.id)?.visit_mode === "home_visit"
+  );
+
+  const hasOwnedHomeVisitPackages =
+    !!ownedHomeVisitPackages && ownedHomeVisitPackages.length > 0;
+
+  const navItems = buildPatientNavItems({
+    hasOwnedPackages,
+    hasAvailablePackages,
+    hasOnlineSessions: onlineAppointments.length > 0,
+    hasHomeVisits: homeVisitAppointments.length > 0,
+    hasOwnedHomeVisitPackages,
+  });
+
+  // What the Book a Session hub offers. Both master switches are honoured
+  // here rather than inside the hub, so that component stays a pure display
+  // of whatever it is handed -- same split as SessionPackages on the public
+  // pages.
+  const hubOnlinePackages = adminSettings.sessionPackagesVisible ? availablePackages ?? [] : [];
+  const hubHomeVisitPackages = adminSettings.homeVisitEnabled ? homeVisitPackages ?? [] : [];
+  const categoryPriceById = new Map(
+    (bookableCategories ?? []).map((c) => [c.id, c.price_paise])
+  );
 
   // Shared between "Your Sessions" and the Calendar tab's tap-a-date detail
   // list, so both ever show one true card style for a session rather than
   // two copies that can quietly drift apart.
-  function renderAppointmentCard(a: (typeof appointments)[number]) {
+  type VisitDetail = NonNullable<typeof visitDetailRows>[number];
+
+  function renderAppointmentCard(
+    a: (typeof appointments)[number],
+    visit: VisitDetail | null = null
+  ) {
+    const visitAddress = visit ? visitAddressFromAppointment(visit) : null;
+    const addressLines = visitAddress ? formatAddressBlock(visitAddress) : [];
+    const mapsUrl = visitAddress ? mapsSearchUrl(visitAddress) : null;
     return (
       <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-3">
+        {visit?.visit_mode === "home_visit" && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-teal-700">
+            <i className="fa-solid fa-house-medical" /> Home visit
+          </span>
+        )}
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <p className="font-bold text-sm text-slate-900">
@@ -356,13 +448,52 @@ export default async function PatientDashboardPage() {
             )}
           </div>
         </div>
+
+        {addressLines.length > 0 && (
+          <div className="rounded-lg bg-slate-50 p-3 space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Your therapist is coming to
+            </p>
+            {addressLines.map((line) => (
+              <p key={line} className="text-slate-700">
+                {line}
+              </p>
+            ))}
+            {visit?.visit_access_notes && (
+              <p className="pt-1 text-slate-600">
+                <span className="font-semibold text-slate-400">Getting in:</span>{" "}
+                {visit.visit_access_notes}
+              </p>
+            )}
+            {mapsUrl && (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 pt-1 text-[11px] font-semibold text-teal-700 hover:text-teal-800"
+              >
+                <i className="fa-solid fa-location-dot" /> View on map
+              </a>
+            )}
+            {visit?.travel_fee_paise !== null && (visit?.travel_fee_paise ?? 0) > 0 && (
+              <p className="pt-1 text-[11px] text-slate-400">
+                Includes ₹{((visit?.travel_fee_paise ?? 0) / 100).toLocaleString("en-IN")} travel
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 flex-wrap">
-          <JoinSessionButton
-            meetLink={a.meet_link}
-            slotTime={a.slot_time}
-            status={a.status}
-            durationMinutes={a.duration_minutes}
-          />
+          {/* A home visit has no Meet link to join -- the therapist is
+              travelling to the address above. */}
+          {visit?.visit_mode !== "home_visit" && (
+            <JoinSessionButton
+              meetLink={a.meet_link}
+              slotTime={a.slot_time}
+              status={a.status}
+              durationMinutes={a.duration_minutes}
+            />
+          )}
           {(a.status === "requested" || a.status === "confirmed") && (
             <CancelSessionButton
               appointmentId={a.id}
@@ -433,37 +564,79 @@ export default async function PatientDashboardPage() {
         </Link>
       )}
 
-      <div id="sessions" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-lg text-slate-800">Your Sessions</h2>
-          {/* ?from=dashboard so Back off the booking page returns here, to
-              Your Sessions -- see BookingBackToSessions. */}
-          <Link
-            href={BOOKING_FROM_DASHBOARD}
-            className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"
-          >
-            Book New Session
-          </Link>
-        </div>
+      {/* Always visible, unlike the history sections below. A patient who
+          has only ever had video calls must still be able to find home
+          visits -- hiding a product until someone has already used it is
+          how they never discover it. */}
+      <div id="book" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Book a Session</h2>
+        <p className="text-xs text-slate-500 mb-5">
+          Everything you can book, in one place.
+        </p>
+        <PatientBookingHub
+          categories={bookableCategories ?? []}
+          onlinePackages={hubOnlinePackages}
+          homeVisitPackages={hubHomeVisitPackages}
+          categoryPriceById={categoryPriceById}
+        />
+      </div>
 
-        {!appointments || appointments.length === 0 ? (
-          <p className="text-xs text-slate-500 py-8 text-center">
-            You don&apos;t have any sessions yet. Book your first consultation
-            to get started.
-          </p>
-        ) : (
+      {onlineAppointments.length > 0 && (
+        <div id="sessions" className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-lg text-slate-800">Your Sessions</h2>
+            {/* ?from=dashboard so Back off the booking page returns here, to
+                Your Sessions -- see BookingBackToSessions. */}
+            <Link
+              href={BOOKING_FROM_DASHBOARD}
+              className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"
+            >
+              Book New Session
+            </Link>
+          </div>
+
           <ul className="space-y-3">
-            {appointments.map((a) => (
+            {onlineAppointments.map((a) => (
               <li key={a.id}>{renderAppointmentCard(a)}</li>
             ))}
           </ul>
-        )}
-      </div>
+        </div>
+      )}
+
+      {homeVisitAppointments.length > 0 && (
+        <div
+          id="home-visits"
+          className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-6"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-lg text-slate-800">Your Home Visits</h2>
+            <Link
+              href="/book-home-visit"
+              className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"
+            >
+              Book a Home Visit
+            </Link>
+          </div>
+
+          <ul className="space-y-3">
+            {homeVisitAppointments.map((a) => (
+              <li key={a.id}>{renderAppointmentCard(a, visitDetailById.get(a.id) ?? null)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div id="calendar" className="mt-8">
+        {/* Both kinds share one calendar -- a patient's week is one week,
+            whether a slot is a call or someone coming round. */}
         <SessionCalendarTab
           sessions={appointments}
-          cardsById={Object.fromEntries(appointments.map((a) => [a.id, renderAppointmentCard(a)]))}
+          cardsById={Object.fromEntries(
+            appointments.map((a) => [
+              a.id,
+              renderAppointmentCard(a, visitDetailById.get(a.id) ?? null),
+            ])
+          )}
           showMotivation
         />
       </div>

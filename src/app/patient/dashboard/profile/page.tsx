@@ -8,6 +8,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { LANGUAGE_OPTIONS } from "@/lib/languageOptions";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
+import MyAddresses from "@/components/profile/MyAddresses";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
@@ -33,6 +34,10 @@ export default async function PatientProfilePage() {
     { count: ownedPackagesCount },
     { count: availablePackagesCount },
     { data: settingsRow },
+    { count: onlineSessionCount },
+    { count: homeVisitCount },
+    { count: ownedHomeVisitCount },
+    { data: savedAddresses },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -74,6 +79,37 @@ export default async function PatientProfilePage() {
       .from("site_settings")
       .select(SITE_SETTINGS_SELECT)
       .maybeSingle(),
+
+    // The Home Visit nav entries are conditional, and every page rendering
+    // this shell has to pass the same booleans or the sidebar gains and
+    // loses entries as you move between them. Count-only queries: a round
+    // trip each, no rows.
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", user.id)
+      .not("visit_mode", "eq", "home_visit"),
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", user.id)
+      .eq("visit_mode", "home_visit"),
+    supabase
+      .from("home_visit_package_purchases")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", user.id)
+      .eq("payment_status", "paid"),
+    // The My Addresses sub-tab. RLS scopes this to the caller's own rows,
+    // so no ownership filter beyond patient_id is needed.
+    supabase
+      .from("patient_addresses")
+      .select(
+        "id, label, line1, line2, landmark, city, state, pincode, contact_phone, access_notes, is_default"
+      )
+      .eq("patient_id", user.id)
+      .eq("active", true)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: false }),
   ]);
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
   const adminSettings = parseAdminSettings(settingsRow);
@@ -82,6 +118,9 @@ export default async function PatientProfilePage() {
     hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
     hasAvailablePackages:
       adminSettings.sessionPackagesVisible && !!availablePackagesCount && availablePackagesCount > 0,
+    hasOnlineSessions: (onlineSessionCount ?? 0) > 0,
+    hasHomeVisits: (homeVisitCount ?? 0) > 0,
+    hasOwnedHomeVisitPackages: (ownedHomeVisitCount ?? 0) > 0,
   });
 
   // Same computation as the root layout's own showDebugNav -- duplicated
@@ -171,6 +210,10 @@ export default async function PatientProfilePage() {
             emergency_contact_phone: profile?.emergency_contact_phone ?? "",
           }}
         />
+      </div>
+
+      <div id="my-addresses" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+        <MyAddresses addresses={savedAddresses ?? []} />
       </div>
 
       <div id="account-security" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
