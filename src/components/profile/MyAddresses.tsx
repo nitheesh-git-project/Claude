@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/lib/useConfirm";
 import { formatAddressBlock } from "@/lib/formatAddress";
+import AddressMapPicker from "@/components/AddressMapPicker";
 
 export type SavedAddress = {
   id: string;
@@ -14,6 +15,9 @@ export type SavedAddress = {
   city: string | null;
   state: string | null;
   pincode: string;
+  latitude: number | null;
+  longitude: number | null;
+  map_place_id: string | null;
   contact_phone: string | null;
   access_notes: string | null;
   is_default: boolean;
@@ -39,6 +43,9 @@ function AddressForm({
   const [city, setCity] = useState(address?.city ?? "");
   const [state, setState] = useState(address?.state ?? "");
   const [pincode, setPincode] = useState(address?.pincode ?? "");
+  const [latitude, setLatitude] = useState(address?.latitude ?? null);
+  const [longitude, setLongitude] = useState(address?.longitude ?? null);
+  const [mapPlaceId, setMapPlaceId] = useState(address?.map_place_id ?? null);
   const [contactPhone, setContactPhone] = useState(address?.contact_phone ?? "");
   const [accessNotes, setAccessNotes] = useState(address?.access_notes ?? "");
   // The very first address a patient saves is their default whether they
@@ -64,6 +71,9 @@ function AddressForm({
           city: city || null,
           state: state || null,
           pincode,
+          latitude,
+          longitude,
+          mapPlaceId,
           contactPhone: contactPhone || null,
           accessNotes: accessNotes || null,
           isDefault: isDefault || isFirst,
@@ -136,6 +146,23 @@ function AddressForm({
           <input value={state} onChange={(e) => setState(e.target.value)} className={inputCls()} />
         </label>
       </div>
+
+      <AddressMapPicker
+        latitude={latitude}
+        longitude={longitude}
+        onPinChange={(lat, lng, placeId) => {
+          setLatitude(lat);
+          setLongitude(lng);
+          setMapPlaceId(placeId);
+        }}
+        onPlaceSelect={(place) => {
+          setLine1(place.line1 || line1);
+          setCity(place.city || city);
+          setState(place.state || state);
+          if (place.pincode) setPincode(place.pincode);
+        }}
+        initialQuery={line1}
+      />
 
       <label className="block">
         <span className="text-[11px] font-semibold text-slate-600">

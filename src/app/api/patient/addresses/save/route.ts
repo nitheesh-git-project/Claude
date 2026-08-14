@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
     city?: string | null;
     state?: string | null;
     pincode?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    mapPlaceId?: string | null;
     contactPhone?: string | null;
     accessNotes?: string | null;
     isDefault?: boolean;
@@ -67,6 +70,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Enter a valid 6-digit pincode." }, { status: 400 });
   }
 
+  const hasLatitude = typeof body.latitude === "number" && Number.isFinite(body.latitude);
+  const hasLongitude = typeof body.longitude === "number" && Number.isFinite(body.longitude);
+  if (
+    (body.latitude != null && (!hasLatitude || Math.abs(body.latitude) > 90)) ||
+    (body.longitude != null && (!hasLongitude || Math.abs(body.longitude) > 180))
+  ) {
+    return NextResponse.json({ error: "Invalid map pin coordinates." }, { status: 400 });
+  }
+
   const admin = createAdminClient();
 
   // Link the address to its service area when one covers this pincode. An
@@ -89,6 +101,9 @@ export async function POST(request: NextRequest) {
     state: body.state?.trim() || null,
     pincode,
     area_id: area?.id ?? null,
+    latitude: hasLatitude ? body.latitude : null,
+    longitude: hasLongitude ? body.longitude : null,
+    map_place_id: body.mapPlaceId?.trim() || null,
     contact_phone: body.contactPhone?.trim() || null,
     access_notes: body.accessNotes?.trim() || null,
     updated_at: new Date().toISOString(),

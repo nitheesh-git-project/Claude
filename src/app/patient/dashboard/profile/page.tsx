@@ -104,7 +104,7 @@ export default async function PatientProfilePage() {
     supabase
       .from("patient_addresses")
       .select(
-        "id, label, line1, line2, landmark, city, state, pincode, contact_phone, access_notes, is_default"
+        "id, label, line1, line2, landmark, city, state, pincode, latitude, longitude, map_place_id, contact_phone, access_notes, is_default"
       )
       .eq("patient_id", user.id)
       .eq("active", true)
