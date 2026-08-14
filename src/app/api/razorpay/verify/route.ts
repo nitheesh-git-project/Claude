@@ -143,5 +143,21 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // A self-signup patient's appointment insert is let through RLS while
+  // still unapproved (see appointments_insert_own in schema.sql) precisely
+  // because a completed, signature-verified payment right here is itself
+  // the vetting -- same judgement /api/home-visit/create-order already
+  // applies before checkout, just applied after it in this flow since the
+  // insert has to happen ahead of payment to get an appointment id for
+  // Razorpay. Never block or fail the payment confirmation over this.
+  const { error: approveError } = await admin
+    .from("profiles")
+    .update({ approved: true })
+    .eq("id", user.id)
+    .eq("approved", false);
+  if (approveError) {
+    console.error("Failed to auto-approve patient after payment", user.id, approveError);
+  }
+
   return NextResponse.json({ success: true });
 }

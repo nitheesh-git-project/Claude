@@ -3035,3 +3035,48 @@ alter table patient_referrals
   add column if not exists visit_mode text not null default 'online'
     check (visit_mode in ('online', 'home_visit'));
 alter table patient_referrals add column if not exists pincode text;
+
+-- --------------------------------------------------------------------------
+-- appointments_insert_own: drop the approved requirement for online booking
+-- --------------------------------------------------------------------------
+-- Re-declares appointments_insert_own once more, this time dropping
+-- `approved = true` and keeping only `active = true` -- the same judgement
+-- /api/home-visit/create-order's isProfileActive (not
+-- isProfileActiveAndApproved) already applies, extended to the one path
+-- that still went through the stricter check: a self-signup patient booking
+-- and paying for a single online session in the same visit they discovered
+-- the site. Requiring approval here meant they signed up, hit a wall, and
+-- in practice never came back -- while the row this policy actually lets
+-- through is always unpaid + requested + unassigned, so it does nothing on
+-- its own. /api/razorpay/verify flips the patient's `approved` to true the
+-- moment their payment on it is confirmed (mirroring
+-- register-via-referral's approved = true), so the admin approval gate is
+-- satisfied by a completed payment instead of a human -- same precedent as
+-- home visits, just applied after checkout instead of before it since this
+-- flow's insert has to happen ahead of payment to get an appointment id for
+-- Razorpay.
+--
+-- Everything else here is carried over verbatim from the version earlier in
+-- this file; see the long comment there for why each remaining clause
+-- exists (each closed a real hole).
+drop policy if exists "appointments_insert_own" on appointments;
+create policy "appointments_insert_own" on appointments
+  for insert with check (
+    auth.uid() = patient_id
+    and visit_mode = 'online'
+    and status = 'requested'
+    and payment_status = 'unpaid'
+    and package_purchase_id is null
+    and home_visit_purchase_id is null
+    and slot_time is not null
+    and slot_time > now()
+    and therapist_id is null
+    and duration_minutes = coalesce(
+      (select duration_minutes from treatment_categories where id = category_id),
+      60
+    )
+    and exists (
+      select 1 from public.profiles
+      where id = auth.uid() and active = true
+    )
+  );

@@ -88,6 +88,14 @@ role, an id, or an amount sent from the client — re-derive it server-side.
   `src/lib/checkTherapistConflict.ts`).
 - **Payments** must be verified server-side: `/api/razorpay/verify` checks the
   signature before anything is confirmed. Never confirm on a client callback.
+  A signature-verified payment there also flips the paying patient's
+  `profiles.approved` to `true` if it wasn't already — `appointments_insert_own`
+  lets a self-signup patient's pre-payment appointment row through RLS while
+  still unapproved (requiring only `active`) precisely so this can happen;
+  the completed payment is the vetting, same precedent
+  `/api/home-visit/create-order` already applies before checkout instead of
+  after it. Standalone patient registration (`/patient/register`, no
+  booking involved) still waits on a human admin as before.
 - **Cancellation/refund**: full refund only outside the 24-hour window in
   `src/lib/pricing.ts`; inside it, none. Home visits use their own window
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) —
