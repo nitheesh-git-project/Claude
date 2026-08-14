@@ -3,7 +3,7 @@ import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
-import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 
 // The amount is always resolved here, server-side, from the appointment's
@@ -23,8 +23,15 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
-  if (!(await isProfileActiveAndApproved(user.id))) {
-    return NextResponse.json({ error: "Your account is not active — it is either awaiting admin approval or has been suspended." }, { status: 403 });
+  // Deliberately isProfileActive, not isProfileActiveAndApproved: this is
+  // the same "completed payment is the vetting" precedent
+  // /api/home-visit/create-order applies, extended to a single online
+  // session -- appointments_insert_own already lets an unapproved patient's
+  // pre-payment appointment row through, and /api/razorpay/verify approves
+  // them the moment this payment is signature-verified. Gating checkout
+  // itself on approval would mean that payment can never happen.
+  if (!(await isProfileActive(user.id))) {
+    return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
 
   // RLS also enforces this (patients can only select their own rows), but

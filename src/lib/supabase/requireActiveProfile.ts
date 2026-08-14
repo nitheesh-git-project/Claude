@@ -27,20 +27,23 @@ export async function isProfileActiveAndApproved(userId: string): Promise<boolea
 
 // The suspension half of the check above, without the approval gate.
 //
-// Used only by the home-visit purchase routes. A self-signup patient starts
-// approved = false, so requiring approval there would mean nobody could buy
-// a home visit on the same visit they discovered it -- they would sign up,
-// be told to wait for a human, and mostly not come back. For that product
-// the gate buys nothing anyway: a completed Razorpay payment against an
-// address inside a serviceable pincode is itself the vetting `approved`
-// provides, and an admin still assigns a therapist before anyone travels.
-// /api/patient/register-via-referral already applies the same judgement from
-// the other direction, setting approved = true because the admin vetted the
-// patient by another route.
+// Used by the home-visit purchase routes and /api/razorpay/create-order
+// (single online session checkout). A self-signup patient starts
+// approved = false, so requiring approval there would mean nobody could pay
+// for anything on the same visit they discovered the site -- they would
+// sign up, be told to wait for a human, and mostly not come back. For these
+// routes the gate buys nothing anyway: a completed, signature-verified
+// Razorpay payment is itself the vetting `approved` provides -- for a home
+// visit that's an address inside a serviceable pincode, for an online
+// session it's /api/razorpay/verify, which flips approved to true itself
+// the moment the payment lands. /api/patient/register-via-referral already
+// applies the same judgement from the other direction, setting
+// approved = true because the admin vetted the patient by another route.
 //
 // Suspension is still enforced, so a suspended account cannot buy its way
 // back in. Do not reach for this in place of isProfileActiveAndApproved on
-// any other route -- everywhere else, the approval gate is doing real work.
+// any route where a real payment isn't the thing granting approval --
+// everywhere else, the approval gate is doing real work.
 export async function isProfileActive(userId: string): Promise<boolean> {
   const admin = createAdminClient();
   const { data } = await admin
