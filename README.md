@@ -59,6 +59,22 @@ verified end to end.
 renders a "jump to page" debug bar on the deployed site. Delete that file or
 flip the value to `false` before a real public launch.
 
+### Supabase email rate limit
+
+Patient booking (guest checkout), patient registration, and therapist
+registration all call `supabase.auth.signUp()`, which sends a confirmation
+email. A Supabase project with no custom SMTP configured uses Supabase's
+built-in mailer, capped at a handful of emails per hour — repeated signups
+while testing exhaust it fast, and every further `signUp()` call fails with
+`"email rate limit exceeded"` until the cap resets.
+
+- **Before a real launch:** configure custom SMTP — Supabase Dashboard →
+  Authentication → Emails → SMTP Settings — to remove the built-in cap.
+- **While testing locally:** Dashboard → Authentication → Providers → Email
+  → turn off "Confirm email". `signUp()` then returns a session immediately
+  with no email sent, so the built-in limit is never hit. Turn it back on
+  before launch — patients and therapists need real email verification.
+
 ## Roles
 
 Four roles live in `profiles.role`, all backed by Supabase Auth users:

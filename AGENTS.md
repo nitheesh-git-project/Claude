@@ -194,6 +194,15 @@ change that genuinely needs no doc update can ignore it.
 
 - `.env.production` sets `NEXT_PUBLIC_SHOW_DEBUG_NAV=true` for a debug nav bar
   on the deployed site. It must be removed before a public launch.
+- Guest booking, patient register, and therapist register all call
+  `supabase.auth.signUp()`, which sends a confirmation email through
+  Supabase's built-in mailer if no custom SMTP is configured. That mailer
+  caps at a handful of emails/hour — repeated signups while testing exhaust
+  it and every further `signUp()` fails with `"email rate limit exceeded"`.
+  Fix: custom SMTP under Supabase Dashboard → Authentication → Emails → SMTP
+  Settings before launch; for local testing, toggle off "Confirm email"
+  under Authentication → Providers → Email instead (turn back on before
+  launch). See README.md "Supabase email rate limit".
 - `graphify-out/` is CI-generated (`.github/workflows/graphify.yml`); only
   `graph.json` and `GRAPH_REPORT.md` are committed. Don't hand-edit them.
 - Secrets (`SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET`, Google
