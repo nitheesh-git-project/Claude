@@ -19,7 +19,21 @@ npm run dev
 
 Open http://localhost:3000.
 
-Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`.
+Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
+`npm run test:e2e`.
+
+### End-to-end regression suite
+
+`npm run test:e2e` runs a scoped Playwright suite under `e2e/` against a
+running `npm run dev` (started automatically if one isn't already up). It
+is not a full UI test suite — it covers the paths where a silent regression
+would cost real money or trust: the CAS-guarded concurrency races (refund
+double-fire, therapist reassignment, referral double-assignment), home-visit
+area gating, and bulk-scheduling limits. Every spec talks to the app's HTTP
+API and Supabase directly (no browser), so it needs real credentials for a
+**test/staging** Supabase project and Razorpay **test-mode** keys in the
+environment or `.env.local` — never point it at production, since it creates
+real auth users, appointments, and Razorpay test-mode orders.
 
 ### Database
 
