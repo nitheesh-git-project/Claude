@@ -76,11 +76,24 @@ export async function POST(request: NextRequest) {
     key_secret: process.env.RAZORPAY_KEY_SECRET!,
   });
 
-  const order = await razorpay.orders.create({
-    amount: pkg.price_paise,
-    currency: "INR",
-    receipt: purchase.id,
-  });
+  // Guarded like /api/home-visit/create-order's own order.create call: an
+  // uncaught throw here would otherwise crash the route handler with a
+  // non-JSON 500, which the client's res.json() then fails to parse --
+  // surfacing as a misleading generic error instead of the real cause.
+  let order;
+  try {
+    order = await razorpay.orders.create({
+      amount: pkg.price_paise,
+      currency: "INR",
+      receipt: purchase.id,
+    });
+  } catch (err) {
+    console.error("Razorpay order creation failed for package purchase", purchase.id, err);
+    return NextResponse.json(
+      { error: "Could not start payment. Please try again." },
+      { status: 500 }
+    );
+  }
 
   const { error: updateError } = await admin
     .from("patient_package_purchases")

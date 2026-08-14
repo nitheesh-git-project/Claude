@@ -3,7 +3,7 @@ import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
-import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActive, approvePatientForGenuinePaymentAttempt } from "@/lib/supabase/requireActiveProfile";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 
 // The amount is always resolved here, server-side, from the appointment's
@@ -23,13 +23,13 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
-  // Deliberately isProfileActive, not isProfileActiveAndApproved: this is
-  // the same "completed payment is the vetting" precedent
-  // /api/home-visit/create-order applies, extended to a single online
-  // session -- appointments_insert_own already lets an unapproved patient's
-  // pre-payment appointment row through, and /api/razorpay/verify approves
-  // them the moment this payment is signature-verified. Gating checkout
-  // itself on approval would mean that payment can never happen.
+  // Deliberately isProfileActive, not isProfileActiveAndApproved:
+  // appointments_insert_own already lets an unapproved patient's
+  // pre-payment appointment row through, and reaching this route at all
+  // means they're genuinely trying to pay for it -- gating checkout itself
+  // on approval would mean that attempt can never happen. See
+  // approvePatientForGenuinePaymentAttempt for why the vetting fires here,
+  // on the attempt, rather than waiting on a completed payment.
   if (!(await isProfileActive(user.id))) {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
@@ -48,6 +48,17 @@ export async function POST(request: NextRequest) {
   if (!appointment) {
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
   }
+
+  // Reaching here means a signed-in patient is genuinely trying to pay for
+  // their own real appointment -- that's the vetting, whether or not the
+  // payment that follows actually succeeds (see the escape hatch in
+  // BookingWizard.tsx, which sends a patient straight to their dashboard
+  // with the booking left pending after repeated failed/dismissed
+  // attempts). Awaited (this is a serverless function -- an un-awaited
+  // write can get cut off once the response is sent) but never lets a
+  // failure here block checkout; see the function's own error handling.
+  await approvePatientForGenuinePaymentAttempt(user.id);
+
   if (appointment.payment_status === "paid") {
     return NextResponse.json({ error: "This booking is already paid" }, { status: 400 });
   }
@@ -161,11 +172,26 @@ export async function POST(request: NextRequest) {
   const travelFeePaise =
     appointment.visit_mode === "home_visit" ? Math.max(0, appointment.travel_fee_paise ?? 0) : 0;
 
-  const order = await razorpay.orders.create({
-    amount: amountPaise + travelFeePaise,
-    currency: "INR",
-    receipt: appointmentId,
-  });
+  // Guarded like /api/home-visit/create-order's own order.create call: an
+  // uncaught throw here (bad/missing Razorpay keys, a Razorpay API hiccup)
+  // would otherwise crash the route handler with a non-JSON 500, which the
+  // client's res.json() then fails to parse -- surfacing as the generic
+  // "Could not load the payment gateway" message regardless of what
+  // actually went wrong, with no way to tell the two apart from the UI.
+  let order;
+  try {
+    order = await razorpay.orders.create({
+      amount: amountPaise + travelFeePaise,
+      currency: "INR",
+      receipt: appointmentId,
+    });
+  } catch (err) {
+    console.error("Razorpay order creation failed for appointment", appointmentId, err);
+    return NextResponse.json(
+      { error: "Could not start payment. Please try again." },
+      { status: 500 }
+    );
+  }
 
   const { error: updateError } = await admin
     .from("appointments")

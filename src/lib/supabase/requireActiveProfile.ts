@@ -53,3 +53,31 @@ export async function isProfileActive(userId: string): Promise<boolean> {
     .single();
   return data?.active !== false;
 }
+
+// Grants the same vetting a human admin would, the moment a self-signup
+// patient genuinely tries to pay for a single online session -- reaching
+// /api/razorpay/create-order for their own appointment means a real
+// Razorpay order was minted, not just a form filled in. (Home-visit and
+// package purchases are a separate, stricter judgement -- see
+// isProfileActive's own comment -- and don't call this.) Deliberately fires
+// on the *attempt*, not a completed payment: a patient who fails or
+// abandons checkout after several tries still gets straight into their
+// dashboard (with the appointment sitting there as pending payment) rather
+// than being bounced to /pending-approval for something a standalone
+// /patient/register signup, with no payment intent at all, still has to
+// wait on. That distinction -- attempted-to-pay vs merely-registered -- is
+// the whole point: it keeps a bare signup from being a free way to reach
+// the dashboard while not making a genuinely trying patient wait on a
+// human. Idempotent and best-effort: never let this failing block the
+// payment flow itself.
+export async function approvePatientForGenuinePaymentAttempt(userId: string): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("profiles")
+    .update({ approved: true })
+    .eq("id", userId)
+    .eq("approved", false);
+  if (error) {
+    console.error("Failed to auto-approve patient after a genuine payment attempt", userId, error);
+  }
+}

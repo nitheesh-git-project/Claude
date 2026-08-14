@@ -96,14 +96,22 @@ role, an id, or an amount sent from the client — re-derive it server-side.
   `src/lib/checkTherapistConflict.ts`).
 - **Payments** must be verified server-side: `/api/razorpay/verify` checks the
   signature before anything is confirmed. Never confirm on a client callback.
-  A signature-verified payment there also flips the paying patient's
-  `profiles.approved` to `true` if it wasn't already — `appointments_insert_own`
-  lets a self-signup patient's pre-payment appointment row through RLS while
-  still unapproved (requiring only `active`) precisely so this can happen;
-  the completed payment is the vetting, same precedent
-  `/api/home-visit/create-order` already applies before checkout instead of
-  after it. Standalone patient registration (`/patient/register`, no
-  booking involved) still waits on a human admin as before.
+  For a single online session, `/api/razorpay/create-order` flips the paying
+  patient's `profiles.approved` to `true` the moment they genuinely attempt
+  checkout (`approvePatientForGenuinePaymentAttempt` in
+  `requireActiveProfile.ts`) — deliberately on the attempt, not a completed
+  payment, so a patient who fails or abandons checkout after repeated tries
+  still lands straight in their dashboard via BookingWizard's escape hatch,
+  appointment showing pending, rather than being bounced to
+  `/pending-approval`. `appointments_insert_own` lets a self-signup patient's
+  pre-payment appointment row through RLS while still unapproved (requiring
+  only `active`) precisely so a real order can exist to attempt in the first
+  place. Home-visit and package purchases keep the stricter "only a
+  *completed* payment vets you" rule instead (`/api/home-visit/create-order`
+  uses plain `isProfileActive`, no auto-approve). Standalone patient
+  registration (`/patient/register`, no booking involved) always waits on a
+  human admin — the point of gating on genuine payment intent is to keep a
+  bare signup from being a free way to skip that queue.
 - **Cancellation/refund**: full refund only outside the 24-hour window in
   `src/lib/pricing.ts`; inside it, none. Home visits use their own window
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) —

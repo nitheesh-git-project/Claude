@@ -81,11 +81,14 @@ Four roles live in `profiles.role`, all backed by Supabase Auth users:
 - **patient** — self-registers (or arrives through a hospital invite link)
   and waits for admin approval before they can sign in and use the
   dashboard. Booking an online session through `/book` is the one exception:
-  a self-signup patient can go straight from signing up to paying, and
-  `/api/razorpay/verify` flips `approved` to `true` itself the moment a
-  signature-verified payment lands, on the judgement that a completed
-  payment is itself the vetting `approved` exists to provide — the same
-  precedent `/api/home-visit/create-order` already applies to home visits.
+  a self-signup patient can go straight from signing up to attempting
+  payment, and `/api/razorpay/create-order` flips `approved` to `true`
+  itself the moment they genuinely try to check out — whether or not that
+  payment goes on to succeed. A patient who fails or abandons checkout after
+  a few tries still lands straight in their dashboard (appointment showing
+  pending) via the booking wizard's own retry-limit prompt, instead of
+  waiting on a human — while a bare `/patient/register` signup, with no
+  payment intent at all, still queues for approval as before.
 - **therapist** — applies, is approved by the admin, sets weekly
   availability, runs sessions, and requests payouts.
 - **hospital** — provisioned by the admin (no self-signup). Refers patients

@@ -180,7 +180,12 @@ export async function payForAppointment({
     });
 
     razorpay.open();
-  } catch {
+  } catch (err) {
+    // Logged rather than silent: this catch covers everything from the
+    // checkout.js script load through opening the Razorpay modal, so the
+    // user-facing message alone can't say which step actually failed --
+    // the console at least gives that away for debugging.
+    console.error("payForAppointment failed", err);
     onError(
       "Could not load the payment gateway. Please check your connection and try again."
     );

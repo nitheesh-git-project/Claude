@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
+import { approvePatientForGenuinePaymentAttempt } from "@/lib/supabase/requireActiveProfile";
 
 export async function POST(request: NextRequest) {
   const {
@@ -143,21 +144,12 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // A self-signup patient's appointment insert is let through RLS while
-  // still unapproved (see appointments_insert_own in schema.sql) precisely
-  // because a completed, signature-verified payment right here is itself
-  // the vetting -- same judgement /api/home-visit/create-order already
-  // applies before checkout, just applied after it in this flow since the
-  // insert has to happen ahead of payment to get an appointment id for
-  // Razorpay. Never block or fail the payment confirmation over this.
-  const { error: approveError } = await admin
-    .from("profiles")
-    .update({ approved: true })
-    .eq("id", user.id)
-    .eq("approved", false);
-  if (approveError) {
-    console.error("Failed to auto-approve patient after payment", user.id, approveError);
-  }
+  // Belt-and-suspenders: /api/razorpay/create-order already approves the
+  // patient the moment they genuinely attempt this payment, so this is
+  // normally a no-op by the time a payment actually verifies. Kept here too
+  // in case that earlier write ever fails silently -- a successful,
+  // signature-verified payment should never leave a patient unapproved.
+  await approvePatientForGenuinePaymentAttempt(user.id);
 
   return NextResponse.json({ success: true });
 }
