@@ -64,10 +64,26 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const razorpay = new Razorpay({
-    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-    key_secret: process.env.RAZORPAY_KEY_SECRET!,
-  });
+  // The Razorpay SDK throws synchronously in its constructor when key_id is
+  // missing ("`key_id` or `oauthToken` is mandatory") -- unguarded, that
+  // crashes the whole route handler with an empty-body 500 that the
+  // client's res.json() can't parse, surfacing as the misleading "Could not
+  // load the payment gateway" message with no hint that it's actually a
+  // missing/misconfigured NEXT_PUBLIC_RAZORPAY_KEY_ID /
+  // RAZORPAY_KEY_SECRET env var for this deployment.
+  let razorpay: Razorpay;
+  try {
+    razorpay = new Razorpay({
+      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+      key_secret: process.env.RAZORPAY_KEY_SECRET!,
+    });
+  } catch (err) {
+    console.error("Razorpay client construction failed -- check env vars", err);
+    return NextResponse.json(
+      { error: "Payments are temporarily unavailable. Please try again shortly or contact us." },
+      { status: 500 }
+    );
+  }
 
   // Re-attach to a prior order for this same appointment instead of always
   // minting a new one. Without this, "Pay Now" on a retry (e.g. the browser

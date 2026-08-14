@@ -71,10 +71,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const razorpay = new Razorpay({
-    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-    key_secret: process.env.RAZORPAY_KEY_SECRET!,
-  });
+  // The Razorpay SDK throws synchronously in its constructor when key_id is
+  // missing -- unguarded, that crashes the route with an empty-body 500
+  // instead of a message pointing at the actual cause (a missing/wrong
+  // NEXT_PUBLIC_RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET for this deployment).
+  let razorpay: Razorpay;
+  try {
+    razorpay = new Razorpay({
+      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+      key_secret: process.env.RAZORPAY_KEY_SECRET!,
+    });
+  } catch (err) {
+    console.error("Razorpay client construction failed -- check env vars", err);
+    return NextResponse.json(
+      { error: "Payments are temporarily unavailable. Please try again shortly or contact us." },
+      { status: 500 }
+    );
+  }
 
   // Guarded like /api/home-visit/create-order's own order.create call: an
   // uncaught throw here would otherwise crash the route handler with a
