@@ -1,0 +1,33 @@
+name: Apply schema to Supabase
+
+# supabase/schema.sql is the single source of truth for the live database
+# (see AGENTS.md), and is only ever wired to the real Supabase project by
+# running scripts/run-schema.mjs by hand. That manual step is easy to skip,
+# and a merged schema.sql change that never gets applied silently leaves the
+# app's RLS policies (and everything else in the file) out of sync with the
+# code that assumes them -- the app can look fixed in review and still fail
+# in production. This applies the file automatically on every push to main
+# that touches it, so the schema in the repo and the schema in Supabase can
+# never drift apart for more than one merge.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/schema.sql"
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run schema.sql against Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        run: node scripts/run-schema.mjs

@@ -78,6 +78,14 @@ role, an id, or an amount sent from the client — re-derive it server-side.
 - Money is integer paise. Times are `timestamptz`. Percentages
   (`revenue_share_percent`) are 0–100.
 - Any new table needs RLS policies written alongside it in the same file.
+- A change to `schema.sql` only reaches the live database once it's applied
+  — either by hand with `node scripts/run-schema.mjs`, or automatically via
+  `.github/workflows/schema-apply.yml`, which runs that same script against
+  Supabase on every push to `main` that touches `supabase/schema.sql` (needs
+  the `SUPABASE_ACCESS_TOKEN` and `NEXT_PUBLIC_SUPABASE_URL` repo secrets
+  set). Merging a schema change without either path running leaves the DB's
+  policies out of sync with code that assumes them — the app can look fixed
+  in review and still fail in production the same way.
 
 ## Domain rules worth knowing before editing
 
