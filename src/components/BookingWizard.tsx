@@ -347,14 +347,17 @@ export default function BookingWizard({
         setError(signUpError.message);
         return;
       }
-      if (!data.session || !data.user) {
-        setLoading(false);
-        setInfo(
-          "Account created! Check your email to confirm it, then sign in and submit this booking again from your dashboard."
-        );
-        return;
-      }
-      userId = data.user.id;
+      // Self-serve patient signups start unapproved (see schema.sql /
+      // appointments_insert_own's `approved = true` check) and can't book
+      // until an admin approves them, whether or not email confirmation is
+      // on -- so this can never fall through to the insert below.
+      setLoading(false);
+      setInfo(
+        data.session
+          ? "Account created! An admin needs to approve your account before you can book a session -- we'll email you once you're approved. Then sign in and submit this booking again from your dashboard."
+          : "Account created! Check your email to confirm it. An admin also needs to approve your account before you can book a session -- then sign in and submit this booking again from your dashboard."
+      );
+      return;
     }
 
     const newDuration = packageData ? packageDurationMinutes : selectedCategory?.duration_minutes ?? BASE_DURATION_MINUTES;
