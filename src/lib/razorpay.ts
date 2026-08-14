@@ -7,18 +7,57 @@ declare global {
   }
 }
 
-export function loadRazorpayScript(): Promise<void> {
+function loadRazorpayScriptOnce(): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (window.Razorpay) {
-      resolve();
-      return;
-    }
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Could not load the payment gateway."));
+    script.onerror = () => {
+      script.remove();
+      reject(new Error("Could not load the payment gateway."));
+    };
     document.body.appendChild(script);
   });
+}
+
+const RAZORPAY_SCRIPT_LOAD_RETRIES = 2;
+
+// Cached across calls so two payment attempts in flight at once (e.g. a
+// fast double-click on "Pay Now") share one script load instead of racing
+// to append multiple <script> tags. Cleared on failure (not left as a
+// cached rejection) so a later retry gets a clean attempt rather than
+// instantly failing forever on the first flaky load.
+let razorpayScriptPromise: Promise<void> | null = null;
+
+export function loadRazorpayScript(): Promise<void> {
+  if (window.Razorpay) {
+    return Promise.resolve();
+  }
+  if (razorpayScriptPromise) {
+    return razorpayScriptPromise;
+  }
+
+  razorpayScriptPromise = (async () => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= RAZORPAY_SCRIPT_LOAD_RETRIES; attempt++) {
+      try {
+        await loadRazorpayScriptOnce();
+        return;
+      } catch (err) {
+        lastError = err;
+        if (attempt < RAZORPAY_SCRIPT_LOAD_RETRIES) {
+          await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+        }
+      }
+    }
+    throw lastError;
+  })();
+
+  razorpayScriptPromise.catch(() => {
+    razorpayScriptPromise = null;
+  });
+
+  return razorpayScriptPromise;
 }
 
 type PayForAppointmentArgs = {
