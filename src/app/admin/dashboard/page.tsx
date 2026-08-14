@@ -255,7 +255,7 @@ export default async function AdminDashboardPage() {
     admin
       .from("patient_referrals")
       .select(
-        "id, hospital_id, patient_name, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at"
+        "id, hospital_id, patient_name, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at, visit_mode, pincode"
       )
       .order("created_at", { ascending: false }),
 
@@ -1009,9 +1009,16 @@ export default async function AdminDashboardPage() {
                         {hospital?.full_name ?? "Unknown partner"}
                       </p>
                     </div>
-                    <span className="font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full">
-                      {formatReferralStatus(r.status)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {r.visit_mode === "home_visit" && (
+                        <span className="font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
+                          Home Visit{r.pincode ? ` · ${r.pincode}` : ""}
+                        </span>
+                      )}
+                      <span className="font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full">
+                        {formatReferralStatus(r.status)}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-slate-600">
                     <strong>{r.medical_issue}</strong>

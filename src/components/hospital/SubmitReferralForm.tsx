@@ -6,12 +6,18 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function SubmitReferralForm({
   hospitalId,
+  homeVisitEnabled,
 }: {
   hospitalId: string;
+  // Master switch from site_settings -- a hospital shouldn't be offered a
+  // delivery mode the platform hasn't turned on yet, same gate the public
+  // booking wizards already honour.
+  homeVisitEnabled: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [visitMode, setVisitMode] = useState<"online" | "home_visit">("online");
   const router = useRouter();
   const supabase = createClient();
 
@@ -22,6 +28,13 @@ export default function SubmitReferralForm({
     setSuccess(false);
 
     const formData = new FormData(e.currentTarget);
+    const pincode = (formData.get("pincode") as string) || "";
+    if (visitMode === "home_visit" && !/^[1-9]\d{5}$/.test(pincode.trim())) {
+      setLoading(false);
+      setError("Enter the patient's 6-digit pincode for a home visit referral.");
+      return;
+    }
+
     const { error } = await supabase.from("patient_referrals").insert({
       hospital_id: hospitalId,
       patient_name: formData.get("patient_name") as string,
@@ -29,6 +42,8 @@ export default function SubmitReferralForm({
       preferred_language: (formData.get("preferred_language") as string) || null,
       medical_issue: formData.get("medical_issue") as string,
       treatment_needed: (formData.get("treatment_needed") as string) || null,
+      visit_mode: visitMode,
+      pincode: visitMode === "home_visit" ? pincode.trim() : null,
     });
 
     setLoading(false);
@@ -37,6 +52,7 @@ export default function SubmitReferralForm({
       return;
     }
     setSuccess(true);
+    setVisitMode("online");
     (e.target as HTMLFormElement).reset();
     router.refresh();
   }
@@ -62,11 +78,41 @@ export default function SubmitReferralForm({
           className="w-full p-2.5 rounded-lg border border-slate-300"
         />
       </div>
+      {homeVisitEnabled && (
+        <div>
+          <label className="block font-semibold mb-1">Session Type</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setVisitMode("online")}
+              className={`flex-1 rounded-lg border px-3 py-2 font-semibold transition ${
+                visitMode === "online"
+                  ? "border-blue-700 bg-blue-50 text-blue-800"
+                  : "border-slate-300 text-slate-600"
+              }`}
+            >
+              Online Consultation
+            </button>
+            <button
+              type="button"
+              onClick={() => setVisitMode("home_visit")}
+              className={`flex-1 rounded-lg border px-3 py-2 font-semibold transition ${
+                visitMode === "home_visit"
+                  ? "border-blue-700 bg-blue-50 text-blue-800"
+                  : "border-slate-300 text-slate-600"
+              }`}
+            >
+              Home Visit
+            </button>
+          </div>
+        </div>
+      )}
       <div className="grid sm:grid-cols-2 gap-3">
         <div>
           <label className="block font-semibold mb-1">Address</label>
           <input
             name="address"
+            required={visitMode === "home_visit"}
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
         </div>
@@ -80,6 +126,18 @@ export default function SubmitReferralForm({
           />
         </div>
       </div>
+      {visitMode === "home_visit" && (
+        <div>
+          <label className="block font-semibold mb-1">Pincode</label>
+          <input
+            name="pincode"
+            inputMode="numeric"
+            maxLength={6}
+            required
+            className="w-full p-2.5 rounded-lg border border-slate-300 sm:w-1/2"
+          />
+        </div>
+      )}
       <div>
         <label className="block font-semibold mb-1">Medical Issue</label>
         <textarea

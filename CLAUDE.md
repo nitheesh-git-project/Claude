@@ -1,10 +1,11 @@
 # Dr. Pooja's Physio
 
 Production Next.js 16 (App Router) + React 19 + TypeScript + Tailwind v4 app
-for a virtual physical therapy practice: public marketing site, patient
-booking and Razorpay payments, therapist scheduling and payouts, hospital
-(B2B) referrals, and an admin back office. Data, auth, storage, and realtime
-come from Supabase; session video links come from Google Calendar/Meet.
+for a physical therapy practice: public marketing site, patient booking and
+Razorpay payments across two delivery modes (video consultation and in-home
+visits), therapist scheduling and payouts, hospital (B2B) referrals, and an
+admin back office. Data, auth, storage, and realtime come from Supabase;
+session video links come from Google Calendar/Meet.
 
 - `README.md` — product overview, setup, environment variables, routes, and
   how each flow works.

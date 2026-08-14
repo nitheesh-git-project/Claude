@@ -3021,3 +3021,17 @@ alter table payment_failure_log add constraint payment_failure_log_target_check 
   + (home_visit_purchase_id is not null)::int
   = 1
 );
+
+-- --------------------------------------------------------------------------
+-- patient_referrals: home-visit wiring
+-- --------------------------------------------------------------------------
+-- A hospital referral is the one other place a patient's first session gets
+-- created outside the self-service booking wizards (see
+-- register-via-referral), so it needs the same visit_mode axis. `address`
+-- already existed but nothing ever read it back after conversion -- pincode
+-- is what actually drives serviceability + travel fee, so it gets its own
+-- column rather than being parsed out of the free-text address.
+alter table patient_referrals
+  add column if not exists visit_mode text not null default 'online'
+    check (visit_mode in ('online', 'home_visit'));
+alter table patient_referrals add column if not exists pincode text;

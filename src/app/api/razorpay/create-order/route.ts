@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   const { data: appointment } = await supabase
     .from("appointments")
     .select(
-      "id, patient_id, payment_status, category_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone"
+      "id, patient_id, payment_status, category_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone, visit_mode, travel_fee_paise"
     )
     .eq("id", appointmentId)
     .eq("patient_id", user.id)
@@ -142,8 +142,20 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // A home-visit referral appointment (the only home-visit path that goes
+  // through this generic route -- purchase-backed visits pay via
+  // /api/home-visit/create-order instead) carries its own travel fee on top
+  // of the session price, same as every other home-visit charge. Charged to
+  // the patient, but never folded into amount_paid_paise itself -- that
+  // column is what revenue/payout math multiplies by the therapist's share,
+  // and travel is a pass-through paid in full, not a share-based earning
+  // (see homeVisitPricing.ts). therapistPayouts.ts already reads
+  // travel_fee_paise straight off the appointment for the payout side.
+  const travelFeePaise =
+    appointment.visit_mode === "home_visit" ? Math.max(0, appointment.travel_fee_paise ?? 0) : 0;
+
   const order = await razorpay.orders.create({
-    amount: amountPaise,
+    amount: amountPaise + travelFeePaise,
     currency: "INR",
     receipt: appointmentId,
   });

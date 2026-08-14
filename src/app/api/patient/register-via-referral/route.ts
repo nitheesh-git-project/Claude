@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { findAreaForPincode } from "@/lib/homeVisitAreas";
 
 export async function POST(request: NextRequest) {
   const { token, fullName, email, password } = await request.json();
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
     .eq("invite_token", token)
     .eq("status", "invite_sent")
     .select(
-      "id, hospital_id, assigned_therapist_id, assigned_slot_time, medical_issue, treatment_needed"
+      "id, hospital_id, assigned_therapist_id, assigned_slot_time, medical_issue, treatment_needed, visit_mode, address, pincode"
     )
     .maybeSingle();
 
@@ -70,6 +71,26 @@ export async function POST(request: NextRequest) {
     console.error("Failed to set referred_by_hospital_id for", created.user.id, attributionError);
   }
 
+  // A home-visit referral has no home_visit_package_purchases row behind
+  // it (it's a single hospital-arranged appointment, not a programme), so
+  // it never goes through bookHomeVisitSession -- the address and travel
+  // fee are snapshotted here directly, same fields, same reasoning: an
+  // appointment must carry its own copy so a later edit to the source
+  // (here, the referral row itself, which admin can't even edit — but the
+  // pattern still holds) can't silently rewrite a visit already delivered.
+  const isHomeVisit = referral.visit_mode === "home_visit";
+  let travelFeePaise = 0;
+  let areaId: string | null = null;
+  if (isHomeVisit && referral.pincode) {
+    const { data: areas } = await admin
+      .from("home_visit_areas")
+      .select("id, city, area_name, pincode, travel_fee_paise, active")
+      .eq("active", true);
+    const area = findAreaForPincode(areas ?? [], referral.pincode);
+    travelFeePaise = area?.travel_fee_paise ?? 0;
+    areaId = area?.id ?? null;
+  }
+
   // Left as "requested"/unpaid on purpose — the therapist and slot are
   // already arranged, but the session isn't confirmed until the patient
   // actually pays. Payment verification (see /api/razorpay/verify) flips
@@ -85,6 +106,15 @@ export async function POST(request: NextRequest) {
       notes: referral.treatment_needed,
       status: "requested",
       referral_id: referral.id,
+      ...(isHomeVisit
+        ? {
+            visit_mode: "home_visit",
+            visit_address_line1: referral.address || "Address on file with referring hospital",
+            visit_pincode: referral.pincode,
+            visit_area_id: areaId,
+            travel_fee_paise: travelFeePaise,
+          }
+        : {}),
     })
     .select("id")
     .single();
@@ -101,6 +131,25 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
+  }
+
+  // Best-effort: gives the patient a starting entry in their own address
+  // book (patient_referrals.address was otherwise dead data, never read
+  // again after conversion) so a future home-visit booking or programme
+  // doesn't start from a blank form. Never blocks the flow the patient is
+  // already through — the appointment's own snapshot above is what
+  // actually governs this first visit regardless of whether this succeeds.
+  if (isHomeVisit && referral.address && referral.pincode) {
+    const { error: addressError } = await admin.from("patient_addresses").insert({
+      patient_id: created.user.id,
+      line1: referral.address,
+      pincode: referral.pincode,
+      area_id: areaId,
+      is_default: true,
+    });
+    if (addressError) {
+      console.error("Failed to save address for referred patient", created.user.id, addressError);
+    }
   }
 
   const { error: referralUpdateError } = await admin

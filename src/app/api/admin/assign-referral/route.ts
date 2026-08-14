@@ -4,6 +4,7 @@ import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
   // fields to roll back below if needed) closes that too.
   const { data: referral } = await admin
     .from("patient_referrals")
-    .select("id, assigned_therapist_id, assigned_slot_time, invite_token, status")
+    .select("id, assigned_therapist_id, assigned_slot_time, invite_token, status, visit_mode")
     .eq("id", referralId)
     .single();
 
@@ -63,12 +64,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Referral not found" }, { status: 404 });
   }
 
+  // A home-visit referral needs the same travel-time padding as every
+  // other home-visit scheduling decision -- the therapist finishing one
+  // visit cannot be at another minutes later, and a referral's assignment
+  // is the one place that check was still missing.
+  let travelBufferMinutes = 0;
+  if (referral.visit_mode === "home_visit") {
+    const { data: settingsRow } = await admin
+      .from("site_settings")
+      .select("home_visit_travel_buffer_minutes")
+      .maybeSingle();
+    travelBufferMinutes =
+      settingsRow?.home_visit_travel_buffer_minutes ?? DEFAULT_ADMIN_SETTINGS.homeVisitTravelBufferMinutes;
+  }
+
   const conflict = await findTherapistConflict(
     admin,
     therapistId,
     new Date(slotDateTime).toISOString(),
     BASE_DURATION_MINUTES,
-    { excludeReferralId: referralId }
+    { excludeReferralId: referralId, bufferMinutes: travelBufferMinutes }
   );
   if (conflict) {
     return NextResponse.json(
@@ -104,7 +119,7 @@ export async function POST(request: NextRequest) {
     therapistId,
     new Date(slotDateTime).toISOString(),
     BASE_DURATION_MINUTES,
-    { excludeReferralId: referralId }
+    { excludeReferralId: referralId, bufferMinutes: travelBufferMinutes }
   );
   if (conflictAfterWrite) {
     await admin

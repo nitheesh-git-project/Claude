@@ -1,8 +1,9 @@
 # Dr. Pooja's Physio
 
-Production web app for a global virtual physical therapy practice: public
-marketing site, patient booking and payments, therapist scheduling and
-earnings, hospital (B2B) referrals, and a full admin back office.
+Production web app for a physical therapy practice offering both virtual
+consultations and in-home visits: public marketing site, patient booking and
+payments, therapist scheduling and earnings, hospital (B2B) referrals, and a
+full admin back office.
 
 Built with Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4,
 Supabase (Postgres + Auth + Storage + Realtime), Razorpay payments, and
@@ -81,7 +82,8 @@ so a still-valid session cookie can't call the API around the UI gate.
 ## Routes
 
 **Public marketing:** `/` (home), `/conditions`, `/how-it-works`, `/team`,
-`/hospitals`, `/faq`, `/get-started`, `/book`.
+`/hospitals`, `/faq`, `/get-started`, `/book`, `/home-visit`,
+`/book-home-visit`.
 
 **Patient:** `/patient/register`, `/patient/login`, `/patient/dashboard`,
 `/patient/dashboard/profile`, `/patient/dashboard/health-profile`.
@@ -95,8 +97,8 @@ so a still-valid session cookie can't call the API around the UI gate.
 
 **Admin:** `/admin/login`, `/admin/dashboard` (tabbed: metrics, calendar,
 roster, people directory, patient conditions, payments, payouts, payout
-requests, session story, session manager, site content, feature control),
-plus per-person detail pages at `/admin/dashboard/patients/[id]`,
+requests, session story, session manager, home visit, site content, feature
+control), plus per-person detail pages at `/admin/dashboard/patients/[id]`,
 `/admin/dashboard/therapists/[id]`, and `/admin/dashboard/conditions/[id]`.
 Those detail pages use a parallel `@modal` route with intercepting routes, so
 clicking a person from the dashboard opens an overlay while a direct link
@@ -106,8 +108,8 @@ still renders the full page.
 
 **API:** `src/app/api/**` — mutations are POST route handlers grouped by
 audience (`admin/`, `appointments/`, `patient/`, `therapist/`, `hospital/`,
-`packages/`, `razorpay/`). Every route re-authenticates server-side;
-admin routes go through `src/lib/supabase/requireAdmin.ts`.
+`packages/`, `home-visit/`, `razorpay/`). Every route re-authenticates
+server-side; admin routes go through `src/lib/supabase/requireAdmin.ts`.
 
 ## How the app works
 
@@ -193,6 +195,110 @@ mirrors from the other side — the still-unrecognized value of every
 purchase's unscheduled sessions. A purchase within `package_expiry_reminder_days`
 of expiring gets a highlighted warning in the patient's package widget and
 counts toward Session Manager's `Expiring ≤Nd` stat.
+
+**Home Visit.** A second delivery mode, built on the same `appointments`
+table rather than a parallel one: `visit_mode` is `'online'` or
+`'home_visit'`, and a home visit differs from an online session in only four
+ways — it carries an address snapshot instead of a Meet link, a travel fee
+on top of the package price, it can be paid in cash at the door as well as
+prepaid, and its session code starts `HV####` instead of `SS####`. Anyone
+can book either mode; there is no such thing as an "online patient" — the
+patient dashboard's **Book a Session** section always offers all three
+products (single online consultation, online session package, home visit
+package), and history sections (**Your Sessions** / **Your Home Visits**)
+only appear once a patient actually has that kind of session.
+
+- *Serviceability and pricing.* Admin maintains a pincode-level service-area
+  list (`home_visit_areas`, bulk pincode paste supported) with a travel fee
+  per area. `/api/home-visit/check-area` is checked before an address is
+  even collected, and re-checked server-side at checkout — a browser can
+  never buy a visit to a pincode the admin hasn't opened. The travel fee is
+  a pass-through reimbursement paid to the therapist in full
+  (`src/lib/homeVisitPricing.ts`) and deliberately excluded from revenue —
+  folding it into the package price would mean the therapist funds their own
+  transport out of their own cut. `home_visit_packages` is a separate
+  catalog from the online session packages; a one-off visit is just a
+  1-visit package, so there are exactly three purchasable products, not
+  four.
+- *Address.* `patient_addresses` is the patient's reusable address book
+  (label, lines, landmark, pincode, optional map pin, contact phone, access
+  notes); every booked visit snapshots its own copy onto the appointment
+  (`visit_address_*` columns) so a later edit to a saved address never
+  rewrites where a past visit was actually delivered. The map picker
+  (Google Places autocomplete + draggable pin) was deferred — the address
+  step ships with typed fields today, and `latitude`/`longitude`/
+  `map_place_id` simply stay null until it lands, with no migration needed
+  when it does.
+- *Payment.* Prepaid via Razorpay (`/api/home-visit/create-order` +
+  `/api/home-visit/verify`, mirroring the online package flow) or cash
+  collected at the door (`/api/home-visit/book-cash` — books immediately,
+  no Razorpay round trip, and never auto-confirms since nobody has paid yet;
+  the business assigns a therapist before anyone travels). A self-signup
+  guest normally waits on admin approval before paying for anything, but a
+  completed home-visit payment against a serviceable address is itself the
+  vetting — both purchase routes skip the `approved` check and require only
+  `active`, same precedent as hospital-referred patients.
+- *Booking and programmes.* `src/lib/bookHomeVisitSession.ts` is the one
+  race-safe claim-and-book implementation every entry point shares (single
+  purchase, bulk scheduler, hospital referral conversion). When a package
+  has `therapist_locked` on, the first therapist assigned to any visit on a
+  purchase locks onto it for the rest of the programme, auto-confirming
+  later visits (a scheduling conflict never costs the patient a visit — it
+  just lands `requested` and unassigned for the admin queue instead). The
+  conflict check is padded by `home_visit_travel_buffer_minutes` on both
+  sides of the new slot, since a therapist finishing one visit cannot be at
+  another minutes later — an online session needs no such padding. The
+  patient dashboard's **Your Home Visit Packages** widget mirrors **Your
+  Packages**: progress, expiry warning, a **Schedule visits** button
+  (`HomeVisitBulkScheduler.tsx` → `/api/home-visit/book-visits`, enforcing
+  the package's minimum-gap/max-per-week rules and the bulk limit against a
+  programme's single saved address), and a detail modal
+  (`/api/home-visit/purchase-detail`, viewer-scoped the same way the online
+  package route is). `visits_used` counts visits **claimed** (scheduled or
+  completed), never completed — identical semantics to `sessions_used`, see
+  the counter-semantics comment next to `home_visit_package_purchases` in
+  `supabase/schema.sql`.
+- *Cancellation and refunds.* Home visits use their own admin-configurable
+  refund window (`home_visit_cancellation_refund_hours`) instead of the
+  fixed 24-hour online one — a therapist has to physically travel, so the
+  business can reasonably want more notice. A cash visit has no Razorpay
+  payment to reverse; if cash was already collected and the cancellation is
+  still eligible, `refund_status` is set to `'manual_pending'` and surfaced
+  on the admin **Cash Ledger** as an action queue until the cash is
+  physically handed back (`/api/admin/mark-cash-refund-returned`). Admin can
+  also reassign a whole programme to a new therapist, extend its expiry,
+  restore a forfeited visit, or pro-rata refund a prepaid programme's unused
+  balance (sourced from the actual Razorpay order total, since
+  `amount_paid_paise` deliberately excludes travel) — cash-on-visit
+  programmes are refunded visit by visit instead, since there's no single
+  payment behind the whole programme to reverse.
+- *Delivery.* The therapist's **Home Visits** tab shows the address, a
+  working Maps link (exact pin when one exists, formatted address
+  otherwise), the patient's phone, and access notes — no Join button. A
+  calendar event is still created (`location` set to the address, no Meet
+  conferencing) since Google's invite email is the only outbound
+  notification this platform sends; `google_meet_enabled` only gates
+  conferencing, never event creation. Cash collection
+  (`/api/therapist/record-cash-collection`) and remittance
+  (`/api/admin/mark-cash-remitted`) are tracked as two separate timestamps
+  on the appointment, reconciled on the admin **Cash Ledger**; a therapist's
+  payout nets off any cash they're currently holding
+  (`src/lib/therapistCashLedger.ts`), so a settlement only ever moves the
+  money that actually needs to change hands. `profiles.home_visit_revenue_share_percent`
+  is an optional separate split from the therapist's ordinary
+  `revenue_share_percent`, falling back to it when unset.
+- *B2B.* A hospital's referral form can mark a referral `'home_visit'` with
+  a pincode; `/api/admin/assign-referral` applies the same travel-buffer
+  conflict padding, and `/api/patient/register-via-referral` snapshots the
+  address onto the resulting appointment and seeds it into the new patient's
+  address book. `/api/razorpay/create-order` — the same generic route every
+  plain online appointment pays through — adds the travel fee on top of the
+  charge for a home-visit appointment, while still writing only the
+  session's own price to `amount_paid_paise`.
+- *No cron exists in this deployment* (see below), so a home-visit
+  purchase's `status` moves from `active` to `expired` the same lazy way a
+  package purchase's does: `src/lib/expireHomeVisitPurchases.ts`, swept at
+  the top of the same dashboard renders.
 
 **Video sessions.** Confirming an appointment creates a Google Calendar event
 with a Meet link (`src/lib/googleCalendar.ts`,
