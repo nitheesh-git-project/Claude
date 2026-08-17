@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 const ALLOWED_COLUMNS = new Set([
   "session_packages_visible",
@@ -30,6 +31,11 @@ const ALLOWED_COLUMNS = new Set([
   "home_visit_travel_buffer_minutes",
   "home_visit_page_heading",
   "home_visit_page_subheading",
+  // The online twins of home_visit_lead_time_hours /
+  // home_visit_cancellation_refund_hours. Same rule, same level of control:
+  // changing the online refund window used to need a deploy.
+  "online_booking_lead_time_hours",
+  "online_cancellation_refund_hours",
 ]);
 
 // Bounds on the admin-managed /book language list -- not business rules so
@@ -96,10 +102,19 @@ export async function POST(request: NextRequest) {
       key === "home_visit_travel_buffer_minutes" ||
       // Zero here means "no cancellation grace period" -- every
       // cancellation forfeits. A real (if harsh) policy, so not excluded.
-      key === "home_visit_cancellation_refund_hours") &&
-    (typeof value !== "number" || value < 0)
+      key === "home_visit_cancellation_refund_hours" ||
+      // Same two rules on the online side. Zero lead time is legitimate
+      // here in a way it isn't for a home visit -- an online session needs
+      // a free therapist, not a therapist who can physically arrive -- and
+      // zero refund hours is the same harsh-but-real policy as above.
+      key === "online_booking_lead_time_hours" ||
+      key === "online_cancellation_refund_hours") &&
+    (typeof value !== "number" || !Number.isInteger(value) || value < 0)
   ) {
-    return NextResponse.json({ error: "value must be a non-negative number" }, { status: 400 });
+    return NextResponse.json(
+      { error: "value must be a non-negative whole number" },
+      { status: 400 }
+    );
   }
   // Unlike the timers above, these two are a divisor and a loop bound
   // downstream (per-session validity math, the bulk scheduler's date
@@ -209,6 +224,12 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "setting.update",
+    targetLabel: key,
+    details: { value: nextValue },
+  });
 
   // /book is ISR-cached (revalidate = 300), so without this an edited
   // language list would take up to five minutes to reach patients. Marks

@@ -9,7 +9,7 @@ import {
   oldestUnremittedAgeDays,
   type CashAppointment,
 } from "@/lib/therapistCashLedger";
-import type { HomeVisitRow } from "@/components/admin/HomeVisitQueue";
+import type { HomeVisitRow } from "@/components/admin/HomeVisitVisitActions";
 
 function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;

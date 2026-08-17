@@ -7,8 +7,19 @@ import EditBookingForm from "@/components/admin/EditBookingForm";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
+import PartialRefundForm from "@/components/admin/PartialRefundForm";
 import { useConfirm } from "@/lib/useConfirm";
 import { usePrompt } from "@/lib/usePrompt";
+import {
+  HomeVisitAddressEditor,
+  HomeVisitAssignForm,
+  type HomeVisitRow,
+} from "@/components/admin/HomeVisitVisitActions";
+import {
+  formatAddressBlock,
+  mapsSearchUrl,
+  visitAddressFromAppointment,
+} from "@/lib/formatAddress";
 
 export type SessionDetailAppointment = {
   id: string;
@@ -82,6 +93,7 @@ export default function SessionDetailDrawer({
   therapists,
   categories,
   reassignmentLogs,
+  homeVisit,
   onClose,
 }: {
   appointment: SessionDetailAppointment;
@@ -90,6 +102,11 @@ export default function SessionDetailDrawer({
   therapists: { id: string; full_name: string; active?: boolean }[];
   categories: CategoryInfo[];
   reassignmentLogs: ReassignmentLogEntry[];
+  // Present only when this session is a home visit. Everything a visit needs
+  // that an online session doesn't -- the address it is delivered to, and
+  // the cash that may have changed hands there -- rather than a second
+  // drawer for the same entity. See the home-visit panel below.
+  homeVisit?: HomeVisitRow | null;
   onClose: () => void;
 }) {
   const [reopening, setReopening] = useState(false);
@@ -108,6 +125,7 @@ export default function SessionDetailDrawer({
   const [excludingRole, setExcludingRole] = useState<"patient" | "therapist" | null>(null);
   const [isExcludePending, startExcludeTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [editingAddress, setEditingAddress] = useState(false);
   const router = useRouter();
   const { confirm, dialog: confirmDialog } = useConfirm();
   const { prompt, dialog: promptDialog } = usePrompt();
@@ -611,6 +629,105 @@ export default function SessionDetailDrawer({
             </div>
           )}
 
+          {homeVisit && (
+            <div className="pt-3 border-t border-slate-100 space-y-2">
+              <p className="font-bold text-slate-700">Home visit</p>
+              <div className="rounded-lg bg-slate-50 p-3 space-y-1">
+                {(() => {
+                  const address = visitAddressFromAppointment(homeVisit);
+                  const lines = formatAddressBlock(address);
+                  const mapsUrl = mapsSearchUrl(address);
+                  return (
+                    <>
+                      {lines.length > 0 ? (
+                        lines.map((line) => (
+                          <p key={line} className="text-slate-700">
+                            {line}
+                          </p>
+                        ))
+                      ) : (
+                        <p className="text-red-600">No address on this visit.</p>
+                      )}
+                      {homeVisit.visit_contact_phone && (
+                        <p className="text-slate-600">
+                          Call on arrival: {homeVisit.visit_contact_phone}
+                        </p>
+                      )}
+                      {homeVisit.visit_access_notes && (
+                        <p className="text-slate-600">
+                          <span className="font-semibold text-slate-400">Getting in:</span>{" "}
+                          {homeVisit.visit_access_notes}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-3 pt-1">
+                        {mapsUrl && (
+                          <a
+                            href={mapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] font-semibold text-teal-700 hover:underline"
+                          >
+                            Open in Maps
+                          </a>
+                        )}
+                        <button
+                          onClick={() => setEditingAddress((v) => !v)}
+                          className="text-[11px] font-semibold text-slate-600 hover:underline"
+                        >
+                          {editingAddress ? "Close" : "Edit address"}
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+              {editingAddress && (
+                <HomeVisitAddressEditor
+                  visit={homeVisit}
+                  onDone={() => setEditingAddress(false)}
+                />
+              )}
+
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div>
+                  <p className="text-slate-400">Travel fee</p>
+                  <p className="font-semibold text-slate-700">
+                    {homeVisit.travel_fee_paise
+                      ? `₹${(homeVisit.travel_fee_paise / 100).toLocaleString("en-IN")}`
+                      : "—"}
+                  </p>
+                  <p className="text-slate-400">Paid to the therapist in full.</p>
+                </div>
+                <div>
+                  <p className="text-slate-400">Cash</p>
+                  <p className="font-semibold text-slate-700">
+                    {homeVisit.cash_collected_at
+                      ? `Collected ₹${((homeVisit.cash_collected_amount_paise ?? 0) / 100).toLocaleString("en-IN")}`
+                      : homeVisit.payment_status === "paid"
+                        ? "Prepaid"
+                        : "Cash on visit, not yet collected"}
+                  </p>
+                  {homeVisit.cash_collected_at && (
+                    <p className="text-slate-400">
+                      {homeVisit.cash_remitted_at ? "Remitted" : "Not yet remitted"}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* A visit still open enough to send someone to. Assignment
+                  runs the same route as an online session -- the padding
+                  for travel time is applied server-side, not here. */}
+              {homeVisit.status !== "cancelled" && homeVisit.status !== "completed" && (
+                <HomeVisitAssignForm
+                  visit={homeVisit}
+                  therapists={therapists.filter((t) => t.active !== false)}
+                />
+              )}
+            </div>
+          )}
+
           {a.status === "completed" && (
             <div className="pt-3 border-t border-slate-100">
               <button
@@ -623,6 +740,21 @@ export default function SessionDetailDrawer({
               <p className="text-[11px] text-slate-400 mt-1">
                 Reverts to Confirmed and clears any ratings/feedback already submitted.
               </p>
+            </div>
+          )}
+
+          {/* Discretionary refunds are separate from cancelling on purpose:
+              cancelling frees the slot and applies the automatic all-or-
+              nothing rule, while this returns money on a session that may
+              well still be going ahead. */}
+          {a.payment_status === "paid" && (
+            <div className="pt-3 border-t border-slate-100">
+              <p className="font-bold text-slate-700 mb-1">Refund</p>
+              <PartialRefundForm
+                appointmentId={a.id}
+                paidPaise={a.amount_paid_paise ?? 0}
+                alreadyRefundedPaise={a.refund_amount_paise ?? 0}
+              />
             </div>
           )}
 

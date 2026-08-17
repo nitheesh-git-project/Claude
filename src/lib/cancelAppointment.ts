@@ -85,10 +85,16 @@ export async function cancelAppointmentAndRefund(
   const isCashHomeVisit = isHomeVisit && appointment.payment_method === "cash";
   const cashAlreadyCollected = isCashHomeVisit && !!appointment.cash_collected_at;
 
-  // Home visits use their own, admin-configurable refund window rather than
-  // the fixed online CANCELLATION_FULL_REFUND_HOURS -- a therapist has to
-  // physically travel, so the business may reasonably want a longer notice
-  // period than a video call needs.
+  // Both windows are admin-configurable now, and they are separate on
+  // purpose: a therapist has to physically travel to a home visit, so the
+  // business may reasonably want a longer notice period than a video call
+  // needs. The online window used to be the fixed constant
+  // CANCELLATION_FULL_REFUND_HOURS; that constant is still the fallback
+  // here for a database whose settings row (or column) isn't there yet.
+  //
+  // Read as one isolated query per column set rather than folded into any
+  // shared select, same migration-dependent-column rule the rest of this
+  // codebase follows.
   let refundWindowHours = CANCELLATION_FULL_REFUND_HOURS;
   if (isHomeVisit) {
     const { data: hvSettings } = await admin
@@ -98,6 +104,13 @@ export async function cancelAppointmentAndRefund(
     refundWindowHours =
       hvSettings?.home_visit_cancellation_refund_hours ??
       DEFAULT_ADMIN_SETTINGS.homeVisitCancellationRefundHours;
+  } else {
+    const { data: onlineSettings } = await admin
+      .from("site_settings")
+      .select("online_cancellation_refund_hours")
+      .maybeSingle();
+    refundWindowHours =
+      onlineSettings?.online_cancellation_refund_hours ?? CANCELLATION_FULL_REFUND_HOURS;
   }
 
   // Missing slot_time shouldn't happen for a real, paid booking, but if it
