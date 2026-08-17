@@ -169,6 +169,18 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error || !created) {
+    // 23505 is the appointments_one_therapist_per_slot unique index (see
+    // schema.sql). The conflict check above is not atomic -- two requests
+    // can both pass it before either row lands, which a double-clicked form
+    // reliably produces -- so the database is what actually guarantees one
+    // therapist per slot, and this turns its error into the same message the
+    // pre-check gives.
+    if (error?.code === "23505") {
+      return NextResponse.json(
+        { error: "That therapist already has something in that slot." },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: error?.message ?? "Could not create the booking." },
       { status: 500 }

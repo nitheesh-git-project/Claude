@@ -58,6 +58,30 @@ export async function cookieHeaderFor(email: string): Promise<string> {
   return collected.map((c) => `${c.name}=${encodeURIComponent(c.value)}`).join("; ");
 }
 
+/**
+ * The same session as cookieHeaderFor(), shaped for a browser context.
+ *
+ * Signing in through the login page needs the *browser* to reach Supabase,
+ * which a sandboxed environment with an egress proxy may not allow (Node
+ * does, the browser does not -- the symptom is a bare "Failed to fetch" on
+ * the auth call). Minting the session in Node and handing the browser the
+ * resulting cookies keeps the UI specs testing the dashboard rather than
+ * testing the environment's network policy.
+ */
+export async function browserCookiesFor(email: string) {
+  const header = await cookieHeaderFor(email);
+  const { hostname } = new URL(BASE);
+  return header.split("; ").map((pair) => {
+    const index = pair.indexOf("=");
+    return {
+      name: pair.slice(0, index),
+      value: pair.slice(index + 1),
+      domain: hostname,
+      path: "/",
+    };
+  });
+}
+
 export const QA_EMAILS = {
   admin: "qa.admin@example.test",
   therapistA: "qa.therapist.a@example.test",

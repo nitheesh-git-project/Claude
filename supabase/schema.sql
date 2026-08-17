@@ -3186,3 +3186,24 @@ alter table site_settings add column if not exists online_cancellation_refund_ho
 -- discretionary one must have.
 alter table appointments add column if not exists refund_is_manual boolean not null default false;
 alter table appointments add column if not exists refund_reason text;
+
+-- --------------------------------------------------------------------------
+-- appointments: one therapist, one slot
+-- --------------------------------------------------------------------------
+-- Every booking path checks findTherapistConflict() before inserting, which
+-- is correct but not atomic: two requests can both pass the check before
+-- either row lands. A double-clicked admin booking form produced two real
+-- appointments for the same therapist and slot this way (caught by the
+-- concurrency spec, not by review).
+--
+-- This makes the database the arbiter instead. Partial, so it only binds
+-- assigned, live sessions: an unassigned session has no therapist to
+-- double-book, and a cancelled one has given its slot back. It catches the
+-- exact-duplicate case the application check races on; genuinely overlapping
+-- (not identical) start times are still the application check's job, since
+-- SQL can't express "overlaps by duration" as a unique index.
+create unique index if not exists appointments_one_therapist_per_slot
+  on appointments (therapist_id, slot_time)
+  where therapist_id is not null
+    and slot_time is not null
+    and status <> 'cancelled';

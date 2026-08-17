@@ -21,10 +21,18 @@ Calendar/Meet (`googleapis`) · `motion` for animation · Font Awesome ·
 
 Commands: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
 `npm run test:e2e`. The e2e suite (Playwright, `e2e/`) covers the
-money-critical paths only — booking + payment, concurrency/CAS guards, bulk
-limits — and needs a test/staging Supabase project plus Razorpay test keys,
-so it is not a substitute for `npm run build` and `npm run lint`, which are
-still the default verification for a change.
+money-critical paths and the admin back office — booking + payment,
+concurrency/CAS guards, bulk limits, admin route authorization for every
+role, input validation, payout/refund maths, and the dashboard's own
+navigation in a real browser. It needs a test/staging Supabase project plus
+Razorpay test keys, so `npm run build` and `npm run lint` remain the default
+verification for a change that can't reach one.
+
+Two environment notes for the browser specs: set `PLAYWRIGHT_CHROMIUM_PATH`
+when the sandbox already ships a Chromium, and note that they sign in by
+injecting a Node-minted session cookie rather than typing into the login
+form — a sandbox whose browser has no outbound network can still exercise
+the whole dashboard that way.
 
 ## Layout
 

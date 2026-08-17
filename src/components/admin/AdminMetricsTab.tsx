@@ -584,7 +584,11 @@ export default function AdminMetricsTab({
               className="border border-slate-300 rounded-lg px-2.5 py-1.5"
             />
           </div>
-          <div className="flex items-center gap-1.5">
+          {/* Wraps rather than overflowing: seven quick-range buttons in a
+              nowrap row pushed the whole page 70px wider than a 360px phone
+              viewport, which scrolls the body sideways instead of scrolling
+              the row. */}
+          <div className="flex flex-wrap items-center gap-1.5">
             {[
               { label: "Today", days: 0 },
               { label: "7 Days", days: 7 },
