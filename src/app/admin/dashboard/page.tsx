@@ -1121,6 +1121,10 @@ export default async function AdminDashboardPage() {
     })
   );
 
+  const conditionStatusByPatientId = new Map(
+    (conditionProfiles ?? []).map((c) => [c.patient_id, c.status as string])
+  );
+
   const patientsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-bold text-lg text-slate-800 mb-4">
@@ -1156,6 +1160,7 @@ export default async function AdminDashboardPage() {
               approved: p.approved,
               created_at: p.created_at,
               code: roleCodeMap.get(p.id)?.patient_code ?? null,
+              careStatus: conditionStatusByPatientId.get(p.id) ?? "not_started",
             };
           })}
         />
@@ -1163,9 +1168,6 @@ export default async function AdminDashboardPage() {
     </div>
   );
 
-  const conditionStatusByPatientId = new Map(
-    (conditionProfiles ?? []).map((c) => [c.patient_id, c.status as string])
-  );
   const conditionUpdatedAtByPatientId = new Map(
     (conditionProfiles ?? []).map((c) => [c.patient_id, c.updated_at as string])
   );

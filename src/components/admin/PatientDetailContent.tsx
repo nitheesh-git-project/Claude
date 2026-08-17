@@ -292,6 +292,22 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         </div>
       </div>
 
+      {/* Care Record is a fact about this patient, so it belongs on this
+          page rather than on a screen of its own -- it keeps its own route
+          because the record is long enough to deserve the whole width. */}
+      <Link
+        href={`/admin/dashboard/conditions/${id}`}
+        className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-teal-300"
+      >
+        <span>
+          <span className="block text-sm font-bold text-slate-800">Care Record</span>
+          <span className="block text-xs text-slate-500">
+            Patient Care Intake, therapist access requests, and the Pain Map history.
+          </span>
+        </span>
+        <i className="fa-solid fa-chevron-right text-xs text-slate-300"></i>
+      </Link>
+
       <div className="grid md:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-bold text-sm text-slate-800 mb-3">Personal Details</h2>

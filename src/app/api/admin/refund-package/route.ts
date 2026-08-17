@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { deleteMeetEventForAppointment } from "@/lib/googleCalendarSync";
 
@@ -207,6 +208,11 @@ export async function POST(request: NextRequest) {
   if (eventError) {
     console.error("Failed to log refunded event for purchase", purchaseId, eventError);
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "refund.issue",
+    targetId: purchaseId, amountPaise: refundAmountPaise,
+  });
 
   return NextResponse.json({ success: true, refundAmountPaise });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Approves a pending self-serve signup. Handles both roles that go through
 // the approval gate -- therapist applications and, since patients now wait
@@ -33,6 +34,11 @@ export async function POST(request: NextRequest) {
   if (!updated) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "account.approve",
+    targetId: userId,
+  });
 
   return NextResponse.json({ success: true });
 }

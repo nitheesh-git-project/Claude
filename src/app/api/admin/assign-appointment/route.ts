@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -313,6 +314,11 @@ export async function POST(request: NextRequest) {
           : null,
     });
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "session.assign",
+    targetId: appointmentId, details: { therapistId },
+  });
 
   return NextResponse.json({ success: true });
 }

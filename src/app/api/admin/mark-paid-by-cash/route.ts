@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 
@@ -84,6 +85,11 @@ export async function POST(request: NextRequest) {
       timezone: appointment.timezone,
     });
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "session.mark_paid_cash",
+    targetId: appointmentId,
+  });
 
   return NextResponse.json({ success: true });
 }

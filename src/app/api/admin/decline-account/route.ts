@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Declines a pending self-serve signup -- therapist application or patient
 // registration. Same role filter as approve-account: only an account that is
@@ -39,6 +40,11 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "account.decline",
+    targetId: userId,
+  });
 
   return NextResponse.json({ success: true });
 }
