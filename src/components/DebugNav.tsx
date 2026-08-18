@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { debugNow, getDebugNowOffsetMs, setDebugNowOffsetMs } from "@/lib/debugNow";
+import DebugResetButton from "@/components/DebugResetButton";
 
 // datetime-local wants "YYYY-MM-DDTHH:mm" in the browser's local timezone,
 // not an ISO/UTC string -- sliceing toISOString would silently shift the
@@ -105,6 +106,10 @@ export default function DebugNav() {
             Reset to Real Time
           </button>
         )}
+
+        {/* Pre-launch only, like the bar itself. The server decides whether
+            it actually works -- see DebugResetButton. */}
+        <DebugResetButton />
 
         <span className="text-[11px] text-slate-500 ml-auto hidden sm:inline">
           Remove this bar before real launch

@@ -301,6 +301,35 @@ client is the only writer and the log is append-only from any session.
   `Navbar`/`Footer` as props — those two components take the strings as
   props rather than hardcoding or fetching their own copy.
 
+## Pre-launch data reset
+
+The debug bar carries a **Reset data** button (`DebugResetButton` ->
+`/api/admin/debug-reset` -> `debug_reset_all_data()` in `schema.sql`). It
+empties every table and deletes every non-admin account, keeping only admin
+logins, and puts `site_settings` back to its defaults. It exists because
+testing the app means filling it with throwaway patients and bookings.
+
+Four gates, all of which must pass:
+
+1. `ALLOW_DEBUG_DATA_RESET=true` in the **server** environment. Deliberately
+   not `NEXT_PUBLIC_SHOW_DEBUG_NAV` -- that one is public and already true
+   on the deployed site, so reusing it would arm a data wipe for anyone who
+   can reach the page. Unset, the route answers 404, not 403.
+2. A signed-in admin.
+3. ...with `full` scope.
+4. The exact phrase `RESET ALL DATA`, typed by hand in the UI.
+
+The wipe is one `TRUNCATE` inside a database function, not a list of deletes
+from the route: it is atomic (a half-emptied database is worse than none),
+it is one round trip, and three of the tables have no `id` column for a
+filtered delete. The function refuses to run if it would leave no admin
+behind. `EXECUTE` is revoked from `anon` and `authenticated`, so only the
+service-role key can call it.
+
+**Adding a table means adding it to that `TRUNCATE` list**, or a reset
+silently leaves its rows behind. Before real patients exist, remove
+`ALLOW_DEBUG_DATA_RESET` and drop the function.
+
 ## Keeping the docs current
 
 `README.md`, `AGENTS.md`, and `CLAUDE.md` describe the app itself, so they go
