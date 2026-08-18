@@ -35,8 +35,18 @@ export async function POST(request: NextRequest) {
   }
 
   const context = await getAdminContext();
-  if (!context || context.scope !== "full") {
+  if (!context) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  // A real admin who simply lacks the scope gets told why -- they can act on
+  // that. Anyone who isn't an admin at all keeps the bare "Forbidden" above,
+  // since telling a stranger what kind of account would work is free
+  // reconnaissance.
+  if (context.scope !== "full") {
+    return NextResponse.json(
+      { error: "Only a full-access admin can reset data." },
+      { status: 403 }
+    );
   }
 
   const parsed = await parseJsonBody<Body>(request);
