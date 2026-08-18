@@ -3218,3 +3218,141 @@ begin
   alter publication supabase_realtime add table hospital_admin_notes;
 exception when duplicate_object then null;
 end $$;
+
+-- ==========================================================================
+-- Pre-launch: reset the database to a fresh install
+-- ==========================================================================
+-- The app is still being tested, and testing it properly means filling it
+-- with patients, bookings and purchases that then have to go away again.
+-- Doing that by hand is slow enough that people stop testing, so this does
+-- it in one transaction: every table emptied, every non-admin account
+-- deleted, configuration back to defaults, admin logins untouched.
+--
+-- A function rather than a list of deletes in a route handler, for three
+-- reasons: TRUNCATE is atomic across all of them (a half-finished reset is
+-- worse than none), it is one round trip instead of thirty, and three of
+-- these tables have no `id` column, which the client library needs for a
+-- filtered delete.
+--
+-- SECURITY DEFINER so it can reach auth.users, and execute is revoked from
+-- every client role below -- only the service-role key can call it, and
+-- /api/admin/debug-reset gates that behind a server-only environment flag, a
+-- full-scope admin session and a typed confirmation phrase.
+--
+-- DROP THIS FUNCTION BEFORE REAL PATIENT DATA EXISTS:
+--   drop function if exists public.debug_reset_all_data();
+create or replace function public.debug_reset_all_data()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  admin_count integer;
+  deleted_accounts integer;
+begin
+  select count(*) into admin_count from profiles where role = 'admin';
+  -- Without at least one admin surviving, this would empty a database that
+  -- then has no way back into it.
+  if admin_count = 0 then
+    raise exception 'no admin accounts -- refusing to reset';
+  end if;
+
+  -- One statement, so it either all happens or none of it does. Order is
+  -- irrelevant inside a single TRUNCATE; CASCADE covers anything added later
+  -- that references one of these and was not listed.
+  truncate table
+    admin_activity_log,
+    appointment_reassignment_log,
+    payment_failure_log,
+    package_purchase_events,
+    home_visit_purchase_events,
+    appointments,
+    patient_package_purchases,
+    home_visit_package_purchases,
+    therapist_payout_requests,
+    therapist_payout_batches,
+    pain_assessments,
+    condition_change_requests,
+    condition_access_grants,
+    patient_condition_profiles,
+    patient_addresses,
+    patient_admin_notes,
+    therapist_admin_notes,
+    hospital_admin_notes,
+    profile_change_requests,
+    therapist_availability_override,
+    therapist_availability_template,
+    patient_referrals,
+    b2b_leads,
+    home_visit_waitlist,
+    home_visit_areas,
+    home_visit_packages,
+    treatment_category_packages,
+    treatment_categories,
+    testimonials,
+    faqs,
+    intake_question_templates,
+    pain_map_question_templates
+  cascade;
+
+  -- Every account that is not an admin. Deleting the auth user cascades its
+  -- profile row; deleting the profile alone would leave a login that can
+  -- still sign in and have a fresh profile created for it by the signup
+  -- trigger.
+  with removed as (
+    delete from auth.users
+    where id not in (select id from profiles where role = 'admin')
+    returning 1
+  )
+  select count(*) into deleted_accounts from removed;
+
+  -- Configuration back to defaults. The row is kept rather than deleted and
+  -- re-inserted: it is a singleton keyed `id = true` that every page reads,
+  -- and nulling the columns lets each fall back to its own schema default,
+  -- which is the same value the app would use for a missing column anyway.
+  update site_settings set
+    site_name = default,
+    site_tagline = default,
+    site_description = default,
+    contact_email = default,
+    whatsapp_number = default,
+    contact_phone = default,
+    footer_copyright_text = default,
+    home_visit_page_heading = null,
+    home_visit_page_subheading = null,
+    ratings_visible_publicly = default,
+    session_packages_visible = default,
+    session_timeout_minutes = default,
+    google_meet_enabled = default,
+    join_window_minutes = default,
+    join_window_after_minutes = default,
+    booking_languages = default,
+    package_default_validity_days = default,
+    package_therapist_lock_enabled = default,
+    package_bulk_schedule_max = default,
+    package_expiry_reminder_days = default,
+    home_visit_enabled = default,
+    home_visit_cash_enabled = default,
+    home_visit_lead_time_hours = default,
+    home_visit_cancellation_refund_hours = default,
+    home_visit_default_validity_days = default,
+    home_visit_bulk_schedule_max = default,
+    home_visit_travel_buffer_minutes = default,
+    online_booking_lead_time_hours = default,
+    online_cancellation_refund_hours = default
+  where id = true;
+
+  return jsonb_build_object(
+    'admins_kept', admin_count,
+    'accounts_deleted', deleted_accounts
+  );
+end;
+$$;
+
+-- Callable by the service role only. Without these revokes the function
+-- would be reachable over PostgREST with the public anon key, which for a
+-- function that empties the database is the whole ballgame.
+revoke all on function public.debug_reset_all_data() from public;
+revoke all on function public.debug_reset_all_data() from anon;
+revoke all on function public.debug_reset_all_data() from authenticated;
