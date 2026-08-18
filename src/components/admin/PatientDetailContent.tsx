@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAdminContext } from "@/lib/supabase/requireAdmin";
+import { scopeCanOpen } from "@/lib/adminScope";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import PatientActiveToggle from "@/components/admin/PatientActiveToggle";
@@ -28,6 +30,15 @@ import { JoinWindowProvider } from "@/lib/joinWindowContext";
 // duplicates it; the two callers differ only in their outer chrome (a
 // "Back to Dashboard" link vs. a close button on the overlay).
 export default async function PatientDetailContent({ id }: { id: string }) {
+  // A person's page carries money -- what they paid, what we made on them,
+  // what we owe them. The Money *section* is hidden from scopes that
+  // shouldn't see it, but this page is reachable from People, which every
+  // scope can open, so hiding the section alone would leave the numbers one
+  // click away. Decided here, next to the data, rather than trusted from a
+  // prop.
+  const viewer = await getAdminContext();
+  const canSeeMoney = viewer !== null && scopeCanOpen(viewer.scope, "money");
+
   const admin = createAdminClient();
 
   // Independent of each other -- run in parallel instead of one at a time.
@@ -292,6 +303,22 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         </div>
       </div>
 
+      {/* Care Record is a fact about this patient, so it belongs on this
+          page rather than on a screen of its own -- it keeps its own route
+          because the record is long enough to deserve the whole width. */}
+      <Link
+        href={`/admin/dashboard/conditions/${id}`}
+        className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-teal-300"
+      >
+        <span>
+          <span className="block text-sm font-bold text-slate-800">Care Record</span>
+          <span className="block text-xs text-slate-500">
+            Patient Care Intake, therapist access requests, and the Pain Map history.
+          </span>
+        </span>
+        <i className="fa-solid fa-chevron-right text-xs text-slate-300"></i>
+      </Link>
+
       <div className="grid md:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-bold text-sm text-slate-800 mb-3">Personal Details</h2>
@@ -401,6 +428,10 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         />
       </div>
 
+      {/* Money on a person's page follows the same rule as the Money
+          section itself -- see canSeeMoney above. */}
+      {canSeeMoney && (
+      <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-sm text-slate-800">Payment History</h2>
@@ -464,6 +495,8 @@ export default async function PatientDetailContent({ id }: { id: string }) {
           excludedCount={paidAppointments.length - profitSessions.length}
         />
       </div>
+      </>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-sm text-slate-800 mb-3">Profile Change Request History</h2>

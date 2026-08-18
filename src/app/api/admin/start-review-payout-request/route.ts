@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
@@ -44,6 +45,11 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "payout_request.start_review",
+    targetId: typeof body.requestId === "string" ? body.requestId : null,
+  });
 
   return NextResponse.json({ success: true });
 }

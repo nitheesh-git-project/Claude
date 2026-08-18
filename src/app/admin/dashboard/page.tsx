@@ -3,10 +3,27 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import DeclineAccountButton from "@/components/admin/DeclineAccountButton";
-import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
 import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
 import AssignReferralForm from "@/components/admin/AssignReferralForm";
-import AdminTabs from "@/components/admin/AdminTabs";
+import AdminShell, { type AdminScreens } from "@/components/admin/AdminShell";
+import AdminTodayTab, { type InboxGroup } from "@/components/admin/AdminTodayTab";
+import AdminAllSessionsTab from "@/components/admin/AdminAllSessionsTab";
+import AdminNewBookingTab from "@/components/admin/AdminNewBookingTab";
+import AdminTeamAccessTab, { type AdminRow } from "@/components/admin/AdminTeamAccessTab";
+import AdminActivityLogTab, { type ActivityRow } from "@/components/admin/AdminActivityLogTab";
+import MoneyGlossary from "@/components/admin/MoneyGlossary";
+import HospitalActiveToggle from "@/components/admin/HospitalActiveToggle";
+import PackageCatalogManager from "@/components/admin/PackageCatalogManager";
+import PackagePurchasesTable from "@/components/admin/PackagePurchasesTable";
+import PackageSettingsForm from "@/components/admin/PackageSettingsForm";
+import HomeVisitPurchasesTable from "@/components/admin/HomeVisitPurchasesTable";
+import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager";
+import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
+import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
+import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
+import { adminScreenHref } from "@/lib/adminNav";
+import { parseAdminScope, sectionsForScope } from "@/lib/adminScope";
+import type { SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
 import AdminPayoutRequestsTab, { type PayoutRequestRow } from "@/components/admin/AdminPayoutRequestsTab";
 import AdminPaymentHistoryTab from "@/components/admin/AdminPaymentHistoryTab";
@@ -18,8 +35,6 @@ import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswor
 import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
-import AdminSessionManagerTab from "@/components/admin/AdminSessionManagerTab";
-import AdminHomeVisitsTab from "@/components/admin/AdminHomeVisitsTab";
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
@@ -27,7 +42,6 @@ import BrandContactDetailsForm from "@/components/admin/BrandContactDetailsForm"
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
-import AdminSessionStoryTab from "@/components/admin/AdminSessionStoryTab";
 import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
 import ConditionsListFilter from "@/components/admin/ConditionsListFilter";
@@ -36,11 +50,10 @@ import AdminFeatureControlTab from "@/components/admin/AdminFeatureControlTab";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
-import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
-import JoinSessionButton from "@/components/JoinSessionButton";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
@@ -125,6 +138,8 @@ export default async function AdminDashboardPage() {
     { data: homeVisitAppointments },
     { data: homeVisitShareRows },
     { data: homeVisitPurchases },
+    { data: adminScopeRows },
+    { data: activityLogRows },
   ] = await Promise.all([
     // Both self-serve roles wait on admin approval, so this one query feeds
     // the single "Pending Approvals" list -- therapist applications and
@@ -400,6 +415,27 @@ export default async function AdminDashboardPage() {
         "id, purchase_code, patient_id, package_id, visit_count, visits_used, amount_paid_paise, payment_mode, payment_status, status, locked_therapist_id, expires_at, created_at"
       )
       .order("created_at", { ascending: false }),
+
+    // Team & access. admin_scope is new/migration-dependent, so it's its own
+    // query rather than a column on the big allProfiles select -- an
+    // unknown-column error there would blank every tab on this page, and
+    // parseAdminScope() treats a missing value as 'full', which is exactly
+    // how every admin behaved before scopes existed.
+    admin.from("profiles").select("id, admin_scope").eq("role", "admin"),
+
+    // Activity log -- brand-new table, so an unknown-table error here empties
+    // only this one screen. Capped rather than unbounded: this table grows
+    // forever by design, and the screen filters within what it loads.
+    //
+    // 200 rather than 500 because every row carries a jsonb `details` blob
+    // and this is the largest payload on a page that loads all six sections
+    // at once, for a screen almost nobody opens on a given day. Older
+    // entries are still in the table; this is what the screen shows.
+    admin
+      .from("admin_activity_log")
+      .select("id, actor_id, action, target_label, amount_paise, details, created_at")
+      .order("created_at", { ascending: false })
+      .limit(200),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -477,7 +513,6 @@ export default async function AdminDashboardPage() {
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 
-  const categoryMap = new Map((treatmentCategories ?? []).map((c) => [c.id, c]));
 
   // Revenue rollup per hospital: every paid session belonging to a patient
   // this hospital referred (either channel — invite-link or self-serve
@@ -559,10 +594,12 @@ export default async function AdminDashboardPage() {
     categoryStats.set(p.category_id, entry);
   }
 
-  // What used to be the "Overview" tab's own content (pending approvals +
-  // All Bookings) -- now shown under the "Approval & Bookings" tab instead,
-  // since "Overview" itself is now the Metrics at-a-glance dashboard.
-  const approvalBookingsTab = (
+  // The two queues that wait on a human decision: new signups, and requests
+  // to change a profile. This used to carry a third card, a full "All
+  // Bookings" list -- one of the four duplicate session lists the
+  // reorganisation exists to remove. Sessions live in Sessions -> All
+  // Sessions now, and nowhere else.
+  const approvalsTab = (
     <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
@@ -686,110 +723,6 @@ export default async function AdminDashboardPage() {
         )}
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">All Bookings</h2>
-        {appointmentsError ? (
-          <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
-            Couldn&apos;t load bookings right now — this usually means the database
-            schema is out of date. Try re-running supabase/schema.sql, then
-            refresh this page. (Calendar, Session Story, and Metrics are
-            affected too, since they share this same data.)
-          </p>
-        ) : appointmentsWithSessionCode.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">
-            No bookings yet.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {appointmentsWithSessionCode.map((a) => {
-              const patient = profileMap.get(a.patient_id);
-              const therapist = a.therapist_id
-                ? profileMap.get(a.therapist_id)
-                : null;
-              const category = a.category_id ? categoryMap.get(a.category_id) : null;
-              const feePaise = a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE;
-              const durationMinutes = a.duration_minutes ?? category?.duration_minutes ?? BASE_DURATION_MINUTES;
-              return (
-                <li
-                  key={a.id}
-                  className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
-                >
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-3">
-                      <AvatarThumbnail
-                        url={patient?.avatar_url}
-                        name={patient?.full_name ?? "P"}
-                        size={32}
-                      />
-                      <div>
-                        <p className="font-bold text-slate-900">
-                          {patient?.full_name ?? "Unknown patient"}
-                          {roleCodeMap.get(a.patient_id)?.patient_code && (
-                            <span className="ml-2 font-mono font-normal text-slate-400">
-                              {roleCodeMap.get(a.patient_id)?.patient_code}
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-slate-500">{patient?.email}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
-                        {a.status}
-                      </span>
-                      <span
-                        className={`capitalize font-semibold px-3 py-1 rounded-full ${
-                          a.payment_status === "paid"
-                            ? "text-green-700 bg-green-50"
-                            : "text-slate-500 bg-slate-100"
-                        }`}
-                      >
-                        {a.payment_status}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-slate-600">
-                    <strong>{a.concern}</strong> —{" "}
-                    {formatSlotTime(a.slot_time, a.timezone)} • {durationMinutes} min
-                    {a.session_code && (
-                      <span className="ml-2 font-mono text-slate-400">{a.session_code}</span>
-                    )}
-                  </p>
-                  <p className="text-slate-500">
-                    Fee: <strong>₹{(feePaise / 100).toLocaleString("en-IN")}</strong>
-                    {a.payment_status !== "paid" && (
-                      <span className="text-slate-400"> (estimated)</span>
-                    )}
-                  </p>
-                  {a.notes && (
-                    <p className="text-slate-500">
-                      <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
-                    </p>
-                  )}
-                  {therapist ? (
-                    <p className="text-slate-500">
-                      Assigned to: <strong>{therapist.full_name}</strong>
-                    </p>
-                  ) : (
-                    <AssignTherapistForm
-                      appointmentId={a.id}
-                      therapists={activeApprovedTherapists}
-                      preferredTherapistId={a.preferred_therapist_id}
-                    />
-                  )}
-                  <JoinSessionButton
-                    meetLink={a.meet_link}
-                    slotTime={a.slot_time}
-                    status={a.status}
-                    durationMinutes={durationMinutes}
-                    alwaysActive
-                  />
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
     </>
   );
 
@@ -947,13 +880,18 @@ export default async function AdminDashboardPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="pt-2 border-t border-slate-100">
+                  <div className="flex flex-wrap items-start justify-between gap-3 pt-2 border-t border-slate-100">
                     <ResetHospitalPasswordButton
                       hospitalId={h.id}
                       currentPassword={hospitalNoteMap.get(h.id)?.temp_password}
                       currentPasswordSetAt={
                         hospitalNoteMap.get(h.id)?.temp_password_set_at
                       }
+                    />
+                    <HospitalActiveToggle
+                      hospitalId={h.id}
+                      active={h.active !== false}
+                      sharePercent={sharePercent}
                     />
                   </div>
                 </li>
@@ -1083,6 +1021,10 @@ export default async function AdminDashboardPage() {
     })
   );
 
+  const conditionStatusByPatientId = new Map(
+    (conditionProfiles ?? []).map((c) => [c.patient_id, c.status as string])
+  );
+
   const patientsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-bold text-lg text-slate-800 mb-4">
@@ -1118,6 +1060,7 @@ export default async function AdminDashboardPage() {
               approved: p.approved,
               created_at: p.created_at,
               code: roleCodeMap.get(p.id)?.patient_code ?? null,
+              careStatus: conditionStatusByPatientId.get(p.id) ?? "not_started",
             };
           })}
         />
@@ -1125,9 +1068,6 @@ export default async function AdminDashboardPage() {
     </div>
   );
 
-  const conditionStatusByPatientId = new Map(
-    (conditionProfiles ?? []).map((c) => [c.patient_id, c.status as string])
-  );
   const conditionUpdatedAtByPatientId = new Map(
     (conditionProfiles ?? []).map((c) => [c.patient_id, c.updated_at as string])
   );
@@ -1210,6 +1150,20 @@ export default async function AdminDashboardPage() {
     active: c.active,
   }));
 
+  // The home-visit half of a session, resolved once and handed to both
+  // screens that can open a session -- the calendar and the All Sessions
+  // list -- so a visit shows the same detail whichever one it was opened
+  // from. Names come from the profile map this page already builds, the same
+  // avoid-a-blocked-RLS-join approach used everywhere else here.
+  const homeVisitRows = (homeVisitAppointments ?? []).map((v) => ({
+    ...v,
+    patientName: profileMap.get(v.patient_id)?.full_name ?? "Unknown patient",
+    patientCode: roleCodeMap.get(v.patient_id)?.patient_code ?? null,
+    therapistName: v.therapist_id
+      ? profileMap.get(v.therapist_id)?.full_name ?? "Unknown therapist"
+      : null,
+  }));
+
   const calendarTab = (
     <AdminCalendarTab
       appointments={appointmentsWithSessionCode}
@@ -1217,16 +1171,27 @@ export default async function AdminDashboardPage() {
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
       reassignmentLogs={reassignmentLogs ?? []}
+      homeVisits={homeVisitRows}
     />
   );
 
-  const sessionStoryTab = (
-    <AdminSessionStoryTab
+  const allSessionsTab = (
+    <AdminAllSessionsTab
       appointments={appointmentsWithSessionCode}
+      homeVisits={homeVisitRows}
       people={allPeople}
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
       reassignmentLogs={reassignmentLogs ?? []}
+    />
+  );
+
+  const newBookingTab = (
+    <AdminNewBookingTab
+      patients={patients.map((p) => ({ id: p.id, full_name: p.full_name, email: p.email }))}
+      therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
+      categories={categoriesForReassign}
+      leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
     />
   );
 
@@ -1275,9 +1240,39 @@ export default async function AdminDashboardPage() {
     patients.filter((p) => p.referred_by_hospital_id).map((p) => [p.id, true as const])
   );
 
-  const metricsTab = (
+  // One component, two screens: Summary answers "how much money", Performance
+  // answers "how well did it go". The maths is identical and lives in
+  // adminMetrics.ts either way -- see AdminMetricsTab's `view` prop.
+  const moneySummaryTab = (
+    <>
+      <MoneyGlossary />
+      <div className="mt-6">
+      <AdminMetricsTab
+        view="summary"
+        appointments={appointments ?? []}
+        packagePurchases={(packagePurchaseSummaries ?? []).map((p) => ({
+          category_id: p.category_id,
+          payment_status: p.payment_status,
+          amount_paid_paise: p.amount_paid_paise,
+          paid_at: p.paid_at,
+        }))}
+        therapists={allTherapists}
+        categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+        patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+        therapistSharePercent={therapistSharePercent}
+        patientHospitalSharePercent={patientHospitalSharePercent}
+        hospitalReferredPatientIds={hospitalReferredPatientIds}
+        nowMs={nowTimestamp()}
+      />
+
+      </div>
+    </>
+  );
+
+  const moneyPerformanceTab = (
     <>
       <AdminMetricsTab
+        view="performance"
         appointments={appointments ?? []}
         packagePurchases={(packagePurchaseSummaries ?? []).map((p) => ({
           category_id: p.category_id,
@@ -1331,13 +1326,13 @@ export default async function AdminDashboardPage() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-400">Revenue</p>
+                      <p className="text-slate-400">Recognised revenue</p>
                       <p className="font-bold text-teal-700">
                         ₹{stats.totalRevenue.toLocaleString("en-IN")}
                       </p>
                     </div>
                     <div title="Package purchases paid for under this category, collected up front -- Revenue to the left already recognizes its share one session at a time as those sessions get scheduled.">
-                      <p className="text-slate-400">Package Cash</p>
+                      <p className="text-slate-400">Package cash collected</p>
                       <p className="font-bold text-teal-700">
                         ₹{stats.packageCashCollected.toLocaleString("en-IN")}
                       </p>
@@ -1486,18 +1481,45 @@ export default async function AdminDashboardPage() {
     createdAt: p.created_at,
   }));
 
-  const sessionManagerTab = (
-    <AdminSessionManagerTab
-      packages={packages ?? []}
-      categories={(treatmentCategories ?? []).map((c) => ({
-        id: c.id,
-        title: c.title,
-        price_paise: c.price_paise,
-      }))}
-      purchases={packagePurchaseRows}
-      therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
-      settings={adminSettings}
-    />
+  // The Session Manager tab used to own three unrelated things at once --
+  // a catalog, a purchases table and a settings form. Each now sits with its
+  // own kind: catalog and purchases next to their home-visit equivalents
+  // under Catalog, settings with every other setting.
+  const catalogPackagesTab = (
+    <div className="space-y-8">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Session Packages</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          Bundles of online sessions, priced against a condition category.
+        </p>
+        <PackageCatalogManager
+          packages={packages ?? []}
+          categories={(treatmentCategories ?? []).map((c) => ({
+            id: c.id,
+            title: c.title,
+            price_paise: c.price_paise,
+          }))}
+        />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Home Visit Packages</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          Bundles of visits delivered at the patient&apos;s address. Different fields from the
+          online packages above — visits rather than sessions, and travel is part of the deal —
+          so they keep their own editor while living on the same screen.
+        </p>
+        <HomeVisitPackageManager
+          packages={(homeVisitPackages ?? []).map((p) => ({
+            ...p,
+            // benefits is jsonb -- defaults to '[]' in the schema, but a row
+            // written before that default (or by hand) can still be null.
+            benefits: Array.isArray(p.benefits) ? (p.benefits as string[]) : [],
+          }))}
+          categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+        />
+      </div>
+    </div>
   );
 
   // An area is "in use" if any visit already points at it. patient_addresses
@@ -1559,77 +1581,94 @@ export default async function AdminDashboardPage() {
     };
   });
 
-  const homeVisitsTab = (
-    <AdminHomeVisitsTab
-      purchases={homeVisitPurchaseRows}
-      visits={(homeVisitAppointments ?? []).map((v) => ({
-        ...v,
-        // Names resolved from the profile map this page already builds --
-        // the same avoid-a-blocked-RLS-join approach used everywhere else
-        // on this dashboard.
-        patientName: profileMap.get(v.patient_id)?.full_name ?? "Unknown patient",
-        patientCode: roleCodeMap.get(v.patient_id)?.patient_code ?? null,
-        therapistName: v.therapist_id
-          ? profileMap.get(v.therapist_id)?.full_name ?? "Unknown therapist"
-          : null,
-      }))}
-      therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
-      packages={(homeVisitPackages ?? []).map((p) => ({
-        ...p,
-        // benefits is jsonb -- defaults to '[]' in the schema, but a row
-        // written before that default (or by hand) can still be null.
-        benefits: Array.isArray(p.benefits) ? (p.benefits as string[]) : [],
-      }))}
-      areas={(homeVisitAreas ?? []).map((a) => ({
-        ...a,
-        in_use: usedAreaIds.has(a.id),
-      }))}
-      waitlist={homeVisitWaitlist ?? []}
-      categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
-      settings={adminSettings}
-      nowMs={nowTimestamp()}
-    />
-  );
-
-  const homeVisitsBadgeCount = (homeVisitWaitlist ?? []).filter((w) => w.status === "new").length;
-
-  const siteContent = (
-    <>
-      <SiteRatingsVisibilityToggle
-        visible={siteSettings?.ratings_visible_publicly ?? true}
-      />
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
-        <BrandContactDetailsForm
-          details={{
-            siteName: adminSettings.siteName,
-            siteTagline: adminSettings.siteTagline,
-            siteDescription: adminSettings.siteDescription,
-            contactEmail: adminSettings.contactEmail,
-            whatsappNumber: adminSettings.whatsappNumber,
-            contactPhone: adminSettings.contactPhone,
-            footerCopyrightText: adminSettings.footerCopyrightText,
-          }}
+  const catalogPurchasesTab = (
+    <div className="space-y-8">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Session Package Purchases</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          Every online programme bought, and how much of it has been used.
+        </p>
+        <PackagePurchasesTable
+          purchases={packagePurchaseRows}
+          packages={(packages ?? []).map((p) => ({ id: p.id, title: p.title }))}
+          categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+          therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
         />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">
-          Conditions Treated — Categories
-        </h2>
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Home Visit Purchases</h2>
         <p className="text-xs text-slate-500 mb-4">
-          Controls what shows on the public /conditions page, and what
-          patients can pick (and get charged) in the booking wizard.
+          The same thing for visits at the patient&apos;s address. A cash-on-visit purchase sits
+          at &ldquo;unpaid&rdquo; for its whole life by design — check the payment mode before
+          reading that as money owed.
         </p>
-        <TreatmentCategoryManager
-          categories={(treatmentCategories ?? []).map((c) => ({
-            ...c,
-            points: Array.isArray(c.points) ? (c.points as string[]) : [],
-          }))}
+        <HomeVisitPurchasesTable
+          purchases={homeVisitPurchaseRows}
+          packages={(homeVisitPackages ?? []).map((p) => ({ id: p.id, title: p.title }))}
+          therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
         />
       </div>
+    </div>
+  );
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
+  const catalogAreasTab = (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <h2 className="font-bold text-lg text-slate-800 mb-1">Service Areas</h2>
+      <p className="text-xs text-slate-500 mb-4">
+        Which pincodes home visits can be sold in, and the travel fee each one carries. The
+        waitlist below is demand from outside those areas — a request for this list to grow.
+      </p>
+      <HomeVisitAreaManager
+        areas={(homeVisitAreas ?? []).map((a) => ({
+          ...a,
+          in_use: usedAreaIds.has(a.id),
+        }))}
+        waitlist={homeVisitWaitlist ?? []}
+      />
+    </div>
+  );
+
+  // Site Content used to be one tab holding four unrelated things. Its
+  // categories are what we sell (Catalog); its brand strings, public-page
+  // content and ratings switch are configuration (Settings).
+  const catalogConditionsTab = (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <h2 className="font-bold text-lg text-slate-800 mb-1">Conditions Treated</h2>
+      <p className="text-xs text-slate-500 mb-4">
+        Controls what shows on the public /conditions page, and what patients can pick (and get
+        charged) in the booking wizard.
+      </p>
+      <TreatmentCategoryManager
+        categories={(treatmentCategories ?? []).map((c) => ({
+          ...c,
+          points: Array.isArray(c.points) ? (c.points as string[]) : [],
+        }))}
+      />
+    </div>
+  );
+
+  const settingsBrandTab = (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <BrandContactDetailsForm
+        details={{
+          siteName: adminSettings.siteName,
+          siteTagline: adminSettings.siteTagline,
+          siteDescription: adminSettings.siteDescription,
+          contactEmail: adminSettings.contactEmail,
+          whatsappNumber: adminSettings.whatsappNumber,
+          contactPhone: adminSettings.contactPhone,
+          footerCopyrightText: adminSettings.footerCopyrightText,
+        }}
+      />
+    </div>
+  );
+
+  const settingsPublicSiteTab = (
+    <div className="space-y-8">
+      <SiteRatingsVisibilityToggle visible={siteSettings?.ratings_visible_publicly ?? true} />
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-1">Testimonials</h2>
         <p className="text-xs text-slate-500 mb-4">
           Controls what shows in the &quot;What Our Patients Say&quot; section on the Home page.
@@ -1637,61 +1676,400 @@ export default async function AdminDashboardPage() {
         <TestimonialManager testimonials={testimonials ?? []} />
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-1">FAQ</h2>
-        <p className="text-xs text-slate-500 mb-4">
-          Controls what shows on the public /faq page.
-        </p>
+        <p className="text-xs text-slate-500 mb-4">Controls what shows on the public /faq page.</p>
         <FaqManager faqs={faqs ?? []} />
       </div>
-    </>
+    </div>
   );
 
-  const featureControl = (
+  // Every rule about how booking behaves, in one place -- the platform-wide
+  // switches, then the two package rule sets. They were on three different
+  // tabs before, which is how the online lead time ended up hardcoded while
+  // its home-visit twin was a setting.
+  const settingsBookingTab = (
+    <div className="space-y-8">
+      <AdminFeatureControlTab
+        settings={adminSettings}
+        syncIssues={googleMeetSyncIssues}
+        adminEmail={adminProfile?.email ?? user.email ?? ""}
+        view="booking"
+      />
+      <PackageSettingsForm settings={adminSettings} />
+      <HomeVisitSettingsForm
+        settings={adminSettings}
+        areaCount={(homeVisitAreas ?? []).length}
+        packageCount={(homeVisitPackages ?? []).length}
+      />
+    </div>
+  );
+
+  const settingsClinicalTab = (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <h2 className="font-bold text-lg text-slate-800 mb-1">Clinical Questions</h2>
+      <p className="text-xs text-slate-500 mb-4">
+        The Patient Care Intake question set and the Pain Map templates. Editing these changes
+        what patients and therapists are asked from here on; answers already submitted are
+        untouched.
+      </p>
+      <QuestionBankManager />
+    </div>
+  );
+
+  const settingsHealthTab = (
     <AdminFeatureControlTab
       settings={adminSettings}
       syncIssues={googleMeetSyncIssues}
       adminEmail={adminProfile?.email ?? user.email ?? ""}
+      view="health"
+    />
+  );
+
+  const settingsSecurityTab = (
+    <AdminFeatureControlTab
+      settings={adminSettings}
+      syncIssues={googleMeetSyncIssues}
+      adminEmail={adminProfile?.email ?? user.email ?? ""}
+      view="security"
+    />
+  );
+
+  const adminScopeById = new Map((adminScopeRows ?? []).map((r) => [r.id, r.admin_scope]));
+  const viewerScope = parseAdminScope(adminScopeById.get(user.id));
+  const adminRows: AdminRow[] = (allProfiles ?? [])
+    .filter((p) => p.role === "admin")
+    .map((p) => ({
+      id: p.id,
+      fullName: p.full_name,
+      email: p.email,
+      scope: parseAdminScope(adminScopeById.get(p.id)),
+      isSelf: p.id === user.id,
+    }));
+
+  const settingsTeamTab = <AdminTeamAccessTab admins={adminRows} viewerScope={viewerScope} />;
+
+  const activityRows: ActivityRow[] = (activityLogRows ?? []).map((r) => ({
+    id: r.id,
+    actorName: profileMap.get(r.actor_id)?.full_name ?? "Unknown admin",
+    action: r.action,
+    targetLabel: r.target_label,
+    amountPaise: r.amount_paise,
+    details: (r.details ?? null) as Record<string, unknown> | null,
+    createdAt: r.created_at,
+  }));
+
+  const settingsActivityTab = (
+    <AdminActivityLogTab
+      rows={activityRows}
+      actors={adminRows.map((a) => ({ id: a.id, name: a.fullName ?? "Unnamed admin" }))}
     />
   );
 
   // Same computation as the root layout's own showDebugNav -- duplicated
   // here (rather than threaded through props from a layout) because this
   // page hides the shared Navbar entirely and needs the same dev-only-bar
-  // offset for its own fixed sidebar. See AdminTabs' offsetTop prop.
+  // offset for its own fixed sidebar. See AdminShell's offsetTop prop.
   const showDebugNav =
     process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
     (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
       process.env.NODE_ENV !== "production");
 
-  return (
-    <JoinWindowProvider beforeMinutes={adminSettings.joinWindowMinutes} afterMinutes={adminSettings.joinWindowAfterMinutes}>
-    <AdminTabs
-      overview={metricsTab}
-      approvalBookings={approvalBookingsTab}
-      sessionStory={sessionStoryTab}
-      patients={patientsTab}
-      conditions={conditionsTab}
-      conditionsBadgeCount={conditionsBadgeCount}
-      therapists={therapistsTab}
-      roster={rosterTab}
-      calendar={calendarTab}
-      b2bPartners={b2bPartners}
-      b2bBadgeCount={b2bBadgeCount}
-      payouts={payoutsTab}
-      payoutRequests={payoutRequestsTab}
-      payoutRequestsBadgeCount={payoutRequestsBadgeCount}
-      paymentHistory={paymentHistoryTab}
-      siteContent={siteContent}
-      sessionManager={sessionManagerTab}
-      homeVisits={homeVisitsTab}
-      homeVisitsBadgeCount={homeVisitsBadgeCount}
-      featureControl={featureControl}
-      adminName={adminProfile?.full_name ?? "Admin"}
-      adminEmail={adminProfile?.email ?? user.email ?? ""}
-      adminAvatarUrl={adminProfile?.avatar_url ?? null}
-      offsetTop={showDebugNav}
+  // ---- Today's action inbox -------------------------------------------
+  // Every count here already existed somewhere on this page; what didn't
+  // exist was one place to read them all. Nothing new is computed.
+  const todayKeyIST = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const sessionsToday = appointmentsWithSessionCode.filter(
+    (a) =>
+      a.slot_time &&
+      a.status !== "cancelled" &&
+      new Date(a.slot_time).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) ===
+        todayKeyIST
+  );
+  const unassignedToday = sessionsToday.filter((a) => !a.therapist_id).length;
+  const unassignedTotal = appointmentsWithSessionCode.filter(
+    (a) => !a.therapist_id && a.status !== "cancelled"
+  ).length;
+  const cashOwedByTherapists = homeVisitRows.filter(
+    (v) => v.cash_collected_at && !v.cash_remitted_at
+  ).length;
+  const manualRefundsPending = homeVisitRows.filter(
+    (v) => v.refund_status === "manual_pending"
+  ).length;
+
+  const inboxGroups: InboxGroup[] = [
+    {
+      title: "Approvals",
+      icon: "fa-user-check",
+      items: [
+        {
+          label: "Accounts waiting to be approved",
+          count: pendingAccounts?.length ?? 0,
+          section: "today",
+          tab: "approvals",
+          hint: "Patients and therapists who signed up themselves.",
+        },
+        {
+          label: "Profile change requests",
+          count: pendingProfileChanges?.length ?? 0,
+          section: "today",
+          tab: "approvals",
+          hint: "Someone wants a detail on their profile changed.",
+        },
+      ],
+    },
+    {
+      title: "Scheduling",
+      icon: "fa-calendar-day",
+      items: [
+        {
+          label: "Sessions with no therapist",
+          count: unassignedTotal,
+          section: "sessions",
+          tab: "all",
+          hint: "Nobody is assigned to run these yet.",
+          urgent: unassignedToday > 0,
+        },
+        {
+          label: "Referrals waiting on triage",
+          count: referrals?.filter((r) => r.status === "pending_review").length ?? 0,
+          section: "people",
+          tab: "partners",
+          hint: "A hospital sent a patient and is waiting on an answer.",
+        },
+      ],
+    },
+    {
+      title: "Clinical",
+      icon: "fa-notes-medical",
+      items: [
+        {
+          label: "Care intake submissions to review",
+          count: conditionRequestsPendingCount ?? 0,
+          section: "people",
+          tab: "patients",
+          hint: "Patient history waiting to go live.",
+        },
+        {
+          label: "Therapist access requests",
+          count: conditionAccessPendingCount ?? 0,
+          section: "people",
+          tab: "patients",
+          hint: "A therapist wants write access to a patient's records.",
+        },
+      ],
+    },
+    {
+      title: "Money",
+      icon: "fa-sack-dollar",
+      items: [
+        {
+          label: "Payout requests open",
+          count: payoutRequestsBadgeCount,
+          section: "money",
+          tab: "payouts",
+          hint: "A therapist has asked to be paid.",
+        },
+        {
+          label: "Cash refunds to hand back",
+          count: manualRefundsPending,
+          section: "money",
+          tab: "payouts",
+          hint: "Cash was collected and the visit was cancelled — no Razorpay refund exists.",
+          urgent: true,
+        },
+        {
+          label: "Cash collected, not remitted",
+          count: cashOwedByTherapists,
+          section: "money",
+          tab: "payouts",
+          hint: "Money the business is owed, currently with a therapist.",
+        },
+      ],
+    },
+    {
+      title: "Growth",
+      icon: "fa-seedling",
+      items: [
+        {
+          label: "New B2B leads",
+          count: b2bLeads?.filter((l) => l.status === "new").length ?? 0,
+          section: "people",
+          tab: "partners",
+          hint: "An organisation asked about partnering.",
+        },
+        {
+          label: "Out-of-area visit requests",
+          count: homeVisitWaitlist?.filter((w) => w.status === "new").length ?? 0,
+          section: "catalog",
+          tab: "areas",
+          hint: "Demand for a pincode home visits aren't sold in yet.",
+        },
+      ],
+    },
+    {
+      title: "Health",
+      icon: "fa-heart-pulse",
+      items: [
+        {
+          label: "Calendar / Meet sync failures",
+          count: googleMeetSyncIssues.length,
+          section: "settings",
+          tab: "health",
+          hint: "Confirmed sessions with no Meet link — the patient has no way in.",
+          urgent: true,
+        },
+      ],
+    },
+  ];
+
+  const allowedSections = sectionsForScope(viewerScope);
+
+  const todayTab = (
+    <AdminTodayTab
+      groups={inboxGroups}
+      todayCount={sessionsToday.length}
+      unassignedTodayCount={unassignedToday}
+      allowedSections={allowedSections}
     />
+  );
+
+  // ---- Global search ---------------------------------------------------
+  // Built from data this page already loaded, so the box costs one pass over
+  // arrays that are already in memory rather than a new query.
+  const searchEntities: SearchEntity[] = [
+    ...patients.map((p) => ({
+      id: p.id,
+      label: p.full_name ?? "Unnamed patient",
+      terms: [p.email ?? "", p.phone ?? "", roleCodeMap.get(p.id)?.patient_code ?? ""],
+      kind: "Patient" as const,
+      href: `/admin/dashboard/patients/${p.id}`,
+      hint: p.email,
+    })),
+    ...allTherapists.map((t) => ({
+      id: t.id,
+      label: t.full_name ?? "Unnamed therapist",
+      terms: [t.email ?? "", t.phone ?? "", roleCodeMap.get(t.id)?.therapist_code ?? ""],
+      kind: "Therapist" as const,
+      href: `/admin/dashboard/therapists/${t.id}`,
+      hint: t.credentials ?? t.email,
+    })),
+    ...hospitals.map((h) => ({
+      id: h.id,
+      label: h.organization_name ?? h.full_name ?? "Partner",
+      terms: [h.email ?? "", h.referral_code ?? "", roleCodeMap.get(h.id)?.hospital_code ?? ""],
+      kind: "Partner" as const,
+      href: adminScreenHref("people", "partners"),
+      hint: h.full_name,
+    })),
+    ...appointmentsWithSessionCode
+      .filter((a) => a.session_code)
+      .map((a) => ({
+        id: a.id,
+        label: a.session_code as string,
+        terms: [
+          profileMap.get(a.patient_id)?.full_name ?? "",
+          a.therapist_id ? profileMap.get(a.therapist_id)?.full_name ?? "" : "",
+          a.concern ?? "",
+        ],
+        kind: "Session" as const,
+        href: adminScreenHref("sessions", "all"),
+        hint: `${profileMap.get(a.patient_id)?.full_name ?? "Unknown"} · ${a.status}`,
+      })),
+    ...packagePurchaseRows
+      .filter((p) => p.purchaseCode)
+      .map((p) => ({
+        id: p.id,
+        label: p.purchaseCode as string,
+        terms: [p.patientName, p.packageTitle, p.patientCode ?? ""],
+        kind: "Purchase" as const,
+        href: adminScreenHref("catalog", "purchases"),
+        hint: `${p.patientName} · ${p.packageTitle}`,
+      })),
+    ...homeVisitPurchaseRows
+      .filter((p) => p.purchaseCode)
+      .map((p) => ({
+        id: p.id,
+        label: p.purchaseCode as string,
+        terms: [p.patientName, p.packageTitle, p.patientCode ?? ""],
+        kind: "Purchase" as const,
+        href: adminScreenHref("catalog", "purchases"),
+        hint: `${p.patientName} · ${p.packageTitle}`,
+      })),
+  ];
+
+  // Every screen, keyed "<section>:<tab>" exactly as ADMIN_SECTIONS defines
+  // them. The shell only decides which key is visible.
+  const screens: AdminScreens = {
+    "today:inbox": todayTab,
+    "today:approvals": approvalsTab,
+    "sessions:schedule": calendarTab,
+    "sessions:all": allSessionsTab,
+    "sessions:roster": rosterTab,
+    "sessions:new": newBookingTab,
+    "people:patients": (
+      <div className="space-y-8">
+        {patientsTab}
+        {conditionsTab}
+      </div>
+    ),
+    "people:therapists": therapistsTab,
+    "people:partners": b2bPartners,
+    "money:summary": moneySummaryTab,
+    "money:transactions": paymentHistoryTab,
+    "money:payouts": (
+      <div className="space-y-8">
+        {payoutsTab}
+        {payoutRequestsTab}
+        <HomeVisitCashLedger visits={homeVisitRows} nowMs={nowTimestamp()} />
+      </div>
+    ),
+    "money:performance": moneyPerformanceTab,
+    "catalog:conditions": catalogConditionsTab,
+    "catalog:packages": catalogPackagesTab,
+    "catalog:areas": catalogAreasTab,
+    "catalog:purchases": catalogPurchasesTab,
+    "settings:brand": settingsBrandTab,
+    "settings:public": settingsPublicSiteTab,
+    "settings:booking": settingsBookingTab,
+    "settings:clinical": settingsClinicalTab,
+    "settings:team": settingsTeamTab,
+    "settings:health": settingsHealthTab,
+    "settings:activity": settingsActivityTab,
+    "settings:security": settingsSecurityTab,
+  };
+
+  // Badges, keyed the same way. A section's own badge is the sum of its
+  // tabs', computed inside the shell so the two can never disagree.
+  const badges: Record<string, number> = {
+    "today:inbox": inboxGroups.reduce(
+      (sum, g) => sum + g.items.reduce((s, i) => s + i.count, 0),
+      0
+    ),
+    "sessions:all": unassignedTotal,
+    "today:approvals": (pendingAccounts?.length ?? 0) + (pendingProfileChanges?.length ?? 0),
+    "people:patients": conditionsBadgeCount,
+    "people:partners": b2bBadgeCount,
+    "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,
+    "catalog:areas": homeVisitWaitlist?.filter((w) => w.status === "new").length ?? 0,
+    "settings:health": googleMeetSyncIssues.length,
+  };
+
+  return (
+    <JoinWindowProvider
+      beforeMinutes={adminSettings.joinWindowMinutes}
+      afterMinutes={adminSettings.joinWindowAfterMinutes}
+    >
+      <AdminShell
+        screens={screens}
+        badges={badges}
+        searchEntities={searchEntities}
+        allowedSections={allowedSections}
+        adminName={adminProfile?.full_name ?? "Admin"}
+        adminEmail={adminProfile?.email ?? user.email ?? ""}
+        adminAvatarUrl={adminProfile?.avatar_url ?? null}
+        offsetTop={showDebugNav}
+      />
     </JoinWindowProvider>
   );
 }

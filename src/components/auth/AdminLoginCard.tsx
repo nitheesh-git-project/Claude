@@ -60,20 +60,28 @@ export default function AdminLoginCard() {
 
         <form onSubmit={handleLogin} className="space-y-4 text-xs mt-6">
           <div>
-            <label className="block font-semibold mb-1">Email Address</label>
+            <label htmlFor="admin-login-email" className="block font-semibold mb-1">
+              Email Address
+            </label>
             <input
+              id="admin-login-email"
               type="email"
               name="email"
+              autoComplete="username"
               required
               maxLength={254}
               className="w-full p-3 rounded-xl border border-slate-300"
             />
           </div>
           <div>
-            <label className="block font-semibold mb-1">Password</label>
+            <label htmlFor="admin-login-password" className="block font-semibold mb-1">
+              Password
+            </label>
             <input
+              id="admin-login-password"
               type="password"
               name="password"
+              autoComplete="current-password"
               required
               maxLength={72}
               className="w-full p-3 rounded-xl border border-slate-300"

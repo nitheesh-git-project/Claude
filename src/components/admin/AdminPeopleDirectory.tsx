@@ -17,6 +17,26 @@ type Person = {
   // supabase/schema.sql's "Unique display IDs" section) -- null until the
   // migration backfilling it has run.
   code?: string | null;
+  // Where this patient's care intake has got to, when the caller has it
+  // (therapists have no intake, so they pass nothing). Folded in here rather
+  // than living on its own screen: intake status is a fact about a patient,
+  // and a separate tab meant holding a patient's identity in your head while
+  // switching screens to look it up.
+  careStatus?: string | null;
+};
+
+const CARE_STATUS_LABELS: Record<string, string> = {
+  not_started: "No intake yet",
+  pending: "Waiting on review",
+  approved: "Intake live",
+  rejected: "Intake rejected",
+};
+
+const CARE_STATUS_STYLES: Record<string, string> = {
+  not_started: "text-slate-500 bg-slate-100",
+  pending: "text-amber-700 bg-amber-100",
+  approved: "text-teal-700 bg-teal-50",
+  rejected: "text-red-700 bg-red-100",
 };
 
 export default function AdminPeopleDirectory({
@@ -28,15 +48,27 @@ export default function AdminPeopleDirectory({
 }) {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [careFilter, setCareFilter] = useState("all");
+
+  const hasCareStatus = people.some((p) => p.careStatus !== undefined);
 
   const normalizedQuery = query.trim().toLowerCase();
-  const filtered = normalizedQuery
-    ? people.filter((p) =>
-        [p.full_name, p.subtitle, p.code]
-          .filter((v): v is string => !!v)
-          .some((v) => v.toLowerCase().includes(normalizedQuery))
-      )
-    : people;
+  const filtered = people
+    .filter((p) =>
+      normalizedQuery
+        ? [p.full_name, p.subtitle, p.code]
+            .filter((v): v is string => !!v)
+            .some((v) => v.toLowerCase().includes(normalizedQuery))
+        : true
+    )
+    .filter((p) => {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "pending") return p.approved === false;
+      if (statusFilter === "suspended") return !p.active;
+      return p.active && p.approved !== false;
+    })
+    .filter((p) => careFilter === "all" || (p.careStatus ?? "not_started") === careFilter);
 
   function badge(p: Person) {
     if (!p.active) {
@@ -69,6 +101,29 @@ export default function AdminPeopleDirectory({
             className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 text-xs"
           />
         </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+        >
+          <option value="all">Any status</option>
+          <option value="active">Active</option>
+          <option value="pending">Waiting for approval</option>
+          <option value="suspended">Suspended</option>
+        </select>
+        {hasCareStatus && (
+          <select
+            value={careFilter}
+            onChange={(e) => setCareFilter(e.target.value)}
+            className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+          >
+            <option value="all">Any care intake</option>
+            <option value="pending">Intake waiting on review</option>
+            <option value="approved">Intake live</option>
+            <option value="not_started">No intake yet</option>
+            <option value="rejected">Intake rejected</option>
+          </select>
+        )}
         <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden text-[11px] font-semibold">
           <button
             onClick={() => setView("grid")}
@@ -91,7 +146,7 @@ export default function AdminPeopleDirectory({
 
       {filtered.length === 0 ? (
         <p className="text-xs text-slate-500 py-4 text-center">
-          No matches for &quot;{query}&quot;.
+          {query ? `No matches for "${query}".` : "Nobody matches these filters."}
         </p>
       ) : view === "grid" ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -106,6 +161,15 @@ export default function AdminPeopleDirectory({
               <p className="font-bold text-slate-900 text-xs mt-2 line-clamp-1">{p.full_name}</p>
               {p.code && <p className="text-slate-400 text-[10px] font-mono">{p.code}</p>}
               <p className="text-slate-500 text-[11px] line-clamp-1">{p.subtitle}</p>
+              {p.careStatus && (
+                <span
+                  className={`mt-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                    CARE_STATUS_STYLES[p.careStatus] ?? "text-slate-500 bg-slate-100"
+                  }`}
+                >
+                  {CARE_STATUS_LABELS[p.careStatus] ?? p.careStatus}
+                </span>
+              )}
               <p className="text-slate-400 text-[10px] mt-1">Joined {formatIST(p.created_at)}</p>
             </Link>
           ))}

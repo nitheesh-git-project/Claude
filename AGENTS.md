@@ -19,9 +19,34 @@ Supabase (Postgres, Auth, Storage, Realtime) · Razorpay · Google
 Calendar/Meet (`googleapis`) · `motion` for animation · Font Awesome ·
 `libphonenumber-js`.
 
-Commands: `npm run dev`, `npm run build`, `npm start`, `npm run lint`.
-There is no test runner configured — verify with `npm run build` and
-`npm run lint`.
+Commands: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
+`npm run test:e2e`. The e2e suite (Playwright, `e2e/`) covers the
+money-critical paths and the admin back office — booking + payment,
+concurrency/CAS guards, bulk limits, admin route authorization for every
+role, input validation, payout/refund maths, and the dashboard's own
+navigation in a real browser. It needs a test/staging Supabase project plus
+Razorpay test keys, so `npm run build` and `npm run lint` remain the default
+verification for a change that can't reach one.
+
+Three environment notes for the browser specs:
+
+- Set `PLAYWRIGHT_CHROMIUM_PATH` when the sandbox already ships a Chromium.
+- They sign in by injecting a Node-minted session cookie rather than typing
+  into the login form, so a sandbox whose browser has no outbound network
+  can still exercise the whole dashboard.
+- `admin-login.spec.ts` is the exception, since the login form itself is
+  what it tests: it needs a second app instance whose
+  `NEXT_PUBLIC_SUPABASE_URL` points at `scripts/.qa/supabase-relay.mjs` (a
+  localhost passthrough to the real Supabase, nothing mocked), and skips
+  itself when that instance isn't running. Next refuses two dev servers in
+  one directory, so it is a separate pass:
+  `RELAY_TARGET=$NEXT_PUBLIC_SUPABASE_URL node scripts/.qa/supabase-relay.mjs`,
+  then `NEXT_PUBLIC_SUPABASE_URL=http://localhost:8099 npx next dev -p 3100`,
+  then `E2E_BASE_URL=http://localhost:3100 npx playwright test e2e/admin-login.spec.ts`.
+
+`e2e/admin-degraded-schema.spec.ts` drops columns and tables and restores
+them by re-applying `schema.sql` in a `finally`. Point it at a throwaway
+project, never one whose data matters.
 
 ## Layout
 
@@ -34,6 +59,8 @@ src/components/          UI, grouped by area (admin/, auth/, booking/,
                          dashboard/, home/, hospital/, profile/, motion/,
                          visuals/)
 src/lib/                 domain logic, formatting, Supabase clients
+src/lib/adminNav.ts      the admin dashboard's six sections + their screens
+src/lib/adminScope.ts    admin scopes and which sections each one may open
 src/proxy.ts             auth proxy over the four dashboard route trees
 supabase/schema.sql      the entire schema: tables, RLS, views, triggers
 scripts/                 one-off tooling
@@ -54,6 +81,23 @@ They are enforced in **two** places and both must stay in place:
 
 Admin routes go through `src/lib/supabase/requireAdmin.ts`. Never trust a
 role, an id, or an amount sent from the client — re-derive it server-side.
+
+Admins additionally carry a scope (`profiles.admin_scope`: `full`,
+`operations`, `finance`, `clinical` — see `src/lib/adminScope.ts`), which
+decides which dashboard sections they can open. A route that belongs to one
+section guards with `requireAdminScope(section)` rather than
+`getAdminUser()`; the sidebar hiding a section is presentation only, since a
+session cookie can call any route directly. Only a `full` admin can change
+scopes or mint another admin, nobody can change their own, and the last
+`full` admin cannot be narrowed — otherwise a single mis-click locks
+everyone out permanently.
+
+Every mutating admin route should record what happened via
+`recordAdminActivity()` (`src/lib/adminActivityLog.ts`). It is best-effort
+and never throws: an audit write failing must not block the action it
+describes, same posture as the Meet-sync rule below. `admin_activity_log`
+has a select policy and deliberately no insert policy, so the service-role
+client is the only writer and the log is append-only from any session.
 
 ## Supabase clients — pick the right one
 
@@ -210,8 +254,38 @@ role, an id, or an amount sent from the client — re-derive it server-side.
   assigned therapist (ever had an appointment with them, or holds a
   package's `locked_therapist_id`). See the "Patient Care Intake and Pain
   Map" section in README.md for the full flow.
+- **The admin dashboard's information architecture lives in
+  `src/lib/adminNav.ts`** — six sections (Today, Sessions, People, Money,
+  Catalog, Settings), each with its own screens. The sidebar, the URL
+  (`?section=&tab=`), the content map in the dashboard page, and the scope
+  check all read that one list, so adding a screen is one entry there plus
+  one entry in the page's `screens` map. Tab state is written with the
+  History API, never `router.push`: the dashboard is a single Server
+  Component making ~40 queries, and a router navigation would re-run all of
+  them to move between two already-rendered screens.
+- **A session is listed once.** All Bookings, Session Story, the calendar's
+  day panel and the home-visit queue were four lists over the same
+  `appointments` rows; they are now one filterable list
+  (`AdminAllSessionsTab`) plus the calendar, both opening the same
+  `SessionDetailDrawer`. Home-visit specifics (address, travel fee, cash)
+  are a panel inside that drawer, not a parallel screen. If you find
+  yourself building a second list of sessions, add a filter instead. All
+  Sessions remembers its filters per browser (not the date range, which goes
+  stale) and paints at most 200 rows before offering "Show all" -- the page
+  server-renders every screen at once, so an unbounded table is HTML every
+  admin downloads whether they open that screen or not.
+- **Approvals are a queue, not a person.** Pending signups and profile
+  change requests live under Today, beside the inbox that counts them, not
+  on the patients directory.
+- **One word, one money figure.** "Recognised revenue" is what has been
+  earned (a package counts one session at a time); "Package cash collected"
+  is what came into the bank up front. Gross/Net Revenue keep their standard
+  meanings. `MoneyGlossary` states each one on the Money screens -- if a new
+  figure needs a word that is already taken, rename the figure, don't
+  overload the word.
 - **Admin-configurable behavior** (Meet on/off, join window, idle timeout,
-  booking languages, the package-wide settings — visibility, default
+  booking languages, the online booking lead time and cancellation refund
+  window, the package-wide settings — visibility, default
   validity, therapist-lock switch, bulk-scheduler limit, expiry reminder
   window — the nine `home_visit_*` settings — master switch, cash on/off,
   lead time, cancellation refund window, default validity, bulk-scheduler

@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
+import AdminGlobalSearch, { type SearchEntity } from "@/components/admin/AdminGlobalSearch";
+import { ADMIN_SECTIONS, findTab, type AdminSectionKey } from "@/lib/adminNav";
 
 // Every base table this page's Promise.all queries (src/app/admin/dashboard/
-// page.tsx) -- so any change, whether from another admin tab, a therapist/
+// page.tsx) -- so any change, whether from another admin screen, a therapist/
 // patient/hospital action, or a second admin logged in elsewhere, refreshes
 // this dashboard. package_purchase_summary is deliberately excluded: it's a
 // view, and postgres_changes only streams base tables -- its underlying
@@ -40,85 +42,39 @@ const ADMIN_REALTIME_TABLES = [
   "home_visit_package_purchases",
   "home_visit_waitlist",
   "patient_addresses",
+  "admin_activity_log",
+  "hospital_admin_notes",
 ];
 
-type TabKey =
-  | "overview"
-  | "approvalBookings"
-  | "sessionStory"
-  | "patients"
-  | "conditions"
-  | "therapists"
-  | "roster"
-  | "calendar"
-  | "b2b"
-  | "payouts"
-  | "payoutRequests"
-  | "paymentHistory"
-  | "content"
-  | "sessionManager"
-  | "homeVisits"
-  | "featureControl";
+// Content for every screen, keyed "<section>:<tab>" -- the page builds this
+// map, the shell only decides which key is visible. Keeping it a flat map
+// (rather than one prop per screen, as the old 16-prop AdminTabs did) means
+// adding a screen is a nav-list entry plus a map entry, never a signature
+// change here.
+export type AdminScreens = Record<string, ReactNode>;
 
-type TabDef = { key: TabKey; label: string; icon: string; badge?: number };
-
-export default function AdminTabs({
-  overview,
-  approvalBookings,
-  sessionStory,
-  patients,
-  conditions,
-  conditionsBadgeCount,
-  therapists,
-  roster,
-  calendar,
-  b2bPartners,
-  b2bBadgeCount,
-  payouts,
-  payoutRequests,
-  payoutRequestsBadgeCount,
-  paymentHistory,
-  siteContent,
-  sessionManager,
-  homeVisits,
-  homeVisitsBadgeCount,
-  featureControl,
+export default function AdminShell({
+  screens,
+  badges,
+  searchEntities,
   adminName,
   adminEmail,
   adminAvatarUrl,
+  allowedSections,
   offsetTop,
 }: {
-  // The at-a-glance landing tab -- the Metrics dashboard (cards/charts),
-  // not the old approvals/bookings list. See approvalBookings below for
-  // that.
-  overview: ReactNode;
-  // What used to be the Overview tab's own content (pending approvals +
-  // All Bookings list), moved here and renamed so "Overview" can be a
-  // pure at-a-glance metrics view instead.
-  approvalBookings: ReactNode;
-  sessionStory: ReactNode;
-  patients: ReactNode;
-  conditions: ReactNode;
-  conditionsBadgeCount: number;
-  therapists: ReactNode;
-  roster: ReactNode;
-  calendar: ReactNode;
-  b2bPartners: ReactNode;
-  b2bBadgeCount: number;
-  payouts: ReactNode;
-  payoutRequests: ReactNode;
-  payoutRequestsBadgeCount: number;
-  paymentHistory: ReactNode;
-  siteContent: ReactNode;
-  sessionManager: ReactNode;
-  homeVisits: ReactNode;
-  // Out-of-area requests waiting to be looked at -- the one thing on this
-  // tab that arrives on its own and needs chasing, so it earns the badge.
-  homeVisitsBadgeCount: number;
-  featureControl: ReactNode;
+  screens: AdminScreens;
+  // Keyed the same way as `screens`. A section's own badge is the sum of its
+  // tabs' badges, computed here rather than passed, so the two can't drift.
+  badges: Record<string, number>;
+  searchEntities: SearchEntity[];
   adminName: string;
   adminEmail: string;
   adminAvatarUrl: string | null;
+  // Which sections this admin's scope may open (see adminScope.ts). The
+  // sidebar hides the rest -- but hiding is presentation only; every route
+  // re-checks scope server-side, since a hidden button is not a permission.
+  allowedSections: AdminSectionKey[];
   // Whether the dev-only DebugNav bar is showing above everything on this
   // page (same flag the root layout threads into Navbar as its own
   // `offsetTop` prop) -- this page hides the public Navbar entirely, so its
@@ -126,40 +82,43 @@ export default function AdminTabs({
   // inheriting it for free from normal document flow.
   offsetTop: boolean;
 }) {
-  const [tab, setTab] = useState<TabKey>("overview");
+  const sections = ADMIN_SECTIONS.filter((s) => allowedSections.includes(s.key));
+  const firstSection = sections[0] ?? ADMIN_SECTIONS[0];
+
+  const [sectionKey, setSectionKey] = useState<string>(firstSection.key);
+  const [tabKey, setTabKey] = useState<string>(firstSection.tabs[0].key);
   // Desktop full <-> mini collapse. Independent of the mobile drawer below --
   // a phone gets an off-canvas drawer instead, never the mini/icon-only rail.
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const tabs: TabDef[] = [
-    { key: "overview", label: "Overview", icon: "fa-gauge-high" },
-    { key: "approvalBookings", label: "Approval & Bookings", icon: "fa-clipboard-check" },
-    { key: "sessionStory", label: "Session Story", icon: "fa-book-open" },
-    { key: "patients", label: "Patients", icon: "fa-user-injured" },
-    { key: "conditions", label: "Patient Conditions", icon: "fa-notes-medical", badge: conditionsBadgeCount },
-    { key: "therapists", label: "Therapists", icon: "fa-user-doctor" },
-    { key: "roster", label: "Manage Roster", icon: "fa-calendar-days" },
-    { key: "calendar", label: "Calendar", icon: "fa-calendar" },
-    { key: "b2b", label: "B2B Partners", icon: "fa-handshake", badge: b2bBadgeCount },
-    { key: "payouts", label: "Payouts", icon: "fa-sack-dollar" },
-    {
-      key: "payoutRequests",
-      label: "Payout Requests",
-      icon: "fa-hand-holding-dollar",
-      badge: payoutRequestsBadgeCount,
-    },
-    { key: "paymentHistory", label: "Payment History", icon: "fa-receipt" },
-    { key: "sessionManager", label: "Session Manager", icon: "fa-layer-group" },
-    {
-      key: "homeVisits",
-      label: "Home Visit",
-      icon: "fa-house-medical",
-      badge: homeVisitsBadgeCount,
-    },
-    { key: "content", label: "Site Content", icon: "fa-pen-to-square" },
-    { key: "featureControl", label: "Feature Control", icon: "fa-sliders" },
-  ];
+  // URL <-> state sync. Deliberately the History API rather than
+  // router.push/replace: this page is one big Server Component, and a
+  // Next.js navigation would re-run all ~40 of its queries just to move
+  // between two already-rendered screens. history.pushState changes the
+  // address bar (so a screen is linkable and survives a reload) without
+  // touching the server, and the popstate listener below makes the browser's
+  // Back button walk the tab history the way a user expects.
+  useEffect(() => {
+    function applyFromLocation() {
+      const params = new URLSearchParams(window.location.search);
+      const found = findTab(params.get("section"), params.get("tab"), allowedSections);
+      setSectionKey(found.section);
+      setTabKey(found.tab);
+    }
+    applyFromLocation();
+    window.addEventListener("popstate", applyFromLocation);
+    return () => window.removeEventListener("popstate", applyFromLocation);
+  }, [allowedSections]);
+
+  function navigate(nextSection: string, nextTab: string) {
+    setSectionKey(nextSection);
+    setTabKey(nextTab);
+    const params = new URLSearchParams(window.location.search);
+    params.set("section", nextSection);
+    params.set("tab", nextTab);
+    window.history.pushState(null, "", `${window.location.pathname}?${params.toString()}`);
+  }
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -172,46 +131,93 @@ export default function AdminTabs({
   }
 
   // No useIdleTimeout here on purpose: the Session Timeout of Inactivity
-  // set in Feature Control applies to patient, therapist and hospital
-  // sessions only. An admin is the one who configures that timeout and
-  // routinely leaves this dashboard open while working elsewhere (waiting
-  // on a payout, watching for a new approval), so timing them out of their
-  // own control panel costs work and protects nothing they didn't choose.
+  // set in Settings applies to patient, therapist and hospital sessions
+  // only. An admin is the one who configures that timeout and routinely
+  // leaves this dashboard open while working elsewhere (waiting on a payout,
+  // watching for a new approval), so timing them out of their own control
+  // panel costs work and protects nothing they didn't choose.
+
+  const activeSection = sections.find((s) => s.key === sectionKey) ?? firstSection;
+
+  function sectionBadge(key: string) {
+    const section = sections.find((s) => s.key === key);
+    if (!section) return 0;
+    return section.tabs.reduce((sum, t) => sum + (badges[`${key}:${t.key}`] ?? 0), 0);
+  }
 
   // A plain render function, not a nested component -- called directly as
   // renderNavItem(...) rather than <NavItem ... />, so React never treats it
   // as its own component type and there's nothing to remount every render.
-  function renderNavItem(t: TabDef, mini: boolean, onNavigate?: () => void) {
-    const active = tab === t.key;
+  function renderNavItem(
+    section: (typeof ADMIN_SECTIONS)[number],
+    mini: boolean,
+    onNavigate?: () => void
+  ) {
+    const active = section.key === activeSection.key;
+    const badge = sectionBadge(section.key);
     return (
-      <button
-        key={t.key}
-        type="button"
-        onClick={() => {
-          setTab(t.key);
-          onNavigate?.();
-        }}
-        title={mini ? t.label : undefined}
-        className={`group relative w-full flex items-center gap-3 rounded-xl transition ${
-          mini ? "justify-center px-0 py-3" : "px-3.5 py-2.5"
-        } ${active ? "bg-teal-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
-      >
-        <i className={`fa-solid ${t.icon} ${mini ? "text-base" : "w-4 text-center text-sm"}`}></i>
-        {!mini && <span className="flex-1 text-left text-sm font-semibold">{t.label}</span>}
-        {!!t.badge && t.badge > 0 && !mini && (
-          <span className="rounded-full bg-amber-300 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
-            {t.badge}
-          </span>
+      <div key={section.key}>
+        <button
+          type="button"
+          onClick={() => {
+            navigate(section.key, section.tabs[0].key);
+            onNavigate?.();
+          }}
+          title={mini ? section.label : undefined}
+          className={`group relative w-full flex items-center gap-3 rounded-xl transition ${
+            mini ? "justify-center px-0 py-3" : "px-3.5 py-2.5"
+          } ${active ? "bg-teal-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+        >
+          <i className={`fa-solid ${section.icon} ${mini ? "text-base" : "w-4 text-center text-sm"}`}></i>
+          {!mini && <span className="flex-1 text-left text-sm font-semibold">{section.label}</span>}
+          {badge > 0 && !mini && (
+            <span className="rounded-full bg-amber-300 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
+              {badge}
+            </span>
+          )}
+          {badge > 0 && mini && (
+            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400"></span>
+          )}
+          {mini && (
+            <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 scale-95 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition group-hover:scale-100 group-hover:opacity-100">
+              {section.label}
+            </span>
+          )}
+        </button>
+        {/* Sub-tabs live under their own section in the sidebar rather than
+            as a second row above the content: the mini rail has no room for
+            a second level, and an admin scanning for "where do I do X" reads
+            one list, not a list plus a hidden strip. */}
+        {active && !mini && section.tabs.length > 1 && (
+          <div className="mt-1 space-y-0.5 border-l border-slate-800 pl-3 ml-4">
+            {section.tabs.map((t) => {
+              const tabBadge = badges[`${section.key}:${t.key}`] ?? 0;
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => {
+                    navigate(section.key, t.key);
+                    onNavigate?.();
+                  }}
+                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold transition ${
+                    t.key === tabKey
+                      ? "bg-slate-800 text-white"
+                      : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
+                  }`}
+                >
+                  <span className="flex-1">{t.label}</span>
+                  {tabBadge > 0 && (
+                    <span className="rounded-full bg-amber-300 px-1.5 text-[10px] font-bold text-amber-900">
+                      {tabBadge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         )}
-        {!!t.badge && t.badge > 0 && mini && (
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400"></span>
-        )}
-        {mini && (
-          <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 scale-95 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition group-hover:scale-100 group-hover:opacity-100">
-            {t.label}
-          </span>
-        )}
-      </button>
+      </div>
     );
   }
 
@@ -301,7 +307,7 @@ export default function AdminTabs({
               </button>
             </div>
             <div className="flex-1 space-y-1">
-              {tabs.map((t) => renderNavItem(t, false, () => setMobileOpen(false)))}
+              {sections.map((s) => renderNavItem(s, false, () => setMobileOpen(false)))}
             </div>
             {renderFooter(false)}
           </nav>
@@ -321,7 +327,7 @@ export default function AdminTabs({
       >
         {renderBrand(collapsed)}
         <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
-          {tabs.map((t) => renderNavItem(t, collapsed))}
+          {sections.map((s) => renderNavItem(s, collapsed))}
         </div>
         <button
           type="button"
@@ -338,29 +344,38 @@ export default function AdminTabs({
 
       <div className={`transition-[padding] duration-200 ${contentPadClass}`}>
         <div className="px-4 py-8 sm:px-6 lg:px-8">
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Manage approvals, bookings, and partner referrals
-            </p>
+          <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">
+                {activeSection.label}
+                {activeSection.tabs.length > 1 && (
+                  <span className="ml-2 text-base font-semibold text-slate-400">
+                    {activeSection.tabs.find((t) => t.key === tabKey)?.label ?? ""}
+                  </span>
+                )}
+              </h1>
+              <p className="text-xs text-slate-500 mt-1">{activeSection.blurb}</p>
+            </div>
+            <AdminGlobalSearch entities={searchEntities} />
           </div>
 
-          <div className={tab === "overview" ? "" : "hidden"}>{overview}</div>
-          <div className={tab === "approvalBookings" ? "" : "hidden"}>{approvalBookings}</div>
-          <div className={tab === "sessionStory" ? "" : "hidden"}>{sessionStory}</div>
-          <div className={tab === "patients" ? "" : "hidden"}>{patients}</div>
-          <div className={tab === "conditions" ? "" : "hidden"}>{conditions}</div>
-          <div className={tab === "therapists" ? "" : "hidden"}>{therapists}</div>
-          <div className={tab === "roster" ? "" : "hidden"}>{roster}</div>
-          <div className={tab === "calendar" ? "" : "hidden"}>{calendar}</div>
-          <div className={tab === "b2b" ? "" : "hidden"}>{b2bPartners}</div>
-          <div className={tab === "payouts" ? "" : "hidden"}>{payouts}</div>
-          <div className={tab === "payoutRequests" ? "" : "hidden"}>{payoutRequests}</div>
-          <div className={tab === "paymentHistory" ? "" : "hidden"}>{paymentHistory}</div>
-          <div className={tab === "sessionManager" ? "" : "hidden"}>{sessionManager}</div>
-          <div className={tab === "homeVisits" ? "" : "hidden"}>{homeVisits}</div>
-          <div className={tab === "content" ? "" : "hidden"}>{siteContent}</div>
-          <div className={tab === "featureControl" ? "" : "hidden"}>{featureControl}</div>
+          {/* Every screen stays mounted and is hidden with CSS rather than
+              unmounted -- the same trade the old tab shell made. It keeps a
+              half-typed filter or an open row from being thrown away when an
+              admin checks something on another screen and comes back. */}
+          {sections.flatMap((section) =>
+            section.tabs.map((t) => {
+              const key = `${section.key}:${t.key}`;
+              return (
+                <div
+                  key={key}
+                  className={section.key === activeSection.key && t.key === tabKey ? "" : "hidden"}
+                >
+                  {screens[key] ?? null}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

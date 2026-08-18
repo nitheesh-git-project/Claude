@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // Admin confirming that cash a therapist collected has actually reached the
@@ -75,6 +76,11 @@ export async function POST(request: NextRequest) {
       console.error("Failed to log cash_remitted event", appointmentId, eventError);
     }
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "cash.mark_remitted",
+    targetId: appointmentId,
+  });
 
   return NextResponse.json({ success: true });
 }

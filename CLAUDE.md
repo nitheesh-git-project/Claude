@@ -5,7 +5,9 @@ for a physical therapy practice: public marketing site, patient booking and
 Razorpay payments across two delivery modes (video consultation and in-home
 visits), therapist scheduling and payouts, hospital (B2B) referrals, and an
 admin back office. Data, auth, storage, and realtime come from Supabase;
-session video links come from Google Calendar/Meet.
+session video links come from Google Calendar/Meet. The admin back office is
+organised into six sections — Today, Sessions, People, Money, Catalog,
+Settings — defined once in `src/lib/adminNav.ts`.
 
 - `README.md` — product overview, setup, environment variables, routes, and
   how each flow works.
@@ -17,8 +19,10 @@ session video links come from Google Calendar/Meet.
 Before writing code: read the relevant guide in `node_modules/next/dist/docs/`
 — this Next.js version differs from training data.
 
-Quick commands: `npm run dev`, `npm run build`, `npm run lint`. No test runner
-is configured; verify with a build and a lint.
+Quick commands: `npm run dev`, `npm run build`, `npm run lint`. A Playwright
+e2e suite covers the money-critical paths (`npm run test:e2e`, see `e2e/`)
+but needs a test Supabase project and Razorpay test keys — verify a change
+with a build and a lint.
 
 These three docs describe the app, so keep them current: whenever a change
 adds or removes a route, role, environment variable, npm script, or alters a

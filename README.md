@@ -118,10 +118,25 @@ so a still-valid session cookie can't call the API around the UI gate.
 **Hospital:** `/hospital/login`, `/hospital/dashboard`,
 `/hospital/dashboard/profile`.
 
-**Admin:** `/admin/login`, `/admin/dashboard` (tabbed: metrics, calendar,
-roster, people directory, patient conditions, payments, payouts, payout
-requests, session story, session manager, home visit, site content, feature
-control), plus per-person detail pages at `/admin/dashboard/patients/[id]`,
+**Admin:** `/admin/login`, `/admin/dashboard`, organised into six sections
+(defined once in `src/lib/adminNav.ts`):
+
+| Section | Screens | Answers |
+| --- | --- | --- |
+| **Today** | Action Inbox | What is waiting on me right now |
+| **Sessions** | Schedule · All Sessions · Roster · New Booking | What is being delivered, and by whom |
+| **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
+| **Money** | Summary · Transactions · Payouts · Performance | What came in, what goes out, what is still owed |
+| **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
+| **Settings** | Brand & Contact · Public Site · Booking Rules · Clinical Questions · Team & Access · System Health · Activity Log · Account Security | How the product behaves |
+
+The visible screen is in the URL (`?section=&tab=`), written with the
+History API rather than a router navigation — this page is one Server
+Component making ~40 queries, so moving between two already-rendered screens
+must not re-run them. A screen is therefore linkable, survives a reload, and
+is restored after `router.refresh()`.
+
+Plus per-person detail pages at `/admin/dashboard/patients/[id]`,
 `/admin/dashboard/therapists/[id]`, and `/admin/dashboard/conditions/[id]`.
 Those detail pages use a parallel `@modal` route with intercepting routes, so
 clicking a person from the dashboard opens an overlay while a direct link
@@ -137,8 +152,10 @@ server-side; admin routes go through `src/lib/supabase/requireAdmin.ts`.
 ## How the app works
 
 **Booking.** The `/book` wizard picks a treatment category, language, date,
-and time slot. Slots respect a 12-hour minimum lead time
-(`src/lib/bookingSlots.ts`), the therapist's weekly availability template
+and time slot. Slots respect the online booking lead time — 12 hours by
+default, admin-editable at **Settings → Booking Rules**
+(`site_settings.online_booking_lead_time_hours`, with
+`BOOKING_LEAD_TIME_HOURS` in `src/lib/bookingSlots.ts` as the fallback) — the therapist's weekly availability template
 plus per-date overrides (`therapist_availability_template`,
 `therapist_availability_override`), leave flags, and conflict checks
 (`src/lib/checkTherapistConflict.ts`). `/book?package=<id>` switches the same
@@ -154,10 +171,17 @@ via `/api/packages/create-order` and `/api/packages/verify` — the latter
 also books session 1 when the wizard supplied a slot, via
 `src/lib/bookPackageSession.ts` — then any later sessions are redeemed with
 `/api/appointments/book-with-package`. Both package routes enforce the
-Session Manager visibility switch server-side, not just in the UI. The
-standard session fee and the 24-hour full-refund cancellation window live in
-`src/lib/pricing.ts`. Cancellations inside the window get no refund; outside
-it, a Razorpay refund is issued and stamped on the appointment.
+package visibility switch server-side, not just in the UI. The standard
+session fee lives in `src/lib/pricing.ts`. The online full-refund
+cancellation window is 24 hours by default and admin-editable at **Settings
+→ Booking Rules** (`site_settings.online_cancellation_refund_hours`, with
+`CANCELLATION_FULL_REFUND_HOURS` as the fallback). Cancellations inside the
+window get no refund; outside it, a Razorpay refund is issued and stamped on
+the appointment. That automatic rule can only say "all" or "nothing", so an
+admin can additionally return any amount on a paid session from its own
+record (`/api/admin/refund-session-partial`) — it requires a stated reason,
+caps at what is still refundable, sets `refund_is_manual`, and is recorded
+in the activity log.
 
 **Session packages.** A package is a programme, not just a discount: bundle
 price, an optional struck-through compare-at price (derived from the
@@ -283,7 +307,7 @@ only appear once a patient actually has that kind of session.
   `supabase/schema.sql`.
 - *Cancellation and refunds.* Home visits use their own admin-configurable
   refund window (`home_visit_cancellation_refund_hours`) instead of the
-  fixed 24-hour online one — a therapist has to physically travel, so the
+  online one (`online_cancellation_refund_hours`) — a therapist has to physically travel, so the
   business can reasonably want more notice. A cash visit has no Razorpay
   payment to reverse; if cash was already collected and the cancellation is
   still eligible, `refund_status` is set to `'manual_pending'` and surfaced
@@ -352,17 +376,37 @@ testimonials, feature toggles (Meet on/off, join window, idle-timeout
 minutes, booking languages), and **Brand & Contact Details** (website name,
 tagline, description, contact email, WhatsApp number, contact phone, footer
 copyright text — the strings the public Navbar and Footer render) are all
-editable from the dashboard's Site Content and Feature Control tabs, stored
-in `site_settings` and their own tables — see `src/lib/adminSettings.ts`.
+editable under **Settings** (Brand & Contact, Public Site, Booking Rules),
+stored in `site_settings` and their own tables — see `src/lib/adminSettings.ts`.
 Brand & Contact Details fields save individually (click Edit on a field,
 change it, Save) via `/api/admin/update-setting`, same as every other
 `site_settings` column; the root layout reads them on every request to pass
 into `Navbar`/`Footer`, so a change is live everywhere those render, not
-just on the admin page. Session packages have their own
-**Session Manager** tab instead (catalog, every purchase ever made, and the
+just on the admin page. Session packages live under **Catalog → Packages**
+(beside the home-visit packages) and **Catalog → Purchases**; their
 package-wide settings — visibility, default validity, the therapist-lock
-switch, the bulk-scheduler limit, the expiry reminder window); see "Session
-packages" above.
+switch, the bulk-scheduler limit, the expiry reminder window — sit with
+every other rule under **Settings → Booking Rules**; see "Session packages"
+above.
+
+**Admin scopes, activity log, and admin-created bookings.** `profiles.
+admin_scope` is one of `full`, `operations`, `finance`, `clinical` (see
+`src/lib/adminScope.ts`). It decides which sections an admin can open, and
+is enforced server-side by `requireAdminScope()` — hiding a section in the
+sidebar is presentation only. Only a `full` admin can change scopes or
+create another admin, nobody can change their own, and the last `full` admin
+cannot be narrowed. Admins are created from **Settings → Team & Access**
+(`/api/admin/create-account`, which also creates patients and therapists by
+hand), so the database no longer has to be edited to add one.
+`admin_activity_log` records every mutating admin action — actor, action,
+subject, amount, timestamp — readable at **Settings → Activity Log** and
+append-only by construction: the table has a select policy and no insert
+policy, so the only writer is the service-role client inside the API routes.
+**Sessions → New Booking** (`/api/admin/create-booking`) books an online
+session on a patient's behalf, running the same conflict check and Meet sync
+as a patient's own booking, with an explicit payment state and a logged
+lead-time override. Home visits are not bookable this way yet — they need an
+address and a serviceable pincode.
 
 **Realtime.** `src/components/RealtimeRefresh.tsx` subscribes to Supabase
 Realtime so dashboards refresh when the underlying rows change.

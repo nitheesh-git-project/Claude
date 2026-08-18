@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -124,16 +125,41 @@ export async function POST(request: NextRequest) {
   // /api/razorpay/verify auto-confirms it the moment payment succeeds.
   const shouldConfirm = appointment.payment_status === "paid";
 
-  const { error } = await admin
+  // Compare-and-set on the therapist this request believes is currently on
+  // the session. Without it, two admins assigning *different* therapists to
+  // the same session at the same moment both succeed: the second write wins
+  // silently, and both requests have already created a calendar invite, so
+  // the patient gets two. The conflict re-check further down guards a
+  // different race (the same therapist being double-booked across two
+  // sessions) and cannot catch this one.
+  const claimQuery = admin
     .from("appointments")
     .update({
       therapist_id: therapistId,
       ...(shouldConfirm ? { status: "confirmed" } : {}),
     })
     .eq("id", appointmentId);
+  // An unassigned session is claimed only while it is still unassigned; a
+  // deliberate reassignment is applied only while the therapist it was read
+  // with is still the one on it.
+  const { data: claimed, error } = await (appointment.therapist_id === null
+    ? claimQuery.is("therapist_id", null)
+    : claimQuery.eq("therapist_id", appointment.therapist_id)
+  )
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!claimed) {
+    return NextResponse.json(
+      {
+        error:
+          "Someone else assigned this session a moment ago. Refresh to see who is on it before reassigning.",
+      },
+      { status: 409 }
+    );
   }
 
   // Re-check for a conflict now that the write has landed — the earlier
@@ -313,6 +339,11 @@ export async function POST(request: NextRequest) {
           : null,
     });
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "session.assign",
+    targetId: appointmentId, details: { therapistId },
+  });
 
   return NextResponse.json({ success: true });
 }

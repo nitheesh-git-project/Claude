@@ -267,6 +267,7 @@ export default function AdminMetricsTab({
   patientHospitalSharePercent,
   hospitalReferredPatientIds,
   nowMs,
+  view,
 }: {
   appointments: MetricsAppointment[];
   // Cash collected on package purchases -- see packageRevenueInRange's own
@@ -295,6 +296,17 @@ export default function AdminMetricsTab({
   // and re-renders client-side. Taking the same timestamp as a prop makes
   // the initial value identical on both passes.
   nowMs: number;
+  // Which half of this tab to render. The maths is identical either way and
+  // is deliberately computed once: "Summary" answers *how much money*
+  // (totals, trends, the revenue split) and "Performance" answers *how well
+  // it went* (per-therapist and per-patient ledgers, utilization, no-show
+  // and cancellation rates). They were one endless scroll before, which is
+  // why nobody could find either.
+  //
+  // Each view keeps its own filter state because they mount as separate
+  // screens -- an admin narrowing the Performance view to one therapist is
+  // asking a different question from whatever range Summary is showing.
+  view: "summary" | "performance";
 }) {
   const [fromDate, setFromDate] = useState(() => toDateInputValue(daysAgo(90, nowMs)));
   const [toDate, setToDate] = useState(() => toDateInputValue(new Date(nowMs)));
@@ -572,7 +584,11 @@ export default function AdminMetricsTab({
               className="border border-slate-300 rounded-lg px-2.5 py-1.5"
             />
           </div>
-          <div className="flex items-center gap-1.5">
+          {/* Wraps rather than overflowing: seven quick-range buttons in a
+              nowrap row pushed the whole page 70px wider than a 360px phone
+              viewport, which scrolls the body sideways instead of scrolling
+              the row. */}
+          <div className="flex flex-wrap items-center gap-1.5">
             {[
               { label: "Today", days: 0 },
               { label: "7 Days", days: 7 },
@@ -639,6 +655,7 @@ export default function AdminMetricsTab({
         </div>
       </div>
 
+      {view === "summary" && (
       <div>
         <h2 className="font-bold text-lg text-slate-800 mb-1">Financial Summary</h2>
         <p className="text-[11px] text-slate-400 mb-3">
@@ -725,7 +742,10 @@ export default function AdminMetricsTab({
           </div>
         </div>
       </div>
+      )}
 
+      {view === "performance" && (
+      <>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
@@ -957,20 +977,32 @@ export default function AdminMetricsTab({
           )}
         </Modal>
       )}
+      </>
+      )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      {/* Volume and cash collected read as "how big was this period" and
+          belong with the money summary; the three rates below them read as
+          "how well did it go" and belong with performance. Same row of
+          tiles, split by which question it answers. */}
+      {view === "summary" && (
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">Revenue (range)</p>
+          <p className="text-[11px] text-slate-500">Recognised revenue</p>
           <p className="text-base font-bold text-slate-900">{formatInr(totalRevenuePaise)}</p>
         </div>
-        <div className="bg-slate-50 rounded-xl p-3 text-center" title="Package purchases paid for in this range -- collected up front, only recognized above as sessions get scheduled. See Session Manager for unscheduled balance.">
-          <p className="text-[11px] text-slate-500">Package Cash (range)</p>
+        <div className="bg-slate-50 rounded-xl p-3 text-center" title="Package purchases paid for in this range -- collected up front, only recognized above as sessions get scheduled. See Catalog → Purchases for unscheduled balance.">
+          <p className="text-[11px] text-slate-500">Package cash collected</p>
           <p className="text-base font-bold text-slate-900">{formatInr(packageRevenuePaise)}</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">Bookings (range)</p>
+          <p className="text-[11px] text-slate-500">Bookings</p>
           <p className="text-base font-bold text-slate-900">{totalBookings}</p>
         </div>
+      </div>
+      )}
+
+      {view === "performance" && (
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="bg-slate-50 rounded-xl p-3 text-center">
           <p className="text-[11px] text-slate-500">No-Show Rate</p>
           <p className="text-base font-bold text-slate-900">
@@ -997,7 +1029,10 @@ export default function AdminMetricsTab({
           <p className="text-[10px] text-slate-400">all-time, not date-filtered</p>
         </div>
       </div>
+      )}
 
+      {view === "summary" && (
+      <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-4">Revenue Trend</h2>
         <TrendBarChart buckets={buckets} values={revenueByBucket} formatValue={(v) => formatInr(v * 100)} />
@@ -1033,11 +1068,14 @@ export default function AdminMetricsTab({
             {formatInr(money.excludedRevenuePaise)} excluded from this breakdown — therapist not
             assigned, their revenue share isn&apos;t set yet, or (for a hospital-referred patient)
             the referring hospital&apos;s revenue share isn&apos;t set yet, so no split is
-            knowable. Still counted in the &quot;Revenue (range)&quot; stat above.
+            knowable. Still counted in the &quot;Recognised revenue&quot; stat above.
           </p>
         )}
       </div>
+      </>
+      )}
 
+      {view === "performance" && (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-1">Therapist Utilization</h2>
         <p className="text-[11px] text-slate-400 mb-4">
@@ -1063,6 +1101,7 @@ export default function AdminMetricsTab({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

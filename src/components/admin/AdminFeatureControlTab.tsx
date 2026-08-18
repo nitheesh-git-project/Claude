@@ -29,10 +29,17 @@ export default function AdminFeatureControlTab({
   settings,
   syncIssues,
   adminEmail,
+  view,
 }: {
   settings: AdminSettings;
   syncIssues: GoogleMeetSyncIssue[];
   adminEmail: string;
+  // Which slice of this component to render. It used to be one "Feature
+  // Control" tab holding three unrelated jobs at once: the rules that govern
+  // booking, the health of the Calendar sync, and the admin's own password.
+  // Splitting the render (rather than the file) keeps the save handlers and
+  // their optimistic/error state in one place.
+  view: "booking" | "health" | "security";
 }) {
   const router = useRouter();
 
@@ -59,6 +66,24 @@ export default function AdminFeatureControlTab({
   const [joinWindowAfterError, setJoinWindowAfterError] = useState<string | null>(null);
   const [joinWindowAfterSaved, setJoinWindowAfterSaved] = useState(false);
 
+  // The online twins of the two home-visit rules that were already settings.
+  // Both used to be constants in bookingSlots.ts / pricing.ts, so changing
+  // the online refund window needed a deploy while the home-visit one was a
+  // text box.
+  const [leadTimeInput, setLeadTimeInput] = useState(
+    String(settings.onlineBookingLeadTimeHours)
+  );
+  const [isLeadTimePending, startLeadTimeTransition] = useTransition();
+  const [leadTimeError, setLeadTimeError] = useState<string | null>(null);
+  const [leadTimeSaved, setLeadTimeSaved] = useState(false);
+
+  const [refundHoursInput, setRefundHoursInput] = useState(
+    String(settings.onlineCancellationRefundHours)
+  );
+  const [isRefundHoursPending, startRefundHoursTransition] = useTransition();
+  const [refundHoursError, setRefundHoursError] = useState<string | null>(null);
+  const [refundHoursSaved, setRefundHoursSaved] = useState(false);
+
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
 
@@ -74,6 +99,38 @@ export default function AdminFeatureControlTab({
         router.refresh();
       } catch (e) {
         setTimeoutError(e instanceof Error ? e.message : "Could not save. Please try again.");
+      }
+    });
+  }
+
+  function handleSaveLeadTime() {
+    const hours = Math.max(0, Math.floor(Number(leadTimeInput) || 0));
+    setLeadTimeError(null);
+    setLeadTimeSaved(false);
+    startLeadTimeTransition(async () => {
+      try {
+        await saveSetting("online_booking_lead_time_hours", hours);
+        setLeadTimeInput(String(hours));
+        setLeadTimeSaved(true);
+        router.refresh();
+      } catch (e) {
+        setLeadTimeError(e instanceof Error ? e.message : "Could not save. Please try again.");
+      }
+    });
+  }
+
+  function handleSaveRefundHours() {
+    const hours = Math.max(0, Math.floor(Number(refundHoursInput) || 0));
+    setRefundHoursError(null);
+    setRefundHoursSaved(false);
+    startRefundHoursTransition(async () => {
+      try {
+        await saveSetting("online_cancellation_refund_hours", hours);
+        setRefundHoursInput(String(hours));
+        setRefundHoursSaved(true);
+        router.refresh();
+      } catch (e) {
+        setRefundHoursError(e instanceof Error ? e.message : "Could not save. Please try again.");
       }
     });
   }
@@ -152,24 +209,96 @@ export default function AdminFeatureControlTab({
     }
   }
 
+  if (view === "security") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="font-bold text-lg text-slate-900">Account Security</h2>
+          <p className="text-xs text-slate-500 mt-1">Reset your own admin password by email.</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <AccountSecuritySection email={adminEmail} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {view === "booking" && (
+      <>
       <div>
-        <h2 className="font-bold text-lg text-slate-900">Account Security</h2>
+        <h2 className="font-bold text-lg text-slate-900">Platform Rules</h2>
         <p className="text-xs text-slate-500 mt-1">
-          Reset your own admin password by email.
+          Applied everywhere immediately.
         </p>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <AccountSecuritySection email={adminEmail} />
+        <h3 className="font-bold text-sm text-slate-800">Online Booking Lead Time</h3>
+        <p className="text-xs text-slate-500 mt-1 max-w-md">
+          How far ahead an online session must be booked. The booking picker and the
+          server-side check both read this one value, so they can&apos;t disagree. Home visits
+          have their own, longer lead time below — a therapist has to physically travel.
+        </p>
+        <div className="flex items-center gap-2 mt-3">
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={leadTimeInput}
+            onChange={(e) => {
+              setLeadTimeInput(e.target.value);
+              setLeadTimeSaved(false);
+            }}
+            className="w-24 text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
+          />
+          <span className="text-xs text-slate-500">hours</span>
+          <button
+            onClick={handleSaveLeadTime}
+            disabled={isLeadTimePending}
+            className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
+          >
+            {isLeadTimePending ? "Saving..." : "Save"}
+          </button>
+          {leadTimeSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
+        </div>
+        {leadTimeError && <p className="text-[11px] text-red-600 mt-2">{leadTimeError}</p>}
       </div>
 
-      <div>
-        <h2 className="font-bold text-lg text-slate-900">Feature Control</h2>
-        <p className="text-xs text-slate-500 mt-1">
-          Platform-wide toggles and settings, applied everywhere immediately.
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h3 className="font-bold text-sm text-slate-800">Online Cancellation Refund Window</h3>
+        <p className="text-xs text-slate-500 mt-1 max-w-md">
+          Cancel an online session more than this many hours before it starts and the patient is
+          refunded in full; inside the window, nothing is refunded. Set to 0 to refund nothing
+          ever. An admin can still return any amount case by case from a session&apos;s own
+          record.
         </p>
+        <div className="flex items-center gap-2 mt-3">
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={refundHoursInput}
+            onChange={(e) => {
+              setRefundHoursInput(e.target.value);
+              setRefundHoursSaved(false);
+            }}
+            className="w-24 text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
+          />
+          <span className="text-xs text-slate-500">hours</span>
+          <button
+            onClick={handleSaveRefundHours}
+            disabled={isRefundHoursPending}
+            className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
+          >
+            {isRefundHoursPending ? "Saving..." : "Save"}
+          </button>
+          {refundHoursSaved && (
+            <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>
+          )}
+        </div>
+        {refundHoursError && <p className="text-[11px] text-red-600 mt-2">{refundHoursError}</p>}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -305,6 +434,10 @@ export default function AdminFeatureControlTab({
         )}
       </div>
 
+      </>
+      )}
+
+      {view === "health" && (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-sm text-slate-800">Sync Health</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
@@ -351,6 +484,7 @@ export default function AdminFeatureControlTab({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

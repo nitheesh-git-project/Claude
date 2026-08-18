@@ -5,6 +5,7 @@ import SessionDetailDrawer, {
   type SessionDetailAppointment,
   type ReassignmentLogEntry,
 } from "@/components/admin/SessionDetailDrawer";
+import type { HomeVisitRow } from "@/components/admin/HomeVisitVisitActions";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange, istDateKey } from "@/lib/formatSlotRange";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -35,18 +36,25 @@ export default function AdminCalendarTab({
   categories,
   therapists,
   reassignmentLogs,
+  homeVisits,
 }: {
   appointments: SessionDetailAppointment[];
   people: Person[];
   categories: Category[];
   therapists: { id: string; full_name: string; active?: boolean }[];
   reassignmentLogs: ReassignmentLogEntry[];
+  // Home-visit detail for the rows that have it, so a visit opened from the
+  // calendar shows the same panel (address, travel fee, cash) it shows when
+  // opened from All Sessions -- one session, one detail view, whichever
+  // screen you arrived from.
+  homeVisits: HomeVisitRow[];
 }) {
   const peopleMap = useMemo(
     () => new Map(people.map((p) => [p.id, p.full_name ?? "Unknown"])),
     [people]
   );
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  const homeVisitMap = useMemo(() => new Map(homeVisits.map((v) => [v.id, v])), [homeVisits]);
 
   const initial = todayKey();
   const [year, monthStr] = initial.split("-");
@@ -264,6 +272,7 @@ export default function AdminCalendarTab({
           therapists={therapists}
           categories={categories}
           reassignmentLogs={reassignmentLogs}
+          homeVisit={homeVisitMap.get(selectedAppointment.id) ?? null}
           onClose={() => setSelectedAppointment(null)}
         />
       )}

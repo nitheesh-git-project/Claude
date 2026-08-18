@@ -3080,3 +3080,141 @@ create policy "appointments_insert_own" on appointments
       where id = auth.uid() and active = true
     )
   );
+
+-- ==========================================================================
+-- Admin back office: scopes, activity log, and online booking rules
+-- ==========================================================================
+-- Three gaps this closes, all of them "the admin cannot actually control
+-- this from the dashboard":
+--   1. admin was all-or-nothing, and the only way to make one was editing
+--      this database by hand -- so an ops assistant who needed to see
+--      bookings also got the ability to settle payouts;
+--   2. nothing recorded which admin issued a refund, settled a payout or
+--      approved an account;
+--   3. the online booking lead time and cancellation refund window were
+--      constants in the code (bookingSlots.ts / pricing.ts) while their
+--      home-visit equivalents were already admin settings -- the same
+--      decision at two different levels of control.
+
+-- --------------------------------------------------------------------------
+-- profiles.admin_scope
+-- --------------------------------------------------------------------------
+-- Only meaningful on role = 'admin'. Deliberately defaulted to 'full' so
+-- applying this file can never lock an existing admin out of their own
+-- dashboard -- see parseAdminScope in src/lib/adminScope.ts, which reads any
+-- unknown/null value the same way for the same reason.
+alter table profiles add column if not exists admin_scope text not null default 'full';
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'profiles_admin_scope_check'
+  ) then
+    alter table profiles add constraint profiles_admin_scope_check
+      check (admin_scope in ('full', 'operations', 'finance', 'clinical'));
+  end if;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- admin_activity_log
+-- --------------------------------------------------------------------------
+-- Append-only record of what an admin did. Written by
+-- recordAdminActivity() (src/lib/adminActivityLog.ts) through the service
+-- role client, best-effort: a failed audit write is logged server-side and
+-- never blocks the action it describes.
+--
+-- amount_paise is its own column rather than a key inside `details` so the
+-- Activity Log screen can filter to "everything that moved money" without
+-- parsing json. target_label snapshots the human-readable subject at write
+-- time, so an entry stays readable after the row it points at is renamed or
+-- deleted.
+create table if not exists admin_activity_log (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid not null references profiles(id),
+  action text not null,
+  target_id uuid,
+  target_label text,
+  amount_paise integer,
+  details jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists admin_activity_log_created_at_idx
+  on admin_activity_log (created_at desc);
+create index if not exists admin_activity_log_actor_idx
+  on admin_activity_log (actor_id, created_at desc);
+
+alter table admin_activity_log enable row level security;
+
+-- Admins read; nobody writes, updates or deletes through the API at all.
+-- Inserts happen exclusively through the service-role client, which bypasses
+-- RLS -- so the absence of an insert policy here is the thing that makes
+-- this log append-only from any authenticated session, including an admin's.
+drop policy if exists "admin_activity_log_select_admin" on admin_activity_log;
+create policy "admin_activity_log_select_admin" on admin_activity_log
+  for select using (
+    exists (
+      select 1 from public.profiles
+      where id = auth.uid() and role = 'admin'
+    )
+  );
+
+do $$
+begin
+  alter publication supabase_realtime add table admin_activity_log;
+exception when duplicate_object then null;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- site_settings: online booking rules
+-- --------------------------------------------------------------------------
+-- The defaults match the constants these replace exactly
+-- (BOOKING_LEAD_TIME_HOURS = 12, CANCELLATION_FULL_REFUND_HOURS = 24), so
+-- applying this file changes no behaviour until an admin edits them.
+alter table site_settings add column if not exists online_booking_lead_time_hours integer not null default 12
+  check (online_booking_lead_time_hours >= 0);
+alter table site_settings add column if not exists online_cancellation_refund_hours integer not null default 24
+  check (online_cancellation_refund_hours >= 0);
+
+-- --------------------------------------------------------------------------
+-- appointments: partial / discretionary refunds
+-- --------------------------------------------------------------------------
+-- The automatic rule is unchanged: full refund outside the window, none
+-- inside it. This adds the case that rule can't express -- an admin
+-- deciding, per case, to return part of what was paid. refund_amount_paise
+-- already records how much went back; these two record that a human chose
+-- it and why, which is exactly what the automatic path does not need and a
+-- discretionary one must have.
+alter table appointments add column if not exists refund_is_manual boolean not null default false;
+alter table appointments add column if not exists refund_reason text;
+
+-- --------------------------------------------------------------------------
+-- appointments: one therapist, one slot
+-- --------------------------------------------------------------------------
+-- Every booking path checks findTherapistConflict() before inserting, which
+-- is correct but not atomic: two requests can both pass the check before
+-- either row lands. A double-clicked admin booking form produced two real
+-- appointments for the same therapist and slot this way (caught by the
+-- concurrency spec, not by review).
+--
+-- This makes the database the arbiter instead. Partial, so it only binds
+-- assigned, live sessions: an unassigned session has no therapist to
+-- double-book, and a cancelled one has given its slot back. It catches the
+-- exact-duplicate case the application check races on; genuinely overlapping
+-- (not identical) start times are still the application check's job, since
+-- SQL can't express "overlaps by duration" as a unique index.
+create unique index if not exists appointments_one_therapist_per_slot
+  on appointments (therapist_id, slot_time)
+  where therapist_id is not null
+    and slot_time is not null
+    and status <> 'cancelled';
+
+-- hospital_admin_notes is read by the admin dashboard (the partner list's
+-- temporary-password panel) but was never published, so a second admin
+-- resetting a partner's password left the first admin's open dashboard
+-- showing the old one until a manual reload. Every other table that page
+-- reads is published; this was the one omission.
+do $$
+begin
+  alter publication supabase_realtime add table hospital_admin_notes;
+exception when duplicate_object then null;
+end $$;
