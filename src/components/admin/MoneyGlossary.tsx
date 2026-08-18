@@ -37,9 +37,14 @@ const ENTRIES: { term: string; meaning: string }[] = [
       "Earned by therapists on delivered sessions and not yet transferred. This is a debt, not a cost — it will become Paid to Therapists.",
   },
   {
-    term: "Package Cash",
+    term: "Recognised revenue",
     meaning:
-      "The full price of package purchases paid up front. It is NOT counted in Revenue, which recognises a package one session at a time as those sessions get scheduled. Both numbers are real; they answer 'what came into the bank' and 'what have we earned so far'.",
+      "What has been earned so far: a paid session counts when it is scheduled. A package is recognised one session at a time, not all at once when it is bought.",
+  },
+  {
+    term: "Package cash collected",
+    meaning:
+      "The full price of package purchases paid up front — what came into the bank. Deliberately not added to recognised revenue, which counts the same money gradually as sessions get scheduled. Both figures are real; they answer different questions.",
   },
   {
     term: "Travel fee",
@@ -76,8 +81,7 @@ export default function MoneyGlossary() {
       </summary>
       <div className="border-t border-slate-100 px-6 py-4">
         <p className="mb-4 text-xs text-slate-500">
-          Several figures on these screens use the same word for different questions. This is
-          which is which.
+          One word, one meaning. Where two figures sound alike, this says what separates them.
         </p>
         <dl className="space-y-3">
           {ENTRIES.map((e) => (

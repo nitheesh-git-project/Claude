@@ -35,7 +35,13 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     label: "Today",
     icon: "fa-inbox",
     blurb: "Everything waiting on you, in one list.",
-    tabs: [{ key: "inbox", label: "Action Inbox" }],
+    tabs: [
+      { key: "inbox", label: "Action Inbox" },
+      // The inbox counts what is waiting; this is where that work is done.
+      // Approvals used to sit on the patients directory, which made one
+      // screen do three jobs -- a queue is not a person.
+      { key: "approvals", label: "Approvals" },
+    ],
   },
   {
     key: "sessions",

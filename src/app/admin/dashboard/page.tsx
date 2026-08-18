@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import DeclineAccountButton from "@/components/admin/DeclineAccountButton";
-import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
 import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
 import AssignReferralForm from "@/components/admin/AssignReferralForm";
 import AdminShell, { type AdminScreens } from "@/components/admin/AdminShell";
@@ -51,11 +50,10 @@ import AdminFeatureControlTab from "@/components/admin/AdminFeatureControlTab";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
-import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
-import JoinSessionButton from "@/components/JoinSessionButton";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
@@ -428,11 +426,16 @@ export default async function AdminDashboardPage() {
     // Activity log -- brand-new table, so an unknown-table error here empties
     // only this one screen. Capped rather than unbounded: this table grows
     // forever by design, and the screen filters within what it loads.
+    //
+    // 200 rather than 500 because every row carries a jsonb `details` blob
+    // and this is the largest payload on a page that loads all six sections
+    // at once, for a screen almost nobody opens on a given day. Older
+    // entries are still in the table; this is what the screen shows.
     admin
       .from("admin_activity_log")
       .select("id, actor_id, action, target_label, amount_paise, details, created_at")
       .order("created_at", { ascending: false })
-      .limit(500),
+      .limit(200),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -510,7 +513,6 @@ export default async function AdminDashboardPage() {
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 
-  const categoryMap = new Map((treatmentCategories ?? []).map((c) => [c.id, c]));
 
   // Revenue rollup per hospital: every paid session belonging to a patient
   // this hospital referred (either channel — invite-link or self-serve
@@ -592,10 +594,12 @@ export default async function AdminDashboardPage() {
     categoryStats.set(p.category_id, entry);
   }
 
-  // What used to be the "Overview" tab's own content (pending approvals +
-  // All Bookings) -- now shown under the "Approval & Bookings" tab instead,
-  // since "Overview" itself is now the Metrics at-a-glance dashboard.
-  const approvalBookingsTab = (
+  // The two queues that wait on a human decision: new signups, and requests
+  // to change a profile. This used to carry a third card, a full "All
+  // Bookings" list -- one of the four duplicate session lists the
+  // reorganisation exists to remove. Sessions live in Sessions -> All
+  // Sessions now, and nowhere else.
+  const approvalsTab = (
     <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
@@ -719,110 +723,6 @@ export default async function AdminDashboardPage() {
         )}
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">All Bookings</h2>
-        {appointmentsError ? (
-          <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
-            Couldn&apos;t load bookings right now — this usually means the database
-            schema is out of date. Try re-running supabase/schema.sql, then
-            refresh this page. (Calendar, Session Story, and Metrics are
-            affected too, since they share this same data.)
-          </p>
-        ) : appointmentsWithSessionCode.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">
-            No bookings yet.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {appointmentsWithSessionCode.map((a) => {
-              const patient = profileMap.get(a.patient_id);
-              const therapist = a.therapist_id
-                ? profileMap.get(a.therapist_id)
-                : null;
-              const category = a.category_id ? categoryMap.get(a.category_id) : null;
-              const feePaise = a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE;
-              const durationMinutes = a.duration_minutes ?? category?.duration_minutes ?? BASE_DURATION_MINUTES;
-              return (
-                <li
-                  key={a.id}
-                  className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
-                >
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-3">
-                      <AvatarThumbnail
-                        url={patient?.avatar_url}
-                        name={patient?.full_name ?? "P"}
-                        size={32}
-                      />
-                      <div>
-                        <p className="font-bold text-slate-900">
-                          {patient?.full_name ?? "Unknown patient"}
-                          {roleCodeMap.get(a.patient_id)?.patient_code && (
-                            <span className="ml-2 font-mono font-normal text-slate-400">
-                              {roleCodeMap.get(a.patient_id)?.patient_code}
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-slate-500">{patient?.email}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
-                        {a.status}
-                      </span>
-                      <span
-                        className={`capitalize font-semibold px-3 py-1 rounded-full ${
-                          a.payment_status === "paid"
-                            ? "text-green-700 bg-green-50"
-                            : "text-slate-500 bg-slate-100"
-                        }`}
-                      >
-                        {a.payment_status}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-slate-600">
-                    <strong>{a.concern}</strong> —{" "}
-                    {formatSlotTime(a.slot_time, a.timezone)} • {durationMinutes} min
-                    {a.session_code && (
-                      <span className="ml-2 font-mono text-slate-400">{a.session_code}</span>
-                    )}
-                  </p>
-                  <p className="text-slate-500">
-                    Fee: <strong>₹{(feePaise / 100).toLocaleString("en-IN")}</strong>
-                    {a.payment_status !== "paid" && (
-                      <span className="text-slate-400"> (estimated)</span>
-                    )}
-                  </p>
-                  {a.notes && (
-                    <p className="text-slate-500">
-                      <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
-                    </p>
-                  )}
-                  {therapist ? (
-                    <p className="text-slate-500">
-                      Assigned to: <strong>{therapist.full_name}</strong>
-                    </p>
-                  ) : (
-                    <AssignTherapistForm
-                      appointmentId={a.id}
-                      therapists={activeApprovedTherapists}
-                      preferredTherapistId={a.preferred_therapist_id}
-                    />
-                  )}
-                  <JoinSessionButton
-                    meetLink={a.meet_link}
-                    slotTime={a.slot_time}
-                    status={a.status}
-                    durationMinutes={durationMinutes}
-                    alwaysActive
-                  />
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
     </>
   );
 
@@ -1426,13 +1326,13 @@ export default async function AdminDashboardPage() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-400">Revenue</p>
+                      <p className="text-slate-400">Recognised revenue</p>
                       <p className="font-bold text-teal-700">
                         ₹{stats.totalRevenue.toLocaleString("en-IN")}
                       </p>
                     </div>
                     <div title="Package purchases paid for under this category, collected up front -- Revenue to the left already recognizes its share one session at a time as those sessions get scheduled.">
-                      <p className="text-slate-400">Package Cash</p>
+                      <p className="text-slate-400">Package cash collected</p>
                       <p className="font-bold text-teal-700">
                         ₹{stats.packageCashCollected.toLocaleString("en-IN")}
                       </p>
@@ -1905,15 +1805,15 @@ export default async function AdminDashboardPage() {
         {
           label: "Accounts waiting to be approved",
           count: pendingAccounts?.length ?? 0,
-          section: "people",
-          tab: "patients",
+          section: "today",
+          tab: "approvals",
           hint: "Patients and therapists who signed up themselves.",
         },
         {
           label: "Profile change requests",
           count: pendingProfileChanges?.length ?? 0,
-          section: "people",
-          tab: "patients",
+          section: "today",
+          tab: "approvals",
           hint: "Someone wants a detail on their profile changed.",
         },
       ],
@@ -2102,13 +2002,13 @@ export default async function AdminDashboardPage() {
   // them. The shell only decides which key is visible.
   const screens: AdminScreens = {
     "today:inbox": todayTab,
+    "today:approvals": approvalsTab,
     "sessions:schedule": calendarTab,
     "sessions:all": allSessionsTab,
     "sessions:roster": rosterTab,
     "sessions:new": newBookingTab,
     "people:patients": (
       <div className="space-y-8">
-        {approvalBookingsTab}
         {patientsTab}
         {conditionsTab}
       </div>
@@ -2147,8 +2047,8 @@ export default async function AdminDashboardPage() {
       0
     ),
     "sessions:all": unassignedTotal,
-    "people:patients":
-      (pendingAccounts?.length ?? 0) + (pendingProfileChanges?.length ?? 0) + conditionsBadgeCount,
+    "today:approvals": (pendingAccounts?.length ?? 0) + (pendingProfileChanges?.length ?? 0),
+    "people:patients": conditionsBadgeCount,
     "people:partners": b2bBadgeCount,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,
     "catalog:areas": homeVisitWaitlist?.filter((w) => w.status === "new").length ?? 0,

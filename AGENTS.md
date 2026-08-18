@@ -269,7 +269,20 @@ client is the only writer and the log is append-only from any session.
   (`AdminAllSessionsTab`) plus the calendar, both opening the same
   `SessionDetailDrawer`. Home-visit specifics (address, travel fee, cash)
   are a panel inside that drawer, not a parallel screen. If you find
-  yourself building a second list of sessions, add a filter instead.
+  yourself building a second list of sessions, add a filter instead. All
+  Sessions remembers its filters per browser (not the date range, which goes
+  stale) and paints at most 200 rows before offering "Show all" -- the page
+  server-renders every screen at once, so an unbounded table is HTML every
+  admin downloads whether they open that screen or not.
+- **Approvals are a queue, not a person.** Pending signups and profile
+  change requests live under Today, beside the inbox that counts them, not
+  on the patients directory.
+- **One word, one money figure.** "Recognised revenue" is what has been
+  earned (a package counts one session at a time); "Package cash collected"
+  is what came into the bank up front. Gross/Net Revenue keep their standard
+  meanings. `MoneyGlossary` states each one on the Money screens -- if a new
+  figure needs a word that is already taken, rename the figure, don't
+  overload the word.
 - **Admin-configurable behavior** (Meet on/off, join window, idle timeout,
   booking languages, the online booking lead time and cancellation refund
   window, the package-wide settings — visibility, default

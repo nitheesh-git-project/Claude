@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAdminContext } from "@/lib/supabase/requireAdmin";
+import { scopeCanOpen } from "@/lib/adminScope";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import TherapistActiveToggle from "@/components/admin/TherapistActiveToggle";
@@ -29,6 +31,15 @@ import { JoinWindowProvider } from "@/lib/joinWindowContext";
 // overlays it on top of the dashboard for in-portal soft navigation -- see
 // Bug 10 and PatientDetailContent's identical rationale.
 export default async function TherapistDetailContent({ id }: { id: string }) {
+  // A person's page carries money -- what they paid, what we made on them,
+  // what we owe them. The Money *section* is hidden from scopes that
+  // shouldn't see it, but this page is reachable from People, which every
+  // scope can open, so hiding the section alone would leave the numbers one
+  // click away. Decided here, next to the data, rather than trusted from a
+  // prop.
+  const viewer = await getAdminContext();
+  const canSeeMoney = viewer !== null && scopeCanOpen(viewer.scope, "money");
+
   const admin = createAdminClient();
 
   // Independent of each other -- run in parallel instead of one at a time.
@@ -297,6 +308,8 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           </div>
         </div>
 
+        {/* Same rule as the Money section -- see canSeeMoney above. */}
+        {canSeeMoney && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-bold text-sm text-slate-800 mb-3">Revenue Share</h2>
           <TherapistRevenueShareForm
@@ -309,6 +322,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             <TherapistNotesForm therapistId={therapist.id} currentNote={note?.note ?? ""} />
           </div>
         </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
@@ -376,6 +390,8 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
         />
       </div>
 
+      {/* Same rule as the Money section -- see canSeeMoney above. */}
+      {canSeeMoney && (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
           <div>
@@ -457,6 +473,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           </ul>
         )}
       </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-sm text-slate-800 mb-3">Profile Change Request History</h2>

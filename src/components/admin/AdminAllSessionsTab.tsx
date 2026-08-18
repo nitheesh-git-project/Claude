@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import SessionDetailDrawer, {
   type SessionDetailAppointment,
   type ReassignmentLogEntry,
@@ -82,6 +82,25 @@ function SortHeader({
   );
 }
 
+const FILTER_STORAGE_KEY = "admin.allSessions.filters";
+
+// How many rows are put into the DOM before the admin asks for the rest.
+// The dashboard server-renders every screen at once, so an unbounded table
+// here is HTML every admin downloads on every load whether they open this
+// screen or not -- and it is the largest table on the page. Filtering, sort
+// and CSV export all still run over the full set; this bounds only what is
+// painted.
+const INITIAL_ROW_LIMIT = 200;
+
+type SavedFilters = {
+  sessionCode: string;
+  mode: "all" | "online" | "home_visit";
+  status: string;
+  payment: string;
+  therapist: string;
+  patient: string;
+};
+
 function selectCls() {
   return "p-2 rounded-lg border border-slate-300 text-xs bg-white";
 }
@@ -110,6 +129,12 @@ export default function AdminAllSessionsTab({
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const homeVisitMap = useMemo(() => new Map(homeVisits.map((v) => [v.id, v])), [homeVisits]);
 
+  // Eight filters that an admin re-sets on every visit is eight small
+  // annoyances a day. They are remembered in this browser and restored after
+  // mount -- deliberately not in the URL, which belongs to "which screen am
+  // I on", and deliberately not on the server, since this is a preference,
+  // not data. Restored in an effect rather than in useState's initialiser so
+  // the server-rendered HTML and the first client render still match.
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [sessionCodeFilter, setSessionCodeFilter] = useState("");
@@ -118,6 +143,61 @@ export default function AdminAllSessionsTab({
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [therapistFilter, setTherapistFilter] = useState("all");
   const [patientFilter, setPatientFilter] = useState("all");
+  // Restored from the browser's own store on the first client render. Not in
+  // a useState initialiser, which also runs on the server where there is no
+  // window; not in an effect, which would set state after paint and flash the
+  // unfiltered list first. `filtersRestored` gates the save below so the
+  // restore itself can't immediately overwrite what it just read.
+  const [filtersRestored, setFiltersRestored] = useState(false);
+  if (!filtersRestored && typeof window !== "undefined") {
+    let restored: Partial<SavedFilters> = {};
+    try {
+      const saved = window.localStorage.getItem(FILTER_STORAGE_KEY);
+      if (saved) restored = JSON.parse(saved) as Partial<SavedFilters>;
+    } catch {
+      // A corrupt or unavailable store is not worth a broken screen.
+    }
+    // A date range is deliberately not restored: "last week" saved on Friday
+    // is the wrong week on Monday, and a stale range that hides today's
+    // sessions looks like missing data.
+    if (typeof restored.sessionCode === "string") setSessionCodeFilter(restored.sessionCode);
+    if (restored.mode === "all" || restored.mode === "online" || restored.mode === "home_visit") {
+      setModeFilter(restored.mode);
+    }
+    if (typeof restored.status === "string") setStatusFilter(restored.status);
+    if (typeof restored.payment === "string") setPaymentFilter(restored.payment);
+    if (typeof restored.therapist === "string") setTherapistFilter(restored.therapist);
+    if (typeof restored.patient === "string") setPatientFilter(restored.patient);
+    setFiltersRestored(true);
+  }
+
+  useEffect(() => {
+    if (!filtersRestored) return;
+    try {
+      window.localStorage.setItem(
+        FILTER_STORAGE_KEY,
+        JSON.stringify({
+          sessionCode: sessionCodeFilter,
+          mode: modeFilter,
+          status: statusFilter,
+          payment: paymentFilter,
+          therapist: therapistFilter,
+          patient: patientFilter,
+        } satisfies SavedFilters)
+      );
+    } catch {
+      // Same as above -- saving a preference must never break the list.
+    }
+  }, [
+    filtersRestored,
+    sessionCodeFilter,
+    modeFilter,
+    statusFilter,
+    paymentFilter,
+    therapistFilter,
+    patientFilter,
+  ]);
+  const [showAllRows, setShowAllRows] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -217,6 +297,8 @@ export default function AdminAllSessionsTab({
     sortKey,
     sortDir,
   ]);
+
+  const visibleRows = showAllRows ? rows : rows.slice(0, INITIAL_ROW_LIMIT);
 
   // The drawer reads from the live prop rather than from a snapshot taken
   // when the row was clicked, so an edit made inside it (or by another admin)
@@ -385,6 +467,9 @@ export default function AdminAllSessionsTab({
           )}
         </div>
         <p className="mt-2 text-[11px] text-slate-400">
+          {filtersActive
+            ? "These filters are remembered on this device — clear them to see everything."
+            : "Filters are remembered on this device, except the date range."}{" "}
           Unpaid is normal for a cash-on-visit home visit — money changes hands at the door,
           so check the visit itself rather than reading payment status as “never paid”.
         </p>
@@ -417,14 +502,14 @@ export default function AdminAllSessionsTab({
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {visibleRows.length === 0 ? (
               <tr>
                 <td colSpan={13} className="py-6 text-center text-slate-400">
                   No sessions match these filters.
                 </td>
               </tr>
             ) : (
-              rows.map(({ a, patientName, therapistName, categoryTitle, price, isVisit }) => (
+              visibleRows.map(({ a, patientName, therapistName, categoryTitle, price, isVisit }) => (
                 <tr
                   key={a.id}
                   onClick={() => setSelectedId(a.id)}
@@ -518,6 +603,20 @@ export default function AdminAllSessionsTab({
           </tbody>
         </table>
       </div>
+
+      {rows.length > visibleRows.length && (
+        <div className="mt-4 flex items-center justify-center gap-3 text-xs">
+          <span className="text-slate-500">
+            Showing the first {visibleRows.length} of {rows.length} matching sessions.
+          </span>
+          <button
+            onClick={() => setShowAllRows(true)}
+            className="font-semibold text-teal-700 hover:underline"
+          >
+            Show all
+          </button>
+        </div>
+      )}
 
       {selected && (
         <SessionDetailDrawer

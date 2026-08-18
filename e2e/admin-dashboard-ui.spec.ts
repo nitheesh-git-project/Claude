@@ -166,6 +166,54 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
     }
   });
 
+  test("approvals are their own screen, and the patients screen is a directory", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE}/admin/dashboard?section=today&tab=approvals`);
+    await expect(page.getByRole("heading", { name: "Pending Approvals" })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByRole("heading", { name: "Profile Change Requests" })).toBeVisible();
+    // The duplicate session list that used to sit under the approvals is
+    // gone -- sessions live in Sessions, and nowhere else.
+    await expect(page.getByRole("heading", { name: "All Bookings" })).toHaveCount(0);
+
+    await page.goto(`${BASE}/admin/dashboard?section=people&tab=patients`);
+    await expect(page.getByRole("heading", { level: 2, name: /^Patients/ })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Pending Approvals" }).filter({ visible: true })
+    ).toHaveCount(0);
+  });
+
+  test("All Sessions remembers its filters and bounds what it paints", async ({ page }) => {
+    await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all`);
+    await expect(page.getByRole("heading", { level: 2, name: /^All Sessions/ })).toBeVisible();
+
+    await page.getByRole("combobox").filter({ hasText: /Any mode/ }).selectOption("home_visit");
+    await page.waitForTimeout(500);
+
+    // A reload is the test: a filter an admin has to re-set on every visit is
+    // the friction this removes.
+    await page.reload();
+    await expect(page.getByRole("heading", { level: 2, name: /^All Sessions/ })).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(
+      page.getByRole("combobox").filter({ hasText: /Home visit/ }).first()
+    ).toHaveValue("home_visit");
+
+    // Clearing puts it back, and the cleared state is what persists next.
+    await page.getByRole("button", { name: "Clear filters" }).click();
+    await page.reload();
+    await expect(page.getByRole("combobox").filter({ hasText: /Any mode/ }).first()).toHaveValue(
+      "all"
+    );
+
+    // Never more rows in the DOM than the cap, however many match.
+    const painted = await page.getByRole("row").count();
+    expect(painted).toBeLessThanOrEqual(201 + 1);
+  });
+
   test("Today's inbox links land on a screen that can act on them", async ({ page }) => {
     await page.goto(`${BASE}/admin/dashboard?section=today&tab=inbox`);
     await expect(page.getByText("Waiting on you", { exact: true })).toBeVisible();

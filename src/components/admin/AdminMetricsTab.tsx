@@ -987,15 +987,15 @@ export default function AdminMetricsTab({
       {view === "summary" && (
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">Revenue (range)</p>
+          <p className="text-[11px] text-slate-500">Recognised revenue</p>
           <p className="text-base font-bold text-slate-900">{formatInr(totalRevenuePaise)}</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3 text-center" title="Package purchases paid for in this range -- collected up front, only recognized above as sessions get scheduled. See Catalog → Purchases for unscheduled balance.">
-          <p className="text-[11px] text-slate-500">Package Cash (range)</p>
+          <p className="text-[11px] text-slate-500">Package cash collected</p>
           <p className="text-base font-bold text-slate-900">{formatInr(packageRevenuePaise)}</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">Bookings (range)</p>
+          <p className="text-[11px] text-slate-500">Bookings</p>
           <p className="text-base font-bold text-slate-900">{totalBookings}</p>
         </div>
       </div>
@@ -1068,7 +1068,7 @@ export default function AdminMetricsTab({
             {formatInr(money.excludedRevenuePaise)} excluded from this breakdown — therapist not
             assigned, their revenue share isn&apos;t set yet, or (for a hospital-referred patient)
             the referring hospital&apos;s revenue share isn&apos;t set yet, so no split is
-            knowable. Still counted in the &quot;Revenue (range)&quot; stat above.
+            knowable. Still counted in the &quot;Recognised revenue&quot; stat above.
           </p>
         )}
       </div>

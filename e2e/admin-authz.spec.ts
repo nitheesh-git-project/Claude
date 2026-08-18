@@ -8,7 +8,14 @@
 import { test, expect } from "@playwright/test";
 import { readdirSync } from "node:fs";
 import path from "node:path";
-import { BASE, QA_EMAILS, adminClient, cookieHeaderFor, profileIdFor } from "./helpers";
+import {
+  BASE,
+  QA_EMAILS,
+  adminClient,
+  browserCookiesFor,
+  cookieHeaderFor,
+  profileIdFor,
+} from "./helpers";
 
 const ADMIN_ROUTES_DIR = path.resolve(__dirname, "../src/app/api/admin");
 
@@ -110,6 +117,51 @@ test.describe("Suite F: admin route authorization", () => {
       // Explicitly back to full, not back to whatever was read a moment ago:
       // if a previous interrupted run left this narrowed, restoring "what it
       // was" would make the narrowing permanent for every later spec.
+      await admin.from("profiles").update({ admin_scope: "full" }).eq("id", adminId);
+    }
+  });
+
+  test("F-005: a scope that cannot open Money cannot read money on a person's page", async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000);
+    const admin = adminClient();
+    const adminId = await profileIdFor(admin, QA_EMAILS.admin);
+    const patientId = await profileIdFor(admin, QA_EMAILS.patientA);
+    const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
+
+    const context = await browser.newContext();
+    try {
+      await admin.from("profiles").update({ admin_scope: "clinical" }).eq("id", adminId);
+      await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+      const page = await context.newPage();
+
+      // People is open to a clinical scope, so the person pages are
+      // reachable -- which is exactly why hiding the Money section alone
+      // would not be enough.
+      await page.goto(`${BASE}/admin/dashboard/patients/${patientId}`);
+      await expect(page.getByRole("heading", { name: "Personal Details" })).toBeVisible({
+        timeout: 60_000,
+      });
+      await expect(page.getByRole("heading", { name: "Payment History" })).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: "Profit Breakdown" })).toHaveCount(0);
+
+      await page.goto(`${BASE}/admin/dashboard/therapists/${therapistId}`);
+      await expect(page.getByRole("heading", { name: "Contact Info" })).toBeVisible({
+        timeout: 60_000,
+      });
+      await expect(page.getByRole("heading", { name: "Revenue Share" })).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: "Payout History" })).toHaveCount(0);
+
+      // ...and a full admin still sees all of it, so this isn't just hiding
+      // the panels from everyone.
+      await admin.from("profiles").update({ admin_scope: "full" }).eq("id", adminId);
+      await page.goto(`${BASE}/admin/dashboard/patients/${patientId}`);
+      await expect(page.getByRole("heading", { name: "Payment History" })).toBeVisible({
+        timeout: 60_000,
+      });
+    } finally {
+      await context.close();
       await admin.from("profiles").update({ admin_scope: "full" }).eq("id", adminId);
     }
   });
