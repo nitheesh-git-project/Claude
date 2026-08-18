@@ -85,11 +85,6 @@ test.describe("Suite F: admin route authorization", () => {
   test("F-004: a limited scope cannot reach another section's routes", async () => {
     const admin = adminClient();
     const adminId = await profileIdFor(admin, QA_EMAILS.admin);
-    const { data: before } = await admin
-      .from("profiles")
-      .select("admin_scope")
-      .eq("id", adminId)
-      .single();
 
     try {
       // 'operations' covers sessions/people/catalog and deliberately not money.
@@ -112,10 +107,10 @@ test.describe("Suite F: admin route authorization", () => {
       });
       expect(sessionsRoute.status, "an operations admin was locked out of sessions").toBe(400);
     } finally {
-      await admin
-        .from("profiles")
-        .update({ admin_scope: before?.admin_scope ?? "full" })
-        .eq("id", adminId);
+      // Explicitly back to full, not back to whatever was read a moment ago:
+      // if a previous interrupted run left this narrowed, restoring "what it
+      // was" would make the narrowing permanent for every later spec.
+      await admin.from("profiles").update({ admin_scope: "full" }).eq("id", adminId);
     }
   });
 

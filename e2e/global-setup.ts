@@ -43,7 +43,12 @@ async function ensureUser(
 export default async function globalSetup() {
   const admin = adminClient();
 
-  await ensureUser(admin, QA_EMAILS.admin, "QA Admin", "admin");
+  const qaAdminId = await ensureUser(admin, QA_EMAILS.admin, "QA Admin", "admin");
+  // Scopes are narrowed and restored by the authorization spec. A run that
+  // was interrupted mid-test can leave the QA admin narrowed, which then
+  // hides whole sections from every later browser spec and looks like a
+  // dashboard bug. Start every run from full access instead.
+  await admin.from("profiles").update({ admin_scope: "full" }).eq("id", qaAdminId);
   await ensureUser(admin, QA_EMAILS.hospital, "QA Hospital", "hospital");
   for (const t of THERAPISTS) await ensureUser(admin, t.email, t.full_name, "therapist");
   for (const p of PATIENTS) await ensureUser(admin, p.email, p.full_name, "patient");

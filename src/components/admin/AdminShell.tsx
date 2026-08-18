@@ -43,6 +43,7 @@ const ADMIN_REALTIME_TABLES = [
   "home_visit_waitlist",
   "patient_addresses",
   "admin_activity_log",
+  "hospital_admin_notes",
 ];
 
 // Content for every screen, keyed "<section>:<tab>" -- the page builds this

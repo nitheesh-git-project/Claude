@@ -21,6 +21,15 @@ async function signInAsAdmin(page: Page) {
 }
 
 test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
+  test.beforeAll(async () => {
+    // Every test here walks all six sections, which only a full-access admin
+    // can see. Stated as a precondition so a narrowed scope fails loudly
+    // here instead of surfacing as "the Money button doesn't exist".
+    const admin = adminClient();
+    const id = await profileIdFor(admin, QA_EMAILS.admin);
+    await admin.from("profiles").update({ admin_scope: "full" }).eq("id", id);
+  });
+
   test.beforeEach(async ({ page }) => {
     test.setTimeout(120_000);
     await signInAsAdmin(page);

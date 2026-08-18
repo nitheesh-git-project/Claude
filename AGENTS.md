@@ -28,11 +28,25 @@ navigation in a real browser. It needs a test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
 
-Two environment notes for the browser specs: set `PLAYWRIGHT_CHROMIUM_PATH`
-when the sandbox already ships a Chromium, and note that they sign in by
-injecting a Node-minted session cookie rather than typing into the login
-form — a sandbox whose browser has no outbound network can still exercise
-the whole dashboard that way.
+Three environment notes for the browser specs:
+
+- Set `PLAYWRIGHT_CHROMIUM_PATH` when the sandbox already ships a Chromium.
+- They sign in by injecting a Node-minted session cookie rather than typing
+  into the login form, so a sandbox whose browser has no outbound network
+  can still exercise the whole dashboard.
+- `admin-login.spec.ts` is the exception, since the login form itself is
+  what it tests: it needs a second app instance whose
+  `NEXT_PUBLIC_SUPABASE_URL` points at `scripts/.qa/supabase-relay.mjs` (a
+  localhost passthrough to the real Supabase, nothing mocked), and skips
+  itself when that instance isn't running. Next refuses two dev servers in
+  one directory, so it is a separate pass:
+  `RELAY_TARGET=$NEXT_PUBLIC_SUPABASE_URL node scripts/.qa/supabase-relay.mjs`,
+  then `NEXT_PUBLIC_SUPABASE_URL=http://localhost:8099 npx next dev -p 3100`,
+  then `E2E_BASE_URL=http://localhost:3100 npx playwright test e2e/admin-login.spec.ts`.
+
+`e2e/admin-degraded-schema.spec.ts` drops columns and tables and restores
+them by re-applying `schema.sql` in a `finally`. Point it at a throwaway
+project, never one whose data matters.
 
 ## Layout
 

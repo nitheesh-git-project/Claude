@@ -3207,3 +3207,14 @@ create unique index if not exists appointments_one_therapist_per_slot
   where therapist_id is not null
     and slot_time is not null
     and status <> 'cancelled';
+
+-- hospital_admin_notes is read by the admin dashboard (the partner list's
+-- temporary-password panel) but was never published, so a second admin
+-- resetting a partner's password left the first admin's open dashboard
+-- showing the old one until a manual reload. Every other table that page
+-- reads is published; this was the one omission.
+do $$
+begin
+  alter publication supabase_realtime add table hospital_admin_notes;
+exception when duplicate_object then null;
+end $$;
