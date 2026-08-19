@@ -36,6 +36,28 @@ const MAX_PER_SWEEP = 3;
 // admin's manual Retry resets the counter.
 export const MAX_MEET_SYNC_AUTO_ATTEMPTS = 5;
 
+// How long a claim on an appointment stays valid. Comfortably longer than
+// ATTEMPT_TIMEOUT_MS so a claim is never stolen from a call that is merely
+// slow, and short enough that a render killed mid-attempt (a serverless
+// instance recycled, a deploy) releases the row within a minute instead of
+// locking it out of syncing for good.
+export const MEET_SYNC_CLAIM_STALE_MS = 60000;
+
+// The "nobody is mid-attempt on this row" filter, shared with the manual
+// retry route so both paths agree on when an in-flight attempt counts as
+// abandoned.
+//
+// The timestamp is double-quoted because PostgREST parses an `or` group as
+// comma-separated `column.operator.value` triples and an ISO string carries
+// dots of its own (the milliseconds). Unquoted, the value is ambiguous to
+// that parser; the failure would be silent in the worst way -- a rejected
+// filter means no row is ever claimed, which reads as "always busy" rather
+// than as an error.
+export function meetSyncUnclaimedFilter(now = Date.now()): string {
+  const cutoff = new Date(now - MEET_SYNC_CLAIM_STALE_MS).toISOString();
+  return `google_calendar_sync_claimed_at.is.null,google_calendar_sync_claimed_at.lt."${cutoff}"`;
+}
+
 // Runs each attempt with a wall-clock bound. createMeetEventForConfirmedAppointment
 // never throws by contract, so this only guards against it never *settling*.
 async function withTimeout(work: Promise<void>, appointmentId: string): Promise<void> {
@@ -96,31 +118,46 @@ export async function retryDueMeetSyncs(admin: AdminClient): Promise<void> {
     if (!meetEnabled && !isHomeVisit) continue;
     if (!appointment.therapist_id) continue;
 
-    // CAS claim on the attempt counter this iteration actually read, plus
-    // meet_link still being null. Two things make this necessary rather than
-    // a plain increment:
+    // Claim the appointment before calling Google, and hold the claim for
+    // the duration of the call. Three conditions, each closing a different
+    // way two callers end up creating two Calendar events for one session
+    // (createSessionCalendarEvent only ever creates, so the loser's event is
+    // orphaned on the calendar):
     //
-    // Concurrency -- this sweep runs on every admin dashboard render, so two
-    // admins loading at the same moment select the same few rows. Without a
-    // claim both would call Google for one appointment and create two
-    // Calendar events, leaving an orphaned one on the calendar under a link
-    // nothing points at. That is the same hazard the manual retry route
-    // guards by refusing to run once a link exists (see its comment) -- this
-    // is the concurrent version of it.
+    //   - the attempt counter still equals what this iteration read, so two
+    //     concurrent sweeps (this runs on every admin dashboard render, and
+    //     two admins can load at once) cannot both take the same row;
+    //   - meet_link is still null, so a row somebody already finished is not
+    //     picked up again;
+    //   - nothing else is currently mid-attempt on it -- unclaimed, or
+    //     claimed longer ago than the staleness window, which is how a render
+    //     that died mid-call releases its row instead of locking it forever.
     //
-    // Counting -- the increment lands *before* the attempt, not after, so a
-    // hang past the timeout or a process that dies mid-call still costs an
-    // attempt. Otherwise the exact failures the cap exists for would be the
-    // ones that slip past it and retry forever.
+    // The third is what the counter alone could not do: it detects a
+    // conflicting write after the fact, where an outbound API call needs
+    // exclusion for as long as it runs. The manual retry route claims through
+    // the same column, so a Retry click and a sweep exclude each other too.
     //
-    // Losing the race is not an error: the winner is doing this row right
-    // now, so move on and let the next sweep see the result.
+    // Incrementing here rather than after the attempt is deliberate: a hang
+    // past the timeout, or a process that dies mid-call, still has to cost an
+    // attempt, or the exact failures the cap exists for would be the ones
+    // that slip past it and retry forever.
+    //
+    // Losing the race is not an error -- the winner is on it, and the next
+    // sweep sees the result. A claim that errors outright (the column missing
+    // on a database this migration hasn't reached) is skipped for the same
+    // reason the attempts column gates the query above: without the guard,
+    // not retrying beats retrying unsafely.
     const { data: claimed } = await admin
       .from("appointments")
-      .update({ google_calendar_sync_attempts: (appointment.google_calendar_sync_attempts ?? 0) + 1 })
+      .update({
+        google_calendar_sync_attempts: (appointment.google_calendar_sync_attempts ?? 0) + 1,
+        google_calendar_sync_claimed_at: new Date().toISOString(),
+      })
       .eq("id", appointment.id)
       .eq("google_calendar_sync_attempts", appointment.google_calendar_sync_attempts ?? 0)
       .is("meet_link", null)
+      .or(meetSyncUnclaimedFilter())
       .select("id")
       .maybeSingle();
 
@@ -145,5 +182,14 @@ export async function retryDueMeetSyncs(admin: AdminClient): Promise<void> {
       }),
       appointment.id
     );
+
+    // Release the claim whatever happened. On success the helper has already
+    // written meet_link, so the row will not be picked up again either way;
+    // on failure this is what lets the next sweep retry it before the
+    // staleness window would have expired on its own.
+    await admin
+      .from("appointments")
+      .update({ google_calendar_sync_claimed_at: null })
+      .eq("id", appointment.id);
   }
 }

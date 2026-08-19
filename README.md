@@ -364,7 +364,11 @@ limit, and `appointments.google_calendar_sync_attempts`, which stops retrying
 a session that has failed too many times rather than calling Google forever.
 Those exhausted sessions stay in the admin's Sync Health panel marked as
 needing attention, where a manual retry (`/api/admin/retry-meet-sync`) both
-re-attempts the event and re-arms the automatic attempts. The Join button
+re-attempts the event and re-arms the automatic attempts. Both paths claim
+the session (`appointments.google_calendar_sync_claimed_at`) before calling
+Google, so a Retry click and a background sweep can never create two
+calendar events for one session; a Retry that lands while a sync is already
+running answers "already running, try again in a moment". The Join button
 only opens inside a configurable window around the slot time.
 
 **Feedback and ratings.** Patient and therapist each rate the session after

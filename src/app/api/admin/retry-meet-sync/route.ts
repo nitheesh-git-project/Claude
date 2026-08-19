@@ -3,6 +3,7 @@ import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
+import { meetSyncUnclaimedFilter } from "@/lib/retryDueMeetSyncs";
 
 // Re-attempts Meet event creation for one confirmed appointment from the
 // Feature Control tab's sync health panel -- same helper every original
@@ -52,17 +53,43 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, meetLink: appointment.meet_link });
   }
 
-  // An admin clicking Retry is a statement that whatever broke the sync has
-  // been dealt with, so the automatic sweep's attempt counter
-  // (src/lib/retryDueMeetSyncs.ts) is re-armed here. Without this, a session
-  // that already exhausted its automatic attempts would be retried once by
-  // hand and then never picked up again if it failed anew. Isolated call and
-  // deliberately unchecked: the column is migration-dependent, and a database
-  // without it must still get the manual retry it asked for.
-  await admin
+  // Claim the appointment through the same column the automatic sweep uses
+  // (src/lib/retryDueMeetSyncs.ts), so a Retry click and a sweep running on
+  // another admin's dashboard render cannot both call Google for this
+  // session -- createSessionCalendarEvent only ever creates, so the loser's
+  // event would sit orphaned on the calendar under a link this row no longer
+  // points at. A claim older than the shared staleness window is treated as
+  // abandoned and taken over, so a render that died mid-attempt cannot lock
+  // this button out.
+  //
+  // The same write re-arms the sweep's attempt counter, because an admin
+  // clicking Retry is a statement that whatever broke the sync has been dealt
+  // with. Without it, a session that had already exhausted its automatic
+  // attempts would be retried once by hand and then never picked up again if
+  // it failed anew.
+  const { data: claimed, error: claimError } = await admin
     .from("appointments")
-    .update({ google_calendar_sync_attempts: 0 })
-    .eq("id", appointmentId);
+    .update({
+      google_calendar_sync_attempts: 0,
+      google_calendar_sync_claimed_at: new Date().toISOString(),
+    })
+    .eq("id", appointmentId)
+    .is("meet_link", null)
+    .or(meetSyncUnclaimedFilter())
+    .select("id")
+    .maybeSingle();
+
+  // An outright error here means the columns are missing on this database
+  // (migration not applied yet). Unlike the sweep, which skips rather than
+  // retry unguarded, a manual click must still do what the admin asked --
+  // this is the pre-claim behaviour, and the window it leaves open is the
+  // one that existed before the column was introduced.
+  if (!claimError && !claimed) {
+    return NextResponse.json(
+      { error: "A sync attempt for this session is already running. Try again in a moment." },
+      { status: 409 }
+    );
+  }
 
   await createMeetEventForConfirmedAppointment(admin, {
     appointmentId: appointment.id,
@@ -73,6 +100,13 @@ export async function POST(request: NextRequest) {
     timezone: appointment.timezone,
     bypassMasterToggle: true,
   });
+
+  // Release the claim before reporting back, so a failed attempt can be
+  // retried straight away rather than waiting out the staleness window.
+  await admin
+    .from("appointments")
+    .update({ google_calendar_sync_claimed_at: null })
+    .eq("id", appointmentId);
 
   const { data: updated } = await admin
     .from("appointments")

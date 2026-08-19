@@ -175,7 +175,13 @@ client is the only writer and the log is append-only from any session.
   attempt, a few appointments per sweep, and
   `appointments.google_calendar_sync_attempts` capping attempts per
   appointment so a permanently broken row (revoked credentials, deleted
-  calendar) is not retried forever. At the cap the row stays in the admin's
+  calendar) is not retried forever. Both the sweep and the manual Retry
+  route claim an appointment through
+  `appointments.google_calendar_sync_claimed_at` before calling Google, with
+  a staleness window so a render that dies mid-attempt releases its row:
+  `createSessionCalendarEvent` only ever creates, so two overlapping
+  attempts leave an orphaned event on the calendar under a link the
+  appointment no longer points at. At the cap the row stays in the admin's
   Sync Health panel flagged as needing a person; a manual Retry resets the
   counter. A home visit still gets a
   calendar event even when `google_meet_enabled` is off — that toggle only
