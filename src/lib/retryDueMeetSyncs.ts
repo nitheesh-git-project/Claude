@@ -96,15 +96,35 @@ export async function retryDueMeetSyncs(admin: AdminClient): Promise<void> {
     if (!meetEnabled && !isHomeVisit) continue;
     if (!appointment.therapist_id) continue;
 
-    // Incremented *before* the attempt, not after. If the process dies
-    // mid-call, or the Calendar request hangs past the timeout and this
-    // render ends, the attempt still has to count -- otherwise the exact
-    // failures the cap exists for (the ones that hang or crash) would be the
+    // CAS claim on the attempt counter this iteration actually read, plus
+    // meet_link still being null. Two things make this necessary rather than
+    // a plain increment:
+    //
+    // Concurrency -- this sweep runs on every admin dashboard render, so two
+    // admins loading at the same moment select the same few rows. Without a
+    // claim both would call Google for one appointment and create two
+    // Calendar events, leaving an orphaned one on the calendar under a link
+    // nothing points at. That is the same hazard the manual retry route
+    // guards by refusing to run once a link exists (see its comment) -- this
+    // is the concurrent version of it.
+    //
+    // Counting -- the increment lands *before* the attempt, not after, so a
+    // hang past the timeout or a process that dies mid-call still costs an
+    // attempt. Otherwise the exact failures the cap exists for would be the
     // ones that slip past it and retry forever.
-    await admin
+    //
+    // Losing the race is not an error: the winner is doing this row right
+    // now, so move on and let the next sweep see the result.
+    const { data: claimed } = await admin
       .from("appointments")
       .update({ google_calendar_sync_attempts: (appointment.google_calendar_sync_attempts ?? 0) + 1 })
-      .eq("id", appointment.id);
+      .eq("id", appointment.id)
+      .eq("google_calendar_sync_attempts", appointment.google_calendar_sync_attempts ?? 0)
+      .is("meet_link", null)
+      .select("id")
+      .maybeSingle();
+
+    if (!claimed) continue;
 
     const address = visitAddressFromAppointment(appointment);
 
