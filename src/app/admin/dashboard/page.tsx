@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
@@ -89,12 +90,21 @@ export default async function AdminDashboardPage() {
   // comment for why this is a lazy sweep rather than a scheduled job.
   await expireDuePackagePurchases(admin);
 
-  // Same lazy-sweep pattern, one step further: this one reaches out to the
-  // Google Calendar API, so it is capped hard (a few appointments per render,
-  // a wall-clock timeout each, a per-appointment attempt limit) -- see the
-  // helper. Before it existed, a confirmed session whose event creation
-  // failed sat in the Sync Health panel until a human clicked Retry.
-  await retryDueMeetSyncs(admin);
+  // Same lazy-sweep pattern, but deliberately *not* awaited before the read
+  // below: this one calls the Google Calendar API, and even capped (a few
+  // appointments per sweep, a wall-clock timeout each, a per-appointment
+  // attempt limit) that is seconds of external latency this page would otherwise pay
+  // before its first query. after() runs it once the response has been sent,
+  // so a slow or hanging Google costs the admin nothing.
+  //
+  // The tradeoff is one render of staleness: a session this sweep fixes shows
+  // as fixed on the *next* render rather than this one. That is the right way
+  // round -- the panel exists for failures that have already been sitting
+  // there, so one more render makes no difference, while a blocked page is
+  // felt on every single admin request.
+  after(async () => {
+    await retryDueMeetSyncs(admin);
+  });
 
   // All of these are independent reads -- none needs another query's data,
   // only fixed filters -- so they run as one parallel batch instead of the
@@ -115,11 +125,8 @@ export default async function AdminDashboardPage() {
     { data: packagePurchases },
     { data: paymentFailures },
     { data: payoutBatches },
-    { data: payoutBatchLinks },
+    { data: appointmentExtraColumns },
     { data: settingsRow },
-    { data: sessionCodeLinks },
-    { data: meetLinkRows },
-    { data: syncErrorRows },
     { data: syncAttemptRows },
     { data: availabilityTemplateRows },
     { data: availabilityOverrideRows },
@@ -215,13 +222,23 @@ export default async function AdminDashboardPage() {
       .select("id, therapist_id, amount_paise, method, note, created_at")
       .order("created_at", { ascending: false }),
 
-    // therapist_payout_batch_id lives on appointments, but it's queried
-    // separately and merged in below rather than added to the big shared
-    // select above -- that select feeds Overview, Calendar, Session Story,
-    // and Metrics too, so a missing-column error there (before this
-    // migration runs) would blank all of those, not just the Receipts
-    // section. Same isolation reasoning as payoutBatches/paymentFailures.
-    admin.from("appointments").select("id, therapist_payout_batch_id"),
+    // Four columns that live on appointments but are kept out of the big
+    // shared select above: that select feeds Overview, Calendar, Session
+    // Story and Metrics, so a missing-column error there (on a database the
+    // migration hasn't reached) would blank all of those at once rather than
+    // just the sections these four feed.
+    //
+    // They were four separate queries, one per column, which meant four full
+    // scans of the fastest-growing table on this page every render. They are
+    // one query now: the isolation that matters is from the *big* select, not
+    // from each other, and all four columns have been live long enough that
+    // the failure they are isolated against is a fresh-database case, where
+    // they would all be missing together anyway. A genuinely new column still
+    // gets its own call (see google_calendar_sync_attempts below) until it
+    // has settled.
+    admin
+      .from("appointments")
+      .select("id, therapist_payout_batch_id, session_code, meet_link, google_calendar_sync_error"),
 
     // Feature Control tab (Feature 16) -- these site_settings columns are
     // also new/migration-dependent, same isolation reasoning as the queries
@@ -232,27 +249,11 @@ export default async function AdminDashboardPage() {
       .select(SITE_SETTINGS_SELECT)
       .maybeSingle(),
 
-    // session_code is also new/migration-dependent -- same isolation
-    // reasoning as payoutBatchLinks above. Layered on top of the payout-batch
-    // merge (rather than the other way around) so Payment History ends up
-    // with both new columns at once.
-    admin.from("appointments").select("id, session_code"),
-
-    // meet_link is also new/migration-dependent -- same isolation reasoning
-    // as sessionCodeLinks above. Merged in here so it flows through to
-    // Calendar, Session Story, and the All Bookings list below all at once,
-    // same as session_code does.
-    admin.from("appointments").select("id, meet_link"),
-
-    // Sync health panel data (Feature Control tab) is built further down,
-    // once profileMap (patient/therapist names) is available.
-    admin.from("appointments").select("id, google_calendar_sync_error"),
-
     // The auto-retry attempt counter is newer than the error column above,
     // so it gets its own isolated call rather than joining it -- a database
     // that hasn't had this migration applied yet would otherwise fail that
     // query too and blank the whole Sync Health panel, instead of just
-    // losing the "gave up" flag. Same convention as sessionCodeLinks.
+    // losing the "gave up" flag. Same convention as the settled columns above.
     admin.from("appointments").select("id, google_calendar_sync_attempts"),
 
     // Feeds the Manage Roster tab. Both queries can legitimately return
@@ -458,15 +459,21 @@ export default async function AdminDashboardPage() {
     (t) => t.active !== false
   );
 
+  // One query, four merges. Each consumer below still sees exactly the shape
+  // it saw when these were four separate fetches.
+  const appointmentExtras = appointmentExtraColumns ?? [];
   const payoutBatchIdByAppointmentId = new Map(
-    (payoutBatchLinks ?? []).map((a) => [a.id, a.therapist_payout_batch_id])
+    appointmentExtras.map((a) => [a.id, a.therapist_payout_batch_id])
   );
 
   const adminSettings = parseAdminSettings(settingsRow);
 
   const appointmentsWithSessionCode = mergeMeetLinks(
-    mergeSessionCodes(appointments ?? [], sessionCodeLinks),
-    meetLinkRows
+    mergeSessionCodes(
+      appointments ?? [],
+      appointmentExtras.map((a) => ({ id: a.id, session_code: a.session_code }))
+    ),
+    appointmentExtras.map((a) => ({ id: a.id, meet_link: a.meet_link }))
   );
 
   const appointmentsWithPayoutBatch = appointmentsWithSessionCode.map((a) => ({
@@ -496,7 +503,9 @@ export default async function AdminDashboardPage() {
   // Sync health panel (Feature Control tab): confirmed sessions that either
   // never got a Meet link or recorded a sync error -- surfaces silent
   // Calendar-API failures in-app instead of only in server logs.
-  const syncErrorById = new Map((syncErrorRows ?? []).map((r) => [r.id, r.google_calendar_sync_error]));
+  const syncErrorById = new Map(
+    appointmentExtras.map((r) => [r.id, r.google_calendar_sync_error])
+  );
   const syncAttemptsById = new Map(
     (syncAttemptRows ?? []).map((r) => [r.id, r.google_calendar_sync_attempts])
   );
