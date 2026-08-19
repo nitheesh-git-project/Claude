@@ -6,6 +6,7 @@ import HomeVisitPackages, {
   type PublicHomeVisitPackage,
 } from "@/components/home/HomeVisitPackages";
 import { Reveal, FloatingOrbs } from "@/components/motion/primitives";
+import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 import {
   DEFAULT_HOME_VISIT_PAGE_HEADING,
   DEFAULT_HOME_VISIT_PAGE_SUBHEADING,
@@ -76,8 +77,20 @@ export default async function HomeVisitPage() {
     cities.set(area.city, list);
   }
 
+  // "Where we visit" only renders when serviceable areas exist, so its rail
+  // entry is conditional for the same reason /conditions' are.
+  const sectionNavItems: SectionNavItem[] = [
+    { id: "choose-visit", label: "Choose Your Visit", icon: "fa-house-medical" },
+    ...(cities.size > 0
+      ? [{ id: "where-we-visit", label: "Where We Visit", icon: "fa-location-dot" }]
+      : []),
+    { id: "check-pincode", label: "Check Pincode", icon: "fa-map-pin" },
+  ];
+
   return (
     <>
+      <SectionNav items={sectionNavItems} />
+
       <section className="relative overflow-hidden bg-gradient-to-b from-teal-50/60 to-white py-20">
         <FloatingOrbs />
         <div className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
@@ -93,7 +106,7 @@ export default async function HomeVisitPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <section id="choose-visit" className="mx-auto max-w-7xl scroll-mt-28 px-4 py-16 sm:px-6 lg:px-8">
         <Reveal className="mx-auto mb-12 max-w-2xl text-center">
           <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
             Choose your visit
@@ -113,7 +126,7 @@ export default async function HomeVisitPage() {
       </section>
 
       {cities.size > 0 && (
-        <section className="border-y border-slate-100 bg-slate-50 py-16">
+        <section id="where-we-visit" className="scroll-mt-28 border-y border-slate-100 bg-slate-50 py-16">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
             <Reveal className="mb-8 text-center">
               <h2 className="font-display text-xl font-bold text-slate-900 sm:text-2xl">
@@ -137,7 +150,7 @@ export default async function HomeVisitPage() {
         </section>
       )}
 
-      <section className="py-16">
+      <section id="check-pincode" className="scroll-mt-28 py-16">
         <div className="mx-auto max-w-2xl px-4 text-center sm:px-6 lg:px-8">
           <Reveal>
             <h2 className="font-display text-xl font-bold text-slate-900 sm:text-2xl">

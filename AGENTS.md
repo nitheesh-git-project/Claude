@@ -28,8 +28,9 @@ subscription succeeds and simply never fires — so the check is the only
 thing that catches it. The e2e suite (Playwright, `e2e/`) covers the
 money-critical paths and the admin back office — booking + payment,
 concurrency/CAS guards, bulk limits, admin route authorization for every
-role, input validation, payout/refund maths, and the dashboard's own
-navigation in a real browser. It needs a test/staging Supabase project plus
+role, input validation, payout/refund maths, the dashboard's own
+navigation in a real browser, and the public pages' section rail and scroll
+arrow (`section-nav.spec.ts`). It needs a test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
 

@@ -7,6 +7,7 @@ import {
   MotionButton,
   FloatingOrbs,
 } from "@/components/motion/primitives";
+import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 import SessionPackages from "@/components/home/SessionPackages";
 
 export const metadata: Metadata = {
@@ -65,8 +66,19 @@ export default async function ConditionsPage() {
     category_price_paise: categoryPriceById.get(p.category_id) ?? null,
   }));
 
+  // Only sections that actually render -- packages and the programme grid
+  // are both admin-controlled, so a rail item pointing at an absent section
+  // would be a dead pill and a skipped stop for the scroll arrow.
+  const sectionNavItems: SectionNavItem[] = [
+    ...(rows.length > 0 ? [{ id: "programs", label: "Programs", icon: "fa-clipboard-list" }] : []),
+    ...(packages.length > 0 ? [{ id: "packages", label: "Packages", icon: "fa-box-open" }] : []),
+    { id: "not-sure", label: "Not Sure?", icon: "fa-circle-question" },
+  ];
+
   return (
     <>
+      <SectionNav items={sectionNavItems} />
+
       <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/70 to-white py-16">
         <FloatingOrbs />
         <Reveal className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
@@ -84,7 +96,7 @@ export default async function ConditionsPage() {
         </Reveal>
       </div>
 
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <section id="programs" className="mx-auto max-w-7xl scroll-mt-28 px-4 py-16 sm:px-6 lg:px-8">
         {rows.length === 0 ? (
           <p className="py-12 text-center text-sm text-slate-500">
             Our programs are being updated — check back shortly.
@@ -157,7 +169,7 @@ export default async function ConditionsPage() {
 
       <SessionPackages packages={packages} />
 
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <section id="not-sure" className="mx-auto max-w-7xl scroll-mt-28 px-4 py-16 sm:px-6 lg:px-8">
         <Reveal delay={0.1} className="mt-14 rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
           <h2 className="font-display text-xl font-bold text-slate-900">
             Not sure which program fits?

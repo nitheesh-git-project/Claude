@@ -14,7 +14,7 @@ import CareAreas from "@/components/home/CareAreas";
 import ParkinsonsCare from "@/components/home/ParkinsonsCare";
 import CareIllustration from "@/components/visuals/CareIllustration";
 import SessionPackages from "@/components/home/SessionPackages";
-import SectionNav, { type SectionNavItem } from "@/components/home/SectionNav";
+import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 
 const PROGRAM_ART = ["neckback", "mobility", "sports", "ergonomics"] as const;
 
