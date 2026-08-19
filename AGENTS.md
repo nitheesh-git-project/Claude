@@ -296,13 +296,16 @@ client is the only writer and the log is append-only from any session.
 - **A dashboard refresh is expensive; debounce accordingly.**
   `RealtimeRefresh` turns a `postgres_changes` event into `router.refresh()`,
   which on the admin dashboard re-runs the whole Server Component — ~40
-  queries, every screen, not only the visible one. `AdminShell` therefore
-  subscribes on two channels with different `debounceMs`: operational tables
-  (bookings, payouts, profiles, care records) on a short window so a change
-  still lands while an admin watches, and catalog/settings tables
-  (`site_settings`, treatments, packages, testimonials, FAQs, areas) on a
-  much longer one, since those change only when an admin edits them and the
-  editor already sees their own change. Put a new table in one of those two
+  queries, every screen, not only the visible one. It fires on the **leading
+  edge** and then holds a `cooldownMs`, rather than debouncing: the first
+  change always lands immediately, and only the burst behind it is collapsed
+  (a plain trailing debounce would delay every lone event too, which is the
+  case an admin is actually watching for). `AdminShell` runs two channels on
+  that basis: operational tables (bookings, payouts, profiles, care records)
+  on a short cooldown, and catalog/settings tables (`site_settings`,
+  treatments, packages, testimonials, FAQs, areas) on a much longer one,
+  since those change only when an admin edits them and the editor already
+  sees their own change. Put a new table in one of those two
   `*_REALTIME_TABLES` arrays rather than inlining a third list — the coverage
   check reads them by that name — and add the matching `alter publication`
   to `schema.sql` in the same change.

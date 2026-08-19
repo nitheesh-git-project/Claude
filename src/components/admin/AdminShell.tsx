@@ -69,15 +69,19 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   "home_visit_packages",
 ];
 
-// 2.5s: long enough that the several row writes behind one booking or one
-// bulk action collapse into a single rebuild, short enough that an admin
-// watching a queue still sees the change arrive on its own.
-const ADMIN_REALTIME_DEBOUNCE_MS = 2500;
+// Cooldowns, not delays: RealtimeRefresh fires on the leading edge, so
+// neither of these postpones the first change an admin is waiting on. They
+// only bound how often a *burst* can rebuild this page.
+//
+// 2s for operational tables: one booking or one bulk action writes several
+// rows in quick succession, and this collapses their tail into a single
+// extra rebuild.
+const ADMIN_REALTIME_COOLDOWN_MS = 2000;
 
-// 30s: nothing on a catalog table is time-critical to a second admin, and
-// the admin who made the edit already sees it via their own action's
-// router.refresh().
-const ADMIN_CATALOG_REALTIME_DEBOUNCE_MS = 30000;
+// 30s for catalog and settings: still instant for the first edit, but an
+// admin working through a list of FAQs or treatments can't drag every other
+// admin's dashboard through a rebuild per save.
+const ADMIN_CATALOG_REALTIME_COOLDOWN_MS = 30000;
 // Content for every screen, keyed "<section>:<tab>" -- the page builds this
 // map, the shell only decides which key is visible. Keeping it a flat map
 // (rather than one prop per screen, as the old 16-prop AdminTabs did) means
@@ -304,10 +308,10 @@ export default function AdminShell({
     // column -- Navbar/Footer are hidden on this exact route (see their own
     // pathname checks) so this component owns the entire viewport.
     <div className="min-h-screen bg-slate-50">
-      <RealtimeRefresh tables={ADMIN_REALTIME_TABLES} debounceMs={ADMIN_REALTIME_DEBOUNCE_MS} />
+      <RealtimeRefresh tables={ADMIN_REALTIME_TABLES} cooldownMs={ADMIN_REALTIME_COOLDOWN_MS} />
       <RealtimeRefresh
         tables={ADMIN_CATALOG_REALTIME_TABLES}
-        debounceMs={ADMIN_CATALOG_REALTIME_DEBOUNCE_MS}
+        cooldownMs={ADMIN_CATALOG_REALTIME_COOLDOWN_MS}
       />
       {/* Narrow screens: a compact dark top bar that opens an off-canvas
           drawer -- a fixed-width sidebar doesn't leave enough room for
