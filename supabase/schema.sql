@@ -3356,3 +3356,49 @@ $$;
 revoke all on function public.debug_reset_all_data() from public;
 revoke all on function public.debug_reset_all_data() from anon;
 revoke all on function public.debug_reset_all_data() from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Meet sync auto-retry attempt counter
+-- ---------------------------------------------------------------------------
+-- A confirmed session whose Calendar event never got created used to sit in
+-- the admin's Sync Health panel until somebody noticed it and clicked Retry.
+-- src/lib/retryDueMeetSyncs.ts now re-attempts those lazily at the top of the
+-- admin dashboard render (same no-cron, idempotent-sweep pattern as
+-- expirePackagePurchases -- there is still no background worker in this
+-- deployment).
+--
+-- This counter is what stops that sweep from being an infinite loop against
+-- the Google API. A permanently broken session -- revoked credentials, a
+-- deleted calendar, an attendee address Google rejects -- would otherwise be
+-- retried on every single admin page render forever, burning quota and
+-- slowing the dashboard for a failure no number of retries can fix. The
+-- sweep increments this before each attempt and skips any row that has hit
+-- its cap, which turns "retry forever" into "retry a few times, then leave
+-- it for a human". A manual Retry from the panel resets it to 0, since an
+-- admin clicking the button is a statement that the underlying cause has
+-- been dealt with and the row deserves a fresh set of automatic attempts.
+alter table appointments add column if not exists google_calendar_sync_attempts integer not null default 0;
+
+-- ---------------------------------------------------------------------------
+-- Meet sync in-flight claim
+-- ---------------------------------------------------------------------------
+-- Mutual exclusion between the two things that can create a Calendar event
+-- for the same appointment at the same moment: the automatic sweep
+-- (src/lib/retryDueMeetSyncs.ts), which runs on every admin dashboard render
+-- and so runs concurrently whenever two admins load the page together, and
+-- an admin clicking Retry in the Sync Health panel
+-- (/api/admin/retry-meet-sync).
+--
+-- Both create, never update -- createSessionCalendarEvent has no
+-- update-in-place path -- so two overlapping attempts leave two events on the
+-- calendar, one of them orphaned under a link the appointment no longer
+-- points at, with the patient and therapist holding invites to whichever one
+-- lost. The attempt counter alone cannot prevent that: it detects a
+-- conflicting write that already happened, while this has to be held for the
+-- duration of an outbound API call.
+--
+-- Set when a caller claims the appointment, cleared when it finishes. A claim
+-- older than the staleness window in that module is treated as abandoned and
+-- can be taken over, so a render that dies mid-call cannot lock a session out
+-- of syncing forever.
+alter table appointments add column if not exists google_calendar_sync_claimed_at timestamptz;

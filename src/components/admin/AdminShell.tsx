@@ -13,8 +13,26 @@ import { ADMIN_SECTIONS, findTab, type AdminSectionKey } from "@/lib/adminNav";
 // this dashboard. package_purchase_summary is deliberately excluded: it's a
 // view, and postgres_changes only streams base tables -- its underlying
 // patient_package_purchases is covered instead. See the supabase_realtime
-// publication entries at the end of schema.sql. Fixed at module scope so
-// RealtimeRefresh's own tables prop is referentially stable across renders.
+// publication entries at the end of schema.sql, and
+// scripts/check-realtime-coverage.mjs, which fails the lint if a table
+// listed here was never added to that publication (the failure mode is
+// silent: the subscription succeeds and simply never fires).
+//
+// Split into two channels because a refresh here is expensive and the two
+// halves change at wildly different rates. One router.refresh() re-runs the
+// whole dashboard Server Component -- ~41 queries, every screen, not just
+// the one on display -- so every event that survives the debounce costs
+// that. Operational tables below fire on ordinary patient and therapist
+// activity, many times an hour; catalog and settings tables change when an
+// admin edits them, which is rarely, and never in a burst that anyone is
+// watching land. Giving the catalog channel a much longer window means a
+// stray FAQ edit can't drag the whole dashboard through a rebuild, while
+// the operational channel keeps a window short enough that a booking still
+// appears while the admin is looking at it.
+//
+// Both lists are read by the coverage check, which matches any
+// *_REALTIME_TABLES array -- keep new tables in one of these two rather
+// than inlining a third list at the call site.
 const ADMIN_REALTIME_TABLES = [
   "appointments",
   "therapist_payout_requests",
@@ -25,20 +43,13 @@ const ADMIN_REALTIME_TABLES = [
   "patient_package_purchases",
   "payment_failure_log",
   "therapist_payout_batches",
-  "site_settings",
   "therapist_availability_template",
   "therapist_availability_override",
   "appointment_reassignment_log",
-  "treatment_categories",
-  "treatment_category_packages",
-  "testimonials",
-  "faqs",
   "patient_condition_profiles",
   "condition_change_requests",
   "condition_access_grants",
   "pain_assessments",
-  "home_visit_areas",
-  "home_visit_packages",
   "home_visit_package_purchases",
   "home_visit_waitlist",
   "patient_addresses",
@@ -46,6 +57,31 @@ const ADMIN_REALTIME_TABLES = [
   "hospital_admin_notes",
 ];
 
+// Catalog and site configuration: edited by an admin on purpose, not
+// produced by traffic.
+const ADMIN_CATALOG_REALTIME_TABLES = [
+  "site_settings",
+  "treatment_categories",
+  "treatment_category_packages",
+  "testimonials",
+  "faqs",
+  "home_visit_areas",
+  "home_visit_packages",
+];
+
+// Cooldowns, not delays: RealtimeRefresh fires on the leading edge, so
+// neither of these postpones the first change an admin is waiting on. They
+// only bound how often a *burst* can rebuild this page.
+//
+// 2s for operational tables: one booking or one bulk action writes several
+// rows in quick succession, and this collapses their tail into a single
+// extra rebuild.
+const ADMIN_REALTIME_COOLDOWN_MS = 2000;
+
+// 30s for catalog and settings: still instant for the first edit, but an
+// admin working through a list of FAQs or treatments can't drag every other
+// admin's dashboard through a rebuild per save.
+const ADMIN_CATALOG_REALTIME_COOLDOWN_MS = 30000;
 // Content for every screen, keyed "<section>:<tab>" -- the page builds this
 // map, the shell only decides which key is visible. Keeping it a flat map
 // (rather than one prop per screen, as the old 16-prop AdminTabs did) means
@@ -272,7 +308,11 @@ export default function AdminShell({
     // column -- Navbar/Footer are hidden on this exact route (see their own
     // pathname checks) so this component owns the entire viewport.
     <div className="min-h-screen bg-slate-50">
-      <RealtimeRefresh tables={ADMIN_REALTIME_TABLES} />
+      <RealtimeRefresh tables={ADMIN_REALTIME_TABLES} cooldownMs={ADMIN_REALTIME_COOLDOWN_MS} />
+      <RealtimeRefresh
+        tables={ADMIN_CATALOG_REALTIME_TABLES}
+        cooldownMs={ADMIN_CATALOG_REALTIME_COOLDOWN_MS}
+      />
       {/* Narrow screens: a compact dark top bar that opens an off-canvas
           drawer -- a fixed-width sidebar doesn't leave enough room for
           content on a phone/tablet. */}

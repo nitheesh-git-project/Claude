@@ -3,6 +3,8 @@ import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
+import { meetSyncUnclaimedFilter } from "@/lib/retryDueMeetSyncs";
+import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
 
 // Re-attempts Meet event creation for one confirmed appointment from the
 // Feature Control tab's sync health panel -- same helper every original
@@ -27,7 +29,9 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: appointment } = await admin
     .from("appointments")
-    .select("id, status, patient_id, therapist_id, slot_time, duration_minutes, timezone, meet_link")
+    .select(
+      "id, status, patient_id, therapist_id, slot_time, duration_minutes, timezone, meet_link, visit_mode, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_access_notes"
+    )
     .eq("id", appointmentId)
     .maybeSingle();
 
@@ -52,6 +56,53 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, meetLink: appointment.meet_link });
   }
 
+  // Claim the appointment through the same column the automatic sweep uses
+  // (src/lib/retryDueMeetSyncs.ts), so a Retry click and a sweep running on
+  // another admin's dashboard render cannot both call Google for this
+  // session -- createSessionCalendarEvent only ever creates, so the loser's
+  // event would sit orphaned on the calendar under a link this row no longer
+  // points at. A claim older than the shared staleness window is treated as
+  // abandoned and taken over, so a render that died mid-attempt cannot lock
+  // this button out.
+  //
+  // The same write re-arms the sweep's attempt counter, because an admin
+  // clicking Retry is a statement that whatever broke the sync has been dealt
+  // with. Without it, a session that had already exhausted its automatic
+  // attempts would be retried once by hand and then never picked up again if
+  // it failed anew.
+  const claimedAt = new Date().toISOString();
+  const { data: claimed, error: claimError } = await admin
+    .from("appointments")
+    .update({
+      google_calendar_sync_attempts: 0,
+      google_calendar_sync_claimed_at: claimedAt,
+    })
+    .eq("id", appointmentId)
+    .is("meet_link", null)
+    .or(meetSyncUnclaimedFilter())
+    .select("id")
+    .maybeSingle();
+
+  // An outright error here means the columns are missing on this database
+  // (migration not applied yet). Unlike the sweep, which skips rather than
+  // retry unguarded, a manual click must still do what the admin asked --
+  // this is the pre-claim behaviour, and the window it leaves open is the
+  // one that existed before the column was introduced.
+  if (!claimError && !claimed) {
+    return NextResponse.json(
+      { error: "A sync attempt for this session is already running. Try again in a moment." },
+      { status: 409 }
+    );
+  }
+
+  // A home visit gets the same event a booking would have created for it --
+  // address as the location, access notes in the description, no Meet
+  // conferencing. Without this a hand-retried home visit got an online Meet
+  // event with no address on it, which is the one thing the therapist
+  // actually needs from the invite: they navigate by it.
+  const isHomeVisit = appointment.visit_mode === "home_visit";
+  const address = visitAddressFromAppointment(appointment);
+
   await createMeetEventForConfirmedAppointment(admin, {
     appointmentId: appointment.id,
     patientId: appointment.patient_id,
@@ -60,7 +111,23 @@ export async function POST(request: NextRequest) {
     durationMinutes: appointment.duration_minutes,
     timezone: appointment.timezone,
     bypassMasterToggle: true,
+    visitMode: isHomeVisit ? "home_visit" : "online",
+    location: isHomeVisit ? formatAddressOneLine(address) : null,
+    description:
+      isHomeVisit && appointment.visit_access_notes
+        ? `Access notes: ${appointment.visit_access_notes}`
+        : null,
   });
+
+  // Release the claim before reporting back, so a failed attempt can be
+  // retried straight away rather than waiting out the staleness window.
+  // Conditional on the claim still being this request's, so a release can
+  // never clear a claim something else took over after the staleness window.
+  await admin
+    .from("appointments")
+    .update({ google_calendar_sync_claimed_at: null })
+    .eq("id", appointmentId)
+    .eq("google_calendar_sync_claimed_at", claimedAt);
 
   const { data: updated } = await admin
     .from("appointments")

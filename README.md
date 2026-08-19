@@ -20,7 +20,13 @@ npm run dev
 Open http://localhost:3000.
 
 Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
-`npm run test:e2e`.
+`npm run check:realtime`, `npm run test:e2e`.
+
+`npm run check:realtime` (also run first by `npm run lint`) checks that every
+table the dashboards subscribe to for live updates is present in the
+`supabase_realtime` publication in `supabase/schema.sql`. A missing entry has
+no visible symptom — the subscription succeeds and the events never arrive —
+so this is the only place it gets caught.
 
 ### End-to-end regression suite
 
@@ -350,9 +356,20 @@ only appear once a patient actually has that kind of session.
 **Video sessions.** Confirming an appointment creates a Google Calendar event
 with a Meet link (`src/lib/googleCalendar.ts`,
 `src/lib/googleCalendarSync.ts`). Calendar failures never block a booking —
-the error is stored in `appointments.google_calendar_sync_error` and the
-admin can retry with `/api/admin/retry-meet-sync`. The Join button only opens
-inside a configurable window around the slot time.
+the error is stored in `appointments.google_calendar_sync_error`, and the
+session is re-attempted automatically: `src/lib/retryDueMeetSyncs.ts` sweeps
+a few failed syncs at the top of each admin dashboard render (there is no
+cron in this deployment), bounded by a per-attempt timeout, a per-sweep row
+limit, and `appointments.google_calendar_sync_attempts`, which stops retrying
+a session that has failed too many times rather than calling Google forever.
+Those exhausted sessions stay in the admin's Sync Health panel marked as
+needing attention, where a manual retry (`/api/admin/retry-meet-sync`) both
+re-attempts the event and re-arms the automatic attempts. Both paths claim
+the session (`appointments.google_calendar_sync_claimed_at`) before calling
+Google, so a Retry click and a background sweep can never create two
+calendar events for one session; a Retry that lands while a sync is already
+running answers "already running, try again in a moment". The Join button
+only opens inside a configurable window around the slot time.
 
 **Feedback and ratings.** Patient and therapist each rate the session after
 it completes. Aggregates (`src/lib/ratingAggregate.ts`, the
