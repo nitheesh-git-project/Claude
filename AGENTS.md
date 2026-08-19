@@ -29,8 +29,9 @@ thing that catches it. The e2e suite (Playwright, `e2e/`) covers the
 money-critical paths and the admin back office — booking + payment,
 concurrency/CAS guards, bulk limits, admin route authorization for every
 role, input validation, payout/refund maths, the dashboard's own
-navigation in a real browser, and the public pages' section rail and scroll
-arrow (`section-nav.spec.ts`). It needs a test/staging Supabase project plus
+navigation in a real browser, the public pages' section rail and scroll
+arrow (`section-nav.spec.ts`), and the public catalog's detail dialogs
+(`catalog-detail.spec.ts`). It needs a test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
 
@@ -316,6 +317,21 @@ client is the only writer and the log is append-only from any session.
   `*_REALTIME_TABLES` arrays rather than inlining a third list — the coverage
   check reads them by that name — and add the matching `alter publication`
   to `schema.sql` in the same change.
+- **A public catalog card opens a dialog; booking is its own button.** The
+  session-package, home-visit-package and programme cards all follow one
+  contract: the card body is a single tap target that opens a detail dialog
+  (`src/components/Modal.tsx`, shared with `TeamTherapistPopup`), and a
+  **Book …** link sits below it on the card and again at the foot of the
+  dialog. The card used to be one big link to checkout, which left no way to
+  read the rules — validity, one-therapist lock, minimum gap — before paying.
+  Keep the booking link outside the tap-target button: a link nested inside a
+  button is invalid markup and behaves differently per browser. Programme
+  cards are one component (`src/components/catalog/ProgramCards.tsx`) used by
+  both `/` and `/conditions`; the dialogs' shared visual pieces (session
+  dots, savings meter, stat tiles) live in
+  `src/components/catalog/CatalogVisuals.tsx` and are fed already-computed
+  numbers, since the arithmetic belongs in `src/lib/`.
+
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.

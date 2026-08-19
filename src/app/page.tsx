@@ -12,11 +12,9 @@ import SpineStory from "@/components/home/SpineStory";
 import JourneySteps from "@/components/home/JourneySteps";
 import CareAreas from "@/components/home/CareAreas";
 import ParkinsonsCare from "@/components/home/ParkinsonsCare";
-import CareIllustration from "@/components/visuals/CareIllustration";
 import SessionPackages from "@/components/home/SessionPackages";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
-
-const PROGRAM_ART = ["neckback", "mobility", "sports", "ergonomics"] as const;
+import ProgramCards from "@/components/catalog/ProgramCards";
 
 // This page has no per-user content — it can be cached and revalidated
 // on a timer instead of hitting Supabase on every single visit.
@@ -33,7 +31,7 @@ export default async function Home() {
   const supabase = createPublicClient();
   const { data: categories } = await supabase
     .from("treatment_categories")
-    .select("id, title, description, points, price_paise")
+    .select("id, title, description, points, price_paise, duration_minutes, cta_label")
     .eq("active", true)
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
@@ -67,9 +65,25 @@ export default async function Home() {
         .order("id", { ascending: true })
     : { data: null };
 
+  // The package detail dialog's copy (long description, terms, scheduling
+  // limits) lives in migration-dependent columns, so it is read in its own
+  // call and merged in: an unknown-column error here costs the dialog those
+  // fields instead of blanking the whole packages section.
+  const packageIds = (rawPackages ?? []).map((p) => p.id);
+  const { data: packageDetail } = packageIds.length
+    ? await supabase
+        .from("treatment_category_packages")
+        .select(
+          "id, description, terms, package_code, session_duration_minutes, min_gap_hours, max_sessions_per_week, max_purchases_per_patient"
+        )
+        .in("id", packageIds)
+    : { data: null };
+  const detailById = new Map((packageDetail ?? []).map((d) => [d.id, d]));
+
   const categoryPriceById = new Map((categories ?? []).map((c) => [c.id, c.price_paise]));
   const packages = (rawPackages ?? []).map((p) => ({
     ...p,
+    ...(detailById.get(p.id) ?? {}),
     category_price_paise: categoryPriceById.get(p.category_id) ?? null,
   }));
 
@@ -242,73 +256,7 @@ export default async function Home() {
                 what changes is the protocol built from it.
               </p>
             </Reveal>
-            {/* Layout stays generic: these rows are admin-controlled from
-                Site Content, so it has to hold for any number of programmes
-                and any length of copy. */}
-            <Stagger className="grid gap-6 md:grid-cols-2">
-              {categories.map((c, i) => {
-                const points = Array.isArray(c.points) ? (c.points as string[]) : [];
-                const desc = c.description || points[0] || "Learn more about this programme.";
-                return (
-                  <StaggerItem key={c.id} className="h-full">
-                    <AnimatedCard
-                      href={`/book?category=${c.id}`}
-                      className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-teal-300 hover:shadow-xl hover:shadow-slate-900/5 sm:p-7"
-                    >
-                      <div className="flex items-start gap-5">
-                        <div className="h-20 w-24 shrink-0 rounded-xl bg-teal-50/70 p-2 transition-colors group-hover:bg-teal-50">
-                          <CareIllustration
-                            id={PROGRAM_ART[i % PROGRAM_ART.length]}
-                            className="h-full w-full text-teal-700"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-display text-lg font-bold text-slate-900">
-                            {c.title}
-                          </h3>
-                          <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
-                            {desc}
-                          </p>
-                        </div>
-                      </div>
-
-                      {points.length > 0 && (
-                        <ul className="mt-5 grid gap-2 border-t border-slate-100 pt-5 sm:grid-cols-2">
-                          {points.slice(0, 4).map((pt) => (
-                            <li
-                              key={pt}
-                              className="flex items-start gap-2 text-xs leading-snug text-slate-700"
-                            >
-                              <i
-                                aria-hidden="true"
-                                className="fa-solid fa-circle-check mt-0.5 shrink-0 text-teal-600"
-                              />
-                              {pt}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-
-                      <div className="mt-auto flex items-center justify-between gap-4 pt-6">
-                        <span className="font-display text-lg font-bold text-slate-900">
-                          ₹{(c.price_paise / 100).toLocaleString("en-IN")}
-                          <span className="ml-1 text-xs font-normal text-slate-500">
-                            / session
-                          </span>
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700">
-                          Book this programme
-                          <i
-                            aria-hidden="true"
-                            className="fa-solid fa-arrow-right text-[10px] transition-transform group-hover:translate-x-1"
-                          />
-                        </span>
-                      </div>
-                    </AnimatedCard>
-                  </StaggerItem>
-                );
-              })}
-            </Stagger>
+            <ProgramCards programs={categories} packages={packages} />
           </div>
         </div>
       )}

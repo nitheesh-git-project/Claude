@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
-import {
-  Reveal,
-  Stagger,
-  StaggerItem,
-  MotionButton,
-  FloatingOrbs,
-} from "@/components/motion/primitives";
+import { Reveal, MotionButton, FloatingOrbs } from "@/components/motion/primitives";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
+import ProgramCards from "@/components/catalog/ProgramCards";
 import SessionPackages from "@/components/home/SessionPackages";
 
 export const metadata: Metadata = {
@@ -60,9 +55,24 @@ export default async function ConditionsPage() {
         .order("id", { ascending: true })
     : { data: null };
 
+  // Same isolated-query reasoning as the home page: the dialog's long-form
+  // columns are migration-dependent, so losing them must not cost the whole
+  // packages section.
+  const packageIds = (rawPackages ?? []).map((p) => p.id);
+  const { data: packageDetail } = packageIds.length
+    ? await supabase
+        .from("treatment_category_packages")
+        .select(
+          "id, description, terms, package_code, session_duration_minutes, min_gap_hours, max_sessions_per_week, max_purchases_per_patient"
+        )
+        .in("id", packageIds)
+    : { data: null };
+  const detailById = new Map((packageDetail ?? []).map((d) => [d.id, d]));
+
   const categoryPriceById = new Map(rows.map((c) => [c.id, c.price_paise]));
   const packages = (rawPackages ?? []).map((p) => ({
     ...p,
+    ...(detailById.get(p.id) ?? {}),
     category_price_paise: categoryPriceById.get(p.category_id) ?? null,
   }));
 
@@ -102,67 +112,7 @@ export default async function ConditionsPage() {
             Our programs are being updated — check back shortly.
           </p>
         ) : (
-          /* Layout intentionally generic: these rows are admin-controlled
-             from Site Content, so the design has to hold up for any number
-             of categories with any amount of copy. */
-          <Stagger className="grid gap-6 md:grid-cols-2">
-            {rows.map((cat, i) => {
-              const points = Array.isArray(cat.points) ? (cat.points as string[]) : [];
-              return (
-                <StaggerItem key={cat.id} className="h-full">
-                  <div className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition-all hover:-translate-y-1 hover:border-teal-300 hover:shadow-xl hover:shadow-slate-900/5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700">
-                          Program {String(i + 1).padStart(2, "0")}
-                        </span>
-                        <h2 className="font-display mt-1.5 text-xl font-bold text-slate-900">
-                          {cat.title}
-                        </h2>
-                      </div>
-                      <div className="shrink-0 rounded-xl bg-slate-50 px-3 py-2 text-right">
-                        <p className="font-display text-lg font-bold leading-none text-slate-900">
-                          ₹{(cat.price_paise / 100).toLocaleString("en-IN")}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-500">
-                          {cat.duration_minutes} min
-                        </p>
-                      </div>
-                    </div>
-
-                    {cat.description && (
-                      <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                        {cat.description}
-                      </p>
-                    )}
-
-                    {points.length > 0 && (
-                      <ul className="mt-5 space-y-2 border-t border-slate-100 pt-5">
-                        {points.map((p) => (
-                          <li key={p} className="flex items-start gap-2.5 text-sm text-slate-700">
-                            <i className="fa-solid fa-circle-check mt-0.5 shrink-0 text-teal-600" />
-                            {p}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    <div className="mt-auto pt-6">
-                      <MotionButton
-                        href={`/book?category=${cat.id}`}
-                        variant="primary"
-                        fullWidth
-                        className="justify-center text-sm"
-                      >
-                        {cat.cta_label}
-                        <i className="fa-solid fa-arrow-right text-xs" />
-                      </MotionButton>
-                    </div>
-                  </div>
-                </StaggerItem>
-              );
-            })}
-          </Stagger>
+          <ProgramCards programs={rows} packages={packages} />
         )}
 
       </section>

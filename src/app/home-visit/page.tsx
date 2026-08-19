@@ -60,7 +60,23 @@ export default async function HomeVisitPage() {
       .order("pincode", { ascending: true }),
   ]);
 
-  const packages = (rawPackages ?? []) as PublicHomeVisitPackage[];
+  // The detail dialog's long-form copy and scheduling rules, read in their
+  // own call and merged in -- same migration tolerance as the session
+  // packages on / and /conditions: losing these columns costs the dialog
+  // those fields, not the whole catalogue.
+  const packageIds = (rawPackages ?? []).map((p) => p.id);
+  const { data: packageDetail } = packageIds.length
+    ? await supabase
+        .from("home_visit_packages")
+        .select("id, description, terms, min_gap_hours, max_visits_per_week, max_purchases_per_patient")
+        .in("id", packageIds)
+    : { data: null };
+  const detailById = new Map((packageDetail ?? []).map((d) => [d.id, d]));
+
+  const packages = (rawPackages ?? []).map((p) => ({
+    ...p,
+    ...(detailById.get(p.id) ?? {}),
+  })) as PublicHomeVisitPackage[];
 
   const heading =
     settingsRow?.home_visit_page_heading?.trim() || DEFAULT_HOME_VISIT_PAGE_HEADING;

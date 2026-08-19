@@ -196,8 +196,13 @@ per-programme rules (minimum gap between sessions, max sessions/week, max
 purchases/patient) — configured field-by-field in the admin **Session
 Manager** tab, not Site Content or Feature Control. Active packages appear as
 cards on `/` and `/conditions` (each gated by its own `visible_on_home` /
-`visible_on_conditions` flag, plus the site-wide visibility switch) and link
-to `/book?package=<id>`. A purchase's `expires_at` is set the moment payment
+`visible_on_conditions` flag, plus the site-wide visibility switch). Tapping
+a card opens a detail dialog carrying everything the card has no room for —
+the long description, terms, scheduling rules, a per-session price
+comparison — while **Book package** on the card and again in the dialog goes
+straight to `/book?package=<id>`. Programme cards and the home-visit package
+cards on `/home-visit` behave identically (`/book?category=<id>` and
+`/book-home-visit?package=<id>` respectively). A purchase's `expires_at` is set the moment payment
 clears — an abandoned checkout never eats into a validity window — using the
 package's own `validity_days` or the site default. When a package has
 `therapist_locked` on (the default) and the site-wide switch
