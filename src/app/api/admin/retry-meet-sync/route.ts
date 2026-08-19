@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { meetSyncUnclaimedFilter } from "@/lib/retryDueMeetSyncs";
+import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
 
 // Re-attempts Meet event creation for one confirmed appointment from the
 // Feature Control tab's sync health panel -- same helper every original
@@ -28,7 +29,9 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: appointment } = await admin
     .from("appointments")
-    .select("id, status, patient_id, therapist_id, slot_time, duration_minutes, timezone, meet_link")
+    .select(
+      "id, status, patient_id, therapist_id, slot_time, duration_minutes, timezone, meet_link, visit_mode, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_access_notes"
+    )
     .eq("id", appointmentId)
     .maybeSingle();
 
@@ -67,11 +70,12 @@ export async function POST(request: NextRequest) {
   // with. Without it, a session that had already exhausted its automatic
   // attempts would be retried once by hand and then never picked up again if
   // it failed anew.
+  const claimedAt = new Date().toISOString();
   const { data: claimed, error: claimError } = await admin
     .from("appointments")
     .update({
       google_calendar_sync_attempts: 0,
-      google_calendar_sync_claimed_at: new Date().toISOString(),
+      google_calendar_sync_claimed_at: claimedAt,
     })
     .eq("id", appointmentId)
     .is("meet_link", null)
@@ -91,6 +95,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // A home visit gets the same event a booking would have created for it --
+  // address as the location, access notes in the description, no Meet
+  // conferencing. Without this a hand-retried home visit got an online Meet
+  // event with no address on it, which is the one thing the therapist
+  // actually needs from the invite: they navigate by it.
+  const isHomeVisit = appointment.visit_mode === "home_visit";
+  const address = visitAddressFromAppointment(appointment);
+
   await createMeetEventForConfirmedAppointment(admin, {
     appointmentId: appointment.id,
     patientId: appointment.patient_id,
@@ -99,14 +111,23 @@ export async function POST(request: NextRequest) {
     durationMinutes: appointment.duration_minutes,
     timezone: appointment.timezone,
     bypassMasterToggle: true,
+    visitMode: isHomeVisit ? "home_visit" : "online",
+    location: isHomeVisit ? formatAddressOneLine(address) : null,
+    description:
+      isHomeVisit && appointment.visit_access_notes
+        ? `Access notes: ${appointment.visit_access_notes}`
+        : null,
   });
 
   // Release the claim before reporting back, so a failed attempt can be
   // retried straight away rather than waiting out the staleness window.
+  // Conditional on the claim still being this request's, so a release can
+  // never clear a claim something else took over after the staleness window.
   await admin
     .from("appointments")
     .update({ google_calendar_sync_claimed_at: null })
-    .eq("id", appointmentId);
+    .eq("id", appointmentId)
+    .eq("google_calendar_sync_claimed_at", claimedAt);
 
   const { data: updated } = await admin
     .from("appointments")

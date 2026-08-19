@@ -60,16 +60,21 @@ export function meetSyncUnclaimedFilter(now = Date.now()): string {
 
 // Runs each attempt with a wall-clock bound. createMeetEventForConfirmedAppointment
 // never throws by contract, so this only guards against it never *settling*.
-async function withTimeout(work: Promise<void>, appointmentId: string): Promise<void> {
+//
+// Returns whether the work actually finished. That distinction matters to the
+// caller: timing out does not cancel the Calendar call, it only stops waiting
+// for it, so the attempt may still be in flight -- and an in-flight attempt
+// must keep its claim.
+async function withTimeout(work: Promise<void>, appointmentId: string): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<void>((resolve) => {
+  const timeout = new Promise<false>((resolve) => {
     timer = setTimeout(() => {
       console.error("Meet sync retry timed out for appointment", appointmentId);
-      resolve();
+      resolve(false);
     }, ATTEMPT_TIMEOUT_MS);
   });
   try {
-    await Promise.race([work, timeout]);
+    return await Promise.race([work.then(() => true), timeout]);
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -148,11 +153,12 @@ export async function retryDueMeetSyncs(admin: AdminClient): Promise<void> {
     // on a database this migration hasn't reached) is skipped for the same
     // reason the attempts column gates the query above: without the guard,
     // not retrying beats retrying unsafely.
+    const claimedAt = new Date().toISOString();
     const { data: claimed } = await admin
       .from("appointments")
       .update({
         google_calendar_sync_attempts: (appointment.google_calendar_sync_attempts ?? 0) + 1,
-        google_calendar_sync_claimed_at: new Date().toISOString(),
+        google_calendar_sync_claimed_at: claimedAt,
       })
       .eq("id", appointment.id)
       .eq("google_calendar_sync_attempts", appointment.google_calendar_sync_attempts ?? 0)
@@ -165,7 +171,7 @@ export async function retryDueMeetSyncs(admin: AdminClient): Promise<void> {
 
     const address = visitAddressFromAppointment(appointment);
 
-    await withTimeout(
+    const settled = await withTimeout(
       createMeetEventForConfirmedAppointment(admin, {
         appointmentId: appointment.id,
         patientId: appointment.patient_id,
@@ -183,13 +189,23 @@ export async function retryDueMeetSyncs(admin: AdminClient): Promise<void> {
       appointment.id
     );
 
-    // Release the claim whatever happened. On success the helper has already
-    // written meet_link, so the row will not be picked up again either way;
-    // on failure this is what lets the next sweep retry it before the
-    // staleness window would have expired on its own.
-    await admin
-      .from("appointments")
-      .update({ google_calendar_sync_claimed_at: null })
-      .eq("id", appointment.id);
+    // Release the claim only if the attempt actually finished. A timeout does
+    // not cancel the Calendar call -- it only stops this render waiting for
+    // it -- so releasing there would hand the row to the next sweep while the
+    // first call is still in flight, and two creates is precisely the
+    // orphaned-event outcome the claim exists to prevent. An abandoned claim
+    // is not stuck either way: the staleness window frees it, and that window
+    // is the right amount of time to wait for a call that has already blown
+    // its own timeout.
+    //
+    // Conditional on the claim still being ours, so a release can never clear
+    // a claim some later sweep took over after the staleness window.
+    if (settled) {
+      await admin
+        .from("appointments")
+        .update({ google_calendar_sync_claimed_at: null })
+        .eq("id", appointment.id)
+        .eq("google_calendar_sync_claimed_at", claimedAt);
+    }
   }
 }
