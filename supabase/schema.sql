@@ -3356,3 +3356,25 @@ $$;
 revoke all on function public.debug_reset_all_data() from public;
 revoke all on function public.debug_reset_all_data() from anon;
 revoke all on function public.debug_reset_all_data() from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Meet sync auto-retry attempt counter
+-- ---------------------------------------------------------------------------
+-- A confirmed session whose Calendar event never got created used to sit in
+-- the admin's Sync Health panel until somebody noticed it and clicked Retry.
+-- src/lib/retryDueMeetSyncs.ts now re-attempts those lazily at the top of the
+-- admin dashboard render (same no-cron, idempotent-sweep pattern as
+-- expirePackagePurchases -- there is still no background worker in this
+-- deployment).
+--
+-- This counter is what stops that sweep from being an infinite loop against
+-- the Google API. A permanently broken session -- revoked credentials, a
+-- deleted calendar, an attendee address Google rejects -- would otherwise be
+-- retried on every single admin page render forever, burning quota and
+-- slowing the dashboard for a failure no number of retries can fix. The
+-- sweep increments this before each attempt and skips any row that has hit
+-- its cap, which turns "retry forever" into "retry a few times, then leave
+-- it for a human". A manual Retry from the panel resets it to 0, since an
+-- admin clicking the button is a statement that the underlying cause has
+-- been dealt with and the row deserves a fresh set of automatic attempts.
+alter table appointments add column if not exists google_calendar_sync_attempts integer not null default 0;

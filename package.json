@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "npm run check:realtime && eslint",
+    "check:realtime": "node scripts/check-realtime-coverage.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {

@@ -52,6 +52,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, meetLink: appointment.meet_link });
   }
 
+  // An admin clicking Retry is a statement that whatever broke the sync has
+  // been dealt with, so the automatic sweep's attempt counter
+  // (src/lib/retryDueMeetSyncs.ts) is re-armed here. Without this, a session
+  // that already exhausted its automatic attempts would be retried once by
+  // hand and then never picked up again if it failed anew. Isolated call and
+  // deliberately unchecked: the column is migration-dependent, and a database
+  // without it must still get the manual retry it asked for.
+  await admin
+    .from("appointments")
+    .update({ google_calendar_sync_attempts: 0 })
+    .eq("id", appointmentId);
+
   await createMeetEventForConfirmedAppointment(admin, {
     appointmentId: appointment.id,
     patientId: appointment.patient_id,

@@ -57,6 +57,7 @@ import { mergeMeetLinks } from "@/lib/meetLink";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
+import { retryDueMeetSyncs, MAX_MEET_SYNC_AUTO_ATTEMPTS } from "@/lib/retryDueMeetSyncs";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 export const metadata: Metadata = {
@@ -88,6 +89,13 @@ export default async function AdminDashboardPage() {
   // comment for why this is a lazy sweep rather than a scheduled job.
   await expireDuePackagePurchases(admin);
 
+  // Same lazy-sweep pattern, one step further: this one reaches out to the
+  // Google Calendar API, so it is capped hard (a few appointments per render,
+  // a wall-clock timeout each, a per-appointment attempt limit) -- see the
+  // helper. Before it existed, a confirmed session whose event creation
+  // failed sat in the Sync Health panel until a human clicked Retry.
+  await retryDueMeetSyncs(admin);
+
   // All of these are independent reads -- none needs another query's data,
   // only fixed filters -- so they run as one parallel batch instead of the
   // ~25 sequential round trips this page used to make one at a time. That
@@ -112,6 +120,7 @@ export default async function AdminDashboardPage() {
     { data: sessionCodeLinks },
     { data: meetLinkRows },
     { data: syncErrorRows },
+    { data: syncAttemptRows },
     { data: availabilityTemplateRows },
     { data: availabilityOverrideRows },
     { data: onLeaveRows },
@@ -238,6 +247,13 @@ export default async function AdminDashboardPage() {
     // Sync health panel data (Feature Control tab) is built further down,
     // once profileMap (patient/therapist names) is available.
     admin.from("appointments").select("id, google_calendar_sync_error"),
+
+    // The auto-retry attempt counter is newer than the error column above,
+    // so it gets its own isolated call rather than joining it -- a database
+    // that hasn't had this migration applied yet would otherwise fail that
+    // query too and blank the whole Sync Health panel, instead of just
+    // losing the "gave up" flag. Same convention as sessionCodeLinks.
+    admin.from("appointments").select("id, google_calendar_sync_attempts"),
 
     // Feeds the Manage Roster tab. Both queries can legitimately return
     // nothing (or error, if the migration hasn't been applied to this
@@ -481,9 +497,16 @@ export default async function AdminDashboardPage() {
   // never got a Meet link or recorded a sync error -- surfaces silent
   // Calendar-API failures in-app instead of only in server logs.
   const syncErrorById = new Map((syncErrorRows ?? []).map((r) => [r.id, r.google_calendar_sync_error]));
+  const syncAttemptsById = new Map(
+    (syncAttemptRows ?? []).map((r) => [r.id, r.google_calendar_sync_attempts])
+  );
   const googleMeetSyncIssues = appointmentsWithSessionCode
     .filter((a) => a.status === "confirmed")
-    .map((a) => ({ ...a, google_calendar_sync_error: syncErrorById.get(a.id) ?? null }))
+    .map((a) => ({
+      ...a,
+      google_calendar_sync_error: syncErrorById.get(a.id) ?? null,
+      google_calendar_sync_attempts: syncAttemptsById.get(a.id) ?? 0,
+    }))
     .filter((a) => !a.meet_link || a.google_calendar_sync_error)
     .map((a) => ({
       id: a.id,
@@ -492,6 +515,13 @@ export default async function AdminDashboardPage() {
       patientName: profileMap.get(a.patient_id)?.full_name ?? "Unknown patient",
       therapistName: a.therapist_id ? profileMap.get(a.therapist_id)?.full_name ?? "Unknown therapist" : null,
       error: a.google_calendar_sync_error,
+      // Separates "the automatic sweep hasn't got to this yet" from "the
+      // sweep has given up and this needs a person" -- without it every row
+      // in the panel looks equally like something the system might still fix
+      // on its own, and the genuinely stuck ones never get looked at.
+      autoRetryExhausted:
+        (a.google_calendar_sync_attempts ?? 0) >= MAX_MEET_SYNC_AUTO_ATTEMPTS,
+      autoRetryAttempts: a.google_calendar_sync_attempts ?? 0,
     }));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");

@@ -20,7 +20,21 @@ import { createClient } from "@/lib/supabase/client";
 // postgres_changes events at all, and this silently does nothing (no error,
 // just no live updates), same graceful-degradation posture as this
 // codebase's migration-dependent queries elsewhere.
-export default function RealtimeRefresh({ tables }: { tables: string[] }) {
+//
+// debounceMs is worth tuning per caller rather than leaving at the default.
+// A refresh is not free: router.refresh() re-runs the whole Server
+// Component, and on the admin dashboard that is ~41 queries for every
+// screen at once (see AdminShell). Somewhere the underlying data changes
+// rarely (catalog, settings) or the viewer is not watching a live queue, a
+// longer window collapses far more events into one refresh and nobody
+// notices the delay.
+export default function RealtimeRefresh({
+  tables,
+  debounceMs = 400,
+}: {
+  tables: string[];
+  debounceMs?: number;
+}) {
   const router = useRouter();
   const tablesKey = tables.join(",");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -38,7 +52,7 @@ export default function RealtimeRefresh({ tables }: { tables: string[] }) {
         { event: "*", schema: "public", table },
         () => {
           if (debounceRef.current) clearTimeout(debounceRef.current);
-          debounceRef.current = setTimeout(() => router.refresh(), 400);
+          debounceRef.current = setTimeout(() => router.refresh(), debounceMs);
         }
       );
     }
@@ -49,7 +63,7 @@ export default function RealtimeRefresh({ tables }: { tables: string[] }) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       supabase.removeChannel(channel);
     };
-  }, [tablesKey, router]);
+  }, [tablesKey, debounceMs, router]);
 
   return null;
 }

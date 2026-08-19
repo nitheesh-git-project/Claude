@@ -19,7 +19,9 @@ Settings — defined once in `src/lib/adminNav.ts`.
 Before writing code: read the relevant guide in `node_modules/next/dist/docs/`
 — this Next.js version differs from training data.
 
-Quick commands: `npm run dev`, `npm run build`, `npm run lint`. A Playwright
+Quick commands: `npm run dev`, `npm run build`, `npm run lint` (which also
+runs `npm run check:realtime`, the Supabase Realtime publication coverage
+check). A Playwright
 e2e suite covers the money-critical paths (`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys — verify a change
 with a build and a lint.

@@ -23,6 +23,10 @@ export type GoogleMeetSyncIssue = {
   patientName: string;
   therapistName: string | null;
   error: string | null;
+  // How many times the automatic sweep (src/lib/retryDueMeetSyncs.ts) has
+  // already tried this one, and whether it has hit its cap and stopped.
+  autoRetryAttempts: number;
+  autoRetryExhausted: boolean;
 };
 
 export default function AdminFeatureControlTab({
@@ -442,7 +446,10 @@ export default function AdminFeatureControlTab({
         <h3 className="font-bold text-sm text-slate-800">Sync Health</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
           Confirmed sessions that don&apos;t have a Meet link yet — either creation hasn&apos;t
-          run, or it failed. Retry re-attempts event creation for that one session.
+          run, or it failed. These are retried automatically a few times in the background;
+          anything marked <span className="font-semibold">Needs attention</span> has used up
+          those attempts and won&apos;t be retried again on its own. Retry re-attempts event
+          creation for that one session and re-arms the automatic attempts.
         </p>
         {syncIssues.length === 0 ? (
           <p className="text-xs text-slate-400 mt-4">
@@ -468,6 +475,18 @@ export default function AdminFeatureControlTab({
                   {issue.error && (
                     <p className="text-[11px] text-red-600 mt-1 break-words">{issue.error}</p>
                   )}
+                  {issue.autoRetryExhausted ? (
+                    <p className="text-[11px] font-semibold text-amber-700 mt-1">
+                      Needs attention — {issue.autoRetryAttempts} automatic attempts used, no more
+                      will run
+                    </p>
+                  ) : issue.autoRetryAttempts > 0 ? (
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      {issue.autoRetryAttempts} automatic{" "}
+                      {issue.autoRetryAttempts === 1 ? "attempt" : "attempts"} so far — still
+                      retrying
+                    </p>
+                  ) : null}
                   {retryErrors[issue.id] && (
                     <p className="text-[11px] text-red-600 mt-1 break-words">{retryErrors[issue.id]}</p>
                   )}

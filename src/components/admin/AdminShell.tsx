@@ -13,8 +13,26 @@ import { ADMIN_SECTIONS, findTab, type AdminSectionKey } from "@/lib/adminNav";
 // this dashboard. package_purchase_summary is deliberately excluded: it's a
 // view, and postgres_changes only streams base tables -- its underlying
 // patient_package_purchases is covered instead. See the supabase_realtime
-// publication entries at the end of schema.sql. Fixed at module scope so
-// RealtimeRefresh's own tables prop is referentially stable across renders.
+// publication entries at the end of schema.sql, and
+// scripts/check-realtime-coverage.mjs, which fails the lint if a table
+// listed here was never added to that publication (the failure mode is
+// silent: the subscription succeeds and simply never fires).
+//
+// Split into two channels because a refresh here is expensive and the two
+// halves change at wildly different rates. One router.refresh() re-runs the
+// whole dashboard Server Component -- ~41 queries, every screen, not just
+// the one on display -- so every event that survives the debounce costs
+// that. Operational tables below fire on ordinary patient and therapist
+// activity, many times an hour; catalog and settings tables change when an
+// admin edits them, which is rarely, and never in a burst that anyone is
+// watching land. Giving the catalog channel a much longer window means a
+// stray FAQ edit can't drag the whole dashboard through a rebuild, while
+// the operational channel keeps a window short enough that a booking still
+// appears while the admin is looking at it.
+//
+// Both lists are read by the coverage check, which matches any
+// *_REALTIME_TABLES array -- keep new tables in one of these two rather
+// than inlining a third list at the call site.
 const ADMIN_REALTIME_TABLES = [
   "appointments",
   "therapist_payout_requests",
@@ -25,20 +43,13 @@ const ADMIN_REALTIME_TABLES = [
   "patient_package_purchases",
   "payment_failure_log",
   "therapist_payout_batches",
-  "site_settings",
   "therapist_availability_template",
   "therapist_availability_override",
   "appointment_reassignment_log",
-  "treatment_categories",
-  "treatment_category_packages",
-  "testimonials",
-  "faqs",
   "patient_condition_profiles",
   "condition_change_requests",
   "condition_access_grants",
   "pain_assessments",
-  "home_visit_areas",
-  "home_visit_packages",
   "home_visit_package_purchases",
   "home_visit_waitlist",
   "patient_addresses",
@@ -46,6 +57,27 @@ const ADMIN_REALTIME_TABLES = [
   "hospital_admin_notes",
 ];
 
+// Catalog and site configuration: edited by an admin on purpose, not
+// produced by traffic.
+const ADMIN_CATALOG_REALTIME_TABLES = [
+  "site_settings",
+  "treatment_categories",
+  "treatment_category_packages",
+  "testimonials",
+  "faqs",
+  "home_visit_areas",
+  "home_visit_packages",
+];
+
+// 2.5s: long enough that the several row writes behind one booking or one
+// bulk action collapse into a single rebuild, short enough that an admin
+// watching a queue still sees the change arrive on its own.
+const ADMIN_REALTIME_DEBOUNCE_MS = 2500;
+
+// 30s: nothing on a catalog table is time-critical to a second admin, and
+// the admin who made the edit already sees it via their own action's
+// router.refresh().
+const ADMIN_CATALOG_REALTIME_DEBOUNCE_MS = 30000;
 // Content for every screen, keyed "<section>:<tab>" -- the page builds this
 // map, the shell only decides which key is visible. Keeping it a flat map
 // (rather than one prop per screen, as the old 16-prop AdminTabs did) means
@@ -272,7 +304,11 @@ export default function AdminShell({
     // column -- Navbar/Footer are hidden on this exact route (see their own
     // pathname checks) so this component owns the entire viewport.
     <div className="min-h-screen bg-slate-50">
-      <RealtimeRefresh tables={ADMIN_REALTIME_TABLES} />
+      <RealtimeRefresh tables={ADMIN_REALTIME_TABLES} debounceMs={ADMIN_REALTIME_DEBOUNCE_MS} />
+      <RealtimeRefresh
+        tables={ADMIN_CATALOG_REALTIME_TABLES}
+        debounceMs={ADMIN_CATALOG_REALTIME_DEBOUNCE_MS}
+      />
       {/* Narrow screens: a compact dark top bar that opens an off-canvas
           drawer -- a fixed-width sidebar doesn't leave enough room for
           content on a phone/tablet. */}

@@ -20,7 +20,12 @@ Calendar/Meet (`googleapis`) · `motion` for animation · Font Awesome ·
 `libphonenumber-js`.
 
 Commands: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
-`npm run test:e2e`. The e2e suite (Playwright, `e2e/`) covers the
+`npm run check:realtime`, `npm run test:e2e`. `npm run lint` runs
+`check:realtime` first: `scripts/check-realtime-coverage.mjs` fails the lint
+when a table the UI subscribes to was never added to the `supabase_realtime`
+publication in `schema.sql`. That mismatch has no runtime symptom — the
+subscription succeeds and simply never fires — so the check is the only
+thing that catches it. The e2e suite (Playwright, `e2e/`) covers the
 money-critical paths and the admin back office — booking + payment,
 concurrency/CAS guards, bulk limits, admin route authorization for every
 role, input validation, payout/refund maths, and the dashboard's own
@@ -161,8 +166,18 @@ client is the only writer and the log is append-only from any session.
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) —
   see the Home Visit bullet below.
 - **Google Calendar/Meet sync must never block a booking.** Failures are
-  recorded on the appointment (`google_calendar_sync_error`) and retried by
-  the admin (`/api/admin/retry-meet-sync`). A home visit still gets a
+  recorded on the appointment (`google_calendar_sync_error`), re-attempted
+  automatically by `src/lib/retryDueMeetSyncs.ts` (a lazy sweep at the top of
+  the admin dashboard render — see the no-cron rule below), and retried by
+  hand by the admin (`/api/admin/retry-meet-sync`). The automatic sweep is
+  capped three ways because, unlike the expiry sweeps, it makes outbound
+  Google API calls from inside a page render: a wall-clock timeout per
+  attempt, a few appointments per sweep, and
+  `appointments.google_calendar_sync_attempts` capping attempts per
+  appointment so a permanently broken row (revoked credentials, deleted
+  calendar) is not retried forever. At the cap the row stays in the admin's
+  Sync Health panel flagged as needing a person; a manual Retry resets the
+  counter. A home visit still gets a
   calendar event even when `google_meet_enabled` is off — that toggle only
   gates the Meet conferencing, not event creation, since the invite email is
   the only outbound notification this platform sends.
@@ -223,7 +238,11 @@ client is the only writer and the log is append-only from any session.
   see `src/lib/expirePackagePurchases.ts`, called from both the admin and
   patient dashboard pages before their own reads. Follow this pattern
   rather than reaching for a cron job or a queue. Home-visit purchases get
-  the identical treatment via `src/lib/expireHomeVisitPurchases.ts`.
+  the identical treatment via `src/lib/expireHomeVisitPurchases.ts`, and
+  failed Meet syncs via `src/lib/retryDueMeetSyncs.ts`. A sweep that calls an
+  external API is the one that needs limits: bound it by wall-clock time,
+  rows per sweep, and attempts per row, or a permanently failing row becomes
+  an unbounded retry loop attached to every page render.
 - **Package (and home-visit package) detail is viewer-scoped, not
   role-branched.** `/api/packages/purchase-detail` and
   `/api/home-visit/purchase-detail` both query the purchases table with the
@@ -274,6 +293,19 @@ client is the only writer and the log is append-only from any session.
   stale) and paints at most 200 rows before offering "Show all" -- the page
   server-renders every screen at once, so an unbounded table is HTML every
   admin downloads whether they open that screen or not.
+- **A dashboard refresh is expensive; debounce accordingly.**
+  `RealtimeRefresh` turns a `postgres_changes` event into `router.refresh()`,
+  which on the admin dashboard re-runs the whole Server Component — ~40
+  queries, every screen, not only the visible one. `AdminShell` therefore
+  subscribes on two channels with different `debounceMs`: operational tables
+  (bookings, payouts, profiles, care records) on a short window so a change
+  still lands while an admin watches, and catalog/settings tables
+  (`site_settings`, treatments, packages, testimonials, FAQs, areas) on a
+  much longer one, since those change only when an admin edits them and the
+  editor already sees their own change. Put a new table in one of those two
+  `*_REALTIME_TABLES` arrays rather than inlining a third list — the coverage
+  check reads them by that name — and add the matching `alter publication`
+  to `schema.sql` in the same change.
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.
