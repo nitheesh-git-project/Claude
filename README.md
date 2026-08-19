@@ -167,7 +167,16 @@ plus per-date overrides (`therapist_availability_template`,
 (`src/lib/checkTherapistConflict.ts`). `/book?package=<id>` switches the same
 wizard into package-purchase mode instead: the category step is replaced by
 a read-only package summary, Step 1's date/time becomes session 1's slot,
-and the review step pays for the whole bundle.
+and the review step pays for the whole bundle. `/book?therapist=<id>`
+carries a specialist across from their profile dialog on `/team` ("Book with
+Dr. X"): the id is resolved client-side against `public_therapist_profiles`
+and lands in `appointments.preferred_therapist_id`, which preselects that
+therapist in the admin's assign form and marks them "(requested)". It is a
+request, not an assignment — the admin still assigns against real
+availability, and the wizard says so. Because that view already hides
+suspended, unapproved and team-hidden therapists, a stale or hand-typed link
+resolves to nothing and the booking simply carries on with no request
+attached.
 
 **Payments.** Razorpay checkout: `/api/razorpay/create-order` creates the
 order, the browser opens the widget, and `/api/razorpay/verify` verifies the

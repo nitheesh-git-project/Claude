@@ -33,6 +33,20 @@ function languageList(value?: string | null): string[] {
     .filter(Boolean);
 }
 
+/**
+ * "Book with Dr. Asha" reads better on a button than the full
+ * "Dr. Asha Menon, MPT (Ortho)". Keeps any honorific, since dropping it
+ * would put a stranger on first-name terms with the clinician.
+ */
+function firstName(fullName: string | null): string {
+  const parts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "this specialist";
+  if (parts.length === 1) return parts[0];
+  return /^(dr|prof|mr|mrs|ms|miss)\.?$/i.test(parts[0])
+    ? `${parts[0]} ${parts[1]}`
+    : parts[0];
+}
+
 function Rating({ avg, count }: { avg: number | null; count: number }) {
   if (!count) return null;
   return (
@@ -272,17 +286,23 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                 )}
 
                 {/* CTA */}
+                {/* Carries this therapist into the wizard as a request
+                    (?therapist=), rather than dropping the visitor into a
+                    generic booking that has forgotten whose profile they
+                    just read. Worded as a request because that is what it
+                    is: the admin assigns against real availability. */}
                 <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs text-slate-500">
-                    Sessions are matched to the right specialist at booking.
+                    We&apos;ll try to book you with {firstName(open.full_name)}, subject to
+                    their availability for the time you pick.
                   </p>
                   <Link
-                    href="/book"
+                    href={`/book?therapist=${open.id}`}
                     onClick={close}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-teal-900/15 transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-teal-700 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-teal-900/15 transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                   >
                     <i aria-hidden="true" className="fa-solid fa-calendar-check" />
-                    Book an assessment
+                    Book with {firstName(open.full_name)}
                   </Link>
                 </div>
               </div>

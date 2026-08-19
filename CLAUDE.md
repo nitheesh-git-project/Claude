@@ -23,7 +23,8 @@ Quick commands: `npm run dev`, `npm run build`, `npm run lint` (which also
 runs `npm run check:realtime`, the Supabase Realtime publication coverage
 check). A Playwright
 e2e suite covers the money-critical paths, the public pages' section
-navigation and the catalog detail dialogs (`npm run test:e2e`, see `e2e/`)
+navigation, the catalog detail dialogs and the specialist booking handoff
+(`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys — verify a change
 with a build and a lint.
 

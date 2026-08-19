@@ -131,6 +131,27 @@ export default function BookingWizard({
   >([]);
   const [preferredTherapistId, setPreferredTherapistId] = useState("");
 
+  // ?therapist= carries a specialist across from their profile on /team, so
+  // "Book with Dr. X" books with Dr. X rather than dropping the visitor into
+  // a generic wizard that has forgotten who they were reading about. It is a
+  // *request*, not an assignment: it lands in preferred_therapist_id, which
+  // preselects that therapist in the admin's assign form and marks them
+  // "(requested)" -- the admin still decides, because only they can see
+  // whether that therapist is actually free for the chosen slot.
+  //
+  // Resolved client-side against public_therapist_profiles, on the same
+  // query-param-is-client-only basis as ?category= and ?package= above: the
+  // page is ISR-cached, so nothing therapist-specific can be resolved
+  // server-side. That view already hides suspended, unapproved and
+  // team-hidden therapists, so a stale or hand-typed link simply resolves to
+  // nothing and the booking carries on with no request attached.
+  const therapistIdParam = searchParams.get("therapist");
+  const [requestedTherapist, setRequestedTherapist] = useState<{
+    id: string;
+    full_name: string | null;
+    credentials: string | null;
+  } | null>(null);
+
   // Package-purchase mode: driven by ?package=, same client-side-only
   // query-param convention as ?category= above -- /book stays ISR-cached,
   // so nothing package-specific is ever resolved server-side. `idle` means
@@ -196,6 +217,25 @@ export default function BookingWizard({
       .finally(() => setCheckingAuth(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!therapistIdParam) return;
+    let cancelled = false;
+    supabase
+      .from("public_therapist_profiles")
+      .select("id, full_name, credentials")
+      .eq("id", therapistIdParam)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setRequestedTherapist(data);
+        setPreferredTherapistId(data.id);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [therapistIdParam]);
 
   useEffect(() => {
     if (!packageIdParam) return;
@@ -759,7 +799,47 @@ export default function BookingWizard({
             </div>
           )}
 
-          {previousTherapists.length > 0 && (
+          {/* The request carried over from a specialist's profile. Stated as
+              a request rather than a booked fact, because the admin assigns
+              against real availability and can land on someone else -- a
+              patient who was told "booked with Dr. X" and then met someone
+              else would rightly feel misled. */}
+          {requestedTherapist && (
+            <div className="rounded-xl border border-teal-200 bg-teal-50 p-4">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-600 text-white">
+                  <i aria-hidden="true" className="fa-solid fa-user-doctor text-xs" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-teal-900">
+                    Requested: {requestedTherapist.full_name}
+                  </p>
+                  {requestedTherapist.credentials && (
+                    <p className="text-xs font-semibold text-teal-700">
+                      {requestedTherapist.credentials}
+                    </p>
+                  )}
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-teal-800">
+                    We&apos;ll book you with them if they&apos;re free at your chosen time.
+                    If not, another specialist takes the session and you&apos;ll see who
+                    before it starts.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRequestedTherapist(null);
+                    setPreferredTherapistId("");
+                  }}
+                  className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold text-teal-700 transition hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!requestedTherapist && previousTherapists.length > 0 && (
             <div>
               <label className="block font-semibold mb-1.5 text-slate-900">
                 Continue with the same therapist?{" "}

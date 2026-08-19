@@ -30,8 +30,9 @@ money-critical paths and the admin back office — booking + payment,
 concurrency/CAS guards, bulk limits, admin route authorization for every
 role, input validation, payout/refund maths, the dashboard's own
 navigation in a real browser, the public pages' section rail and scroll
-arrow (`section-nav.spec.ts`), and the public catalog's detail dialogs
-(`catalog-detail.spec.ts`). It needs a test/staging Supabase project plus
+arrow (`section-nav.spec.ts`), the public catalog's detail dialogs
+(`catalog-detail.spec.ts`), and booking a named specialist from `/team`
+(`therapist-request.spec.ts`). It needs a test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
 
@@ -317,6 +318,17 @@ client is the only writer and the log is append-only from any session.
   `*_REALTIME_TABLES` arrays rather than inlining a third list — the coverage
   check reads them by that name — and add the matching `alter publication`
   to `schema.sql` in the same change.
+- **A therapist chosen on `/team` is a request, not an assignment.**
+  `/book?therapist=<id>` resolves the id against `public_therapist_profiles`
+  (client-side, since `/book` is ISR-cached) and writes
+  `appointments.preferred_therapist_id` — the same field the wizard's
+  "continue with the same therapist" dropdown has always written, read by
+  `AssignTherapistForm`. Only the admin can see whether that therapist is
+  actually free for the slot, so never word this as a confirmed booking. A
+  therapist the public view hides (suspended, unapproved, `visible_on_team`
+  off) resolves to nothing and the request is dropped silently rather than
+  failing the booking.
+
 - **A public catalog card opens a dialog; booking is its own button.** The
   session-package, home-visit-package and programme cards all follow one
   contract: the card body is a single tap target that opens a detail dialog
