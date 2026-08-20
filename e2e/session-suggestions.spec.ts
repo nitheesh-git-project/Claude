@@ -6,7 +6,12 @@
 // the conditions that normally break it -- the same request arriving twice,
 // two people answering at once, a connection that drops mid-request, and a
 // slot that goes stale while someone is looking at it.
-import { test, expect, type APIRequestContext } from "@playwright/test";
+import {
+  test,
+  expect,
+  request as playwrightRequest,
+  type APIRequestContext,
+} from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   BASE,
@@ -24,8 +29,23 @@ let categoryId = "";
 let packageId = "";
 let therapistId = "";
 let patientId = "";
-let therapistCookie = "";
-let patientCookie = "";
+// One request context per identity, each with its own cookie jar.
+//
+// Not the shared `request` fixture with a cookie header per call: that
+// fixture keeps a jar across tests, so a session set by an earlier call
+// stays and the server reads *it* rather than the header -- which is how
+// "patient B may not answer" quietly became "patient A answers their own
+// suggestion" and returned 200. A context per person cannot mix them up.
+let therapistCtx: APIRequestContext;
+let therapistBCtx: APIRequestContext;
+let patientCtx: APIRequestContext;
+let patientBCtx: APIRequestContext;
+
+async function contextFor(email: string): Promise<APIRequestContext> {
+  return playwrightRequest.newContext({
+    extraHTTPHeaders: { cookie: await cookieHeaderFor(email) },
+  });
+}
 
 /** A slot comfortably outside the 12-hour booking lead time. */
 function slotInDays(days: number, hour = 10): string {
@@ -55,26 +75,12 @@ async function freshPurchase(admin: SupabaseClient, sessionCount = 4) {
   return data?.id as string;
 }
 
-async function suggest(
-  request: APIRequestContext,
-  body: Record<string, unknown>,
-  cookie = therapistCookie
-) {
-  return request.post(`${BASE}/api/therapist/suggest-session`, {
-    headers: { cookie, "content-type": "application/json" },
-    data: body,
-  });
+async function suggest(body: Record<string, unknown>, as: APIRequestContext = therapistCtx) {
+  return as.post(`${BASE}/api/therapist/suggest-session`, { data: body });
 }
 
-async function respond(
-  request: APIRequestContext,
-  body: Record<string, unknown>,
-  cookie = patientCookie
-) {
-  return request.post(`${BASE}/api/patient/respond-suggestion`, {
-    headers: { cookie, "content-type": "application/json" },
-    data: body,
-  });
+async function respond(body: Record<string, unknown>, as: APIRequestContext = patientCtx) {
+  return as.post(`${BASE}/api/patient/respond-suggestion`, { data: body });
 }
 
 test.describe("Therapist-suggested sessions", () => {
@@ -82,8 +88,10 @@ test.describe("Therapist-suggested sessions", () => {
     const admin = adminClient();
     therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
     patientId = await profileIdFor(admin, QA_EMAILS.patientA);
-    therapistCookie = await cookieHeaderFor(QA_EMAILS.therapistA);
-    patientCookie = await cookieHeaderFor(QA_EMAILS.patientA);
+    therapistCtx = await contextFor(QA_EMAILS.therapistA);
+    therapistBCtx = await contextFor(QA_EMAILS.therapistB);
+    patientCtx = await contextFor(QA_EMAILS.patientA);
+    patientBCtx = await contextFor(QA_EMAILS.patientB);
 
     const { data: category } = await admin
       .from("treatment_categories")
@@ -122,6 +130,9 @@ test.describe("Therapist-suggested sessions", () => {
   });
 
   test.afterAll(async () => {
+    for (const ctx of [therapistCtx, therapistBCtx, patientCtx, patientBCtx]) {
+      await ctx?.dispose();
+    }
     const admin = adminClient();
     // Purchases cascade their suggestions; appointments created by accepted
     // ones are removed first so nothing is left pointing at them.
@@ -143,11 +154,11 @@ test.describe("Therapist-suggested sessions", () => {
 
   // ---------------------------------------------------------------- happy path
 
-  test("SS-001: suggesting spends nothing; accepting is what books", async ({ request }) => {
+  test("SS-001: suggesting spends nothing; accepting is what books", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
 
-    const created = await suggest(request, { purchaseId, slotTime: slotInDays(3) });
+    const created = await suggest({ purchaseId, slotTime: slotInDays(3) });
     expect(created.status()).toBe(200);
     const { suggestionId } = await created.json();
 
@@ -164,7 +175,7 @@ test.describe("Therapist-suggested sessions", () => {
       .eq("package_purchase_id", purchaseId);
     expect(apptCount, "suggesting must not create an appointment").toBe(0);
 
-    const accepted = await respond(request, { suggestionId, answer: "accept" });
+    const accepted = await respond({ suggestionId, answer: "accept" });
     expect(accepted.status()).toBe(200);
     const acceptedBody = await accepted.json();
     expect(acceptedBody.appointmentId).toBeTruthy();
@@ -177,13 +188,13 @@ test.describe("Therapist-suggested sessions", () => {
     expect(afterAccept?.sessions_used, "accepting claims exactly one session").toBe(1);
   });
 
-  test("SS-002: declining leaves the package untouched", async ({ request }) => {
+  test("SS-002: declining leaves the package untouched", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
-    const created = await suggest(request, { purchaseId, slotTime: slotInDays(4) });
+    const created = await suggest({ purchaseId, slotTime: slotInDays(4) });
     const { suggestionId } = await created.json();
 
-    const declined = await respond(request, { suggestionId, answer: "decline" });
+    const declined = await respond({ suggestionId, answer: "decline" });
     expect(declined.status()).toBe(200);
 
     const { data: purchase } = await admin
@@ -201,14 +212,14 @@ test.describe("Therapist-suggested sessions", () => {
 
   // ------------------------------------------------------------ button spam
 
-  test("SS-003: spamming Suggest creates exactly one pending suggestion", async ({ request }) => {
+  test("SS-003: spamming Suggest creates exactly one pending suggestion", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
 
     // Fired together, not in sequence -- a sequential loop would pass on a
     // SELECT-then-INSERT check that a real double tap defeats.
     const responses = await Promise.all(
-      Array.from({ length: 6 }, () => suggest(request, { purchaseId, slotTime: slotInDays(5) }))
+      Array.from({ length: 6 }, () => suggest({ purchaseId, slotTime: slotInDays(5) }))
     );
     const ok = responses.filter((r) => r.status() === 200);
     const conflicts = responses.filter((r) => r.status() === 409);
@@ -223,14 +234,14 @@ test.describe("Therapist-suggested sessions", () => {
     expect(count).toBe(1);
   });
 
-  test("SS-004: spamming Accept books exactly one session", async ({ request }) => {
+  test("SS-004: spamming Accept books exactly one session", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
-    const created = await suggest(request, { purchaseId, slotTime: slotInDays(6) });
+    const created = await suggest({ purchaseId, slotTime: slotInDays(6) });
     const { suggestionId } = await created.json();
 
     const responses = await Promise.all(
-      Array.from({ length: 6 }, () => respond(request, { suggestionId, answer: "accept" }))
+      Array.from({ length: 6 }, () => respond({ suggestionId, answer: "accept" }))
     );
     // Every one succeeds -- a repeated accept is the same intent, not an
     // error the patient should have to read.
@@ -250,17 +261,15 @@ test.describe("Therapist-suggested sessions", () => {
     expect(count, "six taps must still book one appointment").toBe(1);
   });
 
-  test("SS-005: accept and decline racing each other settle on one answer", async ({
-    request,
-  }) => {
+  test("SS-005: accept and decline racing each other settle on one answer", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
-    const created = await suggest(request, { purchaseId, slotTime: slotInDays(7) });
+    const created = await suggest({ purchaseId, slotTime: slotInDays(7) });
     const { suggestionId } = await created.json();
 
     await Promise.all([
-      respond(request, { suggestionId, answer: "accept" }),
-      respond(request, { suggestionId, answer: "decline" }),
+      respond({ suggestionId, answer: "accept" }),
+      respond({ suggestionId, answer: "decline" }),
     ]);
 
     const { data: row } = await admin
@@ -280,18 +289,15 @@ test.describe("Therapist-suggested sessions", () => {
     if (row?.status === "accepted") expect(row.appointment_id).toBeTruthy();
   });
 
-  test("SS-006: withdraw racing accept never leaves a session half-booked", async ({
-    request,
-  }) => {
+  test("SS-006: withdraw racing accept never leaves a session half-booked", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
-    const created = await suggest(request, { purchaseId, slotTime: slotInDays(8) });
+    const created = await suggest({ purchaseId, slotTime: slotInDays(8) });
     const { suggestionId } = await created.json();
 
     await Promise.all([
-      respond(request, { suggestionId, answer: "accept" }),
-      request.post(`${BASE}/api/therapist/withdraw-suggestion`, {
-        headers: { cookie: therapistCookie, "content-type": "application/json" },
+      respond({ suggestionId, answer: "accept" }),
+      therapistCtx.post(`${BASE}/api/therapist/withdraw-suggestion`, {
         data: { suggestionId },
       }),
     ]);
@@ -311,50 +317,37 @@ test.describe("Therapist-suggested sessions", () => {
 
   // ------------------------------------------------------- authorization
 
-  test("SS-007: a therapist cannot suggest against someone else's programme", async ({
-    request,
-  }) => {
+  test("SS-007: a therapist cannot suggest against someone else's programme", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
-    const otherCookie = await cookieHeaderFor(QA_EMAILS.therapistB);
-
-    const res = await suggest(request, { purchaseId, slotTime: slotInDays(3) }, otherCookie);
+    const res = await suggest({ purchaseId, slotTime: slotInDays(3) }, therapistBCtx);
     expect(res.status()).toBe(403);
   });
 
-  test("SS-008: a patient cannot answer someone else's suggestion", async ({ request }) => {
+  test("SS-008: a patient cannot answer someone else's suggestion", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
-    const created = await suggest(request, { purchaseId, slotTime: slotInDays(3) });
+    const created = await suggest({ purchaseId, slotTime: slotInDays(3) });
     const { suggestionId } = await created.json();
 
-    const otherCookie = await cookieHeaderFor(QA_EMAILS.patientB);
-    const res = await respond(request, { suggestionId, answer: "accept" }, otherCookie);
+    const res = await respond({ suggestionId, answer: "accept" }, patientBCtx);
     expect(res.status()).toBe(403);
   });
 
-  test("SS-009: a patient cannot suggest, and a therapist cannot answer", async ({ request }) => {
+  test("SS-009: a patient cannot suggest, and a therapist cannot answer", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
 
-    const asPatient = await suggest(
-      request,
-      { purchaseId, slotTime: slotInDays(3) },
-      patientCookie
-    );
+    const asPatient = await suggest({ purchaseId, slotTime: slotInDays(3) }, patientCtx);
     expect(asPatient.status()).toBe(403);
 
-    const created = await suggest(request, { purchaseId, slotTime: slotInDays(3) });
+    const created = await suggest({ purchaseId, slotTime: slotInDays(3) });
     const { suggestionId } = await created.json();
-    const asTherapist = await respond(
-      request,
-      { suggestionId, answer: "accept" },
-      therapistCookie
-    );
+    const asTherapist = await respond({ suggestionId, answer: "accept" }, therapistCtx);
     expect(asTherapist.status()).toBe(403);
   });
 
-  test("SS-010: the admin switch refuses new suggestions", async ({ request }) => {
+  test("SS-010: the admin switch refuses new suggestions", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
     await admin
@@ -362,7 +355,7 @@ test.describe("Therapist-suggested sessions", () => {
       .update({ therapist_suggestions_enabled: false })
       .not("id", "is", null);
     try {
-      const res = await suggest(request, { purchaseId, slotTime: slotInDays(3) });
+      const res = await suggest({ purchaseId, slotTime: slotInDays(3) });
       expect(res.status()).toBe(403);
     } finally {
       await admin
@@ -374,23 +367,23 @@ test.describe("Therapist-suggested sessions", () => {
 
   // ------------------------------------------------------------ stale state
 
-  test("SS-011: a slot inside the lead time is refused, at both ends", async ({ request }) => {
+  test("SS-011: a slot inside the lead time is refused, at both ends", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
 
     // Suggesting one is refused outright.
     const soon = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
-    const refused = await suggest(request, { purchaseId, slotTime: soon });
+    const refused = await suggest({ purchaseId, slotTime: soon });
     expect(refused.status()).toBe(400);
 
     // And one that goes stale while the patient sits on it cannot be
     // accepted -- moved directly, since waiting out the lead time is not a
     // test.
-    const created = await suggest(request, { purchaseId, slotTime: slotInDays(3) });
+    const created = await suggest({ purchaseId, slotTime: slotInDays(3) });
     const { suggestionId } = await created.json();
     await admin.from("session_suggestions").update({ slot_time: soon }).eq("id", suggestionId);
 
-    const late = await respond(request, { suggestionId, answer: "accept" });
+    const late = await respond({ suggestionId, answer: "accept" });
     expect(late.status()).toBe(409);
 
     const { data: purchase } = await admin
@@ -409,9 +402,7 @@ test.describe("Therapist-suggested sessions", () => {
     expect(row?.status).toBe("pending");
   });
 
-  test("SS-012: an exhausted or expired programme cannot be suggested against", async ({
-    request,
-  }) => {
+  test("SS-012: an exhausted or expired programme cannot be suggested against", async () => {
     const admin = adminClient();
 
     const exhausted = await freshPurchase(admin, 1);
@@ -419,7 +410,7 @@ test.describe("Therapist-suggested sessions", () => {
       .from("patient_package_purchases")
       .update({ sessions_used: 1 })
       .eq("id", exhausted);
-    const noneLeft = await suggest(request, { purchaseId: exhausted, slotTime: slotInDays(3) });
+    const noneLeft = await suggest({ purchaseId: exhausted, slotTime: slotInDays(3) });
     expect(noneLeft.status()).toBe(400);
 
     const expired = await freshPurchase(admin);
@@ -427,11 +418,11 @@ test.describe("Therapist-suggested sessions", () => {
       .from("patient_package_purchases")
       .update({ status: "expired" })
       .eq("id", expired);
-    const gone = await suggest(request, { purchaseId: expired, slotTime: slotInDays(3) });
+    const gone = await suggest({ purchaseId: expired, slotTime: slotInDays(3) });
     expect(gone.status()).toBe(400);
   });
 
-  test("SS-013: a slot after the programme expires is refused", async ({ request }) => {
+  test("SS-013: a slot after the programme expires is refused", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
     await admin
@@ -439,11 +430,11 @@ test.describe("Therapist-suggested sessions", () => {
       .update({ expires_at: slotInDays(2) })
       .eq("id", purchaseId);
 
-    const res = await suggest(request, { purchaseId, slotTime: slotInDays(10) });
+    const res = await suggest({ purchaseId, slotTime: slotInDays(10) });
     expect(res.status()).toBe(400);
   });
 
-  test("SS-014: garbage input is rejected without touching anything", async ({ request }) => {
+  test("SS-014: garbage input is rejected without touching anything", async () => {
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
 
@@ -454,7 +445,7 @@ test.describe("Therapist-suggested sessions", () => {
       { purchaseId: "00000000-0000-4000-8000-000000000000", slotTime: slotInDays(3) },
       { purchaseId, slotTime: slotInDays(3), note: "x".repeat(501) },
     ]) {
-      const res = await suggest(request, body);
+      const res = await suggest(body);
       expect(res.status(), `${JSON.stringify(body)} should be rejected`).toBeGreaterThanOrEqual(
         400
       );
@@ -475,8 +466,12 @@ test.describe("Therapist-suggested sessions", () => {
     test.setTimeout(180_000);
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
-    await page.context().request.post(`${BASE}/api/therapist/suggest-session`, {
-      headers: { cookie: therapistCookie, "content-type": "application/json" },
+    // Sent from the therapist's own context, never page.context().request:
+    // that shares the browser's cookie jar, so the therapist's session would
+    // be written into it and then mixed with the patient cookies injected
+    // below -- Supabase chunks its auth cookie, so the two sets merge into
+    // something unparseable and the proxy bounces the page to login.
+    await therapistCtx.post(`${BASE}/api/therapist/suggest-session`, {
       data: { purchaseId, slotTime: slotInDays(9), note: "Same time next week" },
     });
 
@@ -504,8 +499,12 @@ test.describe("Therapist-suggested sessions", () => {
     test.setTimeout(180_000);
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
-    await page.context().request.post(`${BASE}/api/therapist/suggest-session`, {
-      headers: { cookie: therapistCookie, "content-type": "application/json" },
+    // Sent from the therapist's own context, never page.context().request:
+    // that shares the browser's cookie jar, so the therapist's session would
+    // be written into it and then mixed with the patient cookies injected
+    // below -- Supabase chunks its auth cookie, so the two sets merge into
+    // something unparseable and the proxy bounces the page to login.
+    await therapistCtx.post(`${BASE}/api/therapist/suggest-session`, {
       data: { purchaseId, slotTime: slotInDays(11) },
     });
 
@@ -544,8 +543,12 @@ test.describe("Therapist-suggested sessions", () => {
     test.setTimeout(180_000);
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
-    await page.context().request.post(`${BASE}/api/therapist/suggest-session`, {
-      headers: { cookie: therapistCookie, "content-type": "application/json" },
+    // Sent from the therapist's own context, never page.context().request:
+    // that shares the browser's cookie jar, so the therapist's session would
+    // be written into it and then mixed with the patient cookies injected
+    // below -- Supabase chunks its auth cookie, so the two sets merge into
+    // something unparseable and the proxy bounces the page to login.
+    await therapistCtx.post(`${BASE}/api/therapist/suggest-session`, {
       data: { purchaseId, slotTime: slotInDays(12) },
     });
 
@@ -589,8 +592,12 @@ test.describe("Therapist-suggested sessions", () => {
     test.setTimeout(180_000);
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
-    await page.context().request.post(`${BASE}/api/therapist/suggest-session`, {
-      headers: { cookie: therapistCookie, "content-type": "application/json" },
+    // Sent from the therapist's own context, never page.context().request:
+    // that shares the browser's cookie jar, so the therapist's session would
+    // be written into it and then mixed with the patient cookies injected
+    // below -- Supabase chunks its auth cookie, so the two sets merge into
+    // something unparseable and the proxy bounces the page to login.
+    await therapistCtx.post(`${BASE}/api/therapist/suggest-session`, {
       data: { purchaseId, slotTime: slotInDays(13) },
     });
 
