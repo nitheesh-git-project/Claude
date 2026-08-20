@@ -11,6 +11,7 @@ import {
   expect,
   request as playwrightRequest,
   type APIRequestContext,
+  type Page,
 } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -88,6 +89,23 @@ async function freshPurchase(admin: SupabaseClient, sessionCount = 4) {
   return data?.id as string;
 }
 
+// A note unique to one test, used to find that test's own card on a
+// dashboard that may be showing several.
+function uniqueNote(testId: string): string {
+  return `${testId} ${Date.now().toString(36)}`;
+}
+
+/**
+ * The suggestion card carrying `note`.
+ *
+ * .last() of the filtered divs is the innermost element containing the note
+ * -- the card itself rather than one of its ancestors -- which keeps the
+ * button and status assertions inside this test's own card.
+ */
+function cardFor(page: Page, note: string) {
+  return page.locator("div").filter({ hasText: note }).last();
+}
+
 async function suggest(body: Record<string, unknown>, as: APIRequestContext = therapistCtx) {
   return as.post(`${BASE}/api/therapist/suggest-session`, { data: body });
 }
@@ -140,6 +158,23 @@ test.describe("Therapist-suggested sessions", () => {
       .from("site_settings")
       .update({ therapist_suggestions_enabled: true })
       .not("id", "is", null);
+
+    // Anything a previous run left behind. An aborted run never reaches its
+    // afterAll, so its pending suggestions stay on the QA patient's
+    // dashboard -- and a browser test that picks "the first card" would
+    // then answer a stale one and assert against a purchase it never
+    // touched. Purged here so each run starts from a known dashboard.
+    const { data: stale } = await admin
+      .from("session_suggestions")
+      .select("purchase_id")
+      .eq("patient_id", patientId);
+    for (const row of stale ?? []) {
+      await admin.from("appointments").delete().eq("package_purchase_id", row.purchase_id);
+    }
+    await admin.from("session_suggestions").delete().eq("patient_id", patientId);
+    for (const row of stale ?? []) {
+      await admin.from("patient_package_purchases").delete().eq("id", row.purchase_id);
+    }
 
     // The patient dashboard opens a modal welcome tour for anyone who has
     // not seen it, and its backdrop covers the page -- every click in the
@@ -493,24 +528,26 @@ test.describe("Therapist-suggested sessions", () => {
     test.setTimeout(180_000);
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
+    const note = uniqueNote("SS-015");
     // Sent from the therapist's own context, never page.context().request:
     // that shares the browser's cookie jar, so the therapist's session would
     // be written into it and then mixed with the patient cookies injected
     // below -- Supabase chunks its auth cookie, so the two sets merge into
     // something unparseable and the proxy bounces the page to login.
     await therapistCtx.post(`${BASE}/api/therapist/suggest-session`, {
-      data: { purchaseId, slotTime: nextSlot(), note: "Same time next week" },
+      data: { purchaseId, slotTime: nextSlot(), note },
     });
 
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientA));
     await page.goto(`${BASE}/patient/dashboard`);
-    await expect(page.getByText("Suggested by your therapist").first()).toBeVisible({
-      timeout: 60_000,
-    });
-    await expect(page.getByText("Same time next week")).toBeVisible();
+    // Scoped to this test's own card by its note, never .first(): the
+    // dashboard can legitimately show more than one suggestion, and
+    // "Booked" appears elsewhere on the page as a session status.
+    const card = cardFor(page, note);
+    await expect(card).toBeVisible({ timeout: 60_000 });
 
-    await page.getByRole("button", { name: /Accept this time/i }).first().click();
-    await expect(page.getByText("Booked").first()).toBeVisible({ timeout: 60_000 });
+    await card.getByRole("button", { name: /Accept this time/i }).click();
+    await expect(card.getByText("Booked")).toBeVisible({ timeout: 60_000 });
 
     const { data: purchase } = await admin
       .from("patient_package_purchases")
@@ -526,26 +563,28 @@ test.describe("Therapist-suggested sessions", () => {
     test.setTimeout(180_000);
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
+    const note = uniqueNote("SS-016");
     // Sent from the therapist's own context, never page.context().request:
     // that shares the browser's cookie jar, so the therapist's session would
     // be written into it and then mixed with the patient cookies injected
     // below -- Supabase chunks its auth cookie, so the two sets merge into
     // something unparseable and the proxy bounces the page to login.
     await therapistCtx.post(`${BASE}/api/therapist/suggest-session`, {
-      data: { purchaseId, slotTime: nextSlot() },
+      data: { purchaseId, slotTime: nextSlot(), note },
     });
 
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientA));
     await page.goto(`${BASE}/patient/dashboard`);
-    const accept = page.getByRole("button", { name: /Accept this time/i }).first();
+    const card = cardFor(page, note);
+    const accept = card.getByRole("button", { name: /Accept this time/i });
     await expect(accept).toBeVisible({ timeout: 60_000 });
 
     // The first attempt never reaches the server.
     await page.route("**/api/patient/respond-suggestion", (route) => route.abort("failed"));
     await accept.click();
-    await expect(page.getByText(/Couldn't reach the server/i)).toBeVisible({ timeout: 30_000 });
+    await expect(card.getByText(/Couldn't reach the server/i)).toBeVisible({ timeout: 30_000 });
     // The card must still be answerable -- nothing was hidden optimistically.
-    await expect(page.getByRole("button", { name: /Accept this time/i }).first()).toBeVisible();
+    await expect(accept).toBeVisible();
 
     const { data: mid } = await admin
       .from("patient_package_purchases")
@@ -556,8 +595,8 @@ test.describe("Therapist-suggested sessions", () => {
 
     // Connection returns; the retry books exactly one session.
     await page.unroute("**/api/patient/respond-suggestion");
-    await page.getByRole("button", { name: /Accept this time/i }).first().click();
-    await expect(page.getByText("Booked").first()).toBeVisible({ timeout: 60_000 });
+    await accept.click();
+    await expect(card.getByText("Booked")).toBeVisible({ timeout: 60_000 });
 
     const { count } = await admin
       .from("appointments")
@@ -570,17 +609,19 @@ test.describe("Therapist-suggested sessions", () => {
     test.setTimeout(180_000);
     const admin = adminClient();
     const purchaseId = await freshPurchase(admin);
+    const note = uniqueNote("SS-017");
     // Sent from the therapist's own context, never page.context().request:
     // that shares the browser's cookie jar, so the therapist's session would
     // be written into it and then mixed with the patient cookies injected
     // below -- Supabase chunks its auth cookie, so the two sets merge into
     // something unparseable and the proxy bounces the page to login.
     await therapistCtx.post(`${BASE}/api/therapist/suggest-session`, {
-      data: { purchaseId, slotTime: nextSlot() },
+      data: { purchaseId, slotTime: nextSlot(), note },
     });
 
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientA));
     await page.goto(`${BASE}/patient/dashboard`);
+    const card = cardFor(page, note);
 
     // Held long enough that a person would tap again, and counted at the
     // network so the assertion is about requests sent, not clicks handled.
@@ -595,17 +636,14 @@ test.describe("Therapist-suggested sessions", () => {
     // would stop resolving the moment the button says "Booking…", so each
     // retry would wait for the previous request to *finish* and then fire a
     // legitimate second one -- measuring patience, not the double-tap guard.
-    const accept = page
-      .locator("button")
-      .filter({ hasText: /Accept this time|Booking…/ })
-      .first();
+    const accept = card.locator("button").filter({ hasText: /Accept this time|Booking…/ });
     await expect(accept).toBeVisible({ timeout: 60_000 });
     await accept.click();
     // Inside the held response, which is what a real double tap looks like.
     for (let i = 0; i < 4; i++) {
       await accept.click({ force: true, timeout: 250 }).catch(() => {});
     }
-    await expect(page.getByText("Booked").first()).toBeVisible({ timeout: 60_000 });
+    await expect(card.getByText("Booked")).toBeVisible({ timeout: 60_000 });
 
     expect(sent, "five taps should send one request").toBe(1);
     const { count } = await admin
@@ -635,7 +673,17 @@ test.describe("Therapist-suggested sessions", () => {
     });
 
     await page.getByRole("button", { name: /Withdraw suggestion/i }).first().click();
-    await expect(page.getByText("Waiting on the patient")).toHaveCount(0, { timeout: 60_000 });
+    // Asserted in the database rather than by counting cards on screen: the
+    // therapist may legitimately have other programmes waiting, so "no card
+    // anywhere" is not the same claim as "this one is withdrawn".
+    await expect(async () => {
+      const { data: check } = await admin
+        .from("session_suggestions")
+        .select("status")
+        .eq("purchase_id", purchaseId)
+        .single();
+      expect(check?.status).toBe("withdrawn");
+    }).toPass({ timeout: 60_000 });
 
     const { data: row } = await admin
       .from("session_suggestions")
