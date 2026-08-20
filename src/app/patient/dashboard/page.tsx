@@ -609,7 +609,11 @@ export default async function PatientDashboardPage() {
       process.env.NODE_ENV !== "production");
 
   return (
-    <JoinWindowProvider beforeMinutes={adminSettings.joinWindowMinutes} afterMinutes={adminSettings.joinWindowAfterMinutes}>
+    <JoinWindowProvider
+      beforeMinutes={adminSettings.joinWindowMinutes}
+      afterMinutes={adminSettings.joinWindowAfterMinutes}
+      completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
+    >
     <DashboardShell
       brandLabel="Patient Panel"
       brandIcon="fa-user-injured"

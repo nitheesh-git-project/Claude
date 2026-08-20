@@ -88,6 +88,13 @@ export default function AdminFeatureControlTab({
   const [refundHoursError, setRefundHoursError] = useState<string | null>(null);
   const [refundHoursSaved, setRefundHoursSaved] = useState(false);
 
+  const [completedAfterInput, setCompletedAfterInput] = useState(
+    String(settings.sessionCompletedAfterMinutes)
+  );
+  const [isCompletedAfterPending, startCompletedAfterTransition] = useTransition();
+  const [completedAfterError, setCompletedAfterError] = useState<string | null>(null);
+  const [completedAfterSaved, setCompletedAfterSaved] = useState(false);
+
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
 
@@ -181,6 +188,26 @@ export default function AdminFeatureControlTab({
         router.refresh();
       } catch (e) {
         setJoinWindowAfterError(
+          e instanceof Error ? e.message : "Could not save. Please try again."
+        );
+      }
+    });
+  }
+
+  function handleSaveCompletedAfter() {
+    // Floored at 1, not 0: zero would mark a session finished the moment it
+    // was due to start. The route enforces the same bound.
+    const minutes = Math.max(1, Math.floor(Number(completedAfterInput) || 0));
+    setCompletedAfterError(null);
+    setCompletedAfterSaved(false);
+    startCompletedAfterTransition(async () => {
+      try {
+        await saveSetting("session_completed_after_minutes", minutes);
+        setCompletedAfterInput(String(minutes));
+        setCompletedAfterSaved(true);
+        router.refresh();
+      } catch (e) {
+        setCompletedAfterError(
           e instanceof Error ? e.message : "Could not save. Please try again."
         );
       }
@@ -383,7 +410,7 @@ export default function AdminFeatureControlTab({
         <p className="text-xs text-slate-500 mt-1 max-w-md">
           Controls when the &quot;Tap to Join&quot; button is active for patients and
           therapists — admin&apos;s own button always stays active regardless of these
-          settings.
+          settings, up to the completed cutoff below, which applies everywhere.
         </p>
         <div className="flex items-center gap-2 mt-3">
           <input
@@ -435,6 +462,44 @@ export default function AdminFeatureControlTab({
         </div>
         {joinWindowAfterError && (
           <p className="text-[11px] text-red-600 mt-2">{joinWindowAfterError}</p>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h3 className="font-bold text-sm text-slate-800">Session Completed Cutoff</h3>
+        <p className="text-xs text-slate-500 mt-1 max-w-md">
+          How long after a session&apos;s scheduled start the &quot;Tap to Join&quot; button
+          reads <span className="font-semibold">Session Completed</span> instead, on every
+          screen a session appears on — patients, therapists, hospitals and this dashboard
+          alike. Separate from the window above: that one decides how late someone may still
+          join, this one decides when the session stops being offered at all.
+        </p>
+        <div className="flex items-center gap-2 mt-3">
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={completedAfterInput}
+            onChange={(e) => {
+              setCompletedAfterInput(e.target.value);
+              setCompletedAfterSaved(false);
+            }}
+            className="w-24 text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
+          />
+          <span className="text-xs text-slate-500">minutes after slot time</span>
+          <button
+            onClick={handleSaveCompletedAfter}
+            disabled={isCompletedAfterPending}
+            className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
+          >
+            {isCompletedAfterPending ? "Saving..." : "Save"}
+          </button>
+          {completedAfterSaved && (
+            <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>
+          )}
+        </div>
+        {completedAfterError && (
+          <p className="text-[11px] text-red-600 mt-2">{completedAfterError}</p>
         )}
       </div>
 

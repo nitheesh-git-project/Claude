@@ -601,7 +601,11 @@ export default async function TherapistDashboardPage() {
       process.env.NODE_ENV !== "production");
 
   return (
-    <JoinWindowProvider beforeMinutes={adminSettings.joinWindowMinutes} afterMinutes={adminSettings.joinWindowAfterMinutes}>
+    <JoinWindowProvider
+      beforeMinutes={adminSettings.joinWindowMinutes}
+      afterMinutes={adminSettings.joinWindowAfterMinutes}
+      completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
+    >
     <DashboardShell
       brandLabel="Therapist Panel"
       brandIcon="fa-user-doctor"

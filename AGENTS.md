@@ -38,7 +38,8 @@ button spam, concurrent answers and a dropped connection
 (`session-suggestions.spec.ts`), the Home page walkthrough's
 admin-configured rotation pace (`journey-pace.spec.ts`), and self-signup
 going through with no email-confirmation step
-(`patient-registration.spec.ts`). It needs a
+(`patient-registration.spec.ts`), and the Session Completed cutoff on every
+surface that lists a session (`session-completed-cutoff.spec.ts`). It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
@@ -435,7 +436,11 @@ client is the only writer and the log is append-only from any session.
   meanings. `MoneyGlossary` states each one on the Money screens -- if a new
   figure needs a word that is already taken, rename the figure, don't
   overload the word.
-- **Admin-configurable behavior** (Meet on/off, join window, idle timeout,
+- **Admin-configurable behavior** (Meet on/off, join window, the Session
+  Completed cutoff — minutes after slot time at which every "Tap to Join"
+  control reads "Session Completed" instead, admin's own included, since a
+  session an hour past its start reads the same way on every screen it
+  appears on — idle timeout,
   booking languages, the online booking lead time and cancellation refund
   window, the package-wide settings — visibility, default
   validity, therapist-lock switch, bulk-scheduler limit, expiry reminder

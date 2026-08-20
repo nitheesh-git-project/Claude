@@ -11,6 +11,7 @@ const ALLOWED_COLUMNS = new Set([
   "google_meet_enabled",
   "join_window_minutes",
   "join_window_after_minutes",
+  "session_completed_after_minutes",
   "booking_languages",
   "package_default_validity_days",
   "package_therapist_lock_enabled",
@@ -151,6 +152,9 @@ export async function POST(request: NextRequest) {
       key === "package_bulk_schedule_max" ||
       key === "home_visit_default_validity_days" ||
       key === "home_visit_bulk_schedule_max" ||
+      // Zero would mark a session finished the moment it was due to start,
+      // so this one is held to at least a minute like the bounds above.
+      key === "session_completed_after_minutes" ||
       // A zero-hour lead time would let someone book a visit for a slot
       // that has already started, with no chance of a therapist reaching
       // the address -- the whole point of this setting being separate from

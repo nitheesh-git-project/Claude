@@ -3342,7 +3342,8 @@ begin
     home_visit_travel_buffer_minutes = default,
     online_booking_lead_time_hours = default,
     online_cancellation_refund_hours = default,
-    journey_step_seconds = default
+    journey_step_seconds = default,
+    session_completed_after_minutes = default
   where id = true;
 
   return jsonb_build_object(
@@ -3560,3 +3561,16 @@ alter table site_settings add column if not exists therapist_suggestions_enabled
 -- widget on step 01 for an hour.
 alter table site_settings add column if not exists journey_step_seconds integer not null default 4
   check (journey_step_seconds = 0 or (journey_step_seconds >= 2 and journey_step_seconds <= 60));
+
+-- How long after a session's scheduled start the "Tap to Join" control
+-- stops offering a call and reads "Session Completed" instead, everywhere a
+-- session is listed. Separate from join_window_after_minutes, which is the
+-- short grace period on the *join window* (whether the link still works for
+-- a late arrival); this is the longer point at which the session is treated
+-- as over and done for display purposes, regardless of whether anyone got
+-- round to marking it completed. Counted from slot_time, not from the end of
+-- the duration, because that is how an admin thinks about it ("an hour after
+-- the appointment"). At least 1 -- zero would mark a session finished the
+-- moment it started.
+alter table site_settings add column if not exists session_completed_after_minutes integer not null default 60
+  check (session_completed_after_minutes >= 1);

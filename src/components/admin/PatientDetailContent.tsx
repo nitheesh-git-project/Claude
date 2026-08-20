@@ -254,7 +254,11 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   };
 
   return (
-    <JoinWindowProvider beforeMinutes={adminSettings.joinWindowMinutes} afterMinutes={adminSettings.joinWindowAfterMinutes}>
+    <JoinWindowProvider
+      beforeMinutes={adminSettings.joinWindowMinutes}
+      afterMinutes={adminSettings.joinWindowAfterMinutes}
+      completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
+    >
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">

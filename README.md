@@ -460,11 +460,24 @@ which only the admin can read back.
 
 **Admin-managed content.** Treatment categories (with ordering), FAQs,
 testimonials, feature toggles (Meet on/off, join window, idle-timeout
-minutes, booking languages), and **Brand & Contact Details** (website name,
+minutes, the Session Completed cutoff, booking languages), and
+**Brand & Contact Details** (website name,
 tagline, description, contact email, WhatsApp number, contact phone, footer
 copyright text — the strings the public Navbar and Footer render) are all
 editable under **Settings** (Brand & Contact, Public Site, Booking Rules),
 stored in `site_settings` and their own tables — see `src/lib/adminSettings.ts`.
+**Settings → Booking Rules** carries the two time boundaries on the join
+control. The **Join Button Window** decides how early a patient or therapist
+may open the call and how long after it ends the link still works; the
+**Session Completed Cutoff** (`session_completed_after_minutes`, default 60,
+at least 1) decides when it stops being a call at all — past that many
+minutes from the scheduled start, every "Tap to Join" button reads
+**Session Completed** and is inert, on the patient, therapist and hospital
+dashboards and in the admin's own lists alike. The admin's button is exempt
+from the window, deliberately, but never from this cutoff: a session an hour
+past its start should read the same way wherever it is listed. A cancelled
+session reads **Session Cancelled** rather than being called completed.
+
 **Settings → Public Site** also carries **Home Page Walkthrough**: how many
 seconds each of the Home page's three "Booking to recovery" steps holds
 before the next one takes over (`journey_step_seconds`, default 4, allowed

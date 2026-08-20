@@ -2114,6 +2114,7 @@ export default async function AdminDashboardPage() {
     <JoinWindowProvider
       beforeMinutes={adminSettings.joinWindowMinutes}
       afterMinutes={adminSettings.joinWindowAfterMinutes}
+      completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
     >
       <AdminShell
         screens={screens}
