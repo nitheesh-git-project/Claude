@@ -3402,3 +3402,37 @@ alter table appointments add column if not exists google_calendar_sync_attempts 
 -- can be taken over, so a render that dies mid-call cannot lock a session out
 -- of syncing forever.
 alter table appointments add column if not exists google_calendar_sync_claimed_at timestamptz;
+
+-- ==========================================================================
+-- Appointments are never inserted by the browser
+-- ==========================================================================
+-- Drops appointments_insert_own and revokes the insert grant behind it, so
+-- appointments (like home-visit rows already were) can only ever be created
+-- by service-role code. The booking wizard's last direct insert now goes
+-- through /api/appointments/create instead.
+--
+-- Why the policy is going rather than growing another clause: it had become
+-- a full copy of the booking rules -- status, payment_status, therapist_id,
+-- package/home-visit ids, slot in the future, duration pinned to the
+-- category, profile active -- expressed in SQL, sitting in a file that only
+-- reaches the live database when someone runs scripts/run-schema.mjs (or the
+-- workflow that wraps it, which needs its two repo secrets set). Every clause
+-- of it was therefore a way for the entire booking funnel to fail on a
+-- database that was one merge behind the code.
+--
+-- That is not hypothetical. The version above dropped `approved = true` so a
+-- self-signup patient could pay on the visit they discovered the site; the
+-- live database still had the version that required it, and every new
+-- patient's first booking died at the last step of checkout with the raw
+-- Postgres string "new row violates row-level security policy for table
+-- \"appointments\"" -- the funnel's only failure mode being a policy the app
+-- itself could not see. The route re-derives all of it from the session and
+-- the category row, where a mismatch is a normal error with a sentence a
+-- patient can act on.
+--
+-- Note this is strictly a narrowing: with no insert policy and no grant,
+-- nothing an authenticated session can send is accepted at all, so there is
+-- no window where a database that has this applied is more permissive than
+-- one that does not.
+drop policy if exists "appointments_insert_own" on appointments;
+revoke insert on appointments from authenticated;
