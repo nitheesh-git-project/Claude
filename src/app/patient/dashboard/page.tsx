@@ -16,6 +16,7 @@ import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { buildPatientReceipts } from "@/lib/receipts";
+import { countAnswered, INTAKE_QUESTIONS } from "@/lib/conditionIntake";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
@@ -180,7 +181,11 @@ export default async function PatientDashboardPage() {
     // only hides the welcome modal / health-profile reminder banner, not
     // the whole dashboard.
     supabase.from("profiles").select("onboarding_seen_at").eq("id", user.id).maybeSingle(),
-    supabase.from("patient_condition_profiles").select("status").eq("patient_id", user.id).maybeSingle(),
+    supabase
+      .from("patient_condition_profiles")
+      .select("status, data, draft_data")
+      .eq("patient_id", user.id)
+      .maybeSingle(),
 
     // The home-visit columns for this patient's own appointments. Isolated
     // from the main appointments select above for the same reason as
@@ -570,6 +575,18 @@ export default async function PatientDashboardPage() {
   // here (rather than threaded through props from a layout) because this
   // page hides the shared Navbar entirely and needs the same dev-only-bar
   // offset for its own fixed sidebar. See DashboardShell's offsetTop prop.
+  // The reminder banner counts what's actually filled in -- an
+  // autosaved draft included -- rather than only saying "not done":
+  // "3 of 7 answered" is what makes someone who abandoned the pop-up
+  // half-way come back and finish it, and INTAKE_QUESTIONS is the code
+  // default here on purpose (the banner is a nudge, not the form, so it
+  // doesn't need the admin's per-question wording overrides).
+  const intakeAnswers = ((conditionProfile?.draft_data ?? conditionProfile?.data ?? {}) as Record<
+    string,
+    string
+  >) ?? {};
+  const intakeAnswered = countAnswered(INTAKE_QUESTIONS, intakeAnswers);
+
   const showDebugNav =
     process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
     (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
@@ -607,12 +624,31 @@ export default async function PatientDashboardPage() {
       {(!conditionProfile || conditionProfile.status === "not_started" || conditionProfile.status === "draft") && (
         <Link
           href="/patient/dashboard/health-profile"
-          className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 transition hover:bg-amber-100"
+          className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 transition hover:bg-amber-100"
         >
-          <span className="text-sm font-semibold text-amber-800">
-            Complete your health profile so your therapist knows your condition before your first session.
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-amber-800">
+              {intakeAnswered > 0
+                ? `You're ${intakeAnswered} of ${INTAKE_QUESTIONS.length} questions into your health profile.`
+                : "Complete your health profile so your therapist knows your condition before your first session."}
+            </span>
+            <span className="mt-1 block text-xs text-amber-700">
+              {intakeAnswered > 0
+                ? "Your answers were saved — picking up where you left off takes about a minute."
+                : "Seven short questions, asked one at a time. About two minutes."}
+            </span>
+            {intakeAnswered > 0 && (
+              <span className="mt-2 block h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-amber-200">
+                <span
+                  className="block h-full rounded-full bg-amber-500"
+                  style={{ width: `${(intakeAnswered / INTAKE_QUESTIONS.length) * 100}%` }}
+                />
+              </span>
+            )}
           </span>
-          <span className="shrink-0 text-xs font-bold text-amber-700">Fill it in →</span>
+          <span className="shrink-0 text-xs font-bold text-amber-700">
+            {intakeAnswered > 0 ? "Finish it →" : "Fill it in →"}
+          </span>
         </Link>
       )}
 

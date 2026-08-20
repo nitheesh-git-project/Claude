@@ -465,7 +465,16 @@ and the admin's **Patient Conditions** tab.
   `/api/therapist/condition-profile/save-draft`) so closing mid-fill loses
   nothing; a submission clears the draft. Reopening the wizard prioritizes an
   in-progress draft, then a declined submission's answers, then the last
-  approved data, and resumes on the first still-unanswered question.
+  approved data, and resumes on the first still-unanswered question. An
+  abandoned fill is therefore never lost and never submitted: the answers
+  sit in `draft_data`, the patient dashboard's reminder banner counts them
+  ("You're 3 of 7 questions in"), and the Health Profile offers "Finish
+  where you left off". Nothing reaches the therapist until the patient
+  sends it and an admin approves it. Once approved, the answers render as
+  `ConditionSummaryCard.tsx` — a chart, not a filled-in form — under a
+  four-cell snapshot strip (`HealthSnapshotStrip.tsx`) and a three-step
+  explainer (`HealthProfileSteps.tsx`) that says who writes which half of
+  this screen.
 - *Pain Map* (`pain_assessments`, `pain_map_question_templates`,
   `src/lib/painMap.ts`) is a 17-region clinical exam a therapist fills in
   after examining the patient — region-specific question sets with an
@@ -518,11 +527,19 @@ the tour was seen or skipped.
 Beyond the core workflow, a few surfaces exist specifically to make the
 data useful once it's collected, not just to collect it:
 
-- **Comparison view** (`PainComparisonView.tsx`) — the patient's
-  self-reported `area_pain` and the therapist's clinical Pain Map overlaid
-  on one figure (fill = clinical finding, blue ring = patient also flagged
-  it), so it's obvious where the two agree or don't. Shown to patient,
-  therapist, and admin.
+- **One body map, two views** (`PainMapExplorer.tsx`) — the exam figure
+  (`PainMapView.tsx`) with a switch to the comparison
+  (`PainComparisonView.tsx`), where the patient's self-reported `area_pain`
+  and the therapist's clinical Pain Map sit on one figure (fill = clinical
+  finding, blue ring = patient also flagged it), so it's obvious where the
+  two agree or don't. The switch only appears once the patient has marked
+  areas of their own. Under it, `RegionStandingsList.tsx` ranks every
+  examined area worst-first with its trend. Shown to patient, therapist,
+  and admin.
+- **Progress line** (`PainTrendChart.tsx`) — the average pain percentage
+  recorded at each exam, oldest to newest, answering "am I getting better?"
+  in one line. Deliberately one series: the patient's own 0–10 severity is
+  a different scale and never shares the axis.
 - **Point of care** — the therapist's Assigned Sessions cards link straight
   to that patient's Health Profile, and the Health Profiles list flags
   patients with no *approved* access grant yet as "New" (a merely-requested,

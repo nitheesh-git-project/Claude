@@ -12,7 +12,6 @@ import {
   type PainAssessmentRow,
 } from "@/lib/painMap";
 import BodyMapDiagram from "@/components/profile/BodyMapDiagram";
-import PainMapSummary from "@/components/profile/PainMapSummary";
 
 const PAIN_BAND_STYLE: Record<string, string> = {
   low: "bg-emerald-100 text-emerald-700",
@@ -62,11 +61,12 @@ type Selection = {
 
 const MIN_SPACE_ABOVE = 160; // rough floor for "popup fits above without help"
 
-// Read-only Pain Map surface: the tap-point body diagram, a popup
-// anchored right at the tapped dot showing that region's detail, and the
-// existing pill-list underneath as an accessible/scannable fallback.
-// Used by the patient (view-only, per the product decision) and the
-// admin.
+// Read-only Pain Map surface: the tap-point body diagram plus a popup
+// anchored right at the tapped dot showing that region's detail. The
+// scannable ranked list that used to sit under it now lives in
+// RegionStandingsList, rendered once by PainMapExplorer -- this component
+// is only ever the figure, so the comparison view can swap in beside it
+// without the list appearing twice.
 export default function PainMapView({ assessments }: { assessments: PainAssessmentRow[] }) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -191,9 +191,6 @@ export default function PainMapView({ assessments }: { assessments: PainAssessme
         )}
       </div>
 
-      <div className="mt-6 pt-6 border-t border-slate-100">
-        <PainMapSummary assessments={assessments} />
-      </div>
     </div>
   );
 }

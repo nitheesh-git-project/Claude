@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConditionIntakePanel from "@/components/profile/ConditionIntakePanel";
-import PainMapView from "@/components/profile/PainMapView";
-import PainComparisonView from "@/components/profile/PainComparisonView";
+import PainMapExplorer from "@/components/profile/PainMapExplorer";
+import PainTrendChart from "@/components/profile/PainTrendChart";
+import HealthSnapshotStrip from "@/components/profile/HealthSnapshotStrip";
+import HealthProfileSteps from "@/components/profile/HealthProfileSteps";
 import HealthProfileActions from "@/components/profile/HealthProfileActions";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
+import { healthSnapshot, painTrendSeries } from "@/lib/healthProfileSummary";
 import {
   INTAKE_QUESTIONS,
   INTAKE_QUESTIONS_VERSION,
@@ -24,6 +27,13 @@ const STATUS_BANNER_STYLE: Record<ConditionProfileStatus, string> = {
   draft: "bg-slate-50 border-slate-200 text-slate-600",
   pending_review: "bg-amber-50 border-amber-200 text-amber-700",
   active: "bg-emerald-50 border-emerald-200 text-emerald-700",
+};
+
+const STATUS_ICON: Record<ConditionProfileStatus, string> = {
+  not_started: "fa-clipboard-question",
+  draft: "fa-pen-to-square",
+  pending_review: "fa-hourglass-half",
+  active: "fa-circle-check",
 };
 
 // What the four statuses mean *to a patient*, in their terms -- the raw
@@ -141,6 +151,10 @@ export default async function PatientHealthProfilePage() {
       ? ((lastRequest.proposed_data ?? {}) as Record<string, string>)
       : currentData;
 
+  const selfReportedAreas = parseAreaPain(currentData.area_pain);
+  const snapshot = healthSnapshot({ questions, data: currentData, assessments: assessments ?? [] });
+  const trendPoints = painTrendSeries(assessments ?? []);
+
   const showDebugNav =
     process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
     (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" && process.env.NODE_ENV !== "production");
@@ -166,65 +180,84 @@ export default async function PatientHealthProfilePage() {
       headerTitle="Health Profile"
       headerSubtitle="What you told us about your condition, and what your therapist found."
     >
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex justify-end">
+      <div className="mx-auto max-w-5xl space-y-5">
+        <div
+          className={`flex items-start gap-3 rounded-2xl border p-4 ${STATUS_BANNER_STYLE[status]} print:hidden`}
+        >
+          <i aria-hidden className={`fa-solid ${STATUS_ICON[status]} mt-0.5 text-sm`} />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">{STATUS_HEADLINE[status]}</p>
+            {isPending && lastRequest?.status === "pending" && (
+              <p className="mt-1 text-xs font-normal">
+                Sent {new Date(lastRequest.created_at).toLocaleString()}. Until it&apos;s checked, your therapist
+                still sees your previous answers — you can edit again once it clears.
+              </p>
+            )}
+            {!isPending && lastRequest?.status === "declined" && (
+              <p className="mt-1 text-xs font-normal">
+                Your last submission came back with a note: {lastRequest.admin_notes}. Open the questions again
+                to fix it and resend.
+              </p>
+            )}
+            {!isPending && isOutdatedVersion && (
+              <p className="mt-1 text-xs font-normal">
+                We&apos;ve changed some of these questions since you answered — worth a quick look.
+              </p>
+            )}
+          </div>
           <HealthProfileActions />
         </div>
 
-        <div className={`rounded-2xl border p-4 text-sm font-semibold ${STATUS_BANNER_STYLE[status]}`}>
-          {STATUS_HEADLINE[status]}
-          {isPending && lastRequest?.status === "pending" && (
-            <p className="mt-1 text-xs font-normal">
-              Sent {new Date(lastRequest.created_at).toLocaleString()}. Until it&apos;s checked, your therapist
-              still sees your previous answers — you can edit again once it clears.
-            </p>
-          )}
-          {!isPending && lastRequest?.status === "declined" && (
-            <p className="mt-1 text-xs font-normal">
-              Your last submission came back with a note: {lastRequest.admin_notes}. Open the questions again to
-              fix it and resend.
-            </p>
-          )}
-          {!isPending && isOutdatedVersion && (
-            <p className="mt-1 text-xs font-normal">
-              We&apos;ve changed some of these questions since you answered — worth a quick look.
-            </p>
-          )}
-        </div>
+        <HealthSnapshotStrip snapshot={snapshot} />
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-1">1. What you told us</h2>
-          <p className="text-xs text-slate-500 mb-4">
-            A few questions about what hurts, asked one at a time. Your therapist and the clinic&apos;s admin read
-            this — nobody else.
-          </p>
-          <ConditionIntakePanel
-            questions={questions}
-            endpoint="/api/patient/condition-profile/submit"
-            draftEndpoint="/api/patient/condition-profile/save-draft"
-            currentData={currentData}
-            formInitialData={formInitialData}
-            locked={isPending}
-            lockedMessage="You can edit again as soon as the clinic finishes checking your last submission."
-          />
-        </div>
+        <HealthProfileSteps />
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-1">2. What your therapist found</h2>
-          <p className="text-xs text-slate-500 mb-4">
-            Your therapist records this after examining you, so it fills in on its own after a session. View only
-            — nothing for you to do here.
-          </p>
-          <PainMapView assessments={assessments ?? []} />
-        </div>
+        {/* Two columns on a wide screen, one on a phone: what you said on
+            the left, what the exam found on the right. The body map is
+            the heavier of the two, so it gets the sticky column -- a
+            patient scrolling their own answers keeps the figure in view. */}
+        <div className="grid gap-5 lg:grid-cols-[1.05fr_1fr] lg:items-start">
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="mb-4">
+                <h2 className="font-display text-lg font-bold text-slate-800">What you told us</h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Your own words, answered one question at a time. Only your therapist and the clinic&apos;s
+                  admin can read this.
+                </p>
+              </div>
+              <ConditionIntakePanel
+                questions={questions}
+                endpoint="/api/patient/condition-profile/submit"
+                draftEndpoint="/api/patient/condition-profile/save-draft"
+                currentData={currentData}
+                formInitialData={formInitialData}
+                locked={isPending}
+                lockedMessage="You can edit again as soon as the clinic finishes checking your last submission."
+              />
+            </section>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-1">3. The two side by side</h2>
-          <p className="text-xs text-slate-500 mb-4">
-            Where you said it hurts and where your therapist found it, on one figure — how progress shows up over
-            time.
-          </p>
-          <PainComparisonView assessments={assessments ?? []} areaPain={parseAreaPain(currentData.area_pain)} />
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="mb-3">
+                <h2 className="font-display text-lg font-bold text-slate-800">Are you getting better?</h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  The average pain your therapist measured at each exam, over time.
+                </p>
+              </div>
+              <PainTrendChart points={trendPoints} />
+            </section>
+          </div>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:sticky lg:top-4">
+            <div className="mb-4">
+              <h2 className="font-display text-lg font-bold text-slate-800">Your body map</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Filled in by your therapist after examining you — tap any marked point for that area&apos;s
+                detail. Nothing here for you to fill in.
+              </p>
+            </div>
+            <PainMapExplorer assessments={assessments ?? []} areaPain={selfReportedAreas} />
+          </section>
         </div>
       </div>
     </DashboardShell>

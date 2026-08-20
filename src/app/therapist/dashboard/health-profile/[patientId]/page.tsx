@@ -6,9 +6,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConditionIntakePanel from "@/components/profile/ConditionIntakePanel";
-import PainMapView from "@/components/profile/PainMapView";
+import ConditionSummaryCard from "@/components/profile/ConditionSummaryCard";
+import PainMapExplorer from "@/components/profile/PainMapExplorer";
 import PainAssessmentForm from "@/components/profile/PainAssessmentForm";
-import PainComparisonView from "@/components/profile/PainComparisonView";
+import type { QuestionOverrideRow } from "@/lib/painMap";
 import RequestConditionAccessButton from "@/components/therapist/RequestConditionAccessButton";
 import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
@@ -19,7 +20,6 @@ import {
   parseAreaPain,
   type ConditionProfileStatus,
 } from "@/lib/conditionIntake";
-import { PAIN_MAP_REGIONS, type QuestionOverrideRow } from "@/lib/painMap";
 
 export const metadata: Metadata = {
   title: "Patient Health Profile | Dr. Pooja's Physio",
@@ -204,46 +204,23 @@ export default async function TherapistPatientHealthProfilePage({
               locked={status === "pending_review"}
               lockedMessage="A submission for this patient is already waiting on admin review — one at a time."
             />
+          ) : questions.some((q) => currentData[q.key]) ? (
+            // Read-only until an access grant is approved -- the same
+            // rendering the patient sees of their own answers, so the
+            // therapist reads a chart rather than a dump of field values.
+            <ConditionSummaryCard questions={questions} data={currentData} />
           ) : (
-            <div className="text-sm text-slate-600 space-y-1">
-              {questions.some((q) => currentData[q.key]) ? (
-                questions.map((q) => {
-                  const value = currentData[q.key];
-                  if (!value) return null;
-                  if (q.inputType === "area_pain_list") {
-                    const areas = parseAreaPain(value);
-                    if (areas.length === 0) return null;
-                    return (
-                      <p key={q.key}>
-                        {areas
-                          .map((a) => {
-                            const label = PAIN_MAP_REGIONS.find((r) => r.key === a.region)?.label ?? a.region;
-                            const base = `${label}${a.side !== "na" ? ` (${a.side})` : ""}: ${a.pain}/10`;
-                            return a.note ? `${base} — "${a.note}"` : base;
-                          })
-                          .join(" · ")}
-                      </p>
-                    );
-                  }
-                  return <p key={q.key}>{value}</p>;
-                })
-              ) : (
-                <p>No intake submitted yet.</p>
-              )}
-            </div>
+            <p className="text-sm text-slate-600">No intake submitted yet.</p>
           )}
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-1">Patient vs Therapist</h2>
+          <h2 className="font-bold text-lg text-slate-800 mb-1">Pain Map</h2>
           <p className="text-xs text-slate-500 mb-4">
-            What the patient reported themselves against what you found on exam, on one figure.
+            {hasApprovedAccess
+              ? "Your exam findings. Switch to the comparison to see them against what the patient reported."
+              : "Exam findings on record, and how they compare with what the patient reported."}
           </p>
-          <PainComparisonView assessments={assessments ?? []} areaPain={parseAreaPain(currentData.area_pain)} />
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-4">Pain Map</h2>
           {hasApprovedAccess ? (
             <PainAssessmentForm
               endpoint="/api/therapist/pain-assessments/submit"
@@ -251,9 +228,13 @@ export default async function TherapistPatientHealthProfilePage({
               assessments={assessments ?? []}
               overridesByRegion={overridesByRegion}
             />
-          ) : (
-            <PainMapView assessments={assessments ?? []} />
-          )}
+          ) : null}
+          <div className={hasApprovedAccess ? "mt-6 border-t border-slate-100 pt-5" : undefined}>
+            <PainMapExplorer
+              assessments={assessments ?? []}
+              areaPain={parseAreaPain(currentData.area_pain)}
+            />
+          </div>
         </div>
       </div>
     </DashboardShell>

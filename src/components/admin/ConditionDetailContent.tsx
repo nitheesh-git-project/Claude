@@ -3,9 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import ConditionRequestActions from "@/components/admin/ConditionRequestActions";
 import ConditionAccessActions from "@/components/admin/ConditionAccessActions";
 import ConditionDirectEditForm from "@/components/admin/ConditionDirectEditForm";
-import PainMapView from "@/components/profile/PainMapView";
+import PainMapExplorer from "@/components/profile/PainMapExplorer";
 import PainAssessmentForm from "@/components/profile/PainAssessmentForm";
-import PainComparisonView from "@/components/profile/PainComparisonView";
 import {
   INTAKE_QUESTIONS,
   INTAKE_QUESTIONS_VERSION,
@@ -219,16 +218,11 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       </section>
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Patient vs Therapist</h2>
+        <h2 className="font-bold text-lg text-slate-800 mb-1">Pain Map</h2>
         <p className="text-xs text-slate-500 mb-4">
-          What the patient reported themselves against what the therapist found on exam, on one figure.
+          Exam findings, and the same figure switched to compare them against what the patient reported.
         </p>
-        <PainComparisonView assessments={assessments ?? []} areaPain={parseAreaPain(currentData.area_pain)} />
-      </section>
-
-      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">Pain Map</h2>
-        <PainMapView assessments={assessments ?? []} />
+        <PainMapExplorer assessments={assessments ?? []} areaPain={parseAreaPain(currentData.area_pain)} />
 
         <details className="mt-6">
           <summary className="text-xs font-semibold text-slate-500 cursor-pointer">

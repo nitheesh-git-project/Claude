@@ -82,6 +82,7 @@ export default function ConditionIntakeWizard({
   const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
   const router = useRouter();
 
+  const missingRequiredKeys = findMissingRequiredKeys(questions, values);
   const reviewStep = questions.length + 1;
   const totalSteps = reviewStep + 1;
   const answeredCount = countAnswered(questions, values);
@@ -393,6 +394,18 @@ export default function ConditionIntakeWizard({
                   Here&apos;s what you told us. Change anything that doesn&apos;t look right, then send it in — an
                   admin checks it before your therapist sees it.
                 </p>
+                {missingRequiredKeys.length > 0 && (
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-800">
+                    <span className="font-semibold">Still needed: </span>
+                    {missingRequiredKeys
+                      .map((key) => {
+                        const q = questions.find((item) => item.key === key);
+                        return (q?.shortLabel ?? q?.label ?? key).toLowerCase();
+                      })
+                      .join(", ")}
+                    . Tap Edit on those to fill them in — everything else is already saved.
+                  </p>
+                )}
                 {questions.map((q, index) => (
                   <div key={q.key} className="rounded-xl border border-slate-200 p-3.5">
                     <div className="flex items-start justify-between gap-3">
@@ -418,7 +431,7 @@ export default function ConditionIntakeWizard({
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
-            <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-4">
               {step > 0 && (
                 <button
                   type="button"
@@ -428,11 +441,24 @@ export default function ConditionIntakeWizard({
                   Back
                 </button>
               )}
+              {step > 0 && step < reviewStep && draftEndpoint && (
+                <button
+                  type="button"
+                  onClick={close}
+                  className="text-xs font-semibold text-slate-400 transition hover:text-slate-600"
+                >
+                  Finish later
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-3">
-              {draftSavedAt && (
+              {draftEndpoint && (
+                // Says the same thing whether or not a save has landed
+                // yet: the fear this answers is "will I lose this if I
+                // close it", and that has to be answered before the
+                // patient closes it, not after the first autosave.
                 <span className="hidden text-[11px] text-slate-400 sm:inline">
-                  Saved {draftSavedAt.toLocaleTimeString()}
+                  {draftSavedAt ? `Saved ${draftSavedAt.toLocaleTimeString()}` : "Saves as you type"}
                 </span>
               )}
               {step === reviewStep ? (

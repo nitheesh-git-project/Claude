@@ -261,8 +261,8 @@ client is the only writer and the log is append-only from any session.
 - **Business math lives in dependency-free `src/lib/` modules** (`pricing`,
   `adminMetrics`, `therapistEarnings`, `therapistPayouts`, `ratingAggregate`,
   `packageProgress`, `homeVisitPricing`, `homeVisitProgress`,
-  `therapistCashLedger`) so it can be reasoned about without rendering. Keep
-  new math there rather than inside components.
+  `therapistCashLedger`, `healthProfileSummary`) so it can be reasoned about
+  without rendering. Keep new math there rather than inside components.
 - **Patient Care Intake and Pain Map are two separate data layers**, both
   gated behind one write-access model. Patient Care Intake
   (`patient_condition_profiles` / `condition_change_requests`, question set
@@ -273,7 +273,13 @@ client is the only writer and the log is append-only from any session.
   never as a form rendered on the dashboard: a wall of seven fields is what
   patients read as paperwork and abandon. A new question therefore needs
   `helpText` (why this answer matters, in the patient's words) and a
-  `shortLabel` alongside its `label`, not just the label. Pain Map (`pain_assessments` /
+  `shortLabel` alongside its `label`, not just the label. Once answered, the
+  dashboard shows the answers, never inputs: `ConditionSummaryCard.tsx`
+  renders them as a piece of the patient's chart (complaint as a headline,
+  severity as a gauge, painful areas as colored chips) and every reading
+  figure on the page — the four-cell snapshot strip, the ranked exam list,
+  the progress line — is derived in `src/lib/healthProfileSummary.ts`, not
+  inside a component. Pain Map (`pain_assessments` /
   `pain_map_question_templates`, region + question logic in
   `src/lib/painMap.ts`) is therapist-only, per-region clinical exam data
   that posts live immediately with no review step, and is append-only (a
@@ -282,8 +288,16 @@ client is the only writer and the log is append-only from any session.
   after the patient's admin approves a `condition_access_grants` request;
   *read* access needs no request and is automatic for the patient's
   assigned therapist (ever had an appointment with them, or holds a
-  package's `locked_therapist_id`). See the "Patient Care Intake and Pain
-  Map" section in README.md for the full flow.
+  package's `locked_therapist_id`). Both layers render on **one** body-map
+  surface (`PainMapExplorer.tsx`: the exam figure with a switch to the
+  patient-vs-exam comparison), not two stacked cards showing the same
+  figure twice — if a third view of this data is ever needed, add a mode to
+  that switch rather than another card. The figure itself
+  (`BodyMapDiagram.tsx`) is an anatomical human silhouette built from
+  cross-section nodes (`silhouettePath`), one `<svg>` per view so front and
+  back stack on a phone instead of shrinking each tap target below a
+  fingertip. See the "Patient Care Intake and Pain Map" section in README.md
+  for the full flow.
 - **The admin dashboard's information architecture lives in
   `src/lib/adminNav.ts`** — six sections (Today, Sessions, People, Money,
   Catalog, Settings), each with its own screens. The sidebar, the URL
