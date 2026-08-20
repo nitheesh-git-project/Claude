@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 const ALLOWED_COLUMNS = new Set([
+  "therapist_suggestions_enabled",
   "session_packages_visible",
   "session_timeout_minutes",
   "google_meet_enabled",
@@ -86,7 +87,8 @@ export async function POST(request: NextRequest) {
       key === "google_meet_enabled" ||
       key === "package_therapist_lock_enabled" ||
       key === "home_visit_enabled" ||
-      key === "home_visit_cash_enabled") &&
+      key === "home_visit_cash_enabled" ||
+      key === "therapist_suggestions_enabled") &&
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });

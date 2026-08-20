@@ -32,8 +32,10 @@ role, input validation, payout/refund maths, the dashboard's own
 navigation in a real browser, the public pages' section rail and scroll
 arrow (`section-nav.spec.ts`), the public catalog's detail dialogs
 (`catalog-detail.spec.ts`), and booking a named specialist from `/team`
-(`therapist-request.spec.ts`), and who may book plus the dashboards' way
-home (`booking-account-role.spec.ts`). It needs a test/staging Supabase project plus
+(`therapist-request.spec.ts`), who may book plus the dashboards' way home
+(`booking-account-role.spec.ts`), and therapist-suggested sessions including
+button spam, concurrent answers and a dropped connection
+(`session-suggestions.spec.ts`). It needs a test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
 
@@ -224,6 +226,32 @@ client is the only writer and the log is append-only from any session.
   completed — identical rule to `sessions_used`, see the counter-semantics
   comment beside `home_visit_package_purchases` in `schema.sql`. See the
   "Home Visit" section in README.md for the full flow.
+- **A therapist suggests; the patient books.** A therapist can propose the
+  next session on a programme locked to them
+  (`/api/therapist/suggest-session`), and the patient accepts or declines
+  (`/api/patient/respond-suggestion`). Three rules hold the design together
+  and none of them is optional:
+  1. A suggestion is its own row (`session_suggestions`), never an
+     appointment in a new status. `sessions_used` counts sessions *claimed*;
+     a suggestion claims nothing, and storing it as an appointment would
+     either spend a session every decline had to refund or leave a row the
+     counter deliberately ignores. Only acceptance calls
+     `bookPackageSession()`, which is what makes the count move.
+  2. No slot is held. A hold needs releasing, releasing needs a sweep, and
+     there is no scheduled worker -- so the therapist's calendar is
+     re-checked at acceptance instead.
+  3. Nothing writes an "expired" status. A pending suggestion simply stops
+     being acceptable once its slot is inside the booking lead time, computed
+     by `suggestionState()` in `src/lib/sessionSuggestions.ts` everywhere it
+     is read. `status` records explicit human actions only.
+  At most one pending suggestion per purchase, enforced by a partial unique
+  index rather than a route check, because a double tap defeats
+  SELECT-then-INSERT. Both dashboards' controls guard submits with a
+  synchronous ref (a `disabled` attribute lands a render too late) and never
+  clear optimistically, so a request that dies on a bad connection leaves the
+  person exactly where they were. Gated by
+  `site_settings.therapist_suggestions_enabled`, off by default.
+
 - **Session packages lock to one therapist by default.** The first therapist
   assigned to any session on a `patient_package_purchases` row sets
   `locked_therapist_id`; every later session on that purchase auto-assigns,

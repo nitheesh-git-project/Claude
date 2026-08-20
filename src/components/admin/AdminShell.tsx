@@ -34,6 +34,7 @@ import { ADMIN_SECTIONS, findTab, type AdminSectionKey } from "@/lib/adminNav";
 // *_REALTIME_TABLES array -- keep new tables in one of these two rather
 // than inlining a third list at the call site.
 const ADMIN_REALTIME_TABLES = [
+  "session_suggestions",
   "appointments",
   "therapist_payout_requests",
   "patient_referrals",

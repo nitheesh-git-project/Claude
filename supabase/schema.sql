@@ -3263,6 +3263,7 @@ begin
   -- that references one of these and was not listed.
   truncate table
     admin_activity_log,
+    session_suggestions,
     appointment_reassignment_log,
     payment_failure_log,
     package_purchase_events,
@@ -3458,3 +3459,88 @@ create policy "appointments_insert_own" on appointments
         and active = true
     )
   );
+
+-- --------------------------------------------------------------------------
+-- Therapist-suggested sessions
+-- --------------------------------------------------------------------------
+
+-- A therapist proposing a time to one of their programme patients. The
+-- patient accepts or declines; only an acceptance creates an appointment.
+--
+-- Deliberately its own table rather than an appointments row in a new
+-- status. Two reasons, both load-bearing:
+--
+-- 1. patient_package_purchases.sessions_used counts sessions *claimed*
+--    (scheduled or completed) -- see the counter-semantics comment beside
+--    that table. A suggestion is not a claim: nothing is scheduled and the
+--    patient may never accept. Storing it as an appointment would either
+--    consume a session that every decline then had to hand back, or leave
+--    an appointment row that the counter deliberately ignores. Both give
+--    that column a third meaning.
+-- 2. appointments_insert_own and the assignment/payout queries all assume
+--    an appointments row is a real session. A pending suggestion is not.
+--
+-- No slot is held. A hold has to be released, which needs something to
+-- remember to release it, and this deployment has no scheduled worker (see
+-- the no-cron rule in AGENTS.md). Instead the therapist's availability is
+-- re-checked at the moment the patient accepts, and a suggestion whose slot
+-- has come too close to book is simply dead -- a comparison against
+-- slot_time, not a swept state. `status` therefore only ever records an
+-- explicit human action; time passing is computed, never written.
+create table if not exists session_suggestions (
+  id uuid primary key default gen_random_uuid(),
+  purchase_id uuid not null references patient_package_purchases(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  therapist_id uuid not null references profiles(id) on delete cascade,
+  slot_time timestamptz not null,
+  timezone text,
+  note text,
+  status text not null default 'pending'
+    check (status in ('pending', 'accepted', 'declined', 'withdrawn')),
+  -- The appointment an acceptance produced. Null for every other status,
+  -- and the thing that makes accepting idempotent: a second accept finds
+  -- this already set and returns the same appointment instead of booking a
+  -- second session.
+  appointment_id uuid references appointments(id) on delete set null,
+  responded_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table session_suggestions enable row level security;
+
+create index if not exists session_suggestions_patient_idx
+  on session_suggestions (patient_id, status);
+create index if not exists session_suggestions_therapist_idx
+  on session_suggestions (therapist_id, status);
+create index if not exists session_suggestions_purchase_idx
+  on session_suggestions (purchase_id);
+
+-- At most one pending suggestion per purchase. A therapist tapping Suggest
+-- twice -- a double tap, an impatient retry on a slow connection, two open
+-- tabs -- must not leave the patient with two live suggestions for the same
+-- programme to choose between. Enforced here rather than in the route
+-- because two concurrent requests both pass a SELECT-then-INSERT check.
+create unique index if not exists session_suggestions_one_pending_per_purchase
+  on session_suggestions (purchase_id)
+  where status = 'pending';
+
+-- Both sides of a suggestion can read it; nobody writes from a browser.
+-- Creating one re-derives the therapist lock, accepting one books a real
+-- session with the service role -- neither is safe to express as a policy.
+drop policy if exists "session_suggestions_select_own" on session_suggestions;
+create policy "session_suggestions_select_own" on session_suggestions
+  for select using (auth.uid() = patient_id or auth.uid() = therapist_id);
+
+drop policy if exists "session_suggestions_admin_select" on session_suggestions;
+create policy "session_suggestions_admin_select" on session_suggestions
+  for select using (
+    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+  );
+
+-- Both dashboards show suggestions live: the patient needs to see one
+-- arrive without reloading, and the therapist needs the answer.
+alter publication supabase_realtime add table session_suggestions;
+
+-- Admin kill switch. Off by default so merging this changes nothing until
+-- an admin turns it on, same posture as home_visit_enabled.
+alter table site_settings add column if not exists therapist_suggestions_enabled boolean not null default false;

@@ -7,6 +7,7 @@ import CancelSessionButton from "@/components/CancelSessionButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import BuyPackageButton from "@/components/BuyPackageButton";
 import PatientPackageWidget from "@/components/packages/PatientPackageWidget";
+import PatientSuggestionCard from "@/components/packages/PatientSuggestionCard";
 import HomeVisitPackageWidget from "@/components/patient/HomeVisitPackageWidget";
 import PackageChip from "@/components/packages/PackageChip";
 import ReceiptsSection from "@/components/ReceiptsSection";
@@ -308,6 +309,38 @@ export default async function PatientDashboardPage() {
   const ownedHomeVisitPackageInfoMap = new Map((ownedHomeVisitPackageInfo ?? []).map((p) => [p.id, p]));
   const purchaseCodeById = new Map((ownedPackages ?? []).map((p) => [p.id, p.purchase_code]));
 
+  // Times this patient's therapist has suggested and they haven't answered.
+  // Read in its own call for the usual migration tolerance: without the
+  // table, the cards are absent and the rest of the dashboard is unaffected.
+  // Nothing is scheduled and no session is spent until one is accepted, so
+  // these are deliberately not folded into the package counts below.
+  const { data: suggestionRows } = await supabase
+    .from("session_suggestions")
+    .select("id, purchase_id, therapist_id, slot_time, note")
+    .eq("patient_id", user.id)
+    .eq("status", "pending")
+    .order("slot_time", { ascending: true });
+
+  const pendingSuggestions = (suggestionRows ?? []).flatMap((row) => {
+    const purchase = (ownedPackages ?? []).find((p) => p.id === row.purchase_id);
+    if (!purchase) return [];
+    return [
+      {
+        id: row.id as string,
+        slotTime: row.slot_time as string,
+        note: (row.note as string) ?? null,
+        therapistName: therapistMap.get(row.therapist_id as string) ?? "Your therapist",
+        packageTitle:
+          ownedPackageInfoMap.get(purchase.package_id)?.title ??
+          activeCategoryMap.get(purchase.category_id) ??
+          "Session Package",
+        // The session this would become: one past what is already claimed.
+        sessionNumber: Math.min(purchase.sessions_used + 1, purchase.session_count),
+        sessionCount: purchase.session_count,
+      },
+    ];
+  });
+
   // completed/scheduled per purchase, derived from the appointments already
   // loaded above rather than a fresh query -- same counter semantics as
   // package_purchase_summary (schema.sql), just computed in memory since
@@ -598,6 +631,7 @@ export default async function PatientDashboardPage() {
         "treatment_categories",
         "treatment_category_packages",
         "patient_condition_profiles",
+        "session_suggestions",
       ]}
       headerTitle={`Welcome back, ${profile?.full_name ?? "there"}`}
       headerSubtitle="Your virtual physical therapy dashboard"
@@ -692,6 +726,18 @@ export default async function PatientDashboardPage() {
           showMotivation
         />
       </div>
+
+      {pendingSuggestions.length > 0 && (
+        <div id="suggested-sessions" className="mt-8 space-y-3">
+          {pendingSuggestions.map((s) => (
+            <PatientSuggestionCard
+              key={s.id}
+              suggestion={s}
+              leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
+            />
+          ))}
+        </div>
+      )}
 
       {ownedPackages && ownedPackages.length > 0 && (
         <div id="your-packages" className="mt-8">

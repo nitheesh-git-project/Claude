@@ -468,6 +468,16 @@ export default async function AdminDashboardPage() {
 
   const adminSettings = parseAdminSettings(settingsRow);
 
+  // Its own call, not part of SITE_SETTINGS_SELECT: this column is newer
+  // than the rest, and a database that hasn't run the latest schema.sql
+  // should leave the feature off rather than blank every other setting.
+  const { data: suggestionsToggleRow } = await supabase
+    .from("site_settings")
+    .select("therapist_suggestions_enabled")
+    .maybeSingle();
+  const therapistSuggestionsEnabled =
+    suggestionsToggleRow?.therapist_suggestions_enabled === true;
+
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
       appointments ?? [],
@@ -1735,7 +1745,10 @@ export default async function AdminDashboardPage() {
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         view="booking"
       />
-      <PackageSettingsForm settings={adminSettings} />
+      <PackageSettingsForm
+        settings={adminSettings}
+        therapistSuggestionsEnabled={therapistSuggestionsEnabled}
+      />
       <HomeVisitSettingsForm
         settings={adminSettings}
         areaCount={(homeVisitAreas ?? []).length}

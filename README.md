@@ -268,6 +268,20 @@ sees what they paid, the locked therapist sees the clinical picture without
 the money. The therapist dashboard's **Programme Patients** section lists
 every purchase locked to that therapist the same way.
 
+**Therapist-suggested sessions.** With
+`site_settings.therapist_suggestions_enabled` on (Session Manager), a
+therapist can propose the next session on a programme locked to them, from
+**Programme Patients**. The patient sees it on their dashboard and accepts or
+declines — nothing is scheduled, and no session is spent, until they accept.
+Accepting goes through the same `bookPackageSession()` every other package
+booking uses, so gap rules, expiry, conflict checks and the Meet link behave
+identically. A suggestion holds no slot (the therapist's calendar is
+re-checked at acceptance) and is never marked expired by a sweep: it simply
+stops being acceptable once its slot falls inside the booking lead time. At
+most one can be waiting per purchase; the therapist can withdraw it.
+Routes: `/api/therapist/suggest-session`,
+`/api/therapist/withdraw-suggestion`, `/api/patient/respond-suggestion`.
+
 There's no cron or background worker in this deployment, so a purchase's
 `status` moves from `active` to `expired` lazily: `src/lib/expirePackagePurchases.ts`
 sweeps any purchase past its `expires_at` at the top of the admin and
