@@ -57,6 +57,16 @@ Apply it either:
   Management API — needs `SUPABASE_ACCESS_TOKEN` set (see below). Useful for
   re-applying after every change to the file without the manual copy/paste.
 
+`.github/workflows/schema-apply.yml` runs that same script on every push to
+`main` that touches `supabase/schema.sql`, but only if the repository has
+both the `SUPABASE_ACCESS_TOKEN` and `NEXT_PUBLIC_SUPABASE_URL` **repo
+secrets** set — without them the job fails with "Missing
+SUPABASE_ACCESS_TOKEN" and the live database quietly stays behind the file.
+Check the workflow's run history after merging a schema change: a merged
+change that never got applied leaves the database's policies out of sync
+with code that assumes them, and the app can look fixed in review while
+still failing in production.
+
 ### Environment variables
 
 Copy `.env.example` to `.env.local` and fill in:
@@ -217,10 +227,16 @@ each role at what is actually theirs — a hospital refers (`Refer a Patient`,
 or shares its referral code), an admin books on a patient's behalf from
 **Sessions → New Booking**, and anyone who wants therapy themselves signs out
 and books with a separate patient account. This is enforced server-side too:
-`isPatientProfile()` in the purchase routes, and a `role = 'patient'` clause
-on `appointments_insert_own` for the wizard's own direct insert.
+`isPatientProfile()` in the purchase routes and again in
+`/api/appointments/create`, which is where the wizard's booking row is
+written.
 
-**Payments.** Razorpay checkout: `/api/razorpay/create-order` creates the
+**Payments.** The wizard's review step posts to `/api/appointments/create`,
+which writes the pre-payment appointment row server-side — concern,
+duration, lead time and therapist preference all re-derived from the
+patient's session and the category row, never taken from the browser (the
+browser has no insert access to `appointments` at all). Then Razorpay
+checkout: `/api/razorpay/create-order` creates the
 order, the browser opens the widget, and `/api/razorpay/verify` verifies the
 signature server-side before the appointment is confirmed. Failures are
 recorded in `payment_failure_log`. Session packages are bought the same way

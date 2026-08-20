@@ -473,31 +473,44 @@ export default function BookingWizard({
       return;
     }
 
-    const { data: appointment, error: apptError } = await supabase
-      .from("appointments")
-      .insert({
-        patient_id: userId,
-        slot_time: new Date(slotDateTime).toISOString(),
-        timezone,
-        concern: selectedCategory?.title ?? "General Consultation",
-        category_id: categoryId || null,
-        duration_minutes: selectedCategory?.duration_minutes ?? BASE_DURATION_MINUTES,
-        notes,
-        preferred_therapist_id: preferredTherapistId || null,
-        preferred_language: language || null,
-        status: "requested",
-      })
-      .select("id")
-      .single();
-
-    if (apptError || !appointment) {
+    // Deliberately a server route rather than the direct insert this used
+    // to be. That insert was validated only by the appointments_insert_own
+    // RLS policy, so a live database whose copy of that policy was even one
+    // schema.sql change behind failed the booking outright -- and what the
+    // patient saw, at the last step of checkout, was the raw Postgres text
+    // "new row violates row-level security policy for table appointments".
+    // The route re-derives concern, duration, lead time and the therapist
+    // preference server-side (see its own header comment); the browser no
+    // longer writes to appointments at all.
+    let newAppointmentId: string;
+    try {
+      const res = await fetch("/api/appointments/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categoryId: categoryId || null,
+          slotTime: new Date(slotDateTime).toISOString(),
+          timezone,
+          notes,
+          preferredTherapistId: preferredTherapistId || null,
+          preferredLanguage: language || null,
+        }),
+      });
+      const result = await res.json().catch(() => null);
+      if (!res.ok || !result?.appointmentId) {
+        setLoading(false);
+        setError(result?.error ?? "Could not save your booking. Please try again.");
+        return;
+      }
+      newAppointmentId = result.appointmentId as string;
+    } catch {
       setLoading(false);
-      setError(apptError?.message ?? "Could not save your booking. Please try again.");
+      setError("Could not reach the server. Please check your connection and try again.");
       return;
     }
 
-    setAppointmentId(appointment.id);
-    await startPayment(appointment.id);
+    setAppointmentId(newAppointmentId);
+    await startPayment(newAppointmentId);
   }
 
   async function startPayment(id: string) {
