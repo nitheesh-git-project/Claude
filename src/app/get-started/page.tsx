@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Reveal, Stagger, StaggerItem, MotionButton, FloatingOrbs } from "@/components/motion/primitives";
+import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 
 export const metadata: Metadata = {
   title: "Get Started | Dr. Pooja's Physio",
@@ -89,8 +90,16 @@ const ACCENTS: Record<string, { chip: string; icon: string; check: string }> = {
 };
 
 export default function GetStartedPage() {
+  // One entry: the page is a hero plus a single card grid, and the rail's
+  // job here is the same as the scroll arrow's -- a stop below the hero.
+  const sectionNavItems: SectionNavItem[] = [
+    { id: "choose-path", label: "Choose Your Path", icon: "fa-signs-post" },
+  ];
+
   return (
     <>
+      <SectionNav items={sectionNavItems} />
+
       <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/70 to-white py-16">
         <FloatingOrbs />
         <Reveal className="relative mx-auto max-w-2xl px-4 text-center sm:px-6 lg:px-8">
@@ -107,7 +116,7 @@ export default function GetStartedPage() {
         </Reveal>
       </div>
 
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <section id="choose-path" className="mx-auto max-w-7xl scroll-mt-28 px-4 py-16 sm:px-6 lg:px-8">
         <Stagger className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {PATHS.map((p) => {
             const a = ACCENTS[p.accent];

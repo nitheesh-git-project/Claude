@@ -1,19 +1,22 @@
-// The exact routes that render their own full-height dark app shell
+// The routes that render their own full-height dark app shell
 // (DashboardShell / AdminTabs) instead of sitting below the public
-// marketing Navbar/Footer. Exact matches only -- other sub-pages (e.g. the
-// admin therapist/patient detail pages) are separate simple pages, not part
-// of a shell, and still need the public nav for navigation.
-export const DASHBOARD_SHELL_ROUTES = new Set([
-  "/admin/dashboard",
-  "/patient/dashboard",
-  "/patient/dashboard/profile",
-  "/therapist/dashboard",
-  "/therapist/dashboard/profile",
-  "/hospital/dashboard",
-]);
+// marketing Navbar/Footer.
+//
+// Matched by shape rather than by a list of literal paths, because Navbar
+// and Footer are client components: a list would ship every role's dashboard
+// path -- the back office's included -- in the JavaScript bundle of every
+// public page. Nothing in these patterns names a role that isn't already
+// public.
+//
+// Still exact, not prefix: the sub-pages under a dashboard (the admin's
+// person detail pages, for instance) are separate simple pages rather than
+// part of a shell, and still need the public nav. The two profile editors
+// are the exception, since they render inside DashboardShell itself.
+const SHELL_ROOT = /^\/[a-z-]+\/dashboard$/;
+const SHELL_PROFILE = /^\/(patient|therapist)\/dashboard\/profile$/;
 
 export function isDashboardShellRoute(pathname: string | null): boolean {
-  return pathname !== null && DASHBOARD_SHELL_ROUTES.has(pathname);
+  return pathname !== null && (SHELL_ROOT.test(pathname) || SHELL_PROFILE.test(pathname));
 }
 
 // Routes where the top Navbar specifically should stay hidden, beyond the
@@ -22,10 +25,12 @@ export function isDashboardShellRoute(pathname: string | null): boolean {
 // an easy way to accidentally navigate away and lose progress. The Footer
 // isn't part of this (it's not a stray-navigation risk), so this is
 // intentionally separate from isDashboardShellRoute rather than folded in.
-const NAV_HIDDEN_ROUTES = new Set([...DASHBOARD_SHELL_ROUTES, "/book", "/book-home-visit"]);
+const NAV_HIDDEN_EXTRA = new Set(["/book", "/book-home-visit"]);
 
 export function isNavHiddenRoute(pathname: string | null): boolean {
-  return pathname !== null && NAV_HIDDEN_ROUTES.has(pathname);
+  return (
+    pathname !== null && (isDashboardShellRoute(pathname) || NAV_HIDDEN_EXTRA.has(pathname))
+  );
 }
 
 // Routes where the nav keeps its links but drops its auth call-to-action

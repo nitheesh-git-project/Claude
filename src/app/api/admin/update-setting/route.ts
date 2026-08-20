@@ -5,11 +5,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 const ALLOWED_COLUMNS = new Set([
+  "therapist_suggestions_enabled",
   "session_packages_visible",
   "session_timeout_minutes",
   "google_meet_enabled",
   "join_window_minutes",
   "join_window_after_minutes",
+  "session_completed_after_minutes",
   "booking_languages",
   "package_default_validity_days",
   "package_therapist_lock_enabled",
@@ -36,7 +38,15 @@ const ALLOWED_COLUMNS = new Set([
   // changing the online refund window used to need a deploy.
   "online_booking_lead_time_hours",
   "online_cancellation_refund_hours",
+  "journey_step_seconds",
 ]);
+
+// The home page walkthrough's rotation pace. Neither of the numeric rules
+// below fits it: 0 is legal (it means "don't rotate"), but 1 is not -- a
+// one-second step is unreadable, which is a worse outcome than a widget
+// that never advances. The ceiling is a typo guard.
+const MIN_JOURNEY_STEP_SECONDS = 2;
+const MAX_JOURNEY_STEP_SECONDS = 60;
 
 // Bounds on the admin-managed /book language list -- not business rules so
 // much as guards against a single fat-fingered paste becoming an unusable
@@ -86,7 +96,8 @@ export async function POST(request: NextRequest) {
       key === "google_meet_enabled" ||
       key === "package_therapist_lock_enabled" ||
       key === "home_visit_enabled" ||
-      key === "home_visit_cash_enabled") &&
+      key === "home_visit_cash_enabled" ||
+      key === "therapist_suggestions_enabled") &&
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
@@ -116,6 +127,21 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+  if (key === "journey_step_seconds") {
+    if (
+      typeof value !== "number" ||
+      !Number.isInteger(value) ||
+      (value !== 0 &&
+        (value < MIN_JOURNEY_STEP_SECONDS || value > MAX_JOURNEY_STEP_SECONDS))
+    ) {
+      return NextResponse.json(
+        {
+          error: `value must be 0 (no auto-advance) or between ${MIN_JOURNEY_STEP_SECONDS} and ${MAX_JOURNEY_STEP_SECONDS} seconds`,
+        },
+        { status: 400 }
+      );
+    }
+  }
   // Unlike the timers above, these two are a divisor and a loop bound
   // downstream (per-session validity math, the bulk scheduler's date
   // limit) -- zero is meaningless for either, so they're held to > 0
@@ -126,6 +152,9 @@ export async function POST(request: NextRequest) {
       key === "package_bulk_schedule_max" ||
       key === "home_visit_default_validity_days" ||
       key === "home_visit_bulk_schedule_max" ||
+      // Zero would mark a session finished the moment it was due to start,
+      // so this one is held to at least a minute like the bounds above.
+      key === "session_completed_after_minutes" ||
       // A zero-hour lead time would let someone book a visit for a slot
       // that has already started, with no chance of a therapist reaching
       // the address -- the whole point of this setting being separate from
@@ -249,6 +278,13 @@ export async function POST(request: NextRequest) {
   if (key === "home_visit_enabled") {
     revalidatePath("/home-visit");
     revalidatePath("/", "layout");
+  }
+
+  // The home page is ISR-cached (revalidate = 300) and reads this value at
+  // render time, so without this an admin would change the pace and watch
+  // the old one keep running for up to five minutes.
+  if (key === "journey_step_seconds") {
+    revalidatePath("/");
   }
 
   // Brand & Contact Details render in the Navbar/Footer, which sit in the

@@ -3263,6 +3263,7 @@ begin
   -- that references one of these and was not listed.
   truncate table
     admin_activity_log,
+    session_suggestions,
     appointment_reassignment_log,
     payment_failure_log,
     package_purchase_events,
@@ -3340,7 +3341,9 @@ begin
     home_visit_bulk_schedule_max = default,
     home_visit_travel_buffer_minutes = default,
     online_booking_lead_time_hours = default,
-    online_cancellation_refund_hours = default
+    online_cancellation_refund_hours = default,
+    journey_step_seconds = default,
+    session_completed_after_minutes = default
   where id = true;
 
   return jsonb_build_object(
@@ -3403,6 +3406,174 @@ alter table appointments add column if not exists google_calendar_sync_attempts 
 -- of syncing forever.
 alter table appointments add column if not exists google_calendar_sync_claimed_at timestamptz;
 
+-- --------------------------------------------------------------------------
+-- Only a patient account can book a session
+-- --------------------------------------------------------------------------
+
+-- Re-declares appointments_insert_own with one added clause on the profile
+-- check: role = 'patient'.
+--
+-- One auth user carries exactly one role (profiles.id *is* the auth user's
+-- id, and role is a single column), so a therapist, hospital or admin
+-- session can never also be the patient a booking is for. Until now nothing
+-- said so: the policy checked that the inserter owned the row and was
+-- approved and active, which a signed-in therapist satisfies. The result was
+-- a session that account could never see again -- the therapist dashboard
+-- lists by therapist_id, the hospital dashboard lists referrals, and
+-- src/proxy.ts bounces a non-patient away from /patient/dashboard -- after
+-- real money had moved for it.
+--
+-- The booking wizards now explain this in the UI
+-- (src/components/booking/WrongAccountForBooking.tsx), and the purchase
+-- routes check it server-side via isPatientProfile(), but this is the one
+-- path where RLS is the only enforcement point: the wizard's own direct
+-- insert.
+--
+-- Everything else in this policy is carried over verbatim from the version
+-- earlier in this file; see the long comments there for why each clause
+-- exists (each closed a real hole).
+--
+-- Note this constrains new inserts only. Any appointment already sitting in
+-- the table whose patient_id belongs to a non-patient account predates this
+-- and is untouched -- worth a look in the admin's Sessions list, since each
+-- one is someone who paid for a session they cannot see.
+drop policy if exists "appointments_insert_own" on appointments;
+create policy "appointments_insert_own" on appointments
+  for insert with check (
+    auth.uid() = patient_id
+    and visit_mode = 'online'
+    and status = 'requested'
+    and payment_status = 'unpaid'
+    and package_purchase_id is null
+    and home_visit_purchase_id is null
+    and slot_time is not null
+    and slot_time > now()
+    and therapist_id is null
+    and duration_minutes = coalesce(
+      (select duration_minutes from treatment_categories where id = category_id),
+      60
+    )
+    and exists (
+      select 1 from public.profiles
+      where id = auth.uid()
+        and role = 'patient'
+        and approved = true
+        and active = true
+    )
+  );
+
+-- --------------------------------------------------------------------------
+-- Therapist-suggested sessions
+-- --------------------------------------------------------------------------
+
+-- A therapist proposing a time to one of their programme patients. The
+-- patient accepts or declines; only an acceptance creates an appointment.
+--
+-- Deliberately its own table rather than an appointments row in a new
+-- status. Two reasons, both load-bearing:
+--
+-- 1. patient_package_purchases.sessions_used counts sessions *claimed*
+--    (scheduled or completed) -- see the counter-semantics comment beside
+--    that table. A suggestion is not a claim: nothing is scheduled and the
+--    patient may never accept. Storing it as an appointment would either
+--    consume a session that every decline then had to hand back, or leave
+--    an appointment row that the counter deliberately ignores. Both give
+--    that column a third meaning.
+-- 2. appointments_insert_own and the assignment/payout queries all assume
+--    an appointments row is a real session. A pending suggestion is not.
+--
+-- No slot is held. A hold has to be released, which needs something to
+-- remember to release it, and this deployment has no scheduled worker (see
+-- the no-cron rule in AGENTS.md). Instead the therapist's availability is
+-- re-checked at the moment the patient accepts, and a suggestion whose slot
+-- has come too close to book is simply dead -- a comparison against
+-- slot_time, not a swept state. `status` therefore only ever records an
+-- explicit human action; time passing is computed, never written.
+create table if not exists session_suggestions (
+  id uuid primary key default gen_random_uuid(),
+  purchase_id uuid not null references patient_package_purchases(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  therapist_id uuid not null references profiles(id) on delete cascade,
+  slot_time timestamptz not null,
+  timezone text,
+  note text,
+  status text not null default 'pending'
+    check (status in ('pending', 'accepted', 'declined', 'withdrawn')),
+  -- The appointment an acceptance produced. Null for every other status,
+  -- and the thing that makes accepting idempotent: a second accept finds
+  -- this already set and returns the same appointment instead of booking a
+  -- second session.
+  appointment_id uuid references appointments(id) on delete set null,
+  responded_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table session_suggestions enable row level security;
+
+create index if not exists session_suggestions_patient_idx
+  on session_suggestions (patient_id, status);
+create index if not exists session_suggestions_therapist_idx
+  on session_suggestions (therapist_id, status);
+create index if not exists session_suggestions_purchase_idx
+  on session_suggestions (purchase_id);
+
+-- At most one pending suggestion per purchase. A therapist tapping Suggest
+-- twice -- a double tap, an impatient retry on a slow connection, two open
+-- tabs -- must not leave the patient with two live suggestions for the same
+-- programme to choose between. Enforced here rather than in the route
+-- because two concurrent requests both pass a SELECT-then-INSERT check.
+create unique index if not exists session_suggestions_one_pending_per_purchase
+  on session_suggestions (purchase_id)
+  where status = 'pending';
+
+-- Both sides of a suggestion can read it; nobody writes from a browser.
+-- Creating one re-derives the therapist lock, accepting one books a real
+-- session with the service role -- neither is safe to express as a policy.
+drop policy if exists "session_suggestions_select_own" on session_suggestions;
+create policy "session_suggestions_select_own" on session_suggestions
+  for select using (auth.uid() = patient_id or auth.uid() = therapist_id);
+
+drop policy if exists "session_suggestions_admin_select" on session_suggestions;
+create policy "session_suggestions_admin_select" on session_suggestions
+  for select using (
+    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+  );
+
+-- Both dashboards show suggestions live: the patient needs to see one
+-- arrive without reloading, and the therapist needs the answer.
+do $$
+begin
+  alter publication supabase_realtime add table session_suggestions;
+exception when duplicate_object then null;
+end $$;
+
+-- Admin kill switch. Off by default so merging this changes nothing until
+-- an admin turns it on, same posture as home_visit_enabled.
+alter table site_settings add column if not exists therapist_suggestions_enabled boolean not null default false;
+
+-- How long each step of the home page's "Booking to recovery" walkthrough
+-- holds before the next one takes over. A number rather than a toggle
+-- because the right pace depends on how much copy the steps carry, which
+-- admins edit; 0 means "don't advance on its own", the same "0 is off"
+-- convention session_timeout_minutes uses. The floor of 2 (enforced in
+-- /api/admin/update-setting, mirrored here) exists because a 1-second
+-- rotation is unreadable, and the ceiling keeps a typo from parking the
+-- widget on step 01 for an hour.
+alter table site_settings add column if not exists journey_step_seconds integer not null default 4
+  check (journey_step_seconds = 0 or (journey_step_seconds >= 2 and journey_step_seconds <= 60));
+
+-- How long after a session's scheduled start the "Tap to Join" control
+-- stops offering a call and reads "Session Completed" instead, everywhere a
+-- session is listed. Separate from join_window_after_minutes, which is the
+-- short grace period on the *join window* (whether the link still works for
+-- a late arrival); this is the longer point at which the session is treated
+-- as over and done for display purposes, regardless of whether anyone got
+-- round to marking it completed. Counted from slot_time, not from the end of
+-- the duration, because that is how an admin thinks about it ("an hour after
+-- the appointment"). At least 1 -- zero would mark a session finished the
+-- moment it started.
+alter table site_settings add column if not exists session_completed_after_minutes integer not null default 60
+  check (session_completed_after_minutes >= 1);
 -- ==========================================================================
 -- Appointments are never inserted by the browser
 -- ==========================================================================
@@ -3436,3 +3607,4 @@ alter table appointments add column if not exists google_calendar_sync_claimed_a
 -- one that does not.
 drop policy if exists "appointments_insert_own" on appointments;
 revoke insert on appointments from authenticated;
+

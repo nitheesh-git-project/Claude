@@ -290,6 +290,34 @@ export default function DashboardShell({
     );
   }
 
+  // Sits directly under the brand, above the nav, on every page this shell
+  // wraps. The four dashboards are all in NAV_HIDDEN_ROUTES (the public
+  // Navbar is deliberately kept off them), which left a signed-in user with
+  // no way back to the marketing site at all short of editing the URL --
+  // signing out was the only exit, and it took their session with it.
+  function renderHomeLink(mini: boolean, onNavigate?: () => void) {
+    return (
+      // A plain anchor, not next/link, for the same reason every nav entry
+      // below is one: this leaves the dashboard chrome for the public site's
+      // Navbar/Footer layout, and those client-side transitions were
+      // silently not completing in this environment.
+      // The hard navigation is the point here, not an oversight -- see the
+      // comment above this function.
+      // eslint-disable-next-line @next/next/no-html-link-for-pages
+      <a
+        href="/"
+        onClick={onNavigate}
+        title={mini ? "Back to Home" : undefined}
+        className={`mt-1 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
+          mini ? "justify-center px-0" : ""
+        }`}
+      >
+        <i aria-hidden="true" className="fa-solid fa-house text-sm"></i>
+        {!mini && <span>Back to Home</span>}
+      </a>
+    );
+  }
+
   function renderFooter(mini: boolean) {
     return (
       <div className="mt-auto space-y-1 border-t border-slate-800 pt-3">
@@ -373,7 +401,8 @@ export default function DashboardShell({
                 <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
-            <div className="flex-1 space-y-1">
+            {renderHomeLink(false, () => setMobileOpen(false))}
+            <div className="mt-1 flex-1 space-y-1">
               {navItems.map((item) => renderNavEntry(item, false, () => setMobileOpen(false)))}
             </div>
             {renderFooter(false)}
@@ -387,6 +416,7 @@ export default function DashboardShell({
         } ${offsetTop ? "top-[41px] h-[calc(100vh-41px)]" : "top-0 h-screen"}`}
       >
         {renderBrand(collapsed)}
+        {renderHomeLink(collapsed)}
         <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
           {navItems.map((item) => renderNavEntry(item, collapsed))}
         </div>

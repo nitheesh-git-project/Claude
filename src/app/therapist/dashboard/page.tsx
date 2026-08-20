@@ -190,6 +190,28 @@ export default async function TherapistDashboardPage() {
       .order("created_at", { ascending: false }),
   ]);
 
+  // Pending suggestions, read in their own call so a database that hasn't
+  // run the latest schema.sql loses the Suggest control rather than the
+  // whole dashboard -- the same migration tolerance the rest of this page
+  // uses. At most one per purchase, enforced by a unique index.
+  const { data: pendingSuggestionRows } = await supabase
+    .from("session_suggestions")
+    .select("id, purchase_id, slot_time, note")
+    .eq("therapist_id", user.id)
+    .eq("status", "pending");
+  const pendingSuggestionByPurchase = new Map(
+    (pendingSuggestionRows ?? []).map((r) => [
+      r.purchase_id as string,
+      { id: r.id as string, slotTime: r.slot_time as string, note: (r.note as string) ?? null },
+    ])
+  );
+
+  const { data: suggestionsToggleRow } = await supabase
+    .from("site_settings")
+    .select("therapist_suggestions_enabled")
+    .maybeSingle();
+  const suggestionsEnabled = suggestionsToggleRow?.therapist_suggestions_enabled === true;
+
   const adminSettings = parseAdminSettings(settingsRow);
   const categoryTitleById = new Map((treatmentCategories ?? []).map((c) => [c.id, c.title]));
 
@@ -579,7 +601,11 @@ export default async function TherapistDashboardPage() {
       process.env.NODE_ENV !== "production");
 
   return (
-    <JoinWindowProvider beforeMinutes={adminSettings.joinWindowMinutes} afterMinutes={adminSettings.joinWindowAfterMinutes}>
+    <JoinWindowProvider
+      beforeMinutes={adminSettings.joinWindowMinutes}
+      afterMinutes={adminSettings.joinWindowAfterMinutes}
+      completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
+    >
     <DashboardShell
       brandLabel="Therapist Panel"
       brandIcon="fa-user-doctor"
@@ -602,6 +628,7 @@ export default async function TherapistDashboardPage() {
         "therapist_payout_batches",
         "treatment_categories",
         "patient_package_purchases",
+        "session_suggestions",
       ]}
       headerTitle={`Welcome, ${profile?.full_name ?? "there"}`}
       headerSubtitle={
@@ -691,6 +718,8 @@ export default async function TherapistDashboardPage() {
           Package purchases locked to you for their whole programme — tap one for the full completed/upcoming/pending picture.
         </p>
         <TherapistProgrammePatients
+          suggestionsEnabled={suggestionsEnabled}
+          leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
           purchases={(programmePurchases ?? []).map((p) => ({
             id: p.id,
             purchaseCode: p.purchase_code,
@@ -702,6 +731,7 @@ export default async function TherapistDashboardPage() {
             completedCount: programmeCompletedByPurchase.get(p.id) ?? 0,
             scheduledCount: programmeScheduledByPurchase.get(p.id) ?? 0,
             status: p.status,
+            pendingSuggestion: pendingSuggestionByPurchase.get(p.id) ?? null,
           }))}
         />
       </div>

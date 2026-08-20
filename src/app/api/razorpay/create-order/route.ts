@@ -3,7 +3,11 @@ import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
-import { isProfileActive, approvePatientForGenuinePaymentAttempt } from "@/lib/supabase/requireActiveProfile";
+import {
+  isProfileActive,
+  isPatientProfile,
+  approvePatientForGenuinePaymentAttempt,
+} from "@/lib/supabase/requireActiveProfile";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 
 // The amount is always resolved here, server-side, from the appointment's
@@ -32,6 +36,16 @@ export async function POST(request: NextRequest) {
   // on the attempt, rather than waiting on a completed payment.
   if (!(await isProfileActive(user.id))) {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
+  }
+
+  // Sessions are delivered to patients, and one account carries one role --
+  // see isPatientProfile. The wizard says so; this is the same check for a
+  // session cookie calling the route directly.
+  if (!(await isPatientProfile(user.id))) {
+    return NextResponse.json(
+      { error: "This account can't book sessions. Sessions are booked under a patient account." },
+      { status: 403 }
+    );
   }
 
   // RLS also enforces this (patients can only select their own rows), but

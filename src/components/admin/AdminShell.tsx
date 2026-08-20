@@ -34,6 +34,7 @@ import { ADMIN_SECTIONS, findTab, type AdminSectionKey } from "@/lib/adminNav";
 // *_REALTIME_TABLES array -- keep new tables in one of these two rather
 // than inlining a third list at the call site.
 const ADMIN_REALTIME_TABLES = [
+  "session_suggestions",
   "appointments",
   "therapist_payout_requests",
   "patient_referrals",
@@ -268,6 +269,32 @@ export default function AdminShell({
     );
   }
 
+  // Sits directly under the brand, above the sections. The admin dashboard
+  // is in NAV_HIDDEN_ROUTES like the other three, so without this the only
+  // way off it is Log Out -- which also ends the session.
+  //
+  // A plain anchor rather than next/link: this leaves the dashboard chrome
+  // for the public site's own layout, the transition DashboardShell's nav
+  // entries document as silently not completing client-side here.
+  function renderHomeLink(mini: boolean, onNavigate?: () => void) {
+    return (
+      // The hard navigation is the point here, not an oversight -- see the
+      // comment above this function.
+      // eslint-disable-next-line @next/next/no-html-link-for-pages
+      <a
+        href="/"
+        onClick={onNavigate}
+        title={mini ? "Back to Home" : undefined}
+        className={`mt-1 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
+          mini ? "justify-center px-0" : ""
+        }`}
+      >
+        <i aria-hidden="true" className="fa-solid fa-house text-sm"></i>
+        {!mini && <span>Back to Home</span>}
+      </a>
+    );
+  }
+
   function renderFooter(mini: boolean) {
     return (
       <div className="mt-auto space-y-1 border-t border-slate-800 pt-3">
@@ -346,7 +373,8 @@ export default function AdminShell({
                 <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
-            <div className="flex-1 space-y-1">
+            {renderHomeLink(false, () => setMobileOpen(false))}
+            <div className="mt-1 flex-1 space-y-1">
               {sections.map((s) => renderNavItem(s, false, () => setMobileOpen(false)))}
             </div>
             {renderFooter(false)}
@@ -366,6 +394,7 @@ export default function AdminShell({
         } ${offsetTop ? "top-[41px] h-[calc(100vh-41px)]" : "top-0 h-screen"}`}
       >
         {renderBrand(collapsed)}
+        {renderHomeLink(collapsed)}
         <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
           {sections.map((s) => renderNavItem(s, collapsed))}
         </div>

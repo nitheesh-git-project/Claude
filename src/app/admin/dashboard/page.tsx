@@ -39,6 +39,7 @@ import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManage
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
+import HomePageWalkthroughForm from "@/components/admin/HomePageWalkthroughForm";
 import BrandContactDetailsForm from "@/components/admin/BrandContactDetailsForm";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
@@ -467,6 +468,16 @@ export default async function AdminDashboardPage() {
   );
 
   const adminSettings = parseAdminSettings(settingsRow);
+
+  // Its own call, not part of SITE_SETTINGS_SELECT: this column is newer
+  // than the rest, and a database that hasn't run the latest schema.sql
+  // should leave the feature off rather than blank every other setting.
+  const { data: suggestionsToggleRow } = await supabase
+    .from("site_settings")
+    .select("therapist_suggestions_enabled")
+    .maybeSingle();
+  const therapistSuggestionsEnabled =
+    suggestionsToggleRow?.therapist_suggestions_enabled === true;
 
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
@@ -1707,6 +1718,8 @@ export default async function AdminDashboardPage() {
     <div className="space-y-8">
       <SiteRatingsVisibilityToggle visible={siteSettings?.ratings_visible_publicly ?? true} />
 
+      <HomePageWalkthroughForm seconds={adminSettings.journeyStepSeconds} />
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-bold text-lg text-slate-800 mb-1">Testimonials</h2>
         <p className="text-xs text-slate-500 mb-4">
@@ -1735,7 +1748,10 @@ export default async function AdminDashboardPage() {
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         view="booking"
       />
-      <PackageSettingsForm settings={adminSettings} />
+      <PackageSettingsForm
+        settings={adminSettings}
+        therapistSuggestionsEnabled={therapistSuggestionsEnabled}
+      />
       <HomeVisitSettingsForm
         settings={adminSettings}
         areaCount={(homeVisitAreas ?? []).length}
@@ -2098,6 +2114,7 @@ export default async function AdminDashboardPage() {
     <JoinWindowProvider
       beforeMinutes={adminSettings.joinWindowMinutes}
       afterMinutes={adminSettings.joinWindowAfterMinutes}
+      completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
     >
       <AdminShell
         screens={screens}

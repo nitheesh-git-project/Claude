@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 // application review, and a patient waiting on their new account being
 // approved. The wording is the only difference, so this reads the role
 // rather than duplicating the whole screen per role. A signed-out visitor
-// (e.g. someone who registered with email confirmation on, so signUp
-// returned no session) gets the neutral copy.
+// (someone who signed out and came back to the link, say) gets the neutral
+// copy.
 export default async function PendingApprovalPage() {
   const supabase = await createClient();
   const {

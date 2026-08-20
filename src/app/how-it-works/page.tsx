@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import StepScroller from "@/components/howitworks/StepScroller";
+import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 import { Reveal, Stagger, StaggerItem, MotionButton, FloatingOrbs } from "@/components/motion/primitives";
 
 export const metadata: Metadata = {
@@ -27,8 +28,16 @@ const OBJECTIONS = [
 ];
 
 export default function HowItWorksPage() {
+  const sectionNavItems: SectionNavItem[] = [
+    { id: "the-steps", label: "The Steps", icon: "fa-route" },
+    { id: "common-questions", label: "Common Questions", icon: "fa-circle-question" },
+    { id: "book-now", label: "Book Now", icon: "fa-calendar-check" },
+  ];
+
   return (
     <>
+      <SectionNav items={sectionNavItems} />
+
       <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/70 to-white py-20">
         <FloatingOrbs />
         <Reveal className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
@@ -46,12 +55,12 @@ export default function HowItWorksPage() {
         </Reveal>
       </div>
 
-      <div className="py-16">
+      <div id="the-steps" className="scroll-mt-28 py-16">
         <StepScroller />
       </div>
 
       {/* The three things people hesitate over, answered plainly. */}
-      <div className="border-y border-slate-100 bg-slate-50 py-20">
+      <div id="common-questions" className="scroll-mt-28 border-y border-slate-100 bg-slate-50 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal className="mx-auto mb-12 max-w-2xl text-center">
             <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
@@ -76,7 +85,7 @@ export default function HowItWorksPage() {
         </div>
       </div>
 
-      <div className="relative overflow-hidden py-20">
+      <div id="book-now" className="relative scroll-mt-28 overflow-hidden py-20">
         <div className="absolute inset-0 bg-gradient-to-br from-teal-800 to-emerald-700" />
         <FloatingOrbs className="opacity-40" />
         <Reveal className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">

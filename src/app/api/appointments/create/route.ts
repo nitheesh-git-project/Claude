@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { isPatientProfile, isProfileActive } from "@/lib/supabase/requireActiveProfile";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
@@ -60,6 +60,22 @@ export async function POST(request: NextRequest) {
   // nothing on its own. Suspension is still enforced.
   if (!(await isProfileActive(user.id))) {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
+  }
+
+  // Sessions are delivered to patients, and one account carries one role --
+  // see isPatientProfile. This clause used to live on
+  // appointments_insert_own, which was the only enforcement point for the
+  // wizard's direct insert; that insert is now this route, so the check
+  // comes with it. Without it a therapist/hospital/admin session could
+  // still create a booking their own dashboard can never list again --
+  // which is the bug the RLS clause was added for, after money had moved
+  // for one. The wizards say so in the UI and the purchase routes check it
+  // too; this is the same check for a session cookie calling directly.
+  if (!(await isPatientProfile(user.id))) {
+    return NextResponse.json(
+      { error: "This account can't book sessions. Sessions are booked under a patient account." },
+      { status: 403 }
+    );
   }
 
   const slotTime = body.slotTime?.trim();

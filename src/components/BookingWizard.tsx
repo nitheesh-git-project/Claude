@@ -11,6 +11,9 @@ import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCo
 import { BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
+import WrongAccountForBooking, {
+  type NonPatientRole,
+} from "@/components/booking/WrongAccountForBooking";
 import ConfirmPasswordField from "@/components/auth/ConfirmPasswordField";
 import BookingStepOne from "@/components/booking/BookingStepOne";
 import {
@@ -67,10 +70,10 @@ export default function BookingWizard({
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [signedInRole, setSignedInRole] = useState<NonPatientRole | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -131,6 +134,27 @@ export default function BookingWizard({
   >([]);
   const [preferredTherapistId, setPreferredTherapistId] = useState("");
 
+  // ?therapist= carries a specialist across from their profile on /team, so
+  // "Book with Dr. X" books with Dr. X rather than dropping the visitor into
+  // a generic wizard that has forgotten who they were reading about. It is a
+  // *request*, not an assignment: it lands in preferred_therapist_id, which
+  // preselects that therapist in the admin's assign form and marks them
+  // "(requested)" -- the admin still decides, because only they can see
+  // whether that therapist is actually free for the chosen slot.
+  //
+  // Resolved client-side against public_therapist_profiles, on the same
+  // query-param-is-client-only basis as ?category= and ?package= above: the
+  // page is ISR-cached, so nothing therapist-specific can be resolved
+  // server-side. That view already hides suspended, unapproved and
+  // team-hidden therapists, so a stale or hand-typed link simply resolves to
+  // nothing and the booking carries on with no request attached.
+  const therapistIdParam = searchParams.get("therapist");
+  const [requestedTherapist, setRequestedTherapist] = useState<{
+    id: string;
+    full_name: string | null;
+    credentials: string | null;
+  } | null>(null);
+
   // Package-purchase mode: driven by ?package=, same client-side-only
   // query-param convention as ?category= above -- /book stays ISR-cached,
   // so nothing package-specific is ever resolved server-side. `idle` means
@@ -175,12 +199,20 @@ export default function BookingWizard({
           setIsLoggedIn(true);
           const { data: profile } = await supabase
             .from("profiles")
-            .select("full_name, email")
+            .select("full_name, email, role")
             .eq("id", data.user.id)
             .single();
           if (profile) {
             setFullName(profile.full_name);
             setEmail(profile.email);
+            // A session belongs to exactly one role (profiles.id is the auth
+            // user's id and role is a single column), so a therapist,
+            // hospital or admin signed in here cannot also be the patient
+            // this booking is for. Recorded so the wizard can say so rather
+            // than book them as their own patient -- see the gate below.
+            if (profile.role && profile.role !== "patient") {
+              setSignedInRole(profile.role as NonPatientRole);
+            }
           }
           // Best-effort "book with the same therapist again" — a fresh
           // account or a fetch failure just means the option doesn't show.
@@ -196,6 +228,25 @@ export default function BookingWizard({
       .finally(() => setCheckingAuth(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!therapistIdParam) return;
+    let cancelled = false;
+    supabase
+      .from("public_therapist_profiles")
+      .select("id, full_name, credentials")
+      .eq("id", therapistIdParam)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setRequestedTherapist(data);
+        setPreferredTherapistId(data.id);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [therapistIdParam]);
 
   useEffect(() => {
     if (!packageIdParam) return;
@@ -347,10 +398,18 @@ export default function BookingWizard({
         setError(signUpError.message);
         return;
       }
+      // A signup with no session means the Supabase project has email
+      // confirmation on, which this app does not use -- booking is gated by
+      // payment and the admin's approval, never by an inbox round trip. It
+      // is a misconfiguration rather than a step, so it reads as a failure
+      // here instead of sending the patient away mid-booking.
       if (!data.session || !data.user) {
         setLoading(false);
-        setInfo(
-          "Account created! Check your email to confirm it, then sign in and submit this booking again from your dashboard."
+        console.error(
+          "Booking signup returned no session -- turn OFF Confirm email in Supabase Auth settings."
+        );
+        setError(
+          "Your account was created but we couldn't sign you in to finish this booking. Please sign in and try again."
         );
         return;
       }
@@ -482,7 +541,7 @@ export default function BookingWizard({
   const header = (
     <div className="bg-slate-900 text-white p-6">
       <span className="text-[10px] font-bold uppercase tracking-wider text-teal-400 block mb-1">
-        {done || info ? "Booking" : `Step ${step} of 3`}
+        {done ? "Booking" : `Step ${step} of 3`}
       </span>
       <h1 className="text-xl font-bold">
         {packageData ? packageData.title : "Book Virtual Physical Therapy Session"}
@@ -508,15 +567,16 @@ export default function BookingWizard({
     );
   }
 
-  if (info) {
+  // Checked before every other branch: a therapist/hospital/admin session
+  // booking here would write an appointment whose patient is them, which
+  // none of their dashboards can show them (each filters by its own role's
+  // column, and /patient/dashboard bounces a non-patient to /get-started).
+  // They would pay for a session they could never find again.
+  if (signedInRole) {
     return (
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
         {header}
-        <div className="p-8 text-center">
-          <i className="fa-solid fa-envelope-circle-check text-teal-600 text-4xl mb-4"></i>
-          <h2 className="text-xl font-bold text-slate-900">Almost there</h2>
-          <p className="text-sm text-slate-500 mt-2 leading-relaxed">{info}</p>
-        </div>
+        <WrongAccountForBooking role={signedInRole} name={fullName} email={email} />
       </div>
     );
   }
@@ -772,7 +832,47 @@ export default function BookingWizard({
             </div>
           )}
 
-          {previousTherapists.length > 0 && (
+          {/* The request carried over from a specialist's profile. Stated as
+              a request rather than a booked fact, because the admin assigns
+              against real availability and can land on someone else -- a
+              patient who was told "booked with Dr. X" and then met someone
+              else would rightly feel misled. */}
+          {requestedTherapist && (
+            <div className="rounded-xl border border-teal-200 bg-teal-50 p-4">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-600 text-white">
+                  <i aria-hidden="true" className="fa-solid fa-user-doctor text-xs" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-teal-900">
+                    Requested: {requestedTherapist.full_name}
+                  </p>
+                  {requestedTherapist.credentials && (
+                    <p className="text-xs font-semibold text-teal-700">
+                      {requestedTherapist.credentials}
+                    </p>
+                  )}
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-teal-800">
+                    We&apos;ll book you with them if they&apos;re free at your chosen time.
+                    If not, another specialist takes the session and you&apos;ll see who
+                    before it starts.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRequestedTherapist(null);
+                    setPreferredTherapistId("");
+                  }}
+                  className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold text-teal-700 transition hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!requestedTherapist && previousTherapists.length > 0 && (
             <div>
               <label className="block font-semibold mb-1.5 text-slate-900">
                 Continue with the same therapist?{" "}
