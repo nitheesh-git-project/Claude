@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { debugNow, getDebugNowOffsetMs, setDebugNowOffsetMs } from "@/lib/debugNow";
 import DebugResetButton from "@/components/DebugResetButton";
 
@@ -14,6 +15,12 @@ function toLocalInputValue(ms: number) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Split deliberately. `.env.production` sets NEXT_PUBLIC_SHOW_DEBUG_NAV=true,
+// so this bar renders for every visitor to the deployed site -- which meant
+// the admin login and dashboard were advertised, by name, to patients,
+// therapists and hospital partners in a dropdown. They could never get in
+// (src/proxy.ts and requireAdmin see to that), but naming the door to
+// everyone who walks past is not something a back office should do.
 const routes = [
   { value: "/", label: "1. Home" },
   { value: "/conditions", label: "2. Conditions Treated" },
@@ -27,10 +34,18 @@ const routes = [
   { value: "/therapist/login", label: "9. Therapist Login / Apply" },
   { value: "/therapist/dashboard", label: "9b. Therapist Dashboard (protected)" },
   { value: "/pending-approval", label: "10. Pending Approval" },
-  { value: "/admin/login", label: "11. Admin Login" },
-  { value: "/admin/dashboard", label: "11b. Admin Dashboard (protected)" },
   { value: "/hospital/login", label: "12. Partner (Hospital) Login" },
   { value: "/hospital/dashboard", label: "12b. Partner Dashboard (protected)" },
+];
+
+// Shown only to a signed-in admin. The data reset lives behind the same
+// gate: it already refuses everyone else server-side (404 without
+// ALLOW_DEBUG_DATA_RESET, 403 to a non-full-scope admin), but a red
+// "Reset data" button sitting in a public bar invites people to find that
+// out for themselves.
+const adminRoutes = [
+  { value: "/admin/login", label: "11. Admin Login" },
+  { value: "/admin/dashboard", label: "11b. Admin Dashboard (protected)" },
 ];
 
 export default function DebugNav() {
@@ -41,6 +56,34 @@ export default function DebugNav() {
   // every render would be pure overhead for no benefit.
   const [simInput, setSimInput] = useState(() => toLocalInputValue(debugNow()));
   const [active, setActive] = useState(() => getDebugNowOffsetMs() !== 0);
+  // Defaults to false and only ever turns on: a failed lookup, a signed-out
+  // visitor and a non-admin all land in the same place, which is the safe
+  // one. The real gate is server-side -- this only decides what is named.
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    supabase.auth
+      .getUser()
+      .then(async ({ data }) => {
+        if (cancelled || !data.user) return;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", data.user.id)
+          .single();
+        if (!cancelled && profile?.role === "admin") setIsAdmin(true);
+      })
+      .catch(() => {
+        // Signed out, or the lookup failed -- either way, not an admin.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visibleRoutes = isAdmin ? [...routes, ...adminRoutes] : routes;
 
   function applySimulatedTime() {
     const target = new Date(simInput).getTime();
@@ -74,7 +117,7 @@ export default function DebugNav() {
           onChange={(e) => router.push(e.target.value)}
           className="bg-slate-800 text-teal-300 text-xs font-mono py-1.5 px-2 rounded-lg border border-slate-700 focus:outline-none focus:border-teal-500"
         >
-          {routes.map((r) => (
+          {visibleRoutes.map((r) => (
             <option key={r.value} value={r.value}>
               {r.label}
             </option>
@@ -109,7 +152,7 @@ export default function DebugNav() {
 
         {/* Pre-launch only, like the bar itself. The server decides whether
             it actually works -- see DebugResetButton. */}
-        <DebugResetButton />
+        {isAdmin && <DebugResetButton />}
 
         <span className="text-[11px] text-slate-500 ml-auto hidden sm:inline">
           Remove this bar before real launch

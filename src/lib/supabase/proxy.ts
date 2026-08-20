@@ -116,8 +116,14 @@ export async function updateSession(request: NextRequest) {
       }
     }
 
+    // /get-started, not /admin/login: bouncing a signed-in patient or
+    // therapist to the admin login page confirms there is one and names it.
+    // They are already authenticated, so the login page is no use to them
+    // anyway -- the only thing it does is advertise the back office. An
+    // unauthenticated visitor still goes to /admin/login above, since that
+    // is the real admin's way in.
     if (path.startsWith("/admin/dashboard") && profile?.role !== "admin") {
-      return redirectTo("/admin/login");
+      return redirectTo("/get-started");
     }
 
     if (path.startsWith("/hospital/dashboard")) {

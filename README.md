@@ -78,7 +78,12 @@ verified end to end.
 
 `.env.production` currently sets `NEXT_PUBLIC_SHOW_DEBUG_NAV=true`, which
 renders a "jump to page" debug bar on the deployed site. Delete that file or
-flip the value to `false` before a real public launch.
+flip the value to `false` before a real public launch. The bar lists the
+admin login and dashboard, and shows the **Reset data** button, only to a
+signed-in admin -- everyone else gets neither, since the bar is public and
+the back office should not be advertised. For the same reason a signed-in
+non-admin who reaches `/admin/dashboard` is redirected to `/get-started`
+rather than `/admin/login`.
 
 ## Roles
 
