@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "@/components/dashboard/DashboardShell";
-import ConditionIntakeForm from "@/components/profile/ConditionIntakeForm";
+import ConditionIntakePanel from "@/components/profile/ConditionIntakePanel";
 import PainMapView from "@/components/profile/PainMapView";
 import PainComparisonView from "@/components/profile/PainComparisonView";
 import HealthProfileActions from "@/components/profile/HealthProfileActions";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
-  CONDITION_STATUS_LABEL,
   INTAKE_QUESTIONS,
   INTAKE_QUESTIONS_VERSION,
   mergeIntakeQuestionOverrides,
@@ -25,6 +24,16 @@ const STATUS_BANNER_STYLE: Record<ConditionProfileStatus, string> = {
   draft: "bg-slate-50 border-slate-200 text-slate-600",
   pending_review: "bg-amber-50 border-amber-200 text-amber-700",
   active: "bg-emerald-50 border-emerald-200 text-emerald-700",
+};
+
+// What the four statuses mean *to a patient*, in their terms -- the raw
+// CONDITION_STATUS_LABEL wording ("Pending admin review") is the admin's
+// vocabulary and stays on the admin/therapist screens.
+const STATUS_HEADLINE: Record<ConditionProfileStatus, string> = {
+  not_started: "You haven't told us about your condition yet",
+  draft: "You started this and haven't sent it in yet",
+  pending_review: "Sent in — the clinic is checking it",
+  active: "Your therapist has your answers",
 };
 
 export default async function PatientHealthProfilePage() {
@@ -155,7 +164,7 @@ export default async function PatientHealthProfilePage() {
         "intake_question_templates",
       ]}
       headerTitle="Health Profile"
-      headerSubtitle="Your condition history and your therapist's pain assessments."
+      headerSubtitle="What you told us about your condition, and what your therapist found."
     >
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex justify-end">
@@ -163,51 +172,57 @@ export default async function PatientHealthProfilePage() {
         </div>
 
         <div className={`rounded-2xl border p-4 text-sm font-semibold ${STATUS_BANNER_STYLE[status]}`}>
-          {CONDITION_STATUS_LABEL[status]}
+          {STATUS_HEADLINE[status]}
           {isPending && lastRequest?.status === "pending" && (
             <p className="mt-1 text-xs font-normal">
-              Submitted {new Date(lastRequest.created_at).toLocaleString()} — an admin will review it shortly.
-              Your previous answers below are still what your therapist sees until then.
+              Sent {new Date(lastRequest.created_at).toLocaleString()}. Until it&apos;s checked, your therapist
+              still sees your previous answers — you can edit again once it clears.
             </p>
           )}
           {!isPending && lastRequest?.status === "declined" && (
             <p className="mt-1 text-xs font-normal">
-              Your last submission was declined: {lastRequest.admin_notes}. You can edit and resubmit below.
+              Your last submission came back with a note: {lastRequest.admin_notes}. Open the questions again to
+              fix it and resend.
             </p>
           )}
           {!isPending && isOutdatedVersion && (
             <p className="mt-1 text-xs font-normal">
-              We&apos;ve updated some of these questions since you last answered — worth a quick review.
+              We&apos;ve changed some of these questions since you answered — worth a quick look.
             </p>
           )}
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-1">Your Condition</h2>
+          <h2 className="font-bold text-lg text-slate-800 mb-1">1. What you told us</h2>
           <p className="text-xs text-slate-500 mb-4">
-            Tell us about what brought you here — your therapist and admin can see this.
+            A few questions about what hurts, asked one at a time. Your therapist and the clinic&apos;s admin read
+            this — nobody else.
           </p>
-          <ConditionIntakeForm
+          <ConditionIntakePanel
             questions={questions}
             endpoint="/api/patient/condition-profile/submit"
             draftEndpoint="/api/patient/condition-profile/save-draft"
-            currentData={formInitialData}
-            disabled={isPending}
+            currentData={currentData}
+            formInitialData={formInitialData}
+            locked={isPending}
+            lockedMessage="You can edit again as soon as the clinic finishes checking your last submission."
           />
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-1">Pain Map</h2>
+          <h2 className="font-bold text-lg text-slate-800 mb-1">2. What your therapist found</h2>
           <p className="text-xs text-slate-500 mb-4">
-            Filled in by your therapist after an exam — you can&apos;t edit this, only view it.
+            Your therapist records this after examining you, so it fills in on its own after a session. View only
+            — nothing for you to do here.
           </p>
           <PainMapView assessments={assessments ?? []} />
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-1">What You Reported vs What Was Found</h2>
+          <h2 className="font-bold text-lg text-slate-800 mb-1">3. The two side by side</h2>
           <p className="text-xs text-slate-500 mb-4">
-            Your own answers above, alongside your therapist&apos;s exam findings, on one figure.
+            Where you said it hurts and where your therapist found it, on one figure — how progress shows up over
+            time.
           </p>
           <PainComparisonView assessments={assessments ?? []} areaPain={parseAreaPain(currentData.area_pain)} />
         </div>

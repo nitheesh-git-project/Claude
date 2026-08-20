@@ -268,7 +268,12 @@ client is the only writer and the log is append-only from any session.
   (`patient_condition_profiles` / `condition_change_requests`, question set
   in `src/lib/conditionIntake.ts`) is patient- or therapist-submitted
   general history and always queues for admin review before it goes live —
-  first fill and later edits alike. Pain Map (`pain_assessments` /
+  first fill and later edits alike. It is filled through a one-question-at-a-time
+  pop-up (`ConditionIntakeWizard.tsx`, launched from `ConditionIntakePanel.tsx`),
+  never as a form rendered on the dashboard: a wall of seven fields is what
+  patients read as paperwork and abandon. A new question therefore needs
+  `helpText` (why this answer matters, in the patient's words) and a
+  `shortLabel` alongside its `label`, not just the label. Pain Map (`pain_assessments` /
   `pain_map_question_templates`, region + question logic in
   `src/lib/painMap.ts`) is therapist-only, per-region clinical exam data
   that posts live immediately with no review step, and is append-only (a

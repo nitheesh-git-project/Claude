@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 import DashboardShell from "@/components/dashboard/DashboardShell";
-import ConditionIntakeForm from "@/components/profile/ConditionIntakeForm";
+import ConditionIntakePanel from "@/components/profile/ConditionIntakePanel";
 import PainMapView from "@/components/profile/PainMapView";
 import PainAssessmentForm from "@/components/profile/PainAssessmentForm";
 import PainComparisonView from "@/components/profile/PainComparisonView";
@@ -194,13 +194,15 @@ export default async function TherapistPatientHealthProfilePage({
             </p>
           )}
           {hasApprovedAccess ? (
-            <ConditionIntakeForm
+            <ConditionIntakePanel
               questions={questions}
               endpoint="/api/therapist/condition-profile/submit"
               draftEndpoint="/api/therapist/condition-profile/save-draft"
               patientId={patientId}
-              currentData={formInitialData}
-              disabled={status === "pending_review"}
+              currentData={currentData}
+              formInitialData={formInitialData}
+              locked={status === "pending_review"}
+              lockedMessage="A submission for this patient is already waiting on admin review — one at a time."
             />
           ) : (
             <div className="text-sm text-slate-600 space-y-1">

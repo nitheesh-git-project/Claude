@@ -451,12 +451,21 @@ and the admin's **Patient Conditions** tab.
   admin approves it; declining keeps the proposed data intact so the
   submitter can amend and resubmit. Admin's own edits (`ConditionDirectEditForm`)
   apply immediately, no review needed. One pending submission per patient at
-  a time. Answers autosave to `patient_condition_profiles.draft_data` as the
-  form is filled (`/api/patient/condition-profile/save-draft`,
+  a time. The fill itself is a
+  step-by-step pop-up, not a form on the page: `ConditionIntakePanel.tsx`
+  shows only what's on file plus a "start / continue" button, and
+  `ConditionIntakeWizard.tsx` asks one question per screen with
+  plain-language help text saying why that answer matters, a progress bar,
+  and a final review step before sending. Seven fields at once read as
+  paperwork; one question at a time reads as a conversation. Help text,
+  placeholder and short label are code-side (`IntakeQuestion.helpText` /
+  `placeholder` / `shortLabel`) and deliberately *not* admin-editable —
+  only wording and required-ness are. Answers autosave to
+  `patient_condition_profiles.draft_data` as it is filled (`/api/patient/condition-profile/save-draft`,
   `/api/therapist/condition-profile/save-draft`) so closing mid-fill loses
-  nothing; a submission clears the draft. Reopening the form prioritizes an
+  nothing; a submission clears the draft. Reopening the wizard prioritizes an
   in-progress draft, then a declined submission's answers, then the last
-  approved data.
+  approved data, and resumes on the first still-unanswered question.
 - *Pain Map* (`pain_assessments`, `pain_map_question_templates`,
   `src/lib/painMap.ts`) is a 17-region clinical exam a therapist fills in
   after examining the patient — region-specific question sets with an
