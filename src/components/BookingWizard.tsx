@@ -74,7 +74,6 @@ export default function BookingWizard({
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -399,10 +398,18 @@ export default function BookingWizard({
         setError(signUpError.message);
         return;
       }
+      // A signup with no session means the Supabase project has email
+      // confirmation on, which this app does not use -- booking is gated by
+      // payment and the admin's approval, never by an inbox round trip. It
+      // is a misconfiguration rather than a step, so it reads as a failure
+      // here instead of sending the patient away mid-booking.
       if (!data.session || !data.user) {
         setLoading(false);
-        setInfo(
-          "Account created! Check your email to confirm it, then sign in and submit this booking again from your dashboard."
+        console.error(
+          "Booking signup returned no session -- turn OFF Confirm email in Supabase Auth settings."
+        );
+        setError(
+          "Your account was created but we couldn't sign you in to finish this booking. Please sign in and try again."
         );
         return;
       }
@@ -521,7 +528,7 @@ export default function BookingWizard({
   const header = (
     <div className="bg-slate-900 text-white p-6">
       <span className="text-[10px] font-bold uppercase tracking-wider text-teal-400 block mb-1">
-        {done || info ? "Booking" : `Step ${step} of 3`}
+        {done ? "Booking" : `Step ${step} of 3`}
       </span>
       <h1 className="text-xl font-bold">
         {packageData ? packageData.title : "Book Virtual Physical Therapy Session"}
@@ -557,19 +564,6 @@ export default function BookingWizard({
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
         {header}
         <WrongAccountForBooking role={signedInRole} name={fullName} email={email} />
-      </div>
-    );
-  }
-
-  if (info) {
-    return (
-      <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
-        {header}
-        <div className="p-8 text-center">
-          <i className="fa-solid fa-envelope-circle-check text-teal-600 text-4xl mb-4"></i>
-          <h2 className="text-xl font-bold text-slate-900">Almost there</h2>
-          <p className="text-sm text-slate-500 mt-2 leading-relaxed">{info}</p>
-        </div>
       </div>
     );
   }

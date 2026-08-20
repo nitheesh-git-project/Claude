@@ -103,9 +103,17 @@ export default function TherapistAuthCard() {
       return;
     }
 
+    // Same misconfiguration case as the patient card -- this app gates on
+    // the admin's approval, never on email confirmation, for either
+    // self-serve role.
     if (!data.session) {
       setLoading(false);
-      setInfo("Application submitted! Check your email to confirm your account, then sign in.");
+      console.error(
+        "Therapist signup returned no session -- turn OFF Confirm email in Supabase Auth settings."
+      );
+      setError(
+        "Your application was submitted but we couldn't sign you in. Please try signing in, or contact us if that doesn't work."
+      );
       setTab("login");
       return;
     }

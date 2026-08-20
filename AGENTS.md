@@ -35,8 +35,10 @@ arrow (`section-nav.spec.ts`), the public catalog's detail dialogs
 (`therapist-request.spec.ts`), who may book plus the dashboards' way home
 (`booking-account-role.spec.ts`), and therapist-suggested sessions including
 button spam, concurrent answers and a dropped connection
-(`session-suggestions.spec.ts`), and the Home page walkthrough's
-admin-configured rotation pace (`journey-pace.spec.ts`). It needs a
+(`session-suggestions.spec.ts`), the Home page walkthrough's
+admin-configured rotation pace (`journey-pace.spec.ts`), and self-signup
+going through with no email-confirmation step
+(`patient-registration.spec.ts`). It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
@@ -84,6 +86,16 @@ scripts/                 one-off tooling
 `profiles.role` is one of `patient`, `therapist`, `hospital`, `admin`.
 Patients and therapists self-register and wait for approval; hospitals are
 provisioned by the admin; admins are promoted by hand in Supabase.
+
+**Email confirmation is off, deliberately, and the app assumes it.** The
+Supabase project keeps *Confirm email* disabled, so `signUp` returns a
+session immediately and the admin's approval is the only gate a new account
+waits on. Never add a "check your email" step back into a sign-up path: a
+signup with no session is a misconfigured project, and the four sign-up
+call sites (`PatientAuthCard`, `TherapistAuthCard`, `BookingWizard`,
+`HomeVisitBookingWizard`) all report it as a failure rather than an
+instruction. `e2e/patient-registration.spec.ts` is what catches the setting
+being turned back on.
 
 Two flags gate everything: `profiles.approved` and `profiles.active`.
 They are enforced in **two** places and both must stay in place:

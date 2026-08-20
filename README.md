@@ -109,6 +109,25 @@ Four roles live in `profiles.role`, all backed by Supabase Auth users:
 - **admin** — promoted by hand in the Supabase Table Editor. Runs everything
   else.
 
+### Registration and approval
+
+Signing up is one step. The Supabase project must have **email confirmation
+off** (Authentication → Sign In / Providers → Email → *Confirm email*), so
+`supabase.auth.signUp` hands back a session immediately and a new patient
+lands on `/pending-approval` already signed in. The admin's approval is the
+only gate: the moment they approve, that same session reaches the dashboard
+with nothing further to verify. There is deliberately no email-confirmation
+step — access here is decided by a person reviewing the account, and asking
+for a mailbox round trip on top of it meant two queues to clear before
+anyone could book, on a platform whose only outbound mail is the calendar
+invite.
+
+With the setting left on, signup returns no session; the sign-up forms treat
+that as the misconfiguration it is (a plain "we couldn't sign you in", plus
+a server-log line naming the setting) rather than sending the patient to
+their inbox. `e2e/patient-registration.spec.ts` fails when a project has it
+switched back on.
+
 `profiles.approved` and `profiles.active` gate access: unapproved users land
 on `/pending-approval`, suspended users on `/account-suspended`. Both flags
 are enforced twice — in the proxy for dashboard navigation, and again in

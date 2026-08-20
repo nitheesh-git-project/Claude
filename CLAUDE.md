@@ -24,8 +24,9 @@ runs `npm run check:realtime`, the Supabase Realtime publication coverage
 check). A Playwright
 e2e suite covers the money-critical paths, the public pages' section
 navigation, the catalog detail dialogs, the specialist booking handoff and
-the patient-only booking rule, therapist-suggested sessions, and the Home
-page walkthrough's admin-configured rotation pace
+the patient-only booking rule, therapist-suggested sessions, the Home
+page walkthrough's admin-configured rotation pace, and self-signup without
+an email-confirmation step
 (`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys — verify a change
 with a build and a lint.

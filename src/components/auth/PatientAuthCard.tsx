@@ -133,10 +133,20 @@ export default function PatientAuthCard() {
       return;
     }
 
+    // No session back means the Supabase project has email confirmation
+    // switched on, which this app deliberately does not use: a patient is
+    // gated by the admin's approval, not by clicking a link in their inbox,
+    // and asking for both was two queues to clear before anyone could book.
+    // So this is a misconfiguration, not a step -- say something a patient
+    // can act on and leave the detail in the server logs.
+    // See "Registration and approval" in README.md.
     if (!data.session) {
       setLoading(false);
-      setInfo(
-        "Account created! Check your email to confirm it. An admin also needs to approve your account before you can sign in."
+      console.error(
+        "Patient signup returned no session -- turn OFF Confirm email in Supabase Auth settings."
+      );
+      setError(
+        "Your account was created but we couldn't sign you in. Please try signing in, or contact us if that doesn't work."
       );
       setTab("login");
       return;
