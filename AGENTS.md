@@ -152,10 +152,21 @@ client is the only writer and the log is append-only from any session.
   payment, so a patient who fails or abandons checkout after repeated tries
   still lands straight in their dashboard via BookingWizard's escape hatch,
   appointment showing pending, rather than being bounced to
-  `/pending-approval`. `appointments_insert_own` lets a self-signup patient's
-  pre-payment appointment row through RLS while still unapproved (requiring
-  only `active`) precisely so a real order can exist to attempt in the first
-  place. Home-visit and package purchases keep the stricter "only a
+  `/pending-approval`. The pre-payment appointment row that order is minted
+  against is created by `/api/appointments/create`, which gates on plain
+  `isProfileActive` for the same reason — a self-signup patient is
+  unapproved by definition, and that row (always unpaid, unassigned,
+  `requested`, `online`) grants nothing on its own. **Appointments are never
+  inserted by the browser**, same rule as home visits: that route re-derives
+  concern, duration, lead time and the therapist preference from the session
+  and the category row. It replaced a direct client-side insert whose only
+  validation was the `appointments_insert_own` RLS policy — which made one
+  policy in a live database, reachable only by running
+  `scripts/run-schema.mjs`, the single point of failure for the whole
+  booking funnel, and failed real bookings with a raw Postgres
+  "new row violates row-level security policy" string at the last step of
+  checkout. The policy and its insert grant are now dropped at the end of
+  `schema.sql`. Home-visit and package purchases keep the stricter "only a
   *completed* payment vets you" rule instead (`/api/home-visit/create-order`
   uses plain `isProfileActive`, no auto-approve). Standalone patient
   registration (`/patient/register`, no booking involved) always waits on a
