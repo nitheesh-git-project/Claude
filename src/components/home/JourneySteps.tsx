@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import CareIllustration, { type CareIllustrationId } from "@/components/visuals/CareIllustration";
 
 /**
@@ -11,9 +11,24 @@ import CareIllustration, { type CareIllustrationId } from "@/components/visuals/
  * the whole journey can be understood without leaving the page. Steps are
  * real buttons in a tablist so keyboard and screen-reader users get the
  * same behaviour as pointer users.
+ *
+ * It also advances on its own every four seconds, 01 -> 02 -> 03 -> 01, so a
+ * visitor who never touches it still sees all three. Three things keep that
+ * from being user-hostile:
+ *
+ * - Pointer or keyboard inside the component pauses it. Content that moves
+ *   while someone is reading it is worse than content they never saw.
+ * - Choosing a step restarts the four seconds rather than leaving whatever
+ *   was left of the current tick, so a deliberate choice is never cut short.
+ * - Under prefers-reduced-motion it does not advance at all. An unbidden
+ *   rotation is exactly the motion that setting exists to stop; the tabs
+ *   still work by hand.
  */
 
 const EASE = [0.16, 1, 0.3, 1] as const;
+
+/** How long each step holds before the next one takes over. */
+const STEP_DURATION_MS = 4000;
 
 type Step = {
   id: string;
@@ -77,11 +92,29 @@ export default function JourneySteps({
   variant?: "full" | "compact";
 } = {}) {
   const [active, setActive] = useState(0);
+  const [paused, setPaused] = useState(false);
   const step = STEPS[active];
   const compact = variant === "compact";
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (paused || reduceMotion) return;
+    // Keyed on `active` as well, so selecting a step resets the clock: the
+    // timer is recreated on every change, whether this one made it or a
+    // person did.
+    const timer = setTimeout(
+      () => setActive((i) => (i + 1) % STEPS.length),
+      STEP_DURATION_MS
+    );
+    return () => clearTimeout(timer);
+  }, [active, paused, reduceMotion]);
 
   return (
     <div
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={() => setPaused(false)}
       className={
         compact
           ? "flex flex-col gap-4"
