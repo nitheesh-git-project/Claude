@@ -78,12 +78,14 @@ verified end to end.
 
 `.env.production` currently sets `NEXT_PUBLIC_SHOW_DEBUG_NAV=true`, which
 renders a "jump to page" debug bar on the deployed site. Delete that file or
-flip the value to `false` before a real public launch. The bar lists the
-admin login and dashboard, and shows the **Reset data** button, only to a
-signed-in admin -- everyone else gets neither, since the bar is public and
-the back office should not be advertised. For the same reason a signed-in
+flip the value to `false` before a real public launch. It lists the admin login and
+dashboard, which is one more reason to switch it off before launch.
+
+Elsewhere the back office is deliberately unadvertised: a signed-in
 non-admin who reaches `/admin/dashboard` is redirected to `/get-started`
-rather than `/admin/login`.
+rather than `/admin/login`, that page is `noindex`, and `/dashboard`
+resolves role to dashboard server-side so no public JavaScript bundle
+carries the admin path.
 
 ## Roles
 
@@ -118,6 +120,11 @@ so a still-valid session cookie can't call the API around the UI gate.
 **Public marketing:** `/` (home), `/conditions`, `/how-it-works`, `/team`,
 `/hospitals`, `/faq`, `/get-started`, `/book`, `/home-visit`,
 `/book-home-visit`.
+
+**Shared:** `/dashboard` — redirects to whichever dashboard belongs to the
+signed-in role (`/get-started` when signed out). Every "go to my dashboard"
+link points here so no client bundle has to know the four paths; see
+"Roles" above.
 
 **Patient:** `/patient/register`, `/patient/login`, `/patient/dashboard`,
 `/patient/dashboard/profile`, `/patient/dashboard/health-profile`.

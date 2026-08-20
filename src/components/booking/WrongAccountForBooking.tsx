@@ -38,7 +38,11 @@ const COPY: Record<
     noun: "therapist",
     body: "Sessions are booked under a patient account, so this one can't book. If you're booking therapy for yourself, sign out and book with a separate patient account.",
     action: {
-      href: "/therapist/dashboard",
+      // /dashboard, not the role's own path: this component ships in the
+      // booking page's bundle, and a literal /admin/dashboard here would put
+      // the back office's address in front of every visitor who opens it.
+      // The redirect resolves the role server-side.
+      href: "/dashboard",
       label: "Go to my dashboard",
       icon: "fa-gauge-high",
     },
@@ -48,7 +52,7 @@ const COPY: Record<
     noun: "hospital partner",
     body: "Partners don't book sessions directly — you refer a patient and we take it from there, or share your referral code so they can book themselves.",
     action: {
-      href: "/hospital/dashboard#refer",
+      href: "/dashboard?hash=refer",
       label: "Refer a patient",
       icon: "fa-user-plus",
     },
@@ -58,7 +62,7 @@ const COPY: Record<
     noun: "admin",
     body: "To book for a patient, use New Booking under Sessions in the dashboard — it books on their behalf and can override the lead time.",
     action: {
-      href: "/admin/dashboard?section=sessions",
+      href: "/dashboard?section=sessions",
       label: "Book for a patient",
       icon: "fa-calendar-plus",
     },

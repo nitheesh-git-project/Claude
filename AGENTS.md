@@ -334,13 +334,20 @@ client is the only writer and the log is append-only from any session.
   fifth booking entry point without all three.
 
 - **Don't name the back office to anyone outside it.** Non-admin roles are
-  already locked out (`src/proxy.ts`, `requireAdmin`, `requireAdminScope`),
-  but keep it out of what they can *see* too: a signed-in non-admin reaching
+  already locked out (`src/proxy.ts`, `requireAdmin`, `requireAdminScope`);
+  keep it out of what they can *see* too. A signed-in non-admin reaching
   `/admin/dashboard` is redirected to `/get-started`, never to
   `/admin/login`, which would confirm the back office exists and name its
-  door; and the debug bar's admin entries and Reset button render only for
-  an admin. Applies to any new public surface that could mention an admin
-  route.
+  door. `/admin/login` is `robots: noindex`. And no client component maps
+  role to dashboard path: `src/app/dashboard/page.tsx` resolves that
+  server-side, so `Navbar` and `WrongAccountForBooking` link to `/dashboard`
+  and the admin path never reaches a public bundle. A `hash` param on that
+  route becomes a real fragment (the anchor-based shells need it) and is
+  pattern-checked, since it is the one input that could otherwise smuggle a
+  host into the redirect. Link new "go to my dashboard" affordances at
+  `/dashboard` rather than adding a fifth role map. The debug bar is the
+  deliberate exception -- it still lists the admin routes, and is switched
+  off before release.
 
 - **Every dashboard needs a way back to the public site.** All four are in
   `NAV_HIDDEN_ROUTES`, so the public `Navbar` never renders there; without an
@@ -421,14 +428,6 @@ Four gates, all of which must pass:
 2. A signed-in admin.
 3. ...with `full` scope.
 4. The exact phrase `RESET ALL DATA`, typed by hand in the UI.
-
-The button itself now renders only for a signed-in admin, and the debug
-bar's jump-to dropdown lists `/admin/login` and `/admin/dashboard` only for
-one (`adminRoutes` in `DebugNav.tsx`). None of that is a gate -- the four
-above are -- it is disclosure: `NEXT_PUBLIC_SHOW_DEBUG_NAV=true` on the
-deployed site means every patient, therapist and hospital partner sees that
-bar, and a back office should not be named to them, let alone offered a red
-wipe button to try.
 
 The wipe is one `TRUNCATE` inside a database function, not a list of deletes
 from the route: it is atomic (a half-emptied database is worse than none),
