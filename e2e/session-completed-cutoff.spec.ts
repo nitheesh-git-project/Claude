@@ -46,17 +46,26 @@ async function seedSession(opts: { minutesOld: number; status?: string }) {
   return data as { id: string; session_code: string | null };
 }
 
-// Reads the join control on a row, wherever that row is rendered. Every
-// surface renders the same component, so one selector serves all of them.
-function joinButton(page: Page) {
-  return page.getByRole("button", {
-    name: /Tap to Join|Session Completed|Session Cancelled/,
-  });
+// Reads the join control on the seeded session's own card. Scoped by
+// session code rather than taking the first button on the page: this
+// patient carries rows other specs created, and .first() read whichever one
+// happened to sort earliest.
+function joinButton(page: Page, sessionCode: string) {
+  // Walks up from the session code to its own card -- each session is one
+  // <li> in the dashboard's list. Scoped this way rather than taking the
+  // first button on the page because this patient carries rows other specs
+  // created, and some of those render a join control too.
+  return page
+    // Substring, not exact: the dashboard prints the code straight after
+    // the concern in one paragraph.
+    .getByText(sessionCode)
+    .locator("xpath=ancestor::li[1]")
+    .getByRole("button", { name: /Tap to Join|Session Completed|Session Cancelled/ });
 }
 
-async function openPatientDashboard(page: Page) {
+async function openPatientDashboard(page: Page, sessionCode: string) {
   await page.goto(`${BASE}/patient/dashboard`, { waitUntil: "domcontentloaded" });
-  await joinButton(page).first().waitFor({ timeout: 30_000 });
+  await joinButton(page, sessionCode).first().waitFor({ timeout: 60_000 });
 }
 
 test.describe("Session Completed cutoff", () => {
@@ -87,6 +96,10 @@ test.describe("Session Completed cutoff", () => {
   });
 
   test.beforeEach(async () => {
+    // The browser cases load a dashboard three times over; 30s is the config
+    // default and is comfortable alone but not while the rest of the suite is
+    // hammering the same dev server, which is how SC-008 first failed.
+    test.setTimeout(120_000);
     await db.from("appointments").delete().eq("concern", MARKER);
     await setCutoff(DEFAULT_MINUTES);
   });
@@ -133,23 +146,23 @@ test.describe("Session Completed cutoff", () => {
   });
 
   test("SC-004 a session inside the cutoff still offers the call", async ({ browser }) => {
-    await seedSession({ minutesOld: 10 });
+    const seeded = await seedSession({ minutesOld: 10 });
     const ctx = await browser.newContext();
     await ctx.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
     const page = await ctx.newPage();
-    await openPatientDashboard(page);
-    await expect(joinButton(page).first()).toHaveText("Tap to Join");
+    await openPatientDashboard(page, seeded.session_code!);
+    await expect(joinButton(page, seeded.session_code!).first()).toHaveText("Tap to Join");
     await ctx.close();
   });
 
   test("SC-005 past the cutoff it reads Session Completed to the patient", async ({ browser }) => {
-    await seedSession({ minutesOld: 75 });
+    const seeded = await seedSession({ minutesOld: 75 });
     const ctx = await browser.newContext();
     await ctx.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
     const page = await ctx.newPage();
-    await openPatientDashboard(page);
-    await expect(joinButton(page).first()).toHaveText("Session Completed");
-    await expect(joinButton(page).first()).toBeDisabled();
+    await openPatientDashboard(page, seeded.session_code!);
+    await expect(joinButton(page, seeded.session_code!).first()).toHaveText("Session Completed");
+    await expect(joinButton(page, seeded.session_code!).first()).toBeDisabled();
     await ctx.close();
   });
 
@@ -184,36 +197,36 @@ test.describe("Session Completed cutoff", () => {
   });
 
   test("SC-008 the admin's setting is what moves the line", async ({ browser }) => {
-    await seedSession({ minutesOld: 45 });
+    const seeded = await seedSession({ minutesOld: 45 });
 
     // 45 minutes old, cutoff 60: still a live session.
     const ctx = await browser.newContext();
     await ctx.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
     const page = await ctx.newPage();
-    await openPatientDashboard(page);
-    await expect(joinButton(page).first()).toHaveText("Tap to Join");
+    await openPatientDashboard(page, seeded.session_code!);
+    await expect(joinButton(page, seeded.session_code!).first()).toHaveText("Tap to Join");
 
     // Same session, cutoff pulled in to 30: now over.
     await setCutoff(30);
     await page.reload({ waitUntil: "domcontentloaded" });
-    await joinButton(page).first().waitFor({ timeout: 30_000 });
-    await expect(joinButton(page).first()).toHaveText("Session Completed");
+    await joinButton(page, seeded.session_code!).first().waitFor({ timeout: 30_000 });
+    await expect(joinButton(page, seeded.session_code!).first()).toHaveText("Session Completed");
 
     // ...and pushing it back out brings the call back.
     await setCutoff(120);
     await page.reload({ waitUntil: "domcontentloaded" });
-    await joinButton(page).first().waitFor({ timeout: 30_000 });
-    await expect(joinButton(page).first()).toHaveText("Tap to Join");
+    await joinButton(page, seeded.session_code!).first().waitFor({ timeout: 30_000 });
+    await expect(joinButton(page, seeded.session_code!).first()).toHaveText("Tap to Join");
     await ctx.close();
   });
 
   test("SC-009 a completed session says so regardless of the clock", async ({ browser }) => {
-    await seedSession({ minutesOld: 5, status: "completed" });
+    const seeded = await seedSession({ minutesOld: 5, status: "completed" });
     const ctx = await browser.newContext();
     await ctx.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
     const page = await ctx.newPage();
-    await openPatientDashboard(page);
-    await expect(joinButton(page).first()).toHaveText("Session Completed");
+    await openPatientDashboard(page, seeded.session_code!);
+    await expect(joinButton(page, seeded.session_code!).first()).toHaveText("Session Completed");
     await ctx.close();
   });
 
@@ -231,22 +244,32 @@ test.describe("Session Completed cutoff", () => {
     await input.waitFor({ timeout: 30_000 });
     await input.fill("45");
     await card.getByRole("button", { name: "Save" }).click();
-    await expect(card.getByText("Saved.")).toBeVisible({ timeout: 15_000 });
-    const { data } = await db
-      .from("site_settings")
-      .select("session_completed_after_minutes")
-      .maybeSingle();
-    expect(data?.session_completed_after_minutes).toBe(45);
+    // The write is what matters; the badge waits on a router.refresh() that
+    // re-runs the whole admin page, which is slow enough to outlast a tight
+    // assertion while the save itself has already landed.
+    await expect
+      .poll(
+        async () => {
+          const { data } = await db
+            .from("site_settings")
+            .select("session_completed_after_minutes")
+            .maybeSingle();
+          return data?.session_completed_after_minutes;
+        },
+        { timeout: 60_000 }
+      )
+      .toBe(45);
+    await expect(card.getByText("Saved.")).toBeVisible({ timeout: 60_000 });
     await ctx.close();
   });
 
   test("SC-010 a cancelled session is never called completed", async ({ browser }) => {
-    await seedSession({ minutesOld: 75, status: "cancelled" });
+    const seeded = await seedSession({ minutesOld: 75, status: "cancelled" });
     const ctx = await browser.newContext();
     await ctx.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
     const page = await ctx.newPage();
-    await openPatientDashboard(page);
-    await expect(joinButton(page).first()).toHaveText("Session Cancelled");
+    await openPatientDashboard(page, seeded.session_code!);
+    await expect(joinButton(page, seeded.session_code!).first()).toHaveText("Session Cancelled");
     await ctx.close();
   });
 });
