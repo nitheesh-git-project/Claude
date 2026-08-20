@@ -9,10 +9,11 @@ import { nextSectionId, scrollToSection } from "@/lib/scrollToSection";
 
 /**
  * Floating "there's more below" control for the public marketing pages -- a
- * bottom-right chevron that bobs (mostly smooth, with a couple of sharper
- * little nudges per cycle) to read as "scroll down," fades in on landing,
- * and disappears once the visitor is near the bottom of the page (or the
- * page never had enough content to scroll in the first place).
+ * bottom-right chevron that bobs inside a still button (mostly smooth, with
+ * a couple of sharper little nudges per cycle) to read as "scroll down,"
+ * fades in on landing, and disappears once the visitor is near the bottom of
+ * the page (or the page never had enough content to scroll in the first
+ * place).
  *
  * Tapping it advances one section at a time, using the same section list the
  * left-hand rail renders (published through SectionNavProvider), so the two
@@ -80,25 +81,38 @@ export default function ScrollHint() {
             type="button"
             onClick={goToNext}
             aria-label="Scroll to next section"
-            // The idle bob stops on hover: a target that keeps moving under a
-            // pointer already on it is a target that gets mis-clicked.
             initial={false}
-            animate={reduceMotion ? { y: 0 } : { y: [0, 5, 0, 5, 0, 12, 0] }}
-            whileHover={{ y: -2, scale: 1.06 }}
+            whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
-            transition={
-              reduceMotion
-                ? { duration: 0 }
-                : {
-                    duration: 2.6,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                    times: [0, 0.16, 0.32, 0.48, 0.64, 0.82, 1],
-                  }
-            }
             className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white/90 text-teal-700 shadow-lg shadow-slate-900/10 backdrop-blur-sm transition-colors hover:border-teal-300 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
           >
-            <i aria-hidden="true" className="fa-solid fa-chevron-down text-sm" />
+            {/*
+              The bob lives on the chevron, not on the button, so the hit
+              target itself never moves. It used to be the button that bobbed,
+              which made a control whose whole job is being tapped a target
+              that is never twice in the same place -- the same reason the bob
+              already stopped on hover, applied to the approach rather than
+              only the last moment before the tap. It also made the button
+              permanently "unstable" to anything that waits for a settled
+              element before clicking, which is how the automated checks
+              caught it.
+            */}
+            <motion.i
+              aria-hidden="true"
+              className="fa-solid fa-chevron-down text-sm"
+              initial={false}
+              animate={reduceMotion ? { y: 0 } : { y: [0, 3, 0, 3, 0, 7, 0] }}
+              transition={
+                reduceMotion
+                  ? { duration: 0 }
+                  : {
+                      duration: 2.6,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                      times: [0, 0.16, 0.32, 0.48, 0.64, 0.82, 1],
+                    }
+              }
+            />
           </motion.button>
         </motion.div>
       )}

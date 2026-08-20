@@ -33,6 +33,10 @@ export type AdminSettings = {
   // edits them.
   onlineBookingLeadTimeHours: number;
   onlineCancellationRefundHours: number;
+  // How long each step of the home page's "Booking to recovery" walkthrough
+  // holds before the next one takes over. 0 means it doesn't advance on its
+  // own -- same "0 is off" convention as sessionTimeoutMinutes.
+  journeyStepSeconds: number;
 };
 
 // The sole hardcoded language in the app, and only as the fallback for an
@@ -98,6 +102,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   // different ways depending on which path asked.
   onlineBookingLeadTimeHours: 12,
   onlineCancellationRefundHours: 24,
+  journeyStepSeconds: 4,
 };
 
 // The one column list every dashboard page selects from the site_settings
@@ -118,7 +123,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
 // .select(SITE_SETTINGS_SELECT) call fall back to an unusable
 // GenericStringError result type instead of a real row shape.
 export const SITE_SETTINGS_SELECT =
-  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours";
+  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, journey_step_seconds";
 
 type SiteSettingsRow = {
   session_packages_visible?: boolean | null;
@@ -142,6 +147,7 @@ type SiteSettingsRow = {
   home_visit_page_subheading?: string | null;
   online_booking_lead_time_hours?: number | null;
   online_cancellation_refund_hours?: number | null;
+  journey_step_seconds?: number | null;
   site_name?: string | null;
   site_tagline?: string | null;
   site_description?: string | null;
@@ -275,5 +281,9 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
       typeof row?.online_cancellation_refund_hours === "number"
         ? row.online_cancellation_refund_hours
         : DEFAULT_ADMIN_SETTINGS.onlineCancellationRefundHours,
+    journeyStepSeconds:
+      typeof row?.journey_step_seconds === "number"
+        ? row.journey_step_seconds
+        : DEFAULT_ADMIN_SETTINGS.journeyStepSeconds,
   };
 }

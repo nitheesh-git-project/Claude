@@ -12,14 +12,16 @@ import CareIllustration, { type CareIllustrationId } from "@/components/visuals/
  * real buttons in a tablist so keyboard and screen-reader users get the
  * same behaviour as pointer users.
  *
- * It also advances on its own every four seconds, 01 -> 02 -> 03 -> 01, so a
- * visitor who never touches it still sees all three. Three things keep that
+ * It also advances on its own, 01 -> 02 -> 03 -> 01, so a visitor who never
+ * touches it still sees all three. The pace is an admin setting
+ * (Settings -> Public Site), since the right one depends on how much copy
+ * the steps carry -- which admins also edit. Three things keep the rotation
  * from being user-hostile:
  *
  * - Pointer or keyboard inside the component pauses it. Content that moves
  *   while someone is reading it is worse than content they never saw.
- * - Choosing a step restarts the four seconds rather than leaving whatever
- *   was left of the current tick, so a deliberate choice is never cut short.
+ * - Choosing a step restarts the clock rather than leaving whatever was left
+ *   of the current tick, so a deliberate choice is never cut short.
  * - Under prefers-reduced-motion it does not advance at all. An unbidden
  *   rotation is exactly the motion that setting exists to stop; the tabs
  *   still work by hand.
@@ -27,8 +29,12 @@ import CareIllustration, { type CareIllustrationId } from "@/components/visuals/
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-/** How long each step holds before the next one takes over. */
-const STEP_DURATION_MS = 4000;
+/**
+ * Used when no admin setting reaches this component -- a caller that
+ * doesn't pass one, or a database without the journey_step_seconds column
+ * yet. Must stay equal to DEFAULT_ADMIN_SETTINGS.journeyStepSeconds.
+ */
+const DEFAULT_STEP_SECONDS = 4;
 
 type Step = {
   id: string;
@@ -87,9 +93,12 @@ const STEPS: Step[] = [
 
 export default function JourneySteps({
   variant = "full",
+  stepSeconds = DEFAULT_STEP_SECONDS,
 }: {
   /** "compact" stacks selector above panel, for narrow column placement. */
   variant?: "full" | "compact";
+  /** Admin-configured pace. 0 means don't advance on its own. */
+  stepSeconds?: number;
 } = {}) {
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -98,16 +107,18 @@ export default function JourneySteps({
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    if (paused || reduceMotion) return;
+    // 0 is the admin's way of switching the rotation off entirely, so it is
+    // checked here rather than clamped -- a 0ms timeout would spin.
+    if (paused || reduceMotion || stepSeconds <= 0) return;
     // Keyed on `active` as well, so selecting a step resets the clock: the
     // timer is recreated on every change, whether this one made it or a
     // person did.
     const timer = setTimeout(
       () => setActive((i) => (i + 1) % STEPS.length),
-      STEP_DURATION_MS
+      stepSeconds * 1000
     );
     return () => clearTimeout(timer);
-  }, [active, paused, reduceMotion]);
+  }, [active, paused, reduceMotion, stepSeconds]);
 
   return (
     <div

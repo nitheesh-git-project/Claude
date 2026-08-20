@@ -446,6 +446,13 @@ tagline, description, contact email, WhatsApp number, contact phone, footer
 copyright text — the strings the public Navbar and Footer render) are all
 editable under **Settings** (Brand & Contact, Public Site, Booking Rules),
 stored in `site_settings` and their own tables — see `src/lib/adminSettings.ts`.
+**Settings → Public Site** also carries **Home Page Walkthrough**: how many
+seconds each of the Home page's three "Booking to recovery" steps holds
+before the next one takes over (`journey_step_seconds`, default 4, allowed
+range 2–60, or 0 to stop the rotation and let visitors tap through the steps
+themselves). The rotation pauses while a pointer or keyboard focus is inside
+the widget, and never runs at all under `prefers-reduced-motion`.
+
 Brand & Contact Details fields save individually (click Edit on a field,
 change it, Save) via `/api/admin/update-setting`, same as every other
 `site_settings` column; the root layout reads them on every request to pass

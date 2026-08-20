@@ -1,5 +1,6 @@
 import { createPublicClient } from "@/lib/supabase/public";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import {
   Reveal,
   Stagger,
@@ -52,6 +53,18 @@ export default async function Home() {
     .from("site_settings")
     .select("session_packages_visible")
     .maybeSingle();
+
+  // Its own call for the same reason the one above is separate: this column
+  // is newer than that one, and a database missing it must only cost the
+  // walkthrough its configured pace, not hide the packages section too.
+  const { data: journeyRow } = await supabase
+    .from("site_settings")
+    .select("journey_step_seconds")
+    .maybeSingle();
+  const journeyStepSeconds =
+    typeof journeyRow?.journey_step_seconds === "number"
+      ? journeyRow.journey_step_seconds
+      : DEFAULT_ADMIN_SETTINGS.journeyStepSeconds;
 
   const { data: rawPackages } = settingsRow?.session_packages_visible
     ? await supabase
@@ -195,7 +208,7 @@ export default async function Home() {
               <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-teal-700">
                 Booking to recovery
               </p>
-              <JourneySteps variant="compact" />
+              <JourneySteps variant="compact" stepSeconds={journeyStepSeconds} />
             </div>
           </Reveal>
         </div>

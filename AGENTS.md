@@ -35,7 +35,9 @@ arrow (`section-nav.spec.ts`), the public catalog's detail dialogs
 (`therapist-request.spec.ts`), who may book plus the dashboards' way home
 (`booking-account-role.spec.ts`), and therapist-suggested sessions including
 button spam, concurrent answers and a dropped connection
-(`session-suggestions.spec.ts`). It needs a test/staging Supabase project plus
+(`session-suggestions.spec.ts`), and the Home page walkthrough's
+admin-configured rotation pace (`journey-pace.spec.ts`). It needs a
+test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
 
@@ -429,7 +431,9 @@ client is the only writer and the log is append-only from any session.
   lead time, cancellation refund window, default validity, bulk-scheduler
   limit, travel buffer minutes, and the public page's heading/subheading —
   and Brand & Contact Details — site name, tagline, description, contact
-  email, WhatsApp number, contact phone, footer copyright text) is read
+  email, WhatsApp number, contact phone, footer copyright text — and the
+  Home page walkthrough's per-step rotation seconds, where 0 means "don't
+  rotate") is read
   through `src/lib/adminSettings.ts` with defaults — don't hardcode these.
   Every dashboard page must select `SITE_SETTINGS_SELECT` from that module
   rather than its own column list, or a new setting silently reads as its

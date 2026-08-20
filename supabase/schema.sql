@@ -3341,7 +3341,8 @@ begin
     home_visit_bulk_schedule_max = default,
     home_visit_travel_buffer_minutes = default,
     online_booking_lead_time_hours = default,
-    online_cancellation_refund_hours = default
+    online_cancellation_refund_hours = default,
+    journey_step_seconds = default
   where id = true;
 
   return jsonb_build_object(
@@ -3539,8 +3540,23 @@ create policy "session_suggestions_admin_select" on session_suggestions
 
 -- Both dashboards show suggestions live: the patient needs to see one
 -- arrive without reloading, and the therapist needs the answer.
-alter publication supabase_realtime add table session_suggestions;
+do $$
+begin
+  alter publication supabase_realtime add table session_suggestions;
+exception when duplicate_object then null;
+end $$;
 
 -- Admin kill switch. Off by default so merging this changes nothing until
 -- an admin turns it on, same posture as home_visit_enabled.
 alter table site_settings add column if not exists therapist_suggestions_enabled boolean not null default false;
+
+-- How long each step of the home page's "Booking to recovery" walkthrough
+-- holds before the next one takes over. A number rather than a toggle
+-- because the right pace depends on how much copy the steps carry, which
+-- admins edit; 0 means "don't advance on its own", the same "0 is off"
+-- convention session_timeout_minutes uses. The floor of 2 (enforced in
+-- /api/admin/update-setting, mirrored here) exists because a 1-second
+-- rotation is unreadable, and the ceiling keeps a typo from parking the
+-- widget on step 01 for an hour.
+alter table site_settings add column if not exists journey_step_seconds integer not null default 4
+  check (journey_step_seconds = 0 or (journey_step_seconds >= 2 and journey_step_seconds <= 60));

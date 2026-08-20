@@ -37,7 +37,15 @@ const ALLOWED_COLUMNS = new Set([
   // changing the online refund window used to need a deploy.
   "online_booking_lead_time_hours",
   "online_cancellation_refund_hours",
+  "journey_step_seconds",
 ]);
+
+// The home page walkthrough's rotation pace. Neither of the numeric rules
+// below fits it: 0 is legal (it means "don't rotate"), but 1 is not -- a
+// one-second step is unreadable, which is a worse outcome than a widget
+// that never advances. The ceiling is a typo guard.
+const MIN_JOURNEY_STEP_SECONDS = 2;
+const MAX_JOURNEY_STEP_SECONDS = 60;
 
 // Bounds on the admin-managed /book language list -- not business rules so
 // much as guards against a single fat-fingered paste becoming an unusable
@@ -117,6 +125,21 @@ export async function POST(request: NextRequest) {
       { error: "value must be a non-negative whole number" },
       { status: 400 }
     );
+  }
+  if (key === "journey_step_seconds") {
+    if (
+      typeof value !== "number" ||
+      !Number.isInteger(value) ||
+      (value !== 0 &&
+        (value < MIN_JOURNEY_STEP_SECONDS || value > MAX_JOURNEY_STEP_SECONDS))
+    ) {
+      return NextResponse.json(
+        {
+          error: `value must be 0 (no auto-advance) or between ${MIN_JOURNEY_STEP_SECONDS} and ${MAX_JOURNEY_STEP_SECONDS} seconds`,
+        },
+        { status: 400 }
+      );
+    }
   }
   // Unlike the timers above, these two are a divisor and a loop bound
   // downstream (per-session validity math, the bulk scheduler's date
@@ -251,6 +274,13 @@ export async function POST(request: NextRequest) {
   if (key === "home_visit_enabled") {
     revalidatePath("/home-visit");
     revalidatePath("/", "layout");
+  }
+
+  // The home page is ISR-cached (revalidate = 300) and reads this value at
+  // render time, so without this an admin would change the pace and watch
+  // the old one keep running for up to five minutes.
+  if (key === "journey_step_seconds") {
+    revalidatePath("/");
   }
 
   // Brand & Contact Details render in the Navbar/Footer, which sit in the
