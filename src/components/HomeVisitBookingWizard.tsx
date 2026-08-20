@@ -8,6 +8,9 @@ import BookingCalendar from "@/components/booking/BookingCalendar";
 import SelectableChipGroup, { type ChipOption } from "@/components/booking/SelectableChipGroup";
 import AddressForm from "@/components/booking/AddressForm";
 import PhoneNumberField from "@/components/PhoneNumberField";
+import WrongAccountForBooking, {
+  type NonPatientRole,
+} from "@/components/booking/WrongAccountForBooking";
 import {
   bookableHoursForDate,
   earliestBookableDateKey,
@@ -71,6 +74,7 @@ export default function HomeVisitBookingWizard({
 
   const [step, setStep] = useState(1);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [signedInRole, setSignedInRole] = useState<NonPatientRole | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,13 +139,19 @@ export default function HomeVisitBookingWizard({
         setIsLoggedIn(true);
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name, email, phone")
+          .select("full_name, email, phone, role")
           .eq("id", data.user.id)
           .single();
         if (!active) return;
         setFullName(profile?.full_name ?? "");
         setEmail(profile?.email ?? data.user.email ?? "");
         setPhone(profile?.phone ?? "");
+        // Same one-role-per-account reasoning as the online wizard's own
+        // gate -- a home visit is delivered to a patient, so a therapist or
+        // hospital session cannot be the one buying it.
+        if (profile?.role && profile.role !== "patient") {
+          setSignedInRole(profile.role as NonPatientRole);
+        }
       }
       setCheckingAuth(false);
     })();
@@ -393,6 +403,14 @@ export default function HomeVisitBookingWizard({
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
         Loading...
+      </div>
+    );
+  }
+
+  if (signedInRole) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <WrongAccountForBooking role={signedInRole} name={fullName} email={email} />
       </div>
     );
   }

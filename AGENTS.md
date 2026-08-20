@@ -32,7 +32,8 @@ role, input validation, payout/refund maths, the dashboard's own
 navigation in a real browser, the public pages' section rail and scroll
 arrow (`section-nav.spec.ts`), the public catalog's detail dialogs
 (`catalog-detail.spec.ts`), and booking a named specialist from `/team`
-(`therapist-request.spec.ts`). It needs a test/staging Supabase project plus
+(`therapist-request.spec.ts`), and who may book plus the dashboards' way
+home (`booking-account-role.spec.ts`). It needs a test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
 
@@ -318,6 +319,29 @@ client is the only writer and the log is append-only from any session.
   `*_REALTIME_TABLES` arrays rather than inlining a third list — the coverage
   check reads them by that name — and add the matching `alter publication`
   to `schema.sql` in the same change.
+- **Only a patient account can book; one account carries one role.**
+  `profiles.id` *is* the auth user's id and `role` is a single column, so a
+  therapist/hospital/admin session can never also be the patient a booking is
+  for. It used to succeed and produce a session that account could never see
+  again (each dashboard lists by its own role's column, and `src/proxy.ts`
+  bounces a non-patient off `/patient/dashboard`) after money had moved. Both
+  wizards render `src/components/booking/WrongAccountForBooking.tsx` instead
+  of the form, routing each role to what is theirs: hospitals refer, admins
+  use `/api/admin/create-booking`, and a clinician wanting therapy signs out
+  and uses a separate patient account. Enforced in three places, all of which
+  must stay: the wizards, `isPatientProfile()` in the four purchase routes,
+  and the `role = 'patient'` clause on `appointments_insert_own`. Don't add a
+  fifth booking entry point without all three.
+
+- **Every dashboard needs a way back to the public site.** All four are in
+  `NAV_HIDDEN_ROUTES`, so the public `Navbar` never renders there; without an
+  explicit link the only exit is Log Out, which also ends the session. Both
+  shells (`dashboard/DashboardShell.tsx`, `admin/AdminShell.tsx`) carry a
+  **Back to Home** entry at the top of the sidebar, in all three renders
+  (expanded, collapsed rail, mobile drawer). It is a plain `<a>`, not
+  `next/link`, for the reason the nav entries document: client-side
+  transitions into a differently-chromed route were silently not completing.
+
 - **A therapist chosen on `/team` is a request, not an assignment.**
   `/book?therapist=<id>` resolves the id against `public_therapist_profiles`
   (client-side, since `/book` is ISR-cached) and writes

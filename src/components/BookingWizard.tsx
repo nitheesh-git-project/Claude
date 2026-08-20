@@ -11,6 +11,9 @@ import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCo
 import { BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
+import WrongAccountForBooking, {
+  type NonPatientRole,
+} from "@/components/booking/WrongAccountForBooking";
 import ConfirmPasswordField from "@/components/auth/ConfirmPasswordField";
 import BookingStepOne from "@/components/booking/BookingStepOne";
 import {
@@ -67,6 +70,7 @@ export default function BookingWizard({
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [signedInRole, setSignedInRole] = useState<NonPatientRole | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,12 +200,20 @@ export default function BookingWizard({
           setIsLoggedIn(true);
           const { data: profile } = await supabase
             .from("profiles")
-            .select("full_name, email")
+            .select("full_name, email, role")
             .eq("id", data.user.id)
             .single();
           if (profile) {
             setFullName(profile.full_name);
             setEmail(profile.email);
+            // A session belongs to exactly one role (profiles.id is the auth
+            // user's id and role is a single column), so a therapist,
+            // hospital or admin signed in here cannot also be the patient
+            // this booking is for. Recorded so the wizard can say so rather
+            // than book them as their own patient -- see the gate below.
+            if (profile.role && profile.role !== "patient") {
+              setSignedInRole(profile.role as NonPatientRole);
+            }
           }
           // Best-effort "book with the same therapist again" — a fresh
           // account or a fetch failure just means the option doesn't show.
@@ -531,6 +543,20 @@ export default function BookingWizard({
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
         {header}
         <div className="p-8 text-center text-sm text-slate-500">Loading...</div>
+      </div>
+    );
+  }
+
+  // Checked before every other branch: a therapist/hospital/admin session
+  // booking here would write an appointment whose patient is them, which
+  // none of their dashboards can show them (each filters by its own role's
+  // column, and /patient/dashboard bounces a non-patient to /get-started).
+  // They would pay for a session they could never find again.
+  if (signedInRole) {
+    return (
+      <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
+        {header}
+        <WrongAccountForBooking role={signedInRole} name={fullName} email={email} />
       </div>
     );
   }

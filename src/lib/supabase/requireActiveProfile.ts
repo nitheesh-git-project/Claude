@@ -54,6 +54,35 @@ export async function isProfileActive(userId: string): Promise<boolean> {
   return data?.active !== false;
 }
 
+// One auth user carries exactly one role (profiles.id *is* the auth user's
+// id, and `role` is a single column), so a therapist, hospital or admin
+// session can never also be the patient a booking is for. Booking anyway
+// produced a session none of that account's own dashboards could show them
+// -- the therapist dashboard lists by therapist_id, the hospital dashboard
+// lists referrals, and the proxy bounces a non-patient away from
+// /patient/dashboard -- so money moved for something the payer could never
+// find again.
+//
+// The booking wizards say this in the UI (WrongAccountForBooking), but a
+// valid session cookie can call these routes directly around it, which is
+// the same reasoning that put isProfileActive here in the first place.
+// appointments_insert_own carries the matching `role = 'patient'` clause in
+// schema.sql for the one path RLS is the only enforcement point for.
+//
+// Scoped to the routes where a purchase *starts*. The routes that schedule
+// against an already-owned purchase (book-with-package, book-package-sessions,
+// book-visits) don't need it: a non-patient could never come to own the
+// purchase row they require in the first place.
+export async function isPatientProfile(userId: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single();
+  return data?.role === "patient";
+}
+
 // Grants the same vetting a human admin would, the moment a self-signup
 // patient genuinely tries to pay for a single online session -- reaching
 // /api/razorpay/create-order for their own appointment means a real

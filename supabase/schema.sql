@@ -3402,3 +3402,59 @@ alter table appointments add column if not exists google_calendar_sync_attempts 
 -- can be taken over, so a render that dies mid-call cannot lock a session out
 -- of syncing forever.
 alter table appointments add column if not exists google_calendar_sync_claimed_at timestamptz;
+
+-- --------------------------------------------------------------------------
+-- Only a patient account can book a session
+-- --------------------------------------------------------------------------
+
+-- Re-declares appointments_insert_own with one added clause on the profile
+-- check: role = 'patient'.
+--
+-- One auth user carries exactly one role (profiles.id *is* the auth user's
+-- id, and role is a single column), so a therapist, hospital or admin
+-- session can never also be the patient a booking is for. Until now nothing
+-- said so: the policy checked that the inserter owned the row and was
+-- approved and active, which a signed-in therapist satisfies. The result was
+-- a session that account could never see again -- the therapist dashboard
+-- lists by therapist_id, the hospital dashboard lists referrals, and
+-- src/proxy.ts bounces a non-patient away from /patient/dashboard -- after
+-- real money had moved for it.
+--
+-- The booking wizards now explain this in the UI
+-- (src/components/booking/WrongAccountForBooking.tsx), and the purchase
+-- routes check it server-side via isPatientProfile(), but this is the one
+-- path where RLS is the only enforcement point: the wizard's own direct
+-- insert.
+--
+-- Everything else in this policy is carried over verbatim from the version
+-- earlier in this file; see the long comments there for why each clause
+-- exists (each closed a real hole).
+--
+-- Note this constrains new inserts only. Any appointment already sitting in
+-- the table whose patient_id belongs to a non-patient account predates this
+-- and is untouched -- worth a look in the admin's Sessions list, since each
+-- one is someone who paid for a session they cannot see.
+drop policy if exists "appointments_insert_own" on appointments;
+create policy "appointments_insert_own" on appointments
+  for insert with check (
+    auth.uid() = patient_id
+    and visit_mode = 'online'
+    and status = 'requested'
+    and payment_status = 'unpaid'
+    and package_purchase_id is null
+    and home_visit_purchase_id is null
+    and slot_time is not null
+    and slot_time > now()
+    and therapist_id is null
+    and duration_minutes = coalesce(
+      (select duration_minutes from treatment_categories where id = category_id),
+      60
+    )
+    and exists (
+      select 1 from public.profiles
+      where id = auth.uid()
+        and role = 'patient'
+        and approved = true
+        and active = true
+    )
+  );

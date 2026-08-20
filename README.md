@@ -178,6 +178,17 @@ suspended, unapproved and team-hidden therapists, a stale or hand-typed link
 resolves to nothing and the booking simply carries on with no request
 attached.
 
+Only a patient account can book. One auth user carries exactly one role
+(`profiles.id` *is* the auth user's id, and `role` is a single column), so a
+therapist, hospital or admin session can never be the patient a booking is
+for. Both wizards show `WrongAccountForBooking` instead of the form, pointing
+each role at what is actually theirs — a hospital refers (`Refer a Patient`,
+or shares its referral code), an admin books on a patient's behalf from
+**Sessions → New Booking**, and anyone who wants therapy themselves signs out
+and books with a separate patient account. This is enforced server-side too:
+`isPatientProfile()` in the purchase routes, and a `role = 'patient'` clause
+on `appointments_insert_own` for the wizard's own direct insert.
+
 **Payments.** Razorpay checkout: `/api/razorpay/create-order` creates the
 order, the browser opens the widget, and `/api/razorpay/verify` verifies the
 signature server-side before the appointment is confirmed. Failures are

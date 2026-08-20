@@ -3,7 +3,10 @@ import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import {
+  isProfileActiveAndApproved,
+  isPatientProfile,
+} from "@/lib/supabase/requireActiveProfile";
 
 // Unlike a regular appointment (created client-side, then paid for),
 // there's no meaningful "unpaid" state for a package purchase — so this
@@ -28,6 +31,16 @@ export async function POST(request: NextRequest) {
   }
   if (!(await isProfileActiveAndApproved(user.id))) {
     return NextResponse.json({ error: "Your account is not active — it is either awaiting admin approval or has been suspended." }, { status: 403 });
+  }
+
+  // Sessions are delivered to patients, and one account carries one role --
+  // see isPatientProfile. The wizard says so; this is the same check for a
+  // session cookie calling the route directly.
+  if (!(await isPatientProfile(user.id))) {
+    return NextResponse.json(
+      { error: "This account can't book sessions. Sessions are booked under a patient account." },
+      { status: 403 }
+    );
   }
 
   const admin = createAdminClient();
