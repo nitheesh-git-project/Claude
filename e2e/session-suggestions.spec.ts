@@ -547,7 +547,11 @@ test.describe("Therapist-suggested sessions", () => {
     await expect(card).toBeVisible({ timeout: 60_000 });
 
     await card.getByRole("button", { name: /Accept this time/i }).click();
-    await expect(card.getByText("Booked")).toBeVisible({ timeout: 60_000 });
+    // The card disappears rather than settling on a confirmation: accepting
+    // refreshes the dashboard, and the refreshed render no longer lists the
+    // suggestion as pending, so the component unmounts. The durable evidence
+    // is the card going away and the package advancing, asserted below.
+    await expect(card).toHaveCount(0, { timeout: 60_000 });
 
     const { data: purchase } = await admin
       .from("patient_package_purchases")
@@ -596,7 +600,7 @@ test.describe("Therapist-suggested sessions", () => {
     // Connection returns; the retry books exactly one session.
     await page.unroute("**/api/patient/respond-suggestion");
     await accept.click();
-    await expect(card.getByText("Booked")).toBeVisible({ timeout: 60_000 });
+    await expect(card).toHaveCount(0, { timeout: 60_000 });
 
     const { count } = await admin
       .from("appointments")
@@ -643,7 +647,7 @@ test.describe("Therapist-suggested sessions", () => {
     for (let i = 0; i < 4; i++) {
       await accept.click({ force: true, timeout: 250 }).catch(() => {});
     }
-    await expect(card.getByText("Booked")).toBeVisible({ timeout: 60_000 });
+    await expect(card).toHaveCount(0, { timeout: 60_000 });
 
     expect(sent, "five taps should send one request").toBe(1);
     const { count } = await admin
