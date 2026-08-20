@@ -33,6 +33,9 @@ test.describe("Only a patient account can book", () => {
     await expect(page.getByText("You're signed in as a therapist")).toBeVisible();
     await expect(page.getByRole("link", { name: /Go to my dashboard/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Sign out and book/i })).toBeVisible();
+    // Signing out here ends the staff session -- said before the click, not
+    // discovered after it.
+    await expect(page.getByText(/Signing out ends your therapist session/)).toBeVisible();
   });
 
   test("BR-002: a hospital is pointed at referrals, not booking", async ({ page }) => {

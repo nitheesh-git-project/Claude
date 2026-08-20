@@ -25,11 +25,17 @@ export type NonPatientRole = "therapist" | "hospital" | "admin";
  */
 const COPY: Record<
   NonPatientRole,
-  { label: string; body: string; action: { href: string; label: string; icon: string } }
+  {
+    label: string;
+    noun: string;
+    body: string;
+    action: { href: string; label: string; icon: string };
+  }
 > = {
   therapist: {
     // Carries its own article: "a therapist" but "an admin".
     label: "a therapist",
+    noun: "therapist",
     body: "Sessions are booked under a patient account, so this one can't book. If you're booking therapy for yourself, sign out and book with a separate patient account.",
     action: {
       href: "/therapist/dashboard",
@@ -39,6 +45,7 @@ const COPY: Record<
   },
   hospital: {
     label: "a hospital partner",
+    noun: "hospital partner",
     body: "Partners don't book sessions directly — you refer a patient and we take it from there, or share your referral code so they can book themselves.",
     action: {
       href: "/hospital/dashboard#refer",
@@ -48,6 +55,7 @@ const COPY: Record<
   },
   admin: {
     label: "an admin",
+    noun: "admin",
     body: "To book for a patient, use New Booking under Sessions in the dashboard — it books on their behalf and can override the lead time.",
     action: {
       href: "/admin/dashboard?section=sessions",
@@ -113,6 +121,20 @@ export default function WrongAccountForBooking({
           Sign out and book
         </button>
       </div>
+
+      {/* Stated before the click, not after: signing out here is not a
+          neutral "switch accounts" -- there is no way back into the {noun}
+          session without logging in again, and anything in progress behind
+          this tab goes with it. */}
+      <p className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-relaxed text-amber-700">
+        <i aria-hidden="true" className="fa-solid fa-triangle-exclamation mt-0.5 shrink-0" />
+        {/* One template literal rather than text-around-an-expression: JSX
+            drops the whitespace either side of the interpolation here, which
+            rendered as "your therapistsession". */}
+        <span>
+          {`Signing out ends your ${copy.noun} session — you'll need to log back in to return to it.`}
+        </span>
+      </p>
     </div>
   );
 }
