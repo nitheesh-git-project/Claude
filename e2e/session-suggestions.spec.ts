@@ -140,6 +140,16 @@ test.describe("Therapist-suggested sessions", () => {
       .from("site_settings")
       .update({ therapist_suggestions_enabled: true })
       .not("id", "is", null);
+
+    // The patient dashboard opens a modal welcome tour for anyone who has
+    // not seen it, and its backdrop covers the page -- every click in the
+    // browser tests below lands on that instead of the card. Marking it seen
+    // is what a returning patient's row looks like anyway; these tests are
+    // about the suggestion, not about first-run onboarding.
+    await admin
+      .from("profiles")
+      .update({ onboarding_seen_at: new Date().toISOString() })
+      .eq("id", patientId);
   });
 
   test.afterAll(async () => {
