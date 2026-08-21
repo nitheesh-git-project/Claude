@@ -10,10 +10,8 @@ import {
   filterByDimension,
   filterBySlotRange,
   buildBuckets,
-  revenueByBucketFor,
   bookingsByBucketFor,
   moneyByBucketFor,
-  refundedPaiseByBucketFor,
   packageRevenueInRange,
   computeNoShowRate,
   computeCancellationRate,
@@ -278,6 +276,7 @@ export default function AdminMetricsTab({
   categories,
   patients,
   therapistSharePercent,
+  therapistHomeVisitSharePercent,
   patientHospitalSharePercent,
   hospitalReferredPatientIds,
   nowMs,
@@ -293,6 +292,11 @@ export default function AdminMetricsTab({
   patients: Person[];
   // therapistId -> revenue-share %, only present where an admin has set one.
   therapistSharePercent: Record<string, number>;
+  // therapistId -> home-visit revenue-share %, for therapists who have a
+  // separate rate for visits. Without it a home visit's cut is computed at
+  // the online rate, which quietly misstates both the payout and the
+  // clinic's share.
+  therapistHomeVisitSharePercent: Record<string, number>;
   // patientId -> the referring hospital's revenue-share %, only present for
   // patients referred by a hospital that has one set.
   patientHospitalSharePercent: Record<string, number>;
@@ -330,13 +334,33 @@ export default function AdminMetricsTab({
   const [selectedTherapistId, setSelectedTherapistId] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
+  // The earliest session there is, so "All Time" means the clinic's actual
+  // history rather than a fixed epoch. It used to jump to 2000-01-01, which
+  // built ~320 monthly buckets and squeezed every chart on the screen into a
+  // few pixels at the right-hand edge -- the one range most likely to be
+  // clicked was the one that rendered nothing readable.
+  const earliestSlotDate = useMemo(() => {
+    let earliest: number | null = null;
+    for (const a of appointments) {
+      if (!a.slot_time) continue;
+      const ms = new Date(a.slot_time).getTime();
+      if (Number.isNaN(ms)) continue;
+      if (earliest === null || ms < earliest) earliest = ms;
+    }
+    return earliest === null ? null : toDateInputValue(new Date(earliest));
+  }, [appointments]);
+
   function setQuickRange(days: number | null) {
     // A click handler only ever runs client-side, so a fresh timestamp here
     // carries none of the SSR/hydration risk the initial useState values
     // above are guarding against.
     const now = nowTimestamp();
     setToDate(toDateInputValue(new Date(now)));
-    setFromDate(days === null ? "2000-01-01" : toDateInputValue(daysAgo(days, now)));
+    setFromDate(
+      days === null
+        ? earliestSlotDate ?? toDateInputValue(daysAgo(365, now))
+        : toDateInputValue(daysAgo(days, now))
+    );
   }
 
   // Parsed with an explicit +05:30 (IST) offset, not local time —
@@ -369,11 +393,6 @@ export default function AdminMetricsTab({
 
   const buckets = useMemo(() => buildBuckets(fromMs, toMs), [fromMs, toMs]);
 
-  const revenueByBucket = useMemo(
-    () => revenueByBucketFor(inRangeBySlot, buckets),
-    [inRangeBySlot, buckets]
-  );
-
   const bookingsByBucket = useMemo(
     () => bookingsByBucketFor(inRangeBySlot, buckets),
     [inRangeBySlot, buckets]
@@ -386,29 +405,42 @@ export default function AdminMetricsTab({
         buckets,
         therapistSharePercent,
         patientHospitalSharePercent,
-        hospitalReferredPatientIds
+        hospitalReferredPatientIds,
+        therapistHomeVisitSharePercent
       ),
-    [inRangeBySlot, buckets, therapistSharePercent, patientHospitalSharePercent, hospitalReferredPatientIds]
+    [
+      inRangeBySlot,
+      buckets,
+      therapistSharePercent,
+      patientHospitalSharePercent,
+      hospitalReferredPatientIds,
+      therapistHomeVisitSharePercent,
+    ]
   );
 
-  const totalRevenuePaise = revenueByBucket.reduce((s, v) => s + v, 0) * 100;
-  const totalBookings = bookingsByBucket.reduce((s, v) => s + v, 0);
+  const totalBookings = bookingsByBucket.reduce((s: number, v: number) => s + v, 0);
 
   const packageRevenuePaise = useMemo(
     () => packageRevenueInRange(packagePurchases, categoryFilter, fromMs, toMs),
     [packagePurchases, categoryFilter, fromMs, toMs]
   );
 
-  const totalMoneyRevenuePaise = money.revenuePaise.reduce((s, v) => s + v, 0);
-  const totalProfitPaise = money.profitPaise.reduce((s, v) => s + v, 0);
-
-  const refundedByBucket = useMemo(
-    () => refundedPaiseByBucketFor(inRangeBySlot, buckets),
-    [inRangeBySlot, buckets]
-  );
-  const totalRefundedPaise = refundedByBucket.reduce((s, v) => s + v, 0);
-  const totalNetRevenuePaise = totalMoneyRevenuePaise - totalRefundedPaise;
-  const totalNetProfitPaise = totalProfitPaise - totalRefundedPaise;
+  // Every headline figure comes out of the single moneyByBucketFor pass, so
+  // the strip, the tiles and the breakdown chart cannot disagree.
+  const sum = (values: number[]) => values.reduce((s, v) => s + v, 0);
+  const totalGrossRevenuePaise = sum(money.grossRevenuePaise);
+  const totalRefundedPaise = sum(money.refundedPaise);
+  const totalNetRevenuePaise = sum(money.netRevenuePaise);
+  const totalSplittableNetPaise = sum(money.splittableNetPaise);
+  const totalTherapistCutPaise = sum(money.therapistCutPaise);
+  const totalHospitalCutPaise = sum(money.hospitalCutPaise);
+  const totalClinicSharePaise = sum(money.clinicSharePaise);
+  // Share of the money it is measured against -- a bare rupee figure says
+  // nothing about whether the split is healthy.
+  const clinicSharePercent =
+    totalSplittableNetPaise > 0
+      ? (totalClinicSharePaise / totalSplittableNetPaise) * 100
+      : null;
 
   const todayForFilename = toDateInputValue(new Date());
 
@@ -425,21 +457,22 @@ export default function AdminMetricsTab({
           t.id,
           therapistSharePercent[t.id] ?? null,
           own,
-          nowMs
+          nowMs,
+          therapistHomeVisitSharePercent[t.id] ?? null
         );
         return { id: t.id, name: t.full_name ?? "Unknown", summary };
       })
       .filter((row) => row.summary.completedCount > 0)
       .sort((a, b) => b.summary.owedPaise - a.summary.owedPaise);
-  }, [therapists, inRangeBySlot, therapistSharePercent, nowMs]);
+  }, [therapists, inRangeBySlot, therapistSharePercent, therapistHomeVisitSharePercent, nowMs]);
 
   const therapistLedgerCsv = useMemo(
     () =>
       toCsv(rangeTherapistLedger, [
         { header: "Therapist", value: (r) => r.name },
         { header: "Sessions", value: (r) => r.summary.completedCount },
-        { header: "Pending (INR)", value: (r) => r.summary.owedPaise / 100 },
-        { header: "Total Paid (INR)", value: (r) => r.summary.paidOutPaise / 100 },
+        { header: "Unsettled in range (INR)", value: (r) => r.summary.owedPaise / 100 },
+        { header: "Settled in range (INR)", value: (r) => r.summary.paidOutPaise / 100 },
       ]),
     [rangeTherapistLedger]
   );
@@ -448,7 +481,6 @@ export default function AdminMetricsTab({
     (s, r) => s + r.summary.paidOutPaise,
     0
   );
-  const totalPendingOwedPaise = rangeTherapistLedger.reduce((s, r) => s + r.summary.owedPaise, 0);
 
   // The real, unfiltered owed balance per therapist — deliberately computed
   // over the FULL `appointments` array, not inRangeBySlot. settle-therapist-
@@ -467,12 +499,33 @@ export default function AdminMetricsTab({
         t.id,
         therapistSharePercent[t.id] ?? null,
         own,
-        nowMs
+        nowMs,
+        therapistHomeVisitSharePercent[t.id] ?? null
       );
       map.set(t.id, summary.owedPaise);
     }
     return map;
-  }, [therapists, appointments, therapistSharePercent, nowMs]);
+  }, [therapists, appointments, therapistSharePercent, therapistHomeVisitSharePercent, nowMs]);
+
+  // What settling everyone right now would actually transfer: all-time, and
+  // net of cash therapists are already holding. The headline "owed" figure
+  // on this screen has to be this number rather than a range-scoped one --
+  // a debt does not stop existing because it fell outside the dates in view,
+  // and the Pay button on the Payouts screen settles exactly this.
+  const allTimeNetPayablePaise = useMemo(() => {
+    let total = 0;
+    for (const t of therapists) {
+      const own = appointments.filter((a) => a.therapist_id === t.id);
+      total += computeTherapistPayoutSummary(
+        t.id,
+        therapistSharePercent[t.id] ?? null,
+        own,
+        nowMs,
+        therapistHomeVisitSharePercent[t.id] ?? null
+      ).netOwedPaise;
+    }
+    return total;
+  }, [therapists, appointments, therapistSharePercent, therapistHomeVisitSharePercent, nowMs]);
 
   // Patient Ledger — same date-range scoping, only counting sessions that
   // were actually paid for (an unpaid/requested booking isn't spend yet).
@@ -672,9 +725,9 @@ export default function AdminMetricsTab({
       {view === "summary" && (
       <div>
         {/* The four figures an admin scans first, in the same strip every
-            other dashboard opens with. The detailed tiles below keep the
-            full set plus the refund/approximation notes -- this is the
-            glance, not a replacement for them. */}
+            other dashboard opens with. Two flows and two balances: what the
+            range earned and what it left the clinic, then what is owed and
+            what has gone out. */}
         <div className="mb-5">
           <StatStrip
             cells={[
@@ -683,15 +736,28 @@ export default function AdminMetricsTab({
                 value: formatInr(totalNetRevenuePaise),
                 note:
                   totalRefundedPaise > 0
-                    ? `Gross ${formatInr(totalMoneyRevenuePaise)}, less ${formatInr(totalRefundedPaise)} refunded`
-                    : `Gross ${formatInr(totalMoneyRevenuePaise)}, nothing refunded`,
+                    ? `${formatInr(totalGrossRevenuePaise)} charged, ${formatInr(totalRefundedPaise)} refunded`
+                    : `${formatInr(totalGrossRevenuePaise)} charged, nothing refunded`,
                 accent: "bg-teal-500",
               },
               {
-                label: "Platform margin",
-                value: formatInr(totalNetProfitPaise),
-                note: "After therapist share and refunds",
+                label: "Clinic share",
+                value: formatInr(totalClinicSharePaise),
+                note:
+                  clinicSharePercent === null
+                    ? "After therapist and partner shares"
+                    : `${clinicSharePercent.toFixed(1)}% of what the clinic kept`,
                 accent: "bg-emerald-500",
+              },
+              {
+                label: "Owed to therapists",
+                value: formatInr(allTimeNetPayablePaise),
+                note:
+                  allTimeNetPayablePaise > 0
+                    ? "Balance right now, not just this range"
+                    : "Everyone is settled up",
+                accent: allTimeNetPayablePaise > 0 ? "bg-amber-500" : "bg-emerald-500",
+                valueClass: allTimeNetPayablePaise > 0 ? "text-amber-600" : "text-slate-800",
               },
               {
                 label: "Paid to therapists",
@@ -699,101 +765,86 @@ export default function AdminMetricsTab({
                 note: "Settled for sessions in this range",
                 accent: "bg-blue-500",
               },
-              {
-                label: "Pending owed",
-                value: formatInr(totalPendingOwedPaise),
-                note: totalPendingOwedPaise > 0 ? "Owed but not yet paid out" : "Nothing outstanding",
-                accent: totalPendingOwedPaise > 0 ? "bg-amber-500" : "bg-emerald-500",
-                valueClass: totalPendingOwedPaise > 0 ? "text-amber-600" : "text-slate-800",
-              },
             ]}
           />
         </div>
 
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Financial Summary</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Where the money went</h2>
         <p className="text-[11px] text-slate-400 mb-3">
-          Gross Revenue and Platform Margin count every paid session with slot_time in range, before
-          refunds; Net Revenue and Net Platform Margin subtract processed refunds from those same two
-          figures{" "}
-          <span title="Net Platform Margin subtracts the full refunded amount even for a session whose revenue split was never knowable (already excluded from Platform Margin itself) -- a documented approximation, not a precise re-derivation.">
-            (approximate — see note<sup>*</sup>)
-          </span>
-          . Paid to Therapists and Pending Owed count what those same in-range sessions have (or
-          haven&apos;t yet) been settled for.
+          Every figure below is for sessions scheduled in the selected range. Each row subtracts
+          from the one above it, so the four add up: net revenue, less the therapists&apos; share,
+          less any partner hospital&apos;s share, leaves the clinic&apos;s share.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-sack-dollar text-teal-600"></i> Gross Revenue
+              <i className="fa-solid fa-sack-dollar text-teal-600"></i> Net revenue
             </p>
             <p className="text-2xl font-bold text-slate-900 mt-2">
-              {formatInr(totalMoneyRevenuePaise)}{" "}
-              <span className="text-xs font-semibold text-slate-400">INR</span>
+              {formatInr(totalNetRevenuePaise)}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {formatInr(totalGrossRevenuePaise)} charged
+              {totalRefundedPaise > 0 && <> · {formatInr(totalRefundedPaise)} refunded</>}
             </p>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-rotate-left text-slate-400"></i> Net Revenue
+              <i className="fa-solid fa-user-doctor text-indigo-600"></i> Therapists&apos; share
             </p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">
-              {formatInr(totalNetRevenuePaise)}{" "}
-              <span className="text-xs font-semibold text-slate-400">INR</span>
+            <p className="text-2xl font-bold mt-2" style={{ color: THERAPIST_CUT_COLOR }}>
+              {totalTherapistCutPaise > 0 ? `−${formatInr(totalTherapistCutPaise)}` : formatInr(0)}
             </p>
-            {totalRefundedPaise > 0 && (
-              <p className="text-[11px] text-slate-400 mt-1">
-                after {formatInr(totalRefundedPaise)} refunded
-              </p>
-            )}
+            <p className="text-[11px] text-slate-400 mt-1">
+              Earned on delivered sessions, travel included
+            </p>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-chart-line text-teal-600"></i> Platform Margin (Profit)
+              <i className="fa-solid fa-hospital text-amber-600"></i> Partners&apos; share
+            </p>
+            <p className="text-2xl font-bold mt-2" style={{ color: HOSPITAL_CUT_COLOR }}>
+              {totalHospitalCutPaise > 0 ? `−${formatInr(totalHospitalCutPaise)}` : formatInr(0)}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {totalHospitalCutPaise > 0
+                ? "Referral commission on what was kept"
+                : "No hospital-referred sessions in range"}
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl border border-teal-200 bg-teal-50/40 shadow-sm p-5">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-chart-line text-teal-600"></i> Clinic share
             </p>
             <p className="text-2xl font-bold mt-2" style={{ color: PROFIT_COLOR }}>
-              {formatInr(totalProfitPaise)} <span className="text-xs font-semibold text-slate-400">INR</span>
+              {formatInr(totalClinicSharePaise)}
             </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-rotate-left text-slate-400"></i> Net Platform Margin
-            </p>
-            <p className="text-2xl font-bold mt-2" style={{ color: PROFIT_COLOR }}>
-              {formatInr(totalNetProfitPaise)}{" "}
-              <span className="text-xs font-semibold text-slate-400">INR</span>
-            </p>
-            {totalRefundedPaise > 0 && (
-              <p className="text-[11px] text-slate-400 mt-1">
-                after {formatInr(totalRefundedPaise)} refunded<sup>*</sup>
-              </p>
-            )}
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-hand-holding-dollar text-indigo-600"></i> Paid to Therapists
-            </p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">
-              {formatInr(totalPaidToTherapistsPaise)}{" "}
-              <span className="text-xs font-semibold text-slate-400">INR</span>
-            </p>
-          </div>
-          <div
-            className={`bg-white rounded-2xl border shadow-sm p-5 ${
-              totalPendingOwedPaise > 0 ? "border-red-200" : "border-slate-200"
-            }`}
-          >
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-clock text-red-500"></i> Pending Owed
-            </p>
-            <p
-              className={`text-2xl font-bold mt-2 ${
-                totalPendingOwedPaise > 0 ? "text-red-600" : "text-slate-900"
-              }`}
-            >
-              {formatInr(totalPendingOwedPaise)}{" "}
-              <span className="text-xs font-semibold text-slate-400">INR</span>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {clinicSharePercent === null
+                ? "Before running costs"
+                : `${clinicSharePercent.toFixed(1)}% of net revenue · before running costs`}
             </p>
           </div>
         </div>
+
+        {/* Named, not hidden. An admin who sees the split not adding up to
+            net revenue needs to know exactly which sessions are missing and
+            why -- guessing a share would be worse than saying so. */}
+        {money.excludedCount > 0 && (
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+            <strong>{money.excludedCount}</strong> paid session
+            {money.excludedCount === 1 ? "" : "s"} worth{" "}
+            <strong>{formatInr(money.excludedRevenuePaise)}</strong> are counted in net revenue but
+            left out of the three shares — the therapist has no revenue share set, or the patient
+            came from a partner whose share is not configured. Set those percentages in People and
+            the figures complete themselves.
+          </p>
+        )}
+
+        {/* Owed and Paid live in the strip at the top of this screen and are
+            deliberately not repeated here: this block is the subtraction
+            chain that ends at the clinic's share, and a balance is not part
+            of that chain. */}
       </div>
       )}
 
@@ -802,7 +853,7 @@ export default function AdminMetricsTab({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-            <h2 className="font-display font-bold text-lg text-slate-800">Therapist Ledger</h2>
+            <h2 className="font-display font-bold text-lg text-slate-800">Therapist earnings</h2>
             <DownloadCsvButton
               filename={`therapist-ledger-${todayForFilename}.csv`}
               csv={therapistLedgerCsv}
@@ -825,8 +876,13 @@ export default function AdminMetricsTab({
                   <tr className="text-left text-slate-500 border-b border-slate-200">
                     <th className="py-2 pr-3 font-semibold">Therapist</th>
                     <th className="py-2 pr-3 font-semibold">Sessions</th>
-                    <th className="py-2 pr-3 font-semibold">Pending (₹)</th>
-                    <th className="py-2 pr-3 font-semibold">Total Paid (₹)</th>
+                    <th
+                      className="py-2 pr-3 font-semibold"
+                      title="Earned on sessions scheduled inside the selected range and not yet settled. Deliberately narrower than 'Owed to therapists' on the Summary screen, which is the whole all-time balance."
+                    >
+                      Unsettled in range (₹)
+                    </th>
+                    <th className="py-2 pr-3 font-semibold">Settled in range (₹)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -860,7 +916,7 @@ export default function AdminMetricsTab({
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-            <h2 className="font-display font-bold text-lg text-slate-800">Patient Ledger</h2>
+            <h2 className="font-display font-bold text-lg text-slate-800">Patient spend</h2>
             <DownloadCsvButton
               filename={`patient-ledger-${todayForFilename}.csv`}
               csv={patientLedgerCsv}
@@ -913,7 +969,7 @@ export default function AdminMetricsTab({
 
       {selectedTherapistRow && (
         <Modal
-          title={`Therapist Ledger: ${selectedTherapistRow.name}`}
+          title={`Therapist earnings: ${selectedTherapistRow.name}`}
           subtitle={
             selectedTherapistRow.summary.sharePercent !== null
               ? `${selectedTherapistRow.summary.sharePercent}% Commission Split`
@@ -994,7 +1050,7 @@ export default function AdminMetricsTab({
 
       {selectedPatientRow && (
         <Modal
-          title={`Patient Ledger: ${selectedPatientRow.name}`}
+          title={`Patient spend: ${selectedPatientRow.name}`}
           subtitle={`Spent in this range: ${formatInr(selectedPatientRow.totalSpentPaise)}`}
           onClose={() => setSelectedPatientId(null)}
         >
@@ -1051,11 +1107,16 @@ export default function AdminMetricsTab({
           tiles, split by which question it answers. */}
       {view === "summary" && (
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {/* Was a third figure called "Recognised revenue", which was the
+            same paid-sessions-in-range total the Net revenue card above
+            already shows under a different name -- the exact collision this
+            screen's glossary existed to apologise for. Refunds is the number
+            that was actually missing from the row. */}
         <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">Recognised revenue</p>
-          <p className="text-base font-bold text-slate-900">{formatInr(totalRevenuePaise)}</p>
+          <p className="text-[11px] text-slate-500">Refunded</p>
+          <p className="text-base font-bold text-slate-900">{formatInr(totalRefundedPaise)}</p>
         </div>
-        <div className="bg-slate-50 rounded-xl p-3 text-center" title="Package purchases paid for in this range -- collected up front, only recognized above as sessions get scheduled. See Catalog → Purchases for unscheduled balance.">
+        <div className="bg-slate-50 rounded-xl p-3 text-center" title="Package purchases paid for in this range -- money in the bank up front. The revenue figures above recognise its value gradually instead, one session at a time as they get scheduled, so the two are deliberately different numbers.">
           <p className="text-[11px] text-slate-500">Package cash collected</p>
           <p className="text-base font-bold text-slate-900">{formatInr(packageRevenuePaise)}</p>
         </div>
@@ -1099,8 +1160,11 @@ export default function AdminMetricsTab({
       {view === "summary" && (
       <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Revenue Trend</h2>
-        <TrendBarChart buckets={buckets} values={revenueByBucket} formatValue={(v) => formatInr(v * 100)} />
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Net revenue trend</h2>
+        <p className="text-[11px] text-slate-400 mb-3">
+          After refunds, by the week or month the session was scheduled in.
+        </p>
+        <TrendBarChart buckets={buckets} values={money.netRevenuePaise} formatValue={formatInr} />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -1111,18 +1175,18 @@ export default function AdminMetricsTab({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Revenue Breakdown</h2>
         <p className="text-[11px] text-slate-400 mb-4">
-          Where paid revenue in this range actually goes — therapist payouts, hospital referral
-          shares, and what&apos;s left as profit. Revenue and Profit totals match the Gross Revenue
-          and Platform Margin cards at the top of this tab.
+          The same four figures as the cards above, period by period: net revenue, the therapists&apos;
+          and partners&apos; shares taken out of it, and the clinic&apos;s share left over. The totals
+          are the cards&apos; totals — this is where they came from.
         </p>
 
         <TrendLineChart
           buckets={buckets}
           series={[
-            { label: "Revenue", color: REVENUE_COLOR, values: money.revenuePaise },
-            { label: "Therapists' Cut", color: THERAPIST_CUT_COLOR, values: money.therapistCutPaise },
-            { label: "Hospitals' Cut", color: HOSPITAL_CUT_COLOR, values: money.hospitalCutPaise },
-            { label: "Profit", color: PROFIT_COLOR, values: money.profitPaise },
+            { label: "Net revenue", color: REVENUE_COLOR, values: money.netRevenuePaise },
+            { label: "Therapists' share", color: THERAPIST_CUT_COLOR, values: money.therapistCutPaise },
+            { label: "Partners' share", color: HOSPITAL_CUT_COLOR, values: money.hospitalCutPaise },
+            { label: "Clinic share", color: PROFIT_COLOR, values: money.clinicSharePaise },
           ]}
           formatValue={(v) => formatInr(v)}
         />
@@ -1133,7 +1197,7 @@ export default function AdminMetricsTab({
             {formatInr(money.excludedRevenuePaise)} excluded from this breakdown — therapist not
             assigned, their revenue share isn&apos;t set yet, or (for a hospital-referred patient)
             the referring hospital&apos;s revenue share isn&apos;t set yet, so no split is
-            knowable. Still counted in the &quot;Recognised revenue&quot; stat above.
+            knowable. Still counted in net revenue above — only the split leaves them out.
           </p>
         )}
       </div>

@@ -1,75 +1,90 @@
-// Why this exists: every figure on the money screens was already correct,
-// and none of them said which question it answered. "Revenue" on the summary
-// (paid sessions by slot time, before refunds) is not "Revenue" in category
-// performance, and neither is "Package Cash" (collected up front, recognised
-// later). Three right answers to three different questions, all labelled the
-// same word.
+// Why this exists: the money screens carry several figures that sound alike
+// and are not. "Package cash collected" (money in the bank up front) is not
+// revenue (recognised one session at a time). "Clinic share" is not profit.
+// "Owed to therapists" is a balance as of now, while everything beside it is
+// a flow over the selected dates.
+//
+// The rule this enforces: one word, one figure. Where an earlier version had
+// two names for one number ("Recognised revenue" alongside "Gross revenue")
+// the duplicate was removed rather than explained; where one word covered two
+// different numbers ("Profit" on both Summary and Payouts) each was renamed
+// for what it actually measures. What is left here is the genuinely
+// non-obvious distinctions, not an apology for careless labels.
 //
 // Plain server component -- it is a table of text with no state.
 
 const ENTRIES: { term: string; meaning: string }[] = [
   {
-    term: "Gross Revenue",
+    term: "Gross revenue",
     meaning:
-      "Every paid session whose slot falls in the range, before any refunds. The top line: what was charged.",
+      "Everything charged for sessions whose slot falls in the range, before refunds. The top line.",
   },
   {
-    term: "Net Revenue",
-    meaning: "Gross Revenue minus refunds that actually processed. What the business kept.",
+    term: "Refunded",
+    meaning: "Refunds that actually processed. A refund that failed or was never eligible is not here.",
   },
   {
-    term: "Platform Margin (Profit)",
+    term: "Net revenue",
+    meaning: "Gross revenue minus refunds — what the clinic kept. Every share below is taken out of this.",
+  },
+  {
+    term: "Therapists' share",
     meaning:
-      "What is left after the therapist's cut and any hospital's cut. Sessions whose split can't be worked out — a therapist with no revenue share configured — are excluded rather than counted as 100% margin.",
+      "What therapists earned on sessions they actually delivered, at each therapist's own rate, plus any home-visit travel reimbursement in full. A session that was booked and paid for but never delivered earns nobody a share.",
   },
   {
-    term: "Net Platform Margin",
+    term: "Partners' share",
     meaning:
-      "Platform Margin minus refunds. Approximate on purpose: it subtracts the full refunded amount even for a session that was excluded from the margin, so treat it as a floor, not a precise figure.",
+      "A referring hospital's commission on the money the clinic kept from patients they sent. Taken on net revenue, so a refund reverses the commission with it.",
   },
   {
-    term: "Paid to Therapists",
-    meaning: "Money already transferred out in settled payouts.",
-  },
-  {
-    term: "Pending Owed",
+    term: "Clinic share",
     meaning:
-      "Earned by therapists on delivered sessions and not yet transferred. This is a debt, not a cost — it will become Paid to Therapists.",
+      "Net revenue less both shares — the clinic's own take, before running costs (payment fees, software, salaries). It is deliberately not called profit: no cost of running the business has been deducted from it.",
   },
   {
-    term: "Recognised revenue",
+    term: "Left out of the split",
     meaning:
-      "What has been earned so far: a paid session counts when it is scheduled. A package is recognised one session at a time, not all at once when it is bought.",
+      "Paid sessions counted in revenue but excluded from the three shares, because no split can be worked out: the therapist has no revenue share set, or the patient came from a partner whose share is not configured. Set the percentages in People and they disappear.",
+  },
+  {
+    term: "Owed to therapists",
+    meaning:
+      "What the clinic owes right now, all time — not scoped to the dates in view, because a debt does not stop existing outside a date range. Already net of any cash therapists are holding, so it is exactly what a payout run would transfer.",
+  },
+  {
+    term: "Paid to therapists",
+    meaning: "Already transferred, for sessions scheduled in the range in view.",
   },
   {
     term: "Package cash collected",
     meaning:
-      "The full price of package purchases paid up front — what came into the bank. Deliberately not added to recognised revenue, which counts the same money gradually as sessions get scheduled. Both figures are real; they answer different questions.",
+      "The full price of package purchases paid up front — money in the bank. Deliberately not added to revenue, which recognises the same money gradually, one session at a time as they get scheduled. Both are real; they answer different questions.",
   },
   {
     term: "Travel fee",
     meaning:
-      "A home visit's travel reimbursement. Paid to the therapist in full and never counted as revenue or margin — folding it in would mean a therapist funding their own transport.",
+      "A home visit's travel reimbursement. Paid to the therapist in full and never counted as revenue — folding it in would mean a therapist funding their own transport.",
   },
   {
     term: "Cash collected",
     meaning:
-      "Money a therapist took at a patient's door on a cash-on-visit home visit. It belongs to the business but is physically with the therapist.",
+      "Money a therapist took at a patient's door on a cash-on-visit home visit. It belongs to the clinic but is physically with the therapist.",
   },
   {
     term: "Cash remitted",
     meaning:
-      "Collected cash that has been handed over. Until it is, it nets off what that therapist's next payout actually transfers.",
+      "Collected cash the clinic has back. Until then it nets off that therapist's next payout — and settling a payout that absorbs it records it as remitted, so the same rupees are never deducted twice.",
   },
   {
     term: "Manual refund pending",
     meaning:
-      "A cancelled cash visit where money was collected and there is no Razorpay payment to reverse — a human has to hand it back. It stays on this list until someone confirms they did.",
+      "A cancelled cash visit where money was collected and there is no Razorpay payment to reverse — a human has to hand it back. It stays on the Cash Ledger until someone confirms they did.",
   },
   {
     term: "Unpaid (home visit)",
     meaning:
-      "Normal for cash-on-visit. It does not mean nobody ever paid — check the payment mode before reading it as a debt.",
+      "Normal for cash-on-visit before the therapist records the collection. It does not mean nobody will ever pay — check the payment mode before reading it as a debt.",
   },
 ];
 

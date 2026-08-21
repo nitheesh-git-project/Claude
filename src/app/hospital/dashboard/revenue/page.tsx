@@ -40,13 +40,13 @@ export default async function Page() {
             </p>
           </div>
           <div className="bg-teal-50 rounded-xl p-3 text-center">
-            <p className="text-[11px] text-slate-500">Your Cut</p>
+            <p className="text-[11px] text-slate-500">Your share</p>
             <p className="text-lg font-bold text-teal-700">
               ₹{d.hospitalCut.toFixed(2)}
             </p>
           </div>
           <div className="bg-slate-50 rounded-xl p-3 text-center">
-            <p className="text-[11px] text-slate-500">Company&apos;s Cut</p>
+            <p className="text-[11px] text-slate-500">Clinic&apos;s share</p>
             <p className="text-lg font-bold text-slate-900">
               ₹{d.companyCut.toFixed(2)}
             </p>

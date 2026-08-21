@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
   // remitted (or never had cash collected) doesn't appear here.
   const { data: cashHeldRows } = await admin
     .from("appointments")
-    .select("cash_collected_amount_paise")
+    .select("id, cash_collected_amount_paise")
     .eq("therapist_id", therapistId)
     .not("cash_collected_at", "is", null)
     .is("cash_remitted_at", null);
@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
     (sum, r) => sum + (r.cash_collected_amount_paise ?? 0),
     0
   );
+  const cashHeldIds = (cashHeldRows ?? []).map((r) => r.id);
 
   const paidAt = new Date().toISOString();
 
@@ -193,7 +194,13 @@ export async function POST(request: NextRequest) {
           "en-IN"
         )}, netted against ₹${(net.cashHeldPaise / 100).toLocaleString(
           "en-IN"
-        )} cash already held.`
+        )} cash already held.${
+          net.stillOwedToBusinessPaise > 0
+            ? ` ₹${(net.stillOwedToBusinessPaise / 100).toLocaleString(
+                "en-IN"
+              )} of that cash is still owed back to the clinic and stays on the Cash Ledger.`
+            : " That cash is now recorded as remitted."
+        }`
       : note || null;
 
   const { error: batchAmountError } = await admin
@@ -202,6 +209,41 @@ export async function POST(request: NextRequest) {
     .eq("id", batch.id);
   if (batchAmountError) {
     console.error("Failed to set final amount on payout batch", batch.id, batchAmountError);
+  }
+
+  // Deducting the cash IS the remittance, so the visits it came from have to
+  // be closed out here. Without this the collection stayed open after being
+  // netted off, and the very next payout run netted the same rupees off
+  // again -- the therapist paid for the same cash twice, and the Cash Ledger
+  // went on asking an admin to chase money the business had already taken
+  // back. Only ever the rows whose amounts went into `cashHeldPaise` above,
+  // and only when a deduction actually happened.
+  //
+  // Same CAS guard as mark-cash-remitted: the `is null` filter means a
+  // concurrent remittance wins and this one silently no-ops rather than
+  // overwriting someone else's timestamp. Best-effort like the batch amount
+  // above -- the payout itself has already been claimed by this point, so a
+  // failure here must be logged for reconciliation, not thrown back at an
+  // admin who would then retry a settlement that already happened.
+  // Only when the payout fully absorbs the cash. If the therapist is holding
+  // MORE than they are owed, computeNetPayout floors the transfer at zero and
+  // leaves the difference as stillOwedToBusinessPaise -- a real debt the other
+  // way that a person has to chase. Clearing those collections here would
+  // erase the only record of it, and there is no honest way to part-remit an
+  // indivisible per-visit amount, so that case stays on the Cash Ledger.
+  if (net.cashHeldPaise > 0 && cashHeldIds.length > 0 && net.stillOwedToBusinessPaise === 0) {
+    const { error: remitError } = await admin
+      .from("appointments")
+      .update({ cash_remitted_at: paidAt })
+      .in("id", cashHeldIds)
+      .is("cash_remitted_at", null);
+    if (remitError) {
+      console.error(
+        "Payout settled but cash could not be marked remitted — reconcile by hand",
+        { batchId: batch.id, therapistId, cashHeldIds },
+        remitError
+      );
+    }
   }
 
   // The client's confirm dialog shows the balance as of page load, which

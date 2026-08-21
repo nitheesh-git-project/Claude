@@ -916,7 +916,7 @@ export default async function AdminDashboardPage({
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-400">Hospital&apos;s Cut</p>
+                      <p className="text-slate-400">Partner&apos;s share</p>
                       <p className="font-bold text-teal-700">
                         ₹{hospitalCut.toFixed(2)}
                       </p>
@@ -925,7 +925,7 @@ export default async function AdminDashboardPage({
                       )}
                     </div>
                     <div>
-                      <p className="text-slate-400">Company&apos;s Cut</p>
+                      <p className="text-slate-400">Clinic&apos;s share</p>
                       <p className="font-bold text-slate-900">
                         ₹{companyCut.toFixed(2)}
                       </p>
@@ -1267,7 +1267,7 @@ export default async function AdminDashboardPage({
       .map((h) => [h.id, h.revenue_share_percent as number])
   );
   // A suspended hospital stops earning revenue share going forward -- the
-  // booking still counts in full toward Gross Revenue/Platform Margin
+  // booking still counts in full toward gross revenue and clinic share
   // (see moneyByBucketFor), it's just the platform's 100% instead of a
   // split. Kept as an explicit 0% here (not left undefined) so it isn't
   // mistaken for the "share never configured" case, which excludes the
@@ -1294,13 +1294,52 @@ export default async function AdminDashboardPage({
   // One component, two screens: Summary answers "how much money", Performance
   // answers "how well did it go". The maths is identical and lives in
   // adminMetrics.ts either way -- see AdminMetricsTab's `view` prop.
+  // Enriches the page's main appointments array with the home-visit columns
+  // needed for correct payout math (visit_mode, travel_fee_paise, and the
+  // cash collection/remittance pair the net-off reads). Left-joined via a
+  // map rather than adding these columns to the shared select above -- that
+  // select feeds Overview/Calendar/Session Story/Metrics too, so an
+  // unknown-column error there would blank all of those, not just Payouts.
+  const homeVisitPayoutDetailById = new Map(
+    (homeVisitAppointments ?? []).map((v) => [
+      v.id,
+      {
+        visit_mode: "home_visit" as const,
+        travel_fee_paise: v.travel_fee_paise,
+        cash_collected_at: v.cash_collected_at,
+        cash_collected_amount_paise: v.cash_collected_amount_paise,
+        cash_remitted_at: v.cash_remitted_at,
+      },
+    ])
+  );
+  const appointmentsForPayouts = (appointments ?? []).map((a) => ({
+    ...a,
+    ...(homeVisitPayoutDetailById.get(a.id) ?? { visit_mode: "online" as const }),
+  }));
+  const homeVisitShareById = new Map(
+    (homeVisitShareRows ?? []).map((r) => [r.id, r.home_visit_revenue_share_percent])
+  );
+
+  // Same map as homeVisitShareById, keyed for the Money screens' own
+  // Record<string, number> props -- a therapist with no separate visit rate
+  // is simply absent, which is what "fall back to the online share" means to
+  // every consumer of it.
+  const therapistHomeVisitSharePercent: Record<string, number> = {};
+  for (const [id, percent] of homeVisitShareById) {
+    if (percent !== null && percent !== undefined) therapistHomeVisitSharePercent[id] = percent;
+  }
+
   const moneySummaryTab = (
     <>
-      <MoneyGlossary />
       <div className="mt-6">
       <AdminMetricsTab
         view="summary"
-        appointments={appointments ?? []}
+        /* The payout-enriched array, not the plain one: without visit_mode,
+           travel_fee_paise and the cash columns, every home visit's travel
+           reimbursement drops out of the therapists' share and reappears as
+           clinic share, and the "owed to therapists" balance ignores cash
+           the therapist is already holding. */
+        appointments={appointmentsForPayouts}
         packagePurchases={(packagePurchaseSummaries ?? []).map((p) => ({
           category_id: p.category_id,
           payment_status: p.payment_status,
@@ -1311,6 +1350,7 @@ export default async function AdminDashboardPage({
         categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
         patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
         therapistSharePercent={therapistSharePercent}
+        therapistHomeVisitSharePercent={therapistHomeVisitSharePercent}
         patientHospitalSharePercent={patientHospitalSharePercent}
         hospitalReferredPatientIds={hospitalReferredPatientIds}
         nowMs={nowTimestamp()}
@@ -1324,7 +1364,7 @@ export default async function AdminDashboardPage({
     <>
       <AdminMetricsTab
         view="performance"
-        appointments={appointments ?? []}
+        appointments={appointmentsForPayouts}
         packagePurchases={(packagePurchaseSummaries ?? []).map((p) => ({
           category_id: p.category_id,
           payment_status: p.payment_status,
@@ -1335,6 +1375,7 @@ export default async function AdminDashboardPage({
         categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
         patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
         therapistSharePercent={therapistSharePercent}
+        therapistHomeVisitSharePercent={therapistHomeVisitSharePercent}
         patientHospitalSharePercent={patientHospitalSharePercent}
         hospitalReferredPatientIds={hospitalReferredPatientIds}
         nowMs={nowTimestamp()}
@@ -1377,12 +1418,12 @@ export default async function AdminDashboardPage({
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-400">Recognised revenue</p>
+                      <p className="text-slate-400">Session revenue</p>
                       <p className="font-bold text-teal-700">
                         ₹{stats.totalRevenue.toLocaleString("en-IN")}
                       </p>
                     </div>
-                    <div title="Package purchases paid for under this category, collected up front -- Revenue to the left already recognizes its share one session at a time as those sessions get scheduled.">
+                    <div title="Package purchases paid for under this category, collected up front. Session revenue to the left recognises the same money gradually instead, one session at a time as they get scheduled -- so the two are deliberately different figures, not a discrepancy.">
                       <p className="text-slate-400">Package cash collected</p>
                       <p className="font-bold text-teal-700">
                         ₹{stats.packageCashCollected.toLocaleString("en-IN")}
@@ -1396,32 +1437,6 @@ export default async function AdminDashboardPage({
         )}
       </div>
     </>
-  );
-
-  // Enriches the page's main appointments array with the home-visit columns
-  // needed for correct payout math (visit_mode, travel_fee_paise, and the
-  // cash collection/remittance pair the net-off reads). Left-joined via a
-  // map rather than adding these columns to the shared select above -- that
-  // select feeds Overview/Calendar/Session Story/Metrics too, so an
-  // unknown-column error there would blank all of those, not just Payouts.
-  const homeVisitPayoutDetailById = new Map(
-    (homeVisitAppointments ?? []).map((v) => [
-      v.id,
-      {
-        visit_mode: "home_visit" as const,
-        travel_fee_paise: v.travel_fee_paise,
-        cash_collected_at: v.cash_collected_at,
-        cash_collected_amount_paise: v.cash_collected_amount_paise,
-        cash_remitted_at: v.cash_remitted_at,
-      },
-    ])
-  );
-  const appointmentsForPayouts = (appointments ?? []).map((a) => ({
-    ...a,
-    ...(homeVisitPayoutDetailById.get(a.id) ?? { visit_mode: "online" as const }),
-  }));
-  const homeVisitShareById = new Map(
-    (homeVisitShareRows ?? []).map((r) => [r.id, r.home_visit_revenue_share_percent])
   );
 
   const payoutsTab = (
@@ -2175,16 +2190,42 @@ export default async function AdminDashboardPage({
     ),
     "people:therapists": therapistsTab,
     "people:partners": b2bPartners,
-    "money:summary": moneySummaryTab,
-    "money:transactions": paymentHistoryTab,
+    // Every Money screen ends with the same glossary. It used to sit on
+    // Summary alone, which is the one screen whose labels are self-evident
+    // -- an admin reading "Net payable" on Payouts or "Session revenue" on
+    // Performance is the one who needs it.
+    "money:summary": (
+      <>
+        {moneySummaryTab}
+        <div className="mt-8">
+          <MoneyGlossary />
+        </div>
+      </>
+    ),
+    "money:transactions": (
+      <>
+        {paymentHistoryTab}
+        <div className="mt-8">
+          <MoneyGlossary />
+        </div>
+      </>
+    ),
     "money:payouts": (
       <div className="space-y-8">
         {payoutsTab}
         {payoutRequestsTab}
         <HomeVisitCashLedger visits={homeVisitRows} nowMs={nowTimestamp()} />
+        <MoneyGlossary />
       </div>
     ),
-    "money:performance": moneyPerformanceTab,
+    "money:performance": (
+      <>
+        {moneyPerformanceTab}
+        <div className="mt-8">
+          <MoneyGlossary />
+        </div>
+      </>
+    ),
     "catalog:conditions": (
       <>
         {catalogStrip}

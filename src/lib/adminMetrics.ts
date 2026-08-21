@@ -36,6 +36,18 @@ export type MetricsAppointment = {
   patient_feedback: string | null;
   therapist_rating: number | null;
   therapist_feedback: string | null;
+  // Home-visit columns. Optional so a caller that hasn't joined them in is
+  // still type-valid, but the Money screens must pass them: without
+  // travel_fee_paise the therapist's cut comes out short and the clinic's
+  // share correspondingly overstated, on every home visit.
+  visit_mode?: string | null;
+  travel_fee_paise?: number | null;
+  // Cash a therapist took at the door and has not handed in. Needed so the
+  // "owed to therapists" balance shown here is the same net-of-cash figure
+  // the Payouts screen and the Pay button use.
+  cash_collected_at?: string | null;
+  cash_collected_amount_paise?: number | null;
+  cash_remitted_at?: string | null;
 };
 
 export type Person = { id: string; full_name: string | null };
@@ -135,28 +147,6 @@ export function sumByBucket<T>(
   return sums;
 }
 
-// Both bucketed by the session's own slot_time -- previously revenue was
-// bucketed by paid_at and bookings by created_at, two axes that disagree
-// with each other AND with the slot_time-based range everything else in
-// this tab (no-show rate, cancellation rate, therapist utilization) already
-// uses. Picking a From/To range should mean the same thing everywhere on
-// this tab: "sessions scheduled in this window" -- not "paid in this
-// window" for one chart and "booked in this window" for another. No
-// fromMs/toMs params needed here anymore either: `buckets` already spans
-// exactly [fromMs, toMs), so an item outside that range simply lands in no
-// bucket and sumByBucket drops it, without a separate range check.
-export function revenueByBucketFor(
-  dimFiltered: MetricsAppointment[],
-  buckets: PeriodBucket[]
-): number[] {
-  return sumByBucket(
-    dimFiltered.filter((a) => a.payment_status === "paid"),
-    (a) => (a.slot_time ? new Date(a.slot_time).getTime() : null),
-    (a) => (a.amount_paid_paise ?? SESSION_FEE_PAISE) / 100,
-    buckets
-  );
-}
-
 // Cash collected on package purchases in [fromMs, toMs), bucketed by
 // paid_at -- deliberately a *separate* figure from revenueByBucketFor
 // above, not folded into it. revenueByBucketFor already counts a package
@@ -186,29 +176,10 @@ export function packageRevenueInRange(
   return total;
 }
 
-// Paise (not rupees, unlike revenueByBucketFor above) -- matches
-// moneyByBucketFor's own convention, since this exists purely to be
-// subtracted from moneyByBucketFor's revenuePaise/profitPaise totals for the
-// Net Revenue / Net Platform Margin cards. Deliberately a separate, simple
-// pass rather than folded into moneyByBucketFor itself: only "processed"
-// refunds count (a failed or not-eligible refund never actually left the
-// till), and this doesn't touch the therapist/hospital-share eligibility
-// logic moneyByBucketFor already has -- a refunded session whose revenue
-// split was never knowable (already excluded from Platform Margin) still
-// gets its refund subtracted here, so Net Platform Margin is a documented
-// approximation in that one edge case, not silently wrong.
-export function refundedPaiseByBucketFor(
-  dimFiltered: MetricsAppointment[],
-  buckets: PeriodBucket[]
-): number[] {
-  return sumByBucket(
-    dimFiltered.filter((a) => a.refund_status === "processed"),
-    (a) => (a.slot_time ? new Date(a.slot_time).getTime() : null),
-    (a) => a.refund_amount_paise ?? 0,
-    buckets
-  );
-}
-
+// Bucketed by slot_time, like the money figures above, so a From/To range
+// means the same thing everywhere on the screen: "sessions scheduled in this
+// window", never "booked in this window" for one chart and "paid in this
+// window" for another.
 export function bookingsByBucketFor(
   dimFiltered: MetricsAppointment[],
   buckets: PeriodBucket[]
@@ -222,24 +193,67 @@ export function bookingsByBucketFor(
 }
 
 export type MoneyByBucket = {
-  revenuePaise: number[];
+  /** Every paid session in the bucket, before refunds. */
+  grossRevenuePaise: number[];
+  /** Refunds that actually processed. */
+  refundedPaise: number[];
+  /** grossRevenuePaise - refundedPaise. */
+  netRevenuePaise: number[];
+  /** The part of netRevenuePaise whose split is knowable -- the base the
+   *  three figures below divide up. Always <= netRevenuePaise. */
+  splittableNetPaise: number[];
   therapistCutPaise: number[];
   hospitalCutPaise: number[];
-  profitPaise: number[];
+  /** splittableNetPaise - therapistCutPaise - hospitalCutPaise. */
+  clinicSharePaise: number[];
   excludedCount: number;
   excludedRevenuePaise: number;
 };
 
-// Same "only where the split is actually knowable" rule as
-// PatientProfitChart's per-patient breakdown: a paid session only enters
-// revenue/cuts/profit here if its therapist has a revenue-share % set --
-// otherwise there's no way to know the real split, and guessing would
-// misstate profit rather than just omit a number. Sessions skipped this way
-// are counted (and their revenue totalled) separately in
-// excludedCount/excludedRevenuePaise so it's a visible caveat, not a silent
-// gap -- this is why this section's own "Revenue" total can come in lower
-// than the "Revenue (range)" stat card above, which counts all paid revenue
-// regardless of whether a payout split is knowable.
+/**
+ * The clinic's revenue split, per bucket, in paise.
+ *
+ * Every figure the Money summary shows comes out of this one pass, so the
+ * tiles, the strip and the breakdown chart cannot disagree with each other.
+ * The identity that must always hold:
+ *
+ *     net = gross - refunds
+ *     clinic share = net - therapist cut - hospital cut
+ *
+ * Three rules decide who gets what, and each one is a correction of an
+ * earlier version that got a real number wrong:
+ *
+ * 1. **A therapist's cut is earned by delivering, not by being booked.**
+ *    Only a *completed* paid session adds to the therapist cut -- the same
+ *    rule computeTherapistPayoutSummary and the settle route already
+ *    enforce. Counting every paid session (as this used to) deducted a cut
+ *    for sessions the therapist will never be paid for, which understated
+ *    the clinic's share on every forfeited late cancellation.
+ * 2. **A home visit's travel fee is part of the therapist's cut.** It is a
+ *    reimbursement paid through in full and never revenue (see
+ *    homeVisitPricing.ts), so it is deducted here without ever being added
+ *    to gross. Omitting it -- as this used to, because the Money screens
+ *    passed appointments without the home-visit columns joined in --
+ *    overstated the clinic's share by the whole travel bill.
+ * 3. **Refunds reverse the hospital's commission, not the therapist's.**
+ *    A refunded session was cancelled, so it never counted toward the
+ *    therapist cut in the first place; the hospital's share is a commission
+ *    on money kept, so it is taken on *net* revenue. That makes the clinic
+ *    share exact. The old version subtracted the whole refund from a margin
+ *    figure that had already had a cut deducted, and had to be labelled an
+ *    approximation on screen.
+ *
+ * Revenue and the split have different eligibility, which is the fourth
+ * correction and the one that removes a long-standing collision between two
+ * figures both called "revenue" on the same screen. Gross, refunds and net
+ * count **every** paid session: money is money whether or not anyone has
+ * configured how to divide it. Only the *split* skips a session whose
+ * division cannot be known -- the therapist has no revenue share set, or the
+ * patient came from a hospital whose share is not configured. Those are
+ * counted in excludedCount/excludedRevenuePaise and their value is left out
+ * of splittableNetPaise, so the clinic share is a true figure over a stated
+ * subset rather than a guess over everything.
+ */
 export function moneyByBucketFor(
   dimFiltered: MetricsAppointment[],
   buckets: PeriodBucket[],
@@ -252,9 +266,15 @@ export function moneyByBucketFor(
   // cut is correct) vs. "hospital-referred but the hospital's share isn't
   // configured yet" (unknowable, must be excluded like the therapist-share
   // case below -- see this function's own comment on the "don't guess" rule).
-  hospitalReferredPatientIds: Record<string, true>
+  hospitalReferredPatientIds: Record<string, true>,
+  // therapistId -> home_visit_revenue_share_percent, for therapists who
+  // have a separate rate for visits. Falls back to the online share when a
+  // therapist has none, the same rule the payout math uses.
+  therapistHomeVisitSharePercent: Record<string, number> = {}
 ): MoneyByBucket {
-  const revenuePaise = buckets.map(() => 0);
+  const grossRevenuePaise = buckets.map(() => 0);
+  const refundedPaise = buckets.map(() => 0);
+  const splittableNetPaise = buckets.map(() => 0);
   const therapistCutPaise = buckets.map(() => 0);
   const hospitalCutPaise = buckets.map(() => 0);
   let excludedCount = 0;
@@ -267,31 +287,57 @@ export function moneyByBucketFor(
     if (idx < 0) continue;
 
     const paidPaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
-    const tShare = a.therapist_id ? therapistSharePercent[a.therapist_id] : undefined;
-    if (tShare === undefined) {
-      excludedCount += 1;
-      excludedRevenuePaise += paidPaise;
-      continue;
-    }
+    const refundPaise =
+      a.refund_status === "processed" ? Math.max(0, a.refund_amount_paise ?? 0) : 0;
+    const netPaise = Math.max(0, paidPaise - refundPaise);
+
+    // Revenue first, unconditionally -- it does not depend on anyone having
+    // configured a split.
+    grossRevenuePaise[idx] += paidPaise;
+    refundedPaise[idx] += refundPaise;
+
+    const onlineShare = a.therapist_id ? therapistSharePercent[a.therapist_id] : undefined;
     const hShare = patientHospitalSharePercent[a.patient_id];
-    if (hShare === undefined && hospitalReferredPatientIds[a.patient_id]) {
+    const hospitalShareUnknown = hShare === undefined && !!hospitalReferredPatientIds[a.patient_id];
+    if (onlineShare === undefined || hospitalShareUnknown) {
       excludedCount += 1;
       excludedRevenuePaise += paidPaise;
       continue;
     }
 
-    revenuePaise[idx] += paidPaise;
-    therapistCutPaise[idx] += Math.round((paidPaise * tShare) / 100);
+    splittableNetPaise[idx] += netPaise;
+
+    if (a.status === "completed") {
+      const isHomeVisit = a.visit_mode === "home_visit";
+      const homeShare = a.therapist_id
+        ? therapistHomeVisitSharePercent[a.therapist_id]
+        : undefined;
+      const effectiveShare = isHomeVisit ? homeShare ?? onlineShare : onlineShare;
+      const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
+      therapistCutPaise[idx] += Math.round((paidPaise * effectiveShare) / 100) + travelPaise;
+    }
+
     if (hShare !== undefined) {
-      hospitalCutPaise[idx] += Math.round((paidPaise * hShare) / 100);
+      hospitalCutPaise[idx] += Math.round((netPaise * hShare) / 100);
     }
   }
 
-  const profitPaise = buckets.map(
-    (_, i) => revenuePaise[i] - therapistCutPaise[i] - hospitalCutPaise[i]
+  const netRevenuePaise = buckets.map((_, i) => grossRevenuePaise[i] - refundedPaise[i]);
+  const clinicSharePaise = buckets.map(
+    (_, i) => splittableNetPaise[i] - therapistCutPaise[i] - hospitalCutPaise[i]
   );
 
-  return { revenuePaise, therapistCutPaise, hospitalCutPaise, profitPaise, excludedCount, excludedRevenuePaise };
+  return {
+    grossRevenuePaise,
+    refundedPaise,
+    netRevenuePaise,
+    splittableNetPaise,
+    therapistCutPaise,
+    hospitalCutPaise,
+    clinicSharePaise,
+    excludedCount,
+    excludedRevenuePaise,
+  };
 }
 
 // Narrowed to exactly the fields these two read (rather than the full

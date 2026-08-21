@@ -101,7 +101,7 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
           admin
             .from("appointments")
             .select(
-              "id, concern, slot_time, timezone, status, payment_status, amount_paid_paise, patient_id, therapist_id, created_at"
+              "id, concern, slot_time, timezone, status, payment_status, amount_paid_paise, patient_id, therapist_id, created_at, refund_status, refund_amount_paise"
             )
             .in("patient_id", referredPatientIds)
             .order("created_at", { ascending: false }),
@@ -129,11 +129,21 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
   );
   // Sums what was actually charged per session rather than recalculating
   // against the current session fee, so this stays correct even if pricing
-  // changes later.
-  const totalRevenue = paidSessions.reduce(
-    (sum, s) => sum + (s.amount_paid_paise ?? SESSION_FEE_PAISE) / 100,
-    0
-  );
+  // changes later -- then subtracts refunds that actually processed.
+  //
+  // The refund step matters beyond arithmetic: a referral commission is a
+  // share of money the clinic *kept*, so a refunded session earns none. The
+  // admin's own Money screen takes the partner's share on net revenue for
+  // exactly this reason (see moneyByBucketFor), and without the same rule
+  // here the two screens would quote a partner two different numbers for
+  // the same referrals.
+  const totalRevenuePaise = paidSessions.reduce((sum, s) => {
+    const grossPaise = s.amount_paid_paise ?? SESSION_FEE_PAISE;
+    const refundPaise =
+      s.refund_status === "processed" ? Math.max(0, s.refund_amount_paise ?? 0) : 0;
+    return sum + Math.max(0, grossPaise - refundPaise);
+  }, 0);
+  const totalRevenue = totalRevenuePaise / 100;
   const sharePercent = profile?.revenue_share_percent ?? 0;
   const hospitalCut = (totalRevenue * sharePercent) / 100;
   const companyCut = totalRevenue - hospitalCut;
@@ -176,7 +186,7 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     {
       label: "Your share",
       value: `₹${hospitalCut.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
-      note: `${sharePercent}% of ₹${totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })} collected`,
+      note: `${sharePercent}% of ₹${totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })} kept after refunds`,
       accent: "bg-emerald-500",
       href: "/hospital/dashboard/revenue",
     },

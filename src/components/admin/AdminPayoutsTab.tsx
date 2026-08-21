@@ -168,10 +168,11 @@ export default function AdminPayoutsTab({
         </div>
         <p className="text-[11px] text-slate-400 mb-4">
           All-time, not date-filtered — a payout balance can&apos;t depend on which dates happen
-          to be in view. Revenue/cut count a session once it&apos;s paid; cut and profit only once
-          it&apos;s completed too, matching how payouts are actually settled. Net payable is what
-          owed subtracts any cash a therapist is currently holding from home-visit collections —
-          that&apos;s the figure the Pay button actually transfers.
+          to be in view. Revenue billed counts a session once the patient pays; a therapist&apos;s
+          share is only earned once they have actually delivered it, matching how payouts settle.
+          Net payable subtracts any cash the therapist is currently holding from home-visit
+          collections — that is the figure the Pay button transfers, and settling records that
+          cash as remitted.
         </p>
 
         <div className="overflow-x-auto">
@@ -181,9 +182,9 @@ export default function AdminPayoutsTab({
                 <th className="pb-2 pr-3 font-semibold">Therapist</th>
                 <th className="pb-2 pr-3 font-semibold text-right">Completed</th>
                 <th className="pb-2 pr-3 font-semibold text-right">Upcoming</th>
-                <th className="pb-2 pr-3 font-semibold text-right">Revenue</th>
-                <th className="pb-2 pr-3 font-semibold text-right">Therapist&apos;s Cut</th>
-                <th className="pb-2 pr-3 font-semibold text-right">Profit</th>
+                <th className="pb-2 pr-3 font-semibold text-right">Revenue billed</th>
+                <th className="pb-2 pr-3 font-semibold text-right">Therapist&apos;s share</th>
+                <th className="pb-2 pr-3 font-semibold text-right" title="Revenue from this therapist&apos;s sessions less their own share. Unlike Clinic share on the Summary screen, this does not deduct any partner hospital&apos;s referral commission.">Left after their share</th>
                 <th className="pb-2 pr-3 font-semibold">Status</th>
                 <th className="pb-2 font-semibold">Action</th>
               </tr>

@@ -129,12 +129,48 @@ so a still-valid session cookie can't call the API around the UI gate.
 
 | Section | Screens | Answers |
 | --- | --- | --- |
-| **Today** | Action Inbox | What is waiting on me right now |
+| **Today** | Today · Approvals | What is waiting on me right now |
 | **Sessions** | Schedule · All Sessions · Roster · New Booking | What is being delivered, and by whom |
 | **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
 | **Money** | Summary · Transactions · Payouts · Performance | What came in, what goes out, what is still owed |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
 | **Settings** | Brand & Contact · Public Site · Booking Rules · Clinical Questions · Team & Access · System Health · Activity Log · Account Security | How the product behaves |
+
+**How the Money screens divide a rupee.** Every figure on Money → Summary
+comes out of one function, `moneyByBucketFor` in `src/lib/adminMetrics.ts`,
+so the stat strip, the cards and the breakdown chart cannot disagree. Two
+identities always hold:
+
+```
+net revenue  = gross revenue - refunds processed
+clinic share = splittable net - therapists' share - partners' share
+```
+
+- **Gross revenue** — everything charged for sessions whose slot falls in
+  the selected range.
+- **Refunded** — refunds that actually processed, not ones that failed or
+  were never eligible.
+- **Therapists' share** — earned only on sessions actually *delivered*
+  (`completed`), at that therapist's own rate, with a home visit's travel
+  fee added in full. A session paid for but never delivered earns nobody a
+  share.
+- **Partners' share** — a referring hospital's commission, taken on net
+  revenue, so a refund reverses the commission with it.
+- **Clinic share** — what is left, before running costs. Deliberately not
+  called profit: no cost of operating the business has been deducted.
+
+Revenue and the split have different eligibility on purpose. Gross, refunds
+and net count every paid session; the split leaves out any session whose
+division cannot be known — the therapist has no revenue share set, or the
+patient came from a partner whose share is not configured — and the screen
+names how many and how much rather than guessing a percentage.
+
+**Balances are not date-filtered.** "Owed to therapists" is the all-time
+balance, already net of cash therapists are holding from home visits, and is
+the same number the Payouts screen and the Pay button use. Everything beside
+it (revenue, refunds, what was settled) is scoped to the dates in view. Each
+label says which it is. `MoneyGlossary` sits at the bottom of all four Money
+screens with the full list.
 
 The visible screen is in the URL (`?section=&tab=`), written with the
 History API rather than a router navigation — this page is one Server

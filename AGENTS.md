@@ -416,12 +416,57 @@ client is the only writer and the log is append-only from any session.
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.
-- **One word, one money figure.** "Recognised revenue" is what has been
-  earned (a package counts one session at a time); "Package cash collected"
-  is what came into the bank up front. Gross/Net Revenue keep their standard
-  meanings. `MoneyGlossary` states each one on the Money screens -- if a new
-  figure needs a word that is already taken, rename the figure, don't
-  overload the word.
+- **One word, one money figure.** "Package cash collected" is what came into
+  the bank up front; revenue recognises that same money gradually, one
+  session at a time. Gross/Net Revenue keep their standard meanings.
+  `MoneyGlossary` states each one and renders on **every** Money screen --
+  if a new figure needs a word that is already taken, rename the figure,
+  don't overload the word, and if two figures end up with the same meaning
+  delete one rather than explaining the difference.
+- **The revenue split has one source and two invariants.**
+  `moneyByBucketFor` (`src/lib/adminMetrics.ts`) is the only place the
+  clinic's money is divided up, so the strip, the tiles and the breakdown
+  chart cannot disagree. Two identities must always hold:
+  `net = gross - refunds` and
+  `clinic share = splittable net - therapists' share - partners' share`.
+  Three rules decide the split, each one a correction of a real
+  misstatement:
+  1. A therapist's share is earned by **delivering**, not by being booked —
+     only a `completed` paid session adds to it, the same rule
+     `computeTherapistPayoutSummary` and `settle-therapist-payout` enforce.
+     Counting every paid session deducted a share nobody would ever be paid,
+     which understated the clinic's take on every forfeited late
+     cancellation.
+  2. A home visit's **travel fee is part of the therapist's share** and
+     never revenue, so the Money screens must be passed the
+     payout-enriched appointments (`visit_mode`, `travel_fee_paise`, the
+     cash columns) and the per-therapist home-visit rate. Passing the plain
+     array silently moved the whole travel bill into the clinic's share.
+  3. **Refunds reverse the partner's commission, not the therapist's** — a
+     refunded session was cancelled, so it never earned a therapist share,
+     and a hospital's cut is taken on net revenue. This is what lets the
+     clinic share be exact instead of the "approximate" figure it used to
+     be labelled.
+  Revenue and the split have **different eligibility**: gross, refunds and
+  net count every paid session, while a session whose split is unknowable
+  (no therapist share set, or a partner with no share configured) is
+  excluded from the split alone and surfaced as a named count. Never guess
+  a percentage to make the numbers tie.
+- **A balance is never date-filtered.** "Owed to therapists" is all-time and
+  net of cash held, matching the Payouts screen and what the Pay button
+  actually transfers — scoping it to the range in view let an admin read
+  "nothing owed" off a quiet week while a real debt sat outside the window.
+  Flows (revenue, refunds, what was settled) are range-scoped; balances are
+  not, and the label has to say which it is.
+- **Netting cash off a payout is a remittance.** `settle-therapist-payout`
+  reduces the transfer by the cash a therapist is holding, so it marks
+  exactly those visits `cash_remitted_at` in the same run. Without that the
+  same rupees were deducted again on the next payout and the Cash Ledger
+  went on asking someone to chase money already recovered. The one
+  exception is a therapist holding **more** than they are owed: the transfer
+  floors at zero, the difference stays as `stillOwedToBusinessPaise`, and
+  those collections deliberately stay open on the Cash Ledger for a person
+  to chase.
 - **Admin-configurable behavior** (Meet on/off, join window, idle timeout,
   booking languages, the online booking lead time and cancellation refund
   window, the package-wide settings — visibility, default
