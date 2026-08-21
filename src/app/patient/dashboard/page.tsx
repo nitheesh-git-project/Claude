@@ -106,7 +106,7 @@ export default async function PatientDashboardPage() {
             href: "/patient/dashboard/sessions",
           },
           {
-            label: "Your receipts",
+            label: "Your payments",
             hint: "Every payment and refund",
             icon: "fa-receipt",
             href: "/patient/dashboard/payments",
