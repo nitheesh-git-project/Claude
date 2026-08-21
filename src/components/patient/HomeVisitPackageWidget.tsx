@@ -52,7 +52,7 @@ export default function HomeVisitPackageWidget({
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-bold text-lg text-slate-800 mb-4">Your Home Visit Packages</h2>
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Your Home Visit Packages</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         {purchases.map((p) => {
           const counts = computeHomeVisitCounts({

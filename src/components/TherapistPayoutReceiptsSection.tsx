@@ -40,7 +40,7 @@ export default function TherapistPayoutReceiptsSection({
 
   return (
     <div className="mt-8">
-      <h2 className="font-bold text-lg text-slate-800 mb-1">Payout Receipts</h2>
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Payout Receipts</h2>
       <p className="text-xs text-slate-500 mb-4">
         A record of every settlement paid out to you, and exactly which sessions each one covered.
       </p>

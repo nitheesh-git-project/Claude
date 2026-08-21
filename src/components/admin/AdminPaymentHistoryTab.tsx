@@ -352,7 +352,7 @@ export default function AdminPaymentHistoryTab({
     <div className="space-y-6">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-          <h2 className="font-bold text-lg text-slate-800">Patient Payment History</h2>
+          <h2 className="font-display font-bold text-lg text-slate-800">Patient Payment History</h2>
           <div className="flex items-center gap-3">
             <p className="text-xs text-slate-500">
               Money in, all-time: <strong className="text-teal-700">{formatInr(totalPatientSpendPaise)}</strong>
@@ -410,7 +410,7 @@ export default function AdminPaymentHistoryTab({
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-          <h2 className="font-bold text-lg text-slate-800">Therapist Payment History</h2>
+          <h2 className="font-display font-bold text-lg text-slate-800">Therapist Payment History</h2>
           <div className="flex items-center gap-3">
             <p className="text-xs text-slate-500">
               Money out, all-time: <strong className="text-teal-700">{formatInr(totalTherapistPaidOutPaise)}</strong>
@@ -468,7 +468,7 @@ export default function AdminPaymentHistoryTab({
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-          <h2 className="font-bold text-lg text-slate-800">Receipts</h2>
+          <h2 className="font-display font-bold text-lg text-slate-800">Receipts</h2>
           <DownloadCsvButton
             filename={`receipts-${today}.csv`}
             csv={receiptsCsv}

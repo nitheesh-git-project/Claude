@@ -100,7 +100,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-lg text-slate-800">Patient Care Intake</h2>
+          <h2 className="font-display font-bold text-lg text-slate-800">Patient Care Intake</h2>
           <div className="flex items-center gap-2">
             {status === "active" && (
               <span className="rounded-full bg-slate-100 px-2 py-1 font-mono text-[10px] font-semibold text-slate-400">
@@ -194,7 +194,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       </section>
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">Therapist Access</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Therapist Access</h2>
         {requestedGrants.length === 0 && approvedGrants.length === 0 ? (
           <p className="text-xs text-slate-500">No therapist has requested access to this patient&apos;s condition data.</p>
         ) : (
@@ -218,7 +218,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       </section>
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Pain Map</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Pain Map</h2>
         <p className="text-xs text-slate-500 mb-4">
           Exam findings, and the same figure switched to compare them against what the patient reported.
         </p>

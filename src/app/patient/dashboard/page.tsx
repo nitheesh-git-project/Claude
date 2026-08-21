@@ -12,6 +12,7 @@ import PackageChip from "@/components/packages/PackageChip";
 import ReceiptsSection from "@/components/ReceiptsSection";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
+import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import { StripProgress, type StatCell } from "@/components/dashboard/StatStrip";
 import { buildPatientFeed } from "@/lib/dashboardFeed";
 import OnboardingTour from "@/components/patient/OnboardingTour";
@@ -785,62 +786,68 @@ export default async function PatientDashboardPage() {
           has only ever had video calls must still be able to find home
           visits -- hiding a product until someone has already used it is
           how they never discover it. */}
-      <div id="book" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Book a Session</h2>
-        <p className="text-xs text-slate-500 mb-5">
-          Everything you can book, in one place.
-        </p>
+      <SurfaceCard
+        id="book"
+        title="Book a Session"
+        icon="fa-plus"
+        subtitle="Everything you can book, in one place."
+      >
         <PatientBookingHub
           categories={bookableCategories ?? []}
           onlinePackages={hubOnlinePackages}
           homeVisitPackages={hubHomeVisitPackages}
           categoryPriceById={categoryPriceById}
         />
-      </div>
+      </SurfaceCard>
 
       {onlineAppointments.length > 0 && (
-        <div id="sessions" className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-lg text-slate-800">Your Sessions</h2>
-            {/* ?from=dashboard so Back off the booking page returns here, to
-                Your Sessions -- see BookingBackToSessions. */}
+        <SurfaceCard
+          id="sessions"
+          title="Your Sessions"
+          icon="fa-calendar-check"
+          subtitle="Video consultations, newest first."
+          className="mt-8"
+          actions={
+            /* ?from=dashboard so Back off the booking page returns here, to
+               Your Sessions -- see BookingBackToSessions. */
             <Link
               href={BOOKING_FROM_DASHBOARD}
-              className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"
+              className="rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-800"
             >
               Book New Session
             </Link>
-          </div>
-
+          }
+        >
           <ul className="space-y-3">
             {onlineAppointments.map((a) => (
               <li key={a.id}>{renderAppointmentCard(a)}</li>
             ))}
           </ul>
-        </div>
+        </SurfaceCard>
       )}
 
       {homeVisitAppointments.length > 0 && (
-        <div
+        <SurfaceCard
           id="home-visits"
-          className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-6"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-lg text-slate-800">Your Home Visits</h2>
+          title="Your Home Visits"
+          icon="fa-house-medical"
+          subtitle="A therapist coming to your address."
+          className="mt-8"
+          actions={
             <Link
               href="/book-home-visit"
-              className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"
+              className="rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-800"
             >
               Book a Home Visit
             </Link>
-          </div>
-
+          }
+        >
           <ul className="space-y-3">
             {homeVisitAppointments.map((a) => (
               <li key={a.id}>{renderAppointmentCard(a, visitDetailById.get(a.id) ?? null)}</li>
             ))}
           </ul>
-        </div>
+        </SurfaceCard>
       )}
 
       <div id="calendar" className="mt-8">
@@ -905,12 +912,13 @@ export default async function PatientDashboardPage() {
       )}
 
       {adminSettings.sessionPackagesVisible && availablePackages && availablePackages.length > 0 && (
-        <div id="session-packages" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
-          <h2 className="font-bold text-lg text-slate-800 mb-1">Session Packages</h2>
-          <p className="text-xs text-slate-500 mb-4">
-            Buy a bundle of sessions upfront and use them one at a time,
-            whenever you&apos;re ready to book.
-          </p>
+        <SurfaceCard
+          id="session-packages"
+          title="Session Packages"
+          icon="fa-layer-group"
+          subtitle="Buy a bundle of sessions upfront and use them one at a time, whenever you're ready to book."
+          className="mt-8"
+        >
           <ul className="space-y-3">
             {availablePackages.map((pkg) => {
               const savings = computePackageSavings({
@@ -951,10 +959,10 @@ export default async function PatientDashboardPage() {
               );
             })}
           </ul>
-        </div>
+        </SurfaceCard>
       )}
 
-      <div id="receipts">
+      <div id="receipts" className="mt-8">
         <ReceiptsSection
           receipts={buildPatientReceipts(
             appointments ?? [],

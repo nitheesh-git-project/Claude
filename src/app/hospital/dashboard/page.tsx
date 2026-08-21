@@ -5,6 +5,7 @@ import SubmitReferralForm from "@/components/hospital/SubmitReferralForm";
 import WithdrawReferralButton from "@/components/hospital/WithdrawReferralButton";
 import DashboardShell, { type ShellNavItem } from "@/components/dashboard/DashboardShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
+import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import type { StatCell } from "@/components/dashboard/StatStrip";
 import { buildHospitalFeed } from "@/lib/dashboardFeed";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -249,21 +250,27 @@ export default async function HospitalDashboardPage() {
 
         <div className="mt-6" />
 
-        <div id="refer" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-4">
-            Refer a Patient
-          </h2>
+        <SurfaceCard
+          id="refer"
+          title="Refer a Patient"
+          icon="fa-user-plus"
+          subtitle="Send a patient across and the clinic takes it from there."
+        >
           <SubmitReferralForm hospitalId={user.id} homeVisitEnabled={adminSettings.homeVisitEnabled} />
-        </div>
+        </SurfaceCard>
 
-        <div id="referrals" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-4">
-            Your Referrals
-          </h2>
+        <SurfaceCard
+          id="referrals"
+          title="Your Referrals"
+          icon="fa-list-check"
+          subtitle="Everyone you've sent, and where each one stands."
+        >
           {!referrals || referrals.length === 0 ? (
-            <p className="text-xs text-slate-500 py-4 text-center">
-              You haven&apos;t submitted any referrals yet.
-            </p>
+            <EmptyState
+              icon="fa-hospital-user"
+              title="No referrals yet"
+              body="Send your first patient across and it appears here with its status."
+            />
           ) : (
             <ul className="space-y-3">
               {referrals.map((r) => (
@@ -306,13 +313,16 @@ export default async function HospitalDashboardPage() {
               ))}
             </ul>
           )}
-        </div>
+        </SurfaceCard>
       </div>
 
-      <div id="revenue" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">
-          Revenue & Payouts
-        </h2>
+      <SurfaceCard
+        id="revenue"
+        title="Revenue & Payouts"
+        icon="fa-chart-line"
+        subtitle="What the patients you referred have paid, and your share of it."
+        className="mt-6"
+      >
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <div className="bg-slate-50 rounded-xl p-3 text-center">
             <p className="text-[11px] text-slate-500">Revenue Share</p>
@@ -339,9 +349,11 @@ export default async function HospitalDashboardPage() {
         </div>
 
         {!referredSessions || referredSessions.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">
-            No sessions from your referred patients yet.
-          </p>
+          <EmptyState
+            icon="fa-calendar-check"
+            title="No sessions yet"
+            body="Once a patient you referred completes a paid session, it appears here with your share of it."
+          />
         ) : (
           <ul className="space-y-2 text-xs">
             {referredSessions.map((s) => (
@@ -388,7 +400,7 @@ export default async function HospitalDashboardPage() {
             ))}
           </ul>
         )}
-      </div>
+      </SurfaceCard>
     </DashboardShell>
     </JoinWindowProvider>
   );

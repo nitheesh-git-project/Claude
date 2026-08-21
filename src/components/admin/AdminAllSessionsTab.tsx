@@ -358,7 +358,7 @@ export default function AdminAllSessionsTab({
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
         <div>
-          <h2 className="font-bold text-lg text-slate-800">
+          <h2 className="font-display font-bold text-lg text-slate-800">
             All Sessions
             <span className="ml-2 text-xs font-normal text-slate-400">
               {rows.length} of {appointments.length}

@@ -163,7 +163,7 @@ export default async function TherapistPatientHealthProfilePage({
 
         {!hasApprovedAccess && (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <h2 className="font-bold text-lg text-slate-800 mb-1">Edit access</h2>
+            <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Edit access</h2>
             {grant?.status === "requested" && (
               <p className="text-sm text-amber-700">Waiting for admin approval to edit this patient&apos;s data.</p>
             )}
@@ -183,7 +183,7 @@ export default async function TherapistPatientHealthProfilePage({
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="font-bold text-lg text-slate-800">Patient Care Intake</h2>
+            <h2 className="font-display font-bold text-lg text-slate-800">Patient Care Intake</h2>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
               {CONDITION_STATUS_LABEL[status]}
             </span>
@@ -215,7 +215,7 @@ export default async function TherapistPatientHealthProfilePage({
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-bold text-lg text-slate-800 mb-1">Pain Map</h2>
+          <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Pain Map</h2>
           <p className="text-xs text-slate-500 mb-4">
             {hasApprovedAccess
               ? "Your exam findings. Switch to the comparison to see them against what the patient reported."

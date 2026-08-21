@@ -76,7 +76,7 @@ export default function AdminActivityLogTab({
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-bold text-lg text-slate-800">Activity Log</h2>
+          <h2 className="font-display font-bold text-lg text-slate-800">Activity Log</h2>
           <p className="mt-1 text-xs text-slate-500">
             Every action an admin took from this dashboard. Append-only — nothing here can be
             edited or deleted from the app.

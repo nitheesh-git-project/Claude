@@ -128,7 +128,7 @@ export default function AdminCalendarTab({
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center justify-between mb-1 flex-wrap gap-3">
         <div>
-          <h2 className="font-bold text-lg text-slate-800">Calendar &amp; Session Log</h2>
+          <h2 className="font-display font-bold text-lg text-slate-800">Calendar &amp; Session Log</h2>
           <p className="text-xs text-slate-500 mt-1">
             Select a date to see every session booked that day.
           </p>

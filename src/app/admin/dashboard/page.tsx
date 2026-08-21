@@ -644,7 +644,7 @@ export default async function AdminDashboardPage() {
   const approvalsTab = (
     <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
-        <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
           Pending Approvals
           {pendingAccounts && pendingAccounts.length > 0 && (
             <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
@@ -706,7 +706,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
-        <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
           Profile Change Requests
           {pendingProfileChanges && pendingProfileChanges.length > 0 && (
             <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
@@ -771,7 +771,7 @@ export default async function AdminDashboardPage() {
   const b2bPartners = (
     <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
-        <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
           B2B Leads
           {b2bLeads &&
             b2bLeads.filter((l) => l.status === "new").length > 0 && (
@@ -831,7 +831,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
           Hospital Partners
         </h2>
         {hospitals.length === 0 ? (
@@ -944,7 +944,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
           Patient Referrals
           {referrals &&
             referrals.filter((r) => r.status === "pending_review").length >
@@ -1069,7 +1069,7 @@ export default async function AdminDashboardPage() {
 
   const patientsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-bold text-lg text-slate-800 mb-4">
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
         Patients
         <span className="ml-2 text-xs font-normal text-slate-400">
           {patients.length} total
@@ -1117,7 +1117,7 @@ export default async function AdminDashboardPage() {
 
   const conditionsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-bold text-lg text-slate-800 mb-1">
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
         Patient Conditions
         {conditionsBadgeCount > 0 && (
           <span className="ml-2 rounded-full bg-amber-300 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
@@ -1155,7 +1155,7 @@ export default async function AdminDashboardPage() {
 
   const therapistsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-bold text-lg text-slate-800 mb-4">
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
         Therapists
         <span className="ml-2 text-xs font-normal text-slate-400">
           {allTherapists.length} total
@@ -1332,7 +1332,7 @@ export default async function AdminDashboardPage() {
       />
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
           Category Performance
         </h2>
         {!treatmentCategories || treatmentCategories.length === 0 ? (
@@ -1530,7 +1530,7 @@ export default async function AdminDashboardPage() {
   const catalogPackagesTab = (
     <div className="space-y-8">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Session Packages</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Session Packages</h2>
         <p className="text-xs text-slate-500 mb-4">
           Bundles of online sessions, priced against a condition category.
         </p>
@@ -1545,7 +1545,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Home Visit Packages</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Home Visit Packages</h2>
         <p className="text-xs text-slate-500 mb-4">
           Bundles of visits delivered at the patient&apos;s address. Different fields from the
           online packages above — visits rather than sessions, and travel is part of the deal —
@@ -1626,7 +1626,7 @@ export default async function AdminDashboardPage() {
   const catalogPurchasesTab = (
     <div className="space-y-8">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Session Package Purchases</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Session Package Purchases</h2>
         <p className="text-xs text-slate-500 mb-4">
           Every online programme bought, and how much of it has been used.
         </p>
@@ -1639,7 +1639,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Home Visit Purchases</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Home Visit Purchases</h2>
         <p className="text-xs text-slate-500 mb-4">
           The same thing for visits at the patient&apos;s address. A cash-on-visit purchase sits
           at &ldquo;unpaid&rdquo; for its whole life by design — check the payment mode before
@@ -1656,7 +1656,7 @@ export default async function AdminDashboardPage() {
 
   const catalogAreasTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-bold text-lg text-slate-800 mb-1">Service Areas</h2>
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Service Areas</h2>
       <p className="text-xs text-slate-500 mb-4">
         Which pincodes home visits can be sold in, and the travel fee each one carries. The
         waitlist below is demand from outside those areas — a request for this list to grow.
@@ -1676,7 +1676,7 @@ export default async function AdminDashboardPage() {
   // content and ratings switch are configuration (Settings).
   const catalogConditionsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-bold text-lg text-slate-800 mb-1">Conditions Treated</h2>
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Conditions Treated</h2>
       <p className="text-xs text-slate-500 mb-4">
         Controls what shows on the public /conditions page, and what patients can pick (and get
         charged) in the booking wizard.
@@ -1711,7 +1711,7 @@ export default async function AdminDashboardPage() {
       <SiteRatingsVisibilityToggle visible={siteSettings?.ratings_visible_publicly ?? true} />
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Testimonials</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Testimonials</h2>
         <p className="text-xs text-slate-500 mb-4">
           Controls what shows in the &quot;What Our Patients Say&quot; section on the Home page.
         </p>
@@ -1719,7 +1719,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">FAQ</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">FAQ</h2>
         <p className="text-xs text-slate-500 mb-4">Controls what shows on the public /faq page.</p>
         <FaqManager faqs={faqs ?? []} />
       </div>
@@ -1749,7 +1749,7 @@ export default async function AdminDashboardPage() {
 
   const settingsClinicalTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-bold text-lg text-slate-800 mb-1">Clinical Questions</h2>
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Clinical Questions</h2>
       <p className="text-xs text-slate-500 mb-4">
         The Patient Care Intake question set and the Pain Map templates. Editing these changes
         what patients and therapists are asked from here on; answers already submitted are

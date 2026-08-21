@@ -99,7 +99,7 @@ export default function TherapistAvailabilityRoster({
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-        <h2 className="font-bold text-lg text-slate-800">Your Weekly Availability</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800">Your Weekly Availability</h2>
         {!editing ? (
           <button
             onClick={handleEdit}

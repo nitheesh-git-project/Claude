@@ -220,7 +220,7 @@ export default function MyAddresses({ addresses }: { addresses: SavedAddress[] }
   return (
     <div className="space-y-3">
       <div>
-        <h2 className="font-bold text-lg text-slate-800">My Addresses</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800">My Addresses</h2>
         <p className="mt-1 text-xs text-slate-500">
           Where a therapist comes for a home visit. You can change these any time — no approval
           needed.

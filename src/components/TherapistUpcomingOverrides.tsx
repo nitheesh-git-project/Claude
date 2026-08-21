@@ -17,7 +17,7 @@ export default function TherapistUpcomingOverrides({ overrides }: { overrides: O
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-bold text-lg text-slate-800 mb-1">Schedule Changes From Admin</h2>
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Schedule Changes From Admin</h2>
       <p className="text-[11px] text-slate-400 mb-4">
         Admin has adjusted your availability for these specific dates — your regular weekly
         schedule above is unchanged otherwise.

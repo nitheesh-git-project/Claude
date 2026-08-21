@@ -28,7 +28,7 @@ export default function Modal({
       >
         <div className="flex items-start justify-between mb-4 gap-4">
           <div>
-            <h3 className="font-bold text-lg text-slate-800">{title}</h3>
+            <h3 className="font-display font-bold text-lg text-slate-800">{title}</h3>
             {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
           </div>
           <button

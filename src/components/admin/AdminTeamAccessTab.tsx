@@ -276,7 +276,7 @@ export default function AdminTeamAccessTab({
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Admins</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Admins</h2>
         <p className="text-xs text-slate-500 mb-4">
           {canManage
             ? "Change what each admin can reach. You can't change your own access, and the last full-access admin can't be narrowed — otherwise nobody could ever widen it again."
@@ -300,7 +300,7 @@ export default function AdminTeamAccessTab({
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Create an account</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Create an account</h2>
         <p className="text-xs text-slate-500 mb-4">
           For a patient who walked in, a therapist hired offline, or another admin.
         </p>

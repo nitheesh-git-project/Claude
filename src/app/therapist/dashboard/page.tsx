@@ -14,6 +14,7 @@ import PackageChip from "@/components/packages/PackageChip";
 import TherapistProgrammePatients from "@/components/packages/TherapistProgrammePatients";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
+import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import type { StatCell } from "@/components/dashboard/StatStrip";
 import { buildTherapistFeed } from "@/lib/dashboardFeed";
 import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
@@ -766,15 +767,18 @@ export default async function TherapistDashboardPage() {
         )}
       </div>
 
-      <div id="sessions" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">
-          Assigned Patient Sessions
-        </h2>
-
+      <SurfaceCard
+        id="sessions"
+        title="Assigned Patient Sessions"
+        icon="fa-clipboard-list"
+        subtitle="Video consultations the clinic has assigned to you."
+      >
         {onlineAppointments.length === 0 ? (
-          <p className="text-xs text-slate-500 py-8 text-center">
-            No sessions have been assigned to you yet.
-          </p>
+          <EmptyState
+            icon="fa-clipboard-list"
+            title="No sessions assigned yet"
+            body="Keep your weekly availability up to date — the clinic assigns bookings into the hours you have open."
+          />
         ) : (
           <ul className="space-y-3">
             {onlineAppointments.map((a) => (
@@ -782,30 +786,31 @@ export default async function TherapistDashboardPage() {
             ))}
           </ul>
         )}
-      </div>
+      </SurfaceCard>
 
       {homeVisits.length > 0 && (
-        <div
+        <SurfaceCard
           id="home-visits"
-          className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-6"
+          title="Home Visits"
+          icon="fa-house-medical"
+          subtitle="Sessions you travel to. Check the address and access notes before you set off."
+          className="mt-8"
         >
-          <h2 className="font-bold text-lg text-slate-800 mb-1">Home Visits</h2>
-          <p className="text-xs text-slate-500 mb-4">
-            Sessions you travel to. Check the address and access notes before you set off.
-          </p>
           <ul className="space-y-3">
             {homeVisits.map((a) => (
               <li key={a.id}>{renderHomeVisitCard(a)}</li>
             ))}
           </ul>
-        </div>
+        </SurfaceCard>
       )}
 
-      <div id="programmes" className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Programme Patients</h2>
-        <p className="text-xs text-slate-500 mb-4">
-          Package purchases locked to you for their whole programme — tap one for the full completed/upcoming/pending picture.
-        </p>
+      <SurfaceCard
+        id="programmes"
+        title="Programme Patients"
+        icon="fa-layer-group"
+        subtitle="Package purchases locked to you for their whole programme — tap one for the full completed/upcoming/pending picture."
+        className="mt-8"
+      >
         <TherapistProgrammePatients
           purchases={(programmePurchases ?? []).map((p) => ({
             id: p.id,
@@ -820,7 +825,7 @@ export default async function TherapistDashboardPage() {
             status: p.status,
           }))}
         />
-      </div>
+      </SurfaceCard>
 
       <div id="calendar" className="mt-8">
         {/* Both kinds share the calendar -- a therapist's day is one day,

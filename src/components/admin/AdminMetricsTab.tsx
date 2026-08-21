@@ -561,7 +561,7 @@ export default function AdminMetricsTab({
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">Filters</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Filters</h2>
         <p className="text-[11px] text-slate-400 mb-4 -mt-2">
           Applies to every chart and stat on this tab, including the revenue breakdown below.
         </p>
@@ -657,7 +657,7 @@ export default function AdminMetricsTab({
 
       {view === "summary" && (
       <div>
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Financial Summary</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Financial Summary</h2>
         <p className="text-[11px] text-slate-400 mb-3">
           Gross Revenue and Platform Margin count every paid session with slot_time in range, before
           refunds; Net Revenue and Net Platform Margin subtract processed refunds from those same two
@@ -749,7 +749,7 @@ export default function AdminMetricsTab({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-            <h2 className="font-bold text-lg text-slate-800">Therapist Ledger</h2>
+            <h2 className="font-display font-bold text-lg text-slate-800">Therapist Ledger</h2>
             <DownloadCsvButton
               filename={`therapist-ledger-${todayForFilename}.csv`}
               csv={therapistLedgerCsv}
@@ -803,7 +803,7 @@ export default function AdminMetricsTab({
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-            <h2 className="font-bold text-lg text-slate-800">Patient Ledger</h2>
+            <h2 className="font-display font-bold text-lg text-slate-800">Patient Ledger</h2>
             <DownloadCsvButton
               filename={`patient-ledger-${todayForFilename}.csv`}
               csv={patientLedgerCsv}
@@ -1034,17 +1034,17 @@ export default function AdminMetricsTab({
       {view === "summary" && (
       <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">Revenue Trend</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Revenue Trend</h2>
         <TrendBarChart buckets={buckets} values={revenueByBucket} formatValue={(v) => formatInr(v * 100)} />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">Booking Volume Trend</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Booking Volume Trend</h2>
         <TrendBarChart buckets={buckets} values={bookingsByBucket} formatValue={(v) => String(v)} />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Revenue Breakdown</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Revenue Breakdown</h2>
         <p className="text-[11px] text-slate-400 mb-4">
           Where paid revenue in this range actually goes — therapist payouts, hospital referral
           shares, and what&apos;s left as profit. Revenue and Profit totals match the Gross Revenue
@@ -1077,7 +1077,7 @@ export default function AdminMetricsTab({
 
       {view === "performance" && (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Therapist Utilization</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Therapist Utilization</h2>
         <p className="text-[11px] text-slate-400 mb-4">
           Completed sessions per therapist in range — a session-count comparison, not true capacity
           utilization (this platform doesn&apos;t track therapist working hours/availability).

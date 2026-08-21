@@ -153,7 +153,7 @@ export default function AdminPayoutsTab({
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-          <h2 className="font-bold text-lg text-slate-800">Therapist Payouts</h2>
+          <h2 className="font-display font-bold text-lg text-slate-800">Therapist Payouts</h2>
           <p className="text-xs text-slate-500">
             Owed: <strong className="text-slate-700">{formatInr(totalOwedPaise)}</strong>
             {totalCashHeldPaise > 0 && (

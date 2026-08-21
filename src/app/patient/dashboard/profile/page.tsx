@@ -158,7 +158,7 @@ export default async function PatientProfilePage() {
       </div>
 
       <div id="personal-details" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Personal Details</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Personal Details</h2>
         <p className="text-xs text-slate-500 mb-4">
           These require admin approval before they take effect.
         </p>
@@ -191,7 +191,7 @@ export default async function PatientProfilePage() {
       </div>
 
       <div id="contact-details" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">Contact Details</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Contact Details</h2>
         <InstantProfileFields
           userId={user.id}
           fields={[
@@ -217,7 +217,7 @@ export default async function PatientProfilePage() {
       </div>
 
       <div id="account-security" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-1">Account Security</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Account Security</h2>
         <p className="text-xs text-slate-500 mb-4">
           Change your password by email — this keeps your account secure.
         </p>

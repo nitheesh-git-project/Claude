@@ -148,7 +148,7 @@ export type BrandContactDetails = {
 export default function BrandContactDetailsForm({ details }: { details: BrandContactDetails }) {
   return (
     <div>
-      <h2 className="font-bold text-lg text-slate-800 mb-1">Brand &amp; Contact Details</h2>
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Brand &amp; Contact Details</h2>
       <p className="text-xs text-slate-500 mb-2">
         The practice name, tagline, and contact info shown across the site&apos;s
         navigation and footer. Editing a field here updates it everywhere it&apos;s

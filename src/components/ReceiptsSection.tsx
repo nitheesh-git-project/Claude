@@ -57,7 +57,7 @@ export default function ReceiptsSection({
 
   return (
     <div className="mt-8">
-      <h2 className="font-bold text-lg text-slate-800 mb-1">Receipts</h2>
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Receipts</h2>
       <p className="text-xs text-slate-500 mb-4">
         A record of every payment, completed session, and payment attempt on your account.
       </p>

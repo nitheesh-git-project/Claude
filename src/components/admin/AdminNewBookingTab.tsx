@@ -98,7 +98,7 @@ export default function AdminNewBookingTab({
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 max-w-2xl">
-      <h2 className="font-bold text-lg text-slate-800">New Booking</h2>
+      <h2 className="font-display font-bold text-lg text-slate-800">New Booking</h2>
       <p className="text-xs text-slate-500 mt-1 mb-5">
         For a patient who called instead of booking online. Assign a therapist now and it is
         confirmed immediately; leave it unassigned and it joins the normal queue.

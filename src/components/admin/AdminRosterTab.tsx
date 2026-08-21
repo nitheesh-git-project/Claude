@@ -240,7 +240,7 @@ export default function AdminRosterTab({
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center justify-between mb-1 flex-wrap gap-3">
         <div>
-          <h2 className="font-bold text-lg text-slate-800">Manage Roster</h2>
+          <h2 className="font-display font-bold text-lg text-slate-800">Manage Roster</h2>
           <p className="text-xs text-slate-500 mt-1">
             Each therapist&apos;s declared weekly availability, in their own local time. Click a
             slot to override it for this specific date.

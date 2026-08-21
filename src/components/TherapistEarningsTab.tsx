@@ -181,13 +181,13 @@ export default function TherapistEarningsTab({
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">Earnings Over Time</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Earnings Over Time</h2>
         <TherapistEarningsChart days={chartDays} />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-          <h2 className="font-bold text-lg text-slate-800">
+          <h2 className="font-display font-bold text-lg text-slate-800">
             Sessions
             <span className="ml-2 text-xs font-normal text-slate-400">
               {filteredRows.length} session{filteredRows.length === 1 ? "" : "s"}

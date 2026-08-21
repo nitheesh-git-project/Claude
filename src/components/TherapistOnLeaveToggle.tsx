@@ -46,7 +46,7 @@ export default function TherapistOnLeaveToggle({ initialOnLeave }: { initialOnLe
       }`}
     >
       <div>
-        <h2 className="font-bold text-lg text-slate-800">
+        <h2 className="font-display font-bold text-lg text-slate-800">
           {onLeave ? "You're Marked Not Available" : "You're Available for Bookings"}
         </h2>
         <p className="text-[11px] text-slate-400 mt-1">

@@ -38,7 +38,7 @@ export default function AdminPayoutRequestsTab({ requests }: { requests: PayoutR
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
           Payout Requests
           {open.length > 0 && (
             <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
@@ -100,7 +100,7 @@ export default function AdminPayoutRequestsTab({ requests }: { requests: PayoutR
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-bold text-lg text-slate-800 mb-4">Completed Requests</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Completed Requests</h2>
         {completed.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">No completed requests yet.</p>
         ) : (
