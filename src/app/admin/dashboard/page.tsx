@@ -7,6 +7,9 @@ import DeclineAccountButton from "@/components/admin/DeclineAccountButton";
 import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
 import AssignReferralForm from "@/components/admin/AssignReferralForm";
 import AdminShell, { type AdminScreens } from "@/components/admin/AdminShell";
+import DashboardOverview from "@/components/dashboard/DashboardOverview";
+import type { StatCell } from "@/components/dashboard/StatStrip";
+import { buildAdminFeed } from "@/lib/dashboardFeed";
 import AdminTodayTab, { type InboxGroup } from "@/components/admin/AdminTodayTab";
 import AdminAllSessionsTab from "@/components/admin/AdminAllSessionsTab";
 import AdminNewBookingTab from "@/components/admin/AdminNewBookingTab";
@@ -1964,6 +1967,83 @@ export default async function AdminDashboardPage() {
 
   const allowedSections = sectionsForScope(viewerScope);
 
+  const inboxTotal = inboxGroups.reduce(
+    (sum, g) => sum + g.items.reduce((s, i) => s + i.count, 0),
+    0
+  );
+
+  const adminFeed = buildAdminFeed({
+    activity: activityRows.slice(0, 10).map((r) => ({
+      id: r.id,
+      action: r.action,
+      created_at: r.createdAt,
+      actor_name: r.actorName,
+      summary: r.targetLabel ? `${r.action.replaceAll("_", " ")} — ${r.targetLabel}` : null,
+    })),
+    pendingApprovals: pendingAccounts?.length ?? 0,
+    pendingRequests: pendingProfileChanges?.length ?? 0,
+    failedSyncs: googleMeetSyncIssues.length,
+  });
+
+  const adminOverviewCells: StatCell[] = [
+    {
+      label: "Sessions today",
+      value: String(sessionsToday.length),
+      note:
+        unassignedToday > 0
+          ? `${unassignedToday} with no therapist yet`
+          : "All of today's work is assigned",
+      accent: unassignedToday > 0 ? "bg-amber-500" : "bg-teal-500",
+    },
+    {
+      label: "Needs a person",
+      value: String(inboxTotal),
+      note: inboxTotal === 0 ? "The queues are clear" : "Across approvals, scheduling and money",
+      accent: inboxTotal > 0 ? "bg-red-500" : "bg-emerald-500",
+    },
+    {
+      label: "Unassigned sessions",
+      value: String(unassignedTotal),
+      note: "Booked but nobody is running them",
+      accent: unassignedTotal > 0 ? "bg-amber-500" : "bg-emerald-500",
+    },
+    {
+      label: "Cash to remit",
+      value: String(cashOwedByTherapists),
+      unit: cashOwedByTherapists === 1 ? "visit" : "visits",
+      note:
+        manualRefundsPending > 0
+          ? `${manualRefundsPending} manual refund${manualRefundsPending === 1 ? "" : "s"} pending too`
+          : "Cash collected on home visits, not yet handed in",
+      accent: cashOwedByTherapists > 0 ? "bg-amber-500" : "bg-emerald-500",
+    },
+  ];
+
+  const adminOverviewTab = (
+    <DashboardOverview
+      greeting="The clinic today"
+      headline={
+        inboxTotal > 0
+          ? `${inboxTotal} thing${inboxTotal === 1 ? "" : "s"} waiting on an admin, and ${sessionsToday.length} session${
+              sessionsToday.length === 1 ? "" : "s"
+            } scheduled today.`
+          : `Nothing is waiting on you. ${sessionsToday.length} session${
+              sessionsToday.length === 1 ? "" : "s"
+            } scheduled today.`
+      }
+      cells={adminOverviewCells}
+      feed={adminFeed}
+      feedTitle="Activity and queues"
+      feedEmptyBody="Admin actions and anything waiting on a person appear here."
+      actions={[
+        { label: "Open the action inbox", hint: "Every queue, with counts", icon: "fa-inbox", href: "/admin/dashboard?section=today&tab=inbox", primary: true },
+        { label: "Approvals", hint: "Signups and profile change requests", icon: "fa-user-check", href: "/admin/dashboard?section=today&tab=approvals" },
+        { label: "All sessions", hint: "Assign, reschedule, refund", icon: "fa-calendar-check", href: "/admin/dashboard?section=sessions&tab=all" },
+        { label: "Money summary", hint: "Revenue, payouts and cash", icon: "fa-indian-rupee-sign", href: "/admin/dashboard?section=money&tab=summary" },
+      ]}
+    />
+  );
+
   const todayTab = (
     <AdminTodayTab
       groups={inboxGroups}
@@ -2040,6 +2120,7 @@ export default async function AdminDashboardPage() {
   // Every screen, keyed "<section>:<tab>" exactly as ADMIN_SECTIONS defines
   // them. The shell only decides which key is visible.
   const screens: AdminScreens = {
+    "today:overview": adminOverviewTab,
     "today:inbox": todayTab,
     "today:approvals": approvalsTab,
     "sessions:schedule": calendarTab,
@@ -2081,10 +2162,7 @@ export default async function AdminDashboardPage() {
   // Badges, keyed the same way. A section's own badge is the sum of its
   // tabs', computed inside the shell so the two can never disagree.
   const badges: Record<string, number> = {
-    "today:inbox": inboxGroups.reduce(
-      (sum, g) => sum + g.items.reduce((s, i) => s + i.count, 0),
-      0
-    ),
+    "today:inbox": inboxTotal,
     "sessions:all": unassignedTotal,
     "today:approvals": (pendingAccounts?.length ?? 0) + (pendingProfileChanges?.length ?? 0),
     "people:patients": conditionsBadgeCount,

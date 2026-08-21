@@ -428,6 +428,25 @@ address and a serviceable pincode.
 **Realtime.** `src/components/RealtimeRefresh.tsx` subscribes to Supabase
 Realtime so dashboards refresh when the underlying rows change.
 
+**Dashboard Overview (all four roles).** Patient, therapist, hospital and
+admin dashboards each open on the same Overview screen
+(`src/components/dashboard/DashboardOverview.tsx`): four headline figures,
+a notification feed, and a quick-actions list. The figures differ per role
+(a patient's next session and health-profile completeness; a therapist's
+sessions today, sessions to mark complete and money owed; a hospital's
+referrals and revenue share; the admin's sessions today, queue totals,
+unassigned sessions and cash to remit) but the layout, wording style and
+components are identical. The admin's Overview is the first tab of
+**Today**, ahead of the exhaustive Action Inbox.
+
+The feed is derived rather than stored (`src/lib/dashboardFeed.ts`): every
+item comes from rows the page already queries — appointment statuses,
+condition change requests, payouts, referrals, `admin_activity_log` — so
+there is no notifications table and nothing for a cron to write. Items that
+still need the viewer carry `needsYou`, which pins them to the top and
+drives the "N things need you" count; there is deliberately no read/unread
+state.
+
 **Patient Care Intake and Pain Map.** Two linked but separate layers of a
 patient's condition data, both surfaced on `/patient/dashboard/health-profile`
 (patient), the therapist's `/therapist/dashboard/health-profile/[patientId]`,

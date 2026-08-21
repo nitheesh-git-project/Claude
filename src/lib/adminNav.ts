@@ -36,6 +36,10 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     icon: "fa-inbox",
     blurb: "Everything waiting on you, in one list.",
     tabs: [
+      // The same Overview every other dashboard opens on: today's numbers,
+      // the notification feed, and the actions an admin takes most. The
+      // Action Inbox below it stays the exhaustive queue list.
+      { key: "overview", label: "Overview" },
       { key: "inbox", label: "Action Inbox" },
       // The inbox counts what is waiting; this is where that work is done.
       // Approvals used to sit on the patients directory, which made one

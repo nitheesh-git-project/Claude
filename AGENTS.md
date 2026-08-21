@@ -298,6 +298,19 @@ client is the only writer and the log is append-only from any session.
   back stack on a phone instead of shrinking each tap target below a
   fingertip. See the "Patient Care Intake and Pain Map" section in README.md
   for the full flow.
+- **Every dashboard opens on the same Overview.** Patient, therapist,
+  hospital and admin all render `DashboardOverview.tsx` — a strip of four
+  figures (`StatStrip`), the notification feed (`ActivityFeed`), and a
+  quick-actions list — in that order, because that is the order people ask
+  "how am I doing / what needs me / what do I do next". Sections are
+  `SurfaceCard`, statuses are `StatusPill`, blank states are `EmptyState`
+  (all in `src/components/dashboard/`); do not hand-roll another white
+  rounded box with a bold heading. The feed itself is *derived*, not
+  stored: `src/lib/dashboardFeed.ts` turns rows each page already queries
+  into `FeedItem`s, so there is no notifications table to keep in sync and
+  no cron to write it (see the no-cron rule above). `needsYou` replaces
+  read/unread — it marks what is still waiting on the viewer, and the feed
+  pins those to the top and counts them.
 - **The admin dashboard's information architecture lives in
   `src/lib/adminNav.ts`** — six sections (Today, Sessions, People, Money,
   Catalog, Settings), each with its own screens. The sidebar, the URL

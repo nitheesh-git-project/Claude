@@ -13,6 +13,9 @@ import TherapistEarningsTab from "@/components/TherapistEarningsTab";
 import PackageChip from "@/components/packages/PackageChip";
 import TherapistProgrammePatients from "@/components/packages/TherapistProgrammePatients";
 import DashboardShell from "@/components/dashboard/DashboardShell";
+import DashboardOverview from "@/components/dashboard/DashboardOverview";
+import type { StatCell } from "@/components/dashboard/StatStrip";
+import { buildTherapistFeed } from "@/lib/dashboardFeed";
 import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
 import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
 import {
@@ -346,6 +349,97 @@ export default async function TherapistDashboardPage() {
     (r) => r.status === "completed" && !r.acknowledged_at
   );
 
+  // ---- Overview -----------------------------------------------------
+  // The same three questions the other dashboards answer, in therapist
+  // terms: how is my week, what needs me, what do I do next.
+  const nowMsForOverview = nowTimestamp();
+  const upcomingSessions = (appointments ?? [])
+    .filter(
+      (a) =>
+        (a.status === "confirmed" || a.status === "requested") &&
+        a.slot_time &&
+        new Date(a.slot_time).getTime() > nowMsForOverview
+    )
+    .sort((a, b) => new Date(a.slot_time!).getTime() - new Date(b.slot_time!).getTime());
+  const nextSession = upcomingSessions[0] ?? null;
+  const todayCount = (appointments ?? []).filter((a) => {
+    if (!a.slot_time) return false;
+    const slot = new Date(a.slot_time);
+    const today = new Date(nowMsForOverview);
+    return (
+      slot.getFullYear() === today.getFullYear() &&
+      slot.getMonth() === today.getMonth() &&
+      slot.getDate() === today.getDate() &&
+      a.status !== "cancelled"
+    );
+  }).length;
+  // A session whose slot has passed but which nobody has marked complete
+  // is the therapist's own to-do -- the payout can't count it until then.
+  const awaitingCompletion = (appointments ?? []).filter(
+    (a) => a.status === "confirmed" && a.slot_time && new Date(a.slot_time).getTime() < nowMsForOverview
+  ).length;
+  const therapistFeed = buildTherapistFeed({
+    appointments: (appointments ?? []).map((a) => ({
+      id: a.id,
+      slot_time: a.slot_time,
+      status: a.status,
+      visit_mode: a.visit?.visit_mode ?? null,
+      created_at: a.slot_time,
+      patient_name: patientNameById.get(a.patient_id) ?? null,
+    })),
+    payouts: (payoutBatches ?? []).map((b) => ({
+      id: b.id,
+      status: "paid",
+      amount_paise: b.amount_paise ?? 0,
+      created_at: b.created_at,
+      paid_at: b.created_at,
+    })),
+    accessGrants: [],
+  });
+
+  const overviewCells: StatCell[] = [
+    {
+      label: "Today",
+      value: String(todayCount),
+      unit: todayCount === 1 ? "session" : "sessions",
+      note: nextSession?.slot_time
+        ? `Next at ${new Date(nextSession.slot_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+        : "Nothing scheduled today",
+      accent: "bg-teal-500",
+      href: "#sessions",
+    },
+    {
+      label: "Upcoming",
+      value: String(upcomingSessions.length),
+      unit: upcomingSessions.length === 1 ? "session" : "sessions",
+      note: "Confirmed and awaiting-assignment work",
+      accent: "bg-blue-500",
+      href: "#calendar",
+    },
+    {
+      label: "To mark complete",
+      value: String(awaitingCompletion),
+      note:
+        awaitingCompletion === 0
+          ? "Nothing waiting on you"
+          : "A session only earns once it's marked complete",
+      accent: awaitingCompletion > 0 ? "bg-amber-500" : "bg-emerald-500",
+      href: "#sessions",
+    },
+    {
+      label: "Owed to you",
+      value: `₹${(pendingOwedPaise / 100).toLocaleString("en-IN")}`,
+      note:
+        requestStatus === "none"
+          ? "Not yet requested"
+          : requestStatus === "reviewing"
+            ? "Payout request under review"
+            : "Payout request sent",
+      accent: "bg-emerald-500",
+      href: "#earnings",
+    },
+  ];
+
   const navItems = buildTherapistNavItems({ hasHomeVisits: homeVisits.length > 0 });
 
   // Shared between "Assigned Patient Sessions" and the Calendar tab's
@@ -631,6 +725,28 @@ export default async function TherapistDashboardPage() {
         </>
       }
     >
+      <DashboardOverview
+        greeting="Your practice today"
+        headline={
+          nextSession?.slot_time
+            ? `Next up: ${patientNameById.get(nextSession.patient_id) ?? "a patient"} at ${new Date(
+                nextSession.slot_time
+              ).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}.`
+            : "No sessions booked yet — keep your availability open and the clinic assigns work to it."
+        }
+        cells={overviewCells}
+        feed={therapistFeed}
+        feedEmptyBody="Assignments, completed sessions and payouts show up here as they happen."
+        actions={[
+          { label: "Set your availability", hint: "Weekly hours and day overrides", icon: "fa-calendar-days", href: "/therapist/dashboard#availability", primary: true },
+          { label: "Your assigned sessions", hint: "Join, complete, or mark a no-show", icon: "fa-clipboard-list", href: "/therapist/dashboard#sessions" },
+          { label: "Patient health profiles", hint: "Intake answers and pain maps", icon: "fa-notes-medical", href: "/therapist/dashboard/health-profile" },
+          { label: "Earnings and payouts", hint: "What you've earned and what's owed", icon: "fa-chart-line", href: "/therapist/dashboard#earnings" },
+        ]}
+      />
+
+      <div className="mt-8" />
+
       <div id="availability">
         <div className="mb-6">
           <TherapistOnLeaveToggle initialOnLeave={onLeaveProfile?.on_leave ?? false} />

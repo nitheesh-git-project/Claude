@@ -4,6 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import SubmitReferralForm from "@/components/hospital/SubmitReferralForm";
 import WithdrawReferralButton from "@/components/hospital/WithdrawReferralButton";
 import DashboardShell, { type ShellNavItem } from "@/components/dashboard/DashboardShell";
+import DashboardOverview from "@/components/dashboard/DashboardOverview";
+import type { StatCell } from "@/components/dashboard/StatStrip";
+import { buildHospitalFeed } from "@/lib/dashboardFeed";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
@@ -138,7 +141,52 @@ export default async function HospitalDashboardPage() {
   const hospitalCut = (totalRevenue * sharePercent) / 100;
   const companyCut = totalRevenue - hospitalCut;
 
+  // ---- Overview -----------------------------------------------------
+  const referralRows = referrals ?? [];
+  const pendingReferrals = referralRows.filter((r) => r.status === "pending").length;
+  const acceptedReferrals = referralRows.filter((r) => r.status === "accepted").length;
+  const hospitalFeed = buildHospitalFeed({
+    referrals: referralRows.map((r) => ({
+      id: r.id,
+      status: r.status,
+      created_at: r.created_at,
+      patient_name: r.patient_name,
+    })),
+  });
+
+  const overviewCells: StatCell[] = [
+    {
+      label: "Referrals sent",
+      value: String(referralRows.length),
+      note: pendingReferrals > 0 ? `${pendingReferrals} still with the clinic` : "All of them have been actioned",
+      accent: "bg-teal-500",
+      href: "#referrals",
+    },
+    {
+      label: "Accepted",
+      value: String(acceptedReferrals),
+      note: referralRows.length === 0 ? "Send your first referral" : "Patients the clinic took on",
+      accent: "bg-emerald-500",
+      href: "#referrals",
+    },
+    {
+      label: "Sessions delivered",
+      value: String(paidSessions.length),
+      note: "Paid sessions by patients you referred",
+      accent: "bg-blue-500",
+      href: "#revenue",
+    },
+    {
+      label: "Your share",
+      value: `₹${hospitalCut.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
+      note: `${sharePercent}% of ₹${totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })} collected`,
+      accent: "bg-emerald-500",
+      href: "#revenue",
+    },
+  ];
+
   const navItems: ShellNavItem[] = [
+    { id: "overview", label: "Overview", icon: "fa-gauge-high" },
     { id: "refer", label: "Refer a Patient", icon: "fa-user-plus" },
     { id: "referrals", label: "Your Referrals", icon: "fa-list-check" },
     { id: "revenue", label: "Revenue & Payouts", icon: "fa-chart-line" },
@@ -181,6 +229,26 @@ export default async function HospitalDashboardPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
+        <DashboardOverview
+          greeting="Your partnership at a glance"
+          headline={
+            pendingReferrals > 0
+              ? `${pendingReferrals} referral${pendingReferrals === 1 ? "" : "s"} with the clinic right now.`
+              : "Everything you've sent has been actioned — refer another patient whenever you're ready."
+          }
+          cells={overviewCells}
+          feed={hospitalFeed}
+          feedEmptyBody="Referrals you send, and what the clinic does with them, show up here."
+          actions={[
+            { label: "Refer a patient", hint: "Video consultation or home visit", icon: "fa-user-plus", href: "/hospital/dashboard#refer", primary: true },
+            { label: "Your referrals", hint: "Status of everyone you've sent", icon: "fa-list-check", href: "/hospital/dashboard#referrals" },
+            { label: "Revenue and payouts", hint: "Sessions delivered and your share", icon: "fa-chart-line", href: "/hospital/dashboard#revenue" },
+            { label: "Account security", hint: "Password and sign-in", icon: "fa-lock", href: "/hospital/dashboard/profile" },
+          ]}
+        />
+
+        <div className="mt-6" />
+
         <div id="refer" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-bold text-lg text-slate-800 mb-4">
             Refer a Patient

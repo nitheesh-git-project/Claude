@@ -11,6 +11,9 @@ import HomeVisitPackageWidget from "@/components/patient/HomeVisitPackageWidget"
 import PackageChip from "@/components/packages/PackageChip";
 import ReceiptsSection from "@/components/ReceiptsSection";
 import DashboardShell from "@/components/dashboard/DashboardShell";
+import DashboardOverview from "@/components/dashboard/DashboardOverview";
+import { StripProgress, type StatCell } from "@/components/dashboard/StatStrip";
+import { buildPatientFeed } from "@/lib/dashboardFeed";
 import OnboardingTour from "@/components/patient/OnboardingTour";
 import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -101,6 +104,7 @@ export default async function PatientDashboardPage() {
     { data: ownedPackages },
     { data: onboardingRow },
     { data: conditionProfile },
+    { data: conditionRequests },
     { data: visitDetailRows },
     { data: homeVisitPackages },
     { data: ownedHomeVisitPackages },
@@ -186,6 +190,15 @@ export default async function PatientDashboardPage() {
       .select("status, data, draft_data")
       .eq("patient_id", user.id)
       .maybeSingle(),
+    // Feeds the Overview's notification list. Isolated from the profile
+    // read above so a migration-dependent column on either table can only
+    // blank its own half.
+    supabase
+      .from("condition_change_requests")
+      .select("id, status, admin_notes, created_at")
+      .eq("patient_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(5),
 
     // The home-visit columns for this patient's own appointments. Isolated
     // from the main appointments select above for the same reason as
@@ -381,6 +394,99 @@ export default async function PatientDashboardPage() {
   const hasOwnedHomeVisitPackages =
     !!ownedHomeVisitPackages && ownedHomeVisitPackages.length > 0;
 
+  // The reminder banner counts what's actually filled in -- an
+  // autosaved draft included -- rather than only saying "not done":
+  // "3 of 7 answered" is what makes someone who abandoned the pop-up
+  // half-way come back and finish it, and INTAKE_QUESTIONS is the code
+  // default here on purpose (the banner is a nudge, not the form, so it
+  // doesn't need the admin's per-question wording overrides).
+  const intakeAnswers = ((conditionProfile?.draft_data ?? conditionProfile?.data ?? {}) as Record<
+    string,
+    string
+  >) ?? {};
+  const intakeAnswered = countAnswered(INTAKE_QUESTIONS, intakeAnswers);
+
+  // ---- Overview -----------------------------------------------------
+  // Everything the shared DashboardOverview needs, derived here so the
+  // component stays a pure display (same split as the Health Profile's
+  // healthProfileSummary).
+  const nowMs = nowMsForPackages;
+  const upcoming = appointments
+    .filter(
+      (a) =>
+        (a.status === "confirmed" || a.status === "requested") &&
+        a.slot_time &&
+        new Date(a.slot_time).getTime() > nowMs
+    )
+    .sort((a, b) => new Date(a.slot_time!).getTime() - new Date(b.slot_time!).getTime());
+  const nextSession = upcoming[0] ?? null;
+  const completedCount = appointments.filter((a) => a.status === "completed").length;
+  const sessionsLeftInPackages = (ownedPackages ?? []).reduce(
+    (sum, p) => sum + Math.max(0, (p.session_count ?? 0) - (p.sessions_used ?? 0)),
+    0
+  );
+  const patientFeed = buildPatientFeed({
+    appointments: appointments.map((a) => ({
+      id: a.id,
+      slot_time: a.slot_time,
+      status: a.status,
+      visit_mode: visitDetailById.get(a.id)?.visit_mode ?? null,
+      payment_status: a.payment_status,
+      created_at: a.slot_time,
+      therapist_name: a.therapist_id ? therapistMap.get(a.therapist_id) ?? null : null,
+    })),
+    conditionRequests: (conditionRequests ?? []).map((r) => ({
+      id: r.id,
+      status: r.status,
+      created_at: r.created_at,
+      admin_notes: r.admin_notes,
+    })),
+  });
+
+  const overviewCells: StatCell[] = [
+    {
+      label: "Next session",
+      value: nextSession?.slot_time
+        ? new Date(nextSession.slot_time).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+        : "—",
+      note: nextSession?.slot_time
+        ? `${new Date(nextSession.slot_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}${
+            nextSession.therapist_id ? ` · ${therapistMap.get(nextSession.therapist_id) ?? "therapist"}` : ""
+          }`
+        : "Nothing booked yet",
+      accent: "bg-teal-500",
+      href: "#sessions",
+    },
+    {
+      label: "Sessions done",
+      value: String(completedCount),
+      unit: completedCount === 1 ? "session" : "sessions",
+      note: completedCount === 0 ? "Your history builds up here" : "Completed with your therapist",
+      accent: "bg-emerald-500",
+      href: "#sessions",
+    },
+    {
+      label: "Package sessions left",
+      value: String(sessionsLeftInPackages),
+      unit: sessionsLeftInPackages === 1 ? "session" : "sessions",
+      note: hasOwnedPackages ? "Across the packages you own" : "You don't own a package yet",
+      accent: "bg-blue-500",
+      href: hasOwnedPackages ? "#your-packages" : "#session-packages",
+    },
+    {
+      label: "Health profile",
+      value: `${Math.round((intakeAnswered / INTAKE_QUESTIONS.length) * 100)}%`,
+      note:
+        intakeAnswered === INTAKE_QUESTIONS.length
+          ? "Your therapist has your answers"
+          : `${INTAKE_QUESTIONS.length - intakeAnswered} question${
+              INTAKE_QUESTIONS.length - intakeAnswered === 1 ? "" : "s"
+            } left`,
+      accent: intakeAnswered === INTAKE_QUESTIONS.length ? "bg-emerald-500" : "bg-amber-500",
+      href: "/patient/dashboard/health-profile",
+    },
+  ];
+
   const navItems = buildPatientNavItems({
     hasOwnedPackages,
     hasAvailablePackages,
@@ -575,17 +681,6 @@ export default async function PatientDashboardPage() {
   // here (rather than threaded through props from a layout) because this
   // page hides the shared Navbar entirely and needs the same dev-only-bar
   // offset for its own fixed sidebar. See DashboardShell's offsetTop prop.
-  // The reminder banner counts what's actually filled in -- an
-  // autosaved draft included -- rather than only saying "not done":
-  // "3 of 7 answered" is what makes someone who abandoned the pop-up
-  // half-way come back and finish it, and INTAKE_QUESTIONS is the code
-  // default here on purpose (the banner is a nudge, not the form, so it
-  // doesn't need the admin's per-question wording overrides).
-  const intakeAnswers = ((conditionProfile?.draft_data ?? conditionProfile?.data ?? {}) as Record<
-    string,
-    string
-  >) ?? {};
-  const intakeAnswered = countAnswered(INTAKE_QUESTIONS, intakeAnswers);
 
   const showDebugNav =
     process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
@@ -651,6 +746,40 @@ export default async function PatientDashboardPage() {
           </span>
         </Link>
       )}
+
+      <DashboardOverview
+        greeting="Your care at a glance"
+        headline={
+          nextSession?.slot_time
+            ? `Your next session is ${formatSlotTime(nextSession.slot_time, nextSession.timezone)}.`
+            : "Nothing booked yet — pick a time that suits you and your therapist takes it from there."
+        }
+        cells={overviewCells}
+        stripFooter={
+          <StripProgress
+            percent={Math.round((intakeAnswered / INTAKE_QUESTIONS.length) * 100)}
+            caption={`Health profile ${intakeAnswered}/${INTAKE_QUESTIONS.length} answered`}
+          />
+        }
+        feed={patientFeed}
+        feedEmptyBody="Bookings, payments and health-profile updates show up here as they happen."
+        actions={[
+          { label: "Book a session", hint: "Video or home visit", icon: "fa-plus", href: BOOKING_FROM_DASHBOARD, primary: true },
+          {
+            label: intakeAnswered === INTAKE_QUESTIONS.length ? "Review your health profile" : "Finish your health profile",
+            hint:
+              intakeAnswered === INTAKE_QUESTIONS.length
+                ? "Keep it current before your next session"
+                : `${INTAKE_QUESTIONS.length - intakeAnswered} questions left, about 2 minutes`,
+            icon: "fa-notes-medical",
+            href: "/patient/dashboard/health-profile",
+          },
+          { label: "Your receipts", hint: "Every payment and refund", icon: "fa-receipt", href: "/patient/dashboard#receipts" },
+          { label: "Edit your profile", hint: "Contact details and addresses", icon: "fa-user-pen", href: "/patient/dashboard/profile" },
+        ]}
+      />
+
+      <div className="mt-8" />
 
       {/* Always visible, unlike the history sections below. A patient who
           has only ever had video calls must still be able to find home

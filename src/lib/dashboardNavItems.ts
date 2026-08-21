@@ -24,6 +24,9 @@ export function buildPatientNavItems({
   hasOwnedHomeVisitPackages: boolean;
 }): ShellNavItem[] {
   return [
+    // Overview is first on every dashboard: the same "what needs me right
+    // now" screen for patient, therapist, hospital and admin.
+    { id: "overview", label: "Overview", icon: "fa-gauge-high" },
     { id: "book", label: "Book a Session", icon: "fa-plus" },
     ...(hasOnlineSessions
       ? [{ id: "sessions", label: "Your Sessions", icon: "fa-calendar-check" }]
@@ -81,16 +84,18 @@ export function buildTherapistNavItems({
   hasHomeVisits: boolean;
 }): ShellNavItem[] {
   return [
+    { id: "overview", label: "Overview", icon: "fa-gauge-high" },
     { id: "availability", label: "Availability", icon: "fa-calendar-days" },
     { id: "sessions", label: "Assigned Sessions", icon: "fa-clipboard-list" },
     ...(hasHomeVisits
       ? [{ id: "home-visits", label: "Home Visits", icon: "fa-house-medical" }]
       : []),
-    ...THERAPIST_NAV_ITEMS.slice(2),
+    ...THERAPIST_NAV_ITEMS.slice(3),
   ];
 }
 
 export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
+  { id: "overview", label: "Overview", icon: "fa-gauge-high" },
   { id: "availability", label: "Availability", icon: "fa-calendar-days" },
   { id: "sessions", label: "Assigned Sessions", icon: "fa-clipboard-list" },
   { id: "programmes", label: "Programme Patients", icon: "fa-layer-group" },
