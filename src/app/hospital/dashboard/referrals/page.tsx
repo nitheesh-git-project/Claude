@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const d = await loadHospitalDashboard();
+  const d = await loadHospitalDashboard("referrals");
 
   return (
     <HospitalDashboardShell data={d} title="Your Referrals" subtitle="Everyone you've sent, and where each one stands.">

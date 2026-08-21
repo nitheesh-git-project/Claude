@@ -17,7 +17,14 @@ import type { StatCell } from "@/components/dashboard/StatStrip";
 // Server-only: it holds admin-client reads (the referred patients'
 // sessions, which RLS would not otherwise show a hospital).
 
-export async function loadHospitalDashboard() {
+/** Which screen is asking -- see PatientScreen for the reasoning. */
+export type HospitalScreen = "overview" | "refer" | "referrals" | "revenue";
+
+export async function loadHospitalDashboard(screen: HospitalScreen = "overview") {
+  // Only Revenue (and the Overview's money figures) needs the referred
+  // patients' sessions, which is the expensive part of this page: three
+  // admin-client reads across every patient this hospital ever sent.
+  const needSessions = screen === "revenue" || screen === "overview";
   const supabase = await createClient();
   const {
     data: { user },
@@ -89,7 +96,7 @@ export async function loadHospitalDashboard() {
   const referredPatientIds = (referredPatients ?? []).map((p) => p.id);
 
   const [{ data: rawReferredSessions }, { data: sessionCodeLinks }, { data: meetLinkRows }] =
-    referredPatientIds.length > 0
+    referredPatientIds.length > 0 && needSessions
       ? await Promise.all([
           admin
             .from("appointments")

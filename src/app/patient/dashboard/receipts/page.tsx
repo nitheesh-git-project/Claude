@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const d = await loadPatientDashboard();
+  const d = await loadPatientDashboard("receipts");
 
   return (
     <PatientDashboardShell data={d} title="Receipts" subtitle="Every payment, refund and failed attempt on your account.">

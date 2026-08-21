@@ -17,7 +17,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default async function Page() {
-  const d = await loadHospitalDashboard();
+  const d = await loadHospitalDashboard("revenue");
 
   return (
     <HospitalDashboardShell data={d} title="Revenue & Payouts" subtitle="What the patients you referred have paid, and your share of it.">

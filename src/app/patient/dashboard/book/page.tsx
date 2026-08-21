@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const d = await loadPatientDashboard();
+  const d = await loadPatientDashboard("book");
 
   return (
     <PatientDashboardShell data={d} title="Book a Session" subtitle="Video consultations and home visits, in one place.">

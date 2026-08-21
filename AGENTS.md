@@ -325,7 +325,12 @@ client is the only writer and the log is append-only from any session.
   `therapistDashboardData.ts`, `hospitalDashboardData.ts`) that every one of
   its routes calls, so seven routes cannot grow seven slightly different
   copies of the same queries, and a `*DashboardShell` component holding the
-  sidebar/header/realtime props. Anything rendered by more than one route
+  sidebar/header/realtime props. Each loader takes the screen asking
+  (`loadPatientDashboard("receipts")`) and skips what that screen cannot
+  render — a tab is a server round trip now, so it must not pay for the
+  whole dashboard's data to show one list. What the sidebar needs to decide
+  which entries exist stays in the always-loaded core, or the nav would
+  change shape as you move between screens. Anything rendered by more than one route
   (the session cards) is a real component, not a closure.
 - **Every dashboard opens on the same Overview.** Patient, therapist,
   hospital and admin all render `DashboardOverview.tsx` — a strip of four

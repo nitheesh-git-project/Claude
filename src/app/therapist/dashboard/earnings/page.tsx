@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const d = await loadTherapistDashboard();
+  const d = await loadTherapistDashboard("earnings");
 
   return (
     <TherapistDashboardShell data={d} title="Earnings" subtitle="What you have earned, and what is owed.">

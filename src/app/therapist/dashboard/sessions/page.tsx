@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const d = await loadTherapistDashboard();
+  const d = await loadTherapistDashboard("sessions");
 
   return (
     <TherapistDashboardShell data={d} title="Assigned Sessions" subtitle="Video consultations the clinic has assigned to you.">

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const d = await loadTherapistDashboard();
+  const d = await loadTherapistDashboard("availability");
 
   return (
     <TherapistDashboardShell data={d} title="Availability" subtitle="Your weekly hours, day overrides and leave.">

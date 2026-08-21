@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const d = await loadPatientDashboard();
+  const d = await loadPatientDashboard("calendar");
 
   return (
     <PatientDashboardShell data={d} title="Calendar" subtitle="Every session you have booked, by date.">

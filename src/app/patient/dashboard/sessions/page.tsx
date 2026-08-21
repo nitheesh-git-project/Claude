@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const d = await loadPatientDashboard();
+  const d = await loadPatientDashboard("sessions");
 
   return (
     <PatientDashboardShell data={d} title="Your Sessions" subtitle="Video consultations, newest first.">

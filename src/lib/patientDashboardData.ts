@@ -32,7 +32,64 @@ function nowTimestamp() {
   return Date.now();
 }
 
-export async function loadPatientDashboard() {
+// Row shapes for the two Book-a-Session queries. Spelled out because the
+// placeholder used when a screen doesn't need them has to carry the same
+// shape the hub component expects, and an inferred `never` would not.
+type HubCategoryRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  price_paise: number;
+  duration_minutes: number | null;
+  cta_label: string | null;
+};
+
+type HubHomeVisitPackageRow = {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  image_url: string | null;
+  benefits: unknown;
+  badge_label: string | null;
+  highlight: boolean | null;
+  visit_count: number;
+  price_paise: number;
+  compare_at_paise: number | null;
+  visit_duration_minutes: number | null;
+  validity_days: number | null;
+  travel_fee_included: boolean | null;
+  therapist_locked: boolean | null;
+};
+
+/** Stands in for a query this screen doesn't need, so the destructuring
+ *  below stays positional and every caller still gets the same shape. */
+function emptyRows<T>(): Promise<{ data: T[] }> {
+  return Promise.resolve({ data: [] as T[] });
+}
+
+/** Which screen is asking. Each route passes its own, and the loader
+ *  skips the queries that screen cannot render -- switching tabs is a
+ *  server round trip now, so a tab must not pay for the whole dashboard's
+ *  data to show one list. Everything the sidebar needs to decide which
+ *  entries exist stays in the always-loaded core, or the nav would change
+ *  shape as you move between screens. */
+export type PatientScreen =
+  | "overview"
+  | "book"
+  | "sessions"
+  | "home-visits"
+  | "calendar"
+  | "packages"
+  | "receipts";
+
+export async function loadPatientDashboard(screen: PatientScreen = "overview") {
+  const needHub = screen === "book";
+  const needReceipts = screen === "receipts";
+  const needPackageDetail = screen === "packages";
+  const needFeed = screen === "overview";
+  // Session cards name their therapist; so does the Overview's feed.
+  const needTherapistNames =
+    screen === "overview" || screen === "sessions" || screen === "home-visits" || screen === "calendar";
   const supabase = await createClient();
   const {
     data: { user },
@@ -117,19 +174,41 @@ export async function loadPatientDashboard() {
     // ownedPackages below, filtered to paid ones with sessions remaining) so
     // the Receipts section can show a payment-confirmed receipt for every
     // package ever bought, same as every other paid appointment.
-    supabase
-      .from("patient_package_purchases")
-      .select("id, category_id, session_count, payment_status, amount_paid_paise, paid_at, razorpay_payment_id")
-      .eq("patient_id", user.id)
-      .order("created_at", { ascending: false }),
+    needReceipts
+      ? supabase
+          .from("patient_package_purchases")
+          .select("id, category_id, session_count, payment_status, amount_paid_paise, paid_at, razorpay_payment_id")
+          .eq("patient_id", user.id)
+          .order("created_at", { ascending: false })
+      : emptyRows<{
+          id: string;
+          category_id: string | null;
+          session_count: number;
+          payment_status: string;
+          amount_paid_paise: number | null;
+          paid_at: string | null;
+          razorpay_payment_id: string | null;
+        }>(),
 
-    supabase
-      .from("payment_failure_log")
-      .select(
-        "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
-      )
-      .eq("patient_id", user.id)
-      .order("created_at", { ascending: false }),
+    needReceipts
+      ? supabase
+          .from("payment_failure_log")
+          .select(
+            "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
+          )
+          .eq("patient_id", user.id)
+          .order("created_at", { ascending: false })
+      : emptyRows<{
+          id: string;
+          patient_id: string;
+          appointment_id: string | null;
+          package_purchase_id: string | null;
+          amount_paise: number | null;
+          error_code: string | null;
+          error_reason: string | null;
+          error_description: string | null;
+          created_at: string;
+        }>(),
 
     supabase.from("treatment_categories").select("id, title").eq("active", true),
 
@@ -164,12 +243,14 @@ export async function loadPatientDashboard() {
     // Feeds the Overview's notification list. Isolated from the profile
     // read above so a migration-dependent column on either table can only
     // blank its own half.
-    supabase
-      .from("condition_change_requests")
-      .select("id, status, admin_notes, created_at")
-      .eq("patient_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(5),
+    needFeed
+      ? supabase
+          .from("condition_change_requests")
+          .select("id, status, admin_notes, created_at")
+          .eq("patient_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5)
+      : emptyRows<{ id: string; status: string; admin_notes: string | null; created_at: string }>(),
 
     // The home-visit columns for this patient's own appointments. Isolated
     // from the main appointments select above for the same reason as
@@ -183,14 +264,16 @@ export async function loadPatientDashboard() {
       .eq("patient_id", user.id),
 
     // The Book a Session hub's home-visit group.
-    supabase
-      .from("home_visit_packages")
-      .select(
-        "id, title, subtitle, image_url, benefits, badge_label, highlight, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked"
-      )
-      .eq("active", true)
-      .eq("visible_in_dashboard", true)
-      .order("display_order", { ascending: true }),
+    needHub
+      ? supabase
+          .from("home_visit_packages")
+          .select(
+            "id, title, subtitle, image_url, benefits, badge_label, highlight, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked"
+          )
+          .eq("active", true)
+          .eq("visible_in_dashboard", true)
+          .order("display_order", { ascending: true })
+      : emptyRows<HubHomeVisitPackageRow>(),
 
     // Cash-on-visit purchases legitimately sit at payment_status 'unpaid'
     // for the life of the programme (see home_visit_package_purchases'
@@ -211,12 +294,14 @@ export async function loadPatientDashboard() {
     // Single online consultations for the hub. activeCategories above is
     // only id+title (it resolves names on existing bookings); the hub needs
     // the price and length it is selling.
-    supabase
-      .from("treatment_categories")
-      .select("id, title, description, price_paise, duration_minutes, cta_label")
-      .eq("active", true)
-      .order("display_order", { ascending: true })
-      .order("id", { ascending: true }),
+    needHub
+      ? supabase
+          .from("treatment_categories")
+          .select("id, title, description, price_paise, duration_minutes, cta_label")
+          .eq("active", true)
+          .order("display_order", { ascending: true })
+          .order("id", { ascending: true })
+      : emptyRows<HubCategoryRow>(),
   ]);
 
   const adminSettings = parseAdminSettings(settingsRow);
@@ -271,16 +356,16 @@ export async function loadPatientDashboard() {
       categoryIds.length > 0
         ? admin.from("treatment_categories").select("id, price_paise, title").in("id", categoryIds as string[])
         : Promise.resolve({ data: [] as { id: string; price_paise: number; title: string }[] }),
-      therapistIds.length > 0
+      therapistIds.length > 0 && needTherapistNames
         ? admin.from("profiles").select("id, full_name").in("id", therapistIds as string[])
         : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
-      ownedPackageIds.length > 0
+      ownedPackageIds.length > 0 && needPackageDetail
         ? admin
             .from("treatment_category_packages")
             .select("id, title, image_url")
             .in("id", ownedPackageIds as string[])
         : Promise.resolve({ data: [] as { id: string; title: string; image_url: string | null }[] }),
-      ownedHomeVisitPackageIds.length > 0
+      ownedHomeVisitPackageIds.length > 0 && needPackageDetail
         ? admin
             .from("home_visit_packages")
             .select("id, title, image_url")

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const d = await loadTherapistDashboard();
+  const d = await loadTherapistDashboard("calendar");
 
   return (
     <TherapistDashboardShell data={d} title="Calendar" subtitle="Your week, video calls and home visits together.">

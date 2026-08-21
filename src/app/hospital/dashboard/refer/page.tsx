@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const d = await loadHospitalDashboard();
+  const d = await loadHospitalDashboard("refer");
 
   return (
     <HospitalDashboardShell data={d} title="Refer a Patient" subtitle="Send a patient across and the clinic takes it from there.">

@@ -26,7 +26,30 @@ function nowTimestamp() {
   return Date.now();
 }
 
-export async function loadTherapistDashboard() {
+/** Stands in for a query this screen doesn't need -- see the patient
+ *  loader's copy for why the destructuring stays positional. */
+function emptyRows<T>(): Promise<{ data: T[] }> {
+  return Promise.resolve({ data: [] as T[] });
+}
+
+/** Which screen is asking -- see PatientScreen for the reasoning. */
+export type TherapistScreen =
+  | "overview"
+  | "availability"
+  | "sessions"
+  | "home-visits"
+  | "programmes"
+  | "calendar"
+  | "earnings"
+  | "receipts";
+
+export async function loadTherapistDashboard(screen: TherapistScreen = "overview") {
+  const needAvailability = screen === "availability";
+  const needProgrammes = screen === "programmes";
+  // Earnings maths also backs the Overview's "owed to you" figure.
+  const needEarnings = screen === "earnings" || screen === "receipts" || screen === "overview";
+  const needNotes =
+    screen === "overview" || screen === "sessions" || screen === "home-visits" || screen === "calendar";
   const supabase = await createClient();
   const {
     data: { user },
@@ -99,7 +122,9 @@ export async function loadTherapistDashboard() {
     // migration runs.
     supabase.from("profiles").select("on_leave").eq("id", user.id).single(),
 
-    supabase.from("therapist_availability_template").select("day_of_week, hour").eq("therapist_id", user.id),
+    needAvailability
+      ? supabase.from("therapist_availability_template").select("day_of_week, hour").eq("therapist_id", user.id)
+      : emptyRows<{ day_of_week: number; hour: number }>(),
 
     supabase
       .from("appointments")
@@ -134,11 +159,20 @@ export async function loadTherapistDashboard() {
     // and migration-dependent, and an unknown-table error here should only
     // degrade the Payout Receipts section (empty until the migration runs),
     // not blank the whole dashboard.
-    supabase
-      .from("therapist_payout_batches")
-      .select("id, therapist_id, amount_paise, method, note, created_at")
-      .eq("therapist_id", user.id)
-      .order("created_at", { ascending: false }),
+    needEarnings
+      ? supabase
+          .from("therapist_payout_batches")
+          .select("id, therapist_id, amount_paise, method, note, created_at")
+          .eq("therapist_id", user.id)
+          .order("created_at", { ascending: false })
+      : emptyRows<{
+          id: string;
+          therapist_id: string;
+          amount_paise: number;
+          method: string | null;
+          note: string | null;
+          created_at: string;
+        }>(),
 
     supabase.from("treatment_categories").select("id, title"),
 
@@ -146,32 +180,54 @@ export async function loadTherapistDashboard() {
     // (it's its own brand-new table, so this is inherently its own query
     // already) so an unknown-table error here only empties the Earnings
     // tab's pending-request state, not the whole dashboard.
-    supabase
-      .from("therapist_payout_requests")
-      .select("id, requested_amount_paise, status, requested_at, acknowledged_at")
-      .eq("therapist_id", user.id)
-      .order("requested_at", { ascending: false }),
+    needEarnings
+      ? supabase
+          .from("therapist_payout_requests")
+          .select("id, requested_amount_paise, status, requested_at, acknowledged_at")
+          .eq("therapist_id", user.id)
+          .order("requested_at", { ascending: false })
+      : emptyRows<{
+          id: string;
+          requested_amount_paise: number;
+          status: string;
+          requested_at: string;
+          acknowledged_at: string | null;
+        }>(),
 
     // Package purchases locked onto this therapist -- readable directly
     // via package_purchases_select_locked_therapist (schema.sql), no
     // admin client needed for the row itself. Feeds the Programme Patients
     // section: the whole point is seeing the arc of a package patient's
     // care, not just a flat list of disconnected sessions.
-    supabase
-      .from("patient_package_purchases")
-      .select("id, purchase_code, patient_id, package_id, category_id, session_count, sessions_used, status, expires_at")
-      .eq("locked_therapist_id", user.id)
-      .order("created_at", { ascending: false }),
+    needProgrammes
+      ? supabase
+          .from("patient_package_purchases")
+          .select("id, purchase_code, patient_id, package_id, category_id, session_count, sessions_used, status, expires_at")
+          .eq("locked_therapist_id", user.id)
+          .order("created_at", { ascending: false })
+      : emptyRows<{
+          id: string;
+          purchase_code: string | null;
+          patient_id: string;
+          package_id: string;
+          category_id: string | null;
+          session_count: number;
+          sessions_used: number;
+          status: string;
+          expires_at: string | null;
+        }>(),
 
     // This therapist's own session notes. Its own query (rather than a
     // join on appointments) because session_notes is a brand-new table:
     // an unknown-table error before the migration runs should only empty
     // the note buttons, not blank the dashboard. RLS scopes it to notes
     // this clinician may read -- see session_notes_select_clinician.
-    supabase
-      .from("session_notes")
-      .select("id, appointment_id, patient_id, therapist_id, data, free_text, created_at, updated_at")
-      .order("created_at", { ascending: false }),
+    needNotes
+      ? supabase
+          .from("session_notes")
+          .select("id, appointment_id, patient_id, therapist_id, data, free_text, created_at, updated_at")
+          .order("created_at", { ascending: false })
+      : emptyRows<SessionNoteRow>(),
   ]);
 
   const adminSettings = parseAdminSettings(settingsRow);

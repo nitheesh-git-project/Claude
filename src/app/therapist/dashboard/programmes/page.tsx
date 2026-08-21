@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const d = await loadTherapistDashboard();
+  const d = await loadTherapistDashboard("programmes");
 
   return (
     <TherapistDashboardShell data={d} title="Programme Patients" subtitle="Package purchases locked to you for their whole programme.">

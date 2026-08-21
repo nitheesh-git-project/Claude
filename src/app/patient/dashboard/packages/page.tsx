@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const d = await loadPatientDashboard();
+  const d = await loadPatientDashboard("packages");
 
   return (
     <PatientDashboardShell data={d} title="Packages" subtitle="Programmes you own, and the bundles you can buy.">
