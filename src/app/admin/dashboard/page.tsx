@@ -1978,7 +1978,7 @@ export default async function AdminDashboardPage() {
       action: r.action,
       created_at: r.createdAt,
       actor_name: r.actorName,
-      summary: r.targetLabel ? `${r.action.replaceAll("_", " ")} — ${r.targetLabel}` : null,
+      summary: r.targetLabel,
     })),
     pendingApprovals: pendingAccounts?.length ?? 0,
     pendingRequests: pendingProfileChanges?.length ?? 0,

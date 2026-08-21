@@ -298,6 +298,18 @@ export type FeedActivityRow = {
 /** The admin's feed is the real audit log, not a derivation -- every
  *  mutating admin route already records one (recordAdminActivity). Pending
  *  queues are passed separately so they can be marked as needing a person. */
+/** Turns "setting.update" / "account.approve" into something a person
+ *  reads: "Setting updated", "Account approved". Falls back to the raw
+ *  action with its separators softened, so a newly added action type is
+ *  never rendered as a bare identifier. */
+function humaniseAction(action: string): string {
+  const [subject, verb] = action.split(".");
+  const words = (value: string) => value.replaceAll("_", " ").trim();
+  if (!verb) return words(action).replace(/^./, (c) => c.toUpperCase());
+  const past = verb.endsWith("e") ? `${verb}d` : verb.endsWith("y") ? `${verb.slice(0, -1)}ied` : `${verb}ed`;
+  return `${words(subject).replace(/^./, (c) => c.toUpperCase())} ${words(past)}`;
+}
+
 export function buildAdminFeed({
   activity,
   pendingApprovals = 0,
@@ -309,13 +321,31 @@ export function buildAdminFeed({
   pendingRequests?: number;
   failedSyncs?: number;
 }): FeedItem[] {
-  const items: FeedItem[] = activity.map((a) => ({
-    id: `act-${a.id}`,
-    at: a.created_at,
+  // Bulk edits write one audit row per field, so a single "save settings"
+  // click can land ten identical-looking lines in a row. Collapse repeats
+  // of the same action+target into one item carrying the count -- the log
+  // itself (Settings > Activity) still has every individual row.
+  const collapsed = new Map<string, { row: FeedActivityRow; count: number }>();
+  for (const a of activity) {
+    const key = `${a.action}::${a.summary ?? ""}`;
+    const seen = collapsed.get(key);
+    if (seen) {
+      seen.count += 1;
+      if (a.created_at > seen.row.created_at) seen.row = a;
+    } else {
+      collapsed.set(key, { row: a, count: 1 });
+    }
+  }
+
+  const items: FeedItem[] = [...collapsed.values()].map(({ row, count }) => ({
+    id: `act-${row.id}`,
+    at: row.created_at,
     icon: "fa-clock-rotate-left",
     tone: "neutral" as FeedTone,
-    title: a.summary ?? a.action.replaceAll("_", " "),
-    detail: a.actor_name ? `by ${a.actor_name}` : undefined,
+    title: row.summary ? `${humaniseAction(row.action)} — ${row.summary}` : humaniseAction(row.action),
+    detail: [row.actor_name ? `by ${row.actor_name}` : null, count > 1 ? `${count} changes` : null]
+      .filter(Boolean)
+      .join(" · ") || undefined,
   }));
 
   const now = new Date().toISOString();
