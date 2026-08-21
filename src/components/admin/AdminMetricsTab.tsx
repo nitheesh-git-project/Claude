@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { EmptyState } from "@/components/dashboard/SurfaceCard";
 import {
   type MetricsAppointment,
   type MetricsPackagePurchase,
@@ -25,6 +26,7 @@ import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import { istDateKey } from "@/lib/formatSlotRange";
 import { toCsv } from "@/lib/csvExport";
 import DownloadCsvButton from "@/components/admin/DownloadCsvButton";
+import StatStrip from "@/components/dashboard/StatStrip";
 
 export type { MetricsAppointment };
 
@@ -127,7 +129,13 @@ function TrendBarChart({
   const { ref, width } = useContainerWidth(640);
 
   if (buckets.length === 0 || values.every((v) => v === 0)) {
-    return <p className="text-xs text-slate-500 py-8 text-center">No data in this range.</p>;
+    return (
+      <EmptyState
+        icon="fa-chart-column"
+        title="No data in this range"
+        body="Widen the date range or clear a filter — nothing was delivered in the window you picked."
+      />
+    );
   }
 
   const chartHeight = 150;
@@ -190,7 +198,13 @@ function TrendLineChart({
   const { ref, width } = useContainerWidth(640);
 
   if (buckets.length === 0 || series.every((s) => s.values.every((v) => v === 0))) {
-    return <p className="text-xs text-slate-500 py-8 text-center">No data in this range.</p>;
+    return (
+      <EmptyState
+        icon="fa-chart-column"
+        title="No data in this range"
+        body="Widen the date range or clear a filter — nothing was delivered in the window you picked."
+      />
+    );
   }
 
   const chartHeight = 180;
@@ -657,6 +671,45 @@ export default function AdminMetricsTab({
 
       {view === "summary" && (
       <div>
+        {/* The four figures an admin scans first, in the same strip every
+            other dashboard opens with. The detailed tiles below keep the
+            full set plus the refund/approximation notes -- this is the
+            glance, not a replacement for them. */}
+        <div className="mb-5">
+          <StatStrip
+            cells={[
+              {
+                label: "Net revenue",
+                value: formatInr(totalNetRevenuePaise),
+                note:
+                  totalRefundedPaise > 0
+                    ? `Gross ${formatInr(totalMoneyRevenuePaise)}, less ${formatInr(totalRefundedPaise)} refunded`
+                    : `Gross ${formatInr(totalMoneyRevenuePaise)}, nothing refunded`,
+                accent: "bg-teal-500",
+              },
+              {
+                label: "Platform margin",
+                value: formatInr(totalNetProfitPaise),
+                note: "After therapist share and refunds",
+                accent: "bg-emerald-500",
+              },
+              {
+                label: "Paid to therapists",
+                value: formatInr(totalPaidToTherapistsPaise),
+                note: "Settled for sessions in this range",
+                accent: "bg-blue-500",
+              },
+              {
+                label: "Pending owed",
+                value: formatInr(totalPendingOwedPaise),
+                note: totalPendingOwedPaise > 0 ? "Owed but not yet paid out" : "Nothing outstanding",
+                accent: totalPendingOwedPaise > 0 ? "bg-amber-500" : "bg-emerald-500",
+                valueClass: totalPendingOwedPaise > 0 ? "text-amber-600" : "text-slate-800",
+              },
+            ]}
+          />
+        </div>
+
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Financial Summary</h2>
         <p className="text-[11px] text-slate-400 mb-3">
           Gross Revenue and Platform Margin count every paid session with slot_time in range, before
@@ -760,7 +813,11 @@ export default function AdminMetricsTab({
             Click a row for the full session-by-session breakdown and to record a payout.
           </p>
           {rangeTherapistLedger.length === 0 ? (
-            <p className="text-xs text-slate-500 py-6 text-center">No therapist activity in this range.</p>
+            <EmptyState
+              icon="fa-user-doctor"
+              title="No therapist activity in this range"
+              body="Sessions appear here once they are delivered inside the selected window."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs border-collapse">
@@ -814,7 +871,11 @@ export default function AdminMetricsTab({
             Click a row to see this patient&apos;s paid transactions in range.
           </p>
           {rangePatientLedger.length === 0 ? (
-            <p className="text-xs text-slate-500 py-6 text-center">No patient activity in this range.</p>
+            <EmptyState
+              icon="fa-user-injured"
+              title="No patient activity in this range"
+              body="Bookings and payments appear here once they fall inside the selected window."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs border-collapse">
@@ -938,7 +999,11 @@ export default function AdminMetricsTab({
           onClose={() => setSelectedPatientId(null)}
         >
           {selectedPatientTransactions.length === 0 ? (
-            <p className="text-xs text-slate-500 py-4 text-center">No paid transactions in this range.</p>
+            <EmptyState
+              icon="fa-indian-rupee-sign"
+              title="No paid transactions in this range"
+              body="Only settled payments count here — pending or failed attempts are on Transactions."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs border-collapse">
@@ -1083,7 +1148,11 @@ export default function AdminMetricsTab({
           utilization (this platform doesn&apos;t track therapist working hours/availability).
         </p>
         {therapistUtilization.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">No completed sessions in this range.</p>
+          <EmptyState
+            icon="fa-calendar-check"
+            title="No completed sessions in this range"
+            body="A session counts once a therapist marks it complete."
+          />
         ) : (
           <div className="space-y-2.5">
             {therapistUtilization.map((t) => (

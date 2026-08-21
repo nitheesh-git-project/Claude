@@ -8,6 +8,7 @@ import SessionDetailDrawer, {
 import type { HomeVisitRow } from "@/components/admin/HomeVisitVisitActions";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import DownloadCsvButton from "@/components/admin/DownloadCsvButton";
+import StatStrip from "@/components/dashboard/StatStrip";
 import { toCsv } from "@/lib/csvExport";
 import { formatSlotRange, istDateKey, istMinutesOfDay } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -354,6 +355,26 @@ export default function AdminAllSessionsTab({
     { header: "Therapist rating", value: (r) => r.a.therapist_rating ?? "" },
   ]);
 
+  // A strip of the four figures an admin scans before reading any row --
+  // the same shape every other dashboard opens with, computed over the
+  // rows currently passing the filters so it always describes what is on
+  // screen rather than the whole table.
+  const visibleAppointments = rows.map((r) => r.a);
+  const unassignedVisible = visibleAppointments.filter(
+    (a) => !a.therapist_id && a.status !== "cancelled"
+  ).length;
+  const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const todayVisible = visibleAppointments.filter(
+    (a) =>
+      a.slot_time &&
+      a.status !== "cancelled" &&
+      new Date(a.slot_time).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) === todayKey
+  ).length;
+  const cancelledVisible = visibleAppointments.filter((a) => a.status === "cancelled").length;
+  // Presence in homeVisits is what makes a session a home visit -- that
+  // list is already scoped to visit_mode = 'home_visit' upstream.
+  const homeVisitsVisible = visibleAppointments.filter((a) => homeVisitMap.has(a.id)).length;
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
@@ -370,6 +391,38 @@ export default function AdminAllSessionsTab({
           </p>
         </div>
         <DownloadCsvButton filename="sessions.csv" csv={csv} disabled={rows.length === 0} />
+      </div>
+
+      <div className="mb-4">
+        <StatStrip
+          cells={[
+            {
+              label: "Showing",
+              value: String(rows.length),
+              unit: rows.length === 1 ? "session" : "sessions",
+              note: `of ${appointments.length} on record`,
+              accent: "bg-teal-500",
+            },
+            {
+              label: "No therapist",
+              value: String(unassignedVisible),
+              note: unassignedVisible === 0 ? "All assigned" : "Nobody is running these yet",
+              accent: unassignedVisible > 0 ? "bg-amber-500" : "bg-emerald-500",
+            },
+            {
+              label: "Today",
+              value: String(todayVisible),
+              note: "In this filtered set",
+              accent: "bg-blue-500",
+            },
+            {
+              label: "Home visits",
+              value: String(homeVisitsVisible),
+              note: cancelledVisible > 0 ? `${cancelledVisible} cancelled in view` : "Travel sessions in view",
+              accent: "bg-slate-400",
+            },
+          ]}
+        />
       </div>
 
       <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { EmptyState } from "@/components/dashboard/SurfaceCard";
 import Modal from "@/components/admin/Modal";
 import {
   buildPatientTransactions,
@@ -83,7 +84,13 @@ type AdminReceiptRow = {
 
 function PatientTransactionTable({ transactions }: { transactions: PatientTransaction[] }) {
   if (transactions.length === 0) {
-    return <p className="text-xs text-slate-500 py-6 text-center">No payments recorded yet.</p>;
+    return (
+      <EmptyState
+        icon="fa-receipt"
+        title="No payments yet"
+        body="Every completed, refunded and failed payment attempt lands here."
+      />
+    );
   }
   return (
     <div className="overflow-x-auto">
@@ -123,7 +130,13 @@ function PatientTransactionTable({ transactions }: { transactions: PatientTransa
 
 function TherapistTransactionTable({ transactions }: { transactions: TherapistPayoutTransaction[] }) {
   if (transactions.length === 0) {
-    return <p className="text-xs text-slate-500 py-6 text-center">No payouts settled yet.</p>;
+    return (
+      <EmptyState
+        icon="fa-money-bill-transfer"
+        title="No payouts settled yet"
+        body={"Once you settle a therapist’s earnings, the batch appears here."}
+      />
+    );
   }
   return (
     <div className="overflow-x-auto">
@@ -404,7 +417,7 @@ export default function AdminPaymentHistoryTab({
           </table>
         </div>
         {patientRows.length === 0 && (
-          <p className="text-xs text-slate-500 py-6 text-center">No patients yet.</p>
+          <EmptyState icon="fa-user-injured" title="No patients yet" body="Patients appear here as soon as they register or are referred." />
         )}
       </div>
 
@@ -462,7 +475,7 @@ export default function AdminPaymentHistoryTab({
           </table>
         </div>
         {therapistRows.length === 0 && (
-          <p className="text-xs text-slate-500 py-6 text-center">No therapists yet.</p>
+          <EmptyState icon="fa-user-doctor" title="No therapists yet" body="Approved therapists appear here with their ledger." />
         )}
       </div>
 
