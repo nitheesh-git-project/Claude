@@ -1,4 +1,4 @@
-import { PAIN_BAND_LABEL } from "@/lib/painMap";
+import { PAIN_BAND_LABEL, formatPainOutOfTen } from "@/lib/painMap";
 import { regionStandings } from "@/lib/healthProfileSummary";
 import type { PainAssessmentRow } from "@/lib/painMap";
 
@@ -59,7 +59,7 @@ export default function RegionStandingsList({ assessments }: { assessments: Pain
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-sm font-semibold text-slate-700">{s.label}</p>
             <p className={`shrink-0 text-xs font-bold ${TEXT[s.band]}`}>
-              {s.percent}% · {PAIN_BAND_LABEL[s.band]}
+              {formatPainOutOfTen(s.percent)} · {PAIN_BAND_LABEL[s.band]}
             </p>
           </div>
           <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">

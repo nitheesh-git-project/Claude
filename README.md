@@ -619,15 +619,29 @@ and the admin's **Patient Conditions** tab.
   therapist's own clinical judgement, not an administrative edit); rows are
   append-only so the patient's dashboard can show a trend against the
   previous assessment for that region. The patient can only view this, never
-  edit it. Admin can also post an entry directly (`/api/admin/pain-assessments/submit`,
-  no access-grant needed — admin is the final authority, same reasoning as
-  the intake's direct-edit path), collapsed under "Add a Pain Map entry
-  directly" on the patient's condition detail page; like every other write
-  here it's a new row, never an edit of a past one. All three surfaces
+  edit it. Admin can also post an entry directly
+  (`/api/admin/pain-assessments/submit`, no access-grant needed — admin is
+  the final authority, same reasoning as the intake's direct-edit path),
+  through the identical dialog so the two can never drift apart; like every
+  other write here it's a new row, never an edit of a past one.
+
+  Recording an exam happens in `PainExamDialog`, opened from the one body
+  map by **Record an exam** or by tapping a region. The region is chosen by
+  tapping the figure or picking a chip — never a dropdown — and stays in the
+  dialog's header, alongside what that area scored last time, while the
+  clinician works. The twenty questions are grouped into *What they
+  describe · What sets it off · Pain on testing · Your findings*
+  (`PAIN_EXAM_GROUPS`) instead of listed flat, and nothing is required.
+
+  **Everything on screen is out of ten.** The exam is stored as a 0–100
+  percentage while the patient rates their own pain 0–10, and printing both
+  raw put "How you rate it 6/10" next to "Last exam found 34%" in the same
+  row of figures. `formatPainOutOfTen()` is the single display helper; the
+  stored column is untouched. All three surfaces
   render the same tap-point body diagram
   (`src/components/profile/BodyMapDiagram.tsx`, a jointed lay figure rather
   than a muscle chart — every joint doubles as a clinical landmark) via the
-  shared `PainAssessmentForm`/`PainMapView`; tapping a point in fill mode
+  shared `PainMapExplorer`/`PainMapView`; tapping a point in fill mode
   (therapist or admin) picks that region+side directly instead of a manual
   dropdown, and tapping an assessed point in view mode (patient/admin)
   opens a popup with that region's detail.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PAIN_BAND_LABEL, painBand } from "@/lib/painMap";
+import { PAIN_BAND_LABEL, painBand, formatPainOutOfTen } from "@/lib/painMap";
 import type { PainTrendPoint } from "@/lib/healthProfileSummary";
 
 const WIDTH = 320;
@@ -48,14 +48,14 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
   return (
     <div>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <p className="font-display text-2xl font-bold leading-none text-slate-800">{latest.percent}%</p>
+        <p className="font-display text-2xl font-bold leading-none text-slate-800">{formatPainOutOfTen(latest.percent)}</p>
         <p className="text-xs text-slate-500">
           {PAIN_BAND_LABEL[painBand(latest.percent)].toLowerCase()} pain at your last exam
           {change !== null && change !== 0 && (
             <>
               {" · "}
               <span className={change < 0 ? "font-semibold text-emerald-600" : "font-semibold text-red-600"}>
-                {change < 0 ? "down" : "up"} {Math.abs(change)} points
+                {change < 0 ? "down" : "up"} {(Math.abs(change) / 10).toFixed(1)} points
               </span>{" "}
               since the first
             </>
@@ -69,7 +69,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
           className="w-full"
           role="img"
           aria-label={`Pain recorded at each exam: ${points
-            .map((p) => `${formatDay(p.date)} ${p.percent} percent`)
+            .map((p) => `${formatDay(p.date)} ${formatPainOutOfTen(p.percent)}`)
             .join(", ")}`}
           onMouseLeave={() => setHover(null)}
           onMouseMove={(e) => {
@@ -82,6 +82,9 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
             setHover(nearest);
           }}
         >
+          {/* Ticks stay percentages internally (that is what the scale
+              plots) but are labelled out of ten, matching every figure on
+              this chart and the patient's own 0-10 answers. */}
           {[0, 50, 100].map((tick) => (
             <g key={tick}>
               <line
@@ -93,7 +96,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
                 strokeWidth={1}
               />
               <text x={PAD.left - 6} y={y(tick) + 3} textAnchor="end" fontSize={8} fill="#94a3b8">
-                {tick}
+                {tick / 10}
               </text>
             </g>
           ))}
@@ -133,7 +136,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
             fontWeight={700}
             fill="#0f766e"
           >
-            {latest.percent}%
+            {formatPainOutOfTen(latest.percent)}
           </text>
 
           <text x={PAD.left} y={HEIGHT - 6} fontSize={8} fill="#94a3b8">
@@ -153,7 +156,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
           >
             <p className="font-semibold text-slate-700">{formatDay(active.date)}</p>
             <p className="text-slate-500">
-              {active.percent}% · {active.regions} {active.regions === 1 ? "area" : "areas"} checked
+              {formatPainOutOfTen(active.percent)} · {active.regions} {active.regions === 1 ? "area" : "areas"} checked
             </p>
           </div>
         )}

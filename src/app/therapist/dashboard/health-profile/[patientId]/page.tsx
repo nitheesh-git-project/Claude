@@ -11,7 +11,6 @@ import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import SessionNoteHistory from "@/components/therapist/SessionNoteHistory";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
 import PainMapExplorer from "@/components/profile/PainMapExplorer";
-import PainAssessmentForm from "@/components/profile/PainAssessmentForm";
 import type { QuestionOverrideRow } from "@/lib/painMap";
 import RequestConditionAccessButton from "@/components/therapist/RequestConditionAccessButton";
 import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
@@ -163,25 +162,9 @@ export default async function TherapistPatientHealthProfilePage({
           ← Back to Health Profiles
         </Link>
 
-        {!hasApprovedAccess && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Edit access</h2>
-            {grant?.status === "requested" && (
-              <p className="text-sm text-amber-700">Waiting for admin approval to edit this patient&apos;s data.</p>
-            )}
-            {grant?.status === "declined" && (
-              <p className="text-sm text-slate-600">Your last access request was declined.</p>
-            )}
-            {(!grant || grant.status === "declined" || grant.status === "revoked") && (
-              <div className="mt-2">
-                <RequestConditionAccessButton patientId={patientId} />
-              </div>
-            )}
-            <p className="text-xs text-slate-400 mt-3">
-              You can already view everything below — approval is only needed to make changes.
-            </p>
-          </div>
-        )}
+        {/* The edit-access card used to sit here, three sections above the
+            only thing it unlocks. It now lives inside the Pain Map card,
+            beside the work it gates. */}
 
         <SurfaceCard
           title="Session notes"
@@ -231,23 +214,46 @@ export default async function TherapistPatientHealthProfilePage({
           <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Pain Map</h2>
           <p className="text-xs text-slate-500 mb-4">
             {hasApprovedAccess
-              ? "Your exam findings. Switch to the comparison to see them against what the patient reported."
+              ? "Tap any marked point for that area's detail, or record what you found this session."
               : "Exam findings on record, and how they compare with what the patient reported."}
           </p>
-          {hasApprovedAccess ? (
-            <PainAssessmentForm
-              endpoint="/api/therapist/pain-assessments/submit"
-              patientId={patientId}
-              assessments={assessments ?? []}
-              overridesByRegion={overridesByRegion}
-            />
-          ) : null}
-          <div className={hasApprovedAccess ? "mt-6 border-t border-slate-100 pt-5" : undefined}>
-            <PainMapExplorer
-              assessments={assessments ?? []}
-              areaPain={parseAreaPain(currentData.area_pain)}
-            />
-          </div>
+          {/* The access state belongs here, next to the work it gates. It
+              used to be a card at the very top of the page labelled "Edit
+              access", three sections away from the only thing it unlocks --
+              so a therapist had no way to connect the two. */}
+          {!hasApprovedAccess && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-xs font-semibold text-amber-900">
+                {grant?.status === "requested"
+                  ? "Waiting for an admin to approve your edit access."
+                  : grant?.status === "declined"
+                  ? "Your last request for edit access was declined."
+                  : "You can read this chart, but not add to it yet."}
+              </p>
+              <p className="mt-1 text-xs text-amber-800">
+                Recording your own exam findings needs an admin to approve edit access for this
+                patient. Everything above and below stays readable either way.
+              </p>
+              {(!grant || grant.status === "declined" || grant.status === "revoked") && (
+                <div className="mt-2.5">
+                  <RequestConditionAccessButton patientId={patientId} />
+                </div>
+              )}
+            </div>
+          )}
+          <PainMapExplorer
+            assessments={assessments ?? []}
+            areaPain={parseAreaPain(currentData.area_pain)}
+            record={
+              hasApprovedAccess
+                ? {
+                    endpoint: "/api/therapist/pain-assessments/submit",
+                    patientId,
+                    overridesByRegion,
+                  }
+                : undefined
+            }
+          />
         </div>
       </div>
     </DashboardShell>

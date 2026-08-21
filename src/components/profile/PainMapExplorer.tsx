@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import PainMapView from "@/components/profile/PainMapView";
+import PainExamDialog from "@/components/profile/PainExamDialog";
 import PainComparisonView from "@/components/profile/PainComparisonView";
 import RegionStandingsList from "@/components/profile/RegionStandingsList";
 import type { AreaPainEntry } from "@/lib/conditionIntake";
-import type { PainAssessmentRow } from "@/lib/painMap";
+import type { PainAssessmentRow, QuestionOverrideRow } from "@/lib/painMap";
 
 /**
  * One body-map surface instead of the two stacked ones this used to be.
@@ -17,26 +18,43 @@ import type { PainAssessmentRow } from "@/lib/painMap";
  *
  * Shared by the patient's Health Profile, the therapist's patient view,
  * and the admin's condition detail, so all three read the same map.
+ *
+ * When the viewer may record exams (`record` present) this is also where
+ * that starts. It used to be a second body map stacked under this one with
+ * twenty form fields between them — the exact "two stacked cards showing the
+ * same figure twice" this component exists to prevent, reintroduced inside a
+ * single card. Recording now happens in a dialog over this one map.
  */
 export default function PainMapExplorer({
   assessments,
   areaPain,
   showStandings = true,
+  record,
 }: {
   assessments: PainAssessmentRow[];
   areaPain: AreaPainEntry[];
   /** The ranked exam list under the figure. Off where the surrounding
    *  page already lists the same numbers (the admin's condition detail). */
   showStandings?: boolean;
+  /** Present only for a viewer allowed to write exam findings. Absent for
+   *  the patient, and for a therapist whose edit access hasn't been
+   *  approved yet — in both cases this stays a read-only chart. */
+  record?: {
+    endpoint: string;
+    patientId: string;
+    overridesByRegion: Record<string, QuestionOverrideRow[]>;
+  };
 }) {
   const canCompare = areaPain.length > 0;
   const [mode, setMode] = useState<"exam" | "compare">("exam");
+  const [recording, setRecording] = useState(false);
   const active = canCompare ? mode : "exam";
 
   return (
     <div>
-      {canCompare && (
-        <div className="mb-4 inline-flex rounded-xl bg-slate-100 p-1">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      {canCompare ? (
+        <div className="inline-flex rounded-xl bg-slate-100 p-1">
           {(
             [
               ["exam", "Therapist's exam"],
@@ -56,7 +74,21 @@ export default function PainMapExplorer({
             </button>
           ))}
         </div>
+      ) : (
+        <span />
       )}
+
+      {record && (
+        <button
+          type="button"
+          onClick={() => setRecording(true)}
+          className="rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-800"
+        >
+          <i className="fa-solid fa-notes-medical mr-1.5" />
+          Record an exam
+        </button>
+      )}
+      </div>
 
       {active === "compare" ? (
         <PainComparisonView assessments={assessments} areaPain={areaPain} />
@@ -71,6 +103,16 @@ export default function PainMapExplorer({
           </p>
           <RegionStandingsList assessments={assessments} />
         </div>
+      )}
+
+      {recording && record && (
+        <PainExamDialog
+          endpoint={record.endpoint}
+          patientId={record.patientId}
+          assessments={assessments}
+          overridesByRegion={record.overridesByRegion}
+          onClose={() => setRecording(false)}
+        />
       )}
     </div>
   );

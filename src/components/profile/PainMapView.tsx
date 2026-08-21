@@ -7,6 +7,7 @@ import {
   painBand,
   painTrend,
   PAIN_BAND_LABEL,
+  formatPainOutOfTen,
   type PainMapRegionKey,
   type PainMapSide,
   type PainAssessmentRow,
@@ -153,7 +154,7 @@ export default function PainMapView({ assessments }: { assessments: PainAssessme
                   <span
                     className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${PAIN_BAND_STYLE[painBand(selectedLatest.pain_percent)]}`}
                   >
-                    {selectedLatest.pain_percent}% · {PAIN_BAND_LABEL[painBand(selectedLatest.pain_percent)]}
+                    {formatPainOutOfTen(selectedLatest.pain_percent)} · {PAIN_BAND_LABEL[painBand(selectedLatest.pain_percent)]}
                     {(() => {
                       const trend = painTrend(selectedLatest.pain_percent, selectedPrevious?.pain_percent ?? null);
                       return trend === "down" ? " ↓" : trend === "up" ? " ↑" : "";
@@ -176,7 +177,7 @@ export default function PainMapView({ assessments }: { assessments: PainAssessme
                         {selectedHistory.map((a) => (
                           <li key={a.created_at} className="text-[11px] text-slate-500 flex justify-between gap-2">
                             <span>{new Date(a.created_at).toLocaleDateString()}</span>
-                            <span className="font-semibold text-slate-600">{a.pain_percent}%</span>
+                            <span className="font-semibold text-slate-600">{formatPainOutOfTen(a.pain_percent)}</span>
                           </li>
                         ))}
                       </ul>

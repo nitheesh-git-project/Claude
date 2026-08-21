@@ -1,4 +1,4 @@
-import { PAIN_BAND_LABEL } from "@/lib/painMap";
+import { PAIN_BAND_LABEL, formatPainOutOfTen } from "@/lib/painMap";
 import StatStrip, { StripProgress, type StatCell } from "@/components/dashboard/StatStrip";
 import type { HealthSnapshot } from "@/lib/healthProfileSummary";
 
@@ -60,7 +60,7 @@ export default function HealthSnapshotStrip({ snapshot }: { snapshot: HealthSnap
     },
     {
       label: "Last exam found",
-      value: clinicalPercent === null ? "—" : `${clinicalPercent}%`,
+      value: clinicalPercent === null ? "—" : formatPainOutOfTen(clinicalPercent),
       note:
         clinicalPercent === null
           ? "Fills in after your therapist examines you"

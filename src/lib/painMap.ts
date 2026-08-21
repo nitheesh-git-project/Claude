@@ -64,6 +64,104 @@ export const PAIN_MAP_REGIONS: PainMapRegionDef[] = [
   { key: "ankle_foot", label: "Ankle / Foot", view: "front", paired: true },
 ];
 
+// The 20 questions in clinical order, grouped the way a physiotherapist
+// actually works through an examination rather than as one undifferentiated
+// list. Recording an exam used to render all twenty fields at once, which is
+// the same "wall of fields reads as paperwork" problem the patient intake
+// was rebuilt to avoid -- the clinician just got a bigger wall.
+//
+// Groups, not steps: a therapist doing this after every session wants speed,
+// so the whole exam stays on one surface with headings to scan by, instead
+// of being paced one question at a time the way a patient's once-ever
+// intake is.
+export type PainExamGroupKey = "complaint" | "pattern" | "measured" | "findings";
+
+export type PainExamGroupDef = {
+  key: PainExamGroupKey;
+  title: string;
+  blurb: string;
+  /** Question keys in this group, in the order they should appear. */
+  questionKeys: string[];
+};
+
+export const PAIN_EXAM_GROUPS: PainExamGroupDef[] = [
+  {
+    key: "complaint",
+    title: "What they describe",
+    blurb: "The complaint in the patient's own words.",
+    questionKeys: ["location", "onset", "pain_type", "pattern", "radiates"],
+  },
+  {
+    key: "pattern",
+    title: "What sets it off",
+    blurb: "Triggers, relief, and anything in their history that bears on it.",
+    questionKeys: ["trigger", "worse", "better", "associated", "history", "function"],
+  },
+  {
+    key: "measured",
+    title: "Pain on testing",
+    blurb: "What they scored while you moved them.",
+    questionKeys: ["rest_pain", "movement_pain", "night_pain"],
+  },
+  {
+    key: "findings",
+    title: "Your findings",
+    blurb: "What you observed and measured yourself.",
+    questionKeys: ["rom", "strength", "swelling", "palpation", "special_test", "movement_note"],
+  },
+];
+
+/** Groups a merged question list into PAIN_EXAM_GROUPS, keeping any key the
+ *  groups don't name in a final catch-all so an admin-added question can
+ *  never silently vanish from the form. */
+export function groupExamQuestions(
+  questions: QuestionTemplate[]
+): { group: PainExamGroupDef; questions: QuestionTemplate[] }[] {
+  const byKey = new Map(questions.map((q) => [q.key, q]));
+  const claimed = new Set<string>();
+  const grouped = PAIN_EXAM_GROUPS.map((group) => {
+    const found = group.questionKeys
+      .map((key) => {
+        const q = byKey.get(key);
+        if (q) claimed.add(key);
+        return q;
+      })
+      .filter((q): q is QuestionTemplate => !!q);
+    return { group, questions: found };
+  }).filter((g) => g.questions.length > 0);
+
+  const leftovers = questions.filter((q) => !claimed.has(q.key));
+  if (leftovers.length > 0) {
+    grouped.push({
+      group: {
+        key: "findings",
+        title: "Anything else",
+        blurb: "Questions added for this region by an admin.",
+        questionKeys: leftovers.map((q) => q.key),
+      },
+      questions: leftovers,
+    });
+  }
+  return grouped;
+}
+
+/**
+ * An exam score, written the way the patient already reads pain.
+ *
+ * Assessments are stored 0-100 while a patient rates their own pain 0-10,
+ * and both used to be printed raw on the same screens -- "How you rate it
+ * 6/10" sat directly beside "Last exam found 34%" in the same strip of four
+ * figures. Two units for one concept reads as two different measurements,
+ * so every user-facing exam figure goes through this. Storage is untouched:
+ * this is a display concern only.
+ */
+export function formatPainOutOfTen(percent: number): string {
+  const outOfTen = percent / 10;
+  // Whole numbers stay whole -- "5/10" not "5.0/10" -- so the common case
+  // reads exactly like the patient's own answer.
+  return `${Number.isInteger(outOfTen) ? outOfTen : outOfTen.toFixed(1)}/10`;
+}
+
 export function isPainMapRegion(value: string): value is PainMapRegionKey {
   return PAIN_MAP_REGIONS.some((r) => r.key === value);
 }

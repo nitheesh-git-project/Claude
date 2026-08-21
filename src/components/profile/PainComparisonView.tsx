@@ -6,6 +6,7 @@ import {
   latestAssessmentByRegionSide,
   painBand,
   PAIN_BAND_LABEL,
+  formatPainOutOfTen,
   type PainMapRegionKey,
   type PainMapSide,
   type PainAssessmentRow,
@@ -105,11 +106,12 @@ export default function PainComparisonView({
     <div>
       <div className="flex items-center gap-4 mb-3 text-[11px] text-slate-500">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-slate-400" /> Therapist assessed (fill)
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-slate-400" /> Filled dot — what the
+          therapist found
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-blue-600" /> Patient self-reported
-          (ring)
+          <span className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-blue-600" /> Ring — where the
+          patient said it hurts
         </span>
       </div>
 
@@ -143,21 +145,29 @@ export default function PainComparisonView({
                 ✕
               </button>
             </div>
+            {/* Both readings shown out of ten. The exam is stored as a
+                percentage and the patient rates out of ten, so this popup
+                used to put "45%" directly above "7/10" and leave the reader
+                to work out that they are the same scale -- which reads as a
+                discrepancy between the two people, not a difference of
+                units. The percentage is kept alongside, since that is what
+                the therapist actually entered. */}
             <div className="mt-2 space-y-1.5">
               <p className="text-xs text-slate-600">
-                <span className="font-semibold">Therapist: </span>
+                <span className="font-semibold">Therapist found: </span>
                 {selectedClinical ? (
                   <span
                     className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${PAIN_BAND_STYLE[painBand(selectedClinical.pain_percent)]}`}
                   >
-                    {selectedClinical.pain_percent}% · {PAIN_BAND_LABEL[painBand(selectedClinical.pain_percent)]}
+                    {formatPainOutOfTen(selectedClinical.pain_percent)} ·{" "}
+                    {PAIN_BAND_LABEL[painBand(selectedClinical.pain_percent)]}
                   </span>
                 ) : (
-                  "Not assessed yet"
+                  "Not examined yet"
                 )}
               </p>
               <p className="text-xs text-slate-600">
-                <span className="font-semibold">Patient: </span>
+                <span className="font-semibold">Patient reported: </span>
                 {selectedSelfReport != null ? `${selectedSelfReport}/10` : "Not reported"}
               </p>
               {selectedNote && <p className="text-xs text-slate-500 italic">&quot;{selectedNote}&quot;</p>}

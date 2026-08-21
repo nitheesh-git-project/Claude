@@ -290,8 +290,29 @@ client is the only writer and the log is append-only from any session.
   assigned therapist (ever had an appointment with them, or holds a
   package's `locked_therapist_id`). Both layers render on **one** body-map
   surface (`PainMapExplorer.tsx`: the exam figure with a switch to the
-  patient-vs-exam comparison), not two stacked cards showing the same
-  figure twice — if a third view of this data is ever needed, add a mode to
+  patient-vs-exam comparison), and that same surface is where an exam gets
+  recorded — via `PainExamDialog`, not a form beneath the map. The
+  therapist's screen used to stack a second body map plus a 17-item region
+  dropdown plus all twenty questions under the first one, which is the
+  duplicate-figure mistake this rule exists to prevent, reintroduced inside
+  a single card. The region is chosen by tapping the figure (or a chip in
+  the dialog), never a `<select>`, and it stays in the dialog header while
+  the clinician types. Questions are grouped by `PAIN_EXAM_GROUPS`
+  (`painMap.ts`) rather than listed flat: a patient's once-ever intake is
+  paced one question at a time because patients abandon walls of fields, a
+  clinician filling this after every session gets the whole thing at once
+  with headings to scan by — never a wall of fields for either.
+- **One pain scale on screen, whatever the column says.** Assessments are
+  stored 0–100 and a patient rates their own pain 0–10; both used to be
+  printed raw, so "How you rate it 6/10" sat beside "Last exam found 34%"
+  in the same strip and read as two different measurements. Every
+  user-facing exam figure goes through `formatPainOutOfTen()`
+  (`painMap.ts`). Storage is unchanged — this is display only, and new
+  surfaces must use the helper rather than printing `pain_percent`.
+- **A permission gate belongs beside the thing it gates.** The therapist's
+  "Request access to edit" card sat three sections above the Pain Map, the
+  only thing it unlocks; it is now inside that card, stating what is
+  readable regardless and what needs approval — if a third view of this data is ever needed, add a mode to
   that switch rather than another card. The figure itself
   (`BodyMapDiagram.tsx`) is an anatomical human silhouette built from
   cross-section nodes (`silhouettePath`), one `<svg>` per view so front and

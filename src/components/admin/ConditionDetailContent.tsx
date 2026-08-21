@@ -7,7 +7,6 @@ import PainMapExplorer from "@/components/profile/PainMapExplorer";
 import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import SessionNoteHistory from "@/components/therapist/SessionNoteHistory";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
-import PainAssessmentForm from "@/components/profile/PainAssessmentForm";
 import {
   INTAKE_QUESTIONS,
   INTAKE_QUESTIONS_VERSION,
@@ -247,23 +246,22 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
         <p className="text-xs text-slate-500 mb-4">
           Exam findings, and the same figure switched to compare them against what the patient reported.
         </p>
-        <PainMapExplorer assessments={assessments ?? []} areaPain={parseAreaPain(currentData.area_pain)} />
-
-        <details className="mt-6">
-          <summary className="text-xs font-semibold text-slate-500 cursor-pointer">
-            Add a Pain Map entry directly
-          </summary>
-          <p className="mt-2 mb-3 text-xs text-slate-400">
-            Posts live immediately, same as a therapist&apos;s own entry — this doesn&apos;t edit or remove any
-            past assessment, it adds a new one (Pain Map history is append-only).
-          </p>
-          <PainAssessmentForm
-            endpoint="/api/admin/pain-assessments/submit"
-            patientId={id}
-            assessments={assessments ?? []}
-            overridesByRegion={painMapOverridesByRegion}
-          />
-        </details>
+        {/* Same one surface and the same recording dialog the therapist
+            uses -- an admin entering an exam on someone's behalf should be
+            filling in the identical form, not a second one that can drift. */}
+        <PainMapExplorer
+          assessments={assessments ?? []}
+          areaPain={parseAreaPain(currentData.area_pain)}
+          record={{
+            endpoint: "/api/admin/pain-assessments/submit",
+            patientId: id,
+            overridesByRegion: painMapOverridesByRegion,
+          }}
+        />
+        <p className="mt-3 text-xs text-slate-400">
+          Recording here posts live immediately, same as a therapist&apos;s own entry — it adds a new
+          reading rather than editing any past one, since Pain Map history is append-only.
+        </p>
       </section>
     </div>
   );
