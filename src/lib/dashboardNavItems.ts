@@ -23,34 +23,48 @@ export function buildPatientNavItems({
   hasHomeVisits: boolean;
   hasOwnedHomeVisitPackages: boolean;
 }): ShellNavItem[] {
+  // Every entry is a real page rather than an anchor on one long scroll.
+  // The scroll-spy version auto-selected whichever section happened to be
+  // nearest the top, so the sidebar appeared to change its mind while you
+  // read -- a nav item should be somewhere you go, not a running commentary
+  // on where you are.
   return [
     // Overview is first on every dashboard: the same "what needs me right
     // now" screen for patient, therapist, hospital and admin.
-    { id: "overview", label: "Overview", icon: "fa-gauge-high" },
-    { id: "book", label: "Book a Session", icon: "fa-plus" },
+    { id: "overview", label: "Overview", icon: "fa-gauge-high", href: "/patient/dashboard" },
+    { id: "book", label: "Book a Session", icon: "fa-plus", href: "/patient/dashboard/book" },
     ...(hasOnlineSessions
-      ? [{ id: "sessions", label: "Your Sessions", icon: "fa-calendar-check" }]
-      : []),
-    ...(hasHomeVisits
-      ? [{ id: "home-visits", label: "Your Home Visits", icon: "fa-house-medical" }]
-      : []),
-    { id: "calendar", label: "Calendar", icon: "fa-calendar" },
-    ...(hasOwnedPackages
-      ? [{ id: "your-packages", label: "Your Packages", icon: "fa-box-open" }]
-      : []),
-    ...(hasOwnedHomeVisitPackages
       ? [
           {
-            id: "your-home-visit-packages",
-            label: "Your Home Visit Packages",
-            icon: "fa-house-chimney-medical",
+            id: "sessions",
+            label: "Your Sessions",
+            icon: "fa-calendar-check",
+            href: "/patient/dashboard/sessions",
           },
         ]
       : []),
-    ...(hasAvailablePackages
-      ? [{ id: "session-packages", label: "Session Packages", icon: "fa-layer-group" }]
+    ...(hasHomeVisits
+      ? [
+          {
+            id: "home-visits",
+            label: "Your Home Visits",
+            icon: "fa-house-medical",
+            href: "/patient/dashboard/home-visits",
+          },
+        ]
       : []),
-    { id: "receipts", label: "Receipts", icon: "fa-receipt" },
+    { id: "calendar", label: "Calendar", icon: "fa-calendar", href: "/patient/dashboard/calendar" },
+    ...(hasOwnedPackages || hasOwnedHomeVisitPackages || hasAvailablePackages
+      ? [
+          {
+            id: "packages",
+            label: hasOwnedPackages || hasOwnedHomeVisitPackages ? "Your Packages" : "Session Packages",
+            icon: "fa-box-open",
+            href: "/patient/dashboard/packages",
+          },
+        ]
+      : []),
+    { id: "receipts", label: "Receipts", icon: "fa-receipt", href: "/patient/dashboard/receipts" },
     {
       id: "health-profile",
       label: "Health Profile",

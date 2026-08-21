@@ -1,0 +1,55 @@
+import type { ReactNode } from "react";
+import DashboardShell from "@/components/dashboard/DashboardShell";
+import type { PatientDashboardData } from "@/lib/patientDashboardData";
+
+/**
+ * The chrome every patient dashboard screen shares: sidebar, header,
+ * realtime subscriptions, idle timeout.
+ *
+ * Each screen is its own route now (/book, /sessions, /calendar, ...)
+ * rather than an anchor on one long scroll, so this exists to stop seven
+ * routes each assembling their own shell props and drifting apart.
+ */
+export default function PatientDashboardShell({
+  data,
+  title,
+  subtitle,
+  children,
+}: {
+  data: PatientDashboardData;
+  title: string;
+  subtitle?: ReactNode;
+  children: ReactNode;
+}) {
+  const showDebugNav =
+    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
+    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" && process.env.NODE_ENV !== "production");
+
+  return (
+    <DashboardShell
+      brandLabel="Patient Panel"
+      brandIcon="fa-user-injured"
+      basePath="/patient/dashboard"
+      navItems={data.navItems}
+      userName={data.profile?.full_name ?? "Patient"}
+      userEmail={data.profile?.email ?? data.user.email ?? ""}
+      userAvatarUrl={data.profile?.avatar_url ?? null}
+      userCode={data.patientCodeRow?.patient_code ?? null}
+      offsetTop={showDebugNav}
+      sessionTimeoutMinutes={data.adminSettings.sessionTimeoutMinutes}
+      realtimeTables={[
+        "appointments",
+        "site_settings",
+        "patient_package_purchases",
+        "payment_failure_log",
+        "treatment_categories",
+        "treatment_category_packages",
+        "patient_condition_profiles",
+      ]}
+      headerTitle={title}
+      headerSubtitle={subtitle}
+    >
+      {children}
+    </DashboardShell>
+  );
+}
