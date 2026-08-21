@@ -458,6 +458,16 @@ of its own:
 - Admins see every note on the patient's condition detail screen, which is
   how the clinic can tell whether care is being delivered and documented.
 
+**Dashboard navigation.** The patient, therapist and hospital dashboards are
+sets of real pages — `/patient/dashboard/sessions`,
+`/therapist/dashboard/earnings`, `/hospital/dashboard/referrals` and so on —
+one per sidebar entry, the same as Edit Profile has always been. They used to
+be anchors on a single very long page with the sidebar highlighting whichever
+section was nearest the top as you scrolled, which read as the nav choosing
+for you. Each dashboard has one server-only loader
+(`src/lib/{patient,therapist,hospital}DashboardData.ts`) shared by all of its
+routes, and a `*DashboardShell` component for the chrome.
+
 **Dashboard Overview (all four roles).** Patient, therapist, hospital and
 admin dashboards each open on the same Overview screen
 (`src/components/dashboard/DashboardOverview.tsx`): four headline figures,

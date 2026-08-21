@@ -315,6 +315,18 @@ client is the only writer and the log is append-only from any session.
   history. Completion is never blocked on a note — the nudge is a
   `needsYou` feed item plus the "Notes to write" figure on the therapist's
   Overview.
+- **Patient, therapist and hospital dashboard sections are real routes**, not
+  anchors on one long scroll. Each nav item has an `href`
+  (`/patient/dashboard/sessions`, `/therapist/dashboard/earnings`, ...) and
+  its own `page.tsx`; the scroll-spy path in `DashboardShell` now only
+  serves Edit Profile's sub-sections. The reason is UX: spy-highlighting
+  made the sidebar appear to change its mind while you read. Each dashboard
+  has one server-only loader (`src/lib/patientDashboardData.ts`,
+  `therapistDashboardData.ts`, `hospitalDashboardData.ts`) that every one of
+  its routes calls, so seven routes cannot grow seven slightly different
+  copies of the same queries, and a `*DashboardShell` component holding the
+  sidebar/header/realtime props. Anything rendered by more than one route
+  (the session cards) is a real component, not a closure.
 - **Every dashboard opens on the same Overview.** Patient, therapist,
   hospital and admin all render `DashboardOverview.tsx` — a strip of four
   figures (`StatStrip`), the notification feed (`ActivityFeed`), and a

@@ -97,28 +97,66 @@ export function buildTherapistNavItems({
 }: {
   hasHomeVisits: boolean;
 }): ShellNavItem[] {
+  // Real pages, not anchors -- see buildPatientNavItems for why.
   return [
-    { id: "overview", label: "Overview", icon: "fa-gauge-high" },
-    { id: "availability", label: "Availability", icon: "fa-calendar-days" },
-    { id: "sessions", label: "Assigned Sessions", icon: "fa-clipboard-list" },
+    { id: "overview", label: "Overview", icon: "fa-gauge-high", href: "/therapist/dashboard" },
+    {
+      id: "availability",
+      label: "Availability",
+      icon: "fa-calendar-days",
+      href: "/therapist/dashboard/availability",
+    },
+    {
+      id: "sessions",
+      label: "Assigned Sessions",
+      icon: "fa-clipboard-list",
+      href: "/therapist/dashboard/sessions",
+    },
     ...(hasHomeVisits
-      ? [{ id: "home-visits", label: "Home Visits", icon: "fa-house-medical" }]
+      ? [
+          {
+            id: "home-visits",
+            label: "Home Visits",
+            icon: "fa-house-medical",
+            href: "/therapist/dashboard/home-visits",
+          },
+        ]
       : []),
     ...THERAPIST_NAV_ITEMS.slice(3),
   ];
 }
 
 export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
-  { id: "overview", label: "Overview", icon: "fa-gauge-high" },
-  { id: "availability", label: "Availability", icon: "fa-calendar-days" },
-  { id: "sessions", label: "Assigned Sessions", icon: "fa-clipboard-list" },
-  { id: "programmes", label: "Programme Patients", icon: "fa-layer-group" },
-  { id: "calendar", label: "Calendar", icon: "fa-calendar" },
-  { id: "earnings", label: "Earnings", icon: "fa-chart-line" },
-  { id: "receipts", label: "Payout Receipts", icon: "fa-sack-dollar" },
+  { id: "overview", label: "Overview", icon: "fa-gauge-high", href: "/therapist/dashboard" },
+  {
+    id: "availability",
+    label: "Availability",
+    icon: "fa-calendar-days",
+    href: "/therapist/dashboard/availability",
+  },
+  {
+    id: "sessions",
+    label: "Assigned Sessions",
+    icon: "fa-clipboard-list",
+    href: "/therapist/dashboard/sessions",
+  },
+  {
+    id: "programmes",
+    label: "Programme Patients",
+    icon: "fa-layer-group",
+    href: "/therapist/dashboard/programmes",
+  },
+  { id: "calendar", label: "Calendar", icon: "fa-calendar", href: "/therapist/dashboard/calendar" },
+  { id: "earnings", label: "Earnings", icon: "fa-chart-line", href: "/therapist/dashboard/earnings" },
+  {
+    id: "receipts",
+    label: "Payout Receipts",
+    icon: "fa-sack-dollar",
+    href: "/therapist/dashboard/receipts",
+  },
   {
     id: "health-profiles",
-    label: "Health Profiles",
+    label: "My Patients",
     icon: "fa-notes-medical",
     href: "/therapist/dashboard/health-profile",
   },

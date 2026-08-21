@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 import PayNowButton from "@/components/PayNowButton";
 import CancelSessionButton from "@/components/CancelSessionButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
