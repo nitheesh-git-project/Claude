@@ -319,7 +319,11 @@ client is the only writer and the log is append-only from any session.
   one entry in the page's `screens` map. Tab state is written with the
   History API, never `router.push`: the dashboard is a single Server
   Component making ~40 queries, and a router navigation would re-run all of
-  them to move between two already-rendered screens.
+  them to move between two already-rendered screens. The page also reads
+  `?section=/?tab=` server-side and passes them to `AdminShell` as
+  `initialSection`/`initialTab`, so a shared deep link server-renders that
+  screen instead of painting Today first and jumping once the client effect
+  runs.
 - **A session is listed once.** All Bookings, Session Story, the calendar's
   day panel and the home-visit queue were four lists over the same
   `appointments` rows; they are now one filterable list

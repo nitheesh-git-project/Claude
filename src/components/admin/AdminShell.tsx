@@ -98,6 +98,8 @@ export default function AdminShell({
   adminAvatarUrl,
   allowedSections,
   offsetTop,
+  initialSection,
+  initialTab,
 }: {
   screens: AdminScreens;
   // Keyed the same way as `screens`. A section's own badge is the sum of its
@@ -117,12 +119,18 @@ export default function AdminShell({
   // own fixed sidebar has to account for that offset itself instead of
   // inheriting it for free from normal document flow.
   offsetTop: boolean;
+  // The ?section=/?tab= a deep link arrived with, read server-side by the
+  // page so the right screen is in the very first HTML rather than after
+  // hydration. Null on a plain /admin/dashboard visit.
+  initialSection?: string | null;
+  initialTab?: string | null;
 }) {
   const sections = ADMIN_SECTIONS.filter((s) => allowedSections.includes(s.key));
   const firstSection = sections[0] ?? ADMIN_SECTIONS[0];
 
-  const [sectionKey, setSectionKey] = useState<string>(firstSection.key);
-  const [tabKey, setTabKey] = useState<string>(firstSection.tabs[0].key);
+  const initial = findTab(initialSection ?? null, initialTab ?? null, allowedSections);
+  const [sectionKey, setSectionKey] = useState<string>(initial.section);
+  const [tabKey, setTabKey] = useState<string>(initial.tab);
   // Desktop full <-> mini collapse. Independent of the mobile drawer below --
   // a phone gets an off-canvas drawer instead, never the mini/icon-only rail.
   const [collapsed, setCollapsed] = useState(false);

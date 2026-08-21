@@ -8,7 +8,7 @@ import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
 import AssignReferralForm from "@/components/admin/AssignReferralForm";
 import AdminShell, { type AdminScreens } from "@/components/admin/AdminShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
-import type { StatCell } from "@/components/dashboard/StatStrip";
+import StatStrip, { type StatCell } from "@/components/dashboard/StatStrip";
 import { buildAdminFeed } from "@/lib/dashboardFeed";
 import AdminTodayTab, { type InboxGroup } from "@/components/admin/AdminTodayTab";
 import AdminAllSessionsTab from "@/components/admin/AdminAllSessionsTab";
@@ -76,7 +76,16 @@ function nowTimestamp() {
   return Date.now();
 }
 
-export default async function AdminDashboardPage() {
+export default async function AdminDashboardPage({
+  searchParams,
+}: {
+  // Read here rather than only in the client shell so a deep link
+  // (?section=money&tab=summary) server-renders that screen directly. The
+  // shell still syncs the URL after hydration; without this, a shared link
+  // painted Today first and jumped once the client effect ran.
+  searchParams: Promise<{ section?: string; tab?: string }>;
+}) {
+  const { section: sectionParam, tab: tabParam } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -1674,6 +1683,47 @@ export default async function AdminDashboardPage() {
   // Site Content used to be one tab holding four unrelated things. Its
   // categories are what we sell (Catalog); its brand strings, public-page
   // content and ratings switch are configuration (Settings).
+  // What is actually on sale right now, above the editor -- Catalog is the
+  // one section where the question is "what does a patient see?", and that
+  // was only answerable by opening all four tabs and counting.
+  const activeCategoryCount = (treatmentCategories ?? []).filter((c) => c.active).length;
+  const visiblePackageCount = (packages ?? []).filter((p) => p.active).length;
+  const catalogStrip = (
+    <div className="mb-5">
+      <StatStrip
+        cells={[
+          {
+            label: "Conditions on sale",
+            value: String(activeCategoryCount),
+            note:
+              (treatmentCategories ?? []).length > activeCategoryCount
+                ? `${(treatmentCategories ?? []).length - activeCategoryCount} hidden from patients`
+                : "All of them are live",
+            accent: "bg-teal-500",
+          },
+          {
+            label: "Session packages",
+            value: String(visiblePackageCount),
+            note: adminSettings.sessionPackagesVisible ? "Bundles patients can buy" : "Packages are switched off",
+            accent: adminSettings.sessionPackagesVisible && visiblePackageCount > 0 ? "bg-blue-500" : "bg-slate-400",
+          },
+          {
+            label: "Service areas",
+            value: String((homeVisitAreas ?? []).length),
+            note: adminSettings.homeVisitEnabled ? "Pincodes a therapist will travel to" : "Home visits are switched off",
+            accent: adminSettings.homeVisitEnabled ? "bg-emerald-500" : "bg-slate-400",
+          },
+          {
+            label: "Programmes sold",
+            value: String(packagePurchaseRows.length),
+            note: "Package purchases on record",
+            accent: "bg-slate-400",
+          },
+        ]}
+      />
+    </div>
+  );
+
   const catalogConditionsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Conditions Treated</h2>
@@ -2145,10 +2195,30 @@ export default async function AdminDashboardPage() {
       </div>
     ),
     "money:performance": moneyPerformanceTab,
-    "catalog:conditions": catalogConditionsTab,
-    "catalog:packages": catalogPackagesTab,
-    "catalog:areas": catalogAreasTab,
-    "catalog:purchases": catalogPurchasesTab,
+    "catalog:conditions": (
+      <>
+        {catalogStrip}
+        {catalogConditionsTab}
+      </>
+    ),
+    "catalog:packages": (
+      <>
+        {catalogStrip}
+        {catalogPackagesTab}
+      </>
+    ),
+    "catalog:areas": (
+      <>
+        {catalogStrip}
+        {catalogAreasTab}
+      </>
+    ),
+    "catalog:purchases": (
+      <>
+        {catalogStrip}
+        {catalogPurchasesTab}
+      </>
+    ),
     "settings:brand": settingsBrandTab,
     "settings:public": settingsPublicSiteTab,
     "settings:booking": settingsBookingTab,
@@ -2178,6 +2248,8 @@ export default async function AdminDashboardPage() {
       afterMinutes={adminSettings.joinWindowAfterMinutes}
     >
       <AdminShell
+        initialSection={sectionParam ?? null}
+        initialTab={tabParam ?? null}
         screens={screens}
         badges={badges}
         searchEntities={searchEntities}
