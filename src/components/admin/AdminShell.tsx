@@ -67,6 +67,10 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   "faqs",
   "home_visit_areas",
   "home_visit_packages",
+  // Costs are admin-entered like the rest of this list -- the editor already
+  // sees their own change via router.refresh(), so the long cooldown is
+  // right and the short operational one would be wasted rebuilds.
+  "business_expenses",
 ];
 
 // Cooldowns, not delays: RealtimeRefresh fires on the leading edge, so

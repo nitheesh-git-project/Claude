@@ -55,6 +55,11 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       { key: "schedule", label: "Schedule" },
       { key: "all", label: "All Sessions" },
       { key: "roster", label: "Roster" },
+      // No-show, cancellation and repeat rates, and sessions per therapist.
+      // These lived under Money, which made that section the one place a
+      // financial screen answered an operational question -- a no-show rate
+      // is about how the clinic runs, not about its books.
+      { key: "delivery", label: "Delivery" },
       { key: "new", label: "New Booking" },
     ],
   },
@@ -73,12 +78,16 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     key: "money",
     label: "Money",
     icon: "fa-sack-dollar",
-    blurb: "What came in, what goes out, what is still owed.",
+    blurb: "What came in, what goes out, what it costs, what is still owed.",
     tabs: [
       { key: "summary", label: "Summary" },
       { key: "transactions", label: "Transactions" },
       { key: "payouts", label: "Payouts" },
-      { key: "performance", label: "Performance" },
+      // What the clinic itself spends. Without it the money screens stop at
+      // the clinic's share and no figure anywhere can honestly be called
+      // profit.
+      { key: "costs", label: "Costs" },
+      { key: "breakdown", label: "Breakdown" },
     ],
   },
   {

@@ -3262,6 +3262,7 @@ begin
   -- irrelevant inside a single TRUNCATE; CASCADE covers anything added later
   -- that references one of these and was not listed.
   truncate table
+    business_expenses,
     admin_activity_log,
     appointment_reassignment_log,
     payment_failure_log,
@@ -3528,4 +3529,72 @@ create policy "session_note_revisions_select_clinician" on session_note_revision
 -- same posture as admin_activity_log.
 revoke insert, update, delete on session_note_revisions from authenticated;
 
-alter publication supabase_realtime add table session_notes;
+-- DO-guarded like every other publication add in this file, so re-running
+-- schema.sql doesn't fail on a table already published. Without the guard
+-- this line aborted the whole re-run, which is exactly what the
+-- schema-apply workflow does on every push to main.
+do $$
+begin
+  alter publication supabase_realtime add table session_notes;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Operating costs
+-- ---------------------------------------------------------------------------
+-- The clinic's own expenses, so the Money screens can show an actual profit
+-- rather than stopping at "clinic share" -- what is left after the therapist
+-- and partner splits, but before a single rupee of running the business.
+-- Until this table existed no screen in the app could honestly use the word
+-- profit, which is why none of them did.
+--
+-- Deliberately a flat, hand-entered ledger rather than anything cleverer:
+-- an integration with an accounting system is a different product, and a
+-- clinic this size records a handful of costs a month. `incurred_on` is a
+-- plain date (not timestamptz) because an expense belongs to a day in the
+-- clinic's own books, not to an instant -- and it is what the Money date
+-- range filters on, so a cost lands in the same period an accountant would
+-- put it in regardless of when someone got round to typing it in.
+create table if not exists business_expenses (
+  id uuid primary key default gen_random_uuid(),
+  incurred_on date not null,
+  category text not null,
+  description text,
+  amount_paise integer not null check (amount_paise > 0),
+  -- Kept on delete set null rather than cascade: removing an admin account
+  -- must never quietly delete the clinic's expense history.
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists business_expenses_incurred_on_idx
+  on business_expenses (incurred_on desc);
+
+alter table business_expenses enable row level security;
+
+-- Admins read; nobody writes from a session. Same posture as
+-- admin_activity_log: the service-role client behind the expense routes is
+-- the only writer, so a stolen session cookie cannot invent or erase a cost
+-- and quietly change what the business reports as profit.
+drop policy if exists "business_expenses_select_admin" on business_expenses;
+create policy "business_expenses_select_admin" on business_expenses
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+revoke insert, update, delete on business_expenses from authenticated;
+
+-- Payment-gateway fee, as a percentage of what was collected online. Not a
+-- business_expenses row: it is charged per transaction and automatically, so
+-- deriving it from the sessions that were actually paid for online keeps it
+-- correct without anyone having to remember to enter it. Cash-on-visit
+-- collections never touch the gateway and are excluded (see
+-- src/lib/operatingCosts.ts).
+alter table site_settings
+  add column if not exists payment_gateway_fee_percent numeric;
+
+do $$
+begin
+  alter publication supabase_realtime add table business_expenses;
+exception when duplicate_object then null;
+end $$;

@@ -16,6 +16,8 @@ import AdminNewBookingTab from "@/components/admin/AdminNewBookingTab";
 import AdminTeamAccessTab, { type AdminRow } from "@/components/admin/AdminTeamAccessTab";
 import AdminActivityLogTab, { type ActivityRow } from "@/components/admin/AdminActivityLogTab";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
+import AdminCostsTab from "@/components/admin/AdminCostsTab";
+import { istDateKey } from "@/lib/formatSlotRange";
 import HospitalActiveToggle from "@/components/admin/HospitalActiveToggle";
 import PackageCatalogManager from "@/components/admin/PackageCatalogManager";
 import PackagePurchasesTable from "@/components/admin/PackagePurchasesTable";
@@ -168,6 +170,7 @@ export default async function AdminDashboardPage({
     { data: homeVisitPurchases },
     { data: adminScopeRows },
     { data: activityLogRows },
+    { data: businessExpenseRows },
   ] = await Promise.all([
     // Both self-serve roles wait on admin approval, so this one query feeds
     // the single "Pending Approvals" list -- therapist applications and
@@ -465,6 +468,17 @@ export default async function AdminDashboardPage({
       .select("id, actor_id, action, target_label, amount_paise, details, created_at")
       .order("created_at", { ascending: false })
       .limit(200),
+
+    // The clinic's own running costs. Its own isolated query because
+    // business_expenses is a new table -- before the migration lands, an
+    // unknown-table error here must cost the Money screens their cost lines
+    // and nothing else, the same convention session_notes and session_code
+    // already follow.
+    admin
+      .from("business_expenses")
+      .select("id, incurred_on, category, description, amount_paise")
+      .order("incurred_on", { ascending: false })
+      .limit(500),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -1306,6 +1320,7 @@ export default async function AdminDashboardPage({
       {
         visit_mode: "home_visit" as const,
         travel_fee_paise: v.travel_fee_paise,
+        payment_method: v.payment_method,
         cash_collected_at: v.cash_collected_at,
         cash_collected_amount_paise: v.cash_collected_amount_paise,
         cash_remitted_at: v.cash_remitted_at,
@@ -1314,7 +1329,12 @@ export default async function AdminDashboardPage({
   );
   const appointmentsForPayouts = (appointments ?? []).map((a) => ({
     ...a,
-    ...(homeVisitPayoutDetailById.get(a.id) ?? { visit_mode: "online" as const }),
+    ...(homeVisitPayoutDetailById.get(a.id) ?? {
+      visit_mode: "online" as const,
+      // An online session is always card/UPI through the gateway; only a
+      // home visit can be settled in cash.
+      payment_method: null as string | null,
+    }),
   }));
   const homeVisitShareById = new Map(
     (homeVisitShareRows ?? []).map((r) => [r.id, r.home_visit_revenue_share_percent])
@@ -1349,6 +1369,8 @@ export default async function AdminDashboardPage({
         therapists={allTherapists}
         categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
         patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+        expenses={businessExpenseRows ?? []}
+        gatewayFeePercent={adminSettings.paymentGatewayFeePercent}
         therapistSharePercent={therapistSharePercent}
         therapistHomeVisitSharePercent={therapistHomeVisitSharePercent}
         patientHospitalSharePercent={patientHospitalSharePercent}
@@ -1360,10 +1382,35 @@ export default async function AdminDashboardPage({
     </>
   );
 
-  const moneyPerformanceTab = (
+  // Operating quality, under Sessions rather than Money. Same component and
+  // the same one-pass maths as the money views -- only the slice differs.
+  const deliveryTab = (
+    <AdminMetricsTab
+      view="delivery"
+      appointments={appointmentsForPayouts}
+      packagePurchases={(packagePurchaseSummaries ?? []).map((p) => ({
+        category_id: p.category_id,
+        payment_status: p.payment_status,
+        amount_paid_paise: p.amount_paid_paise,
+        paid_at: p.paid_at,
+      }))}
+      therapists={allTherapists}
+      categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+      patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+      expenses={businessExpenseRows ?? []}
+      gatewayFeePercent={adminSettings.paymentGatewayFeePercent}
+      therapistSharePercent={therapistSharePercent}
+      therapistHomeVisitSharePercent={therapistHomeVisitSharePercent}
+      patientHospitalSharePercent={patientHospitalSharePercent}
+      hospitalReferredPatientIds={hospitalReferredPatientIds}
+      nowMs={nowTimestamp()}
+    />
+  );
+
+  const moneyBreakdownTab = (
     <>
       <AdminMetricsTab
-        view="performance"
+        view="breakdown"
         appointments={appointmentsForPayouts}
         packagePurchases={(packagePurchaseSummaries ?? []).map((p) => ({
           category_id: p.category_id,
@@ -1374,6 +1421,8 @@ export default async function AdminDashboardPage({
         therapists={allTherapists}
         categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
         patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+        expenses={businessExpenseRows ?? []}
+        gatewayFeePercent={adminSettings.paymentGatewayFeePercent}
         therapistSharePercent={therapistSharePercent}
         therapistHomeVisitSharePercent={therapistHomeVisitSharePercent}
         patientHospitalSharePercent={patientHospitalSharePercent}
@@ -2218,14 +2267,27 @@ export default async function AdminDashboardPage({
         <MoneyGlossary />
       </div>
     ),
-    "money:performance": (
+    "money:costs": (
       <>
-        {moneyPerformanceTab}
+        <AdminCostsTab
+          expenses={businessExpenseRows ?? []}
+          gatewayFeePercent={adminSettings.paymentGatewayFeePercent}
+          todayIso={istDateKey(new Date(nowTimestamp()).toISOString())}
+        />
         <div className="mt-8">
           <MoneyGlossary />
         </div>
       </>
     ),
+    "money:breakdown": (
+      <>
+        {moneyBreakdownTab}
+        <div className="mt-8">
+          <MoneyGlossary />
+        </div>
+      </>
+    ),
+    "sessions:delivery": deliveryTab,
     "catalog:conditions": (
       <>
         {catalogStrip}

@@ -48,6 +48,10 @@ export type MetricsAppointment = {
   cash_collected_at?: string | null;
   cash_collected_amount_paise?: number | null;
   cash_remitted_at?: string | null;
+  /** 'cash' for a cash-on-visit home visit. Read only by the gateway-fee
+   *  cost line, which must not charge a processor fee on money that never
+   *  went through a processor. */
+  payment_method?: string | null;
 };
 
 export type Person = { id: string; full_name: string | null };

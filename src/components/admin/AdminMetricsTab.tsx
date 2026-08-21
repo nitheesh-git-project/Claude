@@ -19,6 +19,13 @@ import {
   computeTherapistUtilization,
 } from "@/lib/adminMetrics";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
+import {
+  expensesInRange,
+  gatewayFeePaise,
+  operatingResult,
+  sumExpensesPaise,
+  type ExpenseRow,
+} from "@/lib/operatingCosts";
 import Modal from "@/components/admin/Modal";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import { istDateKey } from "@/lib/formatSlotRange";
@@ -275,6 +282,8 @@ export default function AdminMetricsTab({
   therapists,
   categories,
   patients,
+  expenses,
+  gatewayFeePercent,
   therapistSharePercent,
   therapistHomeVisitSharePercent,
   patientHospitalSharePercent,
@@ -291,6 +300,11 @@ export default function AdminMetricsTab({
   categories: Category[];
   patients: Person[];
   // therapistId -> revenue-share %, only present where an admin has set one.
+  /** Hand-entered running costs, all of them; this component scopes them to
+   *  the selected range itself. */
+  expenses: ExpenseRow[];
+  /** Payment-gateway cut of everything collected online, as a percentage. */
+  gatewayFeePercent: number;
   therapistSharePercent: Record<string, number>;
   // therapistId -> home-visit revenue-share %, for therapists who have a
   // separate rate for visits. Without it a home visit's cut is computed at
@@ -314,17 +328,22 @@ export default function AdminMetricsTab({
   // and re-renders client-side. Taking the same timestamp as a prop makes
   // the initial value identical on both passes.
   nowMs: number;
-  // Which half of this tab to render. The maths is identical either way and
-  // is deliberately computed once: "Summary" answers *how much money*
-  // (totals, trends, the revenue split) and "Performance" answers *how well
-  // it went* (per-therapist and per-patient ledgers, utilization, no-show
-  // and cancellation rates). They were one endless scroll before, which is
-  // why nobody could find either.
+  // Which slice of this component to render. The maths is identical for all
+  // three and is deliberately computed once:
+  //
+  //   "summary"     — how much money (totals, trends, the revenue split)
+  //   "breakdown"   — who and what earned it (per-therapist, per-patient)
+  //   "delivery"    — how well it went (no-show, cancellation, repeat rate,
+  //                   session counts per therapist)
+  //
+  // Delivery lives under Sessions, not Money: a no-show rate is a question
+  // about how the clinic runs, not about its books, and mixing the two was
+  // the one place the Money section stopped being purely financial.
   //
   // Each view keeps its own filter state because they mount as separate
   // screens -- an admin narrowing the Performance view to one therapist is
   // asking a different question from whatever range Summary is showing.
-  view: "summary" | "performance";
+  view: "summary" | "breakdown" | "delivery";
 }) {
   const [fromDate, setFromDate] = useState(() => toDateInputValue(daysAgo(90, nowMs)));
   const [toDate, setToDate] = useState(() => toDateInputValue(new Date(nowMs)));
@@ -437,6 +456,26 @@ export default function AdminMetricsTab({
   const totalClinicSharePaise = sum(money.clinicSharePaise);
   // Share of the money it is measured against -- a bare rupee figure says
   // nothing about whether the split is healthy.
+  // The cost side, scoped to the same range as everything above it.
+  const rangeExpenses = useMemo(
+    () => expensesInRange(expenses, fromMs, toMs),
+    [expenses, fromMs, toMs]
+  );
+  const totalGatewayFeePaise = useMemo(
+    () => gatewayFeePaise(inRangeBySlot, gatewayFeePercent, fromMs, toMs),
+    [inRangeBySlot, gatewayFeePercent, fromMs, toMs]
+  );
+  const operating = useMemo(
+    () =>
+      operatingResult({
+        clinicSharePaise: totalClinicSharePaise,
+        gatewayFeePaise: totalGatewayFeePaise,
+        recordedExpensesPaise: sumExpensesPaise(rangeExpenses),
+        netRevenuePaise: totalNetRevenuePaise,
+      }),
+    [totalClinicSharePaise, totalGatewayFeePaise, rangeExpenses, totalNetRevenuePaise]
+  );
+
   const clinicSharePercent =
     totalSplittableNetPaise > 0
       ? (totalClinicSharePaise / totalSplittableNetPaise) * 100
@@ -630,7 +669,9 @@ export default function AdminMetricsTab({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Filters</h2>
         <p className="text-[11px] text-slate-400 mb-4 -mt-2">
-          Applies to every chart and stat on this tab, including the revenue breakdown below.
+          {view === "delivery"
+            ? "Applies to every rate and count below."
+            : "Applies to every chart and stat on this screen, including the revenue breakdown below."}
         </p>
         <div className="flex flex-wrap items-end gap-4 text-xs">
           <div className="flex flex-col gap-1">
@@ -750,6 +791,17 @@ export default function AdminMetricsTab({
                 accent: "bg-emerald-500",
               },
               {
+                label: "Operating profit",
+                value: formatInr(operating.operatingProfitPaise),
+                note:
+                  operating.totalCostsPaise > 0
+                    ? `After ${formatInr(operating.totalCostsPaise)} of running costs`
+                    : "No running costs recorded for this range",
+                accent: operating.operatingProfitPaise >= 0 ? "bg-emerald-500" : "bg-red-500",
+                valueClass:
+                  operating.operatingProfitPaise < 0 ? "text-red-600" : "text-slate-800",
+              },
+              {
                 label: "Owed to therapists",
                 value: formatInr(allTimeNetPayablePaise),
                 note:
@@ -758,12 +810,6 @@ export default function AdminMetricsTab({
                     : "Everyone is settled up",
                 accent: allTimeNetPayablePaise > 0 ? "bg-amber-500" : "bg-emerald-500",
                 valueClass: allTimeNetPayablePaise > 0 ? "text-amber-600" : "text-slate-800",
-              },
-              {
-                label: "Paid to therapists",
-                value: formatInr(totalPaidToTherapistsPaise),
-                note: "Settled for sessions in this range",
-                accent: "bg-blue-500",
               },
             ]}
           />
@@ -841,14 +887,133 @@ export default function AdminMetricsTab({
           </p>
         )}
 
+        {/* The cost side. Until this existed the chain stopped at the clinic's
+            share, which is a gross figure -- nothing had been taken out for
+            actually running the business -- and that is why no screen here
+            was allowed to say "profit". It can now, because there is finally
+            something behind the word. */}
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1 mt-8">
+          What it cost to run
+        </h2>
+        <p className="text-[11px] text-slate-400 mb-3">
+          Payment fees are worked out automatically from what was collected online. Everything
+          else is what has been recorded under Costs for these dates.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-chart-line text-teal-600"></i> Clinic share
+            </p>
+            <p className="text-2xl font-bold mt-2" style={{ color: PROFIT_COLOR }}>
+              {formatInr(totalClinicSharePaise)}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-1">Carried down from above</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-credit-card text-blue-600"></i> Payment fees
+            </p>
+            <p className="text-2xl font-bold text-slate-900 mt-2">
+              {totalGatewayFeePaise > 0
+                ? `−${formatInr(totalGatewayFeePaise)}`
+                : formatInr(0)}
+            </p>
+            {/* Charged on gross, not net: a processor keeps its fee when a
+                payment is reversed, so a refunded session costs the fee
+                anyway. */}
+            <p className="text-[11px] text-slate-400 mt-1">
+              {gatewayFeePercent}% of everything collected online, refunds included
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-receipt text-amber-600"></i> Running costs
+            </p>
+            <p className="text-2xl font-bold text-slate-900 mt-2">
+              {operating.recordedExpensesPaise > 0
+                ? `−${formatInr(operating.recordedExpensesPaise)}`
+                : formatInr(0)}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {rangeExpenses.length > 0
+                ? `${rangeExpenses.length} entr${rangeExpenses.length === 1 ? "y" : "ies"} in this range`
+                : "Nothing recorded — add costs under Money → Costs"}
+            </p>
+          </div>
+          <div
+            className={`rounded-2xl border shadow-sm p-5 ${
+              operating.operatingProfitPaise >= 0
+                ? "border-emerald-200 bg-emerald-50/40"
+                : "border-red-200 bg-red-50/40"
+            }`}
+          >
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-sack-dollar text-emerald-600"></i> Operating profit
+            </p>
+            <p
+              className={`text-2xl font-bold mt-2 ${
+                operating.operatingProfitPaise >= 0 ? "text-emerald-700" : "text-red-600"
+              }`}
+            >
+              {formatInr(operating.operatingProfitPaise)}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {operating.marginPercent === null
+                ? "Before tax"
+                : `${operating.marginPercent.toFixed(1)}% of net revenue · before tax`}
+            </p>
+          </div>
+        </div>
+
+        {operating.recordedExpensesPaise === 0 && (
+          <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+            Operating profit only counts the costs it knows about. With nothing recorded for these
+            dates it is really <strong>clinic share less payment fees</strong> — a ceiling, not the
+            true figure. Record salaries, rent and software under{" "}
+            <strong>Money → Costs</strong> to make it real.
+          </p>
+        )}
+
         {/* Owed and Paid live in the strip at the top of this screen and are
             deliberately not repeated here: this block is the subtraction
-            chain that ends at the clinic's share, and a balance is not part
-            of that chain. */}
+            chain that ends at operating profit, and a balance is not part of
+            that chain. */}
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-hand-holding-dollar text-blue-600"></i> Paid to therapists
+            </p>
+            <p className="text-2xl font-bold text-slate-900 mt-2">
+              {formatInr(totalPaidToTherapistsPaise)}
+            </p>
+            {/* Not a cost line: a therapist's share was already deducted
+                above when they earned it. This is the cash movement that
+                settles it, shown so an admin can see both. */}
+            <p className="text-[11px] text-slate-400 mt-1">
+              Settled for sessions scheduled in this range — already counted in the
+              therapists&apos; share above
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <i className="fa-solid fa-clock text-amber-500"></i> Owed to therapists
+            </p>
+            <p
+              className={`text-2xl font-bold mt-2 ${
+                allTimeNetPayablePaise > 0 ? "text-amber-600" : "text-slate-900"
+              }`}
+            >
+              {formatInr(allTimeNetPayablePaise)}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Balance right now, all time, after netting off cash therapists hold
+            </p>
+          </div>
+        </div>
       </div>
       )}
 
-      {view === "performance" && (
+      {view === "breakdown" && (
       <>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -1127,17 +1292,17 @@ export default function AdminMetricsTab({
       </div>
       )}
 
-      {view === "performance" && (
+      {view === "delivery" && (
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">No-Show Rate</p>
+          <p className="text-[11px] text-slate-500">No-show rate</p>
           <p className="text-base font-bold text-slate-900">
             {noShowRate === null ? "—" : `${noShowRate.toFixed(1)}%`}
           </p>
           <p className="text-[10px] text-slate-400">{noShowDenominator} completed</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">Cancellation Rate</p>
+          <p className="text-[11px] text-slate-500">Cancellation rate</p>
           <p className="text-base font-bold text-slate-900">
             {cancellationRate === null ? "—" : `${cancellationRate.toFixed(1)}%`}
           </p>
@@ -1148,7 +1313,7 @@ export default function AdminMetricsTab({
           )}
         </div>
         <div className="bg-teal-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">Repeat-Booking Rate</p>
+          <p className="text-[11px] text-slate-500">Repeat-booking rate</p>
           <p className="text-base font-bold" style={{ color: CHART_COLOR }}>
             {repeatBookingRate === null ? "—" : `${repeatBookingRate.toFixed(1)}%`}
           </p>
@@ -1204,12 +1369,15 @@ export default function AdminMetricsTab({
       </>
       )}
 
-      {view === "performance" && (
+      {view === "delivery" && (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Therapist Utilization</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Sessions per therapist</h2>
+        {/* Was "Therapist Utilization", which promises a capacity figure this
+            platform cannot produce -- it has no record of contracted hours,
+            so there is no denominator. It is a count, and now says so. */}
         <p className="text-[11px] text-slate-400 mb-4">
-          Completed sessions per therapist in range — a session-count comparison, not true capacity
-          utilization (this platform doesn&apos;t track therapist working hours/availability).
+          Completed sessions per therapist in range. A count, not a capacity figure — the platform
+          doesn&apos;t track contracted working hours, so there is nothing to divide by.
         </p>
         {therapistUtilization.length === 0 ? (
           <EmptyState

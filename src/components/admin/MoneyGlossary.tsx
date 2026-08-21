@@ -40,12 +40,27 @@ const ENTRIES: { term: string; meaning: string }[] = [
   {
     term: "Clinic share",
     meaning:
-      "Net revenue less both shares — the clinic's own take, before running costs (payment fees, software, salaries). It is deliberately not called profit: no cost of running the business has been deducted from it.",
+      "Net revenue less both shares — what is left before the clinic has paid for anything of its own. Not profit: see Operating profit below, which is this figure after costs.",
   },
   {
     term: "Left out of the split",
     meaning:
       "Paid sessions counted in revenue but excluded from the three shares, because no split can be worked out: the therapist has no revenue share set, or the patient came from a partner whose share is not configured. Set the percentages in People and they disappear.",
+  },
+  {
+    term: "Payment fees",
+    meaning:
+      "The payment gateway's cut of everything collected online, worked out automatically from the fee percentage set on the Costs screen. Charged on the gross amount, because a processor keeps its fee even when a payment is refunded.",
+  },
+  {
+    term: "Running costs",
+    meaning:
+      "What the clinic itself spends — salaries, rent, software, marketing — entered by hand on the Costs screen and dated to the day the cost was incurred, not the day it was typed in.",
+  },
+  {
+    term: "Operating profit",
+    meaning:
+      "Clinic share less payment fees and running costs. The only figure here entitled to the word profit, and still before tax. With no costs recorded for a period it is a ceiling, not the real number.",
   },
   {
     term: "Owed to therapists",

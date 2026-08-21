@@ -130,9 +130,9 @@ so a still-valid session cookie can't call the API around the UI gate.
 | Section | Screens | Answers |
 | --- | --- | --- |
 | **Today** | Today · Approvals | What is waiting on me right now |
-| **Sessions** | Schedule · All Sessions · Roster · New Booking | What is being delivered, and by whom |
+| **Sessions** | Schedule · All Sessions · Roster · Delivery · New Booking | What is being delivered, and by whom |
 | **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
-| **Money** | Summary · Transactions · Payouts · Performance | What came in, what goes out, what is still owed |
+| **Money** | Summary · Transactions · Payouts · Costs · Breakdown | What came in, what goes out, what it costs, what is still owed |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
 | **Settings** | Brand & Contact · Public Site · Booking Rules · Clinical Questions · Team & Access · System Health · Activity Log · Account Security | How the product behaves |
 
@@ -156,8 +156,18 @@ clinic share = splittable net - therapists' share - partners' share
   share.
 - **Partners' share** — a referring hospital's commission, taken on net
   revenue, so a refund reverses the commission with it.
-- **Clinic share** — what is left, before running costs. Deliberately not
-  called profit: no cost of operating the business has been deducted.
+- **Clinic share** — what is left after both splits, before the clinic has
+  paid for anything of its own.
+- **Payment fees** — the gateway's cut of everything collected online, from
+  the percentage set on Money → Costs. Taken on gross, because a processor
+  keeps its fee even when a payment is refunded; cash-on-visit collections
+  never touch a gateway and are excluded.
+- **Running costs** — salaries, rent, software and the rest, recorded by
+  hand on Money → Costs and dated to the day they were incurred.
+- **Operating profit** — clinic share less those two. The only figure in the
+  app entitled to the word profit, and still before tax. With no costs
+  recorded for a period it is a ceiling rather than the real number, and the
+  screen says so.
 
 Revenue and the split have different eligibility on purpose. Gross, refunds
 and net count every paid session; the split leaves out any session whose

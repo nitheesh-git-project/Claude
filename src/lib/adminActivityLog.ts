@@ -37,6 +37,8 @@ export type AdminActivityAction =
   | "refund.partial"
   | "cash.mark_remitted"
   | "cash.mark_refund_returned"
+  | "expense.create"
+  | "expense.delete"
   // partners
   | "hospital.onboard"
   | "hospital.set_active"
@@ -112,6 +114,8 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "refund.partial": "Issued partial refund",
   "cash.mark_remitted": "Marked cash remitted",
   "cash.mark_refund_returned": "Marked cash refund returned",
+  "expense.create": "Recorded a cost",
+  "expense.delete": "Removed a cost",
   "hospital.onboard": "Onboarded hospital",
   "hospital.set_active": "Changed hospital status",
   "hospital.set_revenue_share": "Changed hospital revenue share",
@@ -131,6 +135,7 @@ export function isMoneyAction(action: string): boolean {
     action.startsWith("payout") ||
     action.startsWith("refund") ||
     action.startsWith("cash.") ||
+    action.startsWith("expense.") ||
     action === "session.mark_paid_cash" ||
     action === "hospital.set_revenue_share"
   );

@@ -36,11 +36,22 @@ const ALLOWED_COLUMNS = new Set([
   // changing the online refund window used to need a deploy.
   "online_booking_lead_time_hours",
   "online_cancellation_refund_hours",
+  // Drives the automatic payment-fee cost line on the Money screens.
+  "payment_gateway_fee_percent",
 ]);
 
 // Bounds on the admin-managed /book language list -- not business rules so
 // much as guards against a single fat-fingered paste becoming an unusable
 // wall of chips on the booking page.
+// The one numeric setting that is legitimately fractional -- gateway rates
+// are quoted as 2%, 2.36%, and rounding to a whole number would put a
+// visible error into the profit figure it feeds. Capped at 100 because a fee
+// larger than the payment is not a fee, and a typo here silently changes
+// what the business reports as profit.
+function isValidGatewayFeePercent(value: unknown): boolean {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100;
+}
+
 const MAX_BOOKING_LANGUAGES = 25;
 const MAX_LANGUAGE_LENGTH = 40;
 
@@ -90,6 +101,12 @@ export async function POST(request: NextRequest) {
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
+  }
+  if (key === "payment_gateway_fee_percent" && !isValidGatewayFeePercent(value)) {
+    return NextResponse.json(
+      { error: "Enter a percentage between 0 and 100." },
+      { status: 400 }
+    );
   }
   if (
     (key === "session_timeout_minutes" ||

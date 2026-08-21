@@ -452,6 +452,26 @@ client is the only writer and the log is append-only from any session.
   (no therapist share set, or a partner with no share configured) is
   excluded from the split alone and surfaced as a named count. Never guess
   a percentage to make the numbers tie.
+- **Only one figure may be called profit, and only because costs exist.**
+  `clinic share` is what net revenue leaves after the therapist and partner
+  splits — a gross figure. **Operating profit** is that less the two cost
+  lines in `src/lib/operatingCosts.ts`: the payment-gateway fee, derived
+  automatically from what was collected online (charged on gross, since a
+  processor keeps its fee through a refund, and skipped for cash-on-visit,
+  which never touches a gateway), and `business_expenses`, hand-entered on
+  Money → Costs and dated by `incurred_on` rather than when someone typed
+  it in. Before that table existed no screen could honestly say "profit",
+  which is why none of them did. With no costs recorded for a range,
+  Operating profit is a ceiling and the screen says so rather than
+  implying a number it cannot know. Nothing here is post-tax; don't label
+  it "net profit".
+- **Money answers financial questions; Sessions answers operational ones.**
+  No-show, cancellation and repeat-booking rates and sessions-per-therapist
+  live under **Sessions → Delivery**, not Money — a no-show rate is about
+  how the clinic runs, not about its books. `AdminMetricsTab` renders all
+  three slices (`summary`, `breakdown`, `delivery`) off one pass of the
+  same maths, so adding a figure means choosing which question it answers,
+  not duplicating a calculation.
 - **A balance is never date-filtered.** "Owed to therapists" is all-time and
   net of cash held, matching the Payouts screen and what the Pay button
   actually transfers — scoping it to the range in view let an admin read
