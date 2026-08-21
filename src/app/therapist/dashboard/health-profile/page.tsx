@@ -7,6 +7,7 @@ import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
 import { prepSummary, type SessionNoteRow } from "@/lib/sessionNotes";
+import TherapistPatientsView from "@/components/therapist/TherapistPatientsView";
 
 // Same module-level helper the other dashboards use rather than a bare
 // Date.now() in the component body -- a Server Component's render stays
@@ -100,13 +101,65 @@ export default async function TherapistHealthProfilesPage() {
           { data: [] as SessionNoteRow[] },
         ];
 
+  // Programmes: the same people grouped by package purchase rather than by
+  // name, shown as a view switch on this screen instead of its own sidebar
+  // entry. Readable directly via package_purchases_select_locked_therapist,
+  // so no admin client for the rows themselves.
+  const [{ data: lockedPurchases }, { data: programmeAppointments }] = await Promise.all([
+    supabase
+      .from("patient_package_purchases")
+      .select("id, purchase_code, patient_id, package_id, session_count, sessions_used, status")
+      .eq("locked_therapist_id", user.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("appointments")
+      .select("package_purchase_id, status, slot_time")
+      .eq("therapist_id", user.id)
+      .not("package_purchase_id", "is", null),
+  ]);
+
   const notes = (noteRows ?? []) as SessionNoteRow[];
   const nowMs = nowTimestamp();
+
+  // Same in-memory derivation the therapist dashboard loader uses: every
+  // session on a purchase locked to this therapist already carries their
+  // own therapist_id, so counting them needs no extra round trip.
+  const programmeCompleted = new Map<string, number>();
+  const programmeScheduled = new Map<string, number>();
+  for (const a of programmeAppointments ?? []) {
+    const id = a.package_purchase_id as string | null;
+    if (!id) continue;
+    if (a.status === "completed") {
+      programmeCompleted.set(id, (programmeCompleted.get(id) ?? 0) + 1);
+    } else if (
+      (a.status === "requested" || a.status === "confirmed") &&
+      a.slot_time &&
+      new Date(a.slot_time).getTime() > nowMs
+    ) {
+      programmeScheduled.set(id, (programmeScheduled.get(id) ?? 0) + 1);
+    }
+  }
+
+  const programmePackageIds = [
+    ...new Set((lockedPurchases ?? []).map((p) => p.package_id).filter(Boolean)),
+  ];
   const nextSessionByPatient = new Map<string, string>();
   for (const row of upcomingRows ?? []) {
     if (!row.slot_time || new Date(row.slot_time).getTime() < nowMs) continue;
     if (!nextSessionByPatient.has(row.patient_id)) nextSessionByPatient.set(row.patient_id, row.slot_time);
   }
+
+  const { data: programmePackageInfo } =
+    programmePackageIds.length > 0
+      ? await admin
+          .from("treatment_category_packages")
+          .select("id, title")
+          .in("id", programmePackageIds as string[])
+      : { data: [] as { id: string; title: string }[] };
+  const programmePackageTitleById = new Map(
+    (programmePackageInfo ?? []).map((p) => [p.id, p.title])
+  );
+  const patientNameById = new Map((patients ?? []).map((p) => [p.id, p.full_name]));
 
   const grantByPatientId = new Map((grants ?? []).map((g) => [g.patient_id, g.status]));
   // "New" (sort-to-top + count banner) clears only once admin actually
@@ -150,9 +203,24 @@ export default async function TherapistHealthProfilesPage() {
       sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
       realtimeTables={["condition_access_grants", "patient_condition_profiles", "session_notes"]}
       headerTitle="My Patients"
-      headerSubtitle="Everyone assigned to you, soonest session first — with what you recorded last time, so you can walk in prepared."
+      headerSubtitle="Everyone assigned to you, soonest session first — with what you recorded last time, so you can walk in prepared. Switch to Programmes for package patients by purchase."
     >
       <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <TherapistPatientsView
+          patientCount={sortedPatients.length}
+          programmes={(lockedPurchases ?? []).map((p) => ({
+            id: p.id,
+            purchaseCode: p.purchase_code,
+            patientName: patientNameById.get(p.patient_id) ?? "Unknown patient",
+            patientCode: null,
+            packageTitle: programmePackageTitleById.get(p.package_id) ?? "Session Package",
+            sessionCount: p.session_count,
+            sessionsUsed: p.sessions_used,
+            completedCount: programmeCompleted.get(p.id) ?? 0,
+            scheduledCount: programmeScheduled.get(p.id) ?? 0,
+            status: p.status,
+          }))}
+        >
         {newPatientCount > 0 && (
           <p className="mb-4 rounded-lg bg-teal-50 border border-teal-200 px-3 py-2 text-xs font-semibold text-teal-800">
             {newPatientCount} new patient{newPatientCount > 1 ? "s" : ""} — you haven&apos;t looked at their Health
@@ -247,6 +315,7 @@ export default async function TherapistHealthProfilesPage() {
             })}
           </ul>
         )}
+        </TherapistPatientsView>
       </div>
     </DashboardShell>
   );

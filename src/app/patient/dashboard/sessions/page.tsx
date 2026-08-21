@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
 import SurfaceCard from "@/components/dashboard/SurfaceCard";
-import SessionFilterList from "@/components/dashboard/SessionFilterList";
+import SessionsView from "@/components/dashboard/SessionsView";
 import { renderPatientSessionCard } from "@/components/patient/PatientSessionCard";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
@@ -11,9 +11,10 @@ export const metadata: Metadata = {
   title: "Your Sessions | Dr. Pooja's Physio",
 };
 
-// One list of every session, video and home visit together, filtered --
-// not one screen per delivery mode. "When is my next session?" should be
-// one place to look; see SessionFilterList for the full reasoning.
+// One screen for every session -- video and home visit together, as a
+// filtered list or a month calendar. "When is my next session?" should be
+// one place to look; see SessionsView and SessionFilterList for the full
+// reasoning.
 export default async function Page() {
   const d = await loadPatientDashboard("sessions");
 
@@ -48,10 +49,11 @@ export default async function Page() {
           </Link>
         }
       >
-        <SessionFilterList
+        <SessionsView
           sessions={sessions}
           cardsById={cardsById}
           nowMs={d.nowMs}
+          showMotivation
           emptyTitle="Nothing here yet"
           emptyBody="Book a session and it shows up here with your joining details."
         />

@@ -33,8 +33,10 @@ export function buildPatientNavItems({
     // now" screen for patient, therapist, hospital and admin.
     { id: "overview", label: "Overview", icon: "fa-gauge-high", href: "/patient/dashboard" },
     { id: "book", label: "Book a Session", icon: "fa-plus", href: "/patient/dashboard/book" },
-    // One entry for every session, video or home visit -- they were two,
-    // over the same rows, which made "what's next?" a two-screen question.
+    // One entry for every session -- video or home visit, list or calendar.
+    // These were three entries over the same rows, which made "what's
+    // next?" a three-screen question. The calendar is a view switch on the
+    // Sessions screen now, not a destination of its own.
     ...(hasOnlineSessions || hasHomeVisits
       ? [
           {
@@ -45,7 +47,6 @@ export function buildPatientNavItems({
           },
         ]
       : []),
-    { id: "calendar", label: "Calendar", icon: "fa-calendar", href: "/patient/dashboard/calendar" },
     ...(hasOwnedPackages || hasOwnedHomeVisitPackages || hasAvailablePackages
       ? [
           {
@@ -56,7 +57,20 @@ export function buildPatientNavItems({
           },
         ]
       : []),
-    { id: "payments", label: "Payments", icon: "fa-receipt", href: "/patient/dashboard/payments" },
+    // Payments only exist off a booking or a package purchase, so a patient
+    // who has neither would land on a permanently empty screen. Derived
+    // from the booleans already passed in rather than a new one -- there is
+    // no way to have paid for something without one of these being true.
+    ...(hasOnlineSessions || hasHomeVisits || hasOwnedPackages || hasOwnedHomeVisitPackages
+      ? [
+          {
+            id: "payments",
+            label: "Payments",
+            icon: "fa-receipt",
+            href: "/patient/dashboard/payments",
+          },
+        ]
+      : []),
     {
       id: "health-profile",
       label: "Health Profile",
@@ -100,20 +114,12 @@ export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
     icon: "fa-clipboard-list",
     href: "/therapist/dashboard/sessions",
   },
-  // Programmes is the delivery arc of a package purchase; My Patients
-  // below is the clinical chart. Different jobs, so they stay apart --
-  // but "Programme Patients" read like a second patient list, hence the
-  // shorter name.
-  {
-    id: "programmes",
-    label: "Programmes",
-    icon: "fa-layer-group",
-    href: "/therapist/dashboard/programmes",
-  },
-  { id: "calendar", label: "Calendar", icon: "fa-calendar", href: "/therapist/dashboard/calendar" },
   // Earnings and Payout Receipts were two entries answering one question
   // ("what am I owed, and what have I been paid?"); they are one screen.
   { id: "earnings", label: "Earnings", icon: "fa-chart-line", href: "/therapist/dashboard/earnings" },
+  // Programmes used to sit beside this as its own entry, but a programme
+  // is the same patient seen by package purchase rather than by name --
+  // it is a view switch inside My Patients now, not a second list.
   {
     id: "health-profiles",
     label: "My Patients",
@@ -129,6 +135,42 @@ export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
       { id: "profile-photo", label: "Photo", icon: "fa-image" },
       { id: "public-details", label: "Public Details", icon: "fa-address-card" },
       { id: "credentials", label: "Credentials", icon: "fa-graduation-cap" },
+      { id: "account-security", label: "Account Security", icon: "fa-lock" },
+    ],
+  },
+];
+
+export const HOSPITAL_NAV_ITEMS: ShellNavItem[] = [
+  { id: "overview", label: "Overview", icon: "fa-gauge-high", href: "/hospital/dashboard" },
+  { id: "refer", label: "Refer a Patient", icon: "fa-user-plus", href: "/hospital/dashboard/refer" },
+  {
+    id: "referrals",
+    label: "Your Referrals",
+    icon: "fa-list-check",
+    href: "/hospital/dashboard/referrals",
+  },
+  // "Earnings", matching the therapist sidebar: both answer "what has the
+  // clinic paid me, and what is still owed?". Patients keep "Payments"
+  // (money going out) and the admin keeps "Money" (the clinic's own
+  // books), so no one word carries two meanings across roles.
+  {
+    id: "revenue",
+    label: "Earnings",
+    icon: "fa-chart-line",
+    href: "/hospital/dashboard/revenue",
+  },
+  // Was "Account Security", which named one section of the page rather
+  // than the page -- a partner looking to correct their organisation's
+  // name had no reason to open something called Account Security.
+  {
+    id: "profile",
+    label: "Edit Profile",
+    icon: "fa-user-pen",
+    href: "/hospital/dashboard/profile",
+    children: [
+      { id: "profile-photo", label: "Logo", icon: "fa-image" },
+      { id: "organisation-details", label: "Organisation Details", icon: "fa-hospital" },
+      { id: "contact-details", label: "Contact Preferences", icon: "fa-address-book" },
       { id: "account-security", label: "Account Security", icon: "fa-lock" },
     ],
   },

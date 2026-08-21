@@ -365,6 +365,27 @@ client is the only writer and the log is append-only from any session.
   `SessionFilterList` (Upcoming / Past / Cancelled, plus a Video / Home
   visit filter that only appears for people who have both). Add a filter
   rather than a second list.
+- **A different way of looking at the same rows is a view switch, not a
+  sidebar entry.** Calendar was its own entry on the patient and therapist
+  dashboards and is now a List/Calendar toggle on Sessions
+  (`SessionsView`); Programmes was its own entry and is now a
+  Patients/Programmes toggle on the therapist's My Patients
+  (`TherapistPatientsView`). Both render the *same* server-rendered cards,
+  passed in by id, so the two views can never disagree about a session.
+  Before adding a nav entry, ask whether it is a different set of rows or
+  the same rows arranged differently — only the first earns an entry.
+- **A screen that can only ever be empty is not in the sidebar.**
+  `buildPatientNavItems` hides Sessions, Packages and Payments until the
+  patient actually has one, and the therapist's Programmes toggle only
+  appears for a therapist with package patients. Booking is the deliberate
+  exception: it is always shown, because that is how a patient gets their
+  first of anything.
+- **One money word per role.** Money owed *to* someone is **Earnings**
+  (therapist and hospital), money going *out* is **Payments** (patient),
+  and the clinic's own books are **Money** (admin). The hospital's screen
+  was "Revenue & Payouts", which read as a third concept for the same
+  thing. This is the sidebar-level counterpart of the "one word, one money
+  figure" rule below.
 - **A session is listed once.** All Bookings, Session Story, the calendar's
   day panel and the home-visit queue were four lists over the same
   `appointments` rows; they are now one filterable list

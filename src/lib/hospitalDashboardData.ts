@@ -6,7 +6,7 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { buildHospitalFeed } from "@/lib/dashboardFeed";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
-import type { ShellNavItem } from "@/components/dashboard/DashboardShell";
+import { HOSPITAL_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import type { StatCell } from "@/components/dashboard/StatStrip";
 
 // Everything the hospital (B2B) dashboard's screens read, loaded once per
@@ -157,49 +157,33 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
       value: String(referralRows.length),
       note: pendingReferrals > 0 ? `${pendingReferrals} still with the clinic` : "All of them have been actioned",
       accent: "bg-teal-500",
-      href: "#referrals",
+      href: "/hospital/dashboard/referrals",
     },
     {
       label: "Accepted",
       value: String(acceptedReferrals),
       note: referralRows.length === 0 ? "Send your first referral" : "Patients the clinic took on",
       accent: "bg-emerald-500",
-      href: "#referrals",
+      href: "/hospital/dashboard/referrals",
     },
     {
       label: "Sessions delivered",
       value: String(paidSessions.length),
       note: "Paid sessions by patients you referred",
       accent: "bg-blue-500",
-      href: "#revenue",
+      href: "/hospital/dashboard/revenue",
     },
     {
       label: "Your share",
       value: `₹${hospitalCut.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
       note: `${sharePercent}% of ₹${totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })} collected`,
       accent: "bg-emerald-500",
-      href: "#revenue",
+      href: "/hospital/dashboard/revenue",
     },
   ];
 
   // Real pages, not anchors -- see buildPatientNavItems for why.
-  const navItems: ShellNavItem[] = [
-    { id: "overview", label: "Overview", icon: "fa-gauge-high", href: "/hospital/dashboard" },
-    { id: "refer", label: "Refer a Patient", icon: "fa-user-plus", href: "/hospital/dashboard/refer" },
-    {
-      id: "referrals",
-      label: "Your Referrals",
-      icon: "fa-list-check",
-      href: "/hospital/dashboard/referrals",
-    },
-    {
-      id: "revenue",
-      label: "Revenue & Payouts",
-      icon: "fa-chart-line",
-      href: "/hospital/dashboard/revenue",
-    },
-    { id: "profile", label: "Account Security", icon: "fa-lock", href: "/hospital/dashboard/profile" },
-  ];
+  const navItems = HOSPITAL_NAV_ITEMS;
 
   return {
     user,

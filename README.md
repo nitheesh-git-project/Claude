@@ -459,19 +459,35 @@ of its own:
   how the clinic can tell whether care is being delivered and documented.
 
 **Dashboard information architecture.** Patient: Overview · Book a Session ·
-Your Sessions · Calendar · Packages · Payments · Health Profile · Edit
-Profile. Therapist: Overview · Availability · Sessions · Programmes ·
-Calendar · Earnings · My Patients · Edit Profile. Hospital: Overview ·
-Refer a Patient · Your Referrals · Revenue & Payouts · Account Security.
-Admin keeps its six sections (`src/lib/adminNav.ts`).
+Your Sessions · Packages · Payments · Health Profile · Edit Profile.
+Therapist: Overview · Availability · Sessions · Earnings · My Patients ·
+Edit Profile. Hospital: Overview · Refer a Patient · Your Referrals ·
+Earnings · Edit Profile. Admin keeps its six sections
+(`src/lib/adminNav.ts`).
 
-Three merges got these lists down from what they were: video sessions and
-home visits are one filtered Sessions screen on both the patient and
-therapist side (`SessionFilterList`), Earnings absorbed Payout Receipts
-(one question — what am I owed and what have I been paid), and the
-patient's three package entries became one Packages screen. "Receipts"
-is now "Payments" on the patient side, since it lists payments, refunds
-and failed attempts, not only receipts.
+These lists are the result of repeatedly merging entries that answered the
+same question:
+
+- Video sessions and home visits are one filtered Sessions screen on both
+  the patient and therapist side (`SessionFilterList`).
+- Calendar is a **view switch** on that same Sessions screen
+  (`SessionsView`), not an entry of its own — a calendar is a way of
+  looking at your sessions, not a different set of them.
+- Programmes is a view switch inside the therapist's My Patients
+  (`TherapistPatientsView`): the same people, grouped by package purchase
+  rather than by name.
+- Earnings absorbed Payout Receipts — one question, what am I owed and
+  what have I been paid.
+- The patient's three package entries became one Packages screen.
+
+Naming follows one rule per role, so no word carries two meanings: money
+owed *to* you is **Earnings** (therapist and hospital alike), money going
+*out* is **Payments** (patient), and the clinic's own books are **Money**
+(admin). The hospital's Account Security entry became **Edit Profile**,
+which is what the page now is: organisation details (admin-reviewed, since
+patients are told who referred them), contact preferences, and account
+security. A screen that can only ever be empty is not shown at all —
+Payments appears once a patient has a session or a package.
 
 **Dashboard navigation.** The patient, therapist and hospital dashboards are
 sets of real pages — `/patient/dashboard/sessions`,

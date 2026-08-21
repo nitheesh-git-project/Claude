@@ -396,11 +396,17 @@ export default function AdminShell({
             <div>
               <h1 className="text-2xl font-bold text-slate-900">
                 {activeSection.label}
-                {activeSection.tabs.length > 1 && (
-                  <span className="ml-2 text-base font-semibold text-slate-400">
-                    {activeSection.tabs.find((t) => t.key === tabKey)?.label ?? ""}
-                  </span>
-                )}
+                {/* Suppressed when the screen's own name repeats the
+                    section's -- Today's default screen is called Today, and
+                    "Today Today" reads as a rendering bug. */}
+                {activeSection.tabs.length > 1 &&
+                  (() => {
+                    const tabLabel = activeSection.tabs.find((t) => t.key === tabKey)?.label ?? "";
+                    if (!tabLabel || tabLabel === activeSection.label) return null;
+                    return (
+                      <span className="ml-2 text-base font-semibold text-slate-400">{tabLabel}</span>
+                    );
+                  })()}
               </h1>
               <p className="text-xs text-slate-500 mt-1">{activeSection.blurb}</p>
             </div>

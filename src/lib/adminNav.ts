@@ -36,11 +36,10 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     icon: "fa-inbox",
     blurb: "Everything waiting on you, in one list.",
     tabs: [
-      // The same Overview every other dashboard opens on: today's numbers,
-      // the notification feed, and the actions an admin takes most. The
-      // Action Inbox below it stays the exhaustive queue list.
-      { key: "overview", label: "Overview" },
-      { key: "inbox", label: "Action Inbox" },
+      // One screen, not two: the figures, the queues and the activity feed
+      // all answer "what needs me today", and splitting them meant an
+      // admin checked one and missed the other.
+      { key: "overview", label: "Today" },
       // The inbox counts what is waiting; this is where that work is done.
       // Approvals used to sit on the patients directory, which made one
       // screen do three jobs -- a queue is not a person.
@@ -136,3 +135,24 @@ export function findTab(
 export function adminScreenHref(section: AdminSectionKey, tab: string): string {
   return `/admin/dashboard?section=${section}&tab=${tab}`;
 }
+
+
+// The Today screen's queue rows. They live here rather than in a
+// component because every count in them points at a section/tab pair
+// defined above.
+export type InboxItem = {
+  label: string;
+  count: number;
+  section: AdminSectionKey;
+  tab: string;
+  /** Why this matters / what to do -- one short line. */
+  hint: string;
+  /** Money at stake, real exposure rather than a queue. Renders red. */
+  urgent?: boolean;
+};
+
+export type InboxGroup = {
+  title: string;
+  icon: string;
+  items: InboxItem[];
+};

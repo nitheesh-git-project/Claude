@@ -38,18 +38,15 @@ export type TherapistScreen =
   | "availability"
   | "sessions"
   | "home-visits"
-  | "programmes"
-  | "calendar"
   | "earnings"
   | "receipts";
 
 export async function loadTherapistDashboard(screen: TherapistScreen = "overview") {
   const needAvailability = screen === "availability";
-  const needProgrammes = screen === "programmes";
   // Earnings maths also backs the Overview's "owed to you" figure.
   const needEarnings = screen === "earnings" || screen === "receipts" || screen === "overview";
   const needNotes =
-    screen === "overview" || screen === "sessions" || screen === "home-visits" || screen === "calendar";
+    screen === "overview" || screen === "sessions" || screen === "home-visits";
   const supabase = await createClient();
   const {
     data: { user },
@@ -83,7 +80,6 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     { data: payoutBatches },
     { data: treatmentCategories },
     { data: payoutRequests },
-    { data: programmePurchases },
     { data: sessionNoteRows },
   ] = await Promise.all([
     supabase
@@ -194,29 +190,6 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
           acknowledged_at: string | null;
         }>(),
 
-    // Package purchases locked onto this therapist -- readable directly
-    // via package_purchases_select_locked_therapist (schema.sql), no
-    // admin client needed for the row itself. Feeds the Programme Patients
-    // section: the whole point is seeing the arc of a package patient's
-    // care, not just a flat list of disconnected sessions.
-    needProgrammes
-      ? supabase
-          .from("patient_package_purchases")
-          .select("id, purchase_code, patient_id, package_id, category_id, session_count, sessions_used, status, expires_at")
-          .eq("locked_therapist_id", user.id)
-          .order("created_at", { ascending: false })
-      : emptyRows<{
-          id: string;
-          purchase_code: string | null;
-          patient_id: string;
-          package_id: string;
-          category_id: string | null;
-          session_count: number;
-          sessions_used: number;
-          status: string;
-          expires_at: string | null;
-        }>(),
-
     // This therapist's own session notes. Its own query (rather than a
     // join on appointments) because session_notes is a brand-new table:
     // an unknown-table error before the migration runs should only empty
@@ -279,15 +252,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // looked up here via the admin client, scoped to just the columns
   // needed to actually run the session.
   const patientIds = [
-    ...new Set(
-      [
-        ...(appointments ?? []).map((a) => a.patient_id),
-        ...(programmePurchases ?? []).map((p) => p.patient_id),
-      ].filter(Boolean)
-    ),
-  ];
-  const programmePackageIds = [
-    ...new Set((programmePurchases ?? []).map((p) => p.package_id).filter(Boolean)),
+    ...new Set((appointments ?? []).map((a) => a.patient_id).filter(Boolean)),
   ];
   // Which home-visit purchases this therapist's own visits reference --
   // needed only to compute the exact "Collect ₹X" figure on a cash-on-visit
@@ -304,7 +269,6 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   const [
     { data: upcomingOverrides },
     { data: patients },
-    { data: programmePackageInfo },
     { data: homeVisitPurchasesForFees },
   ] = await Promise.all([
     supabase
@@ -317,9 +281,6 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       : Promise.resolve({
           data: [] as { id: string; full_name: string; phone: string | null; email: string; patient_code: string | null }[],
         }),
-    programmePackageIds.length > 0
-      ? admin.from("treatment_category_packages").select("id, title").in("id", programmePackageIds as string[])
-      : Promise.resolve({ data: [] as { id: string; title: string }[] }),
     homeVisitPurchaseIds.length > 0
       ? admin
           .from("home_visit_package_purchases")
@@ -331,32 +292,12 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   const patientNameById = new Map(
     (patients ?? []).map((p) => [p.id, p.full_name ?? "Unknown patient"])
   );
-  const programmePackageTitleById = new Map((programmePackageInfo ?? []).map((p) => [p.id, p.title]));
   const homeVisitPerVisitFeeByPurchaseId = new Map(
     (homeVisitPurchasesForFees ?? []).map((p) => [
       p.id,
       computePerVisitFeePaise(p.amount_paid_paise, p.visit_count),
     ])
   );
-
-  // Same in-memory completed/scheduled derivation as the patient
-  // dashboard's package widget -- every session on a purchase locked to
-  // this therapist already carries their own therapist_id, so it's
-  // already inside `appointments` above; no extra query needed.
-  const programmeCompletedByPurchase = new Map<string, number>();
-  const programmeScheduledByPurchase = new Map<string, number>();
-  for (const a of appointments ?? []) {
-    if (!a.package_purchase_id) continue;
-    if (a.status === "completed") {
-      programmeCompletedByPurchase.set(a.package_purchase_id, (programmeCompletedByPurchase.get(a.package_purchase_id) ?? 0) + 1);
-    } else if (
-      (a.status === "requested" || a.status === "confirmed") &&
-      a.slot_time &&
-      new Date(a.slot_time).getTime() > nowTimestamp()
-    ) {
-      programmeScheduledByPurchase.set(a.package_purchase_id, (programmeScheduledByPurchase.get(a.package_purchase_id) ?? 0) + 1);
-    }
-  }
 
   const payoutReceipts = buildTherapistPayoutReceipts(
     payoutBatches ?? [],
@@ -471,7 +412,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
         ? `Next at ${new Date(nextSession.slot_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
         : "Nothing scheduled today",
       accent: "bg-teal-500",
-      href: "#sessions",
+      href: "/therapist/dashboard/sessions",
     },
     {
       label: "Upcoming",
@@ -479,7 +420,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       unit: upcomingSessions.length === 1 ? "session" : "sessions",
       note: "Confirmed and awaiting-assignment work",
       accent: "bg-blue-500",
-      href: "#calendar",
+      href: "/therapist/dashboard/sessions",
     },
     {
       label: "Notes to write",
@@ -491,7 +432,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
             : "Every delivered session is written up"
           : "Delivered sessions with nothing recorded yet",
       accent: notesOwed.length > 0 ? "bg-amber-500" : "bg-emerald-500",
-      href: "#sessions",
+      href: "/therapist/dashboard/sessions",
     },
     {
       label: "Owed to you",
@@ -503,7 +444,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
             ? "Payout request under review"
             : "Payout request sent",
       accent: "bg-emerald-500",
-      href: "#earnings",
+      href: "/therapist/dashboard/earnings",
     },
   ];
 
@@ -528,10 +469,6 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     availabilitySlots,
     upcomingOverrides,
     onLeaveProfile,
-    programmePurchases,
-    programmePackageTitleById,
-    programmeCompletedByPurchase,
-    programmeScheduledByPurchase,
     earningRows,
     pendingOwedPaise,
     requestStatus,

@@ -109,6 +109,11 @@ export default function SessionCalendarTab<T extends CalendarSession>({
   );
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  // How many blank cells before the 1st, so a date sits under its own
+  // weekday. Without this the grid was seven-wide but weekday-agnostic --
+  // "the 21st" told you nothing about which day of the week you were
+  // looking at, which is most of what a calendar is for.
+  const leadingBlanks = new Date(viewYear, viewMonth, 1).getDay();
   // Pinned to Asia/Kolkata (matching istDateKey, which selectedDate/viewYear/
   // viewMonth are keyed against) rather than left to the runtime's local
   // timezone -- without an explicit zone, these can render a different
@@ -174,7 +179,10 @@ export default function SessionCalendarTab<T extends CalendarSession>({
   }, [sessions, viewYear, viewMonth, monthLabel]);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+    /* No card chrome of its own: this always renders inside the Sessions
+       screen's SurfaceCard, and a bordered box inside a bordered box reads
+       as two separate things. */
+    <div>
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={() => goToMonth(-1)}
@@ -203,7 +211,19 @@ export default function SessionCalendarTab<T extends CalendarSession>({
         </span>
       </div>
 
+      <div className="mb-1 grid grid-cols-7 gap-2">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <span key={d} className="text-center text-[10px] font-bold uppercase tracking-wide text-slate-400">
+            {d.slice(0, 1)}
+            <span className="hidden sm:inline">{d.slice(1)}</span>
+          </span>
+        ))}
+      </div>
+
       <div className="grid grid-cols-7 gap-2">
+        {Array.from({ length: leadingBlanks }, (_, i) => (
+          <span key={`blank-${i}`} aria-hidden />
+        ))}
         {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
           const key = dateKeyFor(day);
           const buckets = [...(bucketsByDate.get(key) ?? [])];

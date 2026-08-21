@@ -42,9 +42,16 @@ export function renderPatientSessionCard(
           <div>
             <p className="font-bold text-sm text-slate-900">
               {a.concern ?? "General Consultation"}
+              {/* Labelled, not a bare code: an unexplained string next to
+                  the concern reads as a glitch. Patients are asked for this
+                  when they contact the clinic, so it has to be recognisable
+                  as something to quote. */}
               {a.session_code && (
-                <span className="ml-2 font-mono font-normal text-[11px] text-slate-400">
-                  {a.session_code}
+                <span
+                  className="ml-2 font-normal text-[11px] text-slate-400"
+                  title="Quote this reference if you contact the clinic about this session."
+                >
+                  Ref <span className="font-mono">{a.session_code}</span>
                 </span>
               )}
             </p>

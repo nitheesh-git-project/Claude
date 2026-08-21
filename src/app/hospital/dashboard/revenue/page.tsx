@@ -6,7 +6,7 @@ import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 
 export const metadata: Metadata = {
-  title: "Revenue & Payouts | Dr. Pooja's Physio",
+  title: "Earnings | Dr. Pooja's Physio",
 };
 
 const STATUS_STYLES: Record<string, string> = {
@@ -20,10 +20,10 @@ export default async function Page() {
   const d = await loadHospitalDashboard("revenue");
 
   return (
-    <HospitalDashboardShell data={d} title="Revenue & Payouts" subtitle="What the patients you referred have paid, and your share of it.">
+    <HospitalDashboardShell data={d} title="Earnings" subtitle="What the patients you referred have paid, and your share of it.">
       <SurfaceCard
         id="revenue"
-        title="Revenue & Payouts"
+        title="Earnings"
         icon="fa-chart-line"
         subtitle="What the patients you referred have paid, and your share of it."
         className="mt-6"

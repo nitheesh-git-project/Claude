@@ -10,7 +10,7 @@ import AdminShell, { type AdminScreens } from "@/components/admin/AdminShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import StatStrip, { type StatCell } from "@/components/dashboard/StatStrip";
 import { buildAdminFeed } from "@/lib/dashboardFeed";
-import AdminTodayTab, { type InboxGroup } from "@/components/admin/AdminTodayTab";
+import AdminInboxQueues from "@/components/admin/AdminInboxQueues";
 import AdminAllSessionsTab from "@/components/admin/AdminAllSessionsTab";
 import AdminNewBookingTab from "@/components/admin/AdminNewBookingTab";
 import AdminTeamAccessTab, { type AdminRow } from "@/components/admin/AdminTeamAccessTab";
@@ -25,7 +25,7 @@ import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager"
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
-import { adminScreenHref } from "@/lib/adminNav";
+import { adminScreenHref, type InboxGroup } from "@/lib/adminNav";
 import { parseAdminScope, sectionsForScope } from "@/lib/adminScope";
 import type { SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
@@ -2083,23 +2083,14 @@ export default async function AdminDashboardPage({
       }
       cells={adminOverviewCells}
       feed={adminFeed}
-      feedTitle="Activity and queues"
+      feedTitle="Activity"
       feedEmptyBody="Admin actions and anything waiting on a person appear here."
+      aside={<AdminInboxQueues groups={inboxGroups} allowedSections={allowedSections} />}
       actions={[
-        { label: "Open the action inbox", hint: "Every queue, with counts", icon: "fa-inbox", href: "/admin/dashboard?section=today&tab=inbox", primary: true },
-        { label: "Approvals", hint: "Signups and profile change requests", icon: "fa-user-check", href: "/admin/dashboard?section=today&tab=approvals" },
+        { label: "Approvals", hint: "Signups and profile change requests", icon: "fa-user-check", href: "/admin/dashboard?section=today&tab=approvals", primary: true },
         { label: "All sessions", hint: "Assign, reschedule, refund", icon: "fa-calendar-check", href: "/admin/dashboard?section=sessions&tab=all" },
         { label: "Money summary", hint: "Revenue, payouts and cash", icon: "fa-indian-rupee-sign", href: "/admin/dashboard?section=money&tab=summary" },
       ]}
-    />
-  );
-
-  const todayTab = (
-    <AdminTodayTab
-      groups={inboxGroups}
-      todayCount={sessionsToday.length}
-      unassignedTodayCount={unassignedToday}
-      allowedSections={allowedSections}
     />
   );
 
@@ -2171,7 +2162,6 @@ export default async function AdminDashboardPage({
   // them. The shell only decides which key is visible.
   const screens: AdminScreens = {
     "today:overview": adminOverviewTab,
-    "today:inbox": todayTab,
     "today:approvals": approvalsTab,
     "sessions:schedule": calendarTab,
     "sessions:all": allSessionsTab,
@@ -2232,7 +2222,7 @@ export default async function AdminDashboardPage({
   // Badges, keyed the same way. A section's own badge is the sum of its
   // tabs', computed inside the shell so the two can never disagree.
   const badges: Record<string, number> = {
-    "today:inbox": inboxTotal,
+    "today:overview": inboxTotal,
     "sessions:all": unassignedTotal,
     "today:approvals": (pendingAccounts?.length ?? 0) + (pendingProfileChanges?.length ?? 0),
     "people:patients": conditionsBadgeCount,

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import TherapistDashboardShell from "@/components/therapist/TherapistDashboardShell";
 import SurfaceCard from "@/components/dashboard/SurfaceCard";
-import SessionFilterList from "@/components/dashboard/SessionFilterList";
+import SessionsView from "@/components/dashboard/SessionsView";
 import {
   renderTherapistSessionCard,
   renderTherapistHomeVisitCard,
@@ -41,7 +41,7 @@ export default async function Page() {
       subtitle="Everything assigned to you — video consultations and home visits together."
     >
       <SurfaceCard title="Assigned sessions" icon="fa-clipboard-list">
-        <SessionFilterList
+        <SessionsView
           sessions={sessions}
           cardsById={cardsById}
           nowMs={d.nowMs}

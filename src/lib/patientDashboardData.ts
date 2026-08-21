@@ -18,7 +18,7 @@ import type { StatCell } from "@/components/dashboard/StatStrip";
 // one enormous scroll, with the sidebar highlighting whichever section
 // happened to be nearest the top. That made the nav feel like it was
 // choosing for you. Each section is now its own route (/book, /sessions,
-// /calendar, ...), so a nav item is a real page you land on -- and this
+// /packages, ...), so a nav item is a real page you land on -- and this
 // module is what stops seven routes growing seven slightly different
 // copies of the same twenty queries.
 //
@@ -78,7 +78,6 @@ export type PatientScreen =
   | "book"
   | "sessions"
   | "home-visits"
-  | "calendar"
   | "packages"
   | "receipts";
 
@@ -89,7 +88,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const needFeed = screen === "overview";
   // Session cards name their therapist; so does the Overview's feed.
   const needTherapistNames =
-    screen === "overview" || screen === "sessions" || screen === "home-visits" || screen === "calendar";
+    screen === "overview" || screen === "sessions" || screen === "home-visits";
   const supabase = await createClient();
   const {
     data: { user },
