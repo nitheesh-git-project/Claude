@@ -3272,6 +3272,8 @@ begin
     home_visit_package_purchases,
     therapist_payout_requests,
     therapist_payout_batches,
+    session_note_revisions,
+    session_notes,
     pain_assessments,
     condition_change_requests,
     condition_access_grants,
@@ -3402,3 +3404,128 @@ alter table appointments add column if not exists google_calendar_sync_attempts 
 -- can be taken over, so a render that dies mid-call cannot lock a session out
 -- of syncing forever.
 alter table appointments add column if not exists google_calendar_sync_claimed_at timestamptz;
+
+-- ---------------------------------------------------------------------------
+-- Session notes (clinician-only)
+-- ---------------------------------------------------------------------------
+-- What the therapist actually did in a session, written straight after it,
+-- and read before the next one. This is the prep loop: a therapist opening
+-- tomorrow's patient sees what was treated last time, how the patient
+-- responded, what homework was set and what the plan was -- instead of
+-- reconstructing it from memory or asking the patient to re-tell their own
+-- history.
+--
+-- Deliberately NOT visible to the patient. There is no select policy for
+-- the patient's own rows and none is coming: these are clinical working
+-- notes ("suspect facet joint involvement, watch for radicular signs"),
+-- written in the register clinicians use with each other, and a patient
+-- reading them mid-treatment is how a note stops being honest. The patient
+-- still owns their record in the legal sense -- a formal medical-records
+-- request is handled by the clinic, outside the app -- so the export route
+-- (/api/patient/condition-profile/export) and the printable profile both
+-- exclude this table on purpose. If that policy ever changes, it changes
+-- here and in those two places together.
+--
+-- Separate from pain_assessments, which is a measurement (17 regions, a
+-- percentage each, append-only for trending). A note is prose about a
+-- treatment; conflating them would make both harder to read.
+create table if not exists session_notes (
+  id uuid primary key default gen_random_uuid(),
+  -- One note per appointment: the unique constraint is what makes "does
+  -- this session still need a note?" a join rather than a count.
+  appointment_id uuid not null unique references appointments(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  therapist_id uuid not null references profiles(id),
+  -- Structured answers keyed by the field keys in src/lib/sessionNotes.ts,
+  -- plus free_text below. Same jsonb-blob shape as the intake and Pain Map
+  -- answers, for the same reason: a field set that changes over time must
+  -- not require a migration per question.
+  data jsonb not null default '{}'::jsonb,
+  free_text text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz,
+  -- Set the first time a note is edited after its 24-hour window, never by
+  -- the app -- the window is enforced in the route. Present so a locked
+  -- note is visibly locked in the database too, not only in code.
+  locked_at timestamptz
+);
+
+alter table session_notes enable row level security;
+
+-- Read: the treating therapist (any therapist with an appointment for this
+-- patient, or holding their programme's lock) and admins. No patient
+-- policy, by design -- see the table comment above.
+drop policy if exists "session_notes_select_clinician" on session_notes;
+create policy "session_notes_select_clinician" on session_notes
+  for select using (
+    exists (
+      select 1 from appointments a
+      where a.patient_id = session_notes.patient_id
+        and a.therapist_id = auth.uid()
+    )
+    or exists (
+      select 1 from patient_package_purchases pp
+      where pp.patient_id = session_notes.patient_id
+        and pp.locked_therapist_id = auth.uid()
+    )
+    or exists (
+      select 1 from profiles p where p.id = auth.uid() and p.role = 'admin'
+    )
+  );
+
+-- Write: only the therapist the session was assigned to, and only for their
+-- own session. Unlike the Pain Map this needs no condition_access_grant --
+-- a note is a record of work this therapist personally did, not an edit to
+-- the patient's own submitted history.
+drop policy if exists "session_notes_insert_own_session" on session_notes;
+create policy "session_notes_insert_own_session" on session_notes
+  for insert with check (
+    auth.uid() = therapist_id
+    and exists (
+      select 1 from appointments a
+      where a.id = session_notes.appointment_id
+        and a.therapist_id = auth.uid()
+        and a.patient_id = session_notes.patient_id
+    )
+  );
+
+drop policy if exists "session_notes_update_own" on session_notes;
+create policy "session_notes_update_own" on session_notes
+  for update using (auth.uid() = therapist_id) with check (auth.uid() = therapist_id);
+
+revoke delete on session_notes from authenticated;
+
+create index if not exists session_notes_patient_idx on session_notes (patient_id, created_at desc);
+create index if not exists session_notes_therapist_idx on session_notes (therapist_id, created_at desc);
+
+-- Every edit inside the 24-hour window keeps what it replaced. A clinical
+-- record whose history can be silently rewritten is not a record; this is
+-- the same reasoning as condition_change_requests preserving proposed_data.
+create table if not exists session_note_revisions (
+  id uuid primary key default gen_random_uuid(),
+  note_id uuid not null references session_notes(id) on delete cascade,
+  data jsonb not null,
+  free_text text,
+  replaced_at timestamptz not null default now()
+);
+
+alter table session_note_revisions enable row level security;
+
+drop policy if exists "session_note_revisions_select_clinician" on session_note_revisions;
+create policy "session_note_revisions_select_clinician" on session_note_revisions
+  for select using (
+    exists (
+      select 1 from session_notes n
+      where n.id = session_note_revisions.note_id
+        and (
+          n.therapist_id = auth.uid()
+          or exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+        )
+    )
+  );
+
+-- Only the service-role client writes revisions (the update route does it),
+-- same posture as admin_activity_log.
+revoke insert, update, delete on session_note_revisions from authenticated;
+
+alter publication supabase_realtime add table session_notes;

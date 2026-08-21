@@ -298,6 +298,23 @@ client is the only writer and the log is append-only from any session.
   back stack on a phone instead of shrinking each tap target below a
   fingertip. See the "Patient Care Intake and Pain Map" section in README.md
   for the full flow.
+- **Session notes are clinician-only, and they are the prep loop.** After a
+  delivered session the therapist writes what was treated, how the patient
+  responded, the home exercise and the plan for next time
+  (`session_notes`, fields in `src/lib/sessionNotes.ts`, written through
+  `SessionNoteDialog` from the session card itself). `session_notes` has
+  **no patient select policy and must never get one** — these are working
+  notes written in the register clinicians use with each other, and the
+  patient's data export (`/api/patient/condition-profile/export`) and
+  printable profile both exclude the table on purpose. Notes stay editable
+  for 24 hours (`SESSION_NOTE_EDIT_WINDOW_HOURS`), enforced in the submit
+  route, and every edit inside that window copies what it replaced into
+  `session_note_revisions`. Writing one needs no
+  `condition_access_grant`, unlike the intake and Pain Map: a note records
+  work this therapist personally did rather than editing the patient's own
+  history. Completion is never blocked on a note — the nudge is a
+  `needsYou` feed item plus the "Notes to write" figure on the therapist's
+  Overview.
 - **Every dashboard opens on the same Overview.** Patient, therapist,
   hospital and admin all render `DashboardOverview.tsx` — a strip of four
   figures (`StatStrip`), the notification feed (`ActivityFeed`), and a

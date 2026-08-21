@@ -3,6 +3,13 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import CompleteSessionButton from "@/components/CompleteSessionButton";
+import SessionNoteButton from "@/components/therapist/SessionNoteButton";
+import {
+  isNoteEditable,
+  noteEditHoursLeft,
+  sessionsAwaitingNote,
+  type SessionNoteRow,
+} from "@/lib/sessionNotes";
 import MarkNoShowButton from "@/components/MarkNoShowButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import TherapistAvailabilityRoster from "@/components/TherapistAvailabilityRoster";
@@ -92,6 +99,7 @@ export default async function TherapistDashboardPage() {
     { data: treatmentCategories },
     { data: payoutRequests },
     { data: programmePurchases },
+    { data: sessionNoteRows },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -192,12 +200,25 @@ export default async function TherapistDashboardPage() {
       .select("id, purchase_code, patient_id, package_id, category_id, session_count, sessions_used, status, expires_at")
       .eq("locked_therapist_id", user.id)
       .order("created_at", { ascending: false }),
+
+    // This therapist's own session notes. Its own query (rather than a
+    // join on appointments) because session_notes is a brand-new table:
+    // an unknown-table error before the migration runs should only empty
+    // the note buttons, not blank the dashboard. RLS scopes it to notes
+    // this clinician may read -- see session_notes_select_clinician.
+    supabase
+      .from("session_notes")
+      .select("id, appointment_id, patient_id, therapist_id, data, free_text, created_at, updated_at")
+      .order("created_at", { ascending: false }),
   ]);
 
   const adminSettings = parseAdminSettings(settingsRow);
   const categoryTitleById = new Map((treatmentCategories ?? []).map((c) => [c.id, c.title]));
 
   const visitDetailById = new Map((visitDetailRows ?? []).map((r) => [r.id, r]));
+
+  const sessionNotes = (sessionNoteRows ?? []) as SessionNoteRow[];
+  const noteByAppointmentId = new Map(sessionNotes.map((n) => [n.appointment_id, n]));
 
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
@@ -379,6 +400,20 @@ export default async function TherapistDashboardPage() {
   const awaitingCompletion = (appointments ?? []).filter(
     (a) => a.status === "confirmed" && a.slot_time && new Date(a.slot_time).getTime() < nowMsForOverview
   ).length;
+  // Delivered sessions with nothing written about them yet. Nudge, never
+  // block: completion stays a one-tap action, and this is what keeps the
+  // note from being forgotten instead.
+  const notesOwed = sessionsAwaitingNote(
+    (appointments ?? []).map((a) => ({
+      id: a.id,
+      slot_time: a.slot_time,
+      status: a.no_show ? "cancelled" : a.status,
+      patient_id: a.patient_id,
+    })),
+    noteByAppointmentId,
+    nowMsForOverview
+  );
+
   const therapistFeed = buildTherapistFeed({
     appointments: (appointments ?? []).map((a) => ({
       id: a.id,
@@ -396,7 +431,18 @@ export default async function TherapistDashboardPage() {
       paid_at: b.created_at,
     })),
     accessGrants: [],
-  });
+  }).concat(
+    notesOwed.slice(0, 4).map((s) => ({
+      id: `note-${s.id}`,
+      at: s.slot_time ?? new Date(nowMsForOverview).toISOString(),
+      icon: "fa-file-pen",
+      tone: "warn" as const,
+      title: `Session note needed — ${patientNameById.get(s.patient_id) ?? "a patient"}`,
+      detail: "Write it while it's fresh; it's what you'll read before their next session.",
+      href: "/therapist/dashboard#sessions",
+      needsYou: true,
+    }))
+  );
 
   const overviewCells: StatCell[] = [
     {
@@ -418,13 +464,15 @@ export default async function TherapistDashboardPage() {
       href: "#calendar",
     },
     {
-      label: "To mark complete",
-      value: String(awaitingCompletion),
+      label: "Notes to write",
+      value: String(notesOwed.length),
       note:
-        awaitingCompletion === 0
-          ? "Nothing waiting on you"
-          : "A session only earns once it's marked complete",
-      accent: awaitingCompletion > 0 ? "bg-amber-500" : "bg-emerald-500",
+        notesOwed.length === 0
+          ? awaitingCompletion > 0
+            ? `${awaitingCompletion} still to mark complete`
+            : "Every delivered session is written up"
+          : "Delivered sessions with nothing recorded yet",
+      accent: notesOwed.length > 0 ? "bg-amber-500" : "bg-emerald-500",
       href: "#sessions",
     },
     {
@@ -506,6 +554,28 @@ export default async function TherapistDashboardPage() {
               <MarkNoShowButton appointmentId={a.id} />
             </>
           )}
+          {/* The note lives on the card, not behind the patient's chart:
+              the moment a therapist can write an accurate note is the
+              moment they finish and are still looking at the session. */}
+          {!a.no_show &&
+            (a.status === "completed" ||
+              (a.status === "confirmed" && !!a.slot_time && new Date(a.slot_time).getTime() < nowMsForOverview)) && (
+              <SessionNoteButton
+                appointmentId={a.id}
+                patientName={patient?.full_name ?? "Patient"}
+                sessionLabel={formatSlotTime(a.slot_time, a.timezone)}
+                note={noteByAppointmentId.get(a.id) ?? null}
+                editable={
+                  !noteByAppointmentId.has(a.id) ||
+                  isNoteEditable(noteByAppointmentId.get(a.id)!, nowMsForOverview)
+                }
+                hoursLeft={
+                  noteByAppointmentId.has(a.id)
+                    ? noteEditHoursLeft(noteByAppointmentId.get(a.id)!, nowMsForOverview)
+                    : null
+                }
+              />
+            )}
         </div>
         {a.status === "completed" && !a.no_show && (
           <SessionFeedbackForm

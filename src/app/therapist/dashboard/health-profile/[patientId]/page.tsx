@@ -7,6 +7,9 @@ import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConditionIntakePanel from "@/components/profile/ConditionIntakePanel";
 import ConditionSummaryCard from "@/components/profile/ConditionSummaryCard";
+import SurfaceCard from "@/components/dashboard/SurfaceCard";
+import SessionNoteHistory from "@/components/therapist/SessionNoteHistory";
+import type { SessionNoteRow } from "@/lib/sessionNotes";
 import PainMapExplorer from "@/components/profile/PainMapExplorer";
 import PainAssessmentForm from "@/components/profile/PainAssessmentForm";
 import type { QuestionOverrideRow } from "@/lib/painMap";
@@ -115,6 +118,16 @@ export default async function TherapistPatientHealthProfilePage({
   for (const row of overrideRows ?? []) {
     (overridesByRegion[row.region] ??= []).push(row);
   }
+  // This therapist's clinical notes for this patient. Own query --
+  // session_notes is new/migration-dependent, and RLS already scopes it to
+  // clinicians who may read it (see session_notes_select_clinician).
+  const { data: noteRows } = await supabase
+    .from("session_notes")
+    .select("id, appointment_id, patient_id, therapist_id, data, free_text, created_at, updated_at")
+    .eq("patient_id", patientId)
+    .order("created_at", { ascending: false });
+  const notes = (noteRows ?? []) as SessionNoteRow[];
+
   const questions = mergeIntakeQuestionOverrides(INTAKE_QUESTIONS, intakeOverrideRows ?? []);
 
   const status = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
@@ -180,6 +193,17 @@ export default async function TherapistPatientHealthProfilePage({
             </p>
           </div>
         )}
+
+        <SurfaceCard
+          title="Session notes"
+          icon="fa-file-lines"
+          subtitle="What was treated, how they responded, and the plan — written after each session. Only you and the clinic's admin can read this; the patient never sees it."
+        >
+          <SessionNoteHistory
+            notes={notes}
+            emptyBody="After your first session with this patient, what you record appears here and becomes the prep for the next one."
+          />
+        </SurfaceCard>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center justify-between mb-1">

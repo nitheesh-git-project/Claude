@@ -5,6 +5,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
+import { EmptyState } from "@/components/dashboard/SurfaceCard";
+import { prepSummary, type SessionNoteRow } from "@/lib/sessionNotes";
+
+// Same module-level helper the other dashboards use rather than a bare
+// Date.now() in the component body -- a Server Component's render stays
+// pure.
+function nowTimestamp() {
+  return Date.now();
+}
 
 export const metadata: Metadata = {
   title: "Health Profiles | Dr. Pooja's Physio",
@@ -75,6 +84,40 @@ export default async function TherapistHealthProfilesPage() {
         ])
       : [{ data: [] as { id: string; full_name: string; email: string }[] }, { data: [] as { patient_id: string; status: string }[] }];
 
+  // Prep material: the next booked session per patient, and this
+  // therapist's own notes. Both are what turn a directory of names into a
+  // surface you can actually walk into a session from.
+  const [{ data: upcomingRows }, { data: noteRows }] =
+    patientIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from("appointments")
+            .select("id, patient_id, slot_time, status")
+            .eq("therapist_id", user.id)
+            .in("status", ["confirmed", "requested"])
+            .order("slot_time", { ascending: true }),
+          // Own query: session_notes is new/migration-dependent, and an
+          // unknown-table error should only cost the prep lines, not the
+          // whole page.
+          supabase
+            .from("session_notes")
+            .select("id, appointment_id, patient_id, therapist_id, data, free_text, created_at, updated_at")
+            .in("patient_id", patientIds)
+            .order("created_at", { ascending: false }),
+        ])
+      : [
+          { data: [] as { id: string; patient_id: string; slot_time: string | null; status: string }[] },
+          { data: [] as SessionNoteRow[] },
+        ];
+
+  const notes = (noteRows ?? []) as SessionNoteRow[];
+  const nowMs = nowTimestamp();
+  const nextSessionByPatient = new Map<string, string>();
+  for (const row of upcomingRows ?? []) {
+    if (!row.slot_time || new Date(row.slot_time).getTime() < nowMs) continue;
+    if (!nextSessionByPatient.has(row.patient_id)) nextSessionByPatient.set(row.patient_id, row.slot_time);
+  }
+
   const grantByPatientId = new Map((grants ?? []).map((g) => [g.patient_id, g.status]));
   // "New" (sort-to-top + count banner) clears only once admin actually
   // approves the access request -- a merely-requested grant still means
@@ -85,11 +128,16 @@ export default async function TherapistHealthProfilesPage() {
   const approvedPatientIds = new Set(
     (grants ?? []).filter((g) => g.status === "approved").map((g) => g.patient_id)
   );
+  // Whoever you are seeing soonest comes first -- this page's job is
+  // preparing for the next session, not browsing a directory. Patients
+  // with nothing booked fall to the bottom, alphabetically.
   const sortedPatients = [...(patients ?? [])].sort((a, b) => {
-    const aNew = !approvedPatientIds.has(a.id);
-    const bNew = !approvedPatientIds.has(b.id);
-    if (aNew === bNew) return a.full_name.localeCompare(b.full_name);
-    return aNew ? -1 : 1;
+    const aNext = nextSessionByPatient.get(a.id);
+    const bNext = nextSessionByPatient.get(b.id);
+    if (aNext && bNext) return new Date(aNext).getTime() - new Date(bNext).getTime();
+    if (aNext) return -1;
+    if (bNext) return 1;
+    return a.full_name.localeCompare(b.full_name);
   });
   const newPatientCount = sortedPatients.filter((p) => !approvedPatientIds.has(p.id)).length;
   const adminSettings = parseAdminSettings(settingsRow);
@@ -110,9 +158,9 @@ export default async function TherapistHealthProfilesPage() {
       userCode={therapistCodeRow?.therapist_code ?? null}
       offsetTop={showDebugNav}
       sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
-      realtimeTables={["condition_access_grants", "patient_condition_profiles"]}
-      headerTitle="Health Profiles"
-      headerSubtitle="View your patients' condition history, and request access to fill it in on their behalf."
+      realtimeTables={["condition_access_grants", "patient_condition_profiles", "session_notes"]}
+      headerTitle="My Patients"
+      headerSubtitle="Everyone assigned to you, soonest session first — with what you recorded last time, so you can walk in prepared."
     >
       <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         {newPatientCount > 0 && (
@@ -122,33 +170,86 @@ export default async function TherapistHealthProfilesPage() {
           </p>
         )}
         {sortedPatients.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">
-            You don&apos;t have any assigned patients yet.
-          </p>
+          <EmptyState
+            icon="fa-user-injured"
+            title="No patients assigned yet"
+            body="Once the clinic assigns you a session, that patient's full chart appears here — history, pain map and your own session notes."
+          />
         ) : (
           <ul className="divide-y divide-slate-100">
             {sortedPatients.map((p) => {
               const grantStatus = grantByPatientId.get(p.id);
+              const nextSession = nextSessionByPatient.get(p.id) ?? null;
+              const prep = prepSummary(p.id, notes);
               return (
                 <li key={p.id}>
                   <Link
                     href={`/therapist/dashboard/health-profile/${p.id}`}
-                    className="flex items-center justify-between gap-3 py-3 hover:bg-slate-50 -mx-2 px-2 rounded-lg transition"
+                    className="-mx-2 block rounded-xl px-3 py-3 transition hover:bg-slate-50"
                   >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 truncate">{p.full_name}</p>
-                      <p className="text-xs text-slate-400 truncate">{p.email}</p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-slate-800">{p.full_name}</p>
+                        <p className="truncate text-xs text-slate-400">{p.email}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        {nextSession ? (
+                          <span className="rounded-full bg-teal-50 px-2.5 py-1 text-[11px] font-semibold text-teal-700">
+                            Next{" "}
+                            {new Date(nextSession).toLocaleString(undefined, {
+                              day: "numeric",
+                              month: "short",
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+                            Nothing booked
+                          </span>
+                        )}
+                        {grantStatus ? (
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${GRANT_STYLE[grantStatus] ?? GRANT_STYLE.requested}`}
+                          >
+                            {GRANT_LABEL[grantStatus] ?? grantStatus}
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-teal-100 px-2.5 py-1 text-[11px] font-semibold text-teal-700">
+                            New
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {grantStatus ? (
-                      <span
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${GRANT_STYLE[grantStatus] ?? GRANT_STYLE.requested}`}
-                      >
-                        {GRANT_LABEL[grantStatus] ?? grantStatus}
-                      </span>
+
+                    {/* The one line that makes this a prep surface rather
+                        than a directory: what you left for yourself last
+                        time, without opening the chart. */}
+                    {prep.lastNote ? (
+                      <div className="mt-2 space-y-1 rounded-xl bg-slate-50 px-3 py-2.5">
+                        {prep.plan && (
+                          <p className="text-xs text-slate-700">
+                            <span className="font-semibold text-slate-500">Plan: </span>
+                            {prep.plan}
+                          </p>
+                        )}
+                        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                          {prep.response && (
+                            <span className="font-semibold text-slate-600">Last time: {prep.response}</span>
+                          )}
+                          <span>
+                            {prep.notesCount} note{prep.notesCount === 1 ? "" : "s"} on file
+                          </span>
+                          {prep.redFlags && (
+                            <span className="font-semibold text-red-600">Watch: {prep.redFlags}</span>
+                          )}
+                        </p>
+                      </div>
                     ) : (
-                      <span className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-teal-100 text-teal-700">
-                        New
-                      </span>
+                      <p className="mt-2 text-[11px] text-slate-400">
+                        No session notes yet — after their first session with you, what you record shows up
+                        here.
+                      </p>
                     )}
                   </Link>
                 </li>

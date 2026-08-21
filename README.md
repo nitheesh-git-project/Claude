@@ -428,6 +428,36 @@ address and a serviceable pincode.
 **Realtime.** `src/components/RealtimeRefresh.tsx` subscribes to Supabase
 Realtime so dashboards refresh when the underlying rows change.
 
+**Session notes and the prep loop.** A therapist assigned to any session
+automatically gets that patient's full chart — this is unchanged (read
+access needs no request; only *writing* to the patient's own intake or Pain
+Map needs an admin-approved `condition_access_grants` row). What is new is
+that the chart is now a preparation surface and has a clinician-only layer
+of its own:
+
+- **My Patients** (`/therapist/dashboard/health-profile`) lists everyone
+  assigned to this therapist, soonest session first, each row carrying the
+  plan left by the last session note, how the patient responded, anything
+  flagged to watch, and how many notes are on file.
+- **The session note** (`session_notes`, fields in
+  `src/lib/sessionNotes.ts`) is written from the session card itself right
+  after the session — what was treated, techniques and dosage, how the
+  patient responded, home exercise prescribed, plan for the next session,
+  anything to watch, plus free text. It opens as a pop-up so it costs no
+  navigation.
+- **Only the treating therapist and admins can read it.** There is no
+  patient select policy on the table, the patient's data export and print
+  view exclude it, and the dialog says so to the writer. A formal
+  medical-records request is a clinic process outside the app.
+- **Editable for 24 hours, then locked.** Every edit inside the window
+  copies the previous version into `session_note_revisions`, so a record
+  can never be silently rewritten.
+- **Nothing is blocked on it.** Marking a session complete stays one tap;
+  an unwritten note shows as "Notes to write" on the therapist's Overview
+  and as a `needsYou` item in their feed until it exists.
+- Admins see every note on the patient's condition detail screen, which is
+  how the clinic can tell whether care is being delivered and documented.
+
 **Dashboard Overview (all four roles).** Patient, therapist, hospital and
 admin dashboards each open on the same Overview screen
 (`src/components/dashboard/DashboardOverview.tsx`): four headline figures,

@@ -8,6 +8,11 @@ import { createClient } from "@/lib/supabase/server";
 // to build blind). RLS already scopes every one of these tables to the
 // caller's own rows, so the regular client is enough; no admin client
 // needed here.
+// Deliberately excludes session_notes. Those are the treating clinician's
+// working notes, written for other clinicians and never shown to the
+// patient (see the session_notes section in supabase/schema.sql) -- adding
+// them here would route around that decision through the export door. A
+// formal medical-records request is handled by the clinic outside the app.
 export async function GET() {
   const supabase = await createClient();
   const {

@@ -4,6 +4,9 @@ import ConditionRequestActions from "@/components/admin/ConditionRequestActions"
 import ConditionAccessActions from "@/components/admin/ConditionAccessActions";
 import ConditionDirectEditForm from "@/components/admin/ConditionDirectEditForm";
 import PainMapExplorer from "@/components/profile/PainMapExplorer";
+import SurfaceCard from "@/components/dashboard/SurfaceCard";
+import SessionNoteHistory from "@/components/therapist/SessionNoteHistory";
+import type { SessionNoteRow } from "@/lib/sessionNotes";
 import PainAssessmentForm from "@/components/profile/PainAssessmentForm";
 import {
   INTAKE_QUESTIONS,
@@ -37,6 +40,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
     { data: assessments },
     { data: intakeOverrideRows },
     { data: painMapOverrideRows },
+    { data: sessionNoteRows },
   ] = await Promise.all([
     admin.from("profiles").select("id, full_name, email").eq("id", id).eq("role", "patient").single(),
     admin
@@ -61,6 +65,15 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       .order("created_at", { ascending: false }),
     admin.from("intake_question_templates").select("question_key, question_text, required"),
     admin.from("pain_map_question_templates").select("region, question_key, question_text"),
+    // Clinician-only session notes. Admins are the second audience for
+    // these (the first being the treating therapist) -- it is how the
+    // clinic can see whether care is actually being delivered and
+    // documented. Never rendered on a patient-facing surface.
+    admin
+      .from("session_notes")
+      .select("id, appointment_id, patient_id, therapist_id, data, free_text, created_at, updated_at")
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false }),
   ]);
 
   if (!patient) {
@@ -216,6 +229,18 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           </ul>
         )}
       </section>
+
+      <SurfaceCard
+        title="Session notes"
+        icon="fa-file-lines"
+        subtitle="Written by the treating therapist after each session. Clinician-only — the patient cannot see these, in the app or in their data export."
+      >
+        <SessionNoteHistory
+          notes={(sessionNoteRows ?? []) as SessionNoteRow[]}
+          therapistNameById={therapistNameById}
+          emptyBody="Nothing recorded yet. Notes appear here as therapists write them up after delivered sessions."
+        />
+      </SurfaceCard>
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Pain Map</h2>
