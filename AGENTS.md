@@ -358,6 +358,13 @@ client is the only writer and the log is append-only from any session.
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
   runs.
+- **A session is listed once — on every dashboard, not only the admin's.**
+  The patient's and therapist's video sessions and home visits were
+  separate sidebar entries over the same `appointments` rows, so "what is
+  next?" was a two-screen question. Both are now one Sessions screen using
+  `SessionFilterList` (Upcoming / Past / Cancelled, plus a Video / Home
+  visit filter that only appears for people who have both). Add a filter
+  rather than a second list.
 - **A session is listed once.** All Bookings, Session Story, the calendar's
   day panel and the home-visit queue were four lists over the same
   `appointments` rows; they are now one filterable list

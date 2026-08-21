@@ -33,23 +33,15 @@ export function buildPatientNavItems({
     // now" screen for patient, therapist, hospital and admin.
     { id: "overview", label: "Overview", icon: "fa-gauge-high", href: "/patient/dashboard" },
     { id: "book", label: "Book a Session", icon: "fa-plus", href: "/patient/dashboard/book" },
-    ...(hasOnlineSessions
+    // One entry for every session, video or home visit -- they were two,
+    // over the same rows, which made "what's next?" a two-screen question.
+    ...(hasOnlineSessions || hasHomeVisits
       ? [
           {
             id: "sessions",
             label: "Your Sessions",
             icon: "fa-calendar-check",
             href: "/patient/dashboard/sessions",
-          },
-        ]
-      : []),
-    ...(hasHomeVisits
-      ? [
-          {
-            id: "home-visits",
-            label: "Your Home Visits",
-            icon: "fa-house-medical",
-            href: "/patient/dashboard/home-visits",
           },
         ]
       : []),
@@ -64,7 +56,7 @@ export function buildPatientNavItems({
           },
         ]
       : []),
-    { id: "receipts", label: "Receipts", icon: "fa-receipt", href: "/patient/dashboard/receipts" },
+    { id: "payments", label: "Payments", icon: "fa-receipt", href: "/patient/dashboard/payments" },
     {
       id: "health-profile",
       label: "Health Profile",
@@ -87,43 +79,11 @@ export function buildPatientNavItems({
   ];
 }
 
-// Home Visits is conditional on the therapist actually having any, for the
-// same reason the patient's package items are: a nav entry that scrolls to
-// an empty section is worse than no entry. Built as a function rather than
-// a const so both pages sharing this shell pass the same boolean and cannot
-// drift -- same shape as buildPatientNavItems above.
-export function buildTherapistNavItems({
-  hasHomeVisits,
-}: {
-  hasHomeVisits: boolean;
-}): ShellNavItem[] {
-  // Real pages, not anchors -- see buildPatientNavItems for why.
-  return [
-    { id: "overview", label: "Overview", icon: "fa-gauge-high", href: "/therapist/dashboard" },
-    {
-      id: "availability",
-      label: "Availability",
-      icon: "fa-calendar-days",
-      href: "/therapist/dashboard/availability",
-    },
-    {
-      id: "sessions",
-      label: "Assigned Sessions",
-      icon: "fa-clipboard-list",
-      href: "/therapist/dashboard/sessions",
-    },
-    ...(hasHomeVisits
-      ? [
-          {
-            id: "home-visits",
-            label: "Home Visits",
-            icon: "fa-house-medical",
-            href: "/therapist/dashboard/home-visits",
-          },
-        ]
-      : []),
-    ...THERAPIST_NAV_ITEMS.slice(3),
-  ];
+// Kept as a function purely so every page importing it stays call-shaped
+// (they all did when the list was conditional on whether this therapist
+// had home visits -- it no longer is, since Sessions covers both modes).
+export function buildTherapistNavItems(): ShellNavItem[] {
+  return THERAPIST_NAV_ITEMS;
 }
 
 export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
@@ -136,24 +96,24 @@ export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
   },
   {
     id: "sessions",
-    label: "Assigned Sessions",
+    label: "Sessions",
     icon: "fa-clipboard-list",
     href: "/therapist/dashboard/sessions",
   },
+  // Programmes is the delivery arc of a package purchase; My Patients
+  // below is the clinical chart. Different jobs, so they stay apart --
+  // but "Programme Patients" read like a second patient list, hence the
+  // shorter name.
   {
     id: "programmes",
-    label: "Programme Patients",
+    label: "Programmes",
     icon: "fa-layer-group",
     href: "/therapist/dashboard/programmes",
   },
   { id: "calendar", label: "Calendar", icon: "fa-calendar", href: "/therapist/dashboard/calendar" },
+  // Earnings and Payout Receipts were two entries answering one question
+  // ("what am I owed, and what have I been paid?"); they are one screen.
   { id: "earnings", label: "Earnings", icon: "fa-chart-line", href: "/therapist/dashboard/earnings" },
-  {
-    id: "receipts",
-    label: "Payout Receipts",
-    icon: "fa-sack-dollar",
-    href: "/therapist/dashboard/receipts",
-  },
   {
     id: "health-profiles",
     label: "My Patients",

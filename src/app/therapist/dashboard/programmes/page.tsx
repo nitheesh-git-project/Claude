@@ -5,17 +5,17 @@ import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import TherapistProgrammePatients from "@/components/packages/TherapistProgrammePatients";
 
 export const metadata: Metadata = {
-  title: "Programme Patients | Dr. Pooja's Physio",
+  title: "Programmes | Dr. Pooja's Physio",
 };
 
 export default async function Page() {
   const d = await loadTherapistDashboard("programmes");
 
   return (
-    <TherapistDashboardShell data={d} title="Programme Patients" subtitle="Package purchases locked to you for their whole programme.">
+    <TherapistDashboardShell data={d} title="Programmes" subtitle="Package purchases locked to you for their whole programme.">
       <SurfaceCard
         id="programmes"
-        title="Programme Patients"
+        title="Programmes"
         icon="fa-layer-group"
         subtitle="Package purchases locked to you for their whole programme — tap one for the full completed/upcoming/pending picture."
         className="mt-8"

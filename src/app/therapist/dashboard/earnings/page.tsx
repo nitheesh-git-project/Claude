@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import TherapistPayoutReceiptsSection from "@/components/TherapistPayoutReceiptsSection";
 import TherapistDashboardShell from "@/components/therapist/TherapistDashboardShell";
 import { loadTherapistDashboard } from "@/lib/therapistDashboardData";
 import TherapistEarningsTab from "@/components/TherapistEarningsTab";
@@ -11,7 +12,7 @@ export default async function Page() {
   const d = await loadTherapistDashboard("earnings");
 
   return (
-    <TherapistDashboardShell data={d} title="Earnings" subtitle="What you have earned, and what is owed.">
+    <TherapistDashboardShell data={d} title="Earnings" subtitle="What you have earned, what is owed, and every payout the clinic has settled.">
       <div id="earnings" className="mt-8">
         <TherapistEarningsTab
           rows={d.earningRows}
@@ -26,6 +27,12 @@ export default async function Page() {
                 }
               : null
           }
+        />
+      </div>
+      <div id="receipts">
+        <TherapistPayoutReceiptsSection
+          receipts={d.payoutReceipts}
+          sessionCodeByAppointmentId={d.sessionCodeByAppointmentId}
         />
       </div>
     </TherapistDashboardShell>

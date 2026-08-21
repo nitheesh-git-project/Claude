@@ -105,7 +105,7 @@ export function buildPatientFeed({
         tone: "warn",
         title: `${mode} waiting for a therapist`,
         detail: "The clinic is assigning someone — you'll see the joining details here once it's confirmed.",
-        href: "/patient/dashboard#sessions",
+        href: "/patient/dashboard/sessions",
       });
     } else if (a.status === "confirmed") {
       items.push({
@@ -115,7 +115,7 @@ export function buildPatientFeed({
         tone: "good",
         title: `${mode} confirmed${a.therapist_name ? ` with ${a.therapist_name}` : ""}`,
         detail: when ? new Date(when).toLocaleString() : undefined,
-        href: "/patient/dashboard#sessions",
+        href: "/patient/dashboard/sessions",
       });
     } else if (a.status === "cancelled") {
       items.push({
@@ -125,7 +125,7 @@ export function buildPatientFeed({
         tone: "bad",
         title: `${mode} cancelled`,
         detail: "Any refund due follows the cancellation window.",
-        href: "/patient/dashboard#sessions",
+        href: "/patient/dashboard/sessions",
       });
     }
     if (a.payment_status === "unpaid" && a.status !== "cancelled") {
@@ -136,7 +136,7 @@ export function buildPatientFeed({
         tone: "warn",
         title: "Payment not completed",
         detail: "This session isn't booked until payment goes through.",
-        href: "/patient/dashboard#sessions",
+        href: "/patient/dashboard/sessions",
         needsYou: true,
       });
     }
@@ -208,7 +208,7 @@ export function buildTherapistFeed({
           ? `${mode} booked${a.patient_name ? ` with ${a.patient_name}` : ""}`
           : `${mode} finished — mark it complete`,
         detail: when ? new Date(when).toLocaleString() : undefined,
-        href: "/therapist/dashboard#sessions",
+        href: "/therapist/dashboard/sessions",
         needsYou: !upcoming,
       });
     }
@@ -219,7 +219,7 @@ export function buildTherapistFeed({
         icon: "fa-circle-check",
         tone: "good",
         title: `${mode} completed${a.patient_name ? ` — ${a.patient_name}` : ""}`,
-        href: "/therapist/dashboard#sessions",
+        href: "/therapist/dashboard/sessions",
       });
     }
   }
@@ -231,7 +231,7 @@ export function buildTherapistFeed({
       icon: "fa-money-bill-transfer",
       tone: p.status === "paid" ? "good" : "info",
       title: p.status === "paid" ? `Payout of ${money(p.amount_paise)} sent` : `Payout of ${money(p.amount_paise)} pending`,
-      href: "/therapist/dashboard#earnings",
+      href: "/therapist/dashboard/earnings",
     });
   }
 
@@ -281,7 +281,7 @@ export function buildHospitalFeed({ referrals }: { referrals: FeedReferral[] }):
         icon: "fa-hospital-user",
         tone,
         title: r.patient_name ? `${title} — ${r.patient_name}` : title,
-        href: "/hospital/dashboard#referrals",
+        href: "/hospital/dashboard/referrals",
       };
     })
   );

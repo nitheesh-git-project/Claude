@@ -457,7 +457,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       tone: "warn" as const,
       title: `Session note needed — ${patientNameById.get(s.patient_id) ?? "a patient"}`,
       detail: "Write it while it's fresh; it's what you'll read before their next session.",
-      href: "/therapist/dashboard#sessions",
+      href: "/therapist/dashboard/sessions",
       needsYou: true,
     }))
   );
@@ -507,7 +507,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     },
   ];
 
-  const navItems = buildTherapistNavItems({ hasHomeVisits: homeVisits.length > 0 });
+  const navItems = buildTherapistNavItems();
 
   // Shared between "Assigned Patient Sessions" and the Calendar tab's
   // tap-a-date detail list -- one true card style for a session, not two

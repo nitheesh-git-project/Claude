@@ -5,14 +5,14 @@ import ReceiptsSection from "@/components/ReceiptsSection";
 import { buildPatientReceipts } from "@/lib/receipts";
 
 export const metadata: Metadata = {
-  title: "Receipts | Dr. Pooja's Physio",
+  title: "Payments | Dr. Pooja's Physio",
 };
 
 export default async function Page() {
   const d = await loadPatientDashboard("receipts");
 
   return (
-    <PatientDashboardShell data={d} title="Receipts" subtitle="Every payment, refund and failed attempt on your account.">
+    <PatientDashboardShell data={d} title="Payments" subtitle="Every payment, refund and failed attempt on your account.">
       <div id="receipts" className="mt-8">
         <ReceiptsSection
           receipts={buildPatientReceipts(

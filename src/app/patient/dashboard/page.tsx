@@ -109,7 +109,7 @@ export default async function PatientDashboardPage() {
             label: "Your receipts",
             hint: "Every payment and refund",
             icon: "fa-receipt",
-            href: "/patient/dashboard/receipts",
+            href: "/patient/dashboard/payments",
           },
         ]}
       />

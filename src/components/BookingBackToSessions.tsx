@@ -39,7 +39,7 @@ export default function BookingBackToSessions() {
       // navigations work (see DashboardShell's nav comment) -- a soft
       // transition into the differently-chromed dashboard route was the
       // thing that silently didn't complete.
-      window.location.replace("/patient/dashboard#sessions");
+      window.location.replace("/patient/dashboard/sessions");
     }
 
     window.addEventListener("popstate", handlePopState);

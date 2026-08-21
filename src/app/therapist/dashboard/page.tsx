@@ -59,9 +59,9 @@ export default async function TherapistDashboardPage() {
         feedEmptyBody="Assignments, completed sessions and payouts show up here as they happen."
         actions={[
           { label: "Set your availability", hint: "Weekly hours and day overrides", icon: "fa-calendar-days", href: "/therapist/dashboard#availability", primary: true },
-          { label: "Your assigned sessions", hint: "Join, complete, or mark a no-show", icon: "fa-clipboard-list", href: "/therapist/dashboard#sessions" },
+          { label: "Your assigned sessions", hint: "Join, complete, or mark a no-show", icon: "fa-clipboard-list", href: "/therapist/dashboard/sessions" },
           { label: "Patient health profiles", hint: "Intake answers and pain maps", icon: "fa-notes-medical", href: "/therapist/dashboard/health-d.profile" },
-          { label: "Earnings and payouts", hint: "What you've earned and what's owed", icon: "fa-chart-line", href: "/therapist/dashboard#earnings" },
+          { label: "Earnings and payouts", hint: "What you've earned and what's owed", icon: "fa-chart-line", href: "/therapist/dashboard/earnings" },
         ]}
       />
     </TherapistDashboardShell>

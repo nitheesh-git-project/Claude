@@ -458,6 +458,21 @@ of its own:
 - Admins see every note on the patient's condition detail screen, which is
   how the clinic can tell whether care is being delivered and documented.
 
+**Dashboard information architecture.** Patient: Overview · Book a Session ·
+Your Sessions · Calendar · Packages · Payments · Health Profile · Edit
+Profile. Therapist: Overview · Availability · Sessions · Programmes ·
+Calendar · Earnings · My Patients · Edit Profile. Hospital: Overview ·
+Refer a Patient · Your Referrals · Revenue & Payouts · Account Security.
+Admin keeps its six sections (`src/lib/adminNav.ts`).
+
+Three merges got these lists down from what they were: video sessions and
+home visits are one filtered Sessions screen on both the patient and
+therapist side (`SessionFilterList`), Earnings absorbed Payout Receipts
+(one question — what am I owed and what have I been paid), and the
+patient's three package entries became one Packages screen. "Receipts"
+is now "Payments" on the patient side, since it lists payments, refunds
+and failed attempts, not only receipts.
+
 **Dashboard navigation.** The patient, therapist and hospital dashboards are
 sets of real pages — `/patient/dashboard/sessions`,
 `/therapist/dashboard/earnings`, `/hospital/dashboard/referrals` and so on —
