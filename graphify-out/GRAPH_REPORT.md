@@ -1,250 +1,239 @@
-# Graph Report - Claude  (2026-08-20)
+# Graph Report - Claude  (2026-08-22)
 
 ## Corpus Check
 - cluster-only mode — file stats not available
 
 ## Summary
-- 2952 nodes · 6531 edges · 279 communities (167 shown, 112 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 36 edges (avg confidence: 0.87)
-- Token cost: 9,834 input · 3,356 output
+- 3272 nodes · 7497 edges · 273 communities (168 shown, 105 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 41 edges (avg confidence: 0.86)
+- Token cost: 3,550 input · 2,083 output
 
 ## Graph Freshness
-- Built from commit: `f5eb9788`
+- Built from commit: `dc6b3241`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- Admin Account Actions
-- Patient Booking Flow
-- Session Filtering UI
-- Admin Detail Pages
-- Color Design Tokens
-- BM25 Search Core
-- Admin Action Toggles
-- Appointment Assignment
-- Home Visit Management
-- Admin Dashboard Components
-- Admin Metrics Dashboard
-- Slide Search Utilities
-- Admin Login Shell
-- Therapist Roster Management
-- Patient Health Profile
-- User Dashboards
-- Auth and Password
-- Booking Wizard Steps
-- Calendar Scheduling Components
-- Tailwind Generator Tests
-- User Profile Management
-- Landing Page Content
-- Design System Generator
-- TypeScript Configuration
-- Purchase Detail Modals
-- Catalog Visual Components
-- CSS Token Validator
-- Pain Assessment Editor
-- Public Booking Pages
-- Session Detail Management
-- Logo Search Logic
-- Domain Search Caching
-- Therapist Earnings UI
-- Payment History UI
-- Activity Logs
-- Session Status Controls
-- Contact Information Forms
-- Debug Navigation Tools
-- Booking Management Forms
-- Spacing Design Tokens
-- Tailwind Config Logic
-- Design Recommendation Engine
-- Hospital Dashboard Shell
-- Global App Layout
-- Package Detail Views
-- Slide Generation Logic
-- Payout Receipt Formatting
-- Semantic Color Tokens
-- Dark Mode Logic
-- Public Marketing Pages
-- Package Catalog Management
-- Pain Map Visualization
-- Background Image Utilities
-- Admin E2E Tests
-- Therapist Payout Ledger
-- Health Profile Dashboards
-- BM25 Text Indexing
-- Dev Dependencies
-- Project Dependencies
-- Admin Feature Controls
-- Body Map Assessment
-- Icon Generation Scripts
-- Typography Design Tokens
-- Home Visit Wizard
-- Shadcn Installer Tests
-- Luminance Contrast Tests
-- Treatment Category Management
-- Address Entry Forms
-- Color Extraction Utilities
-- Asset Validation Scripts
-- UI Primitive Tokens
-- Condition Detail Management
-- Admin Booking Actions
-- Booking Scene UI
-- Design Token Schema
-- Auth Test Helpers
-- Admin Access Control
-- Package Purchase Modals
-- Token Validation Scripts
-- Card Style Tokens
-- Shadcn CLI Tool
-- Shadcn Component Management
-- Config File Generation
-- Service Area Management
-- Home Visit Packages
-- Brand Context Injection
-- Token Embedding Scripts
-- Design System Skills
-- Component Installation Tests
-- Tailwind Regression Tests
-- Package API Routes
-- Pain Area Picker
-- Onboarding Tour UI
+- createAdminClient
+- createClient
+- admin.ts
+- admin/dashboard/page.tsx
+- usePagedList
+- AdminPaymentHistoryTab.tsx
+- gray
+- search
+- patient/dashboard/health-profile/page.tsx
+- normalizePincode
+- AdminMetricsTab.tsx
+- pricing.ts
+- createClient
+- HomeVisitBulkScheduler.tsx
+- slide_search_core.py
+- createPublicClient
+- TherapistDetailContent.tsx
+- painMap.ts
+- BookingWizard.tsx
+- phoneNumber.ts
+- therapistAvailability.ts
+- [patientId]/page.tsx
+- patient/dashboard/profile/page.tsx
+- useConfirm
+- HomeVisitPurchaseDetailModal.tsx
+- app/layout.tsx
+- conditionIntake.ts
+- healthProfilePdf.ts
+- TestTailwindConfigGenerator
+- AdminAllSessionsTab.tsx
+- app/page.tsx
+- patientDashboardData.ts
+- formatSlotTime
+- SessionPackages.tsx
+- design_system.py
+- compilerOptions
+- packageProgress.ts
+- html-token-validator.py
+- SectionNav.tsx
+- AdminDashboardPage
+- medicalDocuments.ts
+- BM25
+- search
+- HomeVisitBookingWizard.tsx
+- leadTimeMsFromHours
+- therapistDashboardData.ts
+- spacing
+- TailwindConfigGenerator
+- DesignSystemGenerator
+- AdminFeatureControlTab
+- generate-slide.py
+- SurfaceCard.tsx
+- BodyMapDiagram.tsx
+- color
+- test_design_system_mode.py
+- devDependencies
+- HomeVisitPurchasesTable.tsx
+- HomeVisitSettingsForm.tsx
+- ConditionDetailContent.tsx
+- scenes.tsx
+- fetch-background.py
+- BASE
+- bookHomeVisitSession.ts
+- ConfirmDialog.tsx
+- BM25
+- dependencies
+- HomeVisitPackageManager.tsx
+- TherapistEarningsTab.tsx
+- adminSettings.ts
+- icon/generate.py
+- fontSize
+- HomeVisitCashLedger.tsx
+- TestShadcnInstaller
+- _palette_is_dark
+- TreatmentCategoryManager.tsx
+- extract-colors.cjs
+- validate-asset.cjs
+- radius
+- therapist/dashboard/health-profile/page.tsx
+- dashboardFeed.ts
+- design-tokens-starter.json
+- helpers.ts
+- create-package/route.ts
+- SessionCalendarTab.tsx
+- validate-tokens.cjs
+- card
+- ShadcnInstaller
+- .check_shadcn_config
+- .generate_config_string
+- browserCookiesFor
+- RouteError.tsx
+- HomeVisitAreaManager.tsx
+- inject-brand-context.cjs
+- embed-tokens.cjs
+- patch
+- Tailwind Config Generator Tests
+- Dashboard Loading States
+- AdminPayoutsTab.tsx
+- Onboarding Tour Component
 - Google Calendar Integration
-- Generator Initialization
-- Logo Generation Logic
-- Token Export Scripts
+- Tailwind Config Generator Core
+- AI Logo Generation
+- Design Token Build Script
 - Button Style Tokens
 - Animation Duration Tokens
-- Admin Authorization Tests
-- Team Therapist Directory
-- Admin Shell Navigation
-- Admin Navigation and Tabs
-- Home Visit Settings
-- Design Token Generation
+- primitives.tsx
+- AdminShell.tsx
+- PackagePurchaseDetailModal.tsx
+- Brand Token Sync Utility
 - Token Validation Tests
-- User Journey Testing
+- User Journey E2E Tests
 - Session Suggestion Tests
-- Home Visit Package API
-- FAQ Management
-- Package Settings Form
-- Testimonial Management
-- Input Padding Tokens
-- Section Navigation Testing
-- Admin Payout Requests
+- Detail Overlay Modals
+- Booking Calendar Logic
+- Account Management Routes
+- Input Field Tokens
+- Navigation Component Tests
+- Account Status Pages
+- Hospital Onboarding Route
+- Marketing Landing Pages
+- Patient Authentication Pages
+- Home Visit Management
+- Empty Value Tokens
 - Domain Detection Logic
-- Palette Selection Logic
-- Session Cutoff Testing
-- Project Scripts
-- Appointment Cancellation API
-- Brand Contact Details
-- Condition List Filters
-- Admin Payout Dashboard
-- Meet Sync Background Jobs
-- Database Schema Testing
-- Admin Network Testing
-- Realtime Coverage Audit
-- Home Visit Pricing
-- Patient Registration
-- People Directory Admin
-- Supabase Proxy Configuration
+- Color Palette Selection
+- Session Cutoff Tests
+- NPM Lifecycle Scripts
+- InviteRegisterCard.tsx
+- Brand Contact Forms
+- Component Addition Tests
+- Package Purchase Management
 - Design System Documentation
-- Core Design Tokens
+- GSAP Animation Skills
+- Admin Authorization Tests
+- Database Schema Tests
+- Realtime Coverage Checker
+- Package Catalog Forms
+- Supabase Proxy Configuration
+- Design System Scales
 - Border Tokens
-- Radius Tokens
+- Border Radius Tokens
 - Large Size Tokens
 - Small Size Tokens
 - Global Test Setup
-- Google OAuth Utilities
-- Account Status Pages
-- Home Visit Scheduler
-- Package Bulk Scheduler
-- Detail Overlay Modals
+- Google OAuth Utility
+- Vertical Padding Tokens
 - Extra Large Tokens
-- Empty Value Tokens
-- GSAP Utility Skills
-- Data Validation Script
-- Package Metadata
-- Schema Migration Runner
-- Hospital Onboarding API
-- Referral Assignment Form
-- Patient Profit Analytics
-- Profile Change Requests
-- System Logic Features
+- Slide Template Skills
+- UI Design Guidelines
+- UI Component Library
+- Data Validation Utility
+- Project Metadata
+- Database Migration Script
 - Brand Sync Tests
 - Slide Token Validator
-- Therapist Payout Actions
-- Therapist Authentication
-- User Address Management
-- Numeric Value Tokens
+- Spacing Token 16
+- Spacing Token 1
+- Spacing Token 3
+- Spacing Token 8
 - Destructive State Tokens
 - Destructive Foreground Tokens
 - Muted State Tokens
 - Primary Foreground Tokens
-- Ring Focus Tokens
+- Focus Ring Tokens
 - Secondary Foreground Tokens
-- GSAP Animation Skills
-- Project Installer Setup
-- Temporary Project Fixtures
-- UI/UX Best Practices
-- Admin Global Search
-- Agent Tech Stack
-- Booking Domain Logic
-- User Roles and Referrals
+- Project Installer Core
+- Test Project Fixtures
+- Logo Style Matrix
+- Layout Strategy Selection
 - Motion and Interaction
 - Typography System
-- Component Configuration Tests
+- Shadcn Config Tests
 - Component Listing Tests
 - Project Root Tests
 - Dry Run Tests
 - Config Existence Tests
 - Empty Component Tests
-- Empty List Tests
 - Custom Font Tests
 - Plugin Recommendation Tests
 - TypeScript Config Tests
-- Color Config Tests
-- Plugin Config Tests
-- Content Path Validation
-- Theme Extension Validation
+- Custom Color Tests
+- Plugin Integration Tests
+- Content Path Tests
+- Theme Extension Tests
 - Config Write Tests
 - JavaScript Init Tests
-- Config Content Verification
+- Config Content Tests
 - Invalid Path Tests
-- Full JS Config Tests
-- TypeScript Output Tests
-- Base Configuration Tests
-- Vue Content Path Tests
-- Color Customization Tests
+- JS Configuration Tests
+- Output Path Tests
+- Base Structure Tests
+- Vue Content Tests
+- Color Addition Tests
 - ESLint Configuration
-- Post-Merge Git Hooks
-- Phone Number Validation
-- Animation Library
+- Git Hooks
+- Documentation Workflows
+- GSAP React Hooks
 - Next.js Configuration
-- Tailwind PostCSS Plugin
+- React DOM Dependency
+- Supabase SSR Client
+- Supabase Client Library
 - PostCSS Configuration
-- Supabase Relay Service
-- Referral Preview API
-- Admin Information Architecture
-- Debug Data Reset
-- End-to-End Test Suite
-- Patient Intake Forms
-- Realtime Coverage Verification
-- Supabase Client Instances
-- Claude AI Documentation
-- Alert Design Tokens
-- Badge Design Tokens
-- Card Design Tokens
-- Modal Design Tokens
-- Input Design Tokens
-- Table Design Tokens
+- Supabase Relay Server
+- Logo Design Assets
+- Copywriting Frameworks
+- Alert Component Tokens
+- Badge Component Tokens
+- Card Component Tokens
+- Modal Component Tokens
+- Input Component Tokens
+- Table Component Tokens
 - Border Radius Tokens
 - Shadow Design Tokens
 - Dark Mode Styles
 - Data Extraction Specification
-- Query Reference Documentation
+- Query Reference Guide
 - Graphify Skill Definition
-- GSAP Animation Frameworks
+- GSAP Framework Integration
 - GSAP Performance Optimization
-- GSAP Animation Plugins
-- GSAP Timeline Management
+- GSAP Plugin Configuration
 - Boldonse Font License
 - Bricolage Grotesque License
 - Crimson Pro License
@@ -260,7 +249,7 @@
 - Libre Baskerville License
 - Lora Font License
 - National Park License
-- Nothing You Could Do License
+- Handwriting Font License
 - Outfit Font License
 - Pixelify Sans License
 - Poiret One License
@@ -271,37 +260,33 @@
 - Work Sans License
 - Young Serif License
 - Apache License 2.0
-- Tailwind CSS Customization
+- UI Styling Dependencies
+- Tailwind Customization
 - Tailwind Responsive Design
-- Documentation Freshness Workflow
-- Graphify Refresh Workflow
-- Schema Application Workflow
+- Supabase Schema Workflow
 - Graphify CLI Tool
+- Core Prompt Engineering
 - File System Icons
-- Globe and Localization Icons
+- Global Interface Icons
 - Next.js Brand Assets
 - Vercel Brand Assets
-- Window UI Icons
-- Project README Documentation
-- Database Schema Definition
-- SIL Open Font License
-- Vertical Padding Tokens
-- Zero Value Tokens
-- Spacing Value Tokens
-- Small Integer Tokens
-- Revenue Share Management
+- Window Interface Icons
+- Open Font License
+- Slide Presentation Strategies
+- UI Accessibility Standards
+- UI Theming System
 
 ## God Nodes (most connected - your core abstractions)
-1. `createAdminClient()` - 282 edges
-2. `getAdminUser()` - 161 edges
-3. `createClient()` - 106 edges
-4. `parseJsonBody()` - 74 edges
+1. `createAdminClient()` - 294 edges
+2. `getAdminUser()` - 163 edges
+3. `createClient()` - 116 edges
+4. `parseJsonBody()` - 80 edges
 5. `TailwindConfigGenerator` - 58 edges
 6. `useConfirm()` - 52 edges
-7. `createClient()` - 42 edges
-8. `parseAdminSettings()` - 37 edges
-9. `TestTailwindConfigGenerator` - 35 edges
-10. `ShadcnInstaller` - 34 edges
+7. `usePagedList()` - 47 edges
+8. `createClient()` - 42 edges
+9. `parseAdminSettings()` - 39 edges
+10. `recordAdminActivity()` - 37 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `TestTailwindConfigGenerator` --uses--> `TailwindConfigGenerator`  [INFERRED]
@@ -319,700 +304,666 @@
 - None detected.
 
 ## Hyperedges (group relationships)
-- **Booking and Fulfillment Lifecycle** — agents_md_home_visit [EXTRACTED 0.90]
-- **Presentation Design Flow** — slides_strategies, slides_copywriting_formulas, slides_layout_patterns, slides_html_template [EXTRACTED 0.90]
-- **Authentication and Access Control Flow** — agents_md_roles, agents_md_supabase_clients [EXTRACTED 0.95]
-- **Booking and Fulfillment Flow** — agents_md_booking_logic, agents_md_home_visit, agents_md_package_locking, agents_md_session_suggestions [EXTRACTED 0.95]
-- **UI Development Stack** — ui_styling_shadcn_components, ui_styling_tailwind_utilities, ui_styling_shadcn_accessibility, ui_styling_shadcn_theming [EXTRACTED 0.95]
+- **CI/CD Automation Workflows** — github_workflows_docs_freshness, github_workflows_graphify, github_workflows_schema_apply [EXTRACTED 0.90]
+- **GSAP Animation Ecosystem** — claude_skills_gsap_scrolltrigger_skill, claude_skills_gsap_timeline_skill, claude_skills_gsap_utils_skill [EXTRACTED 0.90]
+- **Presentation Design Flow** — claude_skills_design_references_slides_strategies_selection, claude_skills_design_references_slides_layout_patterns_selection, claude_skills_design_references_slides_copywriting_formulas_core_formulas, claude_skills_design_references_slides_html_template_base_structure [EXTRACTED 0.95]
+- **Strategic Presentation Design** — claude_skills_slides_skill, slides_layout_patterns, slides_copywriting_formulas, slides_html_template [EXTRACTED 0.95]
+- **Modern UI Design Stack** — claude_skills_ui_styling_skill, ui_styling_shadcn_components, ui_styling_tailwind_utilities, ui_styling_canvas_design_system [EXTRACTED 0.95]
 - **Component Token Definitions** — claude_skills_design_system_references_component_tokens_button_tokens, claude_skills_design_system_references_component_tokens_input_tokens, claude_skills_design_system_references_component_tokens_card_tokens, claude_skills_design_system_references_component_tokens_badge_tokens, claude_skills_design_system_references_component_tokens_alert_tokens, claude_skills_design_system_references_component_tokens_dialog_tokens, claude_skills_design_system_references_component_tokens_table_tokens [EXTRACTED 1.00]
 - **Design System Framework** — claude_skills_design_system_skill, design_system_token_architecture, design_system_component_specs, design_system_tailwind_integration [EXTRACTED 1.00]
 - **OFL Licensed Font Collection** — claude_skills_ui_styling_canvas_fonts_boldonse_ofl, claude_skills_ui_styling_canvas_fonts_bricolagegrotesque_ofl, claude_skills_ui_styling_canvas_fonts_crimsonpro_ofl, claude_skills_ui_styling_canvas_fonts_dmmono_ofl, claude_skills_ui_styling_canvas_fonts_ericaone_ofl, claude_skills_ui_styling_canvas_fonts_geistmono_ofl, claude_skills_ui_styling_canvas_fonts_gloock_ofl, claude_skills_ui_styling_canvas_fonts_ibmplexmono_ofl, claude_skills_ui_styling_canvas_fonts_instrumentsans_ofl, claude_skills_ui_styling_canvas_fonts_italiana_ofl, claude_skills_ui_styling_canvas_fonts_jetbrainsmono_ofl, claude_skills_ui_styling_canvas_fonts_jura_ofl, claude_skills_ui_styling_canvas_fonts_librebaskerville_ofl, claude_skills_ui_styling_canvas_fonts_lora_ofl, claude_skills_ui_styling_canvas_fonts_nationalpark_ofl, claude_skills_ui_styling_canvas_fonts_nothingyoucoulddo_ofl, claude_skills_ui_styling_canvas_fonts_outfit_ofl, claude_skills_ui_styling_canvas_fonts_pixelifysans_ofl, claude_skills_ui_styling_canvas_fonts_poiretone_ofl, claude_skills_ui_styling_canvas_fonts_redhatmono_ofl, claude_skills_ui_styling_canvas_fonts_silkscreen_ofl, claude_skills_ui_styling_canvas_fonts_smoochsans_ofl, claude_skills_ui_styling_canvas_fonts_tektur_ofl, claude_skills_ui_styling_canvas_fonts_worksans_ofl, claude_skills_ui_styling_canvas_fonts_youngserif_ofl [EXTRACTED 1.00]
 - **OFL Licensed Font Software Collection** — claude_skills_ui_styling_canvas_fonts_boldonse_ofl, claude_skills_ui_styling_canvas_fonts_bricolagegrotesque_ofl, claude_skills_ui_styling_canvas_fonts_geistmono_ofl, claude_skills_ui_styling_canvas_fonts_ibmplexmono_ofl, claude_skills_ui_styling_canvas_fonts_jetbrainsmono_ofl [EXTRACTED 1.00]
-- **GSAP Animation Ecosystem** — claude_skills_gsap_core_skill, claude_skills_gsap_scrolltrigger_skill, claude_skills_gsap_react_skill [EXTRACTED 1.00]
+- **UI/UX Design System & Guidelines** — claude_skills_ui_ux_pro_max_skill, claude_skills_ui_ux_pro_max_references_pro_rules, claude_skills_ui_ux_pro_max_references_quick_reference [EXTRACTED 1.00]
 - **UI/UX Pro Max Design Intelligence System** — claude_skills_ui_ux_pro_max_skill [EXTRACTED 1.00]
 - **UI/UX Intelligence Framework** — claude_skills_ui_ux_pro_max_skill [EXTRACTED]
-- **Clinical Data and Health Profiling** — agents_md_health_profile, agents_md_admin_nav [INFERRED 0.80]
-- **Data Integrity and Maintenance** — agents_md_realtime_check, agents_md_lazy_sweeps, agents_md_data_reset [INFERRED 0.85]
-- **CI/CD Automation Workflows** — github_workflows_docs_freshness, github_workflows_graphify, github_workflows_schema_apply [INFERRED 0.90]
+- **GSAP Animation Ecosystem** — gsap_core_tween_methods, gsap_react_usegsap_hook [INFERRED 0.80]
 - **CI/CD Automation & Consistency** — github_workflows_docs_freshness, github_workflows_graphify, github_workflows_schema_apply [INFERRED 0.90]
 
-## Communities (279 total, 112 thin omitted)
+## Communities (273 total, 105 thin omitted)
 
-### Community 0 - "Admin Account Actions"
+### Community 0 - "createAdminClient"
 Cohesion: 0.04
-Nodes (89): POST(), POST(), POST(), POST(), POST(), VALID_ACTIONS, ALLOWED_KEYS, POST() (+81 more)
+Nodes (78): POST(), POST(), POST(), VALID_ACTIONS, ALLOWED_KEYS, POST(), ALLOWED_KEYS, POST() (+70 more)
 
-### Community 1 - "Patient Booking Flow"
+### Community 1 - "createClient"
+Cohesion: 0.06
+Nodes (56): POST(), isoWeekKey(), POST(), SlotResult, POST(), POST(), POST(), Body (+48 more)
+
+### Community 2 - "admin.ts"
+Cohesion: 0.09
+Nodes (32): POST(), POST(), Body, POST(), POST(), POST(), POST(), POST() (+24 more)
+
+### Community 3 - "admin/dashboard/page.tsx"
+Cohesion: 0.05
+Nodes (28): metadata, AdminPayoutRequestsTab(), formatDateTime(), formatInr(), PayoutRequestRow, AssignReferralForm(), minDateTimeLocal(), CONDITION_STATUS_LABEL (+20 more)
+
+### Community 4 - "usePagedList"
+Cohesion: 0.08
+Nodes (31): AdminPeopleDirectory(), CARE_STATUS_LABELS, CARE_STATUS_STYLES, Person, Faq, FaqForm(), Faq, FaqManager() (+23 more)
+
+### Community 5 - "AdminPaymentHistoryTab.tsx"
 Cohesion: 0.07
-Nodes (47): isoWeekKey(), POST(), SlotResult, POST(), POST(), POST(), POST(), POST() (+39 more)
+Nodes (48): AdminPaymentHistoryTab(), AdminReceiptRow, Category, formatDateTime(), formatInr(), Patient, PatientTransactionTable(), RECEIPT_STAGE_LABEL (+40 more)
 
-### Community 2 - "Session Filtering UI"
-Cohesion: 0.08
-Nodes (23): AdminAllSessionsTab(), Category, Person, SavedFilters, selectCls(), SortKey, STATUS_STYLES, AdminCalendarTab() (+15 more)
-
-### Community 3 - "Admin Detail Pages"
-Cohesion: 0.08
-Nodes (26): metadata, metadata, HospitalDashboardPage(), metadata, STATUS_STYLES, PatientDetailContent(), PatientNotesForm(), ProfileSessionList() (+18 more)
-
-### Community 4 - "Color Design Tokens"
+### Community 6 - "gray"
 Cohesion: 0.05
 Nodes (53): $type, $value, $type, $value, $type, $value, $type, $value (+45 more)
 
-### Community 5 - "BM25 Search Core"
+### Community 7 - "search"
 Cohesion: 0.07
 Nodes (42): BM25, detect_domain(), get_cip_brief(), _load_csv(), Load CSV and return list of dicts, Core search function using BM25, Auto-detect the most relevant domain from query, Main search function with auto-domain detection (+34 more)
 
-### Community 6 - "Admin Action Toggles"
-Cohesion: 0.10
-Nodes (13): CompletePayoutRequestButton(), HospitalActiveToggle(), PartialRefundForm(), PatientActiveToggle(), ResetHospitalPasswordButton(), ResetPatientPasswordButton(), ResetTherapistPasswordButton(), TherapistActiveToggle() (+5 more)
+### Community 8 - "patient/dashboard/health-profile/page.tsx"
+Cohesion: 0.09
+Nodes (31): metadata, PatientHealthProfilePage(), STATUS_BANNER_STYLE, STATUS_HEADLINE, STATUS_ICON, HealthProfileActions(), HealthProfileSteps(), STEPS (+23 more)
 
-### Community 7 - "Appointment Assignment"
-Cohesion: 0.11
-Nodes (34): POST(), POST(), Body, POST(), POST(), POST(), POST(), POST() (+26 more)
+### Community 9 - "normalizePincode"
+Cohesion: 0.19
+Nodes (21): POST(), POST(), POST(), POST(), POST(), GET(), HomeVisitAddressPayload, POST() (+13 more)
 
-### Community 8 - "Home Visit Management"
+### Community 10 - "AdminMetricsTab.tsx"
+Cohesion: 0.08
+Nodes (41): AdminCostsTab(), formatDate(), formatInr(), AdminMetricsTab(), setQuickRange(), Category, daysAgo(), formatInr() (+33 more)
+
+### Community 11 - "pricing.ts"
 Cohesion: 0.13
-Nodes (29): ALLOWED_KEYS, POST(), POST(), Body, CONFIRMATION_PHRASE, POST(), POST(), POST() (+21 more)
+Nodes (24): POST(), POST(), POST(), POST(), POST(), POST(), POST(), POST() (+16 more)
 
-### Community 9 - "Admin Dashboard Components"
-Cohesion: 0.07
-Nodes (21): AdminDashboardPage(), metadata, nowTimestamp(), AdminScreens, CopyInviteLinkButton(), DeclineAccountButton(), DeclineReferralButton(), HomePageWalkthroughForm() (+13 more)
+### Community 12 - "createClient"
+Cohesion: 0.13
+Nodes (9): metadata, metadata, AdminLoginCard(), HospitalLoginCard(), SignOutButton(), SubmitReferralForm(), AccountSecuritySection(), RealtimeRefresh() (+1 more)
 
-### Community 10 - "Admin Metrics Dashboard"
-Cohesion: 0.14
-Nodes (29): AdminMetricsTab(), setQuickRange(), Category, daysAgo(), formatInr(), formatShortDate(), nowTimestamp(), toDateInputValue() (+21 more)
+### Community 13 - "HomeVisitBulkScheduler.tsx"
+Cohesion: 0.12
+Nodes (29): BookingCalendar(), BookingStepOne(), REVEAL, SelectableChipGroup(), focusChip(), handleKeyDown(), EASE, HomeVisitBulkScheduler() (+21 more)
 
-### Community 11 - "Slide Search Utilities"
+### Community 14 - "slide_search_core.py"
 Cohesion: 0.08
 Nodes (36): format_context(), format_result(), main(), Format a single search result for display, Format contextual recommendations for display., BM25, calculate_pattern_break(), detect_domain() (+28 more)
 
-### Community 12 - "Admin Login Shell"
-Cohesion: 0.10
-Nodes (15): metadata, metadata, ADMIN_CATALOG_REALTIME_TABLES, ADMIN_REALTIME_TABLES, AdminLoginCard(), HospitalLoginCard(), SignOutButton(), COPY (+7 more)
-
-### Community 13 - "Therapist Roster Management"
-Cohesion: 0.09
-Nodes (25): AdminRosterTab(), STATE_STYLES, STATE_TITLES, Therapist, todayKey(), setsEqual(), Slot, slotKey() (+17 more)
-
-### Community 14 - "Patient Health Profile"
-Cohesion: 0.16
-Nodes (13): metadata, TherapistPatientHealthProfilePage(), IntakeQuestionEditor(), QuestionRow(), ConditionIntakeForm(), handleSubmit(), RequestConditionAccessButton(), findMissingRequiredKeys() (+5 more)
-
-### Community 15 - "User Dashboards"
-Cohesion: 0.10
-Nodes (28): metadata, nowTimestamp(), PatientDashboardPage(), renderAppointmentCard(), STATUS_STYLES, metadata, nowTimestamp(), STATUS_BADGE_STYLES (+20 more)
-
-### Community 16 - "Auth and Password"
-Cohesion: 0.10
-Nodes (24): Body, generatePassword(), POST(), metadata, ResetPasswordPage(), ROLE_LOGIN_HREF, ConfirmPasswordField(), EmailField() (+16 more)
-
-### Community 17 - "Booking Wizard Steps"
-Cohesion: 0.12
-Nodes (17): BookingWizard(), handleDateChange(), handleSubmit(), startPayment(), formatInr(), BuyPackageButton(), handleBuy(), PayNowButton() (+9 more)
-
-### Community 18 - "Calendar Scheduling Components"
-Cohesion: 0.14
-Nodes (26): BookingCalendar(), BookingStepOne(), REVEAL, EASE, Slot, SlotResult, EASE, Slot (+18 more)
-
-### Community 19 - "Tailwind Generator Tests"
-Cohesion: 0.06
-Nodes (16): Test adding colors multiple times., Test adding full color palette., Test adding custom breakpoints., Test TailwindConfigGenerator class., Test that adding same plugin twice doesn't duplicate., Test plugin recommendations for Next.js., Test initialization with default settings., Test generating JavaScript configuration. (+8 more)
-
-### Community 20 - "User Profile Management"
-Cohesion: 0.10
-Nodes (18): metadata, PatientProfilePage(), metadata, TherapistProfilePage(), AccountSecuritySection(), AvatarThumbnail(), initialsOf(), AvatarUpload() (+10 more)
-
-### Community 21 - "Landing Page Content"
-Cohesion: 0.09
-Nodes (20): Human Spine X-ray, revalidate, TRUST_POINTS, Area, AREAS, CareAreas(), EASE, EASE (+12 more)
-
-### Community 22 - "Design System Generator"
+### Community 15 - "createPublicClient"
 Cohesion: 0.11
-Nodes (25): ansi_ljust(), _detect_page_type(), format_ascii_box(), format_markdown(), format_master_md(), format_page_override_md(), generate_design_system(), _generate_intelligent_overrides() (+17 more)
+Nodes (21): BookHomeVisitPage(), metadata, revalidate, BookPage(), metadata, revalidate, Category, ConditionsPage() (+13 more)
 
-### Community 23 - "TypeScript Configuration"
-Cohesion: 0.07
-Nodes (28): dom, dom.iterable, esnext, **/*.mts, .next/dev/types/**/*.ts, next-env.d.ts, .next/types/**/*.ts, node_modules (+20 more)
+### Community 16 - "TherapistDetailContent.tsx"
+Cohesion: 0.08
+Nodes (27): metadata, metadata, PatientDetailContent(), PatientNotesForm(), formatInr(), PatientProfitChart(), ProfitSession, Category (+19 more)
 
-### Community 24 - "Purchase Detail Modals"
+### Community 17 - "painMap.ts"
+Cohesion: 0.11
+Nodes (26): AnswerInput, POST(), POST(), PainMapQuestionEditor(), QuestionRow(), BAND_STYLE, PainExamDialog(), GENERIC_QUESTIONS (+18 more)
+
+### Community 18 - "BookingWizard.tsx"
+Cohesion: 0.10
+Nodes (25): BookingWizard(), goToStep3(), handleDateChange(), handleSubmit(), startPayment(), Category, formatInr(), PackageData (+17 more)
+
+### Community 19 - "phoneNumber.ts"
+Cohesion: 0.14
+Nodes (17): PatientContactEditForm(), TherapistContactEditForm(), HospitalInquiryForm(), handleSubmit(), SOURCES, PhoneNumberField(), FieldConfig, composePhone() (+9 more)
+
+### Community 20 - "therapistAvailability.ts"
+Cohesion: 0.09
+Nodes (24): AdminRosterTab(), STATE_STYLES, STATE_TITLES, Therapist, todayKey(), setsEqual(), Slot, slotKey() (+16 more)
+
+### Community 21 - "[patientId]/page.tsx"
+Cohesion: 0.14
+Nodes (15): GET(), metadata, TherapistPatientHealthProfilePage(), IntakeQuestionEditor(), QuestionRow(), PainMapExplorer(), RequestConditionAccessButton(), SITE_SETTINGS_SELECT (+7 more)
+
+### Community 22 - "patient/dashboard/profile/page.tsx"
+Cohesion: 0.09
+Nodes (23): HospitalProfilePage(), metadata, metadata, metadata, TherapistProfilePage(), ShellNavItem, AvatarThumbnail(), initialsOf() (+15 more)
+
+### Community 23 - "useConfirm"
+Cohesion: 0.06
+Nodes (21): CompletePayoutRequestButton(), DeleteButton(), HospitalActiveToggle(), DeleteButton(), PartialRefundForm(), PatientActiveToggle(), ResetHospitalPasswordButton(), ResetPatientPasswordButton() (+13 more)
+
+### Community 24 - "HomeVisitPurchaseDetailModal.tsx"
+Cohesion: 0.14
+Nodes (17): AppointmentRow, DetailResponse, EventRow, HomeVisitPurchasesTable(), AppointmentRow, DetailResponse, EASE, EventRow (+9 more)
+
+### Community 25 - "app/layout.tsx"
+Cohesion: 0.14
+Nodes (16): inter, jakarta, metadata, RootLayout(), FarewellBanner(), Footer(), BASE_LINKS, HOME_VISIT_LINK (+8 more)
+
+### Community 26 - "conditionIntake.ts"
+Cohesion: 0.16
+Nodes (25): AreaPainPicker(), remove(), toggle(), updateNote(), updatePain(), regionLabel(), ConditionIntakePanel(), AnswerPreview() (+17 more)
+
+### Community 27 - "healthProfilePdf.ts"
 Cohesion: 0.12
-Nodes (23): AppointmentRow, DetailResponse, EventRow, HomeVisitPurchaseDetailModal(), handleExtendExpiry(), handleReassign(), handleRefund(), handleRestore() (+15 more)
+Nodes (20): handlePdf(), buildHealthProfilePdf(), Cursor, formatDate(), HealthProfilePdfInput, INK, MUTED, RULE (+12 more)
 
-### Community 25 - "Catalog Visual Components"
+### Community 28 - "TestTailwindConfigGenerator"
+Cohesion: 0.06
+Nodes (16): Test adding colors multiple times., Test adding full color palette., Test adding custom spacing., Test adding custom breakpoints., Test TailwindConfigGenerator class., Test that adding same plugin twice doesn't duplicate., Test plugin recommendations for Next.js., Test initialization with default settings. (+8 more)
+
+### Community 29 - "AdminAllSessionsTab.tsx"
+Cohesion: 0.06
+Nodes (34): AdminAllSessionsTab(), Category, Person, SavedFilters, selectCls(), SortKey, STATUS_STYLES, AdminCalendarTab() (+26 more)
+
+### Community 30 - "app/page.tsx"
+Cohesion: 0.09
+Nodes (21): X-ray of Human Spine, Home(), revalidate, TRUST_POINTS, Area, AREAS, CareAreas(), EASE (+13 more)
+
+### Community 31 - "patientDashboardData.ts"
+Cohesion: 0.13
+Nodes (20): metadata, Page(), metadata, Page(), metadata, Page(), PatientProfilePage(), PatientDashboardShell() (+12 more)
+
+### Community 32 - "formatSlotTime"
+Cohesion: 0.14
+Nodes (20): metadata, PatientDashboardPage(), metadata, Page(), metadata, Page(), BOOKING_FROM_DASHBOARD, SessionsView() (+12 more)
+
+### Community 33 - "SessionPackages.tsx"
 Cohesion: 0.17
 Nodes (22): CheckList(), ProseSection(), rupees(), SavingsMeter(), SessionDots(), StatTile, StatTiles(), PROGRAM_ART (+14 more)
 
-### Community 26 - "CSS Token Validator"
+### Community 34 - "design_system.py"
+Cohesion: 0.11
+Nodes (25): ansi_ljust(), _detect_page_type(), format_ascii_box(), format_markdown(), format_master_md(), format_page_override_md(), generate_design_system(), _generate_intelligent_overrides() (+17 more)
+
+### Community 35 - "compilerOptions"
+Cohesion: 0.07
+Nodes (28): dom, dom.iterable, esnext, **/*.mts, .next/dev/types/**/*.ts, next-env.d.ts, .next/types/**/*.ts, node_modules (+20 more)
+
+### Community 36 - "packageProgress.ts"
+Cohesion: 0.15
+Nodes (17): PackagePurchasesTable(), AppointmentRow, DetailResponse, EASE, EventRow, PackageDetailModal(), PatientPackageCard, PatientPackageWidget() (+9 more)
+
+### Community 37 - "html-token-validator.py"
 Cohesion: 0.13
 Nodes (24): get_context(), is_allowed_exception(), is_allowed_rgba(), is_inside_block(), load_css_variables(), main(), print_result(), print_summary() (+16 more)
 
-### Community 27 - "Pain Assessment Editor"
+### Community 38 - "SectionNav.tsx"
+Cohesion: 0.14
+Nodes (17): metadata, PROBLEM, SOLUTION, ScrollHint(), goToNext(), SectionNav(), schedule(), update() (+9 more)
+
+### Community 39 - "AdminDashboardPage"
+Cohesion: 0.09
+Nodes (18): AdminDashboardPage(), nowTimestamp(), AdminNewBookingTab(), Category, Person, AdminRow, AdminTeamAccessTab(), CreateAccountForm() (+10 more)
+
+### Community 40 - "medicalDocuments.ts"
 Cohesion: 0.13
-Nodes (21): AnswerInput, POST(), POST(), PainMapQuestionEditor(), QuestionRow(), PainAssessmentForm(), handleDiagramSelect(), resetForRegion() (+13 more)
+Nodes (24): POST(), formatDate(), MedicalDocumentsPanel(), cancelPending(), handleFileChange(), handleUpload(), PHOTO_COMPRESSION, TYPE_ICON (+16 more)
 
-### Community 28 - "Public Booking Pages"
-Cohesion: 0.07
-Nodes (34): BookHomeVisitPage(), metadata, revalidate, BookPage(), metadata, revalidate, Category, ConditionsPage() (+26 more)
-
-### Community 29 - "Session Detail Management"
-Cohesion: 0.28
-Nodes (5): SessionDetailDrawer(), handleCancel(), handleReopen(), submitCancel(), submitReopen()
-
-### Community 30 - "Logo Search Logic"
+### Community 41 - "BM25"
 Cohesion: 0.11
 Nodes (19): BM25, detect_domain(), _load_csv(), Load CSV and return list of dicts, Core search function using BM25, Auto-detect the most relevant domain from query, Main search function with auto-domain detection, Search across all domains and combine results (+11 more)
 
-### Community 31 - "Domain Search Caching"
+### Community 42 - "search"
 Cohesion: 0.12
 Nodes (18): _domain_keywords(), _get_bm25(), _load_csv(), _load_product_keywords(), Load CSV and return list of dicts, with mtime-based caching., Fitted BM25 index for this file+columns, with mtime-based caching., Core search function using BM25. Returns (results, bm25_or_none)., Nearest known vocabulary terms for a query that returned 0 hits, so the caller… (+10 more)
 
-### Community 32 - "Therapist Earnings UI"
-Cohesion: 0.18
-Nodes (11): RequestPayoutButton(), EarningsDay, formatInr(), TherapistEarningsChart(), CompletedRequest, dayLabel(), formatDate(), formatInr() (+3 more)
+### Community 43 - "HomeVisitBookingWizard.tsx"
+Cohesion: 0.11
+Nodes (19): AddressForm(), inputCls(), ChipOption, COPY, NonPatientRole, WrongAccountForBooking(), signOutAndBook(), AreaCheck (+11 more)
 
-### Community 33 - "Payment History UI"
-Cohesion: 0.14
-Nodes (23): AdminPaymentHistoryTab(), AdminReceiptRow, Category, formatDateTime(), formatInr(), Patient, PatientTransactionTable(), RECEIPT_STAGE_LABEL (+15 more)
+### Community 44 - "leadTimeMsFromHours"
+Cohesion: 0.12
+Nodes (20): DebugNav(), applySimulatedTime(), resetSimulatedTime(), routes, toLocalInputValue(), DebugResetButton(), computeCompleted(), computeJoinable() (+12 more)
 
-### Community 34 - "Activity Logs"
-Cohesion: 0.15
-Nodes (17): ActivityRow, AdminActivityLogTab(), describe(), formatWhen(), DownloadCsvButton(), HomeVisitPurchaseRow, HomeVisitPurchasesTable(), STATUS_OPTIONS (+9 more)
+### Community 45 - "therapistDashboardData.ts"
+Cohesion: 0.12
+Nodes (21): metadata, Page(), metadata, Page(), metadata, TherapistDashboardPage(), DashboardOverview(), QuickAction (+13 more)
 
-### Community 35 - "Session Status Controls"
-Cohesion: 0.17
-Nodes (5): MarkPaidByCashButton(), TherapistNotAvailableToggle(), CollectCashButton(), CompleteSessionButton(), ConfirmDialog()
-
-### Community 36 - "Contact Information Forms"
-Cohesion: 0.17
-Nodes (13): PatientContactEditForm(), TherapistContactEditForm(), PhoneNumberField(), FieldConfig, composePhone(), COUNTRY_OPTIONS, CountryOption, detectBrowserCountry() (+5 more)
-
-### Community 37 - "Debug Navigation Tools"
-Cohesion: 0.13
-Nodes (17): DebugNav(), applySimulatedTime(), resetSimulatedTime(), routes, toLocalInputValue(), DebugResetButton(), computeCompleted(), computeJoinable() (+9 more)
-
-### Community 38 - "Booking Management Forms"
-Cohesion: 0.09
-Nodes (21): Category, Person, STATUS_STYLES, EditBookingForm(), minDateTimeLocal(), toDateTimeLocalValue(), HomeVisitAddressEditor(), HomeVisitAssignForm() (+13 more)
-
-### Community 39 - "Spacing Design Tokens"
+### Community 46 - "spacing"
 Cohesion: 0.09
 Nodes (22): $type, $value, $type, $value, $type, $value, $type, $value (+14 more)
 
-### Community 40 - "Tailwind Config Logic"
+### Community 47 - "TailwindConfigGenerator"
 Cohesion: 0.10
 Nodes (12): main(), Add custom font families. Args: fonts: Dict of font_type: [font_names] e.g.,…, Add custom spacing values. Args: spacing: Dict of name: value e.g., {'18':…, Add custom breakpoints. Args: breakpoints: Dict of name: width e.g., {'3xl':…, Add plugin requirements. Args: plugins: List of plugin names e.g.,…, Get plugin recommendations based on configuration. Returns: List of recommended…, Generate Tailwind CSS configuration files., Validate configuration. Returns: Tuple of (valid, message) (+4 more)
 
-### Community 41 - "Design Recommendation Engine"
+### Community 48 - "DesignSystemGenerator"
 Cohesion: 0.13
 Nodes (12): DesignSystemGenerator, Generates design system recommendations from aggregated searches., Load reasoning rules from CSV., Execute searches across multiple domains., Find matching reasoning rule for a category., Apply reasoning rules to search results., Select best matching result based on priority keywords., Extract results list from search result dict. (+4 more)
 
-### Community 42 - "Hospital Dashboard Shell"
-Cohesion: 0.13
-Nodes (14): HospitalProfilePage(), metadata, DashboardShell(), handleIdleTimeout(), handleSignOut(), renderChildItem(), renderNavEntry(), renderNavItem() (+6 more)
+### Community 49 - "AdminFeatureControlTab"
+Cohesion: 0.18
+Nodes (12): AdminFeatureControlTab(), handleSaveCompletedAfter(), handleSaveFarewell(), handleSaveJoinWindow(), handleSaveJoinWindowAfter(), handleSaveLeadTime(), handleSaveRefundHours(), handleSaveTimeout() (+4 more)
 
-### Community 43 - "Global App Layout"
-Cohesion: 0.11
-Nodes (22): inter, jakarta, metadata, FarewellBanner(), Footer(), BASE_LINKS, HOME_VISIT_LINK, Navbar() (+14 more)
-
-### Community 44 - "Package Detail Views"
-Cohesion: 0.17
-Nodes (16): AppointmentRow, DetailResponse, EASE, EventRow, PackageDetailModal(), PatientPackageCard, PatientPackageWidget(), PendingSuggestion (+8 more)
-
-### Community 45 - "Slide Generation Logic"
+### Community 50 - "generate-slide.py"
 Cohesion: 0.15
 Nodes (19): _e(), generate_chart_slide(), generate_cta_slide(), generate_deck(), generate_metrics_slide(), generate_problem_slide(), generate_solution_slide(), generate_testimonial_slide() (+11 more)
 
-### Community 46 - "Payout Receipt Formatting"
+### Community 51 - "SurfaceCard.tsx"
 Cohesion: 0.11
-Nodes (24): formatDateHeading(), formatDateTime(), formatInr(), ReceiptsSection(), STAGE_LABEL, STAGE_PILL_STYLE, formatDateHeading(), formatDateTime() (+16 more)
+Nodes (19): HospitalDashboardPage(), metadata, metadata, Page(), metadata, Page(), metadata, Page() (+11 more)
 
-### Community 47 - "Semantic Color Tokens"
+### Community 52 - "BodyMapDiagram.tsx"
+Cohesion: 0.09
+Nodes (23): ARM, BodyMapDiagram(), renderDot(), renderFigure(), BodyNode, HAND, HEAD, LatestAssessment (+15 more)
+
+### Community 53 - "color"
 Cohesion: 0.11
 Nodes (19): $type, $value, background, foreground, muted-foreground, primary, primary-hover, secondary (+11 more)
 
-### Community 48 - "Dark Mode Logic"
+### Community 54 - "test_design_system_mode.py"
 Cohesion: 0.16
 Nodes (10): _filter_anti_patterns_for_mode(), _query_wants_dark(), True when a styles.csv row describes itself as dark-first., True when the query explicitly asks for a dark theme., Resolve the mode the rest of the output has to agree with., Drop "avoid dark mode" advice once dark mode is the resolved answer., _resolve_color_mode(), _style_is_dark_primary() (+2 more)
 
-### Community 49 - "Public Marketing Pages"
-Cohesion: 0.08
-Nodes (28): Faq, FaqPage(), metadata, revalidate, ACCENTS, metadata, PATHS, metadata (+20 more)
+### Community 55 - "devDependencies"
+Cohesion: 0.11
+Nodes (19): eslint, eslint-config-next, devDependencies, eslint, eslint-config-next, @playwright/test, tailwindcss, @tailwindcss/postcss (+11 more)
 
-### Community 50 - "Package Catalog Management"
-Cohesion: 0.14
-Nodes (11): inputCls(), Package, PackageCatalogForm(), DeleteButton(), Package, PackageCatalogManager(), HubCategory, HubHomeVisitPackage (+3 more)
-
-### Community 51 - "Pain Map Visualization"
+### Community 56 - "HomeVisitPurchasesTable.tsx"
 Cohesion: 0.16
-Nodes (12): PainComparisonView(), AssessmentRow, PAIN_BAND_STYLE, PainMapSummary(), PAIN_BAND_STYLE, PainMapView(), Selection, SUBMITTER_LABEL (+4 more)
+Nodes (16): ActivityRow, AdminActivityLogTab(), describe(), formatWhen(), DataExportButtons(), handleCsv(), HomeVisitPurchaseRow, STATUS_OPTIONS (+8 more)
 
-### Community 52 - "Background Image Utilities"
+### Community 57 - "HomeVisitSettingsForm.tsx"
+Cohesion: 0.16
+Nodes (17): HomeVisitSettingsForm(), NumberSetting(), handleSave(), saveSetting(), TextSetting(), handleSave(), Toggle(), handleToggle() (+9 more)
+
+### Community 58 - "ConditionDetailContent.tsx"
+Cohesion: 0.09
+Nodes (22): metadata, ConditionAccessActions(), ConditionDetailContent(), daysSince(), ConditionDirectEditForm(), ConditionRequestActions(), StatusPill(), SessionNoteButton() (+14 more)
+
+### Community 59 - "scenes.tsx"
+Cohesion: 0.13
+Nodes (15): BookingScene(), ChartScene(), EASE, EXAM_ROWS, INTAKE_CHOICES, IntakeScene(), rise, SessionScene() (+7 more)
+
+### Community 60 - "fetch-background.py"
 Cohesion: 0.17
 Nodes (17): generate_css_for_background(), get_background_image(), get_curated_images(), get_overlay_css(), get_pexels_search_url(), load_backgrounds_config(), load_brand_colors(), main() (+9 more)
 
-### Community 53 - "Admin E2E Tests"
+### Community 61 - "BASE"
 Cohesion: 0.25
 Nodes (4): adminClient(), BASE, profileIdFor(), QA_EMAILS
 
-### Community 54 - "Therapist Payout Ledger"
-Cohesion: 0.19
-Nodes (15): IMPLEMENTED_METHODS, POST(), formatInr(), HomeVisitCashLedger(), MarkRefundReturnedButton(), handleClick(), MarkRemittedButton(), handleClick() (+7 more)
+### Community 62 - "bookHomeVisitSession.ts"
+Cohesion: 0.14
+Nodes (18): POST(), POST(), AdminClient, BookHomeVisitSessionResult, AppointmentVisitColumns, coordinate(), formatAddressOneLine(), parts() (+10 more)
 
-### Community 55 - "Health Profile Dashboards"
-Cohesion: 0.17
-Nodes (12): metadata, PatientHealthProfilePage(), STATUS_BANNER_STYLE, GRANT_LABEL, GRANT_STYLE, metadata, TherapistHealthProfilesPage(), HealthProfileActions() (+4 more)
+### Community 63 - "ConfirmDialog.tsx"
+Cohesion: 0.14
+Nodes (6): DeclineAccountButton(), MarkPaidByCashButton(), TherapistNotAvailableToggle(), CollectCashButton(), CompleteSessionButton(), ConfirmDialog()
 
-### Community 56 - "BM25 Text Indexing"
+### Community 64 - "BM25"
 Cohesion: 0.15
 Nodes (9): BM25, _normalize(), Apply synonym substitution before tokenizing., BM25 ranking algorithm for text search, Lowercase, normalize synonyms, split, remove punctuation, filter stopwords, Build BM25 index from documents, Score all documents against query, All indexed terms, for suggestion/typo-recovery purposes. (+1 more)
 
-### Community 57 - "Dev Dependencies"
+### Community 65 - "dependencies"
 Cohesion: 0.12
-Nodes (17): eslint, eslint-config-next, devDependencies, eslint, eslint-config-next, @playwright/test, tailwindcss, @types/node (+9 more)
+Nodes (17): @fortawesome/fontawesome-free, googleapis, libphonenumber-js, motion, next, dependencies, @fortawesome/fontawesome-free, googleapis (+9 more)
 
-### Community 58 - "Project Dependencies"
-Cohesion: 0.12
-Nodes (17): @fortawesome/fontawesome-free, googleapis, next, dependencies, @fortawesome/fontawesome-free, googleapis, next, razorpay (+9 more)
+### Community 66 - "HomeVisitPackageManager.tsx"
+Cohesion: 0.15
+Nodes (10): HomeVisitPackage, HomeVisitPackageForm(), inputCls(), DeleteButton(), HomeVisitPackageManager(), HubCategory, HubHomeVisitPackage, HubOnlinePackage (+2 more)
 
-### Community 59 - "Admin Feature Controls"
+### Community 67 - "TherapistEarningsTab.tsx"
 Cohesion: 0.18
-Nodes (11): AdminFeatureControlTab(), handleSaveCompletedAfter(), handleSaveJoinWindow(), handleSaveJoinWindowAfter(), handleSaveLeadTime(), handleSaveRefundHours(), handleSaveTimeout(), handleToggleMeetEnabled() (+3 more)
+Nodes (11): RequestPayoutButton(), EarningsDay, formatInr(), TherapistEarningsChart(), CompletedRequest, dayLabel(), formatDate(), formatInr() (+3 more)
 
-### Community 60 - "Body Map Assessment"
-Cohesion: 0.22
-Nodes (13): BodyMapDiagram(), renderDot(), renderFigure(), LatestAssessment, PAIN_DOT_COLOR, REGION_COORDS, PAIN_BAND_STYLE, Selection (+5 more)
+### Community 68 - "adminSettings.ts"
+Cohesion: 0.12
+Nodes (16): HomeVisitPage(), metadata, revalidate, PublicHomeVisitPackage, DEFAULT_BOOKING_LANGUAGES, DEFAULT_CONTACT_EMAIL, DEFAULT_CONTACT_PHONE, DEFAULT_FOOTER_COPYRIGHT_TEXT (+8 more)
 
-### Community 61 - "Icon Generation Scripts"
+### Community 69 - "icon/generate.py"
 Cohesion: 0.20
 Nodes (15): apply_color(), apply_viewbox_size(), extract_svgs(), generate_batch(), generate_icon(), generate_sizes(), load_env(), main() (+7 more)
 
-### Community 62 - "Typography Design Tokens"
+### Community 70 - "fontSize"
 Cohesion: 0.12
 Nodes (16): $type, $value, $type, $value, $type, $value, $type, $value (+8 more)
 
-### Community 63 - "Home Visit Wizard"
-Cohesion: 0.20
-Nodes (11): HomeVisitBookingWizard(), goToStep2(), handleJoinWaitlist(), handleSubmit(), primeSlotDefaults(), inputCls(), SuggestSessionControl(), openPicker() (+3 more)
+### Community 71 - "HomeVisitCashLedger.tsx"
+Cohesion: 0.25
+Nodes (12): formatInr(), HomeVisitCashLedger(), MarkRefundReturnedButton(), handleClick(), MarkRemittedButton(), handleClick(), TherapistCashCard(), amountOf() (+4 more)
 
-### Community 64 - "Shadcn Installer Tests"
+### Community 72 - "TestShadcnInstaller"
 Cohesion: 0.14
 Nodes (8): Test adding components in dry run mode., Test ShadcnInstaller class., Test adding all components without config., Test listing installed components without config., Test listing installed components when none exist., Test checking for existing shadcn config., Test getting installed components without config., TestShadcnInstaller
 
-### Community 65 - "Luminance Contrast Tests"
+### Community 73 - "_palette_is_dark"
 Cohesion: 0.18
 Nodes (7): _palette_is_dark(), WCAG relative luminance of a #RRGGBB string, or None if unparseable., True when a colors.csv row's Background is a dark surface., _relative_luminance(), The exact reproduction from issue #428., TestEndToEndCoherence, TestLuminance
 
-### Community 66 - "Treatment Category Management"
+### Community 74 - "TreatmentCategoryManager.tsx"
 Cohesion: 0.14
 Nodes (6): Category, NewCategoryValues, TreatmentCategoryForm(), Category, DeleteButton(), TreatmentCategoryManager()
 
-### Community 67 - "Address Entry Forms"
-Cohesion: 0.21
-Nodes (11): AddressForm(), inputCls(), ChipOption, SelectableChipGroup(), focusChip(), handleKeyDown(), AreaCheck, HomeVisitAddressForm (+3 more)
-
-### Community 68 - "Color Extraction Utilities"
+### Community 75 - "extract-colors.cjs"
 Cohesion: 0.22
 Nodes (11): calculateCompliance(), colorDistance(), displayPalette(), extractHexColors(), findNearestBrandColor(), fs, generateImageMagickCommand(), hexToRgb() (+3 more)
 
-### Community 69 - "Asset Validation Scripts"
+### Community 76 - "validate-asset.cjs"
 Cohesion: 0.25
 Nodes (13): checkManifest(), formatBytes(), formatOutput(), fs, main(), parseFilename(), path, RULES (+5 more)
 
-### Community 70 - "UI Primitive Tokens"
+### Community 77 - "radius"
 Cohesion: 0.19
 Nodes (14): $type, $value, $type, $value, $type, $value, primitive, radius (+6 more)
 
-### Community 71 - "Condition Detail Management"
-Cohesion: 0.16
-Nodes (8): metadata, ConditionAccessActions(), ConditionDetailContent(), daysSince(), ConditionDirectEditForm(), ConditionRequestActions(), CONDITION_STATUS_LABEL, ConditionProfileStatus
+### Community 78 - "therapist/dashboard/health-profile/page.tsx"
+Cohesion: 0.12
+Nodes (15): GRANT_LABEL, GRANT_STYLE, metadata, nowTimestamp(), TherapistHealthProfilesPage(), DashboardShell(), handleIdleTimeout(), handleSignOut() (+7 more)
 
-### Community 72 - "Admin Booking Actions"
-Cohesion: 0.21
-Nodes (6): AdminNewBookingTab(), Category, Person, ApproveAccountButton(), AssignTherapistForm(), useUnloadWarning()
+### Community 79 - "dashboardFeed.ts"
+Cohesion: 0.13
+Nodes (20): AdminInboxQueues(), adminScreenHref(), AdminSectionDef, AdminSectionKey, AdminTabDef, InboxGroup, InboxItem, buildAdminFeed() (+12 more)
 
-### Community 73 - "Booking Scene UI"
-Cohesion: 0.18
-Nodes (11): BookingScene(), EASE, EXERCISES, FINDINGS, FindingsScene(), PlanScene(), rise, SLOTS (+3 more)
-
-### Community 74 - "Design Token Schema"
+### Community 80 - "design-tokens-starter.json"
 Cohesion: 0.15
 Nodes (12): component, $type, $value, dark, semantic, $schema, $type, $value (+4 more)
 
-### Community 75 - "Auth Test Helpers"
+### Community 81 - "helpers.ts"
 Cohesion: 0.22
 Nodes (8): SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, TEST_PASSWORD, anonClient(), createdUserIds, db, signUp()
 
-### Community 76 - "Admin Access Control"
-Cohesion: 0.21
-Nodes (9): AdminRow, AdminTeamAccessTab(), CreateAccountForm(), ScopePicker(), ADMIN_SCOPE_BLURBS, ADMIN_SCOPE_LABELS, ADMIN_SCOPES, AdminScope (+1 more)
-
-### Community 77 - "Package Purchase Modals"
-Cohesion: 0.21
-Nodes (11): Modal(), AppointmentRow, DetailResponse, EventRow, PackagePurchaseDetailModal(), handleExtendExpiry(), handleReassign(), handleRefund() (+3 more)
-
-### Community 78 - "Token Validation Scripts"
-Cohesion: 0.24
-Nodes (11): extensions, formatReport(), fs, getFiles(), main(), parseArgs(), path, patterns (+3 more)
-
-### Community 79 - "Card Style Tokens"
-Cohesion: 0.20
-Nodes (12): $type, $value, bg, bg, padding, shadow, card, bg (+4 more)
-
-### Community 80 - "Shadcn CLI Tool"
-Cohesion: 0.20
-Nodes (7): main(), Handle shadcn/ui component installation., ShadcnInstaller, Tests for shadcn_add.py, Test adding components that are already installed., Test initialization with custom project root., Test getting installed components when files exist.
-
-### Community 81 - "Shadcn Component Management"
-Cohesion: 0.21
-Nodes (6): Add all available shadcn/ui components. Args: overwrite: If True, overwrite…, List installed components. Returns: Tuple of (success, message with component…, Check if shadcn is initialized in project. Returns: True if components.json…, Get list of already installed components. Returns: List of installed component…, Read shadcn version from project package.json; fall back to a pinned default., Add shadcn/ui components. Args: components: List of component names to add…
-
-### Community 82 - "Config File Generation"
-Cohesion: 0.20
-Nodes (6): Generate configuration file content. Returns: Configuration file as string, Generate TypeScript configuration., Generate JavaScript configuration., Format plugins array for config. Validates each plugin name against a strict…, Add indentation to JSON string., Write configuration to file. Returns: Tuple of (success, message)
-
-### Community 83 - "Service Area Management"
-Cohesion: 0.21
-Nodes (9): AreaRow(), handleDelete(), post(), BulkAddForm(), HomeVisitAreaManager(), inputCls(), ServiceAreaRow, WaitlistItem() (+1 more)
-
-### Community 84 - "Home Visit Packages"
-Cohesion: 0.26
-Nodes (6): HomeVisitPackage, HomeVisitPackageForm(), inputCls(), DeleteButton(), HomeVisitPackageManager(), computeHomeVisitSavings()
-
-### Community 85 - "Brand Context Injection"
-Cohesion: 0.31
-Nodes (10): extractColorsFromTable(), extractCoreAttributes(), extractHexColors(), extractImageStyle(), extractTypography(), extractVoice(), fs, generatePromptAddition() (+2 more)
-
-### Community 86 - "Token Embedding Scripts"
-Cohesion: 0.18
-Nodes (8): args, fs, minimal, MINIMAL_TOKENS, path, projectRoot, tokensPath, wrapStyle
-
-### Community 87 - "Design System Skills"
-Cohesion: 0.18
-Nodes (11): Slides Skill, UI Styling Skill, Copywriting Formulas, HTML Slide Template, Layout Patterns, Slide Strategies, Canvas Design System, shadcn/ui Accessibility (+3 more)
-
-### Community 88 - "Component Installation Tests"
-Cohesion: 0.18
-Nodes (6): Test adding components with overwrite flag., Test successful component addition., Test component addition with subprocess error., Test component addition when npx is not found., Test successful addition of all components., patch
-
-### Community 89 - "Tailwind Regression Tests"
-Cohesion: 0.22
-Nodes (8): Tests for tailwind_config_gen.py, Reduce a generated TS/JS config to a bare assignable object so it can be handed…, Regression guard for the missing-comma bug between the ``theme`` block and…, The property preceding ``plugins`` must end with a comma (pure-Python check, so…, The emitted config parses as valid JS via ``node --check``., _strip_to_object(), TestGeneratedConfigIsValidJs, parametrize
-
-### Community 90 - "Package API Routes"
+### Community 82 - "create-package/route.ts"
 Cohesion: 0.31
 Nodes (8): POST(), POST(), PackageColumns, PackagePayload, parseOptionalPositiveInt(), THERAPIST_RATE_BASIS_VALUES, TherapistRateBasis, validatePackagePayload()
 
-### Community 91 - "Pain Area Picker"
-Cohesion: 0.43
-Nodes (7): AreaPainPicker(), remove(), toggle(), updateNote(), updatePain(), regionLabel(), serializeAreaPain()
+### Community 83 - "SessionCalendarTab.tsx"
+Cohesion: 0.21
+Nodes (8): PatientMonthMotivation(), BUCKET_DOT_COLOR, BUCKET_FILL_STYLE, CalendarSession, ColorBucket, MonthStats, SessionCalendarTab(), todayKey()
 
-### Community 92 - "Onboarding Tour UI"
+### Community 84 - "validate-tokens.cjs"
+Cohesion: 0.24
+Nodes (11): extensions, formatReport(), fs, getFiles(), main(), parseArgs(), path, patterns (+3 more)
+
+### Community 85 - "card"
+Cohesion: 0.20
+Nodes (12): $type, $value, bg, bg, padding, shadow, card, bg (+4 more)
+
+### Community 86 - "ShadcnInstaller"
+Cohesion: 0.20
+Nodes (7): main(), Handle shadcn/ui component installation., ShadcnInstaller, Tests for shadcn_add.py, Test adding components that are already installed., Test initialization with custom project root., Test getting installed components when files exist.
+
+### Community 87 - ".check_shadcn_config"
+Cohesion: 0.21
+Nodes (6): Add all available shadcn/ui components. Args: overwrite: If True, overwrite…, List installed components. Returns: Tuple of (success, message with component…, Check if shadcn is initialized in project. Returns: True if components.json…, Get list of already installed components. Returns: List of installed component…, Read shadcn version from project package.json; fall back to a pinned default., Add shadcn/ui components. Args: components: List of component names to add…
+
+### Community 88 - ".generate_config_string"
+Cohesion: 0.20
+Nodes (6): Generate configuration file content. Returns: Configuration file as string, Generate TypeScript configuration., Generate JavaScript configuration., Format plugins array for config. Validates each plugin name against a strict…, Add indentation to JSON string., Write configuration to file. Returns: Tuple of (success, message)
+
+### Community 89 - "browserCookiesFor"
+Cohesion: 0.26
+Nodes (9): signInAsAdmin(), signInAs(), card(), leadTimeCard(), leadTimeError(), leadTimeSave(), openBookingRules(), signInAs() (+1 more)
+
+### Community 91 - "HomeVisitAreaManager.tsx"
+Cohesion: 0.21
+Nodes (9): AreaRow(), handleDelete(), post(), BulkAddForm(), HomeVisitAreaManager(), inputCls(), ServiceAreaRow, WaitlistItem() (+1 more)
+
+### Community 92 - "inject-brand-context.cjs"
+Cohesion: 0.31
+Nodes (10): extractColorsFromTable(), extractCoreAttributes(), extractHexColors(), extractImageStyle(), extractTypography(), extractVoice(), fs, generatePromptAddition() (+2 more)
+
+### Community 93 - "embed-tokens.cjs"
+Cohesion: 0.18
+Nodes (8): args, fs, minimal, MINIMAL_TOKENS, path, projectRoot, tokensPath, wrapStyle
+
+### Community 94 - "patch"
+Cohesion: 0.18
+Nodes (6): Test adding components with overwrite flag., Test successful component addition., Test component addition with subprocess error., Test component addition when npx is not found., Test successful addition of all components., patch
+
+### Community 95 - "Tailwind Config Generator Tests"
+Cohesion: 0.22
+Nodes (8): Tests for tailwind_config_gen.py, Reduce a generated TS/JS config to a bare assignable object so it can be handed…, Regression guard for the missing-comma bug between the ``theme`` block and…, The property preceding ``plugins`` must end with a comma (pure-Python check, so…, The emitted config parses as valid JS via ``node --check``., _strip_to_object(), TestGeneratedConfigIsValidJs, parametrize
+
+### Community 97 - "AdminPayoutsTab.tsx"
+Cohesion: 0.13
+Nodes (13): AdminPayoutsTab(), Category, formatInr(), Patient, Therapist, TherapistSessionList(), METHOD_LABEL, NOTE_PLACEHOLDER (+5 more)
+
+### Community 98 - "Onboarding Tour Component"
 Cohesion: 0.24
 Nodes (8): OnboardingTour(), finish(), goToCta(), markSeen(), next(), Rect, Step, STEPS
 
-### Community 93 - "Google Calendar Integration"
+### Community 99 - "Google Calendar Integration"
 Cohesion: 0.35
 Nodes (10): CalendarEventInput, createSessionCalendarEvent(), createSessionMeetEvent(), deleteSessionMeetEvent(), getCalendarClient(), logCalendarError(), normalizeTimezone(), SessionEventInput (+2 more)
 
-### Community 94 - "Generator Initialization"
+### Community 100 - "Tailwind Config Generator Core"
 Cohesion: 0.22
 Nodes (6): Any, Path, Initialize generator. Args: typescript: If True, generate .ts config, else .js…, Determine default output path., Create base configuration structure., Get default content paths for framework.
 
-### Community 95 - "Logo Generation Logic"
+### Community 101 - "AI Logo Generation"
 Cohesion: 0.29
 Nodes (9): enhance_prompt(), generate_batch(), generate_logo(), load_env(), main(), Enhance the logo prompt with style and industry modifiers, Generate a logo using Gemini models with image generation Args: aspect_ratio:…, Generate multiple logo variants with different styles (+1 more)
 
-### Community 96 - "Token Export Scripts"
+### Community 102 - "Design Token Build Script"
 Cohesion: 0.36
 Nodes (9): flattenTokens(), fs, generateCSS(), generateTailwind(), main(), parseArgs(), path, resolveReference() (+1 more)
 
-### Community 97 - "Button Style Tokens"
+### Community 103 - "Button Style Tokens"
 Cohesion: 0.20
 Nodes (10): fg, font-size, hover-bg, button, $type, $value, $type, $value (+2 more)
 
-### Community 98 - "Animation Duration Tokens"
+### Community 104 - "Animation Duration Tokens"
 Cohesion: 0.20
 Nodes (10): fast, normal, slow, $type, $value, $type, $value, duration (+2 more)
 
-### Community 99 - "Admin Authorization Tests"
-Cohesion: 0.24
-Nodes (6): ADMIN_ROUTES_DIR, GET_ONLY, signInAsAdmin(), signInAs(), signInAs(), browserCookiesFor()
+### Community 105 - "primitives.tsx"
+Cohesion: 0.11
+Nodes (17): ACCENTS, metadata, PATHS, metadata, revalidate, TeamPage(), EASE, fadeUpVariants (+9 more)
 
-### Community 100 - "Team Therapist Directory"
-Cohesion: 0.33
-Nodes (6): metadata, revalidate, firstName(), languageList(), TeamTherapist, TeamTherapistPopup()
+### Community 106 - "AdminShell.tsx"
+Cohesion: 0.12
+Nodes (14): AdminGlobalSearch(), KIND_STYLES, SearchEntity, ADMIN_CATALOG_REALTIME_TABLES, ADMIN_REALTIME_TABLES, AdminScreens, AdminShell(), applyFromLocation() (+6 more)
 
-### Community 101 - "Admin Shell Navigation"
-Cohesion: 0.24
-Nodes (7): AdminShell(), applyFromLocation(), handleSignOut(), navigate(), renderNavItem(), sectionBadge(), findTab()
+### Community 107 - "PackagePurchaseDetailModal.tsx"
+Cohesion: 0.16
+Nodes (7): AppointmentRow, DetailResponse, EventRow, CancelSessionButton(), PromptDialog(), PACKAGE_EVENT_LABELS, usePrompt()
 
-### Community 102 - "Admin Navigation and Tabs"
-Cohesion: 0.27
-Nodes (8): AdminTodayTab(), InboxGroup, InboxItem, ADMIN_SECTIONS, adminScreenHref(), AdminSectionDef, AdminSectionKey, AdminTabDef
-
-### Community 103 - "Home Visit Settings"
-Cohesion: 0.27
-Nodes (9): HomeVisitSettingsForm(), NumberSetting(), handleSave(), saveSetting(), TextSetting(), handleSave(), Toggle(), handleToggle() (+1 more)
-
-### Community 104 - "Design Token Generation"
+### Community 108 - "Brand Token Sync Utility"
 Cohesion: 0.33
 Nodes (8): adjustBrightness(), { execFileSync }, extractColorsFromMarkdown(), fs, generateColorScale(), main(), path, updateDesignTokens()
 
-### Community 105 - "Token Validation Tests"
+### Community 109 - "Token Validation Tests"
 Cohesion: 0.28
 Nodes (8): Path, Regression tests for validate-tokens.cjs. The validator used to skip any line…, A hardcoded hex on the same line as a var() token is still a violation., A line that references only tokens produces no false positives., _run(), test_flags_hardcoded_hex_sharing_line_with_token(), test_token_only_line_reports_no_violation(), CompletedProcess
 
-### Community 106 - "User Journey Testing"
+### Community 110 - "User Journey E2E Tests"
 Cohesion: 0.31
 Nodes (6): cookieHeaderFor(), activeStep(), activeTab(), contextFor(), db, openHome()
 
-### Community 107 - "Session Suggestion Tests"
+### Community 111 - "Session Suggestion Tests"
 Cohesion: 0.28
 Nodes (4): contextFor(), freshPurchase(), nextSlot(), slotInDays()
 
-### Community 108 - "Home Visit Package API"
-Cohesion: 0.42
-Nodes (6): POST(), POST(), HomeVisitPackageColumns, HomeVisitPackagePayload, parseOptionalPositiveInt(), validateHomeVisitPackagePayload()
-
-### Community 109 - "FAQ Management"
+### Community 113 - "Booking Calendar Logic"
 Cohesion: 0.25
-Nodes (5): Faq, FaqForm(), DeleteButton(), Faq, FaqManager()
+Nodes (10): openPicker(), CalendarCell, CalendarMonth, earliestBookableDateKey(), isDateBookable(), isSlotBookable(), slotStartMs(), toDateKey() (+2 more)
 
-### Community 110 - "Package Settings Form"
-Cohesion: 0.39
-Nodes (8): PackageSettingsForm(), handleSaveBulkMax(), handleSaveReminder(), handleSaveValidity(), handleToggleLock(), handleToggleSuggestions(), handleToggleVisible(), saveSetting()
+### Community 114 - "Account Management Routes"
+Cohesion: 0.27
+Nodes (8): Body, generatePassword(), POST(), Body, CONFIRMATION_PHRASE, POST(), POST(), getAdminContext()
 
-### Community 111 - "Testimonial Management"
-Cohesion: 0.25
-Nodes (5): Testimonial, TestimonialForm(), DeleteButton(), Testimonial, TestimonialManager()
-
-### Community 112 - "Input Padding Tokens"
+### Community 115 - "Input Field Tokens"
 Cohesion: 0.29
 Nodes (8): padding-x, input, $type, $value, focus-ring, padding-x, $type, $value
 
-### Community 114 - "Admin Payout Requests"
-Cohesion: 0.36
-Nodes (5): AdminPayoutRequestsTab(), formatDateTime(), formatInr(), PayoutRequestRow, StartReviewPayoutRequestButton()
-
-### Community 115 - "Domain Detection Logic"
-Cohesion: 0.43
-Nodes (3): detect_domain(), Auto-detect the most relevant domain from query. Matches are weighted by…, TestDomainDetection
-
-### Community 116 - "Palette Selection Logic"
-Cohesion: 0.43
-Nodes (3): Pick the highest-ranked palette matching the resolved mode. Only the dark case…, _select_palette_for_mode(), TestPaletteSelection
-
-### Community 117 - "Session Cutoff Testing"
-Cohesion: 0.38
-Nodes (5): db, joinButton(), minutesAgo(), openPatientDashboard(), seedSession()
-
-### Community 118 - "Project Scripts"
-Cohesion: 0.29
-Nodes (7): scripts, build, check:realtime, dev, lint, start, test:e2e
-
-### Community 119 - "Appointment Cancellation API"
-Cohesion: 0.48
-Nodes (4): POST(), POST(), cancelAppointmentAndRefund(), CancelResult
-
-### Community 120 - "Brand Contact Details"
-Cohesion: 0.33
-Nodes (5): BrandContactDetails, BrandContactDetailsForm(), EditableField(), handleSave(), saveSetting()
-
-### Community 121 - "Condition List Filters"
-Cohesion: 0.29
-Nodes (6): CONDITION_STATUS_LABEL, CONDITION_STATUS_STYLE, ConditionsListFilter(), Row, SortKey, STATUS_OPTIONS
-
-### Community 122 - "Admin Payout Dashboard"
-Cohesion: 0.24
-Nodes (9): AdminPayoutsTab(), Category, formatInr(), Patient, Therapist, TherapistSessionList(), computeTherapistPayoutSummary(), PayoutAppointment (+1 more)
-
-### Community 123 - "Meet Sync Background Jobs"
-Cohesion: 0.38
-Nodes (6): AdminClient, MAX_MEET_SYNC_AUTO_ATTEMPTS, MEET_SYNC_CLAIM_STALE_MS, meetSyncUnclaimedFilter(), retryDueMeetSyncs(), withTimeout()
-
-### Community 125 - "Admin Network Testing"
-Cohesion: 0.53
-Nodes (5): card(), leadTimeCard(), leadTimeError(), leadTimeSave(), openBookingRules()
-
-### Community 126 - "Realtime Coverage Audit"
-Cohesion: 0.33
-Nodes (4): missing, published, subscribed, unused
-
-### Community 127 - "Home Visit Pricing"
-Cohesion: 0.47
-Nodes (3): POST(), computePerVisitFeePaise(), HomeVisitTotal
-
-### Community 128 - "Patient Registration"
-Cohesion: 0.40
-Nodes (4): metadata, InviteRegisterCard(), handleSubmit(), startPayment()
-
-### Community 129 - "People Directory Admin"
-Cohesion: 0.33
-Nodes (4): AdminPeopleDirectory(), CARE_STATUS_LABELS, CARE_STATUS_STYLES, Person
-
-### Community 130 - "Supabase Proxy Configuration"
-Cohesion: 0.47
-Nodes (3): updateSession(), config, proxy()
-
-### Community 131 - "Design System Documentation"
-Cohesion: 0.40
-Nodes (5): Social Photos Design Guide, Design System Skill, Component Specifications, Tailwind Integration, Token Architecture
-
-### Community 132 - "Core Design Tokens"
-Cohesion: 0.40
-Nodes (5): Button Tokens, Color Scales, Spacing Scale, Color Semantics, Spacing Semantics
-
-### Community 133 - "Border Tokens"
-Cohesion: 0.60
-Nodes (5): $type, $value, border, border, border
-
-### Community 134 - "Radius Tokens"
-Cohesion: 0.60
-Nodes (5): radius, radius, radius, $type, $value
-
-### Community 135 - "Large Size Tokens"
-Cohesion: 0.60
-Nodes (5): lg, $type, $value, lg, lg
-
-### Community 136 - "Small Size Tokens"
-Cohesion: 0.60
-Nodes (5): sm, sm, sm, $type, $value
-
-### Community 137 - "Global Test Setup"
-Cohesion: 0.50
-Nodes (4): ensureUser(), globalSetup(), PATIENTS, THERAPISTS
-
-### Community 138 - "Google OAuth Utilities"
-Cohesion: 0.40
-Nodes (3): authUrl, oauth2Client, server
-
-### Community 139 - "Account Status Pages"
+### Community 117 - "Account Status Pages"
 Cohesion: 0.32
 Nodes (4): metadata, metadata, PendingApprovalPage(), SUPPORT_EMAIL
 
-### Community 140 - "Home Visit Scheduler"
-Cohesion: 0.60
-Nodes (4): HomeVisitBulkScheduler(), handleSubmit(), toggleHour(), slotDateTimeOf()
-
-### Community 141 - "Package Bulk Scheduler"
-Cohesion: 0.60
-Nodes (4): PackageBulkScheduler(), handleSubmit(), toggleHour(), slotDateTimeOf()
-
-### Community 143 - "Extra Large Tokens"
-Cohesion: 0.67
-Nodes (4): xl, xl, $type, $value
-
-### Community 144 - "Empty Value Tokens"
-Cohesion: 0.67
-Nodes (4): $type, $value, none, none
-
-### Community 146 - "Data Validation Script"
-Cohesion: 0.83
-Nodes (3): _check_file(), main(), _read_rows()
-
-### Community 147 - "Package Metadata"
-Cohesion: 0.50
-Nodes (3): name, private, version
-
-### Community 149 - "Hospital Onboarding API"
+### Community 118 - "Hospital Onboarding Route"
 Cohesion: 0.83
 Nodes (3): generatePassword(), generateReferralCode(), POST()
 
-### Community 151 - "Patient Profit Analytics"
-Cohesion: 0.67
-Nodes (3): formatInr(), PatientProfitChart(), ProfitSession
-
-### Community 153 - "System Logic Features"
-Cohesion: 0.67
-Nodes (3): Lazy Idempotent Sweeps, Package Therapist Locking, Therapist Session Suggestions
-
-### Community 156 - "Therapist Payout Actions"
-Cohesion: 0.25
-Nodes (5): METHOD_LABEL, NOTE_PLACEHOLDER, PayoutMethod, TherapistPayoutButton(), View
-
-### Community 157 - "Therapist Authentication"
+### Community 119 - "Marketing Landing Pages"
 Cohesion: 0.29
-Nodes (3): metadata, TherapistAuthCard(), handleRegister()
+Nodes (7): AFTER_FIRST_SESSION, HowItWorksPage(), metadata, OBJECTIONS, objectionsFor(), revalidate, SECTION_NAV_ITEMS
 
-### Community 158 - "User Address Management"
+### Community 120 - "Patient Authentication Pages"
+Cohesion: 0.25
+Nodes (4): metadata, PatientAuthCard(), handleReferralCodeBlur(), handleRegister()
+
+### Community 121 - "Home Visit Management"
+Cohesion: 0.52
+Nodes (7): HomeVisitPurchaseDetailModal(), handleExtendExpiry(), handleReassign(), handleRefund(), handleRestore(), refetch(), runAction()
+
+### Community 122 - "Empty Value Tokens"
+Cohesion: 0.67
+Nodes (4): $type, $value, none, none
+
+### Community 123 - "Domain Detection Logic"
+Cohesion: 0.43
+Nodes (3): detect_domain(), Auto-detect the most relevant domain from query. Matches are weighted by…, TestDomainDetection
+
+### Community 124 - "Color Palette Selection"
+Cohesion: 0.43
+Nodes (3): Pick the highest-ranked palette matching the resolved mode. Only the dark case…, _select_palette_for_mode(), TestPaletteSelection
+
+### Community 125 - "Session Cutoff Tests"
+Cohesion: 0.38
+Nodes (5): db, joinButton(), minutesAgo(), openPatientDashboard(), seedSession()
+
+### Community 126 - "NPM Lifecycle Scripts"
+Cohesion: 0.29
+Nodes (7): scripts, build, check:realtime, dev, lint, start, test:e2e
+
+### Community 127 - "InviteRegisterCard.tsx"
+Cohesion: 0.13
+Nodes (15): metadata, ResetPasswordPage(), ROLE_LOGIN_HREF, metadata, ConfirmPasswordField(), EmailField(), InviteRegisterCard(), handleSubmit() (+7 more)
+
+### Community 128 - "Brand Contact Forms"
 Cohesion: 0.33
-Nodes (4): AddressForm(), inputCls(), MyAddresses(), SavedAddress
+Nodes (5): BrandContactDetails, BrandContactDetailsForm(), EditableField(), handleSave(), saveSetting()
 
-### Community 159 - "Numeric Value Tokens"
-Cohesion: 0.67
-Nodes (3): $type, $value, 8
+### Community 130 - "Package Purchase Management"
+Cohesion: 0.52
+Nodes (7): PackagePurchaseDetailModal(), handleExtendExpiry(), handleReassign(), handleRefund(), handleRestore(), refetch(), runAction()
 
-### Community 160 - "Destructive State Tokens"
-Cohesion: 0.67
-Nodes (3): destructive, $type, $value
+### Community 132 - "Design System Documentation"
+Cohesion: 0.40
+Nodes (6): HTML Slide Base Structure, Social Photos Workflow, Design System Skill, Component Specifications, Tailwind Integration, Token Architecture
 
-### Community 161 - "Destructive Foreground Tokens"
-Cohesion: 0.67
-Nodes (3): destructive-foreground, $type, $value
-
-### Community 162 - "Muted State Tokens"
-Cohesion: 0.67
-Nodes (3): muted, $type, $value
-
-### Community 163 - "Primary Foreground Tokens"
-Cohesion: 0.67
-Nodes (3): primary-foreground, $type, $value
-
-### Community 164 - "Ring Focus Tokens"
-Cohesion: 0.67
-Nodes (3): ring, $type, $value
-
-### Community 165 - "Secondary Foreground Tokens"
-Cohesion: 0.67
-Nodes (3): secondary-foreground, $type, $value
-
-### Community 166 - "GSAP Animation Skills"
-Cohesion: 0.67
-Nodes (3): GSAP Core Skill, GSAP React Skill, GSAP ScrollTrigger Skill
-
-### Community 169 - "UI/UX Best Practices"
-Cohesion: 1.00
-Nodes (3): Professional UI Rules & Checklist, Quick Reference Rule Set, UI/UX Pro Max Skill
-
-### Community 170 - "Admin Global Search"
+### Community 133 - "GSAP Animation Skills"
 Cohesion: 0.33
-Nodes (3): AdminGlobalSearch(), KIND_STYLES, SearchEntity
+Nodes (4): GSAP ScrollTrigger Skill, GSAP Timeline Skill, GSAP Utils Skill, gsap.registerPlugin(ScrollTrigger)
 
-### Community 274 - "Vertical Padding Tokens"
+### Community 134 - "Admin Authorization Tests"
+Cohesion: 0.33
+Nodes (3): ADMIN_ROUTES_DIR, GET_ONLY, REFUSES_WITH_404
+
+### Community 136 - "Realtime Coverage Checker"
+Cohesion: 0.33
+Nodes (4): missing, published, subscribed, unused
+
+### Community 138 - "Package Catalog Forms"
+Cohesion: 0.38
+Nodes (4): inputCls(), Package, PackageCatalogForm(), computePackageSavings()
+
+### Community 139 - "Supabase Proxy Configuration"
+Cohesion: 0.47
+Nodes (3): updateSession(), config, proxy()
+
+### Community 140 - "Design System Scales"
+Cohesion: 0.40
+Nodes (5): Button Tokens, Color Scales, Spacing Scale, Color Semantics, Spacing Semantics
+
+### Community 141 - "Border Tokens"
+Cohesion: 0.60
+Nodes (5): $type, $value, border, border, border
+
+### Community 142 - "Border Radius Tokens"
+Cohesion: 0.60
+Nodes (5): radius, radius, radius, $type, $value
+
+### Community 143 - "Large Size Tokens"
+Cohesion: 0.60
+Nodes (5): lg, $type, $value, lg, lg
+
+### Community 144 - "Small Size Tokens"
+Cohesion: 0.60
+Nodes (5): sm, sm, sm, $type, $value
+
+### Community 145 - "Global Test Setup"
+Cohesion: 0.50
+Nodes (4): ensureUser(), globalSetup(), PATIENTS, THERAPISTS
+
+### Community 146 - "Google OAuth Utility"
+Cohesion: 0.40
+Nodes (3): authUrl, oauth2Client, server
+
+### Community 148 - "Vertical Padding Tokens"
 Cohesion: 0.67
 Nodes (4): padding-y, padding-y, $type, $value
 
-### Community 275 - "Zero Value Tokens"
+### Community 149 - "Extra Large Tokens"
 Cohesion: 0.67
-Nodes (3): $type, $value, 0
+Nodes (4): xl, xl, $type, $value
 
-### Community 276 - "Spacing Value Tokens"
+### Community 151 - "Slide Template Skills"
+Cohesion: 0.50
+Nodes (4): Slides Skill, Copywriting Formulas, HTML Slide Template, Layout Patterns
+
+### Community 152 - "UI Design Guidelines"
+Cohesion: 0.67
+Nodes (4): Tailwind CSS Utility Reference, Professional UI Rules & Checklist, Quick Reference — Full Rule Set, UI/UX Pro Max - Design Intelligence
+
+### Community 153 - "UI Component Library"
+Cohesion: 0.50
+Nodes (4): UI Styling Skill, Canvas Design System, shadcn/ui Components, Tailwind Utilities
+
+### Community 154 - "Data Validation Utility"
+Cohesion: 0.83
+Nodes (3): _check_file(), main(), _read_rows()
+
+### Community 155 - "Project Metadata"
+Cohesion: 0.50
+Nodes (3): name, private, version
+
+### Community 160 - "Spacing Token 16"
 Cohesion: 0.67
 Nodes (3): $type, $value, 16
 
-### Community 277 - "Small Integer Tokens"
+### Community 161 - "Spacing Token 1"
+Cohesion: 0.67
+Nodes (3): $type, $value, 1
+
+### Community 162 - "Spacing Token 3"
 Cohesion: 0.67
 Nodes (3): $type, $value, 3
 
+### Community 163 - "Spacing Token 8"
+Cohesion: 0.67
+Nodes (3): $type, $value, 8
+
+### Community 164 - "Destructive State Tokens"
+Cohesion: 0.67
+Nodes (3): destructive, $type, $value
+
+### Community 165 - "Destructive Foreground Tokens"
+Cohesion: 0.67
+Nodes (3): destructive-foreground, $type, $value
+
+### Community 166 - "Muted State Tokens"
+Cohesion: 0.67
+Nodes (3): muted, $type, $value
+
+### Community 167 - "Primary Foreground Tokens"
+Cohesion: 0.67
+Nodes (3): primary-foreground, $type, $value
+
+### Community 168 - "Focus Ring Tokens"
+Cohesion: 0.67
+Nodes (3): ring, $type, $value
+
+### Community 169 - "Secondary Foreground Tokens"
+Cohesion: 0.67
+Nodes (3): secondary-foreground, $type, $value
+
 ## Knowledge Gaps
-- **615 isolated node(s):** `Body`, `Body`, `Body`, `AdminActivityAction`, `AdminActivityEntry` (+610 more)
+- **688 isolated node(s):** `PackageColumns`, `TherapistRateBasis`, `SlotResult`, `SlotInput`, `Category` (+683 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **112 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **105 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `createAdminClient()` connect `Admin Account Actions` to `Patient Booking Flow`, `Admin Detail Pages`, `Appointment Assignment`, `Home Visit Management`, `Admin Dashboard Components`, `Patient Health Profile`, `User Dashboards`, `Auth and Password`, `Hospital Onboarding API`, `Pain Assessment Editor`, `Therapist Payout Ledger`, `Health Profile Dashboards`, `Condition Detail Management`, `Referral Preview API`, `Package API Routes`, `Home Visit Package API`, `Appointment Cancellation API`, `Meet Sync Background Jobs`, `Home Visit Pricing`?**
-  _High betweenness centrality (0.066) - this node is a cross-community bridge._
-- **Why does `createClient()` connect `Patient Booking Flow` to `Admin Account Actions`, `Admin Detail Pages`, `Appointment Assignment`, `Home Visit Management`, `Admin Dashboard Components`, `Hospital Dashboard Shell`, `Account Status Pages`, `Patient Health Profile`, `User Dashboards`, `User Profile Management`, `Health Profile Dashboards`, `Appointment Cancellation API`, `Pain Assessment Editor`, `Home Visit Pricing`?**
-  _High betweenness centrality (0.019) - this node is a cross-community bridge._
-- **Why does `createClient()` connect `Admin Login Shell` to `Patient Registration`, `Address Entry Forms`, `Contact Information Forms`, `Admin Shell Navigation`, `Hospital Dashboard Shell`, `Global App Layout`, `Auth and Password`, `Booking Wizard Steps`, `User Profile Management`, `Therapist Authentication`, `Home Visit Wizard`?**
-  _High betweenness centrality (0.016) - this node is a cross-community bridge._
+- **Why does `createAdminClient()` connect `createAdminClient` to `createClient`, `admin.ts`, `admin/dashboard/page.tsx`, `AdminDashboardPage`, `medicalDocuments.ts`, `normalizePincode`, `pricing.ts`, `therapistDashboardData.ts`, `therapist/dashboard/health-profile/page.tsx`, `TherapistDetailContent.tsx`, `painMap.ts`, `Account Management Routes`, `create-package/route.ts`, `[patientId]/page.tsx`, `Hospital Onboarding Route`, `ConditionDetailContent.tsx`, `bookHomeVisitSession.ts`, `patientDashboardData.ts`?**
+  _High betweenness centrality (0.080) - this node is a cross-community bridge._
+- **Why does `createClient()` connect `createClient` to `createAdminClient`, `admin/dashboard/page.tsx`, `AdminDashboardPage`, `medicalDocuments.ts`, `normalizePincode`, `patient/dashboard/health-profile/page.tsx`, `pricing.ts`, `therapistDashboardData.ts`, `therapist/dashboard/health-profile/page.tsx`, `TherapistDetailContent.tsx`, `painMap.ts`, `Account Management Routes`, `[patientId]/page.tsx`, `patient/dashboard/profile/page.tsx`, `Account Status Pages`, `bookHomeVisitSession.ts`, `patientDashboardData.ts`?**
+  _High betweenness centrality (0.021) - this node is a cross-community bridge._
+- **Why does `parseAdminSettings()` connect `TherapistDetailContent.tsx` to `createClient`, `admin.ts`, `admin/dashboard/page.tsx`, `adminSettings.ts`, `AdminDashboardPage`, `patient/dashboard/health-profile/page.tsx`, `normalizePincode`, `pricing.ts`, `therapistDashboardData.ts`, `therapist/dashboard/health-profile/page.tsx`, `createPublicClient`, `[patientId]/page.tsx`, `patient/dashboard/profile/page.tsx`, `app/layout.tsx`, `patientDashboardData.ts`?**
+  _High betweenness centrality (0.015) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `TailwindConfigGenerator` (e.g. with `TestGeneratedConfigIsValidJs` and `TestTailwindConfigGenerator`) actually correct?**
   _`TailwindConfigGenerator` has 2 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `Body`, `Body`, `Body` to the rest of the system?**
-  _615 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Admin Account Actions` be split into smaller, more focused modules?**
-  _Cohesion score 0.037620444072056974 - nodes in this community are weakly interconnected._
-- **Should `Patient Booking Flow` be split into smaller, more focused modules?**
-  _Cohesion score 0.0691358024691358 - nodes in this community are weakly interconnected._
+- **What connects `PackageColumns`, `TherapistRateBasis`, `SlotResult` to the rest of the system?**
+  _688 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `createAdminClient` be split into smaller, more focused modules?**
+  _Cohesion score 0.0391410134348884 - nodes in this community are weakly interconnected._
+- **Should `createClient` be split into smaller, more focused modules?**
+  _Cohesion score 0.06248600223964166 - nodes in this community are weakly interconnected._
