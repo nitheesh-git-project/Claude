@@ -8,50 +8,103 @@ import {
   useScroll,
   useTransform,
 } from "motion/react";
-import { BookingScene, FindingsScene, PlanScene } from "./scenes";
+import { BookingScene, ChartScene, IntakeScene, SessionScene } from "./scenes";
 
 const STEPS = [
   {
     num: 1,
-    tag: "Before the session",
-    title: "Book a slot and send your history ahead",
-    body: "Pick a time shown in your own timezone, pay in ₹ over UPI, and upload your X-rays or MRI reports so your therapist has read them before you ever join the call.",
+    tag: "Booking",
+    title: "Pick how you want to be seen, and when",
+    body: "A video consultation or a home visit at your address — the same therapists, the same hour, chosen at the first step. Slots are shown in your own timezone and only include times a therapist is genuinely free.",
     points: [
-      "Slots auto-converted to your local time",
-      "Instant, secure UPI payment",
-      "X-ray / MRI upload reviewed in advance",
+      "Video call or home visit, your choice",
+      "Times converted to your own timezone",
+      "Pay by UPI, card or netbanking",
     ],
     scene: BookingScene,
   },
   {
     num: 2,
-    tag: "The 60-minute session",
-    title: "A licensed therapist measures how you actually move",
-    body: "Not a phone consult. Over HD video you are guided through range-of-motion tests, posture screens and pain-response checks — measured against your own body, in the room where the pain happens.",
+    tag: "Before the session",
+    title: "Answer seven questions and attach your reports",
+    body: "One question at a time, about two minutes, each one explaining why it is being asked. Add the X-rays, MRI reports, blood tests and prescriptions other doctors have given you — your therapist reads all of it before the session starts.",
     points: [
-      "Guided range-of-motion testing",
-      "Posture and gait analysis on camera",
-      "Live pain-response assessment",
+      "Seven short questions, not a form",
+      "Upload reports as PDFs or photos",
+      "Read by your therapist in advance",
     ],
-    scene: FindingsScene,
+    scene: IntakeScene,
   },
   {
     num: 3,
-    tag: "After the session",
-    title: "You leave with a plan built for your room",
-    body: "Video-guided exercises prescribed around the chair, bed and floor space you actually have — reviewed and progressed at every follow-up, not handed over once and forgotten.",
+    tag: "The session",
+    title: "An hour with a licensed therapist",
+    body: "Sixty minutes on Google Meet — the join button appears on your dashboard shortly before the time — or at your own address if you booked a home visit. Guided movement checks, area by area, in the language you picked when booking.",
     points: [
-      "Video-guided daily exercises",
-      "Fitted to your home setup",
-      "Progressed at every follow-up",
+      "60 minutes, on Google Meet or at home",
+      "Nothing to install beyond a browser",
+      "Conducted in your chosen language",
     ],
-    scene: PlanScene,
+    scene: SessionScene,
+  },
+  {
+    num: 4,
+    tag: "After the session",
+    title: "Your chart updates, and it stays yours",
+    body: "Your therapist records what they found on a body map — each area examined, rated out of ten — and it lands on your health profile the same day. Come back for the next session and the chart shows whether those numbers are moving.",
+    points: [
+      "Every area examined, worst first",
+      "A pain trend across your sessions",
+      "Download the whole record as a PDF",
+    ],
+    scene: ChartScene,
   },
 ] as const;
 
-export default function StepScroller() {
+// Online-only wording for the two steps that mention the other mode.
+// Rewriting them here rather than at the call site keeps one list of steps
+// -- two parallel arrays would be two things to keep in step.
+const ONLINE_ONLY_COPY: Record<number, { title?: string; body: string; points: string[] }> = {
+  1: {
+    title: "Pick a time that suits you",
+    body: "Slots are shown in your own timezone and only include times a therapist is genuinely free — at least 12 hours ahead, so your therapist can prepare.",
+    points: [
+      "Times converted to your own timezone",
+      "Only slots a therapist is free for",
+      "Pay by UPI, card or netbanking",
+    ],
+  },
+  3: {
+    body: "Sixty minutes on Google Meet — the join button appears on your dashboard shortly before the time. Guided movement checks, area by area, in the language you picked when booking.",
+    points: [
+      "60 minutes, on Google Meet",
+      "Nothing to install beyond a browser",
+      "Conducted in your chosen language",
+    ],
+  },
+};
+
+type Step = {
+  num: number;
+  tag: string;
+  title: string;
+  body: string;
+  points: readonly string[];
+  scene: (typeof STEPS)[number]["scene"];
+};
+
+function withoutHomeVisit(step: (typeof STEPS)[number]): Step {
+  const override = ONLINE_ONLY_COPY[step.num];
+  return override ? { ...step, ...override, title: override.title ?? step.title } : step;
+}
+
+export default function StepScroller({ homeVisitEnabled }: { homeVisitEnabled: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+  // Steps 1 and 3 describe home visits, which are behind an admin master
+  // switch -- when it is off the mode does not exist for a visitor, and
+  // /book-home-visit 404s, so the copy must not offer it.
+  const steps = homeVisitEnabled ? STEPS : STEPS.map(withoutHomeVisit);
 
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -59,12 +112,12 @@ export default function StepScroller() {
   });
 
   useMotionValueEvent(scrollYProgress, "change", (p) => {
-    const next = Math.min(STEPS.length - 1, Math.max(0, Math.floor(p * STEPS.length)));
+    const next = Math.min(steps.length - 1, Math.max(0, Math.floor(p * steps.length)));
     setActive((prev) => (prev === next ? prev : next));
   });
 
   const railScale = useTransform(scrollYProgress, [0, 1], [0, 1]);
-  const ActiveScene = STEPS[active].scene;
+  const ActiveScene = steps[active].scene;
 
   return (
     <div ref={ref} className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -79,7 +132,7 @@ export default function StepScroller() {
               {/* Keyed directly so each scene's own motion root handles the
                   exit transition — a plain wrapper div would swallow it. */}
               <AnimatePresence mode="wait">
-                <ActiveScene key={active} />
+                <ActiveScene key={active} homeVisitEnabled={homeVisitEnabled} />
               </AnimatePresence>
             </div>
           </div>
@@ -94,7 +147,7 @@ export default function StepScroller() {
             />
           </div>
 
-          {STEPS.map((step) => {
+          {steps.map((step) => {
             const Scene = step.scene;
             return (
               <section
@@ -130,7 +183,7 @@ export default function StepScroller() {
                     </ul>
 
                     <div className="mt-8 h-[34rem] md:hidden">
-                      <Scene />
+                      <Scene homeVisitEnabled={homeVisitEnabled} />
                     </div>
                   </motion.div>
                 </div>
