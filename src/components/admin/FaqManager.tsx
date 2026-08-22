@@ -1,5 +1,8 @@
 "use client";
 
+import FilterChips from "@/components/dashboard/FilterChips";
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import FaqForm from "./FaqForm";
@@ -64,15 +67,32 @@ function DeleteButton({ id }: { id: string }) {
 
 export default function FaqManager({ faqs }: { faqs: Faq[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState<"all" | "active" | "inactive">("all");
   const [addingNew, setAddingNew] = useState(false);
+  const visible = faqs.filter((row) =>
+    visibility === "all" ? true : visibility === "active" ? row.active : !row.active
+  );
+  const { rows: pageFaqs, pager } = usePagedList(visible, { storageKey: "admin-faqs" });
 
   return (
     <div className="space-y-3">
+      {faqs.length > 1 && (
+        <FilterChips
+          label="Filter FAQs"
+          value={visibility}
+          onChange={setVisibility}
+          choices={[
+            { key: "all", label: "All", count: faqs.length },
+            { key: "active", label: "Shown on the site", count: faqs.filter((r) => r.active).length },
+            { key: "inactive", label: "Hidden", count: faqs.filter((r) => !r.active).length },
+          ]}
+        />
+      )}
       {faqs.length === 0 && !addingNew ? (
         <p className="text-xs text-slate-500 py-4 text-center">No FAQs yet — add one below.</p>
       ) : (
         <ul className="space-y-3">
-          {faqs.map((f) =>
+          {pageFaqs.map((f) =>
             editingId === f.id ? (
               <li key={f.id}>
                 <FaqForm faq={f} onCancel={() => setEditingId(null)} />
@@ -107,6 +127,7 @@ export default function FaqManager({ faqs }: { faqs: Faq[] }) {
           )}
         </ul>
       )}
+      <ListPager pager={pager} noun="FAQ" />
 
       {addingNew ? (
         <FaqForm onCancel={() => setAddingNew(false)} />

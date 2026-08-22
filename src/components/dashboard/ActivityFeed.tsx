@@ -1,3 +1,9 @@
+"use client";
+
+import { useState } from "react";
+import FilterChips from "@/components/dashboard/FilterChips";
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import Link from "next/link";
 import { countNeedsYou, type FeedItem } from "@/lib/dashboardFeed";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -33,6 +39,20 @@ function when(iso: string) {
  * chronological order below it.
  */
 export default function ActivityFeed({ items, emptyBody }: { items: FeedItem[]; emptyBody?: string }) {
+  const [filter, setFilter] = useState<"all" | "needs_you">("all");
+
+  const needsYou = items.filter((i) => i.needsYou);
+  const rest = items.filter((i) => !i.needsYou);
+  const ordered = filter === "needs_you" ? needsYou : [...needsYou, ...rest];
+  const waiting = countNeedsYou(items);
+  // Whatever still needs the viewer is sorted to the front, so page one is
+  // always the part that matters. Called before the empty-state return:
+  // a hook cannot sit behind a condition.
+  const { rows: pageItems, pager } = usePagedList(ordered, {
+    storageKey: "activity-feed",
+    defaultPageSize: 8,
+  });
+
   if (items.length === 0) {
     return (
       <EmptyState
@@ -43,11 +63,6 @@ export default function ActivityFeed({ items, emptyBody }: { items: FeedItem[]; 
     );
   }
 
-  const needsYou = items.filter((i) => i.needsYou);
-  const rest = items.filter((i) => !i.needsYou);
-  const ordered = [...needsYou, ...rest];
-  const waiting = countNeedsYou(items);
-
   return (
     <div>
       {waiting > 0 && (
@@ -56,8 +71,20 @@ export default function ActivityFeed({ items, emptyBody }: { items: FeedItem[]; 
           {waiting} {waiting === 1 ? "thing needs" : "things need"} you
         </p>
       )}
+      {needsYou.length > 0 && (
+        <FilterChips
+          label="Filter updates"
+          value={filter}
+          onChange={setFilter}
+          choices={[
+            { key: "all", label: "Everything", count: items.length },
+            { key: "needs_you", label: "Needs you", count: needsYou.length },
+          ]}
+        />
+      )}
+
       <ul className="space-y-1">
-        {ordered.map((item) => {
+        {pageItems.map((item) => {
           const row = (
             <div className="flex gap-3 rounded-xl px-2 py-2.5 transition hover:bg-slate-50">
               <span
@@ -85,6 +112,7 @@ export default function ActivityFeed({ items, emptyBody }: { items: FeedItem[]; 
           );
         })}
       </ul>
+      <ListPager pager={pager} noun="update" />
     </div>
   );
 }

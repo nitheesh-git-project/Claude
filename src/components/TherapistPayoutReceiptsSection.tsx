@@ -1,5 +1,7 @@
 "use client";
 
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { useState } from "react";
 import Modal from "@/components/admin/Modal";
 import type { PayoutReceipt } from "@/lib/receipts";
@@ -37,6 +39,10 @@ export default function TherapistPayoutReceiptsSection({
   sessionCodeByAppointmentId?: Record<string, string | null>;
 }) {
   const [selected, setSelected] = useState<PayoutReceipt | null>(null);
+  const { rows: pageReceipts, pager } = usePagedList(receipts, {
+    storageKey: "therapist-payout-receipts",
+    defaultPageSize: 5,
+  });
 
   return (
     <div className="mt-8">
@@ -53,7 +59,7 @@ export default function TherapistPayoutReceiptsSection({
         </div>
       ) : (
         <div className="space-y-3">
-          {receipts.map((r) => (
+          {pageReceipts.map((r) => (
             <div key={r.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
@@ -92,6 +98,7 @@ export default function TherapistPayoutReceiptsSection({
               </div>
             </div>
           ))}
+          <ListPager pager={pager} noun="payout" />
         </div>
       )}
 

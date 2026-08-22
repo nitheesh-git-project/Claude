@@ -482,6 +482,26 @@ client is the only writer and the log is append-only from any session.
   stale) and paints at most 200 rows before offering "Show all" -- the page
   server-renders every screen at once, so an unbounded table is HTML every
   admin downloads whether they open that screen or not.
+- **Every list pages, and every list that has a dimension filters.**
+  A list of rows ends with `ListPager` (`src/components/dashboard/`), the
+  one control: a "Show N per page" number field, Previous/Next that grey
+  out when there is nothing in that direction, and an "x-y of n" count. It
+  is driven by `usePagedList` (`src/lib/usePagedList.ts`), which pages the
+  rows the screen already has -- these lists filter in the browser and the
+  export buttons read the same filtered array, so fetching per page would
+  make the download disagree with the list. A `storageKey` remembers that
+  one list's page size per browser; wanting 100 payouts on screen says
+  nothing about wanting 100 FAQs. Filtering, sorting, totals, balances and
+  both exports always run over the **whole** filtered set -- only what is
+  painted is paged, or a range total starts describing a page. A list a
+  Server Component rendered uses `PagedList` instead, which takes finished
+  elements keyed by id (a function prop cannot cross that boundary, a
+  rendered element can) plus an optional `group` per item and a `filters`
+  list, and works the counts out itself. Filter chips are `FilterChips`,
+  and `PagedList` hides them unless two of them would actually have rows
+  behind them -- a filter nobody can act on is noise. Don't cap a list at
+  an arbitrary number with a "Show all" escape hatch: that was what All
+  Sessions did, and "Show all" then painted every row anyway.
 - **A dashboard refresh is expensive; debounce accordingly.**
   `RealtimeRefresh` turns a `postgres_changes` event into `router.refresh()`,
   which on the admin dashboard re-runs the whole Server Component — ~40

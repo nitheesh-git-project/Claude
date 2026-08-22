@@ -8,6 +8,8 @@ import SessionDetailDrawer, {
 import type { HomeVisitRow } from "@/components/admin/HomeVisitVisitActions";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import DataExportButtons from "@/components/admin/DataExportButtons";
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import StatStrip from "@/components/dashboard/StatStrip";
 import type { CsvColumn } from "@/lib/csvExport";
 import { formatSlotRange, istDateKey, istMinutesOfDay } from "@/lib/formatSlotRange";
@@ -84,14 +86,6 @@ function SortHeader({
 }
 
 const FILTER_STORAGE_KEY = "admin.allSessions.filters";
-
-// How many rows are put into the DOM before the admin asks for the rest.
-// The dashboard server-renders every screen at once, so an unbounded table
-// here is HTML every admin downloads on every load whether they open this
-// screen or not -- and it is the largest table on the page. Filtering, sort
-// and CSV export all still run over the full set; this bounds only what is
-// painted.
-const INITIAL_ROW_LIMIT = 200;
 
 type SavedFilters = {
   sessionCode: string;
@@ -198,7 +192,6 @@ export default function AdminAllSessionsTab({
     therapistFilter,
     patientFilter,
   ]);
-  const [showAllRows, setShowAllRows] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -299,7 +292,12 @@ export default function AdminAllSessionsTab({
     sortDir,
   ]);
 
-  const visibleRows = showAllRows ? rows : rows.slice(0, INITIAL_ROW_LIMIT);
+  // Filtering, sorting and both exports run over the full `rows` set; only
+  // what is painted is paged. That matters here more than anywhere else:
+  // the dashboard server-renders every screen at once, so an unbounded
+  // table is HTML every admin downloads whether they open this screen or
+  // not, and this is the largest table on the page.
+  const { rows: visibleRows, pager } = usePagedList(rows, { storageKey: "admin-sessions" });
 
   // The drawer reads from the live prop rather than from a snapshot taken
   // when the row was clicked, so an edit made inside it (or by another admin)
@@ -663,19 +661,7 @@ export default function AdminAllSessionsTab({
         </table>
       </div>
 
-      {rows.length > visibleRows.length && (
-        <div className="mt-4 flex items-center justify-center gap-3 text-xs">
-          <span className="text-slate-500">
-            Showing the first {visibleRows.length} of {rows.length} matching sessions.
-          </span>
-          <button
-            onClick={() => setShowAllRows(true)}
-            className="font-semibold text-teal-700 hover:underline"
-          >
-            Show all
-          </button>
-        </div>
-      )}
+      <ListPager pager={pager} noun="session" />
 
       {selected && (
         <SessionDetailDrawer

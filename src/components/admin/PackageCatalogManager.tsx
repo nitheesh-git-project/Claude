@@ -1,5 +1,7 @@
 "use client";
 
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import PackageCatalogForm from "./PackageCatalogForm";
@@ -85,6 +87,7 @@ export default function PackageCatalogManager({
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addingNew, setAddingNew] = useState(false);
+  const { rows: pagePackages, pager } = usePagedList(packages, { storageKey: "admin-package-catalog" });
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
 
   return (
@@ -93,7 +96,7 @@ export default function PackageCatalogManager({
         <p className="text-xs text-slate-500 py-4 text-center">No session packages yet — add one below.</p>
       ) : (
         <ul className="space-y-3">
-          {packages.map((pkg) => {
+          {pagePackages.map((pkg) => {
             const category = categoryMap.get(pkg.category_id);
             const savings = computePackageSavings({
               sessionCount: pkg.session_count,
@@ -156,6 +159,7 @@ export default function PackageCatalogManager({
           })}
         </ul>
       )}
+      <ListPager pager={pager} noun="package" />
 
       {categories.length === 0 ? (
         <p className="text-xs text-slate-400">Add a treatment category first before creating a package for it.</p>

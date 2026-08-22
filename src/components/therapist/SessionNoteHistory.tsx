@@ -1,5 +1,6 @@
 import { SESSION_NOTE_FIELDS, type SessionNoteRow } from "@/lib/sessionNotes";
 import { EmptyState, StatusPill } from "@/components/dashboard/SurfaceCard";
+import PagedList from "@/components/dashboard/PagedList";
 
 const RESPONSE_TONE: Record<string, string> = {
   Improved: "good",
@@ -42,11 +43,18 @@ export default function SessionNoteHistory({
   );
 
   return (
-    <ol className="space-y-3">
-      {ordered.map((note, index) => {
+    <PagedList
+      ordered
+      noun="note"
+      storageKey="session-notes"
+      defaultPageSize={5}
+      className="space-y-3"
+      items={ordered.map((note, index) => {
         const response = (note.data?.response ?? "").trim();
-        return (
-          <li key={note.id} className="rounded-xl border border-slate-200 p-4">
+        return {
+          id: note.id,
+          node: (
+          <div className="rounded-xl border border-slate-200 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold text-slate-800">
@@ -89,9 +97,10 @@ export default function SessionNoteHistory({
                 </div>
               )}
             </dl>
-          </li>
-        );
+          </div>
+          ),
+        };
       })}
-    </ol>
+    />
   );
 }

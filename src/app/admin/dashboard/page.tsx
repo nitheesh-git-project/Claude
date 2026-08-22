@@ -47,6 +47,7 @@ import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilit
 import BrandContactDetailsForm from "@/components/admin/BrandContactDetailsForm";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
+import PagedList from "@/components/dashboard/PagedList";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
 import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
@@ -680,14 +681,21 @@ export default async function AdminDashboardPage({
             No pending applications or registrations.
           </p>
         ) : (
-          <ul className="space-y-3">
-            {pendingAccounts.map((p) => {
+          <PagedList
+            noun="application"
+            storageKey="admin-pending-accounts"
+            className="space-y-3"
+            filters={[
+              { key: "therapist", label: "Therapists" },
+              { key: "patient", label: "Patients" },
+            ]}
+            items={pendingAccounts.map((p) => {
               const isTherapist = p.role === "therapist";
-              return (
-                <li
-                  key={p.id}
-                  className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 text-xs"
-                >
+              return {
+                id: p.id,
+                group: isTherapist ? "therapist" : "patient",
+                node: (
+                <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 text-xs">
                   <div className="flex items-center gap-3">
                     <AvatarThumbnail
                       url={p.avatar_url}
@@ -721,10 +729,11 @@ export default async function AdminDashboardPage({
                     />
                     <ApproveAccountButton userId={p.id} />
                   </div>
-                </li>
-              );
+                </div>
+              ),
+              };
             })}
-          </ul>
+          />
         )}
       </div>
 
@@ -742,15 +751,17 @@ export default async function AdminDashboardPage({
             No pending profile change requests.
           </p>
         ) : (
-          <ul className="space-y-3">
-            {pendingProfileChanges.map((r) => {
+          <PagedList
+            noun="request"
+            storageKey="admin-change-requests"
+            className="space-y-3"
+            items={pendingProfileChanges.map((r) => {
               const requester = profileMap.get(r.user_id);
               const changes = (r.changes ?? {}) as Record<string, unknown>;
-              return (
-                <li
-                  key={r.id}
-                  className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 text-xs flex-wrap"
-                >
+              return {
+                id: r.id,
+                node: (
+                <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 text-xs flex-wrap">
                   <div>
                     <p className="font-bold text-slate-900">
                       {requester?.full_name ?? "Unknown user"}{" "}
@@ -781,10 +792,11 @@ export default async function AdminDashboardPage({
                     </ul>
                   </div>
                   <ProfileChangeRequestActions requestId={r.id} />
-                </li>
-              );
+                </div>
+              ),
+              };
             })}
-          </ul>
+          />
         )}
       </div>
 
@@ -808,12 +820,20 @@ export default async function AdminDashboardPage({
             No B2B inquiries yet.
           </p>
         ) : (
-          <ul className="space-y-3">
-            {b2bLeads.map((lead) => (
-              <li
-                key={lead.id}
-                className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
-              >
+          <PagedList
+            noun="lead"
+            storageKey="admin-leads"
+            className="space-y-3"
+            filters={[
+              { key: "new", label: "New" },
+              { key: "contacted", label: "Contacted" },
+              { key: "onboarded", label: "Onboarded" },
+            ]}
+            items={b2bLeads.map((lead) => ({
+              id: lead.id,
+              group: lead.status,
+              node: (
+              <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-2">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <p className="font-bold text-slate-900">{lead.name}</p>
@@ -847,9 +867,10 @@ export default async function AdminDashboardPage({
                     <LeadStatusButtons leadId={lead.id} status={lead.status} />
                   </div>
                 )}
-              </li>
-            ))}
-          </ul>
+              </div>
+              ),
+            }))}
+          />
         )}
       </div>
 
@@ -862,8 +883,16 @@ export default async function AdminDashboardPage({
             No hospital partners onboarded yet.
           </p>
         ) : (
-          <ul className="space-y-3">
-            {hospitals.map((h) => {
+          <PagedList
+            noun="partner"
+            nounPlural="partners"
+            storageKey="admin-partners"
+            className="space-y-3"
+            filters={[
+              { key: "active", label: "Active" },
+              { key: "suspended", label: "Suspended" },
+            ]}
+            items={hospitals.map((h) => {
               const revenue = hospitalRevenue.get(h.id) ?? {
                 paidSessions: 0,
                 totalRevenue: 0,
@@ -881,11 +910,11 @@ export default async function AdminDashboardPage({
               const referralStats = hospitalReferralStats.get(h.id) ?? { total: 0, converted: 0 };
               const conversionRate =
                 referralStats.total > 0 ? (referralStats.converted / referralStats.total) * 100 : null;
-              return (
-                <li
-                  key={h.id}
-                  className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
-                >
+              return {
+                id: h.id,
+                group: isSuspended ? "suspended" : "active",
+                node: (
+                  <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
                       <div className="flex items-center gap-2">
@@ -959,10 +988,11 @@ export default async function AdminDashboardPage({
                       sharePercent={sharePercent}
                     />
                   </div>
-                </li>
-              );
+                  </div>
+                ),
+              };
             })}
-          </ul>
+          />
         )}
       </div>
 
@@ -983,8 +1013,18 @@ export default async function AdminDashboardPage({
             No patient referrals yet.
           </p>
         ) : (
-          <ul className="space-y-3">
-            {referrals.map((r) => {
+          <PagedList
+            noun="referral"
+            storageKey="admin-referrals"
+            className="space-y-3"
+            filters={[
+              { key: "pending_review", label: "Needs triage" },
+              { key: "therapist_assigned", label: "Therapist assigned" },
+              { key: "converted", label: "Booked" },
+              { key: "declined", label: "Declined" },
+              { key: "withdrawn", label: "Withdrawn" },
+            ]}
+            items={referrals.map((r) => {
               const hospital = profileMap.get(r.hospital_id);
               const assignedTherapist = r.assigned_therapist_id
                 ? profileMap.get(r.assigned_therapist_id)
@@ -997,11 +1037,10 @@ export default async function AdminDashboardPage({
                 (r.status === "invite_sent" || r.status === "converted") &&
                 !!r.assigned_slot_time &&
                 new Date(r.assigned_slot_time).getTime() < nowForReferrals;
-              return (
-                <li
-                  key={r.id}
-                  className="p-4 rounded-xl border border-slate-200 text-xs space-y-2"
-                >
+              return {
+                id: r.id,
+                node: (
+                <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
                       <p className="font-bold text-slate-900">
@@ -1062,10 +1101,11 @@ export default async function AdminDashboardPage({
                       )}
                     </div>
                   )}
-                </li>
-              );
+                </div>
+              ),
+              };
             })}
-          </ul>
+          />
         )}
       </div>
     </>
@@ -1105,6 +1145,8 @@ export default async function AdminDashboardPage({
       ) : (
         <AdminPeopleDirectory
           basePath="/admin/dashboard/patients"
+          noun="patient"
+          storageKey="admin-patients"
           people={patients.map((p) => {
             const signal = conditionSignalByPatientId.get(p.id);
             const signalText =
@@ -1191,6 +1233,8 @@ export default async function AdminDashboardPage({
       ) : (
         <AdminPeopleDirectory
           basePath="/admin/dashboard/therapists"
+          noun="therapist"
+          storageKey="admin-therapists"
           people={allTherapists.map((t) => ({
             id: t.id,
             full_name: t.full_name,
@@ -1439,19 +1483,22 @@ export default async function AdminDashboardPage({
             No categories yet — add one in Site Content to start tracking bookings.
           </p>
         ) : (
-          <ul className="space-y-3">
-            {treatmentCategories.map((c) => {
+          <PagedList
+            noun="category"
+            nounPlural="categories"
+            storageKey="admin-categories"
+            className="space-y-3"
+            items={treatmentCategories.map((c) => {
               const stats = categoryStats.get(c.id) ?? {
                 totalBookings: 0,
                 paidBookings: 0,
                 totalRevenue: 0,
                 packageCashCollected: 0,
               };
-              return (
-                <li
-                  key={c.id}
-                  className="p-4 rounded-xl border border-slate-200 text-xs"
-                >
+              return {
+                id: c.id,
+                node: (
+                <div className="p-4 rounded-xl border border-slate-200 text-xs">
                   <p className="font-bold text-slate-900 mb-2">{c.title}</p>
                   <div className="grid grid-cols-4 gap-3">
                     <div>
@@ -1479,10 +1526,11 @@ export default async function AdminDashboardPage({
                       </p>
                     </div>
                   </div>
-                </li>
-              );
+                </div>
+              ),
+              };
             })}
-          </ul>
+          />
         )}
       </div>
     </>

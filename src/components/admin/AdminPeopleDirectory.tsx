@@ -1,5 +1,7 @@
 "use client";
 
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { useState } from "react";
 import Link from "next/link";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
@@ -42,9 +44,18 @@ const CARE_STATUS_STYLES: Record<string, string> = {
 export default function AdminPeopleDirectory({
   people,
   basePath,
+  /** What these people are, for the pager's count line and its remembered
+   *  page size -- this component renders the patients, therapists and
+   *  partners directories, and each keeps its own. */
+  noun = "person",
+  nounPlural = "people",
+  storageKey,
 }: {
   people: Person[];
   basePath: string;
+  noun?: string;
+  nounPlural?: string;
+  storageKey?: string;
 }) {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [query, setQuery] = useState("");
@@ -69,6 +80,12 @@ export default function AdminPeopleDirectory({
       return p.active && p.approved !== false;
     })
     .filter((p) => careFilter === "all" || (p.careStatus ?? "not_started") === careFilter);
+
+  // Both views page off the same filtered list, so switching grid/list
+  // keeps you looking at the same people rather than jumping.
+  const { rows: pageRows, pager } = usePagedList(filtered, {
+    storageKey: storageKey ?? `admin-directory-${basePath}`,
+  });
 
   function badge(p: Person) {
     if (!p.active) {
@@ -150,7 +167,7 @@ export default function AdminPeopleDirectory({
         </p>
       ) : view === "grid" ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {filtered.map((p) => (
+          {pageRows.map((p) => (
             <Link
               key={p.id}
               href={`${basePath}/${p.id}`}
@@ -187,7 +204,7 @@ export default function AdminPeopleDirectory({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
+              {pageRows.map((p) => (
                 <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
                   <td className="py-2 pr-3 text-slate-400 font-mono">{p.code ?? "—"}</td>
                   <td className="py-2 pr-3">
@@ -208,6 +225,8 @@ export default function AdminPeopleDirectory({
           </table>
         </div>
       )}
+
+      <ListPager pager={pager} noun={noun} nounPlural={nounPlural} />
     </div>
   );
 }

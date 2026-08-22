@@ -1,5 +1,7 @@
 "use client";
 
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -56,6 +58,12 @@ export default function AdminCostsTab({
   const [feeBusy, setFeeBusy] = useState(false);
   const [feeError, setFeeError] = useState<string | null>(null);
   const [feeSaved, setFeeSaved] = useState(false);
+
+  // Totals and the by-category breakdown stay over every expense in
+  // range; only the row list is paged.
+  const { rows: expensePage, pager: expensePager } = usePagedList(expenses, {
+    storageKey: "admin-expenses",
+  });
 
   const totalPaise = useMemo(() => sumExpensesPaise(expenses), [expenses]);
   const byCategory = useMemo(() => expensesByCategory(expenses), [expenses]);
@@ -346,7 +354,7 @@ export default function AdminCostsTab({
                 </tr>
               </thead>
               <tbody>
-                {expenses.map((e) => (
+                {expensePage.map((e) => (
                   <tr key={e.id} className="border-b border-slate-100">
                     <td className="py-2.5 pr-3 text-slate-700">{formatDate(e.incurred_on)}</td>
                     <td className="py-2.5 pr-3 font-semibold text-slate-800">{e.category}</td>
@@ -368,6 +376,7 @@ export default function AdminCostsTab({
                 ))}
               </tbody>
             </table>
+            <ListPager pager={expensePager} noun="expense" />
           </div>
         )}
       </SurfaceCard>

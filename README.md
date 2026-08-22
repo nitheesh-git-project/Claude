@@ -734,6 +734,15 @@ data useful once it's collected, not just to collect it:
 - **List search/filter/sort** (`ConditionsListFilter.tsx`) on the Patient
   Conditions tab, and an aging flag ("Waiting N days") on a pending request
   once it's sat for 3+ days.
+- **Paged, filterable lists everywhere** — every list in the app (admin
+  tables, the patient's and therapist's sessions, receipts, referrals,
+  activity feeds, catalog managers) ends with the same control: a
+  "Show N per page" field with Previous/Next that grey out at either end,
+  and a count of what is in view. Lists whose rows have an obvious
+  dimension also carry filter chips above them (pending applications by
+  therapist/patient, referrals by status, payouts by whether anything is
+  owed, catalog entries by whether they are shown on the site). Filtering,
+  totals and the exports always run over the whole set, never the page.
 - **Admin data exports** — every downloadable table in the admin back
   office (All Sessions, the receipts log, patient/therapist payment
   history, the therapist and patient ledgers, both package-purchase

@@ -1,5 +1,7 @@
 "use client";
 
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { useState } from "react";
 import Modal from "@/components/admin/Modal";
 import type { PatientReceipt, BookingReceiptStage } from "@/lib/receipts";
@@ -54,6 +56,10 @@ export default function ReceiptsSection({
   sessionCodeByAppointmentId?: Record<string, string | null>;
 }) {
   const [selected, setSelected] = useState<PatientReceipt | null>(null);
+  const { rows: pageReceipts, pager } = usePagedList(receipts, {
+    storageKey: "patient-receipts",
+    defaultPageSize: 5,
+  });
 
   return (
     <div className="mt-8">
@@ -70,7 +76,7 @@ export default function ReceiptsSection({
         </div>
       ) : (
         <div className="space-y-3">
-          {receipts.map((r) => {
+          {pageReceipts.map((r) => {
             const pillLabel = r.kind === "booking" ? STAGE_LABEL[r.stage] : "Payment Failed";
             const pillStyle =
               r.kind === "booking" ? STAGE_PILL_STYLE[r.stage] : "text-red-800 bg-red-100";
@@ -133,6 +139,7 @@ export default function ReceiptsSection({
               </div>
             );
           })}
+          <ListPager pager={pager} noun="receipt" />
         </div>
       )}
 

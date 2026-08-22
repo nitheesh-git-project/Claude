@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import DataExportButtons from "@/components/admin/DataExportButtons";
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import type { CsvColumn } from "@/lib/csvExport";
 import { ADMIN_ACTIVITY_LABELS, isMoneyAction } from "@/lib/adminActivityLog";
 
@@ -62,6 +64,10 @@ export default function AdminActivityLogTab({
         }),
     [rows, actorFilter, moneyOnly, fromDate, toDate]
   );
+
+  // Filters and the export run over the whole filtered set; only what is
+  // painted is paged.
+  const { rows: pageRows, pager } = usePagedList(filtered, { storageKey: "admin-activity" });
 
   const exportColumns: CsvColumn<(typeof filtered)[number]>[] = [
     { header: "When", value: (r) => r.createdAt },
@@ -154,7 +160,7 @@ export default function AdminActivityLogTab({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
+              {pageRows.map((r) => (
                 <tr
                   key={r.id}
                   onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
@@ -184,6 +190,8 @@ export default function AdminActivityLogTab({
           </table>
         </div>
       )}
+
+      <ListPager pager={pager} noun="entry" nounPlural="entries" />
     </div>
   );
 }

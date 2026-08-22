@@ -1,5 +1,8 @@
 "use client";
 
+import FilterChips from "@/components/dashboard/FilterChips";
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { Fragment, useState } from "react";
 import Link from "next/link";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
@@ -49,13 +52,19 @@ function TherapistSessionList({
     .filter((a) => a.therapist_id === therapistId && a.status === "completed")
     .sort((a, b) => new Date(b.slot_time ?? 0).getTime() - new Date(a.slot_time ?? 0).getTime());
 
+  const { rows: completedPage, pager } = usePagedList(completed, {
+    storageKey: "admin-payout-sessions",
+    defaultPageSize: 5,
+  });
+
   if (completed.length === 0) {
     return <p className="text-xs text-slate-500 py-4 text-center">No completed sessions yet.</p>;
   }
 
   return (
-    <ul className="space-y-2.5">
-      {completed.map((a) => {
+    <>
+      <ul className="space-y-2.5">
+      {completedPage.map((a) => {
         const patient = patientMap.get(a.patient_id);
         const category = a.category_id ? categoryMap.get(a.category_id) : null;
         const isPaidByPatient = a.payment_status === "paid";
@@ -108,7 +117,9 @@ function TherapistSessionList({
           </li>
         );
       })}
-    </ul>
+      </ul>
+      <ListPager pager={pager} noun="session" />
+    </>
   );
 }
 
@@ -126,6 +137,7 @@ export default function AdminPayoutsTab({
   nowMs: number;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [payoutFilter, setPayoutFilter] = useState<"all" | "owed" | "settled">("all");
 
   const rows = therapists
     .map((t) => {
@@ -144,6 +156,18 @@ export default function AdminPayoutsTab({
     // needs paying right now) and a therapist sitting on enough cash to
     // cover what they're owed doesn't need one.
     .sort((a, b) => b.summary.netOwedPaise - a.summary.netOwedPaise);
+
+  // Totals stay over every therapist -- a balance is not a page of a list,
+  // and this screen exists to answer "how much do we owe in total?" as well
+  // as "who needs paying?".
+  const visibleRows = rows.filter((r) =>
+    payoutFilter === "all"
+      ? true
+      : payoutFilter === "owed"
+        ? r.summary.netOwedPaise > 0
+        : r.summary.netOwedPaise <= 0
+  );
+  const { rows: pageRows, pager } = usePagedList(visibleRows, { storageKey: "admin-payouts" });
 
   const totalOwedPaise = rows.reduce((sum, r) => sum + r.summary.owedPaise, 0);
   const totalCashHeldPaise = rows.reduce((sum, r) => sum + r.summary.cashHeldPaise, 0);
@@ -175,6 +199,27 @@ export default function AdminPayoutsTab({
           cash as remitted.
         </p>
 
+        {rows.length > 1 && (
+          <FilterChips
+            label="Filter therapists"
+            value={payoutFilter}
+            onChange={setPayoutFilter}
+            choices={[
+              { key: "all", label: "All", count: rows.length },
+              {
+                key: "owed",
+                label: "Needs paying",
+                count: rows.filter((r) => r.summary.netOwedPaise > 0).length,
+              },
+              {
+                key: "settled",
+                label: "Settled up",
+                count: rows.filter((r) => r.summary.netOwedPaise <= 0).length,
+              },
+            ]}
+          />
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -190,7 +235,7 @@ export default function AdminPayoutsTab({
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ therapist, summary }) => {
+              {pageRows.map(({ therapist, summary }) => {
                 const isExpanded = expandedId === therapist.id;
                 const shareUnset = summary.sharePercent === null;
                 return (
@@ -272,8 +317,10 @@ export default function AdminPayoutsTab({
             </tbody>
           </table>
         </div>
-        {rows.length === 0 && (
+        {rows.length === 0 ? (
           <p className="text-xs text-slate-500 py-6 text-center">No therapists yet.</p>
+        ) : (
+          <ListPager pager={pager} noun="therapist" />
         )}
       </div>
     </div>

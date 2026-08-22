@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PagedList from "@/components/dashboard/PagedList";
 import CompletePayoutRequestButton from "@/components/admin/CompletePayoutRequestButton";
 import StartReviewPayoutRequestButton from "@/components/admin/StartReviewPayoutRequestButton";
 
@@ -53,10 +54,19 @@ export default function AdminPayoutRequestsTab({ requests }: { requests: PayoutR
         {open.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">No open requests.</p>
         ) : (
-          <ul className="space-y-3">
-            {open.map((r) => (
-              <li
-                key={r.id}
+          <PagedList
+            noun="request"
+            storageKey="admin-payout-requests-open"
+            className="space-y-3"
+            filters={[
+              { key: "pending", label: "Untouched" },
+              { key: "reviewing", label: "In review" },
+            ]}
+            items={open.map((r) => ({
+              id: r.id,
+              group: r.status,
+              node: (
+              <div
                 className="p-4 rounded-xl border border-slate-200 text-xs flex items-center justify-between flex-wrap gap-3"
               >
                 <div>
@@ -93,9 +103,10 @@ export default function AdminPayoutRequestsTab({ requests }: { requests: PayoutR
                     currentlyOwedPaise={r.currentlyOwedPaise}
                   />
                 )}
-              </li>
-            ))}
-          </ul>
+              </div>
+              ),
+            }))}
+          />
         )}
       </div>
 
@@ -104,9 +115,14 @@ export default function AdminPayoutRequestsTab({ requests }: { requests: PayoutR
         {completed.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">No completed requests yet.</p>
         ) : (
-          <ul className="space-y-3">
-            {completed.map((r) => (
-              <li key={r.id} className="p-4 rounded-xl border border-slate-200 text-xs">
+          <PagedList
+            noun="request"
+            storageKey="admin-payout-requests-completed"
+            className="space-y-3"
+            items={completed.map((r) => ({
+              id: r.id,
+              node: (
+              <div className="p-4 rounded-xl border border-slate-200 text-xs">
                 <p className="font-bold text-slate-900">
                   <Link
                     href={`/admin/dashboard/therapists/${r.therapistId}`}
@@ -124,9 +140,10 @@ export default function AdminPayoutRequestsTab({ requests }: { requests: PayoutR
                   Requested {formatInr(r.requestedAmountPaise)} on {formatDateTime(r.requestedAt)}
                   {r.completedAt && <> • Completed {formatDateTime(r.completedAt)}</>}
                 </p>
-              </li>
-            ))}
-          </ul>
+              </div>
+              ),
+            }))}
+          />
         )}
       </div>
     </div>

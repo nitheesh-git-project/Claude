@@ -1,3 +1,4 @@
+import PagedList from "@/components/dashboard/PagedList";
 import type { Metadata } from "next";
 import HospitalDashboardShell from "@/components/hospital/HospitalDashboardShell";
 import { loadHospitalDashboard } from "@/lib/hospitalDashboardData";
@@ -28,12 +29,23 @@ export default async function Page() {
               body="Send your first patient across and it appears here with its status."
             />
           ) : (
-            <ul className="space-y-3">
-              {d.referrals.map((r) => (
-                <li
-                  key={r.id}
-                  className="p-4 rounded-xl border border-slate-200 text-xs space-y-1"
-                >
+            <PagedList
+              noun="referral"
+              storageKey="hospital-referrals"
+              defaultPageSize={5}
+              className="space-y-3"
+              filters={[
+                { key: "pending_review", label: "Waiting on the clinic" },
+                { key: "therapist_assigned", label: "Therapist assigned" },
+                { key: "converted", label: "Booked" },
+                { key: "declined", label: "Declined" },
+                { key: "withdrawn", label: "Withdrawn" },
+              ]}
+              items={d.referrals.map((r) => ({
+                id: r.id,
+                group: r.status,
+                node: (
+                <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-1">
                   <div className="flex items-center justify-between">
                     <p className="font-bold text-slate-900">
                       {r.patient_name}
@@ -65,9 +77,10 @@ export default async function Page() {
                       <WithdrawReferralButton referralId={r.id} />
                     </div>
                   )}
-                </li>
-              ))}
-            </ul>
+                </div>
+                ),
+              }))}
+            />
           )}
         </SurfaceCard>
     </HospitalDashboardShell>

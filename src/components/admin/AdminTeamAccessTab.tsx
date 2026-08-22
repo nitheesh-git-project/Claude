@@ -1,5 +1,7 @@
 "use client";
 
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
@@ -272,6 +274,7 @@ export default function AdminTeamAccessTab({
   viewerScope: AdminScope;
 }) {
   const canManage = viewerScope === "full";
+  const { rows: pageAdmins, pager } = usePagedList(admins, { storageKey: "admin-team" });
 
   return (
     <div className="space-y-6">
@@ -283,7 +286,7 @@ export default function AdminTeamAccessTab({
             : "Only a full-access admin can change these."}
         </p>
         <ul className="space-y-2">
-          {admins.map((a) => (
+          {pageAdmins.map((a) => (
             <li
               key={a.id}
               className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-4 text-xs"
@@ -297,6 +300,7 @@ export default function AdminTeamAccessTab({
             </li>
           ))}
         </ul>
+        <ListPager pager={pager} noun="admin" />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

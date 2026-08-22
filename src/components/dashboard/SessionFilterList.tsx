@@ -2,6 +2,8 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 
 export type FilterableSession = {
   id: string;
@@ -95,6 +97,11 @@ export default function SessionFilterList({
       });
   }, [sessions, when, mode, nowMs]);
 
+  const { rows: pageSessions, pager } = usePagedList(visible, {
+    storageKey: "sessions-list",
+    defaultPageSize: 5,
+  });
+
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -152,11 +159,16 @@ export default function SessionFilterList({
         />
       ) : (
         <ul className="space-y-3">
-          {visible.map((s) => (
+          {pageSessions.map((s) => (
             <li key={s.id}>{cardsById[s.id]}</li>
           ))}
         </ul>
       )}
+
+      {/* Always rendered, even with nothing in view: the steps grey out
+          rather than disappearing, so the control does not move around as
+          filters change what is on screen. */}
+      <ListPager pager={pager} noun="session" />
     </div>
   );
 }

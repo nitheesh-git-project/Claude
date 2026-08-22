@@ -1,5 +1,7 @@
 "use client";
 
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import RequestPayoutButton from "@/components/RequestPayoutButton";
@@ -124,6 +126,12 @@ export default function TherapistEarningsTab({
       return true;
     });
   }, [rows, trimmedSessionCodeFilter, patientFilter, categoryFilter, statusFilter, fromMs, toMs]);
+
+  // Totals and the chart stay over every filtered session -- what is paged
+  // is the table underneath them.
+  const { rows: pageRows, pager } = usePagedList(filteredRows, {
+    storageKey: "therapist-earnings",
+  });
 
   const chartDays: EarningsDay[] = useMemo(() => {
     const byDay = new Map<string, { paidPaise: number; pendingPaise: number }>();
@@ -281,7 +289,7 @@ export default function TherapistEarningsTab({
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((r) => (
+                pageRows.map((r) => (
                   <tr key={r.id} className="border-b border-slate-100">
                     <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">{formatDate(r.date)}</td>
                     <td className="py-2.5 pr-3 text-slate-400 font-mono">{r.sessionCode ?? "—"}</td>
@@ -307,6 +315,7 @@ export default function TherapistEarningsTab({
               )}
             </tbody>
           </table>
+          <ListPager pager={pager} noun="session" />
         </div>
       </div>
     </div>

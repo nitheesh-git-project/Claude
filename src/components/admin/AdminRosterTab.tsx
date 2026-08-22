@@ -1,5 +1,7 @@
 "use client";
 
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -108,6 +110,9 @@ export default function AdminRosterTab({
       state.map((t) => (t.id === overlay.therapistId ? { ...t, on_leave: overlay.onLeave } : t))
   );
   const [isLeavePending, startLeaveTransition] = useTransition();
+  const { rows: pageTherapists, pager } = usePagedList(optimisticTherapists, {
+    storageKey: "admin-roster",
+  });
 
   const templateByTherapist = useMemo(() => {
     const map = new Map<string, TemplateRow[]>();
@@ -324,7 +329,7 @@ export default function AdminRosterTab({
         <div className="overflow-x-auto">
           <table className="text-xs border-collapse">
             <tbody>
-              {optimisticTherapists.map((t) => {
+              {pageTherapists.map((t) => {
                 const dayState = computeDayAvailability(
                   selectedDate,
                   templateByTherapist.get(t.id) ?? [],
@@ -384,6 +389,7 @@ export default function AdminRosterTab({
               })}
             </tbody>
           </table>
+          <ListPager pager={pager} noun="therapist" />
         </div>
       )}
       {dialog}

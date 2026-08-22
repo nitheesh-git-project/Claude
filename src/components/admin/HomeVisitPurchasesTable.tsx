@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import type { CsvColumn } from "@/lib/csvExport";
 import DataExportButtons from "@/components/admin/DataExportButtons";
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import HomeVisitPurchaseDetailModal from "@/components/admin/HomeVisitPurchaseDetailModal";
 import { daysUntilHomeVisitExpiry } from "@/lib/homeVisitProgress";
 
@@ -69,6 +71,8 @@ export default function HomeVisitPurchasesTable({
       return true;
     });
   }, [purchases, packageId, status, therapistId, expiringSoonOnly, unscheduledOnly, search, now]);
+
+  const { rows: pageRows, pager } = usePagedList(filtered, { storageKey: "admin-home-visit-purchases" });
 
   const exportColumns = useMemo<CsvColumn<(typeof filtered)[number]>[]>(
     () =>
@@ -151,7 +155,7 @@ export default function HomeVisitPurchasesTable({
                 </td>
               </tr>
             ) : (
-              filtered.map((p) => (
+              pageRows.map((p) => (
                 <tr
                   key={p.id}
                   onClick={() => setOpenPurchaseId(p.id)}
@@ -178,6 +182,7 @@ export default function HomeVisitPurchasesTable({
             )}
           </tbody>
         </table>
+        <ListPager pager={pager} noun="purchase" />
       </div>
 
       {openPurchaseId && (

@@ -1,5 +1,7 @@
 "use client";
 
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import HomeVisitPackageForm, { type HomeVisitPackage } from "./HomeVisitPackageForm";
@@ -60,6 +62,7 @@ export default function HomeVisitPackageManager({
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addingNew, setAddingNew] = useState(false);
+  const { rows: pagePackages, pager } = usePagedList(packages, { storageKey: "admin-home-visit-catalog" });
 
   return (
     <div className="space-y-3">
@@ -70,7 +73,7 @@ export default function HomeVisitPackageManager({
         </p>
       ) : (
         <ul className="space-y-3">
-          {packages.map((pkg) => {
+          {pagePackages.map((pkg) => {
             const savings = computeHomeVisitSavings({
               visitCount: pkg.visit_count,
               pricePaise: pkg.price_paise,
@@ -149,6 +152,7 @@ export default function HomeVisitPackageManager({
           })}
         </ul>
       )}
+      <ListPager pager={pager} noun="package" />
 
       {addingNew ? (
         <HomeVisitPackageForm categories={categories} onCancel={() => setAddingNew(false)} />

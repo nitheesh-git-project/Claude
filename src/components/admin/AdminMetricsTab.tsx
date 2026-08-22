@@ -31,6 +31,8 @@ import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import { istDateKey } from "@/lib/formatSlotRange";
 import type { CsvColumn } from "@/lib/csvExport";
 import DataExportButtons from "@/components/admin/DataExportButtons";
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import StatStrip from "@/components/dashboard/StatStrip";
 
 export type { MetricsAppointment };
@@ -597,6 +599,14 @@ export default function AdminMetricsTab({
     []
   );
 
+  const { rows: therapistLedgerPage, pager: therapistLedgerPager } = usePagedList(
+    rangeTherapistLedger,
+    { storageKey: "admin-therapist-ledger" }
+  );
+  const { rows: patientLedgerPage, pager: patientLedgerPager } = usePagedList(rangePatientLedger, {
+    storageKey: "admin-patient-ledger",
+  });
+
   const selectedTherapistRow = rangeTherapistLedger.find((r) => r.id === selectedTherapistId) ?? null;
   const selectedTherapistSessions = useMemo(() => {
     if (!selectedTherapistId) return [];
@@ -1055,7 +1065,7 @@ export default function AdminMetricsTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {rangeTherapistLedger.map((row) => (
+                  {therapistLedgerPage.map((row) => (
                     <tr
                       key={row.id}
                       onClick={() => setSelectedTherapistId(row.id)}
@@ -1079,6 +1089,7 @@ export default function AdminMetricsTab({
                   ))}
                 </tbody>
               </table>
+              <ListPager pager={therapistLedgerPager} noun="therapist" />
             </div>
           )}
         </div>
@@ -1115,7 +1126,7 @@ export default function AdminMetricsTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {rangePatientLedger.map((row) => (
+                  {patientLedgerPage.map((row) => (
                     <tr
                       key={row.id}
                       onClick={() => setSelectedPatientId(row.id)}
@@ -1133,6 +1144,7 @@ export default function AdminMetricsTab({
                   ))}
                 </tbody>
               </table>
+              <ListPager pager={patientLedgerPager} noun="patient" />
             </div>
           )}
         </div>

@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import type { CsvColumn } from "@/lib/csvExport";
 import DataExportButtons from "@/components/admin/DataExportButtons";
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import PackagePurchaseDetailModal from "@/components/admin/PackagePurchaseDetailModal";
 import { daysUntilExpiry } from "@/lib/packageProgress";
 
@@ -75,6 +77,8 @@ export default function PackagePurchasesTable({
       return true;
     });
   }, [purchases, packageId, categoryId, status, therapistId, expiringSoonOnly, unscheduledOnly, search, now]);
+
+  const { rows: pageRows, pager } = usePagedList(filtered, { storageKey: "admin-package-purchases" });
 
   const exportColumns = useMemo<CsvColumn<(typeof filtered)[number]>[]>(
     () =>
@@ -157,7 +161,7 @@ export default function PackagePurchasesTable({
                 </td>
               </tr>
             ) : (
-              filtered.map((p) => (
+              pageRows.map((p) => (
                 <tr
                   key={p.id}
                   onClick={() => setOpenPurchaseId(p.id)}
@@ -183,6 +187,7 @@ export default function PackagePurchasesTable({
             )}
           </tbody>
         </table>
+        <ListPager pager={pager} noun="purchase" />
       </div>
 
       {openPurchaseId && (

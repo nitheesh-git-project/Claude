@@ -1,5 +1,8 @@
 "use client";
 
+import FilterChips from "@/components/dashboard/FilterChips";
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import TestimonialForm from "./TestimonialForm";
@@ -66,17 +69,36 @@ function DeleteButton({ id }: { id: string }) {
 
 export default function TestimonialManager({ testimonials }: { testimonials: Testimonial[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState<"all" | "active" | "inactive">("all");
   const [addingNew, setAddingNew] = useState(false);
+  const visible = testimonials.filter((row) =>
+    visibility === "all" ? true : visibility === "active" ? row.active : !row.active
+  );
+  const { rows: pageTestimonials, pager } = usePagedList(visible, {
+    storageKey: "admin-testimonials",
+  });
 
   return (
     <div className="space-y-3">
+      {testimonials.length > 1 && (
+        <FilterChips
+          label="Filter testimonials"
+          value={visibility}
+          onChange={setVisibility}
+          choices={[
+            { key: "all", label: "All", count: testimonials.length },
+            { key: "active", label: "Shown on the site", count: testimonials.filter((r) => r.active).length },
+            { key: "inactive", label: "Hidden", count: testimonials.filter((r) => !r.active).length },
+          ]}
+        />
+      )}
       {testimonials.length === 0 && !addingNew ? (
         <p className="text-xs text-slate-500 py-4 text-center">
           No testimonials yet — add one below.
         </p>
       ) : (
         <ul className="space-y-3">
-          {testimonials.map((t) =>
+          {pageTestimonials.map((t) =>
             editingId === t.id ? (
               <li key={t.id}>
                 <TestimonialForm testimonial={t} onCancel={() => setEditingId(null)} />
@@ -127,6 +149,7 @@ export default function TestimonialManager({ testimonials }: { testimonials: Tes
           )}
         </ul>
       )}
+      <ListPager pager={pager} noun="testimonial" />
 
       {addingNew ? (
         <TestimonialForm onCancel={() => setAddingNew(false)} />

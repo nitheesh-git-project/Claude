@@ -1,5 +1,7 @@
 "use client";
 
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -110,6 +112,11 @@ function TherapistCashCard({
   const summary = computeTherapistCashSummary(therapistId, cashAppointments);
   const ageDays = oldestUnremittedAgeDays(cashAppointments, nowMs);
   const outstanding = visits.filter((v) => v.cash_collected_at && !v.cash_remitted_at);
+  // A short default: this list sits inside a per-therapist card, and the
+  // point of the card is the total, not every visit behind it.
+  const { rows: outstandingPage, pager: outstandingPager } = usePagedList(outstanding, {
+    defaultPageSize: 5,
+  });
 
   if (summary.collectedPaise === 0) return null;
 
@@ -137,8 +144,9 @@ function TherapistCashCard({
       )}
 
       {outstanding.length > 0 && (
+        <>
         <ul className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-          {outstanding.map((v) => (
+          {outstandingPage.map((v) => (
             <li
               key={v.id}
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-2.5"
@@ -155,6 +163,8 @@ function TherapistCashCard({
             </li>
           ))}
         </ul>
+        <ListPager pager={outstandingPager} noun="visit" />
+        </>
       )}
     </div>
   );
@@ -184,6 +194,14 @@ export default function HomeVisitCashLedger({
   // Razorpay payment behind cash, so nothing refunds itself; this is the
   // action queue that keeps one from silently stranding.
   const manualPendingRefunds = visits.filter((v) => v.refund_status === "manual_pending");
+  const { rows: refundPage, pager: refundPager } = usePagedList(manualPendingRefunds, {
+    storageKey: "admin-cash-refunds",
+    defaultPageSize: 5,
+  });
+  const { rows: therapistPage, pager: therapistPager } = usePagedList(
+    [...byTherapist.entries()],
+    { storageKey: "admin-cash-therapists", defaultPageSize: 5 }
+  );
 
   return (
     <div className="space-y-6">
@@ -205,7 +223,7 @@ export default function HomeVisitCashLedger({
             to return cash — hand it back to the patient, then clear it below.
           </p>
           <ul className="mt-3 space-y-2">
-            {manualPendingRefunds.map((v) => (
+            {refundPage.map((v) => (
               <li
                 key={v.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-2.5 text-xs"
@@ -221,6 +239,7 @@ export default function HomeVisitCashLedger({
               </li>
             ))}
           </ul>
+          <ListPager pager={refundPager} noun="refund" />
         </div>
       )}
 
@@ -228,7 +247,7 @@ export default function HomeVisitCashLedger({
         <p className="py-6 text-center text-xs text-slate-500">No cash has been collected yet.</p>
       ) : (
         <div className="space-y-3">
-          {[...byTherapist.entries()].map(([therapistId, therapistVisits]) => (
+          {therapistPage.map(([therapistId, therapistVisits]) => (
             <TherapistCashCard
               key={therapistId}
               therapistName={therapistVisits[0].therapistName ?? "Unknown"}
@@ -236,6 +255,7 @@ export default function HomeVisitCashLedger({
               nowMs={nowMs}
             />
           ))}
+          <ListPager pager={therapistPager} noun="therapist" />
         </div>
       )}
     </div>

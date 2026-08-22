@@ -25,6 +25,8 @@ import {
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import type { CsvColumn } from "@/lib/csvExport";
 import DataExportButtons from "@/components/admin/DataExportButtons";
+import ListPager from "@/components/dashboard/ListPager";
+import { usePagedList } from "@/lib/usePagedList";
 
 type Patient = { id: string; full_name: string | null; code?: string | null };
 type Therapist = { id: string; full_name: string | null; code?: string | null };
@@ -329,6 +331,19 @@ export default function AdminPaymentHistoryTab({
   });
 
 
+  // Three lists on one screen, three pagers -- each remembers its own size,
+  // since wanting 50 receipts on screen says nothing about wanting 50
+  // patients. Every export still runs over the full filtered set.
+  const { rows: patientPageRows, pager: patientPager } = usePagedList(patientRows, {
+    storageKey: "admin-payments-patients",
+  });
+  const { rows: therapistPageRows, pager: therapistPager } = usePagedList(therapistRows, {
+    storageKey: "admin-payments-therapists",
+  });
+  const { rows: receiptPageRows, pager: receiptPager } = usePagedList(filteredReceiptRows, {
+    storageKey: "admin-payments-receipts",
+  });
+
   // Column definitions, not pre-built strings: DataExportButtons builds
   // both the CSV and the PDF from these, so the two downloads can never
   // describe different tables.
@@ -394,7 +409,7 @@ export default function AdminPaymentHistoryTab({
               </tr>
             </thead>
             <tbody>
-              {patientRows.map(({ patient, summary }) => (
+              {patientPageRows.map(({ patient, summary }) => (
                 <tr key={patient.id} className="border-b border-slate-100">
                   <td className="py-2.5 pr-3 text-slate-400 font-mono">{patient.code ?? "—"}</td>
                   <td className="py-2.5 pr-3 font-bold text-slate-900">{patient.full_name ?? "Unknown"}</td>
@@ -416,8 +431,10 @@ export default function AdminPaymentHistoryTab({
             </tbody>
           </table>
         </div>
-        {patientRows.length === 0 && (
+        {patientRows.length === 0 ? (
           <EmptyState icon="fa-user-injured" title="No patients yet" body="Patients appear here as soon as they register or are referred." />
+        ) : (
+          <ListPager pager={patientPager} noun="patient" />
         )}
       </div>
 
@@ -454,7 +471,7 @@ export default function AdminPaymentHistoryTab({
               </tr>
             </thead>
             <tbody>
-              {therapistRows.map(({ therapist, summary }) => (
+              {therapistPageRows.map(({ therapist, summary }) => (
                 <tr key={therapist.id} className="border-b border-slate-100">
                   <td className="py-2.5 pr-3 text-slate-400 font-mono">{therapist.code ?? "—"}</td>
                   <td className="py-2.5 pr-3 font-bold text-slate-900">{therapist.full_name ?? "Unknown"}</td>
@@ -476,8 +493,10 @@ export default function AdminPaymentHistoryTab({
             </tbody>
           </table>
         </div>
-        {therapistRows.length === 0 && (
+        {therapistRows.length === 0 ? (
           <EmptyState icon="fa-user-doctor" title="No therapists yet" body="Approved therapists appear here once a payout has been settled for them." />
+        ) : (
+          <ListPager pager={therapistPager} noun="therapist" />
         )}
       </div>
 
@@ -596,7 +615,7 @@ export default function AdminPaymentHistoryTab({
                 </tr>
               </thead>
               <tbody>
-                {filteredReceiptRows.map((r) => (
+                {receiptPageRows.map((r) => (
                   <tr key={r.key} className="border-b border-slate-100">
                     <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">
                       {formatDateTime(r.date)}
@@ -634,6 +653,7 @@ export default function AdminPaymentHistoryTab({
                 ))}
               </tbody>
             </table>
+            <ListPager pager={receiptPager} noun="receipt" />
           </div>
         )}
       </div>
