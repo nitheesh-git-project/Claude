@@ -119,7 +119,13 @@ client is the only writer and the log is append-only from any session.
 - `supabase/schema.sql` is the single source of truth and is re-runnable:
   guarded with `if not exists` / `or replace`, with later sections adding
   columns to earlier tables. Add changes at the **end** of the file in that
-  same guarded style; do not rewrite earlier statements.
+  same guarded style; do not rewrite earlier statements. Two guards are easy
+  to forget and both broke a re-run in practice: a policy needs
+  `drop policy if exists` under **its own** name (not just the name it
+  replaces), and `alter publication ... add table` needs the
+  `do $$ ... exception when duplicate_object then null; end $$` wrapper every
+  other publication line in the file uses. Re-apply the file twice after
+  touching it — the schema-apply workflow runs it on every push to `main`.
 - New columns are migration-dependent — a live database may not have them
   yet. Query such a column in its own isolated call and merge the result in
   (see `src/lib/sessionCode.ts`), so one unknown-column error can't blank
@@ -598,8 +604,38 @@ change that genuinely needs no doc update can ignore it.
 
 ## Gotchas
 
-- `.env.production` sets `NEXT_PUBLIC_SHOW_DEBUG_NAV=true` for a debug nav bar
-  on the deployed site. It must be removed before a public launch.
+- `.env.production` is **deleted**. It armed both the public debug nav and
+  the whole-database reset on the live site. Unset is the safe default for
+  both — don't recreate it, and check the hosting dashboard's own env vars
+  too, since deleting a file cannot clear those.
+- **Every route tree has an error boundary, and a thrown message never
+  reaches the screen.** `RouteError` / `RouteLoading`
+  (`src/components/system/`) back `error.tsx` and `loading.tsx` in each
+  dashboard, with `global-error.tsx` for a root-layout throw (it inlines its
+  styles and supplies its own `<html>`, because at that point nothing else
+  has rendered). An Error's message can carry a column name or a row id and
+  patients see these screens, so only Next's `digest` is shown. A dashboard
+  `loading.tsx` must pass `withSidebar`: the patient, therapist and hospital
+  dashboards render their sidebar per page rather than in a layout, so a
+  bare skeleton would blank the chrome on every navigation.
+- **A display code outlives the role that generated it.** `handle_new_user`
+  inserts every self-signup as a patient, so an account promoted to admin or
+  hospital later keeps its `PT####`. The unique indexes are scoped to the
+  column (`where patient_code is not null`), not the role — so anything that
+  resyncs `patient_code_seq` must take its max the same way, over **every**
+  non-null code regardless of role. Scoping the max by role set the sequence
+  back below codes held by promoted accounts, and signup then failed
+  intermittently with a duplicate key, surfacing as a 500 from
+  `auth.signUp` with an empty body. `assign_profile_code` /
+  `assign_session_code` now also loop past a taken code rather than trusting
+  the sequence, so a drift from any other cause (a restore, a manual insert)
+  cannot break signup again.
+- **A hardcoded `?section=&tab=` link is a dead link waiting to happen.**
+  `findTab` falls back to a section's first screen when the tab key is
+  unknown, so a stale link looks like it works — it just quietly lands
+  somewhere else. Two feed items pointed at `today&tab=requests` and
+  `today&tab=sync`, tabs that never existed. Build these with
+  `adminScreenHref(section, tab)`, which is typed against `adminNav.ts`.
 - `graphify-out/` is CI-generated (`.github/workflows/graphify.yml`); only
   `graph.json` and `GRAPH_REPORT.md` are committed. Don't hand-edit them.
 - Secrets (`SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET`, Google

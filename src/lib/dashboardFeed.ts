@@ -1,3 +1,4 @@
+import { adminScreenHref } from "@/lib/adminNav";
 // The notification feed every dashboard shows, derived rather than stored.
 //
 // The admin already had a real audit trail (admin_activity_log); patients,
@@ -356,7 +357,7 @@ export function buildAdminFeed({
       icon: "fa-user-check",
       tone: "warn",
       title: `${pendingApprovals} signup${pendingApprovals === 1 ? "" : "s"} waiting for approval`,
-      href: "/admin/dashboard?section=today&tab=approvals",
+      href: adminScreenHref("today", "approvals"),
       needsYou: true,
     });
   }
@@ -367,7 +368,7 @@ export function buildAdminFeed({
       icon: "fa-file-pen",
       tone: "warn",
       title: `${pendingRequests} change request${pendingRequests === 1 ? "" : "s"} to review`,
-      href: "/admin/dashboard?section=today&tab=requests",
+      href: adminScreenHref("today", "approvals"),
       needsYou: true,
     });
   }
@@ -379,7 +380,7 @@ export function buildAdminFeed({
       tone: "bad",
       title: `${failedSyncs} session${failedSyncs === 1 ? "" : "s"} without a meeting link`,
       detail: "Google Calendar sync failed — retry from Sync Health.",
-      href: "/admin/dashboard?section=today&tab=sync",
+      href: adminScreenHref("settings", "health"),
       needsYou: true,
     });
   }

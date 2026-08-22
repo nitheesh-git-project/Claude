@@ -76,9 +76,38 @@ Copy `.env.example` to `.env.local` and fill in:
 Use Razorpay Test Mode keys (`rzp_test_…`) until the payment flow has been
 verified end to end.
 
-`.env.production` currently sets `NEXT_PUBLIC_SHOW_DEBUG_NAV=true`, which
-renders a "jump to page" debug bar on the deployed site. Delete that file or
-flip the value to `false` before a real public launch.
+`.env.production` has been **deleted**. It set `NEXT_PUBLIC_SHOW_DEBUG_NAV=true`
+(a "jump to page" bar on the live site listing every route, protected
+dashboards included) and `ALLOW_DEBUG_DATA_RESET=true` (which armed the button
+that truncates every table). Both defaults are correct when unset: the debug
+bar renders only outside production, and `/api/admin/debug-reset` answers 404
+rather than 403, so a probe cannot learn the endpoint exists.
+
+If either variable is also set in a hosting dashboard (Vercel project settings,
+for instance), deleting the file does **not** clear it — check there too. The
+matching `debug_reset_all_data()` function still exists in `supabase/schema.sql`
+and should be dropped once it is no longer needed for testing; `EXECUTE` on it
+is revoked from `anon` and `authenticated`, so only the service-role key can
+reach it in the meantime.
+
+### Error and loading states
+
+Every route tree has an error boundary (`src/app/error.tsx` plus one per
+dashboard) rendering `RouteError`, and `src/app/global-error.tsx` catches a
+throw in the root layout itself — the one case an ordinary boundary cannot,
+since no layout has rendered by then, which is why that file inlines its own
+styles and supplies its own `<html>`. `src/app/not-found.tsx` covers a stale
+link. None of them print the thrown message: it can carry a column name or a
+row id, and patients see these screens. Next's `digest` hash is shown instead,
+so a report can still be matched to a server log.
+
+All four dashboards have a `loading.tsx` rendering `RouteLoading`. Three of
+them keep their sidebar inside each page rather than a shared layout, so the
+skeleton draws a sidebar rail of its own (`withSidebar`) — without it, every
+navigation would blank the whole chrome, which is worse than the no-boundary
+behaviour it replaces. The admin dashboard gets one for the opposite reason:
+it is the slowest page in the app, and a cold load there can take tens of
+seconds under load.
 
 ## Roles
 

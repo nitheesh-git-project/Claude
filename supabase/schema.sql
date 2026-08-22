@@ -3621,6 +3621,10 @@ end $$;
 -- Rows stay append-only, so a bad entry is corrected by adding a truer one
 -- and the original stays on the record.
 drop policy if exists "pain_assessments_insert_gated" on pain_assessments;
+-- Dropped by its own name too, not just the old one: without this the file
+-- stops being re-runnable, and the schema-apply workflow runs it on every
+-- push to main.
+drop policy if exists "pain_assessments_insert_assigned_therapist" on pain_assessments;
 create policy "pain_assessments_insert_assigned_therapist" on pain_assessments
   for insert with check (
     auth.uid() = submitted_by and submitted_by_role = 'therapist'
@@ -3637,3 +3641,96 @@ create policy "pain_assessments_insert_assigned_therapist" on pain_assessments
       )
     )
   );
+
+-- ---------------------------------------------------------------------------
+-- Display-code sequences: resync against the index, not the role
+-- ---------------------------------------------------------------------------
+-- Live bug, found by a signup failing with a duplicate-key error on
+-- profiles_patient_code_unique_idx.
+--
+-- That index is scoped to the column, not the role:
+--   CREATE UNIQUE INDEX ... ON profiles (patient_code) WHERE patient_code IS NOT NULL
+-- but the resync block far above took its max over `where role = 'patient'`.
+-- Those two disagree the moment a row keeps a patient code while holding a
+-- different role — which is the normal life of an admin account here, since
+-- handle_new_user inserts every self-signup as a patient (PT0007, say) and
+-- promoting it to admin in the Table Editor leaves that code in place.
+--
+-- On this database the effect was: codes existed up to PT0062, all the high
+-- ones on admin/hospital/therapist rows, while `max(...) where role =
+-- 'patient'` was 17. Every schema apply set the sequence back to 17, and the
+-- next signups walked straight back into taken codes. The failure is
+-- intermittent, which is the worst kind: it only bites when nextval happens
+-- to land on a number already in use, and it surfaces as a 500 from
+-- auth.signUp with an empty body.
+--
+-- Two fixes, deliberately both:
+--   1. Resync each sequence from the same set of rows the unique index
+--      covers — every non-null code, whatever the row's role is now.
+--   2. Make the trigger self-healing, so a sequence that drifts again for
+--      any reason (a restore, a manual insert, a truncate that leaves the
+--      sequence behind) skips over taken codes instead of failing a signup.
+--      The loop terminates because nextval is monotonic and the set of
+--      existing codes is finite.
+do $$
+declare
+  m integer;
+begin
+  select coalesce(max(substring(patient_code from 3)::int), 0) into m
+    from profiles where patient_code is not null;
+  perform setval('patient_code_seq', greatest(m, 1), m > 0);
+
+  select coalesce(max(substring(therapist_code from 3)::int), 0) into m
+    from profiles where therapist_code is not null;
+  perform setval('therapist_code_seq', greatest(m, 1), m > 0);
+
+  select coalesce(max(substring(hospital_code from 3)::int), 0) into m
+    from profiles where hospital_code is not null;
+  perform setval('hospital_code_seq', greatest(m, 1), m > 0);
+
+  select coalesce(max(substring(session_code from 3)::int), 0) into m
+    from appointments where session_code is not null;
+  perform setval('session_code_seq', greatest(m, 1), m > 0);
+end $$;
+
+create or replace function assign_profile_code() returns trigger as $$
+declare
+  v_code text;
+begin
+  if new.role = 'patient' and new.patient_code is null then
+    loop
+      v_code := 'PT' || lpad(nextval('patient_code_seq')::text, 4, '0');
+      exit when not exists (select 1 from profiles where patient_code = v_code);
+    end loop;
+    new.patient_code := v_code;
+  elsif new.role = 'therapist' and new.therapist_code is null then
+    loop
+      v_code := 'TH' || lpad(nextval('therapist_code_seq')::text, 4, '0');
+      exit when not exists (select 1 from profiles where therapist_code = v_code);
+    end loop;
+    new.therapist_code := v_code;
+  elsif new.role = 'hospital' and new.hospital_code is null then
+    loop
+      v_code := 'BB' || lpad(nextval('hospital_code_seq')::text, 4, '0');
+      exit when not exists (select 1 from profiles where hospital_code = v_code);
+    end loop;
+    new.hospital_code := v_code;
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+create or replace function assign_session_code() returns trigger as $$
+declare
+  v_code text;
+begin
+  if new.session_code is null then
+    loop
+      v_code := 'SS' || lpad(nextval('session_code_seq')::text, 4, '0');
+      exit when not exists (select 1 from appointments where session_code = v_code);
+    end loop;
+    new.session_code := v_code;
+  end if;
+  return new;
+end;
+$$ language plpgsql;

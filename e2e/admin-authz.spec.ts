@@ -36,6 +36,20 @@ const GET_ONLY = new Set([
   "/api/admin/home-visit-purchase-detail",
 ]);
 
+// Routes that answer 404 rather than 401/403 to an unauthorised caller, on
+// purpose. /api/admin/debug-reset is disarmed unless ALLOW_DEBUG_DATA_RESET
+// is set in the server environment, and when it is disarmed it answers 404
+// so a probe cannot even learn a database-reset endpoint exists here. That
+// is a stronger refusal than 403, not a weaker one -- see the route's own
+// header comment. Now that .env.production is gone, this is the state a
+// deployed server is in.
+const REFUSES_WITH_404 = new Set(["/api/admin/debug-reset"]);
+
+function refused(status: number, route: string): boolean {
+  if (REFUSES_WITH_404.has(route)) return [401, 403, 404].includes(status);
+  return [401, 403].includes(status);
+}
+
 test.describe("Suite F: admin route authorization", () => {
   test("F-001: every admin route refuses an unauthenticated caller", async ({ request }) => {
     test.setTimeout(5 * 60_000);
@@ -47,7 +61,7 @@ test.describe("Suite F: admin route authorization", () => {
       const res = GET_ONLY.has(route)
         ? await request.get(`${BASE}${route}`)
         : await request.post(`${BASE}${route}`, { data: {} });
-      if (![401, 403].includes(res.status())) leaks.push(`${res.status()} ${route}`);
+      if (!refused(res.status(), route)) leaks.push(`${res.status()} ${route}`);
     }
     expect(leaks, `routes that did not reject an anonymous caller:\n${leaks.join("\n")}`).toEqual(
       []
@@ -82,7 +96,7 @@ test.describe("Suite F: admin route authorization", () => {
           })
         );
         for (const r of results) {
-          if (![401, 403].includes(r.status)) leaks.push(`${r.status} ${r.route}`);
+          if (!refused(r.status, r.route)) leaks.push(`${r.status} ${r.route}`);
         }
       }
       expect(leaks, `${email} was not refused by:\n${leaks.join("\n")}`).toEqual([]);

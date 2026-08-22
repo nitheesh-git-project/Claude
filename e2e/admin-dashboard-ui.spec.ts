@@ -214,16 +214,34 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
     expect(painted).toBeLessThanOrEqual(201 + 1);
   });
 
-  test("Today's inbox links land on a screen that can act on them", async ({ page }) => {
-    await page.goto(`${BASE}/admin/dashboard?section=today&tab=inbox`);
-    await expect(page.getByText("Waiting on you", { exact: true })).toBeVisible();
+  // Today absorbed the old Action Inbox, so its queues live on the overview
+  // screen now. The behaviour worth protecting is unchanged: every link out
+  // of Today has to land somewhere that can actually action the work.
+  test("Today's queue links land on a screen that can act on them", async ({ page }) => {
+    await page.goto(`${BASE}/admin/dashboard?section=today&tab=overview`);
+    await expect(page.getByText("Queues", { exact: true })).toBeVisible();
 
-    const firstLink = page.locator('a[href*="section="]').first();
-    if (await firstLink.count()) {
-      const href = await firstLink.getAttribute("href");
-      await firstLink.click();
-      expect(href).toBeTruthy();
-      await expect(page).toHaveURL(new RegExp(href!.split("?")[1]));
+    // Every in-page link, not just the first: a dead tab key silently falls
+    // back to the section's first screen, so a broken link looks like a
+    // working one unless the destination is actually checked. Two of these
+    // pointed at tabs that had never existed.
+    const hrefs = [
+      ...new Set(
+        await page
+          .locator('a[href*="section="]')
+          .evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""))
+      ),
+    ].filter(Boolean);
+    expect(hrefs.length).toBeGreaterThan(0);
+
+    for (const href of hrefs) {
+      const target = new URL(href, BASE).searchParams;
+      await page.goto(`${BASE}${href}`);
+      const landed = new URL(page.url()).searchParams;
+      expect(
+        `${landed.get("section")}/${landed.get("tab")}`,
+        `${href} did not land on the screen it names`
+      ).toBe(`${target.get("section")}/${target.get("tab")}`);
     }
   });
 });

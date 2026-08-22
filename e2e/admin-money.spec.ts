@@ -170,9 +170,20 @@ test.describe("Suite G: money", () => {
       .single();
 
     try {
-      const before = await admin
-        .from("admin_activity_log")
-        .select("id", { count: "exact", head: true });
+      // Scoped to this test's own target, not a global row count. The log is
+      // shared and other spec files run in parallel workers, so counting
+      // every row meant any unrelated admin action landing in the same window
+      // failed this assertion -- it passed or failed on timing rather than on
+      // the behaviour under test.
+      const countOwn = async () =>
+        (
+          await admin
+            .from("admin_activity_log")
+            .select("id", { count: "exact", head: true })
+            .eq("action", "setting.update")
+            .eq("target_label", "online_booking_lead_time_hours")
+        ).count ?? 0;
+      const before = { count: await countOwn() };
 
       // An action that *does* write: flipping a setting, logged the same way.
       const res = await fetch(`${BASE}/api/admin/update-setting`, {
@@ -182,9 +193,12 @@ test.describe("Suite G: money", () => {
       });
       expect(res.status).toBe(200);
 
+      // Likewise filtered rather than "whatever landed most recently".
       const { data: entries } = await admin
         .from("admin_activity_log")
         .select("actor_id, action, target_label, details")
+        .eq("action", "setting.update")
+        .eq("target_label", "online_booking_lead_time_hours")
         .order("created_at", { ascending: false })
         .limit(1);
 
@@ -192,10 +206,7 @@ test.describe("Suite G: money", () => {
       expect(entries?.[0]?.actor_id).toBe(adminId);
       expect(entries?.[0]?.target_label).toBe("online_booking_lead_time_hours");
 
-      const after = await admin
-        .from("admin_activity_log")
-        .select("id", { count: "exact", head: true });
-      expect((after.count ?? 0) - (before.count ?? 0)).toBe(1);
+      expect((await countOwn()) - before.count).toBe(1);
     } finally {
       await fetch(`${BASE}/api/admin/update-setting`, {
         method: "POST",
