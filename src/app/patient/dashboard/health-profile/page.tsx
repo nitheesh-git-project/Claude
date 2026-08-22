@@ -7,9 +7,11 @@ import PainTrendChart from "@/components/profile/PainTrendChart";
 import HealthSnapshotStrip from "@/components/profile/HealthSnapshotStrip";
 import HealthProfileSteps from "@/components/profile/HealthProfileSteps";
 import HealthProfileActions from "@/components/profile/HealthProfileActions";
+import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { healthSnapshot, painTrendSeries } from "@/lib/healthProfileSummary";
+import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
 import {
   INTAKE_QUESTIONS,
   INTAKE_QUESTIONS_VERSION,
@@ -61,6 +63,7 @@ export default async function PatientHealthProfilePage() {
     { data: conditionProfile },
     { data: lastRequest },
     { data: assessments },
+    { data: medicalDocuments },
     { count: ownedPackagesCount },
     { count: availablePackagesCount },
     { data: settingsRow },
@@ -87,6 +90,11 @@ export default async function PatientHealthProfilePage() {
       .from("pain_assessments")
       .select("region, side, pain_percent, created_at, submitted_by_role")
       .eq("patient_id", user.id),
+    supabase
+      .from("patient_medical_documents")
+      .select("id, title, document_type, taken_on, mime_type, size_bytes, created_at")
+      .eq("patient_id", user.id)
+      .order("created_at", { ascending: false }),
     supabase
       .from("patient_package_purchases")
       .select("id", { count: "exact", head: true })
@@ -259,6 +267,24 @@ export default async function PatientHealthProfilePage() {
             <PainMapExplorer assessments={assessments ?? []} areaPain={selfReportedAreas} />
           </section>
         </div>
+
+        {/* Full width under both columns: reports belong to the whole
+            chart rather than to either side of it, and a list of files
+            reads better wide than squeezed beside a body map. */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-4">
+            <h2 className="font-display text-lg font-bold text-slate-800">Test reports and scans</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              X-rays, MRI reports, blood tests, prescriptions — anything another doctor gave you. Your
+              therapist can open these before your session, so you don&apos;t have to remember to carry them.
+            </p>
+          </div>
+          <MedicalDocumentsPanel
+            documents={(medicalDocuments ?? []) as MedicalDocumentRow[]}
+            canManage
+            emptyMessage="Nothing uploaded yet. If a doctor has given you a scan or a test result, add it here."
+          />
+        </section>
       </div>
     </DashboardShell>
   );

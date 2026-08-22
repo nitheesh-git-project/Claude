@@ -11,6 +11,8 @@ import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import SessionNoteHistory from "@/components/therapist/SessionNoteHistory";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
 import PainMapExplorer from "@/components/profile/PainMapExplorer";
+import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
+import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
 import type { QuestionOverrideRow } from "@/lib/painMap";
 import RequestConditionAccessButton from "@/components/therapist/RequestConditionAccessButton";
 import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
@@ -60,6 +62,7 @@ export default async function TherapistPatientHealthProfilePage({
     { data: conditionProfile },
     { data: lastRequest },
     { data: assessments },
+    { data: medicalDocuments },
     { data: grant },
     { data: overrideRows },
     { data: settingsRow },
@@ -85,6 +88,11 @@ export default async function TherapistPatientHealthProfilePage({
       .from("pain_assessments")
       .select("region, side, pain_percent, created_at, submitted_by_role")
       .eq("patient_id", patientId),
+    supabase
+      .from("patient_medical_documents")
+      .select("id, title, document_type, taken_on, mime_type, size_bytes, created_at")
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false }),
     supabase
       .from("condition_access_grants")
       .select("id, status")
@@ -175,6 +183,21 @@ export default async function TherapistPatientHealthProfilePage({
         {/* The edit-access card used to sit here, three sections above the
             only thing it unlocks. It now lives inside the Pain Map card,
             beside the work it gates. */}
+
+        {/* Above the notes: what the patient brought with them is context
+            for reading everything below it, and reading these needs no
+            grant -- the select policy is the assigned-therapist one. */}
+        <SurfaceCard
+          title="Test reports and scans"
+          icon="fa-folder-open"
+          subtitle="Uploaded by the patient. Worth opening before the session — these are the films and results another clinician has already taken."
+        >
+          <MedicalDocumentsPanel
+            documents={(medicalDocuments ?? []) as MedicalDocumentRow[]}
+            canManage={false}
+            emptyMessage="This patient hasn't uploaded any reports."
+          />
+        </SurfaceCard>
 
         <SurfaceCard
           title="Session notes"

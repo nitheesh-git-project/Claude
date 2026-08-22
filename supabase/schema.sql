@@ -3261,6 +3261,10 @@ begin
   -- One statement, so it either all happens or none of it does. Order is
   -- irrelevant inside a single TRUNCATE; CASCADE covers anything added later
   -- that references one of these and was not listed.
+  -- Note: this clears patient_medical_documents' rows but not the objects
+  -- they point at in the private medical-reports bucket. Storage is not
+  -- reachable from a plain SQL function; clear that bucket from the
+  -- Supabase dashboard if a reset needs to reclaim its space too.
   truncate table
     business_expenses,
     admin_activity_log,
@@ -3275,6 +3279,7 @@ begin
     therapist_payout_batches,
     session_note_revisions,
     session_notes,
+    patient_medical_documents,
     pain_assessments,
     condition_change_requests,
     condition_access_grants,
@@ -3734,3 +3739,108 @@ begin
   return new;
 end;
 $$ language plpgsql;
+
+-- ---------------------------------------------------------------------------
+-- Patient-uploaded medical documents (test reports, scans, prescriptions)
+-- ---------------------------------------------------------------------------
+-- The file bytes live in Supabase Storage; this table holds only the
+-- metadata needed to list, sort and authorise them. Deliberately no bytea
+-- or base64 column: a handful of MRI PDFs stored inline would dominate the
+-- database's size, and every unrelated `select *` on a patient's chart
+-- would drag them across the wire.
+--
+-- The bucket is **private**. Nothing here is served by public URL the way
+-- avatars are -- a scan report is the most sensitive thing this app holds,
+-- and a public bucket makes the object URL itself the only secret. Reads
+-- go through /api/medical-documents/view, which authorises with the
+-- caller's own RLS-scoped client and then mints a short-lived signed URL.
+insert into storage.buckets (id, name, public)
+select 'medical-reports', 'medical-reports', false
+where not exists (select 1 from storage.buckets where id = 'medical-reports');
+
+-- Storage policies cover the patient's own direct access only. Therapist
+-- and admin reads never touch storage as themselves -- they go through the
+-- signed-URL route above, which uses the service role after checking the
+-- metadata row came back. Keeping the folder rule to "your own uuid" means
+-- there is no path-parsing subquery to get subtly wrong.
+drop policy if exists "medical_report_insert_own" on storage.objects;
+create policy "medical_report_insert_own" on storage.objects
+  for insert with check (
+    bucket_id = 'medical-reports' and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "medical_report_select_own" on storage.objects;
+create policy "medical_report_select_own" on storage.objects
+  for select using (
+    bucket_id = 'medical-reports' and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "medical_report_delete_own" on storage.objects;
+create policy "medical_report_delete_own" on storage.objects
+  for delete using (
+    bucket_id = 'medical-reports' and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+create table if not exists patient_medical_documents (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  -- Unique so the same object can never be claimed by two rows, which is
+  -- what would let one patient's delete remove another's file.
+  storage_path text not null unique,
+  title text not null,
+  document_type text not null default 'other',
+  -- When the test was taken, which is the date a clinician reads by --
+  -- not created_at, which is when it happened to be uploaded.
+  taken_on date,
+  mime_type text not null,
+  size_bytes integer not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists patient_medical_documents_patient_idx
+  on patient_medical_documents (patient_id, created_at desc);
+
+alter table patient_medical_documents enable row level security;
+
+drop policy if exists "patient_medical_documents_select_own" on patient_medical_documents;
+create policy "patient_medical_documents_select_own" on patient_medical_documents
+  for select using (auth.uid() = patient_id);
+
+-- Same reach as pain_assessments_select_assigned_therapist: reading a
+-- patient's chart needs no admin-approved grant, only that this therapist
+-- actually treats them.
+drop policy if exists "patient_medical_documents_select_assigned_therapist" on patient_medical_documents;
+create policy "patient_medical_documents_select_assigned_therapist" on patient_medical_documents
+  for select using (
+    exists (
+      select 1 from appointments a
+      where a.patient_id = patient_medical_documents.patient_id
+        and a.therapist_id = auth.uid()
+    )
+    or exists (
+      select 1 from patient_package_purchases pp
+      where pp.patient_id = patient_medical_documents.patient_id
+        and pp.locked_therapist_id = auth.uid()
+    )
+  );
+
+drop policy if exists "patient_medical_documents_select_admin" on patient_medical_documents;
+create policy "patient_medical_documents_select_admin" on patient_medical_documents
+  for select using (is_admin());
+
+-- Writes are the patient's own only. A report is the patient's document,
+-- and keeping the write gate to one role means there is no second path to
+-- audit. The per-patient count and per-file size caps are enforced in
+-- /api/patient/medical-documents/upload, which is the only writer.
+drop policy if exists "patient_medical_documents_insert_own" on patient_medical_documents;
+create policy "patient_medical_documents_insert_own" on patient_medical_documents
+  for insert with check (auth.uid() = patient_id);
+
+drop policy if exists "patient_medical_documents_delete_own" on patient_medical_documents;
+create policy "patient_medical_documents_delete_own" on patient_medical_documents
+  for delete using (auth.uid() = patient_id);
+
+-- No update policy: a report is the file that was uploaded. Correcting one
+-- means deleting it and uploading again, so the row and the object can
+-- never describe different things.
+revoke update on patient_medical_documents from authenticated;

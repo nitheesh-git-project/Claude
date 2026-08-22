@@ -4,6 +4,8 @@ import ConditionRequestActions from "@/components/admin/ConditionRequestActions"
 import ConditionAccessActions from "@/components/admin/ConditionAccessActions";
 import ConditionDirectEditForm from "@/components/admin/ConditionDirectEditForm";
 import PainMapExplorer from "@/components/profile/PainMapExplorer";
+import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
+import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
 import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import SessionNoteHistory from "@/components/therapist/SessionNoteHistory";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
@@ -40,6 +42,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
     { data: intakeOverrideRows },
     { data: painMapOverrideRows },
     { data: sessionNoteRows },
+    { data: medicalDocuments },
   ] = await Promise.all([
     admin.from("profiles").select("id, full_name, email").eq("id", id).eq("role", "patient").single(),
     admin
@@ -71,6 +74,11 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
     admin
       .from("session_notes")
       .select("id, appointment_id, patient_id, therapist_id, data, free_text, created_at, updated_at")
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("patient_medical_documents")
+      .select("id, title, document_type, taken_on, mime_type, size_bytes, created_at")
       .eq("patient_id", id)
       .order("created_at", { ascending: false }),
   ]);
@@ -228,6 +236,18 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           </ul>
         )}
       </section>
+
+      <SurfaceCard
+        title="Test reports and scans"
+        icon="fa-folder-open"
+        subtitle="Uploaded by the patient themselves. Deleting one is the patient's own call, so there is no admin delete here."
+      >
+        <MedicalDocumentsPanel
+          documents={(medicalDocuments ?? []) as MedicalDocumentRow[]}
+          canManage={false}
+          emptyMessage="This patient hasn't uploaded any reports."
+        />
+      </SurfaceCard>
 
       <SurfaceCard
         title="Session notes"

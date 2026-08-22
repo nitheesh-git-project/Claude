@@ -1,9 +1,9 @@
 "use client";
 
-// Print (browser's own print-to-PDF covers "export as PDF" without a new
-// dependency) and a JSON download of the patient's own data
-// (/api/patient/condition-profile/export) -- a first, safe step toward
-// data portability. Full right-to-erasure is a retention-policy decision
+// Print (the browser's own print dialog, for the screen as it stands) and
+// a typeset PDF of the patient's record, named after them
+// (Priya_Sharma_PT0042.pdf) -- the file a patient actually carries to
+// another clinician. Full right-to-erasure is a retention-policy decision
 // for the practice, not something to build without that call being made
 // first, so there's deliberately no delete button here yet.
 export default function HealthProfileActions() {
@@ -20,7 +20,8 @@ export default function HealthProfileActions() {
         href="/api/patient/condition-profile/export"
         className="text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 px-3 py-1.5 rounded-lg transition"
       >
-        Download my data
+        <i aria-hidden className="fa-solid fa-file-pdf mr-1.5" />
+        Download as PDF
       </a>
     </div>
   );

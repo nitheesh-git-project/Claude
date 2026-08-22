@@ -735,10 +735,29 @@ data useful once it's collected, not just to collect it:
   Conditions tab, and an aging flag ("Waiting N days") on a pending request
   once it's sat for 3+ days.
 - **Patient data export** (`/api/patient/condition-profile/export`) — a
-  JSON download of the patient's own intake, submission history, and Pain
-  Map assessments. Print uses the browser's own print-to-PDF. No deletion
-  path yet — that's a retention-policy decision for the practice, not
-  something to build without that call being made first.
+  typeset **PDF** of the patient's own intake, every Pain Map exam and the
+  reports they have on file, downloaded as `Name_PatientCode.pdf` (e.g.
+  `Priya_Sharma_PT0042.pdf`). Built server-side with `pdf-lib` in
+  `src/lib/healthProfilePdf.ts`; the standard PDF fonts encode WinAnsi
+  only, so every string is transliterated first and a name in a
+  non-Latin script degrades rather than throwing. `?format=json` still
+  returns the raw structure for machine-readable portability, and Print
+  still uses the browser's own print dialog for the screen as it stands.
+  Session notes are excluded from all three. No deletion path yet — that's
+  a retention-policy decision for the practice, not something to build
+  without that call being made first.
+- **Test reports and scans** (`patient_medical_documents`,
+  `MedicalDocumentsPanel.tsx`) — the patient uploads X-rays, MRI reports,
+  blood tests, prescriptions and referral letters onto their own Health
+  Profile, and the assigned therapist and admin can open them from the
+  same chart. The files live in a **private** `medical-reports` Storage
+  bucket and only their metadata is in Postgres; reads go through
+  `/api/medical-documents/view`, which authorises with the caller's own
+  RLS-scoped client and then mints a 120-second signed URL. Uploads are
+  capped at 10MB per file and 20 files per patient, restricted to PDF and
+  photo types, and photographed reports are re-compressed in the browser
+  first. Uploading and deleting are the patient's own — a therapist and an
+  admin read only, and the table has no update policy at all.
 - Pain Map's popup shows a full per-region history list and a trend
   sparkline (not just the latest-vs-previous arrow), and who posted the
   latest entry (therapist or admin).

@@ -16,6 +16,12 @@ Settings — defined once in `src/lib/adminNav.ts`.
 - `supabase/schema.sql` — the entire database schema, RLS policies, views,
   and triggers. Single source of truth, re-runnable, append-only.
 
+Patient files (avatars, and the test reports and scans patients upload to
+their health profile) live in Supabase Storage, never in a table column —
+`patient_medical_documents` holds metadata only, and its bucket is private.
+The patient's own record leaves the app as a PDF named
+`Name_PatientCode.pdf` (`src/lib/healthProfilePdf.ts`), not as JSON.
+
 Before writing code: read the relevant guide in `node_modules/next/dist/docs/`
 — this Next.js version differs from training data.
 

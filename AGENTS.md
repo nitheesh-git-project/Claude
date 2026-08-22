@@ -17,7 +17,7 @@ agents.
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 ·
 Supabase (Postgres, Auth, Storage, Realtime) · Razorpay · Google
 Calendar/Meet (`googleapis`) · `motion` for animation · Font Awesome ·
-`libphonenumber-js`.
+`libphonenumber-js` · `pdf-lib` (the patient's health-profile PDF export).
 
 Commands: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
 `npm run check:realtime`, `npm run test:e2e`. `npm run lint` runs
@@ -73,7 +73,9 @@ one, suspect leftover state before suspecting the app.
 src/app/                 pages, layouts, API route handlers
 src/app/api/**           POST route handlers grouped by audience:
                          admin/, appointments/, patient/, therapist/,
-                         hospital/, packages/, razorpay/
+                         hospital/, packages/, razorpay/, and
+                         medical-documents/ (the one route every role
+                         shares, authorised by RLS rather than by role)
 src/components/          UI, grouped by area (admin/, auth/, booking/,
                          dashboard/, home/, hospital/, profile/, motion/,
                          visuals/)
@@ -349,6 +351,37 @@ client is the only writer and the log is append-only from any session.
   back stack on a phone instead of shrinking each tap target below a
   fingertip. See the "Patient Care Intake and Pain Map" section in README.md
   for the full flow.
+- **A patient's own record leaves the app as a PDF, not as JSON.**
+  `/api/patient/condition-profile/export` returns a typeset document named
+  `Name_PatientCode.pdf`, built by `src/lib/healthProfilePdf.ts` — the
+  thing a patient does with an export is hand it to another clinician, and
+  a JSON file is only readable by a developer. `?format=json` still serves
+  the raw structure for genuine portability; nothing in the UI links to
+  it. pdf-lib's standard fonts encode **WinAnsi only**, so every string
+  goes through that module's `toWinAnsi()` before it is drawn — a
+  Devanagari name would otherwise throw at draw time and 500 the whole
+  export rather than degrading. Session notes stay excluded from every
+  format, same rule as before.
+- **Patient-uploaded reports live in Storage; the database holds only
+  metadata.** `patient_medical_documents` has no bytea or base64 column,
+  and it never should: a handful of MRI PDFs stored inline would dominate
+  the database's size and ride along on every `select *` over a patient's
+  chart. The `medical-reports` bucket is **private**, unlike `avatars` —
+  a scan report is the most sensitive thing this app holds, and a public
+  bucket makes the object URL itself the only secret. Reads go through
+  `/api/medical-documents/view`, which selects the metadata row with the
+  caller's own RLS-scoped client (the row coming back *is* the
+  authorization, same posture as `/api/packages/purchase-detail`) and only
+  then mints a 120-second signed URL with the service role. Storage's own
+  policies cover the owning patient alone, so there is no path-parsing
+  subquery to get subtly wrong. Growth is bounded by two caps that only
+  work together — 10MB per file and 20 files per patient
+  (`src/lib/medicalDocuments.ts`, enforced in the upload route, which is
+  the only writer) — since either alone leaves the bucket unbounded one
+  upload at a time. Writes are the patient's own; a therapist and an admin
+  read. There is deliberately **no update policy**: correcting a report
+  means deleting it and uploading again, so the row and the object can
+  never describe different things.
 - **Session notes are clinician-only, and they are the prep loop.** After a
   delivered session the therapist writes what was treated, how the patient
   responded, the home exercise and the plan for next time
