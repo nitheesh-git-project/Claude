@@ -616,7 +616,10 @@ and the admin's **Patient Conditions** tab.
   after examining the patient — region-specific question sets with an
   admin-editable question bank, ending in a 0–100 pain percentage per
   region. Unlike the intake, this posts live immediately (it's the
-  therapist's own clinical judgement, not an administrative edit); rows are
+  therapist's own clinical judgement, not an administrative edit). It also
+  needs no access grant: a therapist assigned to the patient can record what
+  they found, the same rule session notes use, while editing the patient's
+  *intake* on their behalf still queues for admin approval. Rows are
   append-only so the patient's dashboard can show a trend against the
   previous assessment for that region. The patient can only view this, never
   edit it. Admin can also post an entry directly

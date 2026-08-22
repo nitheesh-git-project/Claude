@@ -3598,3 +3598,42 @@ begin
   alter publication supabase_realtime add table business_expenses;
 exception when duplicate_object then null;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Pain Map writes: assigned therapist, no approval step
+-- ---------------------------------------------------------------------------
+-- The two clinical layers had one shared write gate, and it was the wrong
+-- gate for one of them.
+--
+-- Editing the *intake* is editing the patient's own account of their history,
+-- so a therapist doing that on their behalf still queues for admin approval.
+-- A *Pain Map* row is not that: it is the therapist's own observation from a
+-- session they personally ran, exactly like a session note — and session
+-- notes have never needed a grant, for precisely that reason. Requiring one
+-- here meant a therapist could finish an examination and have nowhere to put
+-- it until an admin noticed a request, which is how findings end up in
+-- somebody's private notes instead of the patient's chart.
+--
+-- So this insert policy now matches session_notes' rule rather than the
+-- intake's: the therapist must be assigned to the patient — has ever had an
+-- appointment with them, or holds a package's locked_therapist_id — which is
+-- the same relationship that already grants automatic *read* access below.
+-- Rows stay append-only, so a bad entry is corrected by adding a truer one
+-- and the original stays on the record.
+drop policy if exists "pain_assessments_insert_gated" on pain_assessments;
+create policy "pain_assessments_insert_assigned_therapist" on pain_assessments
+  for insert with check (
+    auth.uid() = submitted_by and submitted_by_role = 'therapist'
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = pain_assessments.patient_id
+          and a.therapist_id = auth.uid()
+      )
+      or exists (
+        select 1 from patient_package_purchases p
+        where p.patient_id = pain_assessments.patient_id
+          and p.locked_therapist_id = auth.uid()
+      )
+    )
+  );

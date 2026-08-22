@@ -28,8 +28,14 @@ export async function isTherapistAssignedToPatient(
 }
 
 /** Whether a therapist currently holds an approved write-access grant for
- *  this patient's condition data (general intake + Pain Map share one
- *  grant — see the schema section comment for why). */
+ *  this patient's **intake** — their own account of their history, which a
+ *  therapist editing on their behalf needs admin approval for.
+ *
+ *  Deliberately NOT the gate for a Pain Map exam any more: that records the
+ *  therapist's own observation from a session they ran, the same as a
+ *  session note, so it only needs `isTherapistAssignedToPatient` above. The
+ *  two used to share one grant, which left a clinician with nowhere to put
+ *  an examination until an admin noticed a request. */
 export async function hasApprovedConditionAccess(
   supabase: SupabaseClient,
   therapistId: string,

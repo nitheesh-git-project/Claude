@@ -284,11 +284,21 @@ client is the only writer and the log is append-only from any session.
   `src/lib/painMap.ts`) is therapist-only, per-region clinical exam data
   that posts live immediately with no review step, and is append-only (a
   re-assessment is a new row, never an edit) so the UI can show a trend
-  against the previous visit. A therapist may only *write* to either layer
-  after the patient's admin approves a `condition_access_grants` request;
-  *read* access needs no request and is automatic for the patient's
-  assigned therapist (ever had an appointment with them, or holds a
-  package's `locked_therapist_id`). Both layers render on **one** body-map
+  against the previous visit. The two layers have **different write
+  gates**, because they record different things. Editing the intake is
+  editing the patient's own account of their history, so a therapist doing
+  it on their behalf still needs an admin-approved
+  `condition_access_grants` request. Recording a Pain Map exam is the
+  therapist's own observation from a session they ran — the same kind of
+  thing a session note is, and session notes have never needed a grant — so
+  it requires only that they are **assigned** to the patient (ever had an
+  appointment with them, or hold a package's `locked_therapist_id`),
+  enforced by `pain_assessments_insert_assigned_therapist` and mirrored in
+  the submit route by `isTherapistAssignedToPatient`. One shared gate meant
+  a clinician could finish an examination with nowhere to put it until an
+  admin noticed a request, which is how findings end up in private notes
+  instead of the chart. *Read* access needs no request either way and is
+  automatic for the assigned therapist. Both layers render on **one** body-map
   surface (`PainMapExplorer.tsx`: the exam figure with a switch to the
   patient-vs-exam comparison), and that same surface is where an exam gets
   recorded — via `PainExamDialog`, not a form beneath the map. The

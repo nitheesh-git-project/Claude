@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
-import { hasApprovedConditionAccess } from "@/lib/conditionAccess";
+import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 import {
   isPainMapRegion,
   regionRequiresSide,
@@ -17,9 +17,16 @@ type AnswerInput = { key: string; value: string };
 // Therapist posts one region's clinical exam findings. Unlike the general
 // intake, this does NOT queue for admin review — it's the therapist's own
 // clinical judgement, live immediately (see schema.sql's section comment).
-// Still gated by the same condition_access_grants approval as the intake,
-// and rows are append-only: a re-assessment is a new row, never an edit,
-// so the Pain Map can show a trend against the previous visit.
+//
+// Gated on being *assigned* to the patient rather than on an approved
+// condition_access_grant, matching session-notes: both record work this
+// therapist personally did, as opposed to editing the patient's own account
+// of their history, which still needs admin approval. Mirrors the RLS policy
+// pain_assessments_insert_assigned_therapist as defence in depth.
+//
+// Rows are append-only: a re-assessment is a new row, never an edit, so the
+// Pain Map can show a trend against the previous visit — and a mistaken
+// entry is corrected by recording a truer one, not by erasing it.
 export async function POST(request: NextRequest) {
   const { data: body, error: parseError } = await parseJsonBody<{
     patientId?: string;
@@ -69,9 +76,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (!(await hasApprovedConditionAccess(admin, user.id, patientId))) {
+  if (!(await isTherapistAssignedToPatient(admin, user.id, patientId))) {
     return NextResponse.json(
-      { error: "You don't have an approved access grant for this patient's health profile." },
+      { error: "You can only record findings for a patient you've been assigned to." },
       { status: 403 }
     );
   }
