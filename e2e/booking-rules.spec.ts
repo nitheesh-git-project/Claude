@@ -157,3 +157,145 @@ test.describe("home-visit bulk scheduling limits", () => {
     expect(booked ?? [], "an over-limit batch must be rejected wholesale, not partially booked").toHaveLength(0);
   });
 });
+
+test.describe("online single-session booking (/api/appointments/create)", () => {
+  // The wizard's pre-payment insert used to be a direct client-side insert
+  // into appointments, validated only by the appointments_insert_own RLS
+  // policy. A live database one schema.sql change behind the code failed it
+  // outright -- in production, the policy still requiring approved = true
+  // meant every self-signup patient's first booking died at the last step of
+  // checkout showing the raw "new row violates row-level security policy"
+  // string. These pin the rules the server route now owns instead.
+  async function bookOnline(cookie: string, body: Record<string, unknown>) {
+    return fetch(`${BASE}/api/appointments/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify(body),
+    });
+  }
+
+  test("an unapproved (but active) patient can create their pre-payment booking", async () => {
+    const admin = adminClient();
+    const patientId = await profileIdFor(admin, QA_EMAILS.patientB);
+    const cookie = await cookieHeaderFor(QA_EMAILS.patientB);
+    const { data: category } = await admin
+      .from("treatment_categories")
+      .select("id, title, duration_minutes")
+      .eq("active", true)
+      .limit(1)
+      .single();
+
+    // Exactly the state a patient who just signed up in the wizard is in.
+    await admin.from("profiles").update({ approved: false }).eq("id", patientId);
+    let createdId: string | undefined;
+    try {
+      const res = await bookOnline(cookie, {
+        categoryId: category!.id,
+        slotTime: new Date(Date.now() + 72 * 3_600_000).toISOString(),
+        timezone: "Asia/Kolkata",
+        notes: "e2e unapproved booking",
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      createdId = body.appointmentId;
+      expect(createdId).toBeTruthy();
+
+      const { data: row } = await admin
+        .from("appointments")
+        .select("status, payment_status, therapist_id, visit_mode, duration_minutes, concern")
+        .eq("id", createdId!)
+        .single();
+      // Unpaid, unassigned and queued: the row grants nothing on its own,
+      // which is why letting an unapproved patient create it is safe.
+      expect(row!.status).toBe("requested");
+      expect(row!.payment_status).toBe("unpaid");
+      expect(row!.therapist_id).toBeNull();
+      expect(row!.visit_mode).toBe("online");
+      // Re-derived from the category row, never from the request body --
+      // /book is ISR-cached, so the browser's copy of the catalogue can be
+      // older than the one being scheduled against.
+      expect(row!.duration_minutes).toBe(category!.duration_minutes);
+      expect(row!.concern).toBe(category!.title);
+    } finally {
+      if (createdId) await admin.from("appointments").delete().eq("id", createdId);
+      await admin.from("profiles").update({ approved: true }).eq("id", patientId);
+    }
+  });
+
+  test("a slot inside the configured lead-time window is rejected, and nothing is written", async () => {
+    const admin = adminClient();
+    const patientId = await profileIdFor(admin, QA_EMAILS.patientA);
+    const cookie = await cookieHeaderFor(QA_EMAILS.patientA);
+    const { data: category } = await admin
+      .from("treatment_categories")
+      .select("id")
+      .eq("active", true)
+      .limit(1)
+      .single();
+
+    const { count: before } = await admin
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", patientId);
+
+    const res = await bookOnline(cookie, {
+      categoryId: category!.id,
+      slotTime: new Date(Date.now() + 3_600_000).toISOString(),
+      timezone: "Asia/Kolkata",
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toMatch(/hours from now/i);
+
+    const { count: after } = await admin
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", patientId);
+    expect(after).toBe(before);
+  });
+
+  test("the browser cannot name its own therapist, price or paid status", async () => {
+    const admin = adminClient();
+    const cookie = await cookieHeaderFor(QA_EMAILS.patientA);
+    const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
+    const { data: category } = await admin
+      .from("treatment_categories")
+      .select("id, duration_minutes")
+      .eq("active", true)
+      .limit(1)
+      .single();
+
+    let createdId: string | undefined;
+    try {
+      const res = await bookOnline(cookie, {
+        categoryId: category!.id,
+        slotTime: new Date(Date.now() + 96 * 3_600_000).toISOString(),
+        timezone: "Asia/Kolkata",
+        // None of these are fields the route reads -- an insert built from
+        // the body would happily have taken them.
+        therapist_id: therapistId,
+        status: "confirmed",
+        payment_status: "paid",
+        amount_paid_paise: 1,
+        duration_minutes: 5,
+        visit_mode: "home_visit",
+      });
+      expect(res.status).toBe(200);
+      createdId = (await res.json()).appointmentId;
+
+      const { data: row } = await admin
+        .from("appointments")
+        .select("status, payment_status, therapist_id, amount_paid_paise, duration_minutes, visit_mode")
+        .eq("id", createdId!)
+        .single();
+      expect(row!.status).toBe("requested");
+      expect(row!.payment_status).toBe("unpaid");
+      expect(row!.therapist_id).toBeNull();
+      expect(row!.amount_paid_paise).toBeNull();
+      expect(row!.duration_minutes).toBe(category!.duration_minutes);
+      expect(row!.visit_mode).toBe("online");
+    } finally {
+      if (createdId) await admin.from("appointments").delete().eq("id", createdId);
+    }
+  });
+});

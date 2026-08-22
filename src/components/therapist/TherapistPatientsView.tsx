@@ -21,10 +21,16 @@ export default function TherapistPatientsView({
   children,
   patientCount,
   programmes,
+  suggestionsEnabled = false,
+  leadTimeHours,
 }: {
   children: ReactNode;
   patientCount: number;
   programmes: ProgrammePatientRow[];
+  /** Off unless the admin has switched suggestions on. Presentation only --
+   *  /api/therapist/suggest-session refuses regardless of what renders. */
+  suggestionsEnabled?: boolean;
+  leadTimeHours?: number;
 }) {
   const [view, setView] = useState<"patients" | "programmes">("patients");
 
@@ -64,7 +70,11 @@ export default function TherapistPatientsView({
             Package purchases locked to you for their whole programme — tap one for the full
             completed/upcoming/pending picture.
           </p>
-          <TherapistProgrammePatients purchases={programmes} />
+          <TherapistProgrammePatients
+            purchases={programmes}
+            suggestionsEnabled={suggestionsEnabled}
+            leadTimeHours={leadTimeHours}
+          />
         </>
       )}
     </div>

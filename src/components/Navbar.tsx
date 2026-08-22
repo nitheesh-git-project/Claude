@@ -21,12 +21,11 @@ const BASE_LINKS = [
 
 const HOME_VISIT_LINK = { href: "/home-visit", label: "Home Visit" };
 
-const ROLE_DASHBOARD_HREF: Record<string, string> = {
-  patient: "/patient/dashboard",
-  therapist: "/therapist/dashboard",
-  admin: "/admin/dashboard",
-  hospital: "/hospital/dashboard",
-};
+// One URL for every role, resolved server-side by src/app/dashboard/page.tsx.
+// This component is a client component rendered on every public page, so a
+// role-to-path map here would ship the admin dashboard's address in the
+// bundle every visitor downloads.
+const DASHBOARD_HREF = "/dashboard";
 
 export default function Navbar({
   offsetTop = false,
@@ -52,7 +51,7 @@ export default function Navbar({
   // to know WHO is logged in (name/avatar/role), only whether to hide the
   // Sign In / Get Started buttons.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [dashboardHref, setDashboardHref] = useState("/patient/dashboard");
+
   // An account (patient or therapist) that hasn't been approved yet has
   // nowhere to go -- its dashboard just redirects them straight back out to
   // /pending-approval -- so the button is hidden entirely rather than
@@ -108,7 +107,6 @@ export default function Navbar({
         .eq("id", session.user.id)
         .maybeSingle();
       if (active && profile?.role) {
-        setDashboardHref(ROLE_DASHBOARD_HREF[profile.role] ?? "/patient/dashboard");
         // Applies to patients as well as therapists now that both roles wait
         // on admin approval -- an unapproved account of either kind just
         // bounces off its dashboard to /pending-approval. Suspended accounts
@@ -219,7 +217,7 @@ export default function Navbar({
               className="hidden md:flex items-center"
             >
               <Link
-                href={dashboardHref}
+                href={DASHBOARD_HREF}
                 onClick={() => setNavigating(true)}
                 aria-disabled={navigating}
                 className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm flex items-center gap-1.5 aria-disabled:opacity-60 aria-disabled:pointer-events-none"
@@ -278,7 +276,7 @@ export default function Navbar({
                   </>
                 ) : dashboardVisible ? (
                   <Link
-                    href={dashboardHref}
+                    href={DASHBOARD_HREF}
                     onClick={() => {
                       setOpen(false);
                       setNavigating(true);

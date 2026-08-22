@@ -7,6 +7,11 @@ export type AdminSettings = {
   googleMeetEnabled: boolean;
   joinWindowMinutes: number;
   joinWindowAfterMinutes: number;
+  // The longer boundary the join control reads: how many minutes after a
+  // session's scheduled start it stops offering a call and says "Session
+  // Completed" instead. Not the same thing as joinWindowAfterMinutes, which
+  // is the short grace period for a late arrival.
+  sessionCompletedAfterMinutes: number;
   bookingLanguages: string[];
   packageDefaultValidityDays: number;
   packageTherapistLockEnabled: boolean;
@@ -39,6 +44,10 @@ export type AdminSettings = {
   /** Payment-gateway cut of everything collected online, as a percentage.
    *  Drives the automatic cost line on the Money screens. */
   paymentGatewayFeePercent: number;
+  // How long each step of the home page's "Booking to recovery" walkthrough
+  // holds before the next one takes over. 0 means it doesn't advance on its
+  // own -- same "0 is off" convention as sessionTimeoutMinutes.
+  journeyStepSeconds: number;
 };
 
 // The sole hardcoded language in the app, and only as the fallback for an
@@ -76,6 +85,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   googleMeetEnabled: true,
   joinWindowMinutes: 15,
   joinWindowAfterMinutes: 15,
+  sessionCompletedAfterMinutes: 60,
   bookingLanguages: DEFAULT_BOOKING_LANGUAGES,
   packageDefaultValidityDays: 90,
   packageTherapistLockEnabled: true,
@@ -108,6 +118,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   onlineBookingLeadTimeHours: 12,
   onlineCancellationRefundHours: 24,
   paymentGatewayFeePercent: DEFAULT_PAYMENT_GATEWAY_FEE_PERCENT,
+  journeyStepSeconds: 4,
 };
 
 // The one column list every dashboard page selects from the site_settings
@@ -128,7 +139,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
 // .select(SITE_SETTINGS_SELECT) call fall back to an unusable
 // GenericStringError result type instead of a real row shape.
 export const SITE_SETTINGS_SELECT =
-  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, payment_gateway_fee_percent, farewell_banner_seconds";
+  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, session_completed_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, payment_gateway_fee_percent, farewell_banner_seconds, journey_step_seconds";
 
 type SiteSettingsRow = {
   session_packages_visible?: boolean | null;
@@ -136,6 +147,7 @@ type SiteSettingsRow = {
   google_meet_enabled?: boolean | null;
   join_window_minutes?: number | null;
   join_window_after_minutes?: number | null;
+  session_completed_after_minutes?: number | null;
   booking_languages?: unknown;
   package_default_validity_days?: number | null;
   package_therapist_lock_enabled?: boolean | null;
@@ -154,6 +166,7 @@ type SiteSettingsRow = {
   online_booking_lead_time_hours?: number | null;
   online_cancellation_refund_hours?: number | null;
   farewell_banner_seconds?: number | null;
+  journey_step_seconds?: number | null;
   site_name?: string | null;
   site_tagline?: string | null;
   site_description?: string | null;
@@ -223,6 +236,10 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
       typeof row?.join_window_after_minutes === "number"
         ? row.join_window_after_minutes
         : DEFAULT_ADMIN_SETTINGS.joinWindowAfterMinutes,
+    sessionCompletedAfterMinutes:
+      typeof row?.session_completed_after_minutes === "number"
+        ? row.session_completed_after_minutes
+        : DEFAULT_ADMIN_SETTINGS.sessionCompletedAfterMinutes,
     bookingLanguages: parseBookingLanguages(row?.booking_languages),
     packageDefaultValidityDays:
       typeof row?.package_default_validity_days === "number"
@@ -298,5 +315,9 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
       typeof row?.payment_gateway_fee_percent === "number"
         ? row.payment_gateway_fee_percent
         : DEFAULT_ADMIN_SETTINGS.paymentGatewayFeePercent,
+    journeyStepSeconds:
+      typeof row?.journey_step_seconds === "number"
+        ? row.journey_step_seconds
+        : DEFAULT_ADMIN_SETTINGS.journeyStepSeconds,
   };
 }

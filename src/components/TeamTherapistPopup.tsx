@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
+import Modal, { useLastNonNull } from "@/components/Modal";
 import { Stagger, StaggerItem } from "@/components/motion/primitives";
 
 export type TeamTherapist = {
@@ -23,8 +24,6 @@ export type TeamTherapist = {
   public_display_note?: string | null;
 };
 
-const EASE = [0.16, 1, 0.3, 1] as const;
-
 /** Splits the free-text languages column into individual chips. */
 function languageList(value?: string | null): string[] {
   if (!value) return [];
@@ -32,6 +31,20 @@ function languageList(value?: string | null): string[] {
     .split(/[,/|]/)
     .map((l) => l.trim())
     .filter(Boolean);
+}
+
+/**
+ * "Book with Dr. Asha" reads better on a button than the full
+ * "Dr. Asha Menon, MPT (Ortho)". Keeps any honorific, since dropping it
+ * would put a stranger on first-name terms with the clinician.
+ */
+function firstName(fullName: string | null): string {
+  const parts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "this specialist";
+  if (parts.length === 1) return parts[0];
+  return /^(dr|prof|mr|mrs|ms|miss)\.?$/i.test(parts[0])
+    ? `${parts[0]} ${parts[1]}`
+    : parts[0];
 }
 
 function Rating({ avg, count }: { avg: number | null; count: number }) {
@@ -51,37 +64,17 @@ function Rating({ avg, count }: { avg: number | null; count: number }) {
  * Specialist roster. Cards open a detail modal rather than a separate page,
  * so a visitor comparing therapists never loses their place in the list.
  *
- * The modal implements the usual dialog contract by hand — labelled,
- * Escape to close, focus moved in on open and restored on close, and
- * background scroll locked while it is up.
+ * The dialog contract — labelled, Escape to close, focus moved in on open
+ * and restored on close, background scroll locked — lives in Modal, shared
+ * with the package and programme dialogs.
  */
 export default function TeamTherapistPopup({ therapists }: { therapists: TeamTherapist[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
-  const open = therapists.find((t) => t.id === openId) ?? null;
-  const closeRef = useRef<HTMLButtonElement>(null);
-  const lastFocused = useRef<HTMLElement | null>(null);
+  const selected = therapists.find((t) => t.id === openId) ?? null;
+  // Held through the close animation so the panel does not empty out mid-fade.
+  const open = useLastNonNull(selected);
 
-  const close = useCallback(() => setOpenId(null), []);
-
-  useEffect(() => {
-    if (!open) return;
-    lastFocused.current = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-    };
-    document.addEventListener("keydown", onKey);
-
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-      lastFocused.current?.focus?.();
-    };
-  }, [open, close]);
+  const close = () => setOpenId(null);
 
   return (
     <>
@@ -166,42 +159,21 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
         })}
       </Stagger>
 
-      <AnimatePresence>
+      <Modal
+        open={selected !== null}
+        onClose={close}
+        labelledBy="therapist-modal-name"
+        closeLabel="Close profile"
+        closeTone="dark"
+      >
         {open && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-            onClick={close}
-          >
-            <motion.div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="therapist-modal-name"
-              initial={{ opacity: 0, y: 40, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 24, scale: 0.98 }}
-              transition={{ duration: 0.28, ease: EASE }}
-              onClick={(e) => e.stopPropagation()}
-              className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
-            >
+          <>
               {/* Header */}
               <div className="relative overflow-hidden rounded-t-3xl bg-gradient-to-br from-teal-800 to-emerald-700 px-6 pb-8 pt-7 sm:px-8">
                 <div
                   aria-hidden="true"
                   className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl"
                 />
-                <button
-                  ref={closeRef}
-                  onClick={close}
-                  aria-label="Close profile"
-                  className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                >
-                  <i aria-hidden="true" className="fa-solid fa-xmark" />
-                </button>
-
                 <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center">
                   <span className="shrink-0 rounded-2xl bg-white/15 p-1.5 ring-1 ring-white/25">
                     <AvatarThumbnail
@@ -314,24 +286,29 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                 )}
 
                 {/* CTA */}
+                {/* Carries this therapist into the wizard as a request
+                    (?therapist=), rather than dropping the visitor into a
+                    generic booking that has forgotten whose profile they
+                    just read. Worded as a request because that is what it
+                    is: the admin assigns against real availability. */}
                 <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs text-slate-500">
-                    Sessions are matched to the right specialist at booking.
+                    We&apos;ll try to book you with {firstName(open.full_name)}, subject to
+                    their availability for the time you pick.
                   </p>
                   <Link
-                    href="/book"
+                    href={`/book?therapist=${open.id}`}
                     onClick={close}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-teal-900/15 transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-teal-700 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-teal-900/15 transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                   >
                     <i aria-hidden="true" className="fa-solid fa-calendar-check" />
-                    Book an assessment
+                    Book with {firstName(open.full_name)}
                   </Link>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
+          </>
         )}
-      </AnimatePresence>
+      </Modal>
     </>
   );
 }

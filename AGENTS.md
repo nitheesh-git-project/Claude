@@ -29,8 +29,19 @@ subscription succeeds and simply never fires — so the check is the only
 thing that catches it. The e2e suite (Playwright, `e2e/`) covers the
 money-critical paths and the admin back office — booking + payment,
 concurrency/CAS guards, bulk limits, admin route authorization for every
-role, input validation, payout/refund maths, and the dashboard's own
-navigation in a real browser. It needs a test/staging Supabase project plus
+role, input validation, payout/refund maths, the dashboard's own
+navigation in a real browser, the public pages' section rail and scroll
+arrow (`section-nav.spec.ts`), the public catalog's detail dialogs
+(`catalog-detail.spec.ts`), and booking a named specialist from `/team`
+(`therapist-request.spec.ts`), who may book plus the dashboards' way home
+(`booking-account-role.spec.ts`), and therapist-suggested sessions including
+button spam, concurrent answers and a dropped connection
+(`session-suggestions.spec.ts`), the Home page walkthrough's
+admin-configured rotation pace (`journey-pace.spec.ts`), and self-signup
+going through with no email-confirmation step
+(`patient-registration.spec.ts`), and the Session Completed cutoff on every
+surface that lists a session (`session-completed-cutoff.spec.ts`). It needs a
+test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
 
@@ -93,6 +104,16 @@ scripts/                 one-off tooling
 `profiles.role` is one of `patient`, `therapist`, `hospital`, `admin`.
 Patients and therapists self-register and wait for approval; hospitals are
 provisioned by the admin; admins are promoted by hand in Supabase.
+
+**Email confirmation is off, deliberately, and the app assumes it.** The
+Supabase project keeps *Confirm email* disabled, so `signUp` returns a
+session immediately and the admin's approval is the only gate a new account
+waits on. Never add a "check your email" step back into a sign-up path: a
+signup with no session is a misconfigured project, and the four sign-up
+call sites (`PatientAuthCard`, `TherapistAuthCard`, `BookingWizard`,
+`HomeVisitBookingWizard`) all report it as a failure rather than an
+instruction. `e2e/patient-registration.spec.ts` is what catches the setting
+being turned back on.
 
 Two flags gate everything: `profiles.approved` and `profiles.active`.
 They are enforced in **two** places and both must stay in place:
@@ -175,10 +196,21 @@ client is the only writer and the log is append-only from any session.
   payment, so a patient who fails or abandons checkout after repeated tries
   still lands straight in their dashboard via BookingWizard's escape hatch,
   appointment showing pending, rather than being bounced to
-  `/pending-approval`. `appointments_insert_own` lets a self-signup patient's
-  pre-payment appointment row through RLS while still unapproved (requiring
-  only `active`) precisely so a real order can exist to attempt in the first
-  place. Home-visit and package purchases keep the stricter "only a
+  `/pending-approval`. The pre-payment appointment row that order is minted
+  against is created by `/api/appointments/create`, which gates on plain
+  `isProfileActive` for the same reason — a self-signup patient is
+  unapproved by definition, and that row (always unpaid, unassigned,
+  `requested`, `online`) grants nothing on its own. **Appointments are never
+  inserted by the browser**, same rule as home visits: that route re-derives
+  concern, duration, lead time and the therapist preference from the session
+  and the category row. It replaced a direct client-side insert whose only
+  validation was the `appointments_insert_own` RLS policy — which made one
+  policy in a live database, reachable only by running
+  `scripts/run-schema.mjs`, the single point of failure for the whole
+  booking funnel, and failed real bookings with a raw Postgres
+  "new row violates row-level security policy" string at the last step of
+  checkout. The policy and its insert grant are now dropped at the end of
+  `schema.sql`. Home-visit and package purchases keep the stricter "only a
   *completed* payment vets you" rule instead (`/api/home-visit/create-order`
   uses plain `isProfileActive`, no auto-approve). Standalone patient
   registration (`/patient/register`, no booking involved) always waits on a
@@ -243,6 +275,32 @@ client is the only writer and the log is append-only from any session.
   completed — identical rule to `sessions_used`, see the counter-semantics
   comment beside `home_visit_package_purchases` in `schema.sql`. See the
   "Home Visit" section in README.md for the full flow.
+- **A therapist suggests; the patient books.** A therapist can propose the
+  next session on a programme locked to them
+  (`/api/therapist/suggest-session`), and the patient accepts or declines
+  (`/api/patient/respond-suggestion`). Three rules hold the design together
+  and none of them is optional:
+  1. A suggestion is its own row (`session_suggestions`), never an
+     appointment in a new status. `sessions_used` counts sessions *claimed*;
+     a suggestion claims nothing, and storing it as an appointment would
+     either spend a session every decline had to refund or leave a row the
+     counter deliberately ignores. Only acceptance calls
+     `bookPackageSession()`, which is what makes the count move.
+  2. No slot is held. A hold needs releasing, releasing needs a sweep, and
+     there is no scheduled worker -- so the therapist's calendar is
+     re-checked at acceptance instead.
+  3. Nothing writes an "expired" status. A pending suggestion simply stops
+     being acceptable once its slot is inside the booking lead time, computed
+     by `suggestionState()` in `src/lib/sessionSuggestions.ts` everywhere it
+     is read. `status` records explicit human actions only.
+  At most one pending suggestion per purchase, enforced by a partial unique
+  index rather than a route check, because a double tap defeats
+  SELECT-then-INSERT. Both dashboards' controls guard submits with a
+  synchronous ref (a `disabled` attribute lands a render too late) and never
+  clear optimistically, so a request that dies on a bad connection leaves the
+  person exactly where they were. Gated by
+  `site_settings.therapist_suggestions_enabled`, off by default.
+
 - **Session packages lock to one therapist by default.** The first therapist
   assigned to any session on a `patient_package_purchases` row sets
   `locked_therapist_id`; every later session on that purchase auto-assigns,
@@ -608,6 +666,88 @@ client is the only writer and the log is append-only from any session.
   to chase.
 - **Admin-configurable behavior** (Meet on/off, join window, idle timeout,
   the sign-out banner's duration,
+- **Only a patient account can book; one account carries one role.**
+  `profiles.id` *is* the auth user's id and `role` is a single column, so a
+  therapist/hospital/admin session can never also be the patient a booking is
+  for. It used to succeed and produce a session that account could never see
+  again (each dashboard lists by its own role's column, and `src/proxy.ts`
+  bounces a non-patient off `/patient/dashboard`) after money had moved. Both
+  wizards render `src/components/booking/WrongAccountForBooking.tsx` instead
+  of the form, routing each role to what is theirs: hospitals refer, admins
+  use `/api/admin/create-booking`, and a clinician wanting therapy signs out
+  and uses a separate patient account. Enforced in three places, all of which
+  must stay: the wizards, `isPatientProfile()` in the four purchase routes,
+  and `isPatientProfile()` in `/api/appointments/create`. That last one used
+  to be a `role = 'patient'` clause on `appointments_insert_own`, back when
+  the wizard inserted the row itself; the policy is dropped now and the
+  check moved with the insert. Don't add a fifth booking entry point without
+  all three.
+
+- **Don't name the back office to anyone outside it.** Non-admin roles are
+  already locked out (`src/proxy.ts`, `requireAdmin`, `requireAdminScope`);
+  keep it out of what they can *see* too. A signed-in non-admin reaching
+  `/admin/dashboard` is redirected to `/get-started`, never to
+  `/admin/login`, which would confirm the back office exists and name its
+  door. `/admin/login` is `robots: noindex`. And no client component maps
+  role to dashboard path: `src/app/dashboard/page.tsx` resolves that
+  server-side, so `Navbar` and `WrongAccountForBooking` link to `/dashboard`
+  and the admin path never reaches a public bundle. A `hash` param on that
+  route becomes a real fragment (the anchor-based shells need it) and is
+  pattern-checked, since it is the one input that could otherwise smuggle a
+  host into the redirect. Link new "go to my dashboard" affordances at
+  `/dashboard` rather than adding a fifth role map. The debug bar is the
+  deliberate exception -- it still lists the admin routes, and is switched
+  off before release.
+
+- **Every dashboard needs a way back to the public site.** All four are in
+  `NAV_HIDDEN_ROUTES`, so the public `Navbar` never renders there; without an
+  explicit link the only exit is Log Out, which also ends the session. Both
+  shells (`dashboard/DashboardShell.tsx`, `admin/AdminShell.tsx`) carry a
+  **Back to Home** entry at the top of the sidebar, in all three renders
+  (expanded, collapsed rail, mobile drawer). It is a plain `<a>`, not
+  `next/link`, for the reason the nav entries document: client-side
+  transitions into a differently-chromed route were silently not completing.
+
+- **A therapist chosen on `/team` is a request, not an assignment.**
+  `/book?therapist=<id>` resolves the id against `public_therapist_profiles`
+  (client-side, since `/book` is ISR-cached) and writes
+  `appointments.preferred_therapist_id` — the same field the wizard's
+  "continue with the same therapist" dropdown has always written, read by
+  `AssignTherapistForm`. Only the admin can see whether that therapist is
+  actually free for the slot, so never word this as a confirmed booking. A
+  therapist the public view hides (suspended, unapproved, `visible_on_team`
+  off) resolves to nothing and the request is dropped silently rather than
+  failing the booking.
+
+- **A public catalog card opens a dialog; booking is its own button.** The
+  session-package, home-visit-package and programme cards all follow one
+  contract: the card body is a single tap target that opens a detail dialog
+  (`src/components/Modal.tsx`, shared with `TeamTherapistPopup`), and a
+  **Book …** link sits below it on the card and again at the foot of the
+  dialog. The card used to be one big link to checkout, which left no way to
+  read the rules — validity, one-therapist lock, minimum gap — before paying.
+  Keep the booking link outside the tap-target button: a link nested inside a
+  button is invalid markup and behaves differently per browser. Programme
+  cards are one component (`src/components/catalog/ProgramCards.tsx`) used by
+  both `/` and `/conditions`; the dialogs' shared visual pieces (session
+  dots, savings meter, stat tiles) live in
+  `src/components/catalog/CatalogVisuals.tsx` and are fed already-computed
+  numbers, since the arithmetic belongs in `src/lib/`.
+
+- **Approvals are a queue, not a person.** Pending signups and profile
+  change requests live under Today, beside the inbox that counts them, not
+  on the patients directory.
+- **One word, one money figure.** "Recognised revenue" is what has been
+  earned (a package counts one session at a time); "Package cash collected"
+  is what came into the bank up front. Gross/Net Revenue keep their standard
+  meanings. `MoneyGlossary` states each one on the Money screens -- if a new
+  figure needs a word that is already taken, rename the figure, don't
+  overload the word.
+- **Admin-configurable behavior** (Meet on/off, join window, the Session
+  Completed cutoff — minutes after slot time at which every "Tap to Join"
+  control reads "Session Completed" instead, admin's own included, since a
+  session an hour past its start reads the same way on every screen it
+  appears on — idle timeout,
   booking languages, the online booking lead time and cancellation refund
   window, the package-wide settings — visibility, default
   validity, therapist-lock switch, bulk-scheduler limit, expiry reminder
@@ -615,7 +755,9 @@ client is the only writer and the log is append-only from any session.
   lead time, cancellation refund window, default validity, bulk-scheduler
   limit, travel buffer minutes, and the public page's heading/subheading —
   and Brand & Contact Details — site name, tagline, description, contact
-  email, WhatsApp number, contact phone, footer copyright text) is read
+  email, WhatsApp number, contact phone, footer copyright text — and the
+  Home page walkthrough's per-step rotation seconds, where 0 means "don't
+  rotate") is read
   through `src/lib/adminSettings.ts` with defaults — don't hardcode these.
   Every dashboard page must select `SITE_SETTINGS_SELECT` from that module
   rather than its own column list, or a new setting silently reads as its

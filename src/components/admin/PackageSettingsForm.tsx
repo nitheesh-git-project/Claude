@@ -19,8 +19,23 @@ async function saveSetting(key: string, value: boolean | number) {
 // this tab) and Feature Control (just the visibility toggle). All of it
 // now lives together in Session Manager, since every one of these settings
 // is specifically about packages.
-export default function PackageSettingsForm({ settings }: { settings: AdminSettings }) {
+export default function PackageSettingsForm({
+  settings,
+  therapistSuggestionsEnabled = false,
+}: {
+  settings: AdminSettings;
+  // Read by the caller in its own query rather than through AdminSettings:
+  // the column is newer than the rest, and a database without it should
+  // leave the feature off rather than break this whole form.
+  therapistSuggestionsEnabled?: boolean;
+}) {
   const router = useRouter();
+
+  const [optimisticSuggestions, setOptimisticSuggestions] = useOptimistic(
+    therapistSuggestionsEnabled
+  );
+  const [isSuggestionsPending, startSuggestionsTransition] = useTransition();
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
   const [optimisticVisible, setOptimisticVisible] = useOptimistic(settings.sessionPackagesVisible);
   const [isVisiblePending, startVisibleTransition] = useTransition();
@@ -71,6 +86,20 @@ export default function PackageSettingsForm({ settings }: { settings: AdminSetti
         router.refresh();
       } catch (e) {
         setLockError(e instanceof Error ? e.message : "Could not save. Please try again.");
+      }
+    });
+  }
+
+  function handleToggleSuggestions() {
+    const next = !optimisticSuggestions;
+    setSuggestionsError(null);
+    startSuggestionsTransition(async () => {
+      setOptimisticSuggestions(next);
+      try {
+        await saveSetting("therapist_suggestions_enabled", next);
+        router.refresh();
+      } catch (e) {
+        setSuggestionsError(e instanceof Error ? e.message : "Could not save. Please try again.");
       }
     });
   }
@@ -168,6 +197,32 @@ export default function PackageSettingsForm({ settings }: { settings: AdminSetti
           </button>
         </div>
         {lockError && <p className="text-[11px] text-red-600 mt-2">{lockError}</p>}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="font-bold text-sm text-slate-800">Therapist-Suggested Sessions</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-md">
+              Lets a therapist suggest the next session on a programme locked to them. The patient
+              still confirms — nothing is booked and no session is used until they accept. Turning
+              this off hides the control and refuses new suggestions; ones already waiting can
+              still be answered.
+            </p>
+          </div>
+          <button
+            onClick={handleToggleSuggestions}
+            disabled={isSuggestionsPending}
+            className={`text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-60 ${
+              optimisticSuggestions ? "bg-teal-700 hover:bg-teal-800 text-white" : "bg-slate-200 hover:bg-slate-300 text-slate-800"
+            }`}
+          >
+            {optimisticSuggestions ? "Enabled" : "Disabled"}
+          </button>
+        </div>
+        {suggestionsError && (
+          <p className="text-[11px] text-red-600 mt-2">{suggestionsError}</p>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

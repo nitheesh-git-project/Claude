@@ -23,6 +23,7 @@ export default function HospitalDashboardShell({
     <JoinWindowProvider
       beforeMinutes={data.adminSettings.joinWindowMinutes}
       afterMinutes={data.adminSettings.joinWindowAfterMinutes}
+      completedAfterMinutes={data.adminSettings.sessionCompletedAfterMinutes}
     >
       <DashboardShell
         brandLabel="Partner Panel"

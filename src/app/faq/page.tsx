@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
 import { Reveal, MotionButton, FloatingOrbs } from "@/components/motion/primitives";
 import FaqAccordion from "@/components/FaqAccordion";
+import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 
 export const metadata: Metadata = {
   title: "FAQ | Dr. Pooja's Physio",
@@ -24,8 +25,15 @@ export default async function FaqPage() {
 
   const rows = (faqs ?? []) as Faq[];
 
+  const sectionNavItems: SectionNavItem[] = [
+    { id: "questions", label: "Questions", icon: "fa-circle-question" },
+    { id: "still-unsure", label: "Still Unsure?", icon: "fa-calendar-check" },
+  ];
+
   return (
     <>
+      <SectionNav items={sectionNavItems} />
+
       <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/70 to-white py-16">
         <FloatingOrbs />
         <Reveal className="relative mx-auto max-w-2xl px-4 text-center sm:px-6 lg:px-8">
@@ -39,7 +47,7 @@ export default async function FaqPage() {
         </Reveal>
       </div>
 
-      <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+      <section id="questions" className="mx-auto max-w-3xl scroll-mt-28 px-4 py-16 sm:px-6 lg:px-8">
         {rows.length > 0 ? (
           <FaqAccordion faqs={rows} />
         ) : (
@@ -48,20 +56,24 @@ export default async function FaqPage() {
           </p>
         )}
 
-        <Reveal delay={0.1} className="mt-12 rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-          <h2 className="font-display text-lg font-bold text-slate-900">
-            Still unsure whether this will help you?
-          </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
-            The assessment exists to answer exactly that. If virtual care
-            isn&apos;t right for your case, your therapist will tell you so.
-          </p>
-          <div className="mt-6 flex justify-center">
-            <MotionButton href="/book" variant="primary">
-              <i className="fa-solid fa-calendar-check" /> Book an Assessment
-            </MotionButton>
-          </div>
-        </Reveal>
+        {/* Wrapper carries the id because Reveal is a pure animation
+            primitive and takes no id of its own. */}
+        <div id="still-unsure" className="scroll-mt-28">
+          <Reveal delay={0.1} className="mt-12 rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
+            <h2 className="font-display text-lg font-bold text-slate-900">
+              Still unsure whether this will help you?
+            </h2>
+            <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
+              The assessment exists to answer exactly that. If virtual care
+              isn&apos;t right for your case, your therapist will tell you so.
+            </p>
+            <div className="mt-6 flex justify-center">
+              <MotionButton href="/book" variant="primary">
+                <i className="fa-solid fa-calendar-check" /> Book an Assessment
+              </MotionButton>
+            </div>
+          </Reveal>
+        </div>
       </section>
     </>
   );

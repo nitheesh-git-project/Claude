@@ -28,7 +28,12 @@ Before writing code: read the relevant guide in `node_modules/next/dist/docs/`
 Quick commands: `npm run dev`, `npm run build`, `npm run lint` (which also
 runs `npm run check:realtime`, the Supabase Realtime publication coverage
 check). A Playwright
-e2e suite covers the money-critical paths (`npm run test:e2e`, see `e2e/`)
+e2e suite covers the money-critical paths, the public pages' section
+navigation, the catalog detail dialogs, the specialist booking handoff and
+the patient-only booking rule, therapist-suggested sessions, the Home
+page walkthrough's admin-configured rotation pace, and self-signup without
+an email-confirmation step, and the Session Completed cutoff
+(`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys — verify a change
 with a build and a lint.
 

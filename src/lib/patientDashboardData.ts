@@ -381,6 +381,46 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const ownedHomeVisitPackageInfoMap = new Map((ownedHomeVisitPackageInfo ?? []).map((p) => [p.id, p]));
   const purchaseCodeById = new Map((ownedPackages ?? []).map((p) => [p.id, p.purchase_code]));
 
+  // Times this patient's therapist has suggested and they haven't answered.
+  // Read in its own call for the usual migration tolerance: without the
+  // table, the cards are absent and the rest of the dashboard is unaffected.
+  // Nothing is scheduled and no session is spent until one is accepted, so
+  // these are deliberately not folded into the package counts below.
+  const { data: suggestionRows } = needFeed
+    ? await supabase
+        .from("session_suggestions")
+        .select("id, purchase_id, therapist_id, slot_time, note")
+        .eq("patient_id", user.id)
+        .eq("status", "pending")
+        .order("slot_time", { ascending: true })
+    : await emptyRows<{
+        id: string;
+        purchase_id: string;
+        therapist_id: string;
+        slot_time: string;
+        note: string | null;
+      }>();
+
+  const pendingSuggestions = (suggestionRows ?? []).flatMap((row) => {
+    const purchase = (ownedPackages ?? []).find((p) => p.id === row.purchase_id);
+    if (!purchase) return [];
+    return [
+      {
+        id: row.id as string,
+        slotTime: row.slot_time as string,
+        note: (row.note as string) ?? null,
+        therapistName: therapistMap.get(row.therapist_id as string) ?? "Your therapist",
+        packageTitle:
+          ownedPackageInfoMap.get(purchase.package_id)?.title ??
+          activeCategoryMap.get(purchase.category_id) ??
+          "Session Package",
+        // The session this would become: one past what is already claimed.
+        sessionNumber: Math.min(purchase.sessions_used + 1, purchase.session_count),
+        sessionCount: purchase.session_count,
+      },
+    ];
+  });
+
   // completed/scheduled per purchase, derived from the appointments already
   // loaded above rather than a fresh query -- same counter semantics as
   // package_purchase_summary (schema.sql), just computed in memory since
@@ -580,6 +620,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ownedPackageInfoMap,
     ownedHomeVisitPackageInfoMap,
     purchaseCodeById,
+    pendingSuggestions,
     completedCountByPurchase,
     scheduledCountByPurchase,
     completedCountByHomeVisitPurchase,

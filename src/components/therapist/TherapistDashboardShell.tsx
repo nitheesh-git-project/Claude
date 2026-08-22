@@ -27,6 +27,7 @@ export default function TherapistDashboardShell({
     <JoinWindowProvider
       beforeMinutes={data.adminSettings.joinWindowMinutes}
       afterMinutes={data.adminSettings.joinWindowAfterMinutes}
+      completedAfterMinutes={data.adminSettings.sessionCompletedAfterMinutes}
     >
       <DashboardShell
         brandLabel="Therapist Panel"
@@ -47,6 +48,7 @@ export default function TherapistDashboardShell({
           "therapist_payout_requests",
           "site_settings",
           "session_notes",
+          "session_suggestions",
         ]}
         headerTitle={title}
         headerSubtitle={subtitle}

@@ -118,6 +118,26 @@ export default async function TherapistHealthProfilesPage() {
       .not("package_purchase_id", "is", null),
   ]);
 
+  // Pending suggestions, read in their own call so a database that hasn't
+  // run the latest schema.sql loses the Suggest control rather than this
+  // whole screen -- the same migration tolerance every newer column here
+  // gets. At most one per purchase, enforced by a unique index.
+  const [{ data: pendingSuggestionRows }, { data: suggestionsToggleRow }] = await Promise.all([
+    supabase
+      .from("session_suggestions")
+      .select("id, purchase_id, slot_time, note")
+      .eq("therapist_id", user.id)
+      .eq("status", "pending"),
+    supabase.from("site_settings").select("therapist_suggestions_enabled").maybeSingle(),
+  ]);
+  const pendingSuggestionByPurchase = new Map(
+    (pendingSuggestionRows ?? []).map((r) => [
+      r.purchase_id as string,
+      { id: r.id as string, slotTime: r.slot_time as string, note: (r.note as string) ?? null },
+    ])
+  );
+  const suggestionsEnabled = suggestionsToggleRow?.therapist_suggestions_enabled === true;
+
   const notes = (noteRows ?? []) as SessionNoteRow[];
   const nowMs = nowTimestamp();
 
@@ -208,6 +228,8 @@ export default async function TherapistHealthProfilesPage() {
       <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <TherapistPatientsView
           patientCount={sortedPatients.length}
+          suggestionsEnabled={suggestionsEnabled}
+          leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
           programmes={(lockedPurchases ?? []).map((p) => ({
             id: p.id,
             purchaseCode: p.purchase_code,
@@ -219,6 +241,7 @@ export default async function TherapistHealthProfilesPage() {
             completedCount: programmeCompleted.get(p.id) ?? 0,
             scheduledCount: programmeScheduled.get(p.id) ?? 0,
             status: p.status,
+            pendingSuggestion: pendingSuggestionByPurchase.get(p.id) ?? null,
           }))}
         >
         {newPatientCount > 0 && (

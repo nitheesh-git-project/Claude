@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { computePackageCounts } from "@/lib/packageProgress";
 import PackageDetailModal from "@/components/packages/PackageDetailModal";
+import SuggestSessionControl, {
+  type PendingSuggestion,
+} from "@/components/packages/SuggestSessionControl";
 
 export type ProgrammePatientRow = {
   id: string;
@@ -15,6 +18,8 @@ export type ProgrammePatientRow = {
   completedCount: number;
   scheduledCount: number;
   status: string;
+  /** The one suggestion still waiting on this patient, if any. */
+  pendingSuggestion?: PendingSuggestion | null;
 };
 
 // The arc-of-care view the plan asked for: a therapist locked to a
@@ -23,7 +28,17 @@ export type ProgrammePatientRow = {
 // themselves. Tapping a row opens the same PackageDetailModal every other
 // package surface uses, in therapist mode (no money shown -- see
 // /api/packages/purchase-detail).
-export default function TherapistProgrammePatients({ purchases }: { purchases: ProgrammePatientRow[] }) {
+export default function TherapistProgrammePatients({
+  purchases,
+  suggestionsEnabled = false,
+  leadTimeHours = 12,
+}: {
+  purchases: ProgrammePatientRow[];
+  // Off unless the admin has switched suggestions on. Presentation only --
+  // /api/therapist/suggest-session refuses regardless of what renders here.
+  suggestionsEnabled?: boolean;
+  leadTimeHours?: number;
+}) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   if (purchases.length === 0) {
@@ -67,6 +82,15 @@ export default function TherapistProgrammePatients({ purchases }: { purchases: P
                   {counts.completed} completed · {counts.scheduled} scheduled · {counts.pending} pending
                 </p>
               </button>
+              {suggestionsEnabled && p.status === "active" && (
+                <SuggestSessionControl
+                  purchaseId={p.id}
+                  patientName={p.patientName}
+                  sessionsRemaining={Math.max(0, p.sessionCount - p.sessionsUsed)}
+                  leadTimeHours={leadTimeHours}
+                  pending={p.pendingSuggestion ?? null}
+                />
+              )}
             </li>
           );
         })}

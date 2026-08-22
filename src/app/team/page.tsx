@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
 import TeamTherapistPopup, { type TeamTherapist } from "@/components/TeamTherapistPopup";
+import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 import { Reveal, FloatingOrbs } from "@/components/motion/primitives";
 
 export const metadata: Metadata = {
@@ -42,8 +43,14 @@ export default async function TeamPage() {
     therapists = fallback.data;
   }
 
+  const sectionNavItems: SectionNavItem[] = [
+    { id: "the-team", label: "The Team", icon: "fa-user-doctor" },
+  ];
+
   return (
     <>
+      <SectionNav items={sectionNavItems} />
+
       <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/70 to-white py-16">
         <FloatingOrbs />
         <Reveal className="relative mx-auto max-w-2xl px-4 text-center sm:px-6 lg:px-8">
@@ -61,7 +68,7 @@ export default async function TeamPage() {
         </Reveal>
       </div>
 
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <section id="the-team" className="mx-auto max-w-7xl scroll-mt-28 px-4 py-16 sm:px-6 lg:px-8">
         {!therapists || therapists.length === 0 ? (
           <p className="py-12 text-center text-sm text-slate-500">
             Our specialist roster is being updated — check back shortly.

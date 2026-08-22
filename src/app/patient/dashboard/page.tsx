@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
+import PatientSuggestionCard from "@/components/packages/PatientSuggestionCard";
 import OnboardingTour from "@/components/patient/OnboardingTour";
 import { StripProgress } from "@/components/dashboard/StatStrip";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
@@ -61,6 +62,22 @@ export default async function PatientDashboardPage() {
             {intakeAnswered > 0 ? "Finish it →" : "Fill it in →"}
           </span>
         </Link>
+      )}
+
+      {/* Above the overview: a therapist has proposed a time and it is
+          waiting on an answer. Nothing is scheduled and no session is
+          spent until the patient accepts, so this is the one thing on
+          this screen that is genuinely blocked on them. */}
+      {d.pendingSuggestions.length > 0 && (
+        <div id="suggested-sessions" className="mb-6 space-y-3">
+          {d.pendingSuggestions.map((suggestion) => (
+            <PatientSuggestionCard
+              key={suggestion.id}
+              suggestion={suggestion}
+              leadTimeHours={d.adminSettings.onlineBookingLeadTimeHours}
+            />
+          ))}
+        </div>
       )}
 
       <DashboardOverview

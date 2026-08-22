@@ -7,6 +7,7 @@ import FarewellBanner from "@/components/FarewellBanner";
 import Footer from "@/components/Footer";
 import DebugNav from "@/components/DebugNav";
 import ScrollHint from "@/components/ScrollHint";
+import { SectionNavProvider } from "@/components/SectionNavContext";
 import { createPublicClient } from "@/lib/supabase/public";
 import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings";
 
@@ -112,16 +113,21 @@ export default async function RootLayout({
         <Suspense fallback={null}>
           <FarewellBanner autoDismissSeconds={farewellBannerSeconds} />
         </Suspense>
-        <main className="flex-grow">{children}</main>
-        <Footer
-          siteName={brand.siteName}
-          siteDescription={brand.siteDescription}
-          contactEmail={brand.contactEmail}
-          whatsappNumber={brand.whatsappNumber}
-          contactPhone={brand.contactPhone}
-          footerCopyrightText={brand.footerCopyrightText}
-        />
-        <ScrollHint />
+        {/* Wraps the page and the scroll cue together: the page's section
+            rail publishes its section list here, and the cue below reads it
+            to know where the next section starts. */}
+        <SectionNavProvider>
+          <main className="flex-grow">{children}</main>
+          <Footer
+            siteName={brand.siteName}
+            siteDescription={brand.siteDescription}
+            contactEmail={brand.contactEmail}
+            whatsappNumber={brand.whatsappNumber}
+            contactPhone={brand.contactPhone}
+            footerCopyrightText={brand.footerCopyrightText}
+          />
+          <ScrollHint />
+        </SectionNavProvider>
       </body>
     </html>
   );

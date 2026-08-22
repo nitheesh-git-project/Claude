@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import DashboardShell from "@/components/dashboard/DashboardShell";
+import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import type { PatientDashboardData } from "@/lib/patientDashboardData";
 
 /**
@@ -26,6 +27,14 @@ export default function PatientDashboardShell({
     (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" && process.env.NODE_ENV !== "production");
 
   return (
+    // Every JoinSessionButton under this shell reads its window from here
+    // rather than being prop-drilled through the session cards, the
+    // calendar and the packages widget.
+    <JoinWindowProvider
+      beforeMinutes={data.adminSettings.joinWindowMinutes}
+      afterMinutes={data.adminSettings.joinWindowAfterMinutes}
+      completedAfterMinutes={data.adminSettings.sessionCompletedAfterMinutes}
+    >
     <DashboardShell
       brandLabel="Patient Panel"
       brandIcon="fa-user-injured"
@@ -45,11 +54,13 @@ export default function PatientDashboardShell({
         "treatment_categories",
         "treatment_category_packages",
         "patient_condition_profiles",
+        "session_suggestions",
       ]}
       headerTitle={title}
       headerSubtitle={subtitle}
     >
       {children}
     </DashboardShell>
+    </JoinWindowProvider>
   );
 }

@@ -57,6 +57,16 @@ Apply it either:
   Management API — needs `SUPABASE_ACCESS_TOKEN` set (see below). Useful for
   re-applying after every change to the file without the manual copy/paste.
 
+`.github/workflows/schema-apply.yml` runs that same script on every push to
+`main` that touches `supabase/schema.sql`, but only if the repository has
+both the `SUPABASE_ACCESS_TOKEN` and `NEXT_PUBLIC_SUPABASE_URL` **repo
+secrets** set — without them the job fails with "Missing
+SUPABASE_ACCESS_TOKEN" and the live database quietly stays behind the file.
+Check the workflow's run history after merging a schema change: a merged
+change that never got applied leaves the database's policies out of sync
+with code that assumes them, and the app can look fixed in review while
+still failing in production.
+
 ### Environment variables
 
 Copy `.env.example` to `.env.local` and fill in:
@@ -109,6 +119,12 @@ behaviour it replaces. The admin dashboard gets one for the opposite reason:
 it is the slowest page in the app, and a cold load there can take tens of
 seconds under load.
 
+Elsewhere the back office is deliberately unadvertised: a signed-in
+non-admin who reaches `/admin/dashboard` is redirected to `/get-started`
+rather than `/admin/login`, that page is `noindex`, and `/dashboard`
+resolves role to dashboard server-side so no public JavaScript bundle
+carries the admin path.
+
 ## Roles
 
 Four roles live in `profiles.role`, all backed by Supabase Auth users:
@@ -131,6 +147,25 @@ Four roles live in `profiles.role`, all backed by Supabase Auth users:
 - **admin** — promoted by hand in the Supabase Table Editor. Runs everything
   else.
 
+### Registration and approval
+
+Signing up is one step. The Supabase project must have **email confirmation
+off** (Authentication → Sign In / Providers → Email → *Confirm email*), so
+`supabase.auth.signUp` hands back a session immediately and a new patient
+lands on `/pending-approval` already signed in. The admin's approval is the
+only gate: the moment they approve, that same session reaches the dashboard
+with nothing further to verify. There is deliberately no email-confirmation
+step — access here is decided by a person reviewing the account, and asking
+for a mailbox round trip on top of it meant two queues to clear before
+anyone could book, on a platform whose only outbound mail is the calendar
+invite.
+
+With the setting left on, signup returns no session; the sign-up forms treat
+that as the misconfiguration it is (a plain "we couldn't sign you in", plus
+a server-log line naming the setting) rather than sending the patient to
+their inbox. `e2e/patient-registration.spec.ts` fails when a project has it
+switched back on.
+
 `profiles.approved` and `profiles.active` gate access: unapproved users land
 on `/pending-approval`, suspended users on `/account-suspended`. Both flags
 are enforced twice — in the proxy for dashboard navigation, and again in
@@ -142,6 +177,11 @@ so a still-valid session cookie can't call the API around the UI gate.
 **Public marketing:** `/` (home), `/conditions`, `/how-it-works`, `/team`,
 `/hospitals`, `/faq`, `/get-started`, `/book`, `/home-visit`,
 `/book-home-visit`.
+
+**Shared:** `/dashboard` — redirects to whichever dashboard belongs to the
+signed-in role (`/get-started` when signed out). Every "go to my dashboard"
+link points here so no client bundle has to know the four paths; see
+"Roles" above.
 
 **Patient:** `/patient/register`, `/patient/login`, `/patient/dashboard`,
 `/patient/dashboard/profile`, `/patient/dashboard/health-profile`.
@@ -249,9 +289,35 @@ plus per-date overrides (`therapist_availability_template`,
 (`src/lib/checkTherapistConflict.ts`). `/book?package=<id>` switches the same
 wizard into package-purchase mode instead: the category step is replaced by
 a read-only package summary, Step 1's date/time becomes session 1's slot,
-and the review step pays for the whole bundle.
+and the review step pays for the whole bundle. `/book?therapist=<id>`
+carries a specialist across from their profile dialog on `/team` ("Book with
+Dr. X"): the id is resolved client-side against `public_therapist_profiles`
+and lands in `appointments.preferred_therapist_id`, which preselects that
+therapist in the admin's assign form and marks them "(requested)". It is a
+request, not an assignment — the admin still assigns against real
+availability, and the wizard says so. Because that view already hides
+suspended, unapproved and team-hidden therapists, a stale or hand-typed link
+resolves to nothing and the booking simply carries on with no request
+attached.
 
-**Payments.** Razorpay checkout: `/api/razorpay/create-order` creates the
+Only a patient account can book. One auth user carries exactly one role
+(`profiles.id` *is* the auth user's id, and `role` is a single column), so a
+therapist, hospital or admin session can never be the patient a booking is
+for. Both wizards show `WrongAccountForBooking` instead of the form, pointing
+each role at what is actually theirs — a hospital refers (`Refer a Patient`,
+or shares its referral code), an admin books on a patient's behalf from
+**Sessions → New Booking**, and anyone who wants therapy themselves signs out
+and books with a separate patient account. This is enforced server-side too:
+`isPatientProfile()` in the purchase routes and again in
+`/api/appointments/create`, which is where the wizard's booking row is
+written.
+
+**Payments.** The wizard's review step posts to `/api/appointments/create`,
+which writes the pre-payment appointment row server-side — concern,
+duration, lead time and therapist preference all re-derived from the
+patient's session and the category row, never taken from the browser (the
+browser has no insert access to `appointments` at all). Then Razorpay
+checkout: `/api/razorpay/create-order` creates the
 order, the browser opens the widget, and `/api/razorpay/verify` verifies the
 signature server-side before the appointment is confirmed. Failures are
 recorded in `payment_failure_log`. Session packages are bought the same way
@@ -278,8 +344,13 @@ per-programme rules (minimum gap between sessions, max sessions/week, max
 purchases/patient) — configured field-by-field in the admin **Session
 Manager** tab, not Site Content or Feature Control. Active packages appear as
 cards on `/` and `/conditions` (each gated by its own `visible_on_home` /
-`visible_on_conditions` flag, plus the site-wide visibility switch) and link
-to `/book?package=<id>`. A purchase's `expires_at` is set the moment payment
+`visible_on_conditions` flag, plus the site-wide visibility switch). Tapping
+a card opens a detail dialog carrying everything the card has no room for —
+the long description, terms, scheduling rules, a per-session price
+comparison — while **Book package** on the card and again in the dialog goes
+straight to `/book?package=<id>`. Programme cards and the home-visit package
+cards on `/home-visit` behave identically (`/book?category=<id>` and
+`/book-home-visit?package=<id>` respectively). A purchase's `expires_at` is set the moment payment
 clears — an abandoned checkout never eats into a validity window — using the
 package's own `validity_days` or the site default. When a package has
 `therapist_locked` on (the default) and the site-wide switch
@@ -312,6 +383,20 @@ focus management, scroll lock, like `TeamTherapistPopup`) and backed by
 sees what they paid, the locked therapist sees the clinical picture without
 the money. The therapist dashboard's **Programme Patients** section lists
 every purchase locked to that therapist the same way.
+
+**Therapist-suggested sessions.** With
+`site_settings.therapist_suggestions_enabled` on (Session Manager), a
+therapist can propose the next session on a programme locked to them, from
+**Programme Patients**. The patient sees it on their dashboard and accepts or
+declines — nothing is scheduled, and no session is spent, until they accept.
+Accepting goes through the same `bookPackageSession()` every other package
+booking uses, so gap rules, expiry, conflict checks and the Meet link behave
+identically. A suggestion holds no slot (the therapist's calendar is
+re-checked at acceptance) and is never marked expired by a sweep: it simply
+stops being acceptable once its slot falls inside the booking lead time. At
+most one can be waiting per purchase; the therapist can withdraw it.
+Routes: `/api/therapist/suggest-session`,
+`/api/therapist/withdraw-suggestion`, `/api/patient/respond-suggestion`.
 
 There's no cron or background worker in this deployment, so a purchase's
 `status` moves from `active` to `expired` lazily: `src/lib/expirePackagePurchases.ts`
@@ -472,11 +557,31 @@ which only the admin can read back.
 
 **Admin-managed content.** Treatment categories (with ordering), FAQs,
 testimonials, feature toggles (Meet on/off, join window, idle-timeout
-minutes, booking languages), and **Brand & Contact Details** (website name,
+minutes, the Session Completed cutoff, booking languages), and
+**Brand & Contact Details** (website name,
 tagline, description, contact email, WhatsApp number, contact phone, footer
 copyright text — the strings the public Navbar and Footer render) are all
 editable under **Settings** (Brand & Contact, Public Site, Booking Rules),
 stored in `site_settings` and their own tables — see `src/lib/adminSettings.ts`.
+**Settings → Booking Rules** carries the two time boundaries on the join
+control. The **Join Button Window** decides how early a patient or therapist
+may open the call and how long after it ends the link still works; the
+**Session Completed Cutoff** (`session_completed_after_minutes`, default 60,
+at least 1) decides when it stops being a call at all — past that many
+minutes from the scheduled start, every "Tap to Join" button reads
+**Session Completed** and is inert, on the patient, therapist and hospital
+dashboards and in the admin's own lists alike. The admin's button is exempt
+from the window, deliberately, but never from this cutoff: a session an hour
+past its start should read the same way wherever it is listed. A cancelled
+session reads **Session Cancelled** rather than being called completed.
+
+**Settings → Public Site** also carries **Home Page Walkthrough**: how many
+seconds each of the Home page's three "Booking to recovery" steps holds
+before the next one takes over (`journey_step_seconds`, default 4, allowed
+range 2–60, or 0 to stop the rotation and let visitors tap through the steps
+themselves). The rotation pauses while a pointer or keyboard focus is inside
+the widget, and never runs at all under `prefers-reduced-motion`.
+
 Brand & Contact Details fields save individually (click Edit on a field,
 change it, Save) via `/api/admin/update-setting`, same as every other
 `site_settings` column; the root layout reads them on every request to pass

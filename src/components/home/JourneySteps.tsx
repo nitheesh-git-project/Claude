@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import CareIllustration, { type CareIllustrationId } from "@/components/visuals/CareIllustration";
 
 /**
@@ -11,9 +11,30 @@ import CareIllustration, { type CareIllustrationId } from "@/components/visuals/
  * the whole journey can be understood without leaving the page. Steps are
  * real buttons in a tablist so keyboard and screen-reader users get the
  * same behaviour as pointer users.
+ *
+ * It also advances on its own, 01 -> 02 -> 03 -> 01, so a visitor who never
+ * touches it still sees all three. The pace is an admin setting
+ * (Settings -> Public Site), since the right one depends on how much copy
+ * the steps carry -- which admins also edit. Three things keep the rotation
+ * from being user-hostile:
+ *
+ * - Pointer or keyboard inside the component pauses it. Content that moves
+ *   while someone is reading it is worse than content they never saw.
+ * - Choosing a step restarts the clock rather than leaving whatever was left
+ *   of the current tick, so a deliberate choice is never cut short.
+ * - Under prefers-reduced-motion it does not advance at all. An unbidden
+ *   rotation is exactly the motion that setting exists to stop; the tabs
+ *   still work by hand.
  */
 
 const EASE = [0.16, 1, 0.3, 1] as const;
+
+/**
+ * Used when no admin setting reaches this component -- a caller that
+ * doesn't pass one, or a database without the journey_step_seconds column
+ * yet. Must stay equal to DEFAULT_ADMIN_SETTINGS.journeyStepSeconds.
+ */
+const DEFAULT_STEP_SECONDS = 4;
 
 type Step = {
   id: string;
@@ -72,16 +93,39 @@ const STEPS: Step[] = [
 
 export default function JourneySteps({
   variant = "full",
+  stepSeconds = DEFAULT_STEP_SECONDS,
 }: {
   /** "compact" stacks selector above panel, for narrow column placement. */
   variant?: "full" | "compact";
+  /** Admin-configured pace. 0 means don't advance on its own. */
+  stepSeconds?: number;
 } = {}) {
   const [active, setActive] = useState(0);
+  const [paused, setPaused] = useState(false);
   const step = STEPS[active];
   const compact = variant === "compact";
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    // 0 is the admin's way of switching the rotation off entirely, so it is
+    // checked here rather than clamped -- a 0ms timeout would spin.
+    if (paused || reduceMotion || stepSeconds <= 0) return;
+    // Keyed on `active` as well, so selecting a step resets the clock: the
+    // timer is recreated on every change, whether this one made it or a
+    // person did.
+    const timer = setTimeout(
+      () => setActive((i) => (i + 1) % STEPS.length),
+      stepSeconds * 1000
+    );
+    return () => clearTimeout(timer);
+  }, [active, paused, reduceMotion, stepSeconds]);
 
   return (
     <div
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={() => setPaused(false)}
       className={
         compact
           ? "flex flex-col gap-4"

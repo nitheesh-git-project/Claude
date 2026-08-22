@@ -8,6 +8,9 @@ import BookingCalendar from "@/components/booking/BookingCalendar";
 import SelectableChipGroup, { type ChipOption } from "@/components/booking/SelectableChipGroup";
 import AddressForm from "@/components/booking/AddressForm";
 import PhoneNumberField from "@/components/PhoneNumberField";
+import WrongAccountForBooking, {
+  type NonPatientRole,
+} from "@/components/booking/WrongAccountForBooking";
 import {
   bookableHoursForDate,
   earliestBookableDateKey,
@@ -71,10 +74,10 @@ export default function HomeVisitBookingWizard({
 
   const [step, setStep] = useState(1);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [signedInRole, setSignedInRole] = useState<NonPatientRole | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [paymentResult, setPaymentResult] = useState<HomeVisitPaymentResult | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -135,13 +138,19 @@ export default function HomeVisitBookingWizard({
         setIsLoggedIn(true);
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name, email, phone")
+          .select("full_name, email, phone, role")
           .eq("id", data.user.id)
           .single();
         if (!active) return;
         setFullName(profile?.full_name ?? "");
         setEmail(profile?.email ?? data.user.email ?? "");
         setPhone(profile?.phone ?? "");
+        // Same one-role-per-account reasoning as the online wizard's own
+        // gate -- a home visit is delivered to a patient, so a therapist or
+        // hospital session cannot be the one buying it.
+        if (profile?.role && profile.role !== "patient") {
+          setSignedInRole(profile.role as NonPatientRole);
+        }
       }
       setCheckingAuth(false);
     })();
@@ -314,13 +323,16 @@ export default function HomeVisitBookingWizard({
         setError(signUpError.message);
         return;
       }
-      // Email confirmation is on for this project, so there is no session
-      // yet and nothing can be paid for. Same fallback the online wizard
-      // uses -- say so plainly rather than failing at the payment step.
+      // No session means email confirmation is on for this project, which
+      // this app does not use (see the online wizard's note) -- nothing can
+      // be paid for, so fail here rather than at the payment step.
       if (!data.session || !data.user) {
         setLoading(false);
-        setInfo(
-          "Account created! Check your email to confirm it, then sign in and book your home visit from your dashboard."
+        console.error(
+          "Home-visit signup returned no session -- turn OFF Confirm email in Supabase Auth settings."
+        );
+        setError(
+          "Your account was created but we couldn't sign you in to finish this booking. Please sign in and try again."
         );
         return;
       }
@@ -397,6 +409,14 @@ export default function HomeVisitBookingWizard({
     );
   }
 
+  if (signedInRole) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <WrongAccountForBooking role={signedInRole} name={fullName} email={email} />
+      </div>
+    );
+  }
+
   if (packages.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
@@ -435,15 +455,6 @@ export default function HomeVisitBookingWizard({
         >
           Go to my dashboard
         </Link>
-      </div>
-    );
-  }
-
-  if (info) {
-    return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <i className="fa-solid fa-envelope-circle-check text-4xl text-teal-600" />
-        <p className="mt-4 text-sm text-slate-700">{info}</p>
       </div>
     );
   }

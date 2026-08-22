@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { computeHomeVisitTotal } from "@/lib/homeVisitPricing";
-import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActive, isPatientProfile } from "@/lib/supabase/requireActiveProfile";
 
 export type HomeVisitAddressPayload = {
   label?: string | null;
@@ -86,6 +86,16 @@ export async function POST(request: NextRequest) {
   if (!(await isProfileActive(user.id))) {
     return NextResponse.json(
       { error: "Your account has been suspended." },
+      { status: 403 }
+    );
+  }
+
+  // Sessions are delivered to patients, and one account carries one role --
+  // see isPatientProfile. The wizard says so; this is the same check for a
+  // session cookie calling the route directly.
+  if (!(await isPatientProfile(user.id))) {
+    return NextResponse.json(
+      { error: "This account can't book sessions. Sessions are booked under a patient account." },
       { status: 403 }
     );
   }

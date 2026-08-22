@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import HospitalInquiryForm from "@/components/HospitalInquiryForm";
+import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
 
 export const metadata: Metadata = {
@@ -45,8 +46,18 @@ const SOLUTION = [
 ];
 
 export default function HospitalsPage() {
+  // The hero (with the inquiry form) deliberately gets no entry: it already
+  // fills the screen on landing, and giving it one would light a pill up
+  // before the visitor has scrolled anywhere.
+  const sectionNavItems: SectionNavItem[] = [
+    { id: "the-gap", label: "The Gap", icon: "fa-triangle-exclamation" },
+    { id: "our-approach", label: "Our Approach", icon: "fa-hand-holding-medical" },
+  ];
+
   return (
     <>
+      <SectionNav items={sectionNavItems} />
+
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <Reveal className="relative overflow-hidden rounded-3xl bg-slate-900 p-8 shadow-xl sm:p-12">
           <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-teal-500/15 blur-3xl" />
@@ -86,7 +97,7 @@ export default function HospitalsPage() {
       </section>
 
       {/* Problem → solution, stated plainly enough to skim. */}
-      <section className="border-y border-slate-100 bg-slate-50 py-20">
+      <section id="the-gap" className="scroll-mt-28 border-y border-slate-100 bg-slate-50 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal className="mx-auto mb-12 max-w-2xl text-center">
             <span className="text-xs font-bold uppercase tracking-[0.18em] text-rose-600">
@@ -118,29 +129,34 @@ export default function HospitalsPage() {
             </span>
           </Reveal>
 
-          <Reveal className="mx-auto mb-12 max-w-2xl text-center">
-            <span className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
-              With a partnership
-            </span>
-            <h2 className="font-display mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
-              What we put in its place
-            </h2>
-          </Reveal>
-          <Stagger className="grid gap-6 md:grid-cols-3">
-            {SOLUTION.map((s) => (
-              <StaggerItem key={s.title}>
-                <div className="h-full rounded-2xl border border-teal-200 bg-white p-6 shadow-sm">
-                  <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
-                    <i className={`fa-solid ${s.icon}`} />
-                  </span>
-                  <h3 className="font-display text-base font-bold text-slate-900">
-                    {s.title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{s.body}</p>
-                </div>
-              </StaggerItem>
-            ))}
-          </Stagger>
+          {/* Real wrapper, not a zero-height anchor: the rail decides what is
+              active by which section crosses the viewport centre, and a
+              height-less marker can never satisfy that. */}
+          <div id="our-approach" className="scroll-mt-28">
+            <Reveal className="mx-auto mb-12 max-w-2xl text-center">
+              <span className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
+                With a partnership
+              </span>
+              <h2 className="font-display mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+                What we put in its place
+              </h2>
+            </Reveal>
+            <Stagger className="grid gap-6 md:grid-cols-3">
+              {SOLUTION.map((s) => (
+                <StaggerItem key={s.title}>
+                  <div className="h-full rounded-2xl border border-teal-200 bg-white p-6 shadow-sm">
+                    <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+                      <i className={`fa-solid ${s.icon}`} />
+                    </span>
+                    <h3 className="font-display text-base font-bold text-slate-900">
+                      {s.title}
+                    </h3>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">{s.body}</p>
+                  </div>
+                </StaggerItem>
+              ))}
+            </Stagger>
+          </div>
         </div>
       </section>
     </>
