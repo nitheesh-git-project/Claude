@@ -53,6 +53,20 @@ Three environment notes for the browser specs:
 them by re-applying `schema.sql` in a `finally`. Point it at a throwaway
 project, never one whose data matters.
 
+The suite runs `workers: 1` deliberately: every spec talks to the same
+Supabase project and the same app instance, so parallel files read each
+other's rows out of shared tables and contend for one server. Running two
+workers made contention look like product bugs — an audit-log count picked
+up another spec's writes, and the admin dashboard's ~70 queries blew past
+an assertion timeout.
+
+It is also **not fully idempotent across repeated runs against one
+database**. `E-018/C-008` books a slot a fixed seven days out and leaves the
+appointment behind, so the next run's booking is refused as a clash; a rerun
+after deleting future appointments for the `qa.*@example.test` fixtures
+passes. If a spec fails on a second consecutive run but passes on a fresh
+one, suspect leftover state before suspecting the app.
+
 ## Layout
 
 ```
