@@ -8,6 +8,7 @@ import {
   type QuestionOverrideRow,
 } from "@/lib/painMap";
 import type { IntakeQuestion } from "@/lib/conditionIntake";
+import { toWinAnsi, toWinAnsiTidy, wrapText } from "@/lib/pdfText";
 
 // The patient's own copy of their record, as a document they can hand to
 // another clinician -- which is what "export my data" actually means to a
@@ -16,8 +17,8 @@ import type { IntakeQuestion } from "@/lib/conditionIntake";
 //
 // Built with pdf-lib's standard fonts (no font file to ship, no headless
 // browser to run). Those fonts can only encode WinAnsi, so every string
-// goes through toWinAnsi() below -- a Devanagari name would otherwise
-// throw at draw time and 500 the whole export.
+// goes through toWinAnsi() from pdfText -- a Devanagari name would
+// otherwise throw at draw time and 500 the whole export.
 
 const PAGE_WIDTH = 595.28; // A4 portrait, in points
 const PAGE_HEIGHT = 841.89;
@@ -51,29 +52,6 @@ export type HealthProfilePdfInput = {
   documents: { title: string; document_type: string; taken_on: string | null; created_at: string }[];
 };
 
-// pdf-lib's standard fonts encode WinAnsi only. Rather than let an
-// unencodable character abort the export, transliterate the handful that
-// show up in ordinary typing (curly quotes, dashes) and drop the rest.
-function toWinAnsi(value: string): string {
-  const replaced = value
-    .replace(/[‘’‛]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[–—]/g, "-")
-    .replace(/…/g, "...")
-    .replace(/₹/g, "Rs. ");
-  // Keep only what the WinAnsi tables can actually encode.
-  return replaced.replace(/[^\x09\x0A\x20-\x7E\xA0-\xFF]/g, "");
-}
-
-// A name is the one string whose leftovers show. Stripping an
-// unencodable script (a Devanagari name, say) can leave stray spaces
-// around whatever Latin part remains, so the name is tidied once rather
-// than every text run being whitespace-collapsed -- some of them use
-// double spaces as separators on purpose.
-function displayName(raw: string): string {
-  return toWinAnsi(raw).replace(/\s+/g, " ").trim() || "Patient";
-}
-
 function formatDate(iso: string | Date): string {
   const d = typeof iso === "string" ? new Date(iso) : iso;
   return d.toLocaleDateString("en-IN", {
@@ -82,41 +60,6 @@ function formatDate(iso: string | Date): string {
     year: "numeric",
     timeZone: "Asia/Kolkata",
   });
-}
-
-function wrap(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const lines: string[] = [];
-  for (const paragraph of text.split("\n")) {
-    let line = "";
-    for (const word of paragraph.split(/\s+/)) {
-      if (!word) continue;
-      const candidate = line ? `${line} ${word}` : word;
-      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
-        line = candidate;
-        continue;
-      }
-      if (line) lines.push(line);
-      // A single unbroken token wider than the column (a long URL, a
-      // pasted id) would loop forever appending to an empty line, so cut
-      // it by character instead.
-      if (font.widthOfTextAtSize(word, size) > maxWidth) {
-        let chunk = "";
-        for (const char of word) {
-          if (font.widthOfTextAtSize(chunk + char, size) > maxWidth) {
-            lines.push(chunk);
-            chunk = char;
-          } else {
-            chunk += char;
-          }
-        }
-        line = chunk;
-      } else {
-        line = word;
-      }
-    }
-    lines.push(line);
-  }
-  return lines;
 }
 
 // A tiny top-down cursor over a growing list of pages. Everything below
@@ -168,7 +111,7 @@ class Cursor {
   ) {
     const font = bold ? this.bold : this.regular;
     const lineHeight = size * 1.35;
-    for (const line of wrap(toWinAnsi(value), font, size, CONTENT_WIDTH - indent)) {
+    for (const line of wrapText(toWinAnsi(value), font, size, CONTENT_WIDTH - indent)) {
       this.need(lineHeight);
       this.y -= lineHeight;
       this.page().drawText(line, { x: MARGIN + indent, y: this.y, size, font, color });
@@ -216,7 +159,11 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const cur = new Cursor(doc, regular, bold);
 
-  const patientName = displayName(input.patientName);
+  // A name in a script the standard fonts cannot encode leaves stray
+  // spaces around whatever Latin part survives, so it is tidied once here
+  // rather than every text run being whitespace-collapsed -- some of them
+  // use double spaces as separators on purpose.
+  const patientName = toWinAnsiTidy(input.patientName, "Patient");
 
   doc.setTitle(`Health profile - ${patientName}`);
   doc.setCreator(input.siteName);

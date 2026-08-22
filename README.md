@@ -734,6 +734,14 @@ data useful once it's collected, not just to collect it:
 - **List search/filter/sort** (`ConditionsListFilter.tsx`) on the Patient
   Conditions tab, and an aging flag ("Waiting N days") on a pending request
   once it's sat for 3+ days.
+- **Admin data exports** — every downloadable table in the admin back
+  office (All Sessions, the receipts log, patient/therapist payment
+  history, the therapist and patient ledgers, both package-purchase
+  tables, and the activity log) offers **CSV** for a spreadsheet and
+  **PDF** for a person, built from one column definition per table
+  (`DataExportButtons` → `/api/admin/export-pdf`, `src/lib/tablePdf.ts`).
+  Both always contain exactly the rows on screen with the filters in view
+  applied, and the PDF prints the range or filters it was scoped to.
 - **Patient data export** (`/api/patient/condition-profile/export`) — a
   typeset **PDF** of the patient's own intake, every Pain Map exam and the
   reports they have on file, downloaded as `Name_PatientCode.pdf` (e.g.

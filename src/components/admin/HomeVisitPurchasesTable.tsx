@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { toCsv } from "@/lib/csvExport";
-import DownloadCsvButton from "@/components/admin/DownloadCsvButton";
+import type { CsvColumn } from "@/lib/csvExport";
+import DataExportButtons from "@/components/admin/DataExportButtons";
 import HomeVisitPurchaseDetailModal from "@/components/admin/HomeVisitPurchaseDetailModal";
 import { daysUntilHomeVisitExpiry } from "@/lib/homeVisitProgress";
 
@@ -70,9 +70,9 @@ export default function HomeVisitPurchasesTable({
     });
   }, [purchases, packageId, status, therapistId, expiringSoonOnly, unscheduledOnly, search, now]);
 
-  const csv = useMemo(
+  const exportColumns = useMemo<CsvColumn<(typeof filtered)[number]>[]>(
     () =>
-      toCsv(filtered, [
+      [
         { header: "Purchase Code", value: (p) => p.purchaseCode ?? "" },
         { header: "Patient", value: (p) => p.patientName },
         { header: "Patient Code", value: (p) => p.patientCode ?? "" },
@@ -88,8 +88,8 @@ export default function HomeVisitPurchasesTable({
         { header: "Status", value: (p) => p.status },
         { header: "Purchased", value: (p) => new Date(p.createdAt).toLocaleDateString() },
         { header: "Expires", value: (p) => (p.expiresAt ? new Date(p.expiresAt).toLocaleDateString() : "") },
-      ]),
-    [filtered]
+      ],
+    []
   );
 
   return (
@@ -120,7 +120,13 @@ export default function HomeVisitPurchasesTable({
           <input type="checkbox" checked={unscheduledOnly} onChange={(e) => setUnscheduledOnly(e.target.checked)} className="accent-teal-600" />
           Has unscheduled visits
         </label>
-        <DownloadCsvButton filename="home-visit-package-purchases.csv" csv={csv} disabled={filtered.length === 0} />
+        <DataExportButtons
+          filename="home-visit-package-purchases"
+          title="Home visit package purchases"
+          subtitle="Every home-visit package purchase, with the filters in view applied."
+          rows={filtered}
+          columns={exportColumns}
+        />
       </div>
 
       <div className="overflow-x-auto">

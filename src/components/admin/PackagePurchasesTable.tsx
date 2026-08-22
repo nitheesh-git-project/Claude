@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { toCsv } from "@/lib/csvExport";
-import DownloadCsvButton from "@/components/admin/DownloadCsvButton";
+import type { CsvColumn } from "@/lib/csvExport";
+import DataExportButtons from "@/components/admin/DataExportButtons";
 import PackagePurchaseDetailModal from "@/components/admin/PackagePurchaseDetailModal";
 import { daysUntilExpiry } from "@/lib/packageProgress";
 
@@ -76,9 +76,9 @@ export default function PackagePurchasesTable({
     });
   }, [purchases, packageId, categoryId, status, therapistId, expiringSoonOnly, unscheduledOnly, search, now]);
 
-  const csv = useMemo(
+  const exportColumns = useMemo<CsvColumn<(typeof filtered)[number]>[]>(
     () =>
-      toCsv(filtered, [
+      [
         { header: "Purchase Code", value: (p) => p.purchaseCode ?? "" },
         { header: "Patient", value: (p) => p.patientName },
         { header: "Patient Code", value: (p) => p.patientCode ?? "" },
@@ -94,8 +94,8 @@ export default function PackagePurchasesTable({
         { header: "Status", value: (p) => p.status },
         { header: "Purchased", value: (p) => new Date(p.createdAt).toLocaleDateString() },
         { header: "Expires", value: (p) => (p.expiresAt ? new Date(p.expiresAt).toLocaleDateString() : "") },
-      ]),
-    [filtered]
+      ],
+    []
   );
 
   return (
@@ -127,7 +127,13 @@ export default function PackagePurchasesTable({
           <input type="checkbox" checked={unscheduledOnly} onChange={(e) => setUnscheduledOnly(e.target.checked)} className="accent-teal-600" />
           Has unscheduled sessions
         </label>
-        <DownloadCsvButton filename="session-package-purchases.csv" csv={csv} disabled={filtered.length === 0} />
+        <DataExportButtons
+          filename="session-package-purchases"
+          title="Session package purchases"
+          subtitle="Every session-package purchase, with the filters in view applied."
+          rows={filtered}
+          columns={exportColumns}
+        />
       </div>
 
       <div className="overflow-x-auto">

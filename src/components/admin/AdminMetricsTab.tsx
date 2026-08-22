@@ -29,8 +29,8 @@ import {
 import Modal from "@/components/admin/Modal";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import { istDateKey } from "@/lib/formatSlotRange";
-import { toCsv } from "@/lib/csvExport";
-import DownloadCsvButton from "@/components/admin/DownloadCsvButton";
+import type { CsvColumn } from "@/lib/csvExport";
+import DataExportButtons from "@/components/admin/DataExportButtons";
 import StatStrip from "@/components/dashboard/StatStrip";
 
 export type { MetricsAppointment };
@@ -481,7 +481,9 @@ export default function AdminMetricsTab({
       ? (totalClinicSharePaise / totalSplittableNetPaise) * 100
       : null;
 
-  const todayForFilename = toDateInputValue(new Date());
+  // Every export off this screen is range-scoped, and a printed table
+  // nobody can date is worthless -- so the range in view is printed on it.
+  const rangeSubtitle = `Sessions dated ${fromDate} to ${toDate}.`;
 
   // Therapist Ledger — scoped to the same date range as everything else on
   // this tab (a session counts here if its slot_time falls in range,
@@ -505,15 +507,15 @@ export default function AdminMetricsTab({
       .sort((a, b) => b.summary.owedPaise - a.summary.owedPaise);
   }, [therapists, inRangeBySlot, therapistSharePercent, therapistHomeVisitSharePercent, nowMs]);
 
-  const therapistLedgerCsv = useMemo(
+  const therapistLedgerColumns = useMemo<CsvColumn<(typeof rangeTherapistLedger)[number]>[]>(
     () =>
-      toCsv(rangeTherapistLedger, [
+      [
         { header: "Therapist", value: (r) => r.name },
         { header: "Sessions", value: (r) => r.summary.completedCount },
         { header: "Unsettled in range (INR)", value: (r) => r.summary.owedPaise / 100 },
         { header: "Settled in range (INR)", value: (r) => r.summary.paidOutPaise / 100 },
-      ]),
-    [rangeTherapistLedger]
+      ],
+    []
   );
 
   const totalPaidToTherapistsPaise = rangeTherapistLedger.reduce(
@@ -584,15 +586,15 @@ export default function AdminMetricsTab({
       .sort((a, b) => b.totalSpentPaise - a.totalSpentPaise);
   }, [patients, inRangeBySlot]);
 
-  const patientLedgerCsv = useMemo(
+  const patientLedgerColumns = useMemo<CsvColumn<(typeof rangePatientLedger)[number]>[]>(
     () =>
-      toCsv(rangePatientLedger, [
+      [
         { header: "Patient Name", value: (r) => r.name },
         { header: "Sessions", value: (r) => r.sessionCount },
         { header: "Total Spent (INR)", value: (r) => r.totalSpentPaise / 100 },
         { header: "Last Active", value: (r) => r.lastActive ?? "" },
-      ]),
-    [rangePatientLedger]
+      ],
+    []
   );
 
   const selectedTherapistRow = rangeTherapistLedger.find((r) => r.id === selectedTherapistId) ?? null;
@@ -1019,10 +1021,12 @@ export default function AdminMetricsTab({
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
             <h2 className="font-display font-bold text-lg text-slate-800">Therapist earnings</h2>
-            <DownloadCsvButton
-              filename={`therapist-ledger-${todayForFilename}.csv`}
-              csv={therapistLedgerCsv}
-              disabled={rangeTherapistLedger.length === 0}
+            <DataExportButtons
+              filename="therapist-ledger"
+              title="Therapist ledger"
+              subtitle={rangeSubtitle}
+              rows={rangeTherapistLedger}
+              columns={therapistLedgerColumns}
             />
           </div>
           <p className="text-[11px] text-slate-400 mb-4">
@@ -1082,10 +1086,12 @@ export default function AdminMetricsTab({
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
             <h2 className="font-display font-bold text-lg text-slate-800">Patient spend</h2>
-            <DownloadCsvButton
-              filename={`patient-ledger-${todayForFilename}.csv`}
-              csv={patientLedgerCsv}
-              disabled={rangePatientLedger.length === 0}
+            <DataExportButtons
+              filename="patient-ledger"
+              title="Patient ledger"
+              subtitle={rangeSubtitle}
+              rows={rangePatientLedger}
+              columns={patientLedgerColumns}
             />
           </div>
           <p className="text-[11px] text-slate-400 mb-4">

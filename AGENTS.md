@@ -17,7 +17,8 @@ agents.
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 ·
 Supabase (Postgres, Auth, Storage, Realtime) · Razorpay · Google
 Calendar/Meet (`googleapis`) · `motion` for animation · Font Awesome ·
-`libphonenumber-js` · `pdf-lib` (the patient's health-profile PDF export).
+`libphonenumber-js` · `pdf-lib` (every PDF this app generates: the
+patient's health profile and the admin's table exports).
 
 Commands: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
 `npm run check:realtime`, `npm run test:e2e`. `npm run lint` runs
@@ -497,6 +498,20 @@ client is the only writer and the log is append-only from any session.
   `*_REALTIME_TABLES` arrays rather than inlining a third list — the coverage
   check reads them by that name — and add the matching `alter publication`
   to `schema.sql` in the same change.
+- **Every admin export offers CSV and PDF, from one column definition.**
+  A call site passes `DataExportButtons` the rows it is already rendering
+  plus `CsvColumn[]` — never a pre-built string — so the spreadsheet and
+  the printable document can't describe different tables. CSV is still
+  built in the browser (no dependency, no round trip); the PDF is typeset
+  by `/api/admin/export-pdf` (`src/lib/tablePdf.ts`), which keeps pdf-lib
+  out of the admin dashboard's client bundle — that page already ships
+  every screen at once. That route reads nothing: the caller sends the
+  exact filtered rows it rendered, which is what guarantees the two
+  formats agree, and it means there is nothing there to scope-check
+  beyond being an admin at all. Give every export a `subtitle` naming
+  what the rows are scoped to — a printed table nobody can date is
+  worthless. Nothing in the admin dashboard exports JSON, and nothing
+  should.
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.

@@ -7,9 +7,9 @@ import SessionDetailDrawer, {
 } from "@/components/admin/SessionDetailDrawer";
 import type { HomeVisitRow } from "@/components/admin/HomeVisitVisitActions";
 import JoinSessionButton from "@/components/JoinSessionButton";
-import DownloadCsvButton from "@/components/admin/DownloadCsvButton";
+import DataExportButtons from "@/components/admin/DataExportButtons";
 import StatStrip from "@/components/dashboard/StatStrip";
-import { toCsv } from "@/lib/csvExport";
+import type { CsvColumn } from "@/lib/csvExport";
 import { formatSlotRange, istDateKey, istMinutesOfDay } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 
@@ -337,7 +337,7 @@ export default function AdminAllSessionsTab({
     therapistFilter !== "all" ||
     patientFilter !== "all";
 
-  const csv = toCsv(rows, [
+  const exportColumns: CsvColumn<(typeof rows)[number]>[] = [
     { header: "Session ID", value: (r) => r.a.session_code ?? "" },
     { header: "Date", value: (r) => (r.a.slot_time ? istDateKey(r.a.slot_time) : "") },
     {
@@ -353,7 +353,7 @@ export default function AdminAllSessionsTab({
     { header: "Payment", value: (r) => r.a.payment_status },
     { header: "Patient rating", value: (r) => r.a.patient_rating ?? "" },
     { header: "Therapist rating", value: (r) => r.a.therapist_rating ?? "" },
-  ]);
+  ];
 
   // A strip of the four figures an admin scans before reading any row --
   // the same shape every other dashboard opens with, computed over the
@@ -390,7 +390,13 @@ export default function AdminAllSessionsTab({
             ratings from both sides. Click a row for the full record.
           </p>
         </div>
-        <DownloadCsvButton filename="sessions.csv" csv={csv} disabled={rows.length === 0} />
+        <DataExportButtons
+          filename="sessions"
+          title="Sessions"
+          subtitle="Every session and home visit passing the filters in view — upcoming, delivered and cancelled."
+          rows={rows}
+          columns={exportColumns}
+        />
       </div>
 
       <div className="mb-4">

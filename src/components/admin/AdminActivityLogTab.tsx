@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import DownloadCsvButton from "@/components/admin/DownloadCsvButton";
-import { toCsv } from "@/lib/csvExport";
+import DataExportButtons from "@/components/admin/DataExportButtons";
+import type { CsvColumn } from "@/lib/csvExport";
 import { ADMIN_ACTIVITY_LABELS, isMoneyAction } from "@/lib/adminActivityLog";
 
 // Who did what. Read-only by construction: admin_activity_log has a select
@@ -63,14 +63,14 @@ export default function AdminActivityLogTab({
     [rows, actorFilter, moneyOnly, fromDate, toDate]
   );
 
-  const csv = toCsv(filtered, [
+  const exportColumns: CsvColumn<(typeof filtered)[number]>[] = [
     { header: "When", value: (r) => r.createdAt },
     { header: "Admin", value: (r) => r.actorName },
     { header: "Action", value: (r) => describe(r.action) },
     { header: "Subject", value: (r) => r.targetLabel ?? "" },
     { header: "Amount (INR)", value: (r) => (r.amountPaise ? (r.amountPaise / 100).toFixed(2) : "") },
     { header: "Details", value: (r) => (r.details ? JSON.stringify(r.details) : "") },
-  ]);
+  ];
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -82,10 +82,12 @@ export default function AdminActivityLogTab({
             edited or deleted from the app.
           </p>
         </div>
-        <DownloadCsvButton
-          filename="admin-activity.csv"
-          csv={csv}
-          disabled={filtered.length === 0}
+        <DataExportButtons
+          filename="admin-activity"
+          title="Admin activity log"
+          subtitle="Every action an admin took from this dashboard, with the filters in view applied."
+          rows={filtered}
+          columns={exportColumns}
         />
       </div>
 
