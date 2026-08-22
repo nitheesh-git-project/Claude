@@ -232,6 +232,13 @@ server-side; admin routes go through `src/lib/supabase/requireAdmin.ts`.
 
 ## How the app works
 
+**Signing out.** After a sign-out the public site shows a one-line banner
+confirming it worked, then clears itself. How long it stays is admin-set at
+**Settings → Booking Rules** (`site_settings.farewell_banner_seconds`,
+6 seconds by default, 0 to leave it up until dismissed) — on a shared
+machine a banner that never goes away means the next person reads the last
+person's goodbye.
+
 **Booking.** The `/book` wizard picks a treatment category, language, date,
 and time slot. Slots respect the online booking lead time — 12 hours by
 default, admin-editable at **Settings → Booking Rules**

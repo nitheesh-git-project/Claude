@@ -38,6 +38,8 @@ const ALLOWED_COLUMNS = new Set([
   "online_cancellation_refund_hours",
   // Drives the automatic payment-fee cost line on the Money screens.
   "payment_gateway_fee_percent",
+  // How long the post-logout banner stays up. 0 = until dismissed.
+  "farewell_banner_seconds",
 ]);
 
 // Bounds on the admin-managed /book language list -- not business rules so
@@ -125,11 +127,22 @@ export async function POST(request: NextRequest) {
       // a free therapist, not a therapist who can physically arrive -- and
       // zero refund hours is the same harsh-but-real policy as above.
       key === "online_booking_lead_time_hours" ||
-      key === "online_cancellation_refund_hours") &&
+      key === "online_cancellation_refund_hours" ||
+      // Zero means "leave the goodbye banner up until someone dismisses
+      // it", which is what it did before it was configurable.
+      key === "farewell_banner_seconds") &&
     (typeof value !== "number" || !Number.isInteger(value) || value < 0)
   ) {
     return NextResponse.json(
       { error: "value must be a non-negative whole number" },
+      { status: 400 }
+    );
+  }
+  // Matches the column's own check constraint, so a value the database
+  // would reject is refused here with a sentence rather than a 500.
+  if (key === "farewell_banner_seconds" && typeof value === "number" && value > 300) {
+    return NextResponse.json(
+      { error: "Keep this to 300 seconds or less." },
       { status: 400 }
     );
   }
@@ -276,7 +289,11 @@ export async function POST(request: NextRequest) {
     BRAND_TEXT_FIELDS.has(key) ||
     LONG_TEXT_FIELDS.has(key) ||
     CONTACT_FIELDS.has(key) ||
-    key === "contact_email"
+    key === "contact_email" ||
+    // The sign-out banner's duration is read by the root layout too, so it
+    // needs the same layout-wide invalidation -- otherwise the new value
+    // reaches nobody until the ISR window expires.
+    key === "farewell_banner_seconds"
   ) {
     revalidatePath("/", "layout");
   }

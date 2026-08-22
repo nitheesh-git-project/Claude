@@ -2,6 +2,8 @@ import { DEFAULT_PAYMENT_GATEWAY_FEE_PERCENT } from "@/lib/operatingCosts";
 export type AdminSettings = {
   sessionPackagesVisible: boolean;
   sessionTimeoutMinutes: number;
+  /** Seconds the post-logout banner stays up. 0 = until dismissed. */
+  farewellBannerSeconds: number;
   googleMeetEnabled: boolean;
   joinWindowMinutes: number;
   joinWindowAfterMinutes: number;
@@ -68,6 +70,9 @@ export const DEFAULT_HOME_VISIT_PAGE_SUBHEADING =
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   sessionPackagesVisible: true,
   sessionTimeoutMinutes: 0,
+  // Long enough to read a one-line goodbye, short enough that the next
+  // person on a shared machine never sees it.
+  farewellBannerSeconds: 6,
   googleMeetEnabled: true,
   joinWindowMinutes: 15,
   joinWindowAfterMinutes: 15,
@@ -123,7 +128,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
 // .select(SITE_SETTINGS_SELECT) call fall back to an unusable
 // GenericStringError result type instead of a real row shape.
 export const SITE_SETTINGS_SELECT =
-  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, payment_gateway_fee_percent";
+  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, payment_gateway_fee_percent, farewell_banner_seconds";
 
 type SiteSettingsRow = {
   session_packages_visible?: boolean | null;
@@ -148,6 +153,7 @@ type SiteSettingsRow = {
   home_visit_page_subheading?: string | null;
   online_booking_lead_time_hours?: number | null;
   online_cancellation_refund_hours?: number | null;
+  farewell_banner_seconds?: number | null;
   site_name?: string | null;
   site_tagline?: string | null;
   site_description?: string | null;
@@ -201,6 +207,10 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
       typeof row?.session_timeout_minutes === "number"
         ? row.session_timeout_minutes
         : DEFAULT_ADMIN_SETTINGS.sessionTimeoutMinutes,
+    farewellBannerSeconds:
+      typeof row?.farewell_banner_seconds === "number"
+        ? row.farewell_banner_seconds
+        : DEFAULT_ADMIN_SETTINGS.farewellBannerSeconds,
     googleMeetEnabled:
       typeof row?.google_meet_enabled === "boolean"
         ? row.google_meet_enabled

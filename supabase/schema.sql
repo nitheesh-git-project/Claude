@@ -3844,3 +3844,15 @@ create policy "patient_medical_documents_delete_own" on patient_medical_document
 -- means deleting it and uploading again, so the row and the object can
 -- never describe different things.
 revoke update on patient_medical_documents from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Sign-out banner duration
+-- ---------------------------------------------------------------------------
+-- How long the "you've been signed out" banner stays on screen before it
+-- clears itself. It used to sit there until someone hit the X, which on a
+-- shared machine means the next person reads the last person's goodbye.
+-- 0 means "leave it until dismissed", which is the old behaviour and still
+-- a legitimate choice.
+alter table site_settings
+  add column if not exists farewell_banner_seconds integer not null default 6
+    check (farewell_banner_seconds >= 0 and farewell_banner_seconds <= 300);

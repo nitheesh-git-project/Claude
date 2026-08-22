@@ -88,6 +88,11 @@ export default function AdminFeatureControlTab({
   const [refundHoursError, setRefundHoursError] = useState<string | null>(null);
   const [refundHoursSaved, setRefundHoursSaved] = useState(false);
 
+  const [farewellInput, setFarewellInput] = useState(String(settings.farewellBannerSeconds));
+  const [isFarewellPending, startFarewellTransition] = useTransition();
+  const [farewellError, setFarewellError] = useState<string | null>(null);
+  const [farewellSaved, setFarewellSaved] = useState(false);
+
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
 
@@ -103,6 +108,22 @@ export default function AdminFeatureControlTab({
         router.refresh();
       } catch (e) {
         setTimeoutError(e instanceof Error ? e.message : "Could not save. Please try again.");
+      }
+    });
+  }
+
+  function handleSaveFarewell() {
+    const seconds = Math.max(0, Math.min(300, Math.floor(Number(farewellInput) || 0)));
+    setFarewellError(null);
+    setFarewellSaved(false);
+    startFarewellTransition(async () => {
+      try {
+        await saveSetting("farewell_banner_seconds", seconds);
+        setFarewellInput(String(seconds));
+        setFarewellSaved(true);
+        router.refresh();
+      } catch (e) {
+        setFarewellError(e instanceof Error ? e.message : "Could not save. Please try again.");
       }
     });
   }
@@ -338,6 +359,40 @@ export default function AdminFeatureControlTab({
           {timeoutSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
         </div>
         {timeoutError && <p className="text-[11px] text-red-600 mt-2">{timeoutError}</p>}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h3 className="font-bold text-sm text-slate-800">Sign-out message</h3>
+        <p className="text-xs text-slate-500 mt-1 max-w-md">
+          After someone signs out, a banner across the top of the public site tells them the
+          sign-out worked. This is how long it stays before clearing itself. Set to 0 to leave
+          it up until they close it — on a shared machine that means the next person reads the
+          last person&apos;s goodbye.
+        </p>
+        <div className="flex items-center gap-2 mt-3">
+          <input
+            type="number"
+            min={0}
+            max={300}
+            step={1}
+            value={farewellInput}
+            onChange={(e) => {
+              setFarewellInput(e.target.value);
+              setFarewellSaved(false);
+            }}
+            className="w-24 text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
+          />
+          <span className="text-xs text-slate-500">seconds</span>
+          <button
+            onClick={handleSaveFarewell}
+            disabled={isFarewellPending}
+            className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
+          >
+            {isFarewellPending ? "Saving..." : "Save"}
+          </button>
+          {farewellSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
+        </div>
+        {farewellError && <p className="text-[11px] text-red-600 mt-2">{farewellError}</p>}
       </div>
 
       <BookingLanguagesSection

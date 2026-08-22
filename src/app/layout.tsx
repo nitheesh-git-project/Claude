@@ -8,7 +8,7 @@ import Footer from "@/components/Footer";
 import DebugNav from "@/components/DebugNav";
 import ScrollHint from "@/components/ScrollHint";
 import { createPublicClient } from "@/lib/supabase/public";
-import { parseAdminSettings } from "@/lib/adminSettings";
+import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings";
 
 // Inter for body copy — optimized for on-screen reading at small sizes,
 // which matters here given how much clinical/pricing detail patients read.
@@ -86,6 +86,19 @@ export default async function RootLayout({
     .maybeSingle();
   const homeVisitEnabled = homeVisitRow?.home_visit_enabled === true;
 
+  // How long the post-logout banner stays up. Its own isolated select for
+  // the same reason as the one above: a newer column that a database which
+  // hasn't re-run schema.sql does not have yet, and an unknown-column error
+  // must not take the site name and tagline down with it.
+  const { data: farewellRow } = await supabase
+    .from("site_settings")
+    .select("farewell_banner_seconds")
+    .maybeSingle();
+  const farewellBannerSeconds =
+    typeof farewellRow?.farewell_banner_seconds === "number"
+      ? farewellRow.farewell_banner_seconds
+      : DEFAULT_ADMIN_SETTINGS.farewellBannerSeconds;
+
   return (
     <html lang="en" className={`h-full antialiased ${inter.variable} ${jakarta.variable}`}>
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-800 font-sans">
@@ -97,7 +110,7 @@ export default async function RootLayout({
           homeVisitEnabled={homeVisitEnabled}
         />
         <Suspense fallback={null}>
-          <FarewellBanner />
+          <FarewellBanner autoDismissSeconds={farewellBannerSeconds} />
         </Suspense>
         <main className="flex-grow">{children}</main>
         <Footer

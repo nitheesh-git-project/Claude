@@ -607,6 +607,7 @@ client is the only writer and the log is append-only from any session.
   those collections deliberately stay open on the Cash Ledger for a person
   to chase.
 - **Admin-configurable behavior** (Meet on/off, join window, idle timeout,
+  the sign-out banner's duration,
   booking languages, the online booking lead time and cancellation refund
   window, the package-wide settings — visibility, default
   validity, therapist-lock switch, bulk-scheduler limit, expiry reminder
