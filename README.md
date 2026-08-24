@@ -903,19 +903,71 @@ dashboard banner and onboarding tour are the current nudge mechanism), and
 push/email notifications for any of this workflow's state changes (separate
 planned work).
 
+## The public site
+
+Seven pages — `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`,
+`/faq`, `/hospitals` — rebuilt around one rule: a visitor should be able to
+tell what each page is for with the text blurred out.
+
+They share a design system in `src/components/marketing/` rather than each
+having its own layout:
+
+| Piece | What it is |
+| --- | --- |
+| `PageHero` | Opening screen: eyebrow, one headline, one sentence, up to two CTAs, a photograph, an optional one-fact overlay card. |
+| `TrustBar` | The same four reassurances under every hero, so a visitor landing deep from search gets the same footing. |
+| `Section` | One band = one idea. An eyebrow, a short heading and **one** sentence. `tone` picks plain / tinted / a floating white panel. |
+| `PhotoTile` | A photograph that is also a link. One line of text. `wide` fills a whole grid row. |
+| `SplitFeature` | Photo beside a short claim and up to three bullets, for the few things a card grid cannot carry. |
+| `StepStrip` | A process as numbered photographs, all visible at once. |
+| `IconCard` | One fact: tinted icon, short title, one line. |
+| `ExploreGrid` / `ExploreSection` | The site's index as photographs. |
+| `ClosingCta` | Every page ends the same way: one sentence, one action. |
+
+**The index is defined once.** `src/lib/marketingNav.ts` holds the seven
+pages with a one-line purpose each. The header nav, the footer's Explore
+column, the home page's connector grid and the "Where to go next" strip on
+the other six all read it, so they cannot disagree about what pages exist or
+what they are called. Home Visit is dropped from all of them when the admin
+master switch is off, since `/home-visit` 404s in that state.
+
+**Scrolling the home page** goes: hero → trust bar → the two delivery modes →
+what we treat → how it works → programmes → packages → reviews → **the
+connector grid for every other page plus booking** → closing CTA.
+
+### Photography
+
+Every photograph is a static import registered in
+`src/lib/marketingPhotos.ts`, with the files under `public/photos/`. Static
+imports rather than string paths so Next reads real dimensions at build time
+(no layout shift, no hand-maintained width/height) and generates the blurred
+placeholder; a missing file becomes a compile error instead of a broken image
+in production. Pages name a `PhotoId` and never import a file directly.
+
+The images shipped here are licence-free stock (Pexels licence: free for
+commercial use, no attribution required) standing in for the clinic's own
+photography. **Verify licensing against your own requirements before
+launch**, and replace them by dropping a file of roughly the same aspect
+ratio over the existing name — no page or component changes.
+
 ## Project layout
 
 ```
 src/app/                 App Router pages, layouts, and API route handlers
-src/components/          UI components (admin/, auth/, booking/, dashboard/,
-                         home/, hospital/, profile/, motion/, visuals/)
+src/components/          UI components (admin/, auth/, booking/, catalog/,
+                         dashboard/, home/, hospital/, marketing/, profile/,
+                         motion/, system/, visuals/)
+src/components/marketing/ The seven public pages' shared design system
 src/lib/                 Domain logic, formatting, and Supabase clients
+src/lib/marketingNav.ts  The seven public pages, defined once
+src/lib/marketingPhotos.ts Every photograph the public pages use
 src/lib/supabase/        client / server / admin / public clients, proxy
                          session refresh, and the auth guards
 src/proxy.ts             Auth proxy; matches the four dashboard route trees
 supabase/schema.sql      Full database schema, RLS policies, views, triggers
 scripts/                 One-off tooling (Google refresh-token helper)
 public/                  Static assets
+public/photos/           The public pages' photography (licence-free stock)
 ```
 
 Notable conventions:

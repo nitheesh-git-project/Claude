@@ -9,6 +9,14 @@ session video links come from Google Calendar/Meet. The admin back office is
 organised into six sections — Today, Sessions, People, Money, Catalog,
 Settings — defined once in `src/lib/adminNav.ts`.
 
+The public marketing site is seven pages — `/`, `/conditions`,
+`/how-it-works`, `/home-visit`, `/team`, `/faq`, `/hospitals` — defined once
+in `src/lib/marketingNav.ts` and assembled from one shared, photo-led design
+system in `src/components/marketing/`. The home page scrolls down into a
+connector grid linking every other page plus booking; the other six end in
+the same grid minus themselves. Photographs are static imports registered in
+`src/lib/marketingPhotos.ts` and live under `public/photos/`.
+
 - `README.md` — product overview, setup, environment variables, routes, and
   how each flow works.
 - `AGENTS.md` — the working rules for editing this codebase (imported below;

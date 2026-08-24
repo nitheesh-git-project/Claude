@@ -1,21 +1,20 @@
 import { createPublicClient } from "@/lib/supabase/public";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
-import {
-  Reveal,
-  Stagger,
-  StaggerItem,
-  MotionButton,
-  FloatingOrbs,
-  AnimatedCard,
-} from "@/components/motion/primitives";
-import SpineStory from "@/components/home/SpineStory";
+import { Reveal, Stagger, StaggerItem, MotionButton } from "@/components/motion/primitives";
 import JourneySteps from "@/components/home/JourneySteps";
-import CareAreas from "@/components/home/CareAreas";
-import ParkinsonsCare from "@/components/home/ParkinsonsCare";
 import SessionPackages from "@/components/home/SessionPackages";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 import ProgramCards from "@/components/catalog/ProgramCards";
+import PageHero from "@/components/marketing/PageHero";
+import TrustBar from "@/components/marketing/TrustBar";
+import Section from "@/components/marketing/Section";
+import SplitFeature from "@/components/marketing/SplitFeature";
+import PhotoTile from "@/components/marketing/PhotoTile";
+import ExploreGrid from "@/components/marketing/ExploreGrid";
+import ClosingCta from "@/components/marketing/ClosingCta";
+import { homeConnectors } from "@/lib/marketingNav";
+import { CARE_AREAS } from "@/lib/careAreas";
 
 // This page has no per-user content — it can be cached and revalidated
 // on a timer instead of hitting Supabase on every single visit.
@@ -23,8 +22,8 @@ export const revalidate = 300;
 
 const TRUST_POINTS = [
   { icon: "fa-certificate", label: "Licensed physiotherapists" },
-  { icon: "fa-video", label: "1-on-1 HD video sessions" },
-  { icon: "fa-file-medical", label: "Reports reviewed pre-session" },
+  { icon: "fa-user-check", label: "One-to-one, never a group class" },
+  { icon: "fa-file-medical", label: "Your reports read before the session" },
   { icon: "fa-lock", label: "Secure UPI payment" },
 ];
 
@@ -66,6 +65,16 @@ export default async function Home() {
       ? journeyRow.journey_step_seconds
       : DEFAULT_ADMIN_SETTINGS.journeyStepSeconds;
 
+  // Home visits are behind an admin master switch and /home-visit 404s while
+  // it is off, so both the delivery-mode band and the connector grid have to
+  // be able to drop that mode rather than advertise a dead end. Read on its
+  // own for the same migration-tolerance reason as the two above.
+  const { data: homeVisitRow } = await supabase
+    .from("site_settings")
+    .select("home_visit_enabled")
+    .maybeSingle();
+  const homeVisitEnabled = homeVisitRow?.home_visit_enabled === true;
+
   const { data: rawPackages } = settingsRow?.session_packages_visible
     ? await supabase
         .from("treatment_category_packages")
@@ -106,7 +115,7 @@ export default async function Home() {
     .eq("active", true)
     .order("display_order", { ascending: true })
     .order("id", { ascending: true })
-    .limit(6);
+    .limit(3);
 
   // Real, aggregated patient rating data (never individual reviews/names —
   // see the schema comment on public_rating_summary for why) surfaced
@@ -120,11 +129,12 @@ export default async function Home() {
   // Only lists sections that actually render -- several of these blocks
   // below are conditional on admin-controlled data (categories, packages,
   // testimonials), so a nav item pointing at a section that isn't on the
-  // page would just do nothing when clicked.
+  // page would just do nothing when clicked. Order must match the DOM: the
+  // scroll arrow walks this list top to bottom.
   const sectionNavItems: SectionNavItem[] = [
+    { id: "two-ways", label: "Two Ways to Start", icon: "fa-video" },
     { id: "what-we-treat", label: "What We Treat", icon: "fa-bone" },
-    { id: "parkinsons-care", label: "Parkinson's Care", icon: "fa-person-walking" },
-    { id: "areas-of-care", label: "Areas of Care", icon: "fa-layer-group" },
+    { id: "how-it-works", label: "How It Works", icon: "fa-route" },
     ...(categories && categories.length > 0
       ? [{ id: "programs", label: "Programs", icon: "fa-clipboard-list" }]
       : []),
@@ -132,6 +142,7 @@ export default async function Home() {
     ...(testimonials && testimonials.length > 0
       ? [{ id: "reviews", label: "Reviews", icon: "fa-star" }]
       : []),
+    { id: "explore", label: "Explore the Site", icon: "fa-compass" },
     { id: "get-started", label: "Get Started", icon: "fa-rocket" },
   ];
 
@@ -139,208 +150,210 @@ export default async function Home() {
     <>
       <SectionNav items={sectionNavItems} />
 
-      {/* HERO — the session itself is the hero image, so what we sell is
-          legible before a single line of copy is read. */}
-      <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/70 via-white to-white py-16 lg:py-24">
-        <FloatingOrbs />
-        <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 sm:px-6 md:grid-cols-2 lg:px-8">
-          <Reveal>
-            <span className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-100 px-3 py-1 text-xs font-semibold text-teal-800">
-              <i className="fa-solid fa-shield-halved text-teal-600" />
-              Certified Global Telehealth Practice
+      <PageHero
+        size="large"
+        eyebrow="Licensed physiotherapy"
+        title={
+          <>
+            Physiotherapy at home
+            <span className="block bg-gradient-to-r from-teal-700 to-emerald-500 bg-clip-text text-transparent">
+              over video, or in person
             </span>
-            <h1 className="font-display text-4xl font-extrabold leading-[1.08] tracking-tight text-slate-900 sm:text-6xl">
-              Physiotherapy that watches{" "}
-              <span className="bg-gradient-to-r from-teal-700 to-emerald-500 bg-clip-text text-transparent">
-                how you actually move
-              </span>
-            </h1>
-            <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
-              A licensed specialist assesses your posture and range of motion
-              live over video, then builds a rehabilitation plan around the
-              room you recover in — anywhere in the world.
-            </p>
-            <div className="mt-9 flex flex-wrap items-center gap-4">
-              <MotionButton href="/book" variant="primary">
-                <i className="fa-solid fa-calendar-check" /> Book Assessment
-                <i className="fa-solid fa-arrow-right -ml-2 text-xs opacity-0 transition-all group-hover:ml-0 group-hover:opacity-100" />
-              </MotionButton>
-              <MotionButton href="/how-it-works" variant="secondary">
-                <i className="fa-solid fa-circle-play text-teal-600" /> See how a session runs
-              </MotionButton>
-            </div>
+          </>
+        }
+        subtitle="A licensed physiotherapist watches how you move, finds what is causing the pain, and gives you a plan you can follow at home."
+        primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
+        secondary={{ href: "/how-it-works", label: "See how it works", icon: "fa-circle-play" }}
+        stats={[
+          { value: "60 min", label: "One-to-one assessment" },
+          {
+            value: `₹${(startingPricePaise / 100).toLocaleString("en-IN")}`,
+            label: "Starting per session",
+          },
+          hasRealRatings
+            ? {
+                value: `★ ${Number(ratingSummary.avg_rating).toFixed(1)}`,
+                label: `From ${ratingSummary.rating_count} sessions`,
+              }
+            : { value: "100+", label: "Patients treated" },
+        ]}
+        photoId="hero-therapy"
+        alt="A physiotherapist guiding a patient through a shoulder movement in a bright room"
+        overlay={{
+          icon: "fa-video",
+          title: "Live, one-to-one",
+          body: "Your therapist watches you move and corrects it as you go.",
+        }}
+      />
 
-            <div
-              className={`mt-12 grid gap-4 border-t border-slate-200/80 pt-6 ${
-                hasRealRatings ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"
-              }`}
-            >
-              <div>
-                <p className="font-display text-2xl font-bold text-slate-900">100+</p>
-                <p className="text-xs font-medium text-slate-500">Global Patients</p>
-              </div>
-              <div>
-                <p className="font-display text-2xl font-bold text-slate-900">60 min</p>
-                <p className="text-xs font-medium text-slate-500">1-on-1 Assessment</p>
-              </div>
-              <div>
-                <p className="font-display text-2xl font-bold text-slate-900">
-                  ₹{(startingPricePaise / 100).toLocaleString("en-IN")}
-                </p>
-                <p className="text-xs font-medium text-slate-500">Starting per session</p>
-              </div>
-              {hasRealRatings && (
-                <div>
-                  <p className="font-display text-2xl font-bold text-slate-900">
-                    <i className="fa-solid fa-star mr-1 text-lg text-amber-500" />
-                    {Number(ratingSummary.avg_rating).toFixed(1)}
-                  </p>
-                  <p className="text-xs font-medium text-slate-500">
-                    From {ratingSummary.rating_count} sessions
-                  </p>
-                </div>
-              )}
-            </div>
-          </Reveal>
+      <TrustBar points={TRUST_POINTS} />
 
-          <Reveal delay={0.15}>
-            <div>
-              <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-teal-700">
-                Booking to recovery
-              </p>
-              <JourneySteps variant="compact" stepSeconds={journeyStepSeconds} />
-            </div>
-          </Reveal>
+      {/* The single most important thing this page has to say, and the thing
+          the old version buried: there are two ways to be treated, and both
+          are the same clinicians. */}
+      <Section
+        id="two-ways"
+        tone="tint"
+        eyebrow="Two ways to start"
+        title="Pick how you want to be seen"
+        lede="Same physiotherapists, same assessment. The only difference is whether they come through a screen or through your door."
+      >
+        <div className="space-y-14 lg:space-y-20">
+          <SplitFeature
+            badge="Video session"
+            eyebrow="Option one"
+            title="A video session, wherever you are"
+            body="An hour on a video call with your physiotherapist. They test your movement, find the cause and send you away with a plan."
+            bullets={[
+              "Booked in your own timezone",
+              "Runs in the browser — nothing to install",
+              "Your scans and reports read beforehand",
+            ]}
+            photoId="mode-video"
+            alt="A patient on a video consultation with a clinician on the laptop screen"
+            cta={{ href: "/book", label: "Book a video session" }}
+          />
+
+          {homeVisitEnabled && (
+            <SplitFeature
+              reverse
+              badge="Home visit"
+              eyebrow="Option two"
+              title="Or a physiotherapist at your door"
+              body="When your recovery needs hands on it, the same team comes to your address instead."
+              bullets={[
+                "Hands-on treatment at home",
+                "We confirm your pincode before you pay",
+                "Pay online, or cash on the visit",
+              ]}
+              photoId="mode-home-visit"
+              alt="A physiotherapist guiding an older patient through an arm exercise at home"
+              cta={{ href: "/home-visit", label: "See home visits" }}
+            />
+          )}
         </div>
-      </div>
+      </Section>
 
-      {/* TRUST STRIP */}
-      <div className="border-b border-slate-100 bg-white py-5">
-        <Stagger className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-10 gap-y-3 px-4 sm:px-6 lg:px-8">
-          {TRUST_POINTS.map((t) => (
-            <StaggerItem key={t.label}>
-              <span className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                <i className={`fa-solid ${t.icon} text-teal-600`} />
-                {t.label}
-              </span>
+      {/* Breadth of care, as six photographs. The old version of this band
+          was six paragraphs of prose, which is exactly the density the
+          redesign exists to remove. */}
+      <Section
+        id="what-we-treat"
+        eyebrow="What we treat"
+        title="Find what hurts"
+        lede="Every area below has a defined assessment and a structured programme behind it."
+      >
+        <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {CARE_AREAS.map((area) => (
+            <StaggerItem key={area.key} className="h-full">
+              <PhotoTile
+                href="/conditions"
+                photoId={area.photo}
+                alt={area.blurb}
+                title={area.title}
+                blurb={area.blurb}
+                action="See the programme"
+                icon={area.icon}
+              />
             </StaggerItem>
           ))}
         </Stagger>
-      </div>
+      </Section>
 
-      {/* SCROLL STORY — what we treat, read off the spine itself */}
-      <SpineStory />
-
-      <ParkinsonsCare />
-
-      {/* BREADTH OF CARE — credibility across more than one complaint */}
-      <div id="areas-of-care" className="scroll-mt-28 border-y border-slate-100 bg-slate-50 py-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <Reveal className="mx-auto mb-12 max-w-2xl text-center">
-            <span className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
-              Areas of care
-            </span>
-            <h2 className="font-display mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
-              What our specialists treat
-            </h2>
-            <p className="mt-3 text-sm text-slate-600">
-              Each area has a defined assessment and a structured programme
-              behind it — not a general promise to help.
-            </p>
-          </Reveal>
-          <CareAreas />
-        </div>
-      </div>
+      <Section
+        id="how-it-works"
+        tone="tint"
+        eyebrow="How it works"
+        title="Three steps, start to finish"
+        lede="Book, get assessed, then follow a plan that keeps updating as you recover."
+      >
+        <JourneySteps stepSeconds={journeyStepSeconds} />
+        <Reveal className="mt-10 text-center">
+          <MotionButton href="/how-it-works" variant="secondary">
+            See the full walkthrough
+            <i className="fa-solid fa-arrow-right text-xs text-teal-600" />
+          </MotionButton>
+        </Reveal>
+      </Section>
 
       {/* CONDITIONS — admin-controlled content, so the layout stays generic
           and simply adapts to whatever categories are configured. */}
       {categories && categories.length > 0 && (
-        <div id="programs" className="scroll-mt-28 bg-white py-20">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <Reveal className="mx-auto mb-12 max-w-2xl text-center">
-              <span className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
-                Structured programmes
-              </span>
-              <h2 className="font-display mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
-                Programs we run virtually
-              </h2>
-              <p className="mt-3 text-sm text-slate-600">
-                Every programme opens with the same 60-minute assessment —
-                what changes is the protocol built from it.
-              </p>
-            </Reveal>
-            <ProgramCards programs={categories} packages={packages} />
-          </div>
-        </div>
+        <Section
+          id="programs"
+          eyebrow="Structured programmes"
+          title="What you can book today"
+          lede="Every programme opens with the same 60-minute assessment. What changes is the protocol built from it."
+        >
+          <ProgramCards programs={categories} packages={packages} />
+        </Section>
       )}
 
       <SessionPackages packages={packages} />
 
-      {/* TESTIMONIALS */}
       {testimonials && testimonials.length > 0 && (
-        <div id="reviews" className="scroll-mt-28 py-20">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <Reveal className="mx-auto mb-14 max-w-2xl text-center">
-              <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
-                Recoveries guided entirely over video
-              </h2>
-              {hasRealRatings && (
-                <p className="mt-2 text-sm font-semibold text-amber-600">
-                  <i className="fa-solid fa-star mr-1" />
-                  {Number(ratingSummary.avg_rating).toFixed(1)} average across{" "}
-                  {ratingSummary.rating_count} completed sessions
-                </p>
-              )}
-            </Reveal>
-            <Stagger className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {testimonials.map((t) => (
-                <StaggerItem key={t.id}>
-                  <AnimatedCard className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    {t.rating && (
-                      <div className="mb-3 text-sm text-amber-500">
-                        {"★".repeat(t.rating)}
-                        <span className="text-slate-300">{"★".repeat(5 - t.rating)}</span>
-                      </div>
-                    )}
-                    <p className="flex-1 text-sm leading-relaxed text-slate-700">
-                      &quot;{t.quote}&quot;
-                    </p>
-                    <div className="mt-4 border-t border-slate-100 pt-4">
-                      <p className="text-sm font-bold text-slate-900">{t.patient_name}</p>
-                      {t.condition_label && (
-                        <p className="mt-0.5 text-xs text-teal-700">{t.condition_label}</p>
-                      )}
+        <Section
+          id="reviews"
+          tone="tint"
+          eyebrow="Patient stories"
+          title="Recoveries guided over video"
+          lede={
+            hasRealRatings
+              ? `${Number(ratingSummary.avg_rating).toFixed(1)} average across ${ratingSummary.rating_count} completed sessions.`
+              : undefined
+          }
+        >
+          <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {testimonials.map((t) => (
+              <StaggerItem key={t.id} className="h-full">
+                <figure className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  {t.rating && (
+                    <div className="mb-3 text-sm text-amber-500" aria-label={`${t.rating} out of 5`}>
+                      {"★".repeat(t.rating)}
+                      <span className="text-slate-200">{"★".repeat(5 - t.rating)}</span>
                     </div>
-                  </AnimatedCard>
-                </StaggerItem>
-              ))}
-            </Stagger>
-          </div>
-        </div>
+                  )}
+                  <blockquote className="flex-1 text-[15px] leading-relaxed text-slate-700">
+                    &ldquo;{t.quote}&rdquo;
+                  </blockquote>
+                  <figcaption className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-4">
+                    <span className="font-display flex h-9 w-9 items-center justify-center rounded-full bg-teal-50 text-sm font-bold text-teal-700">
+                      {t.patient_name.trim().charAt(0).toUpperCase()}
+                    </span>
+                    <span>
+                      <span className="block text-sm font-bold text-slate-900">
+                        {t.patient_name}
+                      </span>
+                      {t.condition_label && (
+                        <span className="block text-xs text-teal-700">{t.condition_label}</span>
+                      )}
+                    </span>
+                  </figcaption>
+                </figure>
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </Section>
       )}
 
-      {/* FINAL CTA */}
-      <div id="get-started" className="relative scroll-mt-28 overflow-hidden py-20">
-        <div className="absolute inset-0 bg-gradient-to-br from-teal-800 to-emerald-700" />
-        <FloatingOrbs className="opacity-40" />
-        <Reveal className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
-          <h2 className="font-display text-3xl font-extrabold text-white sm:text-4xl">
-            Your recovery starts with one assessment.
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-base text-teal-100">
-            Book a 60-minute session and leave with a plan built for your body
-            and your home — wherever you are.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <MotionButton href="/book" variant="secondary">
-              <i className="fa-solid fa-calendar-check text-teal-700" /> Book Assessment
-            </MotionButton>
-            <MotionButton href="/get-started" variant="ghost">
-              Explore All Options <i className="fa-solid fa-arrow-right text-xs" />
-            </MotionButton>
-          </div>
-        </Reveal>
-      </div>
+      {/* The connector band: every other page on the site, shown rather than
+          listed. See ExploreGrid and marketingNav.ts. */}
+      <Section
+        id="explore"
+        tone="panel"
+        eyebrow="Explore"
+        title="The whole site, in one place"
+        lede="Six more pages and one booking form. Each one says what it answers."
+      >
+        <ExploreGrid connectors={homeConnectors(homeVisitEnabled)} />
+      </Section>
+
+      <ClosingCta
+        title="Your recovery starts with one assessment."
+        body="Book a 60-minute session and leave with a plan built for your body and your home."
+        primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
+        secondary={{ href: "/get-started", label: "Explore all options" }}
+      />
     </>
   );
 }

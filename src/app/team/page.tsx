@@ -2,12 +2,18 @@ import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
 import TeamTherapistPopup, { type TeamTherapist } from "@/components/TeamTherapistPopup";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
-import { Reveal, FloatingOrbs } from "@/components/motion/primitives";
+import PageHero from "@/components/marketing/PageHero";
+import Section from "@/components/marketing/Section";
+import IconCard from "@/components/marketing/IconCard";
+import ExploreSection from "@/components/marketing/ExploreSection";
+import ClosingCta from "@/components/marketing/ClosingCta";
+import { Stagger, StaggerItem } from "@/components/motion/primitives";
+import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 
 export const metadata: Metadata = {
-  title: "Specialist Team | Dr. Pooja's Physio",
+  title: "Our Team | Dr. Pooja's Physio",
   description:
-    "Meet our licensed clinical specialists — certified physical therapy professionals dedicated to global virtual care.",
+    "Meet the licensed physiotherapists who deliver every session — tap a profile to read their background and request them for your booking.",
 };
 
 // No per-user content on this page — cache and revalidate on a timer
@@ -27,6 +33,27 @@ const FULL_SELECT =
 const BASE_SELECT =
   "id, full_name, credentials, specialization, years_experience, bio, avatar_url, avg_rating, rating_count";
 
+// What choosing a specialist here actually does. Stated plainly because it is
+// a request, not an assignment -- only the admin can see whether that
+// therapist is free for your slot.
+const HOW_CHOOSING_WORKS = [
+  {
+    icon: "fa-hand-pointer",
+    title: "Tap a profile",
+    body: "Read their background, credentials and the languages they consult in.",
+  },
+  {
+    icon: "fa-paper-plane",
+    title: "Request them",
+    body: "Your booking carries the request through. It is a preference, not a confirmed slot.",
+  },
+  {
+    icon: "fa-circle-check",
+    title: "We confirm",
+    body: "If they are free at your time, they are yours. If not, we assign an equally qualified colleague.",
+  },
+];
+
 export default async function TeamPage() {
   const supabase = createPublicClient();
   let { data: therapists } = await supabase
@@ -43,32 +70,39 @@ export default async function TeamPage() {
     therapists = fallback.data;
   }
 
+  const homeVisitEnabled = await readHomeVisitEnabled();
+
   const sectionNavItems: SectionNavItem[] = [
     { id: "the-team", label: "The Team", icon: "fa-user-doctor" },
+    { id: "choosing", label: "Choosing One", icon: "fa-hand-pointer" },
+    { id: "explore", label: "Explore the Site", icon: "fa-compass" },
+    { id: "get-started", label: "Book a Session", icon: "fa-calendar-check" },
   ];
 
   return (
     <>
       <SectionNav items={sectionNavItems} />
 
-      <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/70 to-white py-16">
-        <FloatingOrbs />
-        <Reveal className="relative mx-auto max-w-2xl px-4 text-center sm:px-6 lg:px-8">
-          <span className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-100 px-3 py-1 text-xs font-semibold text-teal-800">
-            <i className="fa-solid fa-user-doctor text-teal-600" />
-            Licensed clinical team
-          </span>
-          <h1 className="font-display mt-5 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-            The specialists who will actually see you
-          </h1>
-          <p className="mt-4 text-base text-slate-600">
-            Every session is delivered one-to-one by a qualified
-            physiotherapist — tap any profile to read their background.
-          </p>
-        </Reveal>
-      </div>
+      <PageHero
+        eyebrow="Our team"
+        title="The specialist who will actually see you"
+        subtitle="Every session is delivered one-to-one by a qualified physiotherapist. No call centre, no rotating pool — tap a profile to read their background."
+        primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
+        photoId="hero-team"
+        alt="A physiotherapist assessing a patient's shoulder alignment in a clinic room"
+        overlay={{
+          icon: "fa-id-badge",
+          title: "Licensed, every one",
+          body: "Credentials and years of practice are on each profile.",
+        }}
+      />
 
-      <section id="the-team" className="mx-auto max-w-7xl scroll-mt-28 px-4 py-16 sm:px-6 lg:px-8">
+      <Section
+        id="the-team"
+        eyebrow="Meet the specialists"
+        title="Who you will be working with"
+        lede="Tap any profile for their background, and request them when you book."
+      >
         {!therapists || therapists.length === 0 ? (
           <p className="py-12 text-center text-sm text-slate-500">
             Our specialist roster is being updated — check back shortly.
@@ -76,7 +110,32 @@ export default async function TeamPage() {
         ) : (
           <TeamTherapistPopup therapists={therapists} />
         )}
-      </section>
+      </Section>
+
+      <Section
+        id="choosing"
+        tone="tint"
+        eyebrow="Choosing a specialist"
+        title="What picking someone here does"
+        lede="It sends a request with your booking. Only the clinic can see who is free for your slot."
+      >
+        <Stagger className="grid gap-5 md:grid-cols-3">
+          {HOW_CHOOSING_WORKS.map((item) => (
+            <StaggerItem key={item.title} className="h-full">
+              <IconCard icon={item.icon} title={item.title} body={item.body} />
+            </StaggerItem>
+          ))}
+        </Stagger>
+      </Section>
+
+      <ExploreSection current="team" homeVisitEnabled={homeVisitEnabled} />
+
+      <ClosingCta
+        title="Book with the specialist you picked."
+        body="Or book the standard assessment and we will match you to the right person for your condition."
+        primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
+        secondary={{ href: "/conditions", label: "See what we treat" }}
+      />
     </>
   );
 }

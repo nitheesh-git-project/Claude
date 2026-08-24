@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
 import HomeVisitPackages, {
   type PublicHomeVisitPackage,
 } from "@/components/home/HomeVisitPackages";
-import { Reveal, FloatingOrbs } from "@/components/motion/primitives";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
+import PageHero from "@/components/marketing/PageHero";
+import Section from "@/components/marketing/Section";
+import IconCard from "@/components/marketing/IconCard";
+import ExploreSection from "@/components/marketing/ExploreSection";
+import ClosingCta from "@/components/marketing/ClosingCta";
+import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
 import {
   DEFAULT_HOME_VISIT_PAGE_HEADING,
   DEFAULT_HOME_VISIT_PAGE_SUBHEADING,
@@ -15,13 +19,33 @@ import {
 export const metadata: Metadata = {
   title: "Home Visit Physiotherapy | Dr. Pooja's Physio",
   description:
-    "A certified physiotherapist visits you at home — same assessment and recovery plan you would get in clinic, without the travel.",
+    "A licensed physiotherapist comes to your address — the same assessment and recovery plan, without the travel.",
 };
 
 // No per-user content, and createPublicClient() never touches cookies(), so
 // this caches and revalidates on a timer instead of hitting Supabase on
 // every visit -- same as /conditions and /book.
 export const revalidate = 300;
+
+// The three things a visitor needs to know before they will consider this,
+// in the order they ask them. One line each.
+const HOW_A_VISIT_WORKS = [
+  {
+    icon: "fa-map-pin",
+    title: "We check your pincode",
+    body: "Serviceability is confirmed before you are asked for an address, and again before you pay.",
+  },
+  {
+    icon: "fa-user-doctor",
+    title: "The same physiotherapists",
+    body: "Not a separate roster — the clinicians on our team, at your door instead of on a screen.",
+  },
+  {
+    icon: "fa-indian-rupee-sign",
+    title: "Travel is passed straight through",
+    body: "The travel fee is shown separately at checkout and goes to your therapist in full.",
+  },
+];
 
 export default async function HomeVisitPage() {
   const supabase = createPublicClient();
@@ -94,44 +118,61 @@ export default async function HomeVisitPage() {
   }
 
   // "Where we visit" only renders when serviceable areas exist, so its rail
-  // entry is conditional for the same reason /conditions' are.
+  // entry is conditional. Order matches the DOM.
   const sectionNavItems: SectionNavItem[] = [
+    { id: "how-a-visit-works", label: "How It Works", icon: "fa-route" },
     { id: "choose-visit", label: "Choose Your Visit", icon: "fa-house-medical" },
     ...(cities.size > 0
       ? [{ id: "where-we-visit", label: "Where We Visit", icon: "fa-location-dot" }]
       : []),
-    { id: "check-pincode", label: "Check Pincode", icon: "fa-map-pin" },
+    { id: "explore", label: "Explore the Site", icon: "fa-compass" },
+    { id: "check-pincode", label: "Check My Pincode", icon: "fa-map-pin" },
   ];
 
   return (
     <>
       <SectionNav items={sectionNavItems} />
 
-      <section className="relative overflow-hidden bg-gradient-to-b from-teal-50/60 to-white py-20">
-        <FloatingOrbs />
-        <div className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
-          <Reveal>
-            <span className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
-              Home visit
-            </span>
-            <h1 className="font-display mt-3 text-3xl font-extrabold text-slate-900 sm:text-4xl">
-              {heading}
-            </h1>
-            <p className="mt-4 text-base leading-relaxed text-slate-600">{subheading}</p>
-          </Reveal>
-        </div>
-      </section>
+      {/* Heading and subheading stay admin-editable -- this page's copy is a
+          site setting, and hardcoding it here would silently ignore what an
+          admin typed into Settings. */}
+      <PageHero
+        eyebrow="Home visit"
+        title={heading}
+        subtitle={subheading}
+        primary={{ href: "/book-home-visit", label: "Check my pincode", icon: "fa-map-pin" }}
+        secondary={{ href: "/how-it-works", label: "See how it works" }}
+        photoId="hero-home-visit"
+        alt="A physiotherapist guiding an older patient through an arm exercise in their living room"
+        overlay={{
+          icon: "fa-house-medical",
+          title: "At your address",
+          body: "Hands-on treatment where the recovery actually happens.",
+        }}
+      />
 
-      <section id="choose-visit" className="mx-auto max-w-7xl scroll-mt-28 px-4 py-16 sm:px-6 lg:px-8">
-        <Reveal className="mx-auto mb-12 max-w-2xl text-center">
-          <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
-            Choose your visit
-          </h2>
-          <p className="mt-3 text-sm text-slate-600">
-            Book one visit, or a programme of several with the same therapist each time.
-          </p>
-        </Reveal>
+      <Section
+        id="how-a-visit-works"
+        eyebrow="How a visit works"
+        title="Before anyone knocks on your door"
+        lede="Three things worth knowing, none of which cost you anything to find out."
+      >
+        <Stagger className="grid gap-5 md:grid-cols-3">
+          {HOW_A_VISIT_WORKS.map((item) => (
+            <StaggerItem key={item.title} className="h-full">
+              <IconCard icon={item.icon} title={item.title} body={item.body} />
+            </StaggerItem>
+          ))}
+        </Stagger>
+      </Section>
 
+      <Section
+        id="choose-visit"
+        tone="tint"
+        eyebrow="Book a visit"
+        title="Choose your visit"
+        lede="One visit, or a programme of several with the same physiotherapist each time."
+      >
         {packages.length > 0 ? (
           <HomeVisitPackages packages={packages} />
         ) : (
@@ -139,53 +180,42 @@ export default async function HomeVisitPage() {
             Home visit packages are being finalised — please check back shortly.
           </p>
         )}
-      </section>
+      </Section>
 
       {cities.size > 0 && (
-        <section id="where-we-visit" className="scroll-mt-28 border-y border-slate-100 bg-slate-50 py-16">
-          <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-            <Reveal className="mb-8 text-center">
-              <h2 className="font-display text-xl font-bold text-slate-900 sm:text-2xl">
-                Where we visit
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                We&apos;ll confirm your exact pincode before you pay for anything.
-              </p>
-            </Reveal>
-            <div className="grid gap-6 sm:grid-cols-2">
-              {[...cities.entries()].map(([city, pincodes]) => (
-                <div key={city} className="rounded-2xl border border-slate-200 bg-white p-5">
-                  <p className="font-display text-sm font-bold text-slate-900">{city}</p>
+        <Section
+          id="where-we-visit"
+          eyebrow="Coverage"
+          title="Where we visit"
+          lede="We confirm your exact pincode before you pay for anything."
+        >
+          <div className="mx-auto grid max-w-4xl gap-5 sm:grid-cols-2">
+            {[...cities.entries()].map(([city, pincodes]) => (
+              <Reveal key={city}>
+                <div className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="font-display flex items-center gap-2 text-sm font-bold text-slate-900">
+                    <i className="fa-solid fa-location-dot text-teal-600" aria-hidden="true" />
+                    {city}
+                  </p>
                   <p className="mt-2 text-xs leading-relaxed text-slate-500">
                     {pincodes.join(" · ")}
                   </p>
                 </div>
-              ))}
-            </div>
+              </Reveal>
+            ))}
           </div>
-        </section>
+        </Section>
       )}
 
-      <section id="check-pincode" className="scroll-mt-28 py-16">
-        <div className="mx-auto max-w-2xl px-4 text-center sm:px-6 lg:px-8">
-          <Reveal>
-            <h2 className="font-display text-xl font-bold text-slate-900 sm:text-2xl">
-              Not sure if we reach you?
-            </h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Start a booking and enter your pincode — it takes a second, and nothing is charged
-              until we&apos;ve confirmed we can get to you.
-            </p>
-            <Link
-              href="/book-home-visit"
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700"
-            >
-              Check my pincode
-              <i className="fa-solid fa-arrow-right text-[11px]" />
-            </Link>
-          </Reveal>
-        </div>
-      </section>
+      <ExploreSection current="home-visit" homeVisitEnabled />
+
+      <ClosingCta
+        id="check-pincode"
+        title="Not sure if we reach you?"
+        body="Start a booking and enter your pincode. It takes a second, and nothing is charged until we have confirmed we can get to you."
+        primary={{ href: "/book-home-visit", label: "Check my pincode", icon: "fa-map-pin" }}
+        secondary={{ href: "/book", label: "Book a video session instead" }}
+      />
     </>
   );
 }

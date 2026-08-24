@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isDashboardShellRoute } from "@/lib/dashboardShellRoutes";
+import { MARKETING_PAGES } from "@/lib/marketingNav";
 
 export default function Footer({
   siteName,
@@ -11,6 +12,7 @@ export default function Footer({
   whatsappNumber,
   contactPhone,
   footerCopyrightText,
+  homeVisitEnabled = false,
 }: {
   siteName: string;
   siteDescription: string;
@@ -18,8 +20,16 @@ export default function Footer({
   whatsappNumber: string;
   contactPhone: string;
   footerCopyrightText: string;
+  homeVisitEnabled?: boolean;
 }) {
   const pathname = usePathname();
+  // Same list the header and the connector grids read, minus Home (the
+  // wordmark above already links there). Hardcoding these was how the footer
+  // ended up offering four of the seven pages under labels the rest of the
+  // site had stopped using.
+  const links = MARKETING_PAGES.filter(
+    (page) => page.key !== "home" && (homeVisitEnabled || !page.requiresHomeVisit)
+  );
   // See Navbar's matching check -- each role dashboard is its own
   // full-height dark app shell with no page scroll, so a footer below it
   // would never be reachable/visible anyway.
@@ -43,10 +53,13 @@ export default function Footer({
         <div>
           <h4 className="text-white text-sm font-semibold mb-3">Explore</h4>
           <ul className="space-y-2 text-xs">
-            <li><Link href="/conditions" className="hover:text-teal-400 transition">Conditions Treated</Link></li>
-            <li><Link href="/how-it-works" className="hover:text-teal-400 transition">How It Works</Link></li>
-            <li><Link href="/team" className="hover:text-teal-400 transition">Specialist Team</Link></li>
-            <li><Link href="/hospitals" className="hover:text-teal-400 transition">For Hospitals (B2B)</Link></li>
+            {links.map((link) => (
+              <li key={link.href}>
+                <Link href={link.href} className="hover:text-teal-400 transition">
+                  {link.label}
+                </Link>
+              </li>
+            ))}
           </ul>
         </div>
 

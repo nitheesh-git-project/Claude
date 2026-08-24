@@ -89,14 +89,21 @@ src/app/api/**           POST route handlers grouped by audience:
                          medical-documents/ (the one route every role
                          shares, authorised by RLS rather than by role)
 src/components/          UI, grouped by area (admin/, auth/, booking/,
-                         dashboard/, home/, hospital/, profile/, motion/,
-                         visuals/)
+                         catalog/, dashboard/, home/, hospital/, marketing/,
+                         profile/, motion/, system/, visuals/)
+src/components/marketing/ the seven public pages' design system: PageHero,
+                         Section, PhotoTile, SplitFeature, StepStrip,
+                         IconCard, TrustBar, ExploreGrid, ClosingCta
 src/lib/                 domain logic, formatting, Supabase clients
 src/lib/adminNav.ts      the admin dashboard's six sections + their screens
+src/lib/marketingNav.ts  the seven public pages + their one-line purposes
+src/lib/marketingPhotos.ts every photograph the public pages use
+src/lib/careAreas.ts     the six areas of practice, shared by / and /conditions
 src/lib/adminScope.ts    admin scopes and which sections each one may open
 src/proxy.ts             auth proxy over the four dashboard route trees
 supabase/schema.sql      the entire schema: tables, RLS, views, triggers
 scripts/                 one-off tooling
+public/photos/           the public pages' photography (licence-free stock)
 ```
 
 ## Roles and access
@@ -718,6 +725,54 @@ client is the only writer and the log is append-only from any session.
   therapist the public view hides (suspended, unapproved, `visible_on_team`
   off) resolves to nothing and the request is dropped silently rather than
   failing the booking.
+
+- **The seven public pages are one template, not seven layouts.** `/`,
+  `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/faq` and
+  `/hospitals` all assemble from `src/components/marketing/`: a `PageHero`
+  (photo right, one headline, one sentence, up to two CTAs), `TrustBar`, some
+  `Section` bands, an `ExploreSection`, and a `ClosingCta`. Every page ends
+  the same way on purpose — wherever a visitor stops reading, the next step
+  is in the same place. Before adding a bespoke block to one page, check
+  whether a `Section` plus `PhotoTile`/`IconCard`/`SplitFeature` already says
+  it; the old pages each grew their own hero and their own closing block,
+  and the result read as seven different sites.
+- **One idea per band, and a hard word budget.** The rewrite exists because
+  visitors could not tell what the site was: the diagnosis was that every
+  section opened with three paragraphs before the thing itself. So `Section`
+  takes an eyebrow, a heading of a few words and **one** `lede` sentence, and
+  has no slot for a second paragraph. Card bodies (`IconCard`, `PhotoTile`)
+  are one line. If a card needs a paragraph it is a band of its own; if a
+  band needs two ideas it is two bands. Don't reintroduce prose by passing a
+  long string to `lede`.
+- **The photograph is load-bearing, not decoration.** A visitor should be
+  able to tell what a page is about with the text blurred out, which is why
+  `PageHero` requires `photo` and `alt` rather than accepting a page with no
+  image. Every photo is a static import through `src/lib/marketingPhotos.ts`
+  (real dimensions at build time, generated blur placeholder, a missing file
+  is a compile error) — never a `/photos/x.jpg` string, and never a remote
+  URL. Pages name a `PhotoId`; only that one module imports the files. The
+  images under `public/photos/` are licence-free stock and are meant to be
+  replaced with the clinic's own photography: drop a file of roughly the same
+  aspect ratio over the existing name and nothing else changes.
+- **The site's own index lives in `src/lib/marketingNav.ts`.** The header
+  nav, the footer's Explore column, the home page's connector grid and the
+  "Where to go next" strip on the other six pages all read that one array, so
+  a page cannot exist in the header and be missing from the index, and a
+  renamed page cannot leave a stale description behind. It is the public-site
+  counterpart of `adminNav.ts`. `blurb` is one short line in a patient's
+  words — a page whose blurb needs two sentences is doing two jobs. Home
+  Visit carries `requiresHomeVisit`, because `/home-visit` 404s while the
+  admin master switch is off and every surface listing pages has to drop it
+  rather than link into a dead end (`readHomeVisitEnabled()` in
+  `src/lib/homeVisitFlag.ts`, read on its own for the usual
+  migration-tolerance reason and failing closed).
+- **A section rail entry must match a section that renders, in DOM order.**
+  Each public page still passes `SectionNav` a list built from what actually
+  rendered — several bands are conditional on admin-controlled catalog data —
+  and the bottom-right scroll arrow walks that list top to bottom, so an
+  entry out of order sends the arrow backwards. `e2e/section-nav.spec.ts`
+  reads the rail's own buttons rather than a hardcoded list, which is what
+  lets these pages change shape without the spec changing with them.
 
 - **A public catalog card opens a dialog; booking is its own button.** The
   session-package, home-visit-package and programme cards all follow one

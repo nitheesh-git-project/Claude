@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
-import { Reveal, MotionButton, FloatingOrbs } from "@/components/motion/primitives";
 import FaqAccordion from "@/components/FaqAccordion";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
+import PageHero from "@/components/marketing/PageHero";
+import Section from "@/components/marketing/Section";
+import ExploreSection from "@/components/marketing/ExploreSection";
+import ClosingCta from "@/components/marketing/ClosingCta";
+import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 
 export const metadata: Metadata = {
   title: "FAQ | Dr. Pooja's Physio",
   description:
-    "Answers about booking, video consultations, pricing, and how virtual physical therapy actually works.",
+    "Cost, refunds, privacy and how a video physiotherapy session actually runs — answered before you book.",
 };
 
 export const revalidate = 300;
@@ -24,9 +28,11 @@ export default async function FaqPage() {
     .order("id", { ascending: true });
 
   const rows = (faqs ?? []) as Faq[];
+  const homeVisitEnabled = await readHomeVisitEnabled();
 
   const sectionNavItems: SectionNavItem[] = [
     { id: "questions", label: "Questions", icon: "fa-circle-question" },
+    { id: "explore", label: "Explore the Site", icon: "fa-compass" },
     { id: "still-unsure", label: "Still Unsure?", icon: "fa-calendar-check" },
   ];
 
@@ -34,47 +40,36 @@ export default async function FaqPage() {
     <>
       <SectionNav items={sectionNavItems} />
 
-      <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/70 to-white py-16">
-        <FloatingOrbs />
-        <Reveal className="relative mx-auto max-w-2xl px-4 text-center sm:px-6 lg:px-8">
-          <h1 className="font-display text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-            Questions, answered
-          </h1>
-          <p className="mt-4 text-base text-slate-600">
-            The things people most often want to know before booking their
-            first virtual session.
-          </p>
-        </Reveal>
-      </div>
+      <PageHero
+        eyebrow="Questions"
+        title="Answered before you book"
+        subtitle="Cost, refunds, privacy, and what a session is actually like. If your question is not here, the assessment call is the place to ask it."
+        primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
+        secondary={{ href: "/how-it-works", label: "See how it works" }}
+        photoId="hero-faq"
+        alt="A clinician talking a patient through their treatment options across a desk"
+      />
 
-      <section id="questions" className="mx-auto max-w-3xl scroll-mt-28 px-4 py-16 sm:px-6 lg:px-8">
-        {rows.length > 0 ? (
-          <FaqAccordion faqs={rows} />
-        ) : (
-          <p className="text-center text-sm text-slate-500">
-            No questions posted yet — check back soon.
-          </p>
-        )}
-
-        {/* Wrapper carries the id because Reveal is a pure animation
-            primitive and takes no id of its own. */}
-        <div id="still-unsure" className="scroll-mt-28">
-          <Reveal delay={0.1} className="mt-12 rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-            <h2 className="font-display text-lg font-bold text-slate-900">
-              Still unsure whether this will help you?
-            </h2>
-            <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
-              The assessment exists to answer exactly that. If virtual care
-              isn&apos;t right for your case, your therapist will tell you so.
+      <Section id="questions" eyebrow="Common questions" title="Everything people ask">
+        <div className="mx-auto max-w-3xl">
+          {rows.length > 0 ? (
+            <FaqAccordion faqs={rows} />
+          ) : (
+            <p className="text-center text-sm text-slate-500">
+              No questions posted yet — check back soon.
             </p>
-            <div className="mt-6 flex justify-center">
-              <MotionButton href="/book" variant="primary">
-                <i className="fa-solid fa-calendar-check" /> Book an Assessment
-              </MotionButton>
-            </div>
-          </Reveal>
+          )}
         </div>
-      </section>
+      </Section>
+
+      <ExploreSection current="faq" homeVisitEnabled={homeVisitEnabled} />
+
+      <ClosingCta
+        id="still-unsure"
+        title="Still unsure whether this will help?"
+        body="The assessment exists to answer exactly that. If virtual care is not right for your case, your therapist will tell you so."
+        primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
+      />
     </>
   );
 }

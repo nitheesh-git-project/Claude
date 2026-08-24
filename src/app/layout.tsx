@@ -125,6 +125,7 @@ export default async function RootLayout({
             whatsappNumber={brand.whatsappNumber}
             contactPhone={brand.contactPhone}
             footerCopyrightText={brand.footerCopyrightText}
+            homeVisitEnabled={homeVisitEnabled}
           />
           <ScrollHint />
         </SectionNavProvider>

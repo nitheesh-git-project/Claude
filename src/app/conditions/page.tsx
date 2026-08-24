@@ -1,14 +1,21 @@
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
-import { Reveal, MotionButton, FloatingOrbs } from "@/components/motion/primitives";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 import ProgramCards from "@/components/catalog/ProgramCards";
 import SessionPackages from "@/components/home/SessionPackages";
+import PageHero from "@/components/marketing/PageHero";
+import Section from "@/components/marketing/Section";
+import PhotoTile from "@/components/marketing/PhotoTile";
+import ExploreSection from "@/components/marketing/ExploreSection";
+import ClosingCta from "@/components/marketing/ClosingCta";
+import { Stagger, StaggerItem } from "@/components/motion/primitives";
+import { CARE_AREAS } from "@/lib/careAreas";
+import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 
 export const metadata: Metadata = {
   title: "Conditions Treated | Dr. Pooja's Physio",
   description:
-    "Specialized virtual rehabilitation programs — assessed over video and delivered as a plan you follow at home.",
+    "Back, neck, knee, posture, sports and mobility problems — each with a defined assessment and a structured programme behind it.",
 };
 
 // No per-user content on this page — cache and revalidate on a timer
@@ -76,12 +83,16 @@ export default async function ConditionsPage() {
     category_price_paise: categoryPriceById.get(p.category_id) ?? null,
   }));
 
-  // Only sections that actually render -- packages and the programme grid
-  // are both admin-controlled, so a rail item pointing at an absent section
-  // would be a dead pill and a skipped stop for the scroll arrow.
+  const homeVisitEnabled = await readHomeVisitEnabled();
+
+  // Only sections that actually render -- programmes and packages are both
+  // admin-controlled, so a rail item pointing at an absent section would be a
+  // dead pill and a skipped stop for the scroll arrow. Order matches the DOM.
   const sectionNavItems: SectionNavItem[] = [
+    { id: "areas", label: "What We Treat", icon: "fa-bone" },
     ...(rows.length > 0 ? [{ id: "programs", label: "Programs", icon: "fa-clipboard-list" }] : []),
     ...(packages.length > 0 ? [{ id: "packages", label: "Packages", icon: "fa-box-open" }] : []),
+    { id: "explore", label: "Explore the Site", icon: "fa-compass" },
     { id: "not-sure", label: "Not Sure?", icon: "fa-circle-question" },
   ];
 
@@ -89,56 +100,66 @@ export default async function ConditionsPage() {
     <>
       <SectionNav items={sectionNavItems} />
 
-      <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/70 to-white py-16">
-        <FloatingOrbs />
-        <Reveal className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
-          <span className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-100 px-3 py-1 text-xs font-semibold text-teal-800">
-            <i className="fa-solid fa-clipboard-list text-teal-600" />
-            Programs currently offered
-          </span>
-          <h1 className="font-display mt-5 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl">
-            Specialized virtual rehabilitation programs
-          </h1>
-          <p className="mt-5 text-lg leading-relaxed text-slate-600">
-            Every program starts with the same 60-minute assessment — what
-            changes is the protocol built from it.
-          </p>
-        </Reveal>
-      </div>
+      <PageHero
+        eyebrow="Conditions treated"
+        title="Tell us what hurts"
+        subtitle="Six areas of practice, each with a defined assessment and a structured programme behind it — not a general promise to help."
+        primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
+        secondary={{ href: "/faq", label: "Read common questions" }}
+        photoId="hero-conditions"
+        alt="A physiotherapist testing a patient's spinal range of motion"
+      />
 
-      <section id="programs" className="mx-auto max-w-7xl scroll-mt-28 px-4 py-16 sm:px-6 lg:px-8">
-        {rows.length === 0 ? (
-          <p className="py-12 text-center text-sm text-slate-500">
-            Our programs are being updated — check back shortly.
-          </p>
-        ) : (
+      {/* Breadth first, catalog second. The old page opened straight into the
+          admin-configured programme cards, so a visitor whose complaint was
+          not one of the configured programme titles concluded we did not
+          treat it. */}
+      <Section
+        id="areas"
+        eyebrow="Areas of practice"
+        title="Where we can help"
+        lede="Tap an area to see the programme, or book the standard assessment and let your therapist decide."
+      >
+        <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {CARE_AREAS.map((area) => (
+            <StaggerItem key={area.key} className="h-full">
+              <PhotoTile
+                href="/book"
+                photoId={area.photo}
+                alt={area.blurb}
+                title={area.title}
+                blurb={area.blurb}
+                action="Book an assessment"
+                icon={area.icon}
+              />
+            </StaggerItem>
+          ))}
+        </Stagger>
+      </Section>
+
+      {rows.length > 0 && (
+        <Section
+          id="programs"
+          tone="tint"
+          eyebrow="Structured programmes"
+          title="What you can book today"
+          lede="Every programme opens with the same 60-minute assessment. What changes is the protocol built from it."
+        >
           <ProgramCards programs={rows} packages={packages} />
-        )}
-
-      </section>
+        </Section>
+      )}
 
       <SessionPackages packages={packages} />
 
-      <section id="not-sure" className="mx-auto max-w-7xl scroll-mt-28 px-4 py-16 sm:px-6 lg:px-8">
-        <Reveal delay={0.1} className="mt-14 rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-          <h2 className="font-display text-xl font-bold text-slate-900">
-            Not sure which program fits?
-          </h2>
-          <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">
-            Book the standard assessment — your therapist will identify the
-            right protocol during the session rather than asking you to
-            self-diagnose beforehand.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <MotionButton href="/book" variant="primary">
-              <i className="fa-solid fa-calendar-check" /> Book an Assessment
-            </MotionButton>
-            <MotionButton href="/faq" variant="secondary">
-              Read common questions
-            </MotionButton>
-          </div>
-        </Reveal>
-      </section>
+      <ExploreSection current="conditions" homeVisitEnabled={homeVisitEnabled} />
+
+      <ClosingCta
+        id="not-sure"
+        title="Not sure which one fits?"
+        body="Book the standard assessment. Your therapist will identify the right protocol during the session, so you never have to self-diagnose first."
+        primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
+        secondary={{ href: "/faq", label: "Read the FAQ" }}
+      />
     </>
   );
 }
