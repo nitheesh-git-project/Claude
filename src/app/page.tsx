@@ -178,7 +178,7 @@ export default async function Home() {
             : { value: "100+", label: "Patients treated" },
         ]}
         photoId="hero-therapy"
-        alt="A patient following her physiotherapist through a seated twist, laptop open in front of her at home"
+        alt="A patient smiling as she works through her exercises at home, laptop open in front of her"
         overlay={{
           icon: "fa-video",
           title: "Live, one-to-one",
@@ -210,7 +210,7 @@ export default async function Home() {
               "Your scans and reports read beforehand",
             ]}
             photoId="mode-video"
-            alt="A patient holding a plank in his living room, following the session on an open laptop"
+            alt="A patient on her sofa in a video session, her physiotherapist live on the laptop screen"
             cta={{ href: "/book", label: "Book a video session" }}
           />
 

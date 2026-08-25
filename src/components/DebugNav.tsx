@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { debugNow, getDebugNowOffsetMs, setDebugNowOffsetMs } from "@/lib/debugNow";
 import DebugResetButton from "@/components/DebugResetButton";
+import { MARKETING_PAGES } from "@/lib/marketingNav";
 
 // datetime-local wants "YYYY-MM-DDTHH:mm" in the browser's local timezone,
 // not an ISO/UTC string -- sliceing toISOString would silently shift the
@@ -14,23 +15,30 @@ function toLocalInputValue(ms: number) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// The public pages come from marketingNav.ts rather than being listed here.
+// This list had gone stale — /faq and /home-visit were missing, so the two
+// newest public pages were the two you could not jump to from the debug bar,
+// which is exactly when you want it. Home Visit is included unconditionally:
+// this is a developer tool, and seeing the 404 is the point when the master
+// switch is off. Everything below the public pages is a route the marketing
+// nav does not know about, so those stay written out.
 const routes = [
-  { value: "/", label: "1. Home" },
-  { value: "/conditions", label: "2. Conditions Treated" },
-  { value: "/how-it-works", label: "3. How It Works" },
-  { value: "/team", label: "4. Specialist Team" },
-  { value: "/hospitals", label: "5. Hospitals (B2B)" },
-  { value: "/get-started", label: "6. Get Started Hub" },
-  { value: "/book", label: "7. Booking Enquiry" },
-  { value: "/patient/login", label: "8. Patient Login / Register" },
-  { value: "/patient/dashboard", label: "8b. Patient Dashboard (protected)" },
-  { value: "/therapist/login", label: "9. Therapist Login / Apply" },
-  { value: "/therapist/dashboard", label: "9b. Therapist Dashboard (protected)" },
-  { value: "/pending-approval", label: "10. Pending Approval" },
-  { value: "/admin/login", label: "11. Admin Login" },
-  { value: "/admin/dashboard", label: "11b. Admin Dashboard (protected)" },
-  { value: "/hospital/login", label: "12. Partner (Hospital) Login" },
-  { value: "/hospital/dashboard", label: "12b. Partner Dashboard (protected)" },
+  ...MARKETING_PAGES.map((page, index) => ({
+    value: page.href,
+    label: `${index + 1}. ${page.label}`,
+  })),
+  { value: "/get-started", label: "8. Get Started Hub" },
+  { value: "/book", label: "9. Booking Enquiry" },
+  { value: "/book-home-visit", label: "9b. Home Visit Booking" },
+  { value: "/patient/login", label: "10. Patient Login / Register" },
+  { value: "/patient/dashboard", label: "10b. Patient Dashboard (protected)" },
+  { value: "/therapist/login", label: "11. Therapist Login / Apply" },
+  { value: "/therapist/dashboard", label: "11b. Therapist Dashboard (protected)" },
+  { value: "/pending-approval", label: "12. Pending Approval" },
+  { value: "/admin/login", label: "13. Admin Login" },
+  { value: "/admin/dashboard", label: "13b. Admin Dashboard (protected)" },
+  { value: "/hospital/login", label: "14. Partner (Hospital) Login" },
+  { value: "/hospital/dashboard", label: "14b. Partner Dashboard (protected)" },
 ];
 
 export default function DebugNav() {

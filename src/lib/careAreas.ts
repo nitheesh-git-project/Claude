@@ -35,7 +35,7 @@ export const CARE_AREAS: CareArea[] = [
     title: "Back pain",
     blurb: "Lower-back and disc pain, loaded back up step by step.",
     photo: "care-back",
-    photoAlt: "A patient stretching on a mat at home with her laptop propped in front of her",
+    photoAlt: "A patient resting on her mat between exercises, smiling at her laptop",
     icon: "fa-bone",
   },
   {
@@ -43,7 +43,7 @@ export const CARE_AREAS: CareArea[] = [
     title: "Neck & shoulder",
     blurb: "Stiffness, headaches and pain that starts at your desk.",
     photo: "care-neck",
-    photoAlt: "A woman taking a guided shoulder stretch at her desk, laptop open beside her",
+    photoAlt: "A patient smiling through a side stretch at home, laptop in front of her",
     icon: "fa-head-side-cough",
   },
   {
@@ -51,7 +51,7 @@ export const CARE_AREAS: CareArea[] = [
     title: "Knee & joint pain",
     blurb: "Arthritis, ligament injuries and post-surgery recovery.",
     photo: "care-knee",
-    photoAlt: "An older man doing a guided leg exercise on a mat, following his laptop",
+    photoAlt: "A patient working with light dumbbells on her mat, laptop open beside her",
     icon: "fa-person-walking",
   },
   {
@@ -59,7 +59,7 @@ export const CARE_AREAS: CareArea[] = [
     title: "Posture & desk setup",
     blurb: "We look at how you sit, then fix the chair and the body.",
     photo: "care-posture",
-    photoAlt: "A woman at her home desk, laptop open, easing her neck after hours of sitting",
+    photoAlt: "A patient stretching out her arms at her desk, laptop open in front of her",
     icon: "fa-chair",
   },
   {
@@ -67,7 +67,7 @@ export const CARE_AREAS: CareArea[] = [
     title: "Sports injury",
     blurb: "Getting runners and gym-goers back to full load safely.",
     photo: "care-sports",
-    photoAlt: "Two people mid-workout at home, following the session on a laptop",
+    photoAlt: "Two patients mid-workout at home, following the session on a laptop",
     icon: "fa-person-running",
   },
   {
@@ -75,7 +75,7 @@ export const CARE_AREAS: CareArea[] = [
     title: "Mobility & neuro care",
     blurb: "Balance, walking and Parkinson's rehabilitation at home.",
     photo: "care-mobility",
-    photoAlt: "An older man in a video consultation with his physiotherapist on a tablet",
+    photoAlt: "An older couple smiling through a video consultation on their tablet",
     icon: "fa-hands-holding-child",
   },
 ];

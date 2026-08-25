@@ -47,7 +47,7 @@ export default async function FaqPage() {
         primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
         secondary={{ href: "/how-it-works", label: "See how it works" }}
         photoId="hero-faq"
-        alt="A laptop on a plain desk with a physiotherapist waiting on screen, ready for the session"
+        alt="A physiotherapist at her laptop, answering a patient's questions on a call"
       />
 
       <Section id="questions" eyebrow="Common questions" title="Everything people ask">

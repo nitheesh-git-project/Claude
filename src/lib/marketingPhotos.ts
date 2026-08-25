@@ -18,7 +18,6 @@ import modeVideo from "../../public/photos/mode-video.jpg";
 import reports from "../../public/photos/reports.jpg";
 import stepAssess from "../../public/photos/step-assess.jpg";
 import stepBook from "../../public/photos/step-book.jpg";
-import stepPlan from "../../public/photos/step-plan.jpg";
 import stepProgress from "../../public/photos/step-progress.jpg";
 
 /**
@@ -58,7 +57,6 @@ export const MARKETING_PHOTOS = {
   "care-mobility": careMobility,
   "step-book": stepBook,
   "step-assess": stepAssess,
-  "step-plan": stepPlan,
   "step-progress": stepProgress,
   reports,
 } as const satisfies Record<string, StaticImageData>;

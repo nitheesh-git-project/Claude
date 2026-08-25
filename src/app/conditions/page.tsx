@@ -107,7 +107,7 @@ export default async function ConditionsPage() {
         primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
         secondary={{ href: "/faq", label: "Read common questions" }}
         photoId="hero-conditions"
-        alt="A patient working through a guided floor stretch at home with her laptop beside her"
+        alt="A patient holding a balance exercise on her mat at home, laptop open beside her"
       />
 
       {/* Breadth first, catalog second. The old page opened straight into the

@@ -57,7 +57,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "What we do, and the two ways we can treat you.",
     icon: "fa-house",
     photo: "hero-therapy",
-    photoAlt: "A patient following her physiotherapist through a stretch at home, laptop open beside her",
+    photoAlt: "A patient smiling as she works through her exercises at home, laptop open in front of her",
     action: "Start here",
   },
   {
@@ -67,7 +67,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "The problems we treat, and the programme for each one.",
     icon: "fa-bone",
     photo: "hero-conditions",
-    photoAlt: "A patient working through a guided floor stretch with her laptop in front of her",
+    photoAlt: "A patient holding a balance exercise on her mat, laptop open beside her",
     action: "See conditions",
   },
   {
@@ -77,7 +77,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "Booking to recovery, in four steps.",
     icon: "fa-route",
     photo: "hero-how-it-works",
-    photoAlt: "A physiotherapist mid-consultation with the patient live on his laptop screen",
+    photoAlt: "A physiotherapist smiling at his desk, ready to start a video session",
     action: "See the steps",
   },
   {
@@ -98,7 +98,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "The licensed specialist who will actually treat you.",
     icon: "fa-user-doctor",
     photo: "hero-team",
-    photoAlt: "A physiotherapist at her laptop, consulting a patient over video",
+    photoAlt: "A physiotherapist smiling mid-consultation, her tablet set up for the call",
     action: "Meet the team",
   },
   {
@@ -108,7 +108,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "Cost, refunds, privacy — answered before you book.",
     icon: "fa-circle-question",
     photo: "hero-faq",
-    photoAlt: "A laptop on a plain desk with a physiotherapist waiting on screen",
+    photoAlt: "A physiotherapist at her laptop, answering a patient's questions on a call",
     action: "Read answers",
   },
   {
@@ -118,7 +118,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "Refer a discharged patient and get their progress back.",
     icon: "fa-hospital",
     photo: "hero-hospitals",
-    photoAlt: "A clinician reviewing a discharged patient over a video consultation",
+    photoAlt: "A clinician following up with a discharged patient over a video consultation",
     action: "Partner with us",
   },
 ];
@@ -166,7 +166,7 @@ export const BOOK_CONNECTOR: MarketingConnector = {
   blurb: "Pick a time. Pay. Meet your therapist.",
   icon: "fa-calendar-check",
   photo: "step-book",
-  photoAlt: "A hand picking a date for an appointment on a phone",
+  photoAlt: "A patient smiling as she books her session on her phone",
   action: "Book now",
 };
 

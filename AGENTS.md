@@ -766,6 +766,16 @@ client is the only writer and the log is append-only from any session.
   with the laptop low in frame loses it to a centre crop, which silently
   turns an online photo back into a clinic one. Check the cropped file, not
   the original.
+- **Every photograph shows a face, and the face is glad to be there.** Stock
+  read as untrustworthy while the shots were backs of heads, hands on a
+  phone, and an empty desk with a laptop on it — a patient cannot tell what a
+  service is from a photo with nobody in it. So each image shows a real
+  person, face visible, in a warm expression: a patient mid-session who looks
+  glad to be there, or the clinician they are talking to. The one exception
+  is the clinician reading a scan (`reports`), who is concentrating, because
+  a physiotherapist grinning at an X-ray is the opposite of reassuring. A
+  cropped-off head or a torso-only frame fails this rule as surely as a
+  missing device does — check both in the cropped file.
 - **`photoAlt` describes the picture; `blurb` describes the page.** Both
   `MarketingPage` and `CareArea` carry the two separately because the grids
   used to pass the blurb as `alt`, which announced the same sentence twice to

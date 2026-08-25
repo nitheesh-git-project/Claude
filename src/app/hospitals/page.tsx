@@ -83,7 +83,7 @@ export default async function HospitalsPage() {
           { value: "Reported", label: "Back to your team" },
         ]}
         photoId="hero-hospitals"
-        alt="A clinician reviewing a discharged patient over a video consultation from the clinic"
+        alt="A clinician following up with a discharged patient over a video consultation"
       />
 
       <Section

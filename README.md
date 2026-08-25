@@ -953,6 +953,13 @@ only in-person mode. When replacing a photo, check the *cropped* result: a
 source with the laptop low in frame loses it to a centre crop and quietly
 turns the site back into a walk-in clinic.
 
+**Every photograph shows a face, and the face is warm.** Backs of heads, a
+hand on a phone and an empty desk read as stock filler — a patient cannot
+tell what the service is from a picture with nobody in it. Each image shows
+a person mid-session who looks glad to be there, or the clinician they are
+speaking to. The clinician reading a scan (`reports`) is the deliberate
+exception: concentration is the reassuring expression there.
+
 Each entry carries a `photoAlt` describing the picture, kept separate from
 the `blurb` describing the page — passing the blurb as `alt` announced the
 same sentence twice to a screen reader.
