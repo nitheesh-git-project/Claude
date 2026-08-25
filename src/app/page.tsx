@@ -10,11 +10,10 @@ import PageHero from "@/components/marketing/PageHero";
 import TrustBar from "@/components/marketing/TrustBar";
 import Section from "@/components/marketing/Section";
 import SplitFeature from "@/components/marketing/SplitFeature";
-import PhotoTile from "@/components/marketing/PhotoTile";
 import ExploreGrid from "@/components/marketing/ExploreGrid";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { homeConnectors } from "@/lib/marketingNav";
-import { CARE_AREAS } from "@/lib/careAreas";
+import CareAreaList from "@/components/marketing/CareAreaList";
 
 // This page has no per-user content — it can be cached and revalidated
 // on a timer instead of hitting Supabase on every single visit.
@@ -243,21 +242,11 @@ export default async function Home() {
         title="Find what hurts"
         lede="Every area below has a defined assessment and a structured programme behind it."
       >
-        <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {CARE_AREAS.map((area) => (
-            <StaggerItem key={area.key} className="h-full">
-              <PhotoTile
-                href="/conditions"
-                photoId={area.photo}
-                alt={area.photoAlt}
-                title={area.title}
-                blurb={area.blurb}
-                action="See the programme"
-                icon={area.icon}
-              />
-            </StaggerItem>
-          ))}
-        </Stagger>
+        <CareAreaList
+          href="/conditions"
+          ctaHref="/book"
+          ctaLabel="Not sure which one fits? Book the standard assessment"
+        />
       </Section>
 
       <Section

@@ -792,6 +792,18 @@ client is the only writer and the log is append-only from any session.
   rather than link into a dead end (`readHomeVisitEnabled()` in
   `src/lib/homeVisitFlag.ts`, read on its own for the usual
   migration-tolerance reason and failing closed).
+- **A photograph that cannot tell two things apart is noise, not content.**
+  "What we treat" was six photo tiles and read as the busiest band on the
+  page while saying the least: a picture of a patient exercising at home
+  cannot distinguish back pain from knee pain, so all six said the same
+  sentence, filled most of each card, and left the six words that actually
+  answer the question as the small print. It is now `CareAreaList` — icon,
+  name, one line, no cards, no shadows, and one shared way out instead of
+  six repeated "See the programme" links. Photography stays where it is
+  load-bearing (hero, the two delivery modes, the four steps). Before adding
+  a picture to a list, check the rule the other way round: if two entries
+  could swap photographs without anyone noticing, neither photograph belongs.
+
 - **A section rail entry must match a section that renders, in DOM order.**
   Each public page still passes `SectionNav` a list built from what actually
   rendered — several bands are conditional on admin-controlled catalog data —

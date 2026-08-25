@@ -5,11 +5,9 @@ import ProgramCards from "@/components/catalog/ProgramCards";
 import SessionPackages from "@/components/home/SessionPackages";
 import PageHero from "@/components/marketing/PageHero";
 import Section from "@/components/marketing/Section";
-import PhotoTile from "@/components/marketing/PhotoTile";
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
-import { Stagger, StaggerItem } from "@/components/motion/primitives";
-import { CARE_AREAS } from "@/lib/careAreas";
+import CareAreaList from "@/components/marketing/CareAreaList";
 import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 
 export const metadata: Metadata = {
@@ -118,23 +116,13 @@ export default async function ConditionsPage() {
         id="areas"
         eyebrow="Areas of practice"
         title="Where we can help"
-        lede="Tap an area to see the programme, or book the standard assessment and let your therapist decide."
+        lede="Whichever one fits, the first step is the same 60-minute assessment."
       >
-        <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {CARE_AREAS.map((area) => (
-            <StaggerItem key={area.key} className="h-full">
-              <PhotoTile
-                href="/book"
-                photoId={area.photo}
-                alt={area.photoAlt}
-                title={area.title}
-                blurb={area.blurb}
-                action="Book an assessment"
-                icon={area.icon}
-              />
-            </StaggerItem>
-          ))}
-        </Stagger>
+        <CareAreaList
+          href="/book"
+          ctaHref="/book"
+          ctaLabel="Not sure which one fits? Book the standard assessment"
+        />
       </Section>
 
       {rows.length > 0 && (
