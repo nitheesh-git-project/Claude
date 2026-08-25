@@ -33,6 +33,12 @@ export type MarketingPage = {
   blurb: string;
   icon: string;
   photo: PhotoId;
+  /**
+   * Describes the photograph, not the page — the blurb already says what the
+   * page is for, and a screen reader announcing it twice tells someone
+   * nothing about the image they cannot see.
+   */
+  photoAlt: string;
   /** Verb-first text for the card's own link. */
   action: string;
   /**
@@ -51,6 +57,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "What we do, and the two ways we can treat you.",
     icon: "fa-house",
     photo: "hero-therapy",
+    photoAlt: "A patient following her physiotherapist through a stretch at home, laptop open beside her",
     action: "Start here",
   },
   {
@@ -60,6 +67,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "The problems we treat, and the programme for each one.",
     icon: "fa-bone",
     photo: "hero-conditions",
+    photoAlt: "A patient working through a guided floor stretch with her laptop in front of her",
     action: "See conditions",
   },
   {
@@ -69,6 +77,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "Booking to recovery, in four steps.",
     icon: "fa-route",
     photo: "hero-how-it-works",
+    photoAlt: "A physiotherapist mid-consultation with the patient live on his laptop screen",
     action: "See the steps",
   },
   {
@@ -78,6 +87,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "A physiotherapist at your door, if video is not enough.",
     icon: "fa-house-medical",
     photo: "hero-home-visit",
+    photoAlt: "A physiotherapist guiding an older patient through an arm exercise in their living room",
     action: "Check my area",
     requiresHomeVisit: true,
   },
@@ -88,6 +98,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "The licensed specialist who will actually treat you.",
     icon: "fa-user-doctor",
     photo: "hero-team",
+    photoAlt: "A physiotherapist at her laptop, consulting a patient over video",
     action: "Meet the team",
   },
   {
@@ -97,6 +108,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "Cost, refunds, privacy — answered before you book.",
     icon: "fa-circle-question",
     photo: "hero-faq",
+    photoAlt: "A laptop on a plain desk with a physiotherapist waiting on screen",
     action: "Read answers",
   },
   {
@@ -106,6 +118,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     blurb: "Refer a discharged patient and get their progress back.",
     icon: "fa-hospital",
     photo: "hero-hospitals",
+    photoAlt: "A clinician reviewing a discharged patient over a video consultation",
     action: "Partner with us",
   },
 ];
@@ -153,6 +166,7 @@ export const BOOK_CONNECTOR: MarketingConnector = {
   blurb: "Pick a time. Pay. Meet your therapist.",
   icon: "fa-calendar-check",
   photo: "step-book",
+  photoAlt: "A hand picking a date for an appointment on a phone",
   action: "Book now",
 };
 

@@ -754,6 +754,22 @@ client is the only writer and the log is append-only from any session.
   images under `public/photos/` are licence-free stock and are meant to be
   replaced with the clinic's own photography: drop a file of roughly the same
   aspect ratio over the existing name and nothing else changes.
+- **Every photograph shows a screen, except the two home-visit ones.** This
+  clinic sells video consultations; home visits are the one in-person mode.
+  The first pass used clinic photography throughout and the whole site read
+  as a walk-in practice, which is the opposite of what it is. So every image
+  has a laptop, tablet or phone in frame — a patient exercising to a laptop,
+  a clinician with the patient live on screen, a scan marked up on a tablet —
+  and only `hero-home-visit` and `mode-home-visit` show hands-on treatment.
+  A new photo that cannot show a device is the wrong photo for this site.
+  Crops are the trap: `public/photos/` files are pre-cropped, and a source
+  with the laptop low in frame loses it to a centre crop, which silently
+  turns an online photo back into a clinic one. Check the cropped file, not
+  the original.
+- **`photoAlt` describes the picture; `blurb` describes the page.** Both
+  `MarketingPage` and `CareArea` carry the two separately because the grids
+  used to pass the blurb as `alt`, which announced the same sentence twice to
+  a screen reader and said nothing about the image itself.
 - **The site's own index lives in `src/lib/marketingNav.ts`.** The header
   nav, the footer's Explore column, the home page's connector grid and the
   "Where to go next" strip on the other six pages all read that one array, so

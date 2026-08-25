@@ -36,7 +36,7 @@ export default function ExploreGrid({
               wide={wide}
               href={connector.href}
               photoId={connector.photo}
-              alt={connector.blurb}
+              alt={connector.photoAlt}
               title={connector.label}
               blurb={connector.blurb}
               action={connector.action}

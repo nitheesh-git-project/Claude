@@ -83,7 +83,7 @@ export default async function HospitalsPage() {
           { value: "Reported", label: "Back to your team" },
         ]}
         photoId="hero-hospitals"
-        alt="A surgeon and a nurse reviewing a patient's notes in a hospital corridor"
+        alt="A clinician reviewing a discharged patient over a video consultation from the clinic"
       />
 
       <Section

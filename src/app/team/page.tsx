@@ -89,7 +89,7 @@ export default async function TeamPage() {
         subtitle="Every session is delivered one-to-one by a qualified physiotherapist. No call centre, no rotating pool — tap a profile to read their background."
         primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
         photoId="hero-team"
-        alt="A physiotherapist assessing a patient's shoulder alignment in a clinic room"
+        alt="A physiotherapist at her laptop, consulting a patient over video"
         overlay={{
           icon: "fa-id-badge",
           title: "Licensed, every one",

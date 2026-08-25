@@ -944,6 +944,19 @@ imports rather than string paths so Next reads real dimensions at build time
 placeholder; a missing file becomes a compile error instead of a broken image
 in production. Pages name a `PhotoId` and never import a file directly.
 
+**Every photograph shows a screen, except the two home-visit ones.** The
+clinic sells video consultations, so a patient exercising to an open laptop,
+a clinician with the patient live on screen, or a scan marked up on a tablet
+is what the imagery shows throughout. `hero-home-visit` and
+`mode-home-visit` are the only in-person shots, because home visits are the
+only in-person mode. When replacing a photo, check the *cropped* result: a
+source with the laptop low in frame loses it to a centre crop and quietly
+turns the site back into a walk-in clinic.
+
+Each entry carries a `photoAlt` describing the picture, kept separate from
+the `blurb` describing the page — passing the blurb as `alt` announced the
+same sentence twice to a screen reader.
+
 The images shipped here are licence-free stock (Pexels licence: free for
 commercial use, no attribution required) standing in for the clinic's own
 photography. **Verify licensing against your own requirements before

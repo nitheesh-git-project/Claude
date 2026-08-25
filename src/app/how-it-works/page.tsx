@@ -32,7 +32,7 @@ function stepsFor(homeVisitEnabled: boolean): Step[] {
   return [
     {
       photoId: "step-book",
-      alt: "A hand booking an appointment on a phone beside a calendar",
+      alt: "A hand picking a date for an appointment on a phone",
       title: "Book a slot",
       body: homeVisitEnabled
         ? "Pick a video call or a home visit, choose a time in your timezone, and pay over UPI."
@@ -40,19 +40,19 @@ function stepsFor(homeVisitEnabled: boolean): Step[] {
     },
     {
       photoId: "reports",
-      alt: "A clinician reviewing an X-ray against the light",
+      alt: "A clinician marking up a patient's scan on a tablet with a stylus",
       title: "Send your reports",
       body: "Attach any X-rays or scans. Your physiotherapist reads them before you meet.",
     },
     {
       photoId: "step-assess",
-      alt: "A patient in a video consultation with their clinician on screen",
+      alt: "A patient at her desk, physiotherapist live on the laptop in front of her",
       title: "Get assessed",
       body: "An hour, one-to-one. They test how you move and find what is actually causing the pain.",
     },
     {
       photoId: "step-progress",
-      alt: "A patient doing a guided stretch at home in a bright living room",
+      alt: "A couple following their exercise plan on a mat at home, laptop open between them",
       title: "Follow your plan",
       body: "You leave with exercises and a written record. Every session after updates it.",
     },
@@ -131,7 +131,7 @@ export default async function HowItWorksPage() {
         subtitle="No vague promises — this is what actually happens, from the moment you pick a slot to the plan you keep afterwards."
         primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
         photoId="hero-how-it-works"
-        alt="A physiotherapist running a video consultation from a bright clinic room"
+        alt="A physiotherapist mid-consultation, the patient live on the laptop screen in front of him"
         overlay={{
           icon: "fa-clock",
           title: "About two minutes",
