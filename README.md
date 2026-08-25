@@ -922,7 +922,7 @@ having its own layout:
 | `StepStrip` | A process as numbered photographs, all visible at once. |
 | `IconCard` | One fact: tinted icon, short title, one line. |
 | `ExploreGrid` / `ExploreSection` | The site's index as photographs. |
-| `CareAreaList` | The six areas of practice as a quiet icon-and-text list — no photographs, because a picture of someone exercising cannot tell back pain from knee pain. |
+| `CareAreaShowcase` | The six areas of practice, one at a time: photograph left, explanation right. Swipe, arrows or the name picker; never moves on its own. |
 | `ClosingCta` | Every page ends the same way: one sentence, one action. |
 
 **The index is defined once.** `src/lib/marketingNav.ts` holds the seven

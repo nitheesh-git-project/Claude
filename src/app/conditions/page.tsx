@@ -7,7 +7,7 @@ import PageHero from "@/components/marketing/PageHero";
 import Section from "@/components/marketing/Section";
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
-import CareAreaList from "@/components/marketing/CareAreaList";
+import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
 import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 
 export const metadata: Metadata = {
@@ -118,11 +118,7 @@ export default async function ConditionsPage() {
         title="Where we can help"
         lede="Whichever one fits, the first step is the same 60-minute assessment."
       >
-        <CareAreaList
-          href="/book"
-          ctaHref="/book"
-          ctaLabel="Not sure which one fits? Book the standard assessment"
-        />
+        <CareAreaShowcase href="/book" ctaLabel="Book an assessment" />
       </Section>
 
       {rows.length > 0 && (

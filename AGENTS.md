@@ -792,17 +792,29 @@ client is the only writer and the log is append-only from any session.
   rather than link into a dead end (`readHomeVisitEnabled()` in
   `src/lib/homeVisitFlag.ts`, read on its own for the usual
   migration-tolerance reason and failing closed).
-- **A photograph that cannot tell two things apart is noise, not content.**
-  "What we treat" was six photo tiles and read as the busiest band on the
-  page while saying the least: a picture of a patient exercising at home
-  cannot distinguish back pain from knee pain, so all six said the same
-  sentence, filled most of each card, and left the six words that actually
-  answer the question as the small print. It is now `CareAreaList` — icon,
-  name, one line, no cards, no shadows, and one shared way out instead of
-  six repeated "See the programme" links. Photography stays where it is
-  load-bearing (hero, the two delivery modes, the four steps). Before adding
-  a picture to a list, check the rule the other way round: if two entries
-  could swap photographs without anyone noticing, neither photograph belongs.
+- **Show one photograph at a time when six would say the same thing.**
+  "What we treat" has been through both failure modes and the result is worth
+  keeping. Six photo tiles at once was the busiest band on the page while
+  saying the least: a picture of a patient exercising at home cannot
+  distinguish back pain from knee pain, so all six said the same sentence and
+  filled most of each card. Stripping the photography out fixed the density
+  and threw away what makes this site legible at a glance. `CareAreaShowcase`
+  does neither — photograph left, the answer right, the other five one tap
+  away and costing no vertical space. Because only one panel is on screen, the
+  copy can be a real answer (`detail` plus three `checks` in `careAreas.ts`)
+  rather than the six words a card could fit. Reach for this shape whenever a
+  grid's images would be interchangeable; reach for a grid when they would
+  not.
+- **A carousel that moves on its own is a carousel nobody can read.**
+  `CareAreaShowcase` never advances by itself: the home page already carries
+  the auto-rotating `JourneySteps`, and a second thing moving while you read
+  the first is worse than either alone. Swipe, the arrow buttons and the
+  picker all go through one `select()` so they cannot disagree about what is
+  showing, and the picker is a real tablist with roving focus and arrow keys.
+  Its `aria-label` is "Areas of practice" and must stay distinct from
+  JourneySteps' "How the process works" — `e2e/journey-pace.spec.ts` finds
+  that widget by its label, and two tablists sharing a name makes both
+  unfindable.
 
 - **A section rail entry must match a section that renders, in DOM order.**
   Each public page still passes `SectionNav` a list built from what actually

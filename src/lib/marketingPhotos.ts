@@ -1,5 +1,11 @@
 import type { StaticImageData } from "next/image";
 
+import careBack from "../../public/photos/care-back.jpg";
+import careKnee from "../../public/photos/care-knee.jpg";
+import careMobility from "../../public/photos/care-mobility.jpg";
+import careNeck from "../../public/photos/care-neck.jpg";
+import carePosture from "../../public/photos/care-posture.jpg";
+import careSports from "../../public/photos/care-sports.jpg";
 import heroConditions from "../../public/photos/hero-conditions.jpg";
 import heroFaq from "../../public/photos/hero-faq.jpg";
 import heroHomeVisit from "../../public/photos/hero-home-visit.jpg";
@@ -43,6 +49,12 @@ export const MARKETING_PHOTOS = {
   "hero-faq": heroFaq,
   "mode-video": modeVideo,
   "mode-home-visit": modeHomeVisit,
+  "care-back": careBack,
+  "care-neck": careNeck,
+  "care-knee": careKnee,
+  "care-posture": carePosture,
+  "care-sports": careSports,
+  "care-mobility": careMobility,
   "step-book": stepBook,
   "step-assess": stepAssess,
   "step-progress": stepProgress,

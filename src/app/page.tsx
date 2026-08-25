@@ -13,7 +13,7 @@ import SplitFeature from "@/components/marketing/SplitFeature";
 import ExploreGrid from "@/components/marketing/ExploreGrid";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { homeConnectors } from "@/lib/marketingNav";
-import CareAreaList from "@/components/marketing/CareAreaList";
+import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
 
 // This page has no per-user content — it can be cached and revalidated
 // on a timer instead of hitting Supabase on every single visit.
@@ -240,13 +240,9 @@ export default async function Home() {
         id="what-we-treat"
         eyebrow="What we treat"
         title="Find what hurts"
-        lede="Every area below has a defined assessment and a structured programme behind it."
+        lede="Six areas of practice. Pick the one closest to your problem — swipe, or tap any name below."
       >
-        <CareAreaList
-          href="/conditions"
-          ctaHref="/book"
-          ctaLabel="Not sure which one fits? Book the standard assessment"
-        />
+        <CareAreaShowcase href="/book" ctaLabel="Book an assessment" />
       </Section>
 
       <Section
