@@ -35,26 +35,26 @@ function stepsFor(homeVisitEnabled: boolean): Step[] {
       alt: "A patient smiling as she books her session on her phone at home",
       title: "Book a slot",
       body: homeVisitEnabled
-        ? "Pick a video call or a home visit, choose a time in your timezone, and pay over UPI."
-        : "Choose a time in your own timezone and pay over UPI. Takes about two minutes.",
+        ? "Video call or home visit. Your timezone, paid over UPI."
+        : "A time in your own timezone, paid over UPI.",
     },
     {
       photoId: "reports",
       alt: "A physiotherapist studying a patient's X-ray on a tablet before the session",
       title: "Send your reports",
-      body: "Attach any X-rays or scans. Your physiotherapist reads them before you meet.",
+      body: "Attach your scans. They are read before you meet.",
     },
     {
       photoId: "step-assess",
       alt: "A physiotherapist smiling on the call, mid-assessment",
       title: "Get assessed",
-      body: "An hour, one-to-one. They test how you move and find what is actually causing the pain.",
+      body: "An hour, one-to-one. They find the cause.",
     },
     {
       photoId: "step-progress",
       alt: "A couple following their exercise plan on mats at home, laptop open between them",
       title: "Follow your plan",
-      body: "You leave with exercises and a written record. Every session after updates it.",
+      body: "Exercises and a written record, updated every session.",
     },
   ];
 }
@@ -66,17 +66,17 @@ const AFTER_FIRST_SESSION = [
   {
     icon: "fa-layer-group",
     title: "One therapist, all the way",
-    body: "Buy a course and the same physiotherapist keeps you for every session in it.",
+    body: "One physiotherapist for every session in your course.",
   },
   {
     icon: "fa-rotate",
     title: "Reschedule yourself",
-    body: "Cancel more than 24 hours ahead for a full refund. Inside that window, there is none.",
+    body: "Cancel 24 hours ahead for a full refund.",
   },
   {
     icon: "fa-hospital",
     title: "Referred by a hospital",
-    body: "Your referral code carries across, so the team that discharged you can follow your progress.",
+    body: "Your referral code carries across. They see your progress.",
   },
 ];
 
@@ -86,23 +86,23 @@ function objectionsFor(homeVisitEnabled: boolean) {
       icon: "fa-hand",
       q: "Does it work without hands-on treatment?",
       a: homeVisitEnabled
-        ? "Recovery is driven by the right exercise, done correctly — and video shows how you move clearly. If you need hands on it, book a home visit."
-        : "Recovery is driven by the right exercise, done correctly. What a physiotherapist needs is to see how you move, and video shows that clearly.",
+        ? "Recovery is driven by the right exercise. Need hands on it? Book a home visit."
+        : "Recovery is driven by the right exercise, and video shows how you move.",
     },
     {
       icon: "fa-house-laptop",
       q: "Why is being at home an advantage?",
-      a: "Your pain happens in your chair and your bed. Assessing you there means the plan fits the room you actually recover in.",
+      a: "Your pain happens in your chair. The plan fits that room.",
     },
     {
       icon: "fa-earth-asia",
       q: "What if I live abroad?",
-      a: "Slots show in your own timezone and need 12 hours' notice. Sessions run on Google Meet — nothing to install.",
+      a: "Your timezone, 12 hours' notice. Runs on Google Meet.",
     },
     {
       icon: "fa-lock",
       q: "Who sees the reports I upload?",
-      a: "Only your therapist and the clinic admin. Files are stored privately and the link that opens one expires in minutes.",
+      a: "Your therapist and the clinic admin. Stored privately, links expire.",
     },
   ];
 }
@@ -128,14 +128,14 @@ export default async function HowItWorksPage() {
       <PageHero
         eyebrow="How it works"
         title="Booking to recovery, in four steps"
-        subtitle="No vague promises — this is what actually happens, from the moment you pick a slot to the plan you keep afterwards."
+        subtitle="What actually happens, from picking a slot to keeping the plan."
         primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
         photoId="hero-how-it-works"
         alt="A physiotherapist smiling at his desk, ready to start a patient's video session"
         overlay={{
           icon: "fa-clock",
           title: "About two minutes",
-          body: "That is all booking the first session takes.",
+          body: "To book your first session.",
         }}
       />
 
@@ -143,7 +143,7 @@ export default async function HowItWorksPage() {
         id="the-steps"
         eyebrow="The four steps"
         title="What happens, in order"
-        lede="Roughly a week from booking to your first written plan."
+        lede="About a week, booking to written plan."
       >
         <StepStrip steps={stepsFor(homeVisitEnabled)} />
       </Section>
@@ -153,7 +153,6 @@ export default async function HowItWorksPage() {
         tone="tint"
         eyebrow="And after that"
         title="Recovery is a course, not one appointment"
-        lede="Here is what the platform keeps doing for the rest of it."
       >
         <Stagger className="grid gap-5 md:grid-cols-3">
           {AFTER_FIRST_SESSION.map((item) => (
@@ -182,8 +181,8 @@ export default async function HowItWorksPage() {
 
       <ClosingCta
         id="book-now"
-        title="Step one takes about two minutes."
-        body="Pick a slot, and your physiotherapist will have read your reports before you meet."
+        title="Step one takes two minutes."
+        body="Pick a slot. Your reports are read before you meet."
         primary={{ href: "/book", label: "Book a video session", icon: "fa-video" }}
         secondary={
           homeVisitEnabled

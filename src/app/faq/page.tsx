@@ -43,7 +43,7 @@ export default async function FaqPage() {
       <PageHero
         eyebrow="Questions"
         title="Answered before you book"
-        subtitle="Cost, refunds, privacy, and what a session is actually like. If your question is not here, the assessment call is the place to ask it."
+        subtitle="Cost, refunds, privacy, and what a session is actually like."
         primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
         secondary={{ href: "/how-it-works", label: "See how it works" }}
         photoId="hero-faq"
@@ -67,7 +67,7 @@ export default async function FaqPage() {
       <ClosingCta
         id="still-unsure"
         title="Still unsure whether this will help?"
-        body="The assessment exists to answer exactly that. If virtual care is not right for your case, your therapist will tell you so."
+        body="That is what the assessment answers. If it is not right, we say so."
         primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
       />
     </>

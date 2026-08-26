@@ -40,17 +40,17 @@ const HOW_CHOOSING_WORKS = [
   {
     icon: "fa-hand-pointer",
     title: "Tap a profile",
-    body: "Read their background, credentials and the languages they consult in.",
+    body: "Background, credentials, languages.",
   },
   {
     icon: "fa-paper-plane",
     title: "Request them",
-    body: "Your booking carries the request through. It is a preference, not a confirmed slot.",
+    body: "Your booking carries it through. A preference, not a slot.",
   },
   {
     icon: "fa-circle-check",
     title: "We confirm",
-    body: "If they are free at your time, they are yours. If not, we assign an equally qualified colleague.",
+    body: "Free at your time? Yours. If not, an equal colleague.",
   },
 ];
 
@@ -86,14 +86,14 @@ export default async function TeamPage() {
       <PageHero
         eyebrow="Our team"
         title="The specialist who will actually see you"
-        subtitle="Every session is delivered one-to-one by a qualified physiotherapist. No call centre, no rotating pool — tap a profile to read their background."
+        subtitle="One-to-one, every session. No call centre, no rotating pool."
         primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
         photoId="hero-team"
         alt="A physiotherapist smiling mid-consultation, her tablet and phone set up for the call"
         overlay={{
           icon: "fa-id-badge",
           title: "Licensed, every one",
-          body: "Credentials and years of practice are on each profile.",
+          body: "Credentials on every profile.",
         }}
       />
 
@@ -101,7 +101,7 @@ export default async function TeamPage() {
         id="the-team"
         eyebrow="Meet the specialists"
         title="Who you will be working with"
-        lede="Tap any profile for their background, and request them when you book."
+        lede="Tap a profile. Request them when you book."
       >
         {!therapists || therapists.length === 0 ? (
           <p className="py-12 text-center text-sm text-slate-500">
@@ -117,7 +117,7 @@ export default async function TeamPage() {
         tone="tint"
         eyebrow="Choosing a specialist"
         title="What picking someone here does"
-        lede="It sends a request with your booking. Only the clinic can see who is free for your slot."
+        lede="A request, not a booking. We confirm who is free."
       >
         <Stagger className="grid gap-5 md:grid-cols-3">
           {HOW_CHOOSING_WORKS.map((item) => (
@@ -131,8 +131,8 @@ export default async function TeamPage() {
       <ExploreSection current="team" homeVisitEnabled={homeVisitEnabled} />
 
       <ClosingCta
-        title="Book with the specialist you picked."
-        body="Or book the standard assessment and we will match you to the right person for your condition."
+        title="Book the specialist you picked."
+        body="Or book the standard assessment and we will match you."
         primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
         secondary={{ href: "/conditions", label: "See what we treat" }}
       />

@@ -22,11 +22,11 @@ import type { PhotoId } from "@/lib/marketingPhotos";
 export type CareArea = {
   key: string;
   title: string;
-  /** One line, under twelve words — the summary in the picker. */
+  /** Under eight words — the summary in the picker. */
   blurb: string;
-  /** Two sentences at most: what this actually involves. */
+  /** One sentence, under fifteen words: what this actually involves. */
   detail: string;
-  /** Three short lines. What the therapist looks at in the first session. */
+  /** Three lines, five words each. What the first session looks at. */
   checks: string[];
   photo: PhotoId;
   /**
@@ -42,13 +42,12 @@ export const CARE_AREAS: CareArea[] = [
   {
     key: "back",
     title: "Back pain",
-    blurb: "Lower-back and disc pain, loaded back up step by step.",
-    detail:
-      "The most common reason patients reach us. We find what your back can tolerate today, then rebuild that tolerance week by week instead of resting it away.",
+    blurb: "Lower-back and disc pain.",
+    detail: "We find what your back tolerates today, then rebuild it week by week.",
     checks: [
-      "How far you can bend, and where it catches",
-      "Which positions ease it and which provoke it",
-      "The sitting and lifting habits keeping it there",
+      "How far you bend",
+      "What eases it",
+      "How you sit and lift",
     ],
     photo: "care-back",
     photoAlt: "A patient resting on her mat between exercises, smiling at her laptop",
@@ -57,13 +56,12 @@ export const CARE_AREAS: CareArea[] = [
   {
     key: "neck",
     title: "Neck & shoulder",
-    blurb: "Stiffness, headaches and pain that starts at your desk.",
-    detail:
-      "Neck pain that turns into headaches usually starts somewhere else — the shoulder blade, the mid-back, or the way your screen sits. We treat the cause, not the sore spot.",
+    blurb: "Stiffness and headaches that start at your desk.",
+    detail: "Neck pain usually starts somewhere else. We treat the cause, not the sore spot.",
     checks: [
-      "Neck rotation and side-bend, both directions",
-      "Shoulder blade control under load",
-      "Where your screen and keyboard actually sit",
+      "Rotation, both directions",
+      "Shoulder blade control",
+      "Where your screen sits",
     ],
     photo: "care-neck",
     photoAlt: "A patient smiling through a side stretch at home, laptop in front of her",
@@ -72,13 +70,12 @@ export const CARE_AREAS: CareArea[] = [
   {
     key: "knee",
     title: "Knee & joint pain",
-    blurb: "Arthritis, ligament injuries and post-surgery recovery.",
-    detail:
-      "Whether it is arthritis, a ligament injury or the weeks after surgery, the work is the same shape: restore the range, then load the joint until it trusts you again.",
+    blurb: "Arthritis, ligaments, recovery after surgery.",
+    detail: "Restore the range, then load the joint until it trusts you again.",
     checks: [
-      "Range of motion against your other side",
-      "Strength through the range, not just at the end",
-      "How you walk, and what you are avoiding",
+      "Range against your other side",
+      "Strength through the range",
+      "How you walk",
     ],
     photo: "care-knee",
     photoAlt: "A patient working with light dumbbells on her mat, laptop open beside her",
@@ -87,13 +84,12 @@ export const CARE_AREAS: CareArea[] = [
   {
     key: "posture",
     title: "Posture & desk setup",
-    blurb: "We look at how you sit, then fix the chair and the body.",
-    detail:
-      "Being on video is the advantage here: your therapist sees the actual desk causing the problem, not a description of it, and fixes the setup in the same session as the body.",
+    blurb: "How you sit, and what it is costing you.",
+    detail: "Your physiotherapist sees the actual desk causing it, and fixes both.",
     checks: [
-      "Your real chair, screen and desk height",
-      "How long you hold each position",
-      "The two or three changes worth making first",
+      "Your real chair and screen",
+      "How long you hold it",
+      "The two changes worth making",
     ],
     photo: "care-posture",
     photoAlt: "A patient stretching out her arms at her desk, laptop open in front of her",
@@ -102,13 +98,12 @@ export const CARE_AREAS: CareArea[] = [
   {
     key: "sports",
     title: "Sports injury",
-    blurb: "Getting runners and gym-goers back to full load safely.",
-    detail:
-      "Rest alone does not return you to sport — graded load does. We set the milestones your injury has to clear and progress you through them rather than guessing at a date.",
+    blurb: "Back to full load, safely.",
+    detail: "Rest alone does not return you to sport. Graded load does.",
     checks: [
-      "What the injured tissue tolerates right now",
-      "The gap between that and your sport's demand",
-      "A week-by-week plan to close it",
+      "What the injury tolerates",
+      "What your sport demands",
+      "A week-by-week plan",
     ],
     photo: "care-sports",
     photoAlt: "Two patients mid-workout at home, following the session on a laptop",
@@ -117,13 +112,12 @@ export const CARE_AREAS: CareArea[] = [
   {
     key: "mobility",
     title: "Mobility & neuro care",
-    blurb: "Balance, walking and Parkinson's rehabilitation at home.",
-    detail:
-      "Gait, balance and cueing-based movement work, delivered as a home programme. Carers are welcome in the session, since they are the ones who see it every day.",
+    blurb: "Balance, walking and Parkinson's care at home.",
+    detail: "Gait and balance work in your own rooms, with your carer welcome.",
     checks: [
-      "Balance and walking, in your own rooms",
-      "The trip hazards a clinic visit never sees",
-      "A routine a carer can help run",
+      "Balance where you walk",
+      "Trip hazards a clinic misses",
+      "A routine a carer can run",
     ],
     photo: "care-mobility",
     photoAlt: "An older couple smiling through a video consultation on their tablet",

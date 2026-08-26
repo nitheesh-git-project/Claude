@@ -79,7 +79,7 @@ export default async function MissionPage() {
       <PageHero
         eyebrow="Our mission"
         title="Distance was never the clinical problem"
-        subtitle="Good physiotherapy needs someone watching how you move. It has never needed you to be in the same room — only to be seen properly, by the same person, for long enough."
+        subtitle="Physiotherapy needs someone watching you move. It never needed the same room."
         primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
         secondary={{ href: "/team", label: "Meet the team" }}
         photoId="hero-mission"
@@ -123,7 +123,7 @@ export default async function MissionPage() {
         id="what-we-promise"
         eyebrow="What we promise"
         title="Four things, every patient"
-        lede="Each one is a rule the platform enforces, not an intention."
+        lede="Rules the platform enforces, not intentions."
       >
         <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {PRINCIPLES.map((item) => (
@@ -142,7 +142,6 @@ export default async function MissionPage() {
         tone="tint"
         eyebrow="And what we won't do"
         title="The limits, stated up front"
-        lede="Worth reading before you book, not after."
       >
         <Stagger className="grid gap-5 md:grid-cols-3">
           {COMMITMENTS.map((item) => (
@@ -172,7 +171,7 @@ export default async function MissionPage() {
 
       <ClosingCta
         title="The assessment is where this gets tested."
-        body="An hour, one-to-one. If virtual care is not right for your case, your physiotherapist will tell you so — that is the first promise on this page."
+        body="An hour, one-to-one. If it is not right for you, we say so."
         primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
         secondary={{ href: "/how-it-works", label: "See how it works" }}
       />

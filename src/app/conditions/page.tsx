@@ -118,7 +118,7 @@ export default async function ConditionsPage() {
       <PageHero
         eyebrow="Conditions treated"
         title="Tell us what hurts"
-        subtitle="Six areas of practice, each with a defined assessment and a structured programme behind it — not a general promise to help."
+        subtitle="Six areas of practice. Each with a real programme behind it."
         primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
         secondary={{ href: "/faq", label: "Read common questions" }}
         photoId="hero-conditions"
@@ -133,7 +133,7 @@ export default async function ConditionsPage() {
         id="areas"
         eyebrow="Areas of practice"
         title="Where we can help"
-        lede="Whichever one fits, the first step is the same 60-minute assessment."
+        lede="Whichever fits, the first step is the same."
       >
         <CareAreaShowcase href="/book" ctaLabel="Book an assessment" />
       </Section>
@@ -144,7 +144,7 @@ export default async function ConditionsPage() {
           tone="tint"
           eyebrow="Structured programmes"
           title="What you can book today"
-          lede="Every programme opens with the same 60-minute assessment. What changes is the protocol built from it."
+          lede="Same 60-minute assessment. Different protocol."
         >
           <ProgramCards programs={programs} packages={packages} />
         </Section>
@@ -157,7 +157,7 @@ export default async function ConditionsPage() {
       <ClosingCta
         id="not-sure"
         title="Not sure which one fits?"
-        body="Book the standard assessment. Your therapist will identify the right protocol during the session, so you never have to self-diagnose first."
+        body="Book the standard assessment. Your therapist picks the protocol."
         primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
         secondary={{ href: "/faq", label: "Read the FAQ" }}
       />

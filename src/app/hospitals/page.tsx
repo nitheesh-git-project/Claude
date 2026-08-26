@@ -22,17 +22,17 @@ const PROBLEM = [
   {
     icon: "fa-plane-departure",
     title: "The patient goes home",
-    body: "Out-of-town patients travel back after discharge and rarely return for follow-up physiotherapy.",
+    body: "Out-of-town patients travel home and rarely come back.",
   },
   {
     icon: "fa-link-slash",
     title: "The protocol breaks",
-    body: "Rehabilitation stalls or is done wrong, and nobody on your side finds out until something goes wrong.",
+    body: "Rehab stalls, and nobody tells you until it matters.",
   },
   {
     icon: "fa-file-circle-question",
     title: "You lose visibility",
-    body: "The surgical outcome is judged on a recovery you had no way to observe.",
+    body: "The outcome is judged on a recovery you never saw.",
   },
 ];
 
@@ -40,17 +40,17 @@ const SOLUTION = [
   {
     icon: "fa-video",
     title: "Structured virtual rehab",
-    body: "Your patient is progressed over video on a protocol aligned with your discharge instructions.",
+    body: "Progressed over video, on your discharge protocol.",
   },
   {
     icon: "fa-chart-line",
     title: "Progress reported back",
-    body: "Referring surgeons get periodic updates on range of motion, adherence and milestones.",
+    body: "Range of motion, adherence, milestones — sent to you.",
   },
   {
     icon: "fa-earth-asia",
     title: "Wherever they live",
-    body: "Geography stops being the reason continuity of care ends at the hospital door.",
+    body: "Care no longer ends at the hospital door.",
   },
 ];
 
@@ -75,7 +75,7 @@ export default async function HospitalsPage() {
       <PageHero
         eyebrow="For hospitals"
         title="Recovery that continues after discharge"
-        subtitle="Refer a patient into structured virtual rehabilitation and get their progress reported back to the team that operated on them."
+        subtitle="Refer a discharged patient. Get their progress reported back."
         primary={{ href: "#enquire", label: "Talk to us", icon: "fa-paper-plane" }}
         stats={[
           { value: "60 min", label: "Initial assessment" },
@@ -129,7 +129,7 @@ export default async function HospitalsPage() {
         tone="panel"
         eyebrow="Talk to us"
         title="Start a referral conversation"
-        lede="Tell us about your discharge volumes and we will come back with how a partnership would run."
+        lede="Tell us your discharge volumes."
       >
         <div className="mx-auto max-w-xl">
           <HospitalInquiryForm />

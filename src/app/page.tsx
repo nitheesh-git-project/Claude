@@ -25,8 +25,8 @@ export const revalidate = 300;
 
 const TRUST_POINTS = [
   { icon: "fa-certificate", label: "Licensed physiotherapists" },
-  { icon: "fa-user-check", label: "One-to-one, never a group class" },
-  { icon: "fa-file-medical", label: "Your reports read before the session" },
+  { icon: "fa-user-check", label: "One-to-one, never a group" },
+  { icon: "fa-file-medical", label: "Reports read before your session" },
   { icon: "fa-lock", label: "Secure UPI payment" },
 ];
 
@@ -200,7 +200,7 @@ export default async function Home() {
             </span>
           </>
         }
-        subtitle="A licensed physiotherapist watches how you move, finds what is causing the pain, and gives you a plan you can follow at home."
+        subtitle="A licensed physiotherapist watches how you move, then builds your plan."
         primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
         secondary={{ href: "/how-it-works", label: "See how it works", icon: "fa-circle-play" }}
         stats={[
@@ -221,7 +221,7 @@ export default async function Home() {
         overlay={{
           icon: "fa-video",
           title: "Live, one-to-one",
-          body: "Your therapist watches you move and corrects it as you go.",
+          body: "Watched and corrected as you go.",
         }}
       />
 
@@ -235,18 +235,18 @@ export default async function Home() {
         tone="tint"
         eyebrow="Two ways to start"
         title="Pick how you want to be seen"
-        lede="Same physiotherapists, same assessment. The only difference is whether they come through a screen or through your door."
+        lede="Same physiotherapists. Screen or doorstep."
       >
         <div className="space-y-14 lg:space-y-20">
           <SplitFeature
             badge="Video session"
             eyebrow="Option one"
             title="A video session, wherever you are"
-            body="An hour on a video call with your physiotherapist. They test your movement, find the cause and send you away with a plan."
+            body="An hour, one-to-one. They test how you move and find the cause."
             bullets={[
-              "Booked in your own timezone",
-              "Runs in the browser — nothing to install",
-              "Your scans and reports read beforehand",
+              "Your own timezone",
+              "Runs in the browser",
+              "Your scans read beforehand",
             ]}
             photoId="mode-video"
             alt="A patient on her sofa in a video session, her physiotherapist live on the laptop screen"
@@ -259,11 +259,11 @@ export default async function Home() {
               badge="Home visit"
               eyebrow="Option two"
               title="Or a physiotherapist at your door"
-              body="When your recovery needs hands on it, the same team comes to your address instead."
+              body="Needs hands on it? The same team comes to you."
               bullets={[
-                "Hands-on treatment at home",
-                "We confirm your pincode before you pay",
-                "Pay online, or cash on the visit",
+                "Hands-on, at home",
+                "Pincode confirmed before you pay",
+                "Pay online or cash",
               ]}
               photoId="mode-home-visit"
               alt="A physiotherapist guiding an older patient through an arm exercise at home"
@@ -285,7 +285,6 @@ export default async function Home() {
         tone="panel"
         eyebrow="Our mission"
         title="Why we do this"
-        lede="Two sentences on what the practice is for, and the four things every patient gets."
       >
         <MissionPreview />
       </Section>
@@ -297,7 +296,6 @@ export default async function Home() {
         id="what-we-treat"
         eyebrow="What we treat"
         title="Find what hurts"
-        lede="Six areas of practice. Pick the one closest to your problem — swipe, or tap any name below."
       >
         <CareAreaShowcase href="/book" ctaLabel="Book an assessment" />
       </Section>
@@ -307,7 +305,6 @@ export default async function Home() {
         tone="tint"
         eyebrow="How it works"
         title="Three steps, start to finish"
-        lede="Book, get assessed, then follow a plan that keeps updating as you recover."
       >
         <JourneySteps stepSeconds={journeyStepSeconds} />
         <Reveal className="mt-10 text-center">
@@ -325,7 +322,7 @@ export default async function Home() {
           id="programs"
           eyebrow="Structured programmes"
           title="What you can book today"
-          lede="Every programme opens with the same 60-minute assessment. What changes is the protocol built from it."
+          lede="Same 60-minute assessment. Different protocol."
         >
           <ProgramCards programs={programs} packages={packages} />
         </Section>
@@ -359,14 +356,14 @@ export default async function Home() {
         // Counted rather than written out: this said "six" for one commit
         // after an eighth page was added, and Home Visit drops out of the
         // list entirely when the admin switch is off.
-        lede={`${connectors.length - 1} more pages and one booking form. Each one says what it answers.`}
+        lede={`${connectors.length - 1} more pages, plus booking.`}
       >
         <ExploreGrid connectors={connectors} />
       </Section>
 
       <ClosingCta
-        title="Your recovery starts with one assessment."
-        body="Book a 60-minute session and leave with a plan built for your body and your home."
+        title="Start with one assessment."
+        body="One 60-minute session. Leave with a plan."
         primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
         secondary={{ href: "/get-started", label: "Explore all options" }}
       />

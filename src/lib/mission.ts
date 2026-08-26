@@ -12,19 +12,19 @@
  * makes a claim that could be checked.
  */
 
-/** One sentence. Why the practice exists at all. */
+/** One line, under fifteen words. Why the practice exists at all. */
 export const MISSION =
-  "To give anyone in pain an hour with a physiotherapist who watches how they actually move — wherever they live, and whatever they can afford to travel.";
+  "An hour with a physiotherapist who watches how you actually move — wherever you live.";
 
-/** One sentence. What the world looks like if we succeed. */
+/** One line, under fifteen words. What it looks like if we succeed. */
 export const VISION =
-  "A recovery plan should not depend on being near a good clinic. We are building the practice that proves distance was never the clinical problem.";
+  "Recovery should never depend on living near a good clinic.";
 
 export type MissionPrinciple = {
   key: string;
   /** A few words. */
   title: string;
-  /** Two sentences at most: the promise, and how it is kept. */
+  /** One line, under ten words. The promise, nothing else. */
   body: string;
   icon: string;
 };
@@ -39,25 +39,25 @@ export const PRINCIPLES: MissionPrinciple[] = [
   {
     key: "assess",
     title: "Assess before advising",
-    body: "No plan is written before someone has watched you move for an hour. Generic exercise sheets are what we exist to replace.",
+    body: "No plan is written before someone has watched you move.",
     icon: "fa-magnifying-glass",
   },
   {
     key: "continuity",
     title: "One therapist, all the way",
-    body: "Buy a course of sessions and the first physiotherapist assigned to it keeps you for the rest. Continuity is clinical, not a nicety.",
+    body: "The same physiotherapist for every session in your course.",
     icon: "fa-user-check",
   },
   {
     key: "plain",
     title: "Say it plainly",
-    body: "You leave every session knowing what is wrong, what you are doing about it, and what should change by next time. Nothing is left in jargon.",
+    body: "You leave knowing what is wrong and what to do.",
     icon: "fa-comments",
   },
   {
     key: "record",
     title: "Your record is yours",
-    body: "Everything in your chart exports as a PDF you can hand to any clinician. Your uploaded scans are stored privately, and you can delete them.",
+    body: "Your whole chart exports as a PDF you keep.",
     icon: "fa-file-shield",
   },
 ];
@@ -73,19 +73,19 @@ export const COMMITMENTS: MissionPrinciple[] = [
   {
     key: "not-for-you",
     title: "We will tell you if this is not for you",
-    body: "If your case needs hands-on care or a referral we do not provide, the assessment ends by saying so.",
+    body: "If you need hands-on care, the assessment says so.",
     icon: "fa-hand",
   },
   {
     key: "no-lock-in",
     title: "No subscriptions, no auto-renewals",
-    body: "You buy a session or a course of them. Cancel more than 24 hours ahead and the payment is refunded in full.",
+    body: "Cancel 24 hours ahead for a full refund. No subscriptions.",
     icon: "fa-lock-open",
   },
   {
     key: "no-upsell",
     title: "No selling from the treatment table",
-    body: "Your physiotherapist proposes the next session; you decide whether to book it. Declining changes nothing about your care.",
+    body: "You decide the next session. Declining changes nothing.",
     icon: "fa-ban",
   },
 ];

@@ -747,13 +747,28 @@ client is the only writer and the log is append-only from any session.
   it; the old pages each grew their own hero and their own closing block,
   and the result read as seven different sites.
 - **One idea per band, and a hard word budget.** The rewrite exists because
-  visitors could not tell what the site was: the diagnosis was that every
-  section opened with three paragraphs before the thing itself. So `Section`
-  takes an eyebrow, a heading of a few words and **one** `lede` sentence, and
-  has no slot for a second paragraph. Card bodies (`IconCard`, `PhotoTile`)
-  are one line. If a card needs a paragraph it is a band of its own; if a
-  band needs two ideas it is two bands. Don't reintroduce prose by passing a
-  long string to `lede`.
+  visitors could not tell what the site was, and the second round of feedback
+  was that there was still too much to read. So the budgets are numbers, not
+  a vibe, and they are the tightest thing on the site:
+
+  | Slot | Budget |
+  | --- | --- |
+  | Hero subtitle | 12 words |
+  | `Section` lede | 9 words — and drop it entirely when the heading already says it |
+  | `IconCard` / `StepStrip` / `SplitFeature` body | 10 words |
+  | `SplitFeature` bullet, `CareArea` check | 5 words |
+  | `CareArea` blurb | 8 words · `detail` | 14 words |
+  | `MarketingPage` blurb | 8 words |
+  | `ClosingCta` body | 12 words |
+  | Mission / vision sentence | 15 words |
+
+  `Section` takes an eyebrow, a heading of a few words and **one** `lede`, and
+  has no slot for a second paragraph. A lede that restates its heading is
+  worse than no lede — several were deleted outright rather than shortened.
+  If a card needs a paragraph it is a band of its own; if a band needs two
+  ideas it is two bands. Don't reintroduce prose by passing a long string to
+  `lede`.
+
 - **The photograph is load-bearing, not decoration.** A visitor should be
   able to tell what a page is about with the text blurred out, which is why
   `PageHero` requires `photo` and `alt` rather than accepting a page with no

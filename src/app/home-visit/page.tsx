@@ -33,17 +33,17 @@ const HOW_A_VISIT_WORKS = [
   {
     icon: "fa-map-pin",
     title: "We check your pincode",
-    body: "Serviceability is confirmed before you are asked for an address, and again before you pay.",
+    body: "Confirmed before you give an address, and again before you pay.",
   },
   {
     icon: "fa-user-doctor",
     title: "The same physiotherapists",
-    body: "Not a separate roster — the clinicians on our team, at your door instead of on a screen.",
+    body: "Our own team, at your door instead of on screen.",
   },
   {
     icon: "fa-indian-rupee-sign",
     title: "Travel is passed straight through",
-    body: "The travel fee is shown separately at checkout and goes to your therapist in full.",
+    body: "Shown separately at checkout, paid to your therapist in full.",
   },
 ];
 
@@ -147,7 +147,7 @@ export default async function HomeVisitPage() {
         overlay={{
           icon: "fa-house-medical",
           title: "At your address",
-          body: "Hands-on treatment where the recovery actually happens.",
+          body: "Hands-on, where recovery happens.",
         }}
       />
 
@@ -155,7 +155,6 @@ export default async function HomeVisitPage() {
         id="how-a-visit-works"
         eyebrow="How a visit works"
         title="Before anyone knocks on your door"
-        lede="Three things worth knowing, none of which cost you anything to find out."
       >
         <Stagger className="grid gap-5 md:grid-cols-3">
           {HOW_A_VISIT_WORKS.map((item) => (
@@ -171,7 +170,7 @@ export default async function HomeVisitPage() {
         tone="tint"
         eyebrow="Book a visit"
         title="Choose your visit"
-        lede="One visit, or a programme of several with the same physiotherapist each time."
+        lede="One visit, or a programme with the same physiotherapist."
       >
         {packages.length > 0 ? (
           <HomeVisitPackages packages={packages} />
@@ -187,7 +186,7 @@ export default async function HomeVisitPage() {
           id="where-we-visit"
           eyebrow="Coverage"
           title="Where we visit"
-          lede="We confirm your exact pincode before you pay for anything."
+          lede="We confirm your pincode before you pay."
         >
           <div className="mx-auto grid max-w-4xl gap-5 sm:grid-cols-2">
             {[...cities.entries()].map(([city, pincodes]) => (
@@ -212,7 +211,7 @@ export default async function HomeVisitPage() {
       <ClosingCta
         id="check-pincode"
         title="Not sure if we reach you?"
-        body="Start a booking and enter your pincode. It takes a second, and nothing is charged until we have confirmed we can get to you."
+        body="Enter your pincode. Nothing is charged until we confirm we can reach you."
         primary={{ href: "/book-home-visit", label: "Check my pincode", icon: "fa-map-pin" }}
         secondary={{ href: "/book", label: "Book a video session instead" }}
       />
