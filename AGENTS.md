@@ -72,6 +72,15 @@ workers made contention look like product bugs — an audit-log count picked
 up another spec's writes, and the admin dashboard's ~70 queries blew past
 an assertion timeout.
 
+**Run the browser specs against `next dev`, not `next start`.** The public
+pages are ISR-cached (`export const revalidate = 300`), so a production
+server hands back HTML generated at build time — which predates any fixture
+row the spec just created. `catalog-detail.spec.ts` fails four ways under
+`next start` (the card for its freshly-created package is simply not in the
+markup) and passes 7/7 against `next dev`, where nothing is cached. Those
+failures look exactly like a broken catalog, so check which server you are
+pointed at before suspecting the components.
+
 It is also **not fully idempotent across repeated runs against one
 database**. `E-018/C-008` books a slot a fixed seven days out and leaves the
 appointment behind, so the next run's booking is refused as a clash; a rerun
