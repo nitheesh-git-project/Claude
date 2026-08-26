@@ -51,6 +51,18 @@ Three environment notes for the browser specs:
 - They sign in by injecting a Node-minted session cookie rather than typing
   into the login form, so a sandbox whose browser has no outbound network
   can still exercise the whole dashboard.
+- **A spec that needs the *browser* to reach Supabase cannot pass here.**
+  The cookie injection above covers authentication, not data: a page that
+  resolves something with the browser-side client still needs egress from
+  Chromium. `therapist-request.spec.ts` TR-002 is the case in point —
+  `BookingWizard` resolves `?therapist=` against `public_therapist_profiles`
+  from the browser (the page is ISR-cached, so it cannot be done
+  server-side), so with no egress the chip never renders and the test fails
+  on a working feature. Check it before hunting for the bug:
+  `fetch(SUPABASE_URL + "/rest/v1/")` from inside the page returns
+  "Failed to fetch" where the same call from Node returns 200. Note TR-003
+  asserts that chip is *absent*, so in the same environment it passes for the
+  wrong reason.
 - `admin-login.spec.ts` is the exception, since the login form itself is
   what it tests: it needs a second app instance whose
   `NEXT_PUBLIC_SUPABASE_URL` points at `scripts/.qa/supabase-relay.mjs` (a
