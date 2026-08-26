@@ -175,7 +175,7 @@ so a still-valid session cookie can't call the API around the UI gate.
 ## Routes
 
 **Public marketing:** `/` (home), `/conditions`, `/how-it-works`, `/team`,
-`/hospitals`, `/faq`, `/get-started`, `/book`, `/home-visit`,
+`/mission`, `/hospitals`, `/faq`, `/get-started`, `/book`, `/home-visit`,
 `/book-home-visit`.
 
 **Shared:** `/dashboard` — redirects to whichever dashboard belongs to the
@@ -905,7 +905,7 @@ planned work).
 
 ## The public site
 
-Seven pages — `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`,
+Eight pages — `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`,
 `/faq`, `/hospitals` — rebuilt around one rule: a visitor should be able to
 tell what each page is for with the text blurred out.
 
@@ -924,6 +924,7 @@ having its own layout:
 | `ExploreGrid` / `ExploreSection` | The site's index as photographs. |
 | `CatalogImage` | The cover slot on a programme or package card — the admin's photo when set, one shared tinted placeholder when not. |
 | `CareAreaShowcase` | The six areas of practice, one at a time: photograph left, explanation right. Swipe, arrows or the name picker; never moves on its own. |
+| `Testimonials` | Patient quotes with portraits, shared by Home and `/mission`. |
 | `ClosingCta` | Every page ends the same way: one sentence, one action. |
 
 **The index is defined once.** `src/lib/marketingNav.ts` holds the seven
@@ -936,6 +937,35 @@ master switch is off, since `/home-visit` 404s in that state.
 **Scrolling the home page** goes: hero → trust bar → the two delivery modes →
 what we treat → how it works → programmes → packages → reviews → **the
 connector grid for every other page plus booking** → closing CTA.
+
+### Mission & Vision (`/mission`)
+
+The practice's own answer to "who are you and why should I trust this". Its
+copy lives in `src/lib/mission.ts` rather than in the page, because the
+mission, the four promises and the three limits are the wording most likely
+to be argued over and should be editable without touching a layout.
+
+Two rules shaped it:
+
+- **Every promise is a rule the platform already enforces** — the 24-hour
+  refund window, the one-therapist lock on a package, the PDF export, the
+  private scan bucket. Nothing on that band is an intention.
+- **The limits are on the page, not buried in the FAQ.** A clinic that says
+  what it will not do is more believable than one that claims everything.
+
+It closes on the testimonial band, so the promises are immediately followed
+by whether patients say they held.
+
+#### About the seeded testimonials
+
+`schema.sql` seeds five sample testimonials into an **empty** `testimonials`
+table so the Home and Mission bands can be reviewed populated. **They are
+illustrative copy, not real patients** — the practice has not launched. Delete
+them or edit them into real ones as consent comes in; the `where not exists`
+guard means a re-run never brings them back once the table has any row.
+
+Only publish a patient's photo and words with their agreement. The admin form
+says so at the point of entry.
 
 ### Where images come from
 

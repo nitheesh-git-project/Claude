@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id, patientName, quote, rating, conditionLabel, displayOrder, active } =
+  const { id, patientName, quote, rating, conditionLabel, avatarUrl, displayOrder, active } =
     await request.json();
   if (!id || !patientName || !quote) {
     return NextResponse.json({ error: "Missing id, patientName, or quote" }, { status: 400 });
@@ -35,6 +35,8 @@ export async function POST(request: NextRequest) {
       quote,
       rating: ratingValue,
       condition_label: conditionLabel || null,
+      avatar_url:
+        typeof avatarUrl === "string" && avatarUrl.trim() ? avatarUrl.trim() : null,
       display_order: Math.round(order),
       active: active === undefined ? true : Boolean(active),
     })

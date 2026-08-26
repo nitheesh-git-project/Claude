@@ -14,6 +14,7 @@ type Testimonial = {
   quote: string;
   rating: number | null;
   condition_label: string | null;
+  avatar_url: string | null;
   display_order: number;
   active: boolean;
 };

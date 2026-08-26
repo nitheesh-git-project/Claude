@@ -21,6 +21,7 @@ export type MarketingPageKey =
   | "how-it-works"
   | "home-visit"
   | "team"
+  | "mission"
   | "faq"
   | "hospitals";
 
@@ -100,6 +101,16 @@ export const MARKETING_PAGES: MarketingPage[] = [
     photo: "hero-team",
     photoAlt: "A physiotherapist smiling mid-consultation, her tablet set up for the call",
     action: "Meet the team",
+  },
+  {
+    key: "mission",
+    href: "/mission",
+    label: "Our mission",
+    blurb: "Why we exist, what we promise, and what we will not do.",
+    icon: "fa-bullseye",
+    photo: "hero-mission",
+    photoAlt: "Two patients following their exercise plan together at home, laptop open in front of them",
+    action: "Read our mission",
   },
   {
     key: "faq",

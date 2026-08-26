@@ -9,6 +9,7 @@ type Testimonial = {
   quote: string;
   rating: number | null;
   condition_label: string | null;
+  avatar_url: string | null;
   display_order: number;
   active: boolean;
 };
@@ -29,6 +30,7 @@ export default function TestimonialForm({
       : ""
   );
   const [conditionLabel, setConditionLabel] = useState(testimonial?.condition_label ?? "");
+  const [avatarUrl, setAvatarUrl] = useState(testimonial?.avatar_url ?? "");
   const [displayOrder, setDisplayOrder] = useState(
     testimonial ? String(testimonial.display_order) : "0"
   );
@@ -48,6 +50,7 @@ export default function TestimonialForm({
       quote,
       rating: rating.trim() === "" ? null : rating,
       conditionLabel,
+      avatarUrl,
       displayOrder,
       active,
     };
@@ -133,6 +136,22 @@ export default function TestimonialForm({
             className="w-full p-2 rounded-lg border border-slate-300"
           />
         </div>
+      </div>
+      <div>
+        <label className="block font-semibold mb-1">
+          Photo URL <span className="font-normal text-slate-400">(optional)</span>
+        </label>
+        <input
+          value={avatarUrl}
+          onChange={(e) => setAvatarUrl(e.target.value)}
+          placeholder="https://…"
+          className="w-full p-2 rounded-lg border border-slate-300"
+        />
+        <p className="mt-1 text-xs text-slate-500">
+          A square portrait, shown as a circle beside the quote on Home and
+          Our Mission. Left blank, it falls back to the patient&apos;s initial.
+          Only publish a photo the patient has agreed to.
+        </p>
       </div>
       <div>
         <label className="block font-semibold mb-1">Order</label>

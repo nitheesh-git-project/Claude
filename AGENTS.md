@@ -100,12 +100,13 @@ src/app/api/**           POST route handlers grouped by audience:
 src/components/          UI, grouped by area (admin/, auth/, booking/,
                          catalog/, dashboard/, home/, hospital/, marketing/,
                          profile/, motion/, system/, visuals/)
-src/components/marketing/ the seven public pages' design system: PageHero,
+src/components/marketing/ the eight public pages' design system: PageHero,
                          Section, PhotoTile, SplitFeature, StepStrip,
                          IconCard, TrustBar, ExploreGrid, ClosingCta
 src/lib/                 domain logic, formatting, Supabase clients
 src/lib/adminNav.ts      the admin dashboard's six sections + their screens
-src/lib/marketingNav.ts  the seven public pages + their one-line purposes
+src/lib/marketingNav.ts  the eight public pages + their one-line purposes
+src/lib/mission.ts       the mission, vision, promises and stated limits
 src/lib/marketingPhotos.ts every photograph the public pages use
 src/lib/careAreas.ts     the six areas of practice, shared by / and /conditions
 src/lib/adminScope.ts    admin scopes and which sections each one may open
@@ -735,9 +736,9 @@ client is the only writer and the log is append-only from any session.
   off) resolves to nothing and the request is dropped silently rather than
   failing the booking.
 
-- **The seven public pages are one template, not seven layouts.** `/`,
-  `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/faq` and
-  `/hospitals` all assemble from `src/components/marketing/`: a `PageHero`
+- **The eight public pages are one template, not eight layouts.** `/`,
+  `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`
+  and `/hospitals` all assemble from `src/components/marketing/`: a `PageHero`
   (photo right, one headline, one sentence, up to two CTAs), `TrustBar`, some
   `Section` bands, an `ExploreSection`, and a `ClosingCta`. Every page ends
   the same way on purpose — wherever a visitor stops reading, the next step
@@ -850,6 +851,19 @@ client is the only writer and the log is append-only from any session.
   with nothing to sign, and a bucket would mean an upload pipeline to
   maintain. Rendered through a plain `<img>`, since optimising it would need a
   `remotePatterns` allowlist for every host an admin might paste from.
+- **Testimonials are the one place the site quotes a person, so treat them
+  as evidence.** One `Testimonials` component serves Home and `/mission`,
+  because the two bands make the same claim and a visitor may see both in one
+  session. `testimonials.avatar_url` is migration-dependent, so every caller
+  reads it in an isolated query and falls back to the patient's initial — a
+  generic silhouette is a worse signal than no photo.
+  **The five rows `schema.sql` seeds are illustrative copy, not real
+  patients**, seeded only into an empty table and never re-seeded once it has
+  any row. They exist so the band can be reviewed populated before launch.
+  Never add a testimonial that reads as a real patient without consent for
+  both the words and the face, and never present the seeded ones as real —
+  the admin form says as much at the point of entry, and
+  `public_rating_summary` stays the only place a *real* number is quoted.
 - **A public catalog card opens a dialog; booking is its own button.** The
   session-package, home-visit-package and programme cards all follow one
   contract: the card body is a single tap target that opens a detail dialog

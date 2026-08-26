@@ -9,8 +9,9 @@ session video links come from Google Calendar/Meet. The admin back office is
 organised into six sections — Today, Sessions, People, Money, Catalog,
 Settings — defined once in `src/lib/adminNav.ts`.
 
-The public marketing site is seven pages — `/`, `/conditions`,
-`/how-it-works`, `/home-visit`, `/team`, `/faq`, `/hospitals` — defined once
+The public marketing site is eight pages — `/`, `/conditions`,
+`/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals` —
+defined once
 in `src/lib/marketingNav.ts` and assembled from one shared, photo-led design
 system in `src/components/marketing/`. The home page scrolls down into a
 connector grid linking every other page plus booking; the other six end in

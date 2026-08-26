@@ -11,6 +11,7 @@ import heroFaq from "../../public/photos/hero-faq.jpg";
 import heroHomeVisit from "../../public/photos/hero-home-visit.jpg";
 import heroHospitals from "../../public/photos/hero-hospitals.jpg";
 import heroHowItWorks from "../../public/photos/hero-how-it-works.jpg";
+import heroMission from "../../public/photos/hero-mission.jpg";
 import heroTeam from "../../public/photos/hero-team.jpg";
 import heroTherapy from "../../public/photos/hero-therapy.jpg";
 import modeHomeVisit from "../../public/photos/mode-home-visit.jpg";
@@ -43,6 +44,7 @@ export const MARKETING_PHOTOS = {
   "hero-therapy": heroTherapy,
   "hero-conditions": heroConditions,
   "hero-how-it-works": heroHowItWorks,
+  "hero-mission": heroMission,
   "hero-team": heroTeam,
   "hero-home-visit": heroHomeVisit,
   "hero-hospitals": heroHospitals,

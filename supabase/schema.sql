@@ -4080,3 +4080,73 @@ revoke insert on appointments from authenticated;
 -- degrades to the placeholder when it is null, so a programme without a photo
 -- is a normal state rather than a broken card.
 alter table treatment_categories add column if not exists image_url text;
+
+-- ---------------------------------------------------------------------------
+-- Feature: Mission & Vision page, and a face on a testimonial
+-- ---------------------------------------------------------------------------
+-- Testimonials have always been name + quote. The /mission page puts them
+-- beside the practice's own promises, where an unattributed quote reads as
+-- copywriting rather than a patient -- so the row gets a portrait.
+--
+-- A plain URL like the catalog covers, not a Storage object: these are public
+-- marketing images with nothing to sign. Every surface falls back to the
+-- patient's initial when it is null, so a testimonial without a photo stays a
+-- normal row rather than a broken card.
+alter table testimonials add column if not exists avatar_url text;
+
+-- Sample testimonials, seeded only into an empty table.
+--
+-- These are ILLUSTRATIVE COPY, not real patients: the practice has not
+-- launched, and the five rows exist so the Home and Mission pages can be
+-- reviewed with their testimonial band populated. They are written to be
+-- obviously replaceable and are managed like any other row from
+-- Settings -> Site Content.
+--
+-- Delete them before launch, or edit them into real ones as consent comes in.
+-- `where not exists` means they are never re-seeded once the table has any
+-- row at all, so removing them is permanent and a re-run of this file will
+-- not bring them back -- the same guard treatment_categories uses.
+insert into testimonials (patient_name, quote, rating, condition_label, avatar_url, display_order)
+select * from (values
+  (
+    'Arjun Mehta',
+    'I had given up on fixing my neck between meetings. He watched me sit at my actual desk, moved two things, and gave me four exercises. The headaches stopped in about three weeks.',
+    5,
+    'Desk-related neck pain'::text,
+    '/photos/testimonial-desk.jpg'::text,
+    1
+  ),
+  (
+    'Naomi Adeyemi',
+    'I expected to be told to rest. Instead I got a week-by-week plan that kept me moving, and a straight answer about when I could race again. I did the half marathon.',
+    5,
+    'Running injury'::text,
+    '/photos/testimonial-runner.jpg'::text,
+    2
+  ),
+  (
+    'Kenji Tanaka',
+    'After the knee replacement I could not face the drive to a clinic twice a week. Same physiotherapist every session, from my living room. She could see the stairs I was struggling with.',
+    5,
+    'Knee replacement recovery'::text,
+    '/photos/testimonial-knee.jpg'::text,
+    3
+  ),
+  (
+    'Margaret Hale',
+    'My daughter sat in on the first call and we both learned the routine. Six months on I am steadier on my feet than I was, and she is not worrying every time I use the stairs.',
+    5,
+    'Balance and mobility'::text,
+    '/photos/testimonial-mobility.jpg'::text,
+    4
+  ),
+  (
+    'Zoya Karim',
+    'The assessment was an hour and nobody rushed me. What I remember is being told exactly what was wrong in words I understood, and leaving with something to do about it that day.',
+    5,
+    'Lower back pain'::text,
+    '/photos/testimonial-back.jpg'::text,
+    5
+  )
+) as seed
+where not exists (select 1 from testimonials);

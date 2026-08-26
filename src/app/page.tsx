@@ -1,7 +1,7 @@
 import { createPublicClient } from "@/lib/supabase/public";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
-import { Reveal, Stagger, StaggerItem, MotionButton } from "@/components/motion/primitives";
+import { Reveal, MotionButton } from "@/components/motion/primitives";
 import JourneySteps from "@/components/home/JourneySteps";
 import SessionPackages from "@/components/home/SessionPackages";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
@@ -11,6 +11,9 @@ import TrustBar from "@/components/marketing/TrustBar";
 import Section from "@/components/marketing/Section";
 import SplitFeature from "@/components/marketing/SplitFeature";
 import ExploreGrid from "@/components/marketing/ExploreGrid";
+import Testimonials, {
+  type PublicTestimonial,
+} from "@/components/marketing/Testimonials";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { homeConnectors } from "@/lib/marketingNav";
 import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
@@ -125,13 +128,27 @@ export default async function Home() {
     image_url: imageByCategoryId.get(c.id) ?? null,
   }));
 
-  const { data: testimonials } = await supabase
+  const { data: testimonialRows } = await supabase
     .from("testimonials")
     .select("id, patient_name, quote, rating, condition_label")
     .eq("active", true)
     .order("display_order", { ascending: true })
     .order("id", { ascending: true })
     .limit(3);
+
+  // Portraits in their own call: testimonials.avatar_url is
+  // migration-dependent, so a database one merge behind loses the faces
+  // rather than the quotes.
+  const { data: testimonialAvatars } = await supabase
+    .from("testimonials")
+    .select("id, avatar_url");
+  const avatarById = new Map(
+    (testimonialAvatars ?? []).map((row) => [row.id, row.avatar_url as string | null])
+  );
+  const testimonials: PublicTestimonial[] = (testimonialRows ?? []).map((t) => ({
+    ...t,
+    avatar_url: avatarById.get(t.id) ?? null,
+  }));
 
   // Real, aggregated patient rating data (never individual reviews/names —
   // see the schema comment on public_rating_summary for why) surfaced
@@ -141,6 +158,10 @@ export default async function Home() {
     .select("avg_rating, rating_count")
     .single();
   const hasRealRatings = !!ratingSummary && ratingSummary.rating_count > 0;
+
+  // The connector grid: every other page plus booking. Held in a variable so
+  // the band's own copy can count it instead of hardcoding a number.
+  const connectors = homeConnectors(homeVisitEnabled);
 
   // Only lists sections that actually render -- several of these blocks
   // below are conditional on admin-controlled data (categories, packages,
@@ -155,7 +176,7 @@ export default async function Home() {
       ? [{ id: "programs", label: "Programs", icon: "fa-clipboard-list" }]
       : []),
     ...(packages.length > 0 ? [{ id: "packages", label: "Packages", icon: "fa-box-open" }] : []),
-    ...(testimonials && testimonials.length > 0
+    ...(testimonials.length > 0
       ? [{ id: "reviews", label: "Reviews", icon: "fa-star" }]
       : []),
     { id: "explore", label: "Explore the Site", icon: "fa-compass" },
@@ -293,7 +314,7 @@ export default async function Home() {
 
       <SessionPackages packages={packages} />
 
-      {testimonials && testimonials.length > 0 && (
+      {testimonials.length > 0 && (
         <Section
           id="reviews"
           tone="tint"
@@ -305,36 +326,7 @@ export default async function Home() {
               : undefined
           }
         >
-          <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {testimonials.map((t) => (
-              <StaggerItem key={t.id} className="h-full">
-                <figure className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  {t.rating && (
-                    <div className="mb-3 text-sm text-amber-500" aria-label={`${t.rating} out of 5`}>
-                      {"★".repeat(t.rating)}
-                      <span className="text-slate-200">{"★".repeat(5 - t.rating)}</span>
-                    </div>
-                  )}
-                  <blockquote className="flex-1 text-[15px] leading-relaxed text-slate-700">
-                    &ldquo;{t.quote}&rdquo;
-                  </blockquote>
-                  <figcaption className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-4">
-                    <span className="font-display flex h-9 w-9 items-center justify-center rounded-full bg-teal-50 text-sm font-bold text-teal-700">
-                      {t.patient_name.trim().charAt(0).toUpperCase()}
-                    </span>
-                    <span>
-                      <span className="block text-sm font-bold text-slate-900">
-                        {t.patient_name}
-                      </span>
-                      {t.condition_label && (
-                        <span className="block text-xs text-teal-700">{t.condition_label}</span>
-                      )}
-                    </span>
-                  </figcaption>
-                </figure>
-              </StaggerItem>
-            ))}
-          </Stagger>
+          <Testimonials testimonials={testimonials} />
         </Section>
       )}
 
@@ -345,9 +337,12 @@ export default async function Home() {
         tone="panel"
         eyebrow="Explore"
         title="The whole site, in one place"
-        lede="Six more pages and one booking form. Each one says what it answers."
+        // Counted rather than written out: this said "six" for one commit
+        // after an eighth page was added, and Home Visit drops out of the
+        // list entirely when the admin switch is off.
+        lede={`${connectors.length - 1} more pages and one booking form. Each one says what it answers.`}
       >
-        <ExploreGrid connectors={homeConnectors(homeVisitEnabled)} />
+        <ExploreGrid connectors={connectors} />
       </Section>
 
       <ClosingCta

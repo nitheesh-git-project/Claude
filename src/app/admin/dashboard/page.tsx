@@ -517,6 +517,15 @@ export default async function AdminDashboardPage({
     (categoryImageRows ?? []).map((row) => [row.id, row.image_url as string | null])
   );
 
+  // testimonials.avatar_url is migration-dependent too, so it stays out of
+  // the ~40-query Promise.all above for the reason the category covers do.
+  const { data: testimonialAvatarRows } = await admin
+    .from("testimonials")
+    .select("id, avatar_url");
+  const testimonialAvatarById = new Map(
+    (testimonialAvatarRows ?? []).map((row) => [row.id, row.avatar_url as string | null])
+  );
+
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
       appointments ?? [],
@@ -1900,9 +1909,14 @@ export default async function AdminDashboardPage({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Testimonials</h2>
         <p className="text-xs text-slate-500 mb-4">
-          Controls what shows in the &quot;What Our Patients Say&quot; section on the Home page.
+          Controls the patient-story band on the Home page and Our Mission.
         </p>
-        <TestimonialManager testimonials={testimonials ?? []} />
+        <TestimonialManager
+          testimonials={(testimonials ?? []).map((t) => ({
+            ...t,
+            avatar_url: testimonialAvatarById.get(t.id) ?? null,
+          }))}
+        />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
