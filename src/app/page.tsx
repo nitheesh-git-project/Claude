@@ -11,6 +11,7 @@ import TrustBar from "@/components/marketing/TrustBar";
 import Section from "@/components/marketing/Section";
 import SplitFeature from "@/components/marketing/SplitFeature";
 import ExploreGrid from "@/components/marketing/ExploreGrid";
+import MissionPreview from "@/components/marketing/MissionPreview";
 import Testimonials, {
   type PublicTestimonial,
 } from "@/components/marketing/Testimonials";
@@ -170,6 +171,7 @@ export default async function Home() {
   // scroll arrow walks this list top to bottom.
   const sectionNavItems: SectionNavItem[] = [
     { id: "two-ways", label: "Two Ways to Start", icon: "fa-video" },
+    { id: "our-mission", label: "Our Mission", icon: "fa-bullseye" },
     { id: "what-we-treat", label: "What We Treat", icon: "fa-bone" },
     { id: "how-it-works", label: "How It Works", icon: "fa-route" },
     ...(categories && categories.length > 0
@@ -269,6 +271,23 @@ export default async function Home() {
             />
           )}
         </div>
+      </Section>
+
+      {/* Why the practice exists, before what it treats: someone deciding
+          whether to trust a clinic they cannot walk into asks "who are you"
+          first. Mission and vision in full, the promises as headlines that
+          link through -- see MissionPreview. */}
+      <Section
+        id="our-mission"
+        // A connector band, so it takes the same floating-panel treatment as
+        // the explore grid at the foot of the page — and it keeps this from
+        // running into the white "what we treat" band directly below.
+        tone="panel"
+        eyebrow="Our mission"
+        title="Why we do this"
+        lede="Two sentences on what the practice is for, and the four things every patient gets."
+      >
+        <MissionPreview />
       </Section>
 
       {/* Breadth of care, as six photographs. The old version of this band

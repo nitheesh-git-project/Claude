@@ -935,8 +935,17 @@ what they are called. Home Visit is dropped from all of them when the admin
 master switch is off, since `/home-visit` 404s in that state.
 
 **Scrolling the home page** goes: hero → trust bar → the two delivery modes →
-what we treat → how it works → programmes → packages → reviews → **the
-connector grid for every other page plus booking** → closing CTA.
+**our mission** → what we treat → how it works → programmes → packages →
+reviews → **the connector grid for every other page plus booking** →
+closing CTA.
+
+The mission band sits before the conditions band deliberately: a visitor
+deciding whether to trust a clinic they cannot walk into asks "who are
+you" before "do you treat my back". It gives the mission and vision in
+full — two sentences, and paraphrasing them would only weaken the claim —
+and reduces the four promises to their titles, each linking to
+`/mission#what-we-promise`. That split is what keeps it a connector rather
+than a second copy of the page.
 
 ### Mission & Vision (`/mission`)
 

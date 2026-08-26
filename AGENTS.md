@@ -851,6 +851,15 @@ client is the only writer and the log is append-only from any session.
   with nothing to sign, and a bucket would mean an upload pipeline to
   maintain. Rendered through a plain `<img>`, since optimising it would need a
   `remotePatterns` allowlist for every host an admin might paste from.
+- **A connector shows the whole of what is short and the headline of what is
+  long.** The home page's mission band gives the mission and vision in full —
+  they are two sentences, and paraphrasing them into a teaser would leave the
+  home page making a weaker version of the same claim — while the four
+  promises appear as titles only, each linking to
+  `/mission#what-we-promise`. Both halves read from `src/lib/mission.ts`, so
+  the home page cannot quote a mission the mission page has since reworded.
+  Get that split wrong in either direction and you have a duplicate page or a
+  band that says nothing.
 - **Testimonials are the one place the site quotes a person, so treat them
   as evidence.** One `Testimonials` component serves Home and `/mission`,
   because the two bands make the same claim and a visitor may see both in one
