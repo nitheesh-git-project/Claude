@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
     id,
     title,
     description,
+    imageUrl,
     points,
     priceInr,
     durationMinutes,
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
     .update({
       title,
       description: description || null,
+      image_url: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
       points: pointsList,
       price_paise: Math.round(price * 100),
       duration_minutes: Math.round(duration),

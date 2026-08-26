@@ -15,7 +15,9 @@ in `src/lib/marketingNav.ts` and assembled from one shared, photo-led design
 system in `src/components/marketing/`. The home page scrolls down into a
 connector grid linking every other page plus booking; the other six end in
 the same grid minus themselves. Photographs are static imports registered in
-`src/lib/marketingPhotos.ts` and live under `public/photos/`.
+`src/lib/marketingPhotos.ts` and live under `public/photos/`. Catalog
+covers (programmes and packages) are admin-supplied `image_url` values
+instead, falling back to `CatalogImage`'s shared placeholder.
 
 - `README.md` — product overview, setup, environment variables, routes, and
   how each flow works.

@@ -922,6 +922,7 @@ having its own layout:
 | `StepStrip` | A process as numbered photographs, all visible at once. |
 | `IconCard` | One fact: tinted icon, short title, one line. |
 | `ExploreGrid` / `ExploreSection` | The site's index as photographs. |
+| `CatalogImage` | The cover slot on a programme or package card — the admin's photo when set, one shared tinted placeholder when not. |
 | `CareAreaShowcase` | The six areas of practice, one at a time: photograph left, explanation right. Swipe, arrows or the name picker; never moves on its own. |
 | `ClosingCta` | Every page ends the same way: one sentence, one action. |
 
@@ -935,6 +936,25 @@ master switch is off, since `/home-visit` 404s in that state.
 **Scrolling the home page** goes: hero → trust bar → the two delivery modes →
 what we treat → how it works → programmes → packages → reviews → **the
 connector grid for every other page plus booking** → closing CTA.
+
+### Where images come from
+
+Two sources, and the difference matters when planning a shoot:
+
+| Slot | Source | Who changes it |
+| --- | --- | --- |
+| Page heroes, delivery modes, the four steps, the six care areas | Files in `public/photos/`, registered in `src/lib/marketingPhotos.ts` | A developer, in a commit |
+| Programme cards, session packages, home-visit packages | `image_url` on `treatment_categories` / `treatment_category_packages` / `home_visit_packages` | An admin, in Site Content — no deploy |
+
+The catalog rows are admin-owned on purpose: programmes and packages are
+created and retired without a release, so their imagery has to move at the
+same speed. Every one of them falls back to `CatalogImage`'s placeholder, so
+a new programme is sellable the moment it is created and gets its photograph
+whenever someone has one.
+
+**Still to shoot** (currently placeholders): a cover per programme, and a
+cover per package. Landscape, at least 1200px wide, same screen-led direction
+as the rest of the site.
 
 ### Photography
 

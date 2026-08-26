@@ -824,6 +824,23 @@ client is the only writer and the log is append-only from any session.
   reads the rail's own buttons rather than a hardcoded list, which is what
   lets these pages change shape without the spec changing with them.
 
+- **Every catalog card has a cover slot, and one component owns the empty
+  state.** Programmes, session packages and home-visit packages are all
+  admin-created rows with a nullable `image_url`, so all three need an answer
+  for "no photo yet" — and all three had a different one, at different
+  heights, which read as three components rather than one catalog.
+  `CatalogImage` is now that slot: the photo when set, otherwise the same
+  tinted panel at the same height with the row's own illustration. A card with
+  no photograph must look like one whose photo has not been chosen yet, never
+  like one whose image failed to load. `treatment_categories.image_url` is the
+  newest of the three (end of `schema.sql`), so it is read in its own isolated
+  query on `/`, `/conditions` and the admin dashboard and merged in — the
+  admin's batch is one `Promise.all` of ~40 queries, where an unknown-column
+  error would blank the dashboard rather than one cover. The field is a plain
+  URL an admin pastes, not a Storage object: these are public marketing images
+  with nothing to sign, and a bucket would mean an upload pipeline to
+  maintain. Rendered through a plain `<img>`, since optimising it would need a
+  `remotePatterns` allowlist for every host an admin might paste from.
 - **A public catalog card opens a dialog; booking is its own button.** The
   session-package, home-visit-package and programme cards all follow one
   contract: the card body is a single tap target that opens a detail dialog

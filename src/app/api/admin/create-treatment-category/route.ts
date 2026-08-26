@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
   const {
     title,
     description,
+    imageUrl,
     points,
     priceInr,
     durationMinutes,
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
     .insert({
       title,
       description: description || null,
+      image_url: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
       points: pointsList,
       price_paise: Math.round(price * 100),
       duration_minutes: Math.round(duration),

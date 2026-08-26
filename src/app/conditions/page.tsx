@@ -81,6 +81,23 @@ export default async function ConditionsPage() {
     category_price_paise: categoryPriceById.get(p.category_id) ?? null,
   }));
 
+
+  // Cover photos live in their own call: treatment_categories.image_url is
+  // migration-dependent (added at the end of schema.sql), and one
+  // unknown-column error must cost the programmes their photo rather than
+  // blank the whole catalog. Same convention as the package detail reads.
+  const { data: categoryImages } = await supabase
+    .from("treatment_categories")
+    .select("id, image_url");
+  const imageByCategoryId = new Map(
+    (categoryImages ?? []).map((row) => [row.id, row.image_url])
+  );
+
+  const programs = rows.map((c) => ({
+    ...c,
+    image_url: imageByCategoryId.get(c.id) ?? null,
+  }));
+
   const homeVisitEnabled = await readHomeVisitEnabled();
 
   // Only sections that actually render -- programmes and packages are both
@@ -129,7 +146,7 @@ export default async function ConditionsPage() {
           title="What you can book today"
           lede="Every programme opens with the same 60-minute assessment. What changes is the protocol built from it."
         >
-          <ProgramCards programs={rows} packages={packages} />
+          <ProgramCards programs={programs} packages={packages} />
         </Section>
       )}
 

@@ -4061,3 +4061,22 @@ alter table site_settings add column if not exists session_completed_after_minut
 drop policy if exists "appointments_insert_own" on appointments;
 revoke insert on appointments from authenticated;
 
+
+-- ---------------------------------------------------------------------------
+-- Feature: a cover photograph on a programme
+-- ---------------------------------------------------------------------------
+-- treatment_category_packages and home_visit_packages have carried image_url
+-- since they were added; treatment_categories never did, so the programme
+-- cards on / and /conditions were the one catalog surface with no way to show
+-- a photograph. They fell back to a rotating vector illustration, which is
+-- fine as a placeholder and wrong as the permanent answer on a site whose
+-- imagery is what makes it legible.
+--
+-- Same shape as the two package tables on purpose: a plain URL an admin
+-- pastes in, not a Storage object. These are marketing images on public,
+-- ISR-cached pages -- there is nothing private about them, nothing to
+-- sign, and giving them a bucket would mean an upload pipeline and a
+-- lifecycle to maintain for a handful of files. Every surface that reads it
+-- degrades to the placeholder when it is null, so a programme without a photo
+-- is a normal state rather than a broken card.
+alter table treatment_categories add column if not exists image_url text;

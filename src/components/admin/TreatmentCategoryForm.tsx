@@ -7,6 +7,7 @@ type Category = {
   id: string;
   title: string;
   description: string | null;
+  image_url: string | null;
   points: string[];
   price_paise: number;
   duration_minutes: number;
@@ -31,6 +32,7 @@ export default function TreatmentCategoryForm({
   const defaults = category ?? initialValues;
   const [title, setTitle] = useState(defaults?.title ?? "");
   const [description, setDescription] = useState(defaults?.description ?? "");
+  const [imageUrl, setImageUrl] = useState(defaults?.image_url ?? "");
   const [pointsText, setPointsText] = useState((defaults?.points ?? []).join("\n"));
   const [priceInr, setPriceInr] = useState(
     defaults ? String(defaults.price_paise / 100) : ""
@@ -61,6 +63,7 @@ export default function TreatmentCategoryForm({
       ...(isEdit ? { id: category!.id } : {}),
       title,
       description,
+      imageUrl,
       points,
       priceInr,
       durationMinutes,
@@ -88,6 +91,7 @@ export default function TreatmentCategoryForm({
     if (!isEdit) {
       setTitle("");
       setDescription("");
+      setImageUrl("");
       setPointsText("");
       setPriceInr("");
       setDurationMinutes("60");
@@ -123,6 +127,23 @@ export default function TreatmentCategoryForm({
           rows={2}
           className="w-full p-2 rounded-lg border border-slate-300"
         />
+      </div>
+      <div>
+        <label className="block font-semibold mb-1">
+          Cover Image URL{" "}
+          <span className="font-normal text-slate-400">(optional)</span>
+        </label>
+        <input
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+          placeholder="https://…"
+          className="w-full p-2 rounded-lg border border-slate-300"
+        />
+        <p className="mt-1 text-xs text-slate-500">
+          Shown at the top of the programme card on the home page and
+          Conditions. Landscape, at least 1200px wide. Left blank, the card
+          falls back to its illustration.
+        </p>
       </div>
       <div>
         <label className="block font-semibold mb-1">

@@ -8,6 +8,7 @@ import Modal, { useLastNonNull } from "@/components/Modal";
 import CareIllustration, {
   type CareIllustrationId,
 } from "@/components/visuals/CareIllustration";
+import CatalogImage from "@/components/catalog/CatalogImage";
 import {
   CheckList,
   ProseSection,
@@ -27,6 +28,14 @@ export type PublicProgram = {
   // because the home page's own hero query selects a narrower list.
   duration_minutes?: number | null;
   cta_label?: string | null;
+  /**
+   * Admin-supplied cover photo. Migration-dependent (see the "cover
+   * photograph on a programme" section at the end of schema.sql), so callers
+   * read it in an isolated query and merge it in; undefined here means the
+   * column is not in this database yet, which renders the same placeholder as
+   * a programme whose photo simply has not been chosen.
+   */
+  image_url?: string | null;
 };
 
 /** A package sold against a programme, shown inside that programme's dialog. */
@@ -98,47 +107,49 @@ export default function ProgramCards({
                   type="button"
                   onClick={() => setSelected({ program, index: i })}
                   aria-haspopup="dialog"
-                  className="flex flex-1 cursor-pointer flex-col p-6 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500 sm:p-7"
+                  className="flex flex-1 cursor-pointer flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500"
                 >
-                  <div className="flex items-start gap-5">
-                    <div className="h-20 w-24 shrink-0 rounded-xl bg-teal-50/70 p-2 transition-colors group-hover:bg-teal-50">
-                      <CareIllustration
-                        id={PROGRAM_ART[i % PROGRAM_ART.length]}
-                        className="h-full w-full text-teal-700"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
+                  {/* Same slot, same height as the package cards one band
+                      away, so the two grids read as one catalog. */}
+                  <CatalogImage
+                    src={program.image_url}
+                    art={PROGRAM_ART[i % PROGRAM_ART.length]}
+                    className="h-40 rounded-t-2xl"
+                  />
+
+                  <div className="flex flex-1 flex-col p-6 sm:p-7">
+                    <div className="min-w-0">
                       <h3 className="font-display text-lg font-bold text-slate-900">
                         {program.title}
                       </h3>
                       <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{summary}</p>
                     </div>
-                  </div>
 
-                  {points.length > 0 && (
-                    <ul className="mt-5 grid gap-2 border-t border-slate-100 pt-5 sm:grid-cols-2">
-                      {points.slice(0, 4).map((pt) => (
-                        <li
-                          key={pt}
-                          className="flex items-start gap-2 text-xs leading-snug text-slate-700"
-                        >
-                          <i
-                            aria-hidden="true"
-                            className="fa-solid fa-circle-check mt-0.5 shrink-0 text-teal-600"
-                          />
-                          {pt}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                    {points.length > 0 && (
+                      <ul className="mt-5 grid gap-2 border-t border-slate-100 pt-5 sm:grid-cols-2">
+                        {points.slice(0, 4).map((pt) => (
+                          <li
+                            key={pt}
+                            className="flex items-start gap-2 text-xs leading-snug text-slate-700"
+                          >
+                            <i
+                              aria-hidden="true"
+                              className="fa-solid fa-circle-check mt-0.5 shrink-0 text-teal-600"
+                            />
+                            {pt}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
 
-                  <div className="mt-auto flex items-baseline gap-2 pt-6">
-                    <span className="font-display text-lg font-bold text-slate-900">
-                      {rupees(program.price_paise)}
-                    </span>
-                    <span className="text-xs font-normal text-slate-500">
-                      / {program.duration_minutes ?? 60} min session
-                    </span>
+                    <div className="mt-auto flex items-baseline gap-2 pt-6">
+                      <span className="font-display text-lg font-bold text-slate-900">
+                        {rupees(program.price_paise)}
+                      </span>
+                      <span className="text-xs font-normal text-slate-500">
+                        / {program.duration_minutes ?? 60} min session
+                      </span>
+                    </div>
                   </div>
                 </button>
 

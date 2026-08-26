@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
+import CatalogImage from "@/components/catalog/CatalogImage";
 import Modal, { useLastNonNull } from "@/components/Modal";
 import {
   CheckList,
@@ -111,19 +112,7 @@ export default function SessionPackages({ packages }: { packages: PublicPackage[
                     aria-haspopup="dialog"
                     className="flex flex-1 cursor-pointer flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500"
                   >
-                    {pkg.image_url ? (
-                      // Admin-supplied cover image URL, not a static local
-                      // asset -- next/image would require configuring a
-                      // remote pattern per host the admin might use, so a
-                      // plain img keeps this admin-controlled without an
-                      // allowlist to maintain.
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={pkg.image_url} alt="" className="h-40 w-full object-cover" />
-                    ) : (
-                      <div className="flex h-40 w-full items-center justify-center bg-teal-50 text-teal-300">
-                        <i className="fa-solid fa-layer-group text-4xl" />
-                      </div>
-                    )}
+                    <CatalogImage src={pkg.image_url} icon="fa-layer-group" className="h-40" />
 
                     <div className="flex flex-1 flex-col p-6">
                       <h3 className="font-display text-lg font-bold text-slate-900">

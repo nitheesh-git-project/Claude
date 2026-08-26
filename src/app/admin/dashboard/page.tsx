@@ -506,6 +506,17 @@ export default async function AdminDashboardPage({
   const therapistSuggestionsEnabled =
     suggestionsToggleRow?.therapist_suggestions_enabled === true;
 
+  // Same reasoning as the toggle above: treatment_categories.image_url is the
+  // newest column on that table, and the batch it would otherwise join is one
+  // Promise.all of ~40 queries -- an unknown-column error there would blank
+  // the whole dashboard rather than one cover photo.
+  const { data: categoryImageRows } = await admin
+    .from("treatment_categories")
+    .select("id, image_url");
+  const categoryImageById = new Map(
+    (categoryImageRows ?? []).map((row) => [row.id, row.image_url as string | null])
+  );
+
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
       appointments ?? [],
@@ -1857,6 +1868,7 @@ export default async function AdminDashboardPage({
       <TreatmentCategoryManager
         categories={(treatmentCategories ?? []).map((c) => ({
           ...c,
+          image_url: categoryImageById.get(c.id) ?? null,
           points: Array.isArray(c.points) ? (c.points as string[]) : [],
         }))}
       />

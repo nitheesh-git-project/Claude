@@ -9,6 +9,7 @@ type Category = {
   id: string;
   title: string;
   description: string | null;
+  image_url: string | null;
   points: string[];
   price_paise: number;
   duration_minutes: number;
@@ -254,6 +255,7 @@ export default function TreatmentCategoryManager({
               ? {
                   title: `${duplicateFrom.title} (Copy)`,
                   description: duplicateFrom.description,
+                  image_url: duplicateFrom.image_url,
                   points: duplicateFrom.points,
                   price_paise: duplicateFrom.price_paise,
                   duration_minutes: duplicateFrom.duration_minutes,
