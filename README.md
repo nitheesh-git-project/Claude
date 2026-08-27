@@ -86,15 +86,25 @@ Copy `.env.example` to `.env.local` and fill in:
 Use Razorpay Test Mode keys (`rzp_test_…`) until the payment flow has been
 verified end to end.
 
-`.env.production` has been **deleted**. It set `NEXT_PUBLIC_SHOW_DEBUG_NAV=true`
-(a "jump to page" bar on the live site listing every route, protected
-dashboards included) and `ALLOW_DEBUG_DATA_RESET=true` (which armed the button
-that truncates every table). Both defaults are correct when unset: the debug
-bar renders only outside production, and `/api/admin/debug-reset` answers 404
-rather than 403, so a probe cannot learn the endpoint exists.
+`.env.production` exists again, and carries **one** line:
+`NEXT_PUBLIC_SHOW_DEBUG_NAV=true`, which restores the debug "jump to page"
+bar on production builds and on the deployed site. That flag is public — it
+ships in the browser bundle, so the bar renders for every visitor and its
+dropdown names every route, protected dashboards included. It is a
+pre-launch testing convenience: delete the file, or flip the value to
+`false`, before real launch.
+
+The file deliberately does **not** set `ALLOW_DEBUG_DATA_RESET`. It used to,
+and that armed the bar's "Reset data" button against the live database —
+every table truncated, no undo, for any signed-in full-scope admin who typed
+`RESET ALL DATA`. Unset, the button still renders but
+`/api/admin/debug-reset` answers 404 rather than 403, so a probe cannot even
+learn the endpoint exists. Restoring the bar is not a reason to re-arm the
+wipe; set that variable in a server environment only, and only against a
+project whose data is throwaway.
 
 If either variable is also set in a hosting dashboard (Vercel project settings,
-for instance), deleting the file does **not** clear it — check there too. The
+for instance), the file does **not** override it — check there too. The
 matching `debug_reset_all_data()` function still exists in `supabase/schema.sql`
 and should be dropped once it is no longer needed for testing; `EXECUTE` on it
 is revoked from `anon` and `authenticated`, so only the service-role key can

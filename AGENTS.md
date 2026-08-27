@@ -1010,10 +1010,16 @@ change that genuinely needs no doc update can ignore it.
 
 ## Gotchas
 
-- `.env.production` is **deleted**. It armed both the public debug nav and
-  the whole-database reset on the live site. Unset is the safe default for
-  both — don't recreate it, and check the hosting dashboard's own env vars
-  too, since deleting a file cannot clear those.
+- **`.env.production` sets the debug bar's flag and nothing else.** It once
+  armed both the public debug nav (`NEXT_PUBLIC_SHOW_DEBUG_NAV=true`) and
+  the whole-database reset (`ALLOW_DEBUG_DATA_RESET=true`) on the live site,
+  and was deleted for that reason; it is back with only the first line,
+  because a production build otherwise hides the bar and every published
+  change had to be checked without it. Keep the two apart: the nav flag is
+  public and merely names routes, the reset flag empties the database. Never
+  add the second one to this file. Both are pre-launch only — delete the
+  file before real launch, and check the hosting dashboard's own env vars
+  too, since a file cannot clear those.
 - **Every route tree has an error boundary, and a thrown message never
   reaches the screen.** `RouteError` / `RouteLoading`
   (`src/components/system/`) back `error.tsx` and `loading.tsx` in each

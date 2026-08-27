@@ -21,24 +21,27 @@ function toLocalInputValue(ms: number) {
 // which is exactly when you want it. Home Visit is included unconditionally:
 // this is a developer tool, and seeing the 404 is the point when the master
 // switch is off. Everything below the public pages is a route the marketing
-// nav does not know about, so those stay written out.
+// nav does not know about, so those stay written out. Their numbers start
+// after MARKETING_PAGES' count (eight pages, numbered 1-8 above) -- adding a
+// ninth public page means shifting this block down one, or two entries end
+// up wearing the same number.
 const routes = [
   ...MARKETING_PAGES.map((page, index) => ({
     value: page.href,
     label: `${index + 1}. ${page.label}`,
   })),
-  { value: "/get-started", label: "8. Get Started Hub" },
-  { value: "/book", label: "9. Booking Enquiry" },
-  { value: "/book-home-visit", label: "9b. Home Visit Booking" },
-  { value: "/patient/login", label: "10. Patient Login / Register" },
-  { value: "/patient/dashboard", label: "10b. Patient Dashboard (protected)" },
-  { value: "/therapist/login", label: "11. Therapist Login / Apply" },
-  { value: "/therapist/dashboard", label: "11b. Therapist Dashboard (protected)" },
-  { value: "/pending-approval", label: "12. Pending Approval" },
-  { value: "/admin/login", label: "13. Admin Login" },
-  { value: "/admin/dashboard", label: "13b. Admin Dashboard (protected)" },
-  { value: "/hospital/login", label: "14. Partner (Hospital) Login" },
-  { value: "/hospital/dashboard", label: "14b. Partner Dashboard (protected)" },
+  { value: "/get-started", label: "9. Get Started Hub" },
+  { value: "/book", label: "10. Booking Enquiry" },
+  { value: "/book-home-visit", label: "10b. Home Visit Booking" },
+  { value: "/patient/login", label: "11. Patient Login / Register" },
+  { value: "/patient/dashboard", label: "11b. Patient Dashboard (protected)" },
+  { value: "/therapist/login", label: "12. Therapist Login / Apply" },
+  { value: "/therapist/dashboard", label: "12b. Therapist Dashboard (protected)" },
+  { value: "/pending-approval", label: "13. Pending Approval" },
+  { value: "/admin/login", label: "14. Admin Login" },
+  { value: "/admin/dashboard", label: "14b. Admin Dashboard (protected)" },
+  { value: "/hospital/login", label: "15. Partner (Hospital) Login" },
+  { value: "/hospital/dashboard", label: "15b. Partner Dashboard (protected)" },
 ];
 
 export default function DebugNav() {
