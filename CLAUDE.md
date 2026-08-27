@@ -55,7 +55,8 @@ e2e suite covers the money-critical paths, the public pages' section
 navigation, the catalog detail dialogs, the specialist booking handoff and
 the patient-only booking rule, therapist-suggested sessions, the Home
 page walkthrough's admin-configured rotation pace, and self-signup without
-an email-confirmation step, and the Session Completed cutoff
+an email-confirmation step, the brand splash's cold-open and
+long-absence rules, and the Session Completed cutoff
 (`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys — verify a change
 with a build and a lint.

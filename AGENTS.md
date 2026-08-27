@@ -39,8 +39,10 @@ button spam, concurrent answers and a dropped connection
 (`session-suggestions.spec.ts`), the Home page walkthrough's
 admin-configured rotation pace (`journey-pace.spec.ts`), and self-signup
 going through with no email-confirmation step
-(`patient-registration.spec.ts`), and the Session Completed cutoff on every
-surface that lists a session (`session-completed-cutoff.spec.ts`). It needs a
+(`patient-registration.spec.ts`), the Session Completed cutoff on every
+surface that lists a session (`session-completed-cutoff.spec.ts`), and the
+brand splash's cold-open, reload and long-absence rules
+(`splash-screen.spec.ts`). It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
@@ -747,6 +749,31 @@ client is the only writer and the log is append-only from any session.
   therapist the public view hides (suspended, unapproved, `visible_on_team`
   off) resolves to nothing and the request is dropped silently rather than
   failing the booking.
+
+- **The splash greets a cold open, and nothing else.** The teal sheet the
+  root layout paints over the site for a beat
+  (`src/components/system/SplashScreen.tsx`, everything it needs defined once
+  in `src/lib/splashScreen.ts`) shows on the first load of a browser tab and
+  again when a tab that has been in the background for longer than
+  `SPLASH_REVISIT_AWAY_MS` is returned to. It deliberately does **not** show
+  on every navigation, every reload or every tab focus: a patient paying by
+  UPI leaves the tab for their bank's app and comes back mid-checkout, and
+  splashing over a payment in progress is the one thing this must never do.
+  Three details are load-bearing and easy to undo. The decision is made by
+  an inline blocking script in the document head, not by an effect — an
+  effect runs after first paint, so the greeting would land on top of a page
+  the visitor can already read, which looks like a fault. The overlay's
+  markup is in every page's HTML and never changes; visibility is entirely a
+  `data-splash` attribute on `<html>` read by CSS, because deciding it in
+  React state is a hydration mismatch on every page of the app (that
+  attribute is also why `<html>` carries `suppressHydrationWarning` — it
+  covers that one element, never a descendant). And the fade duration lives
+  in both `globals.css` and `SPLASH_FADE_MS`: the timer is what takes the
+  sheet out of the flow, so the two drifting apart either cuts the fade
+  short or leaves an invisible sheet eating clicks. Anyone who has asked for
+  reduced motion is skipped outright — it is decoration over content that is
+  already rendered, so the honest answer to "don't animate" is not to show
+  it. `e2e/splash-screen.spec.ts` holds all four rules.
 
 - **The eight public pages are one template, not eight layouts.** `/`,
   `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`

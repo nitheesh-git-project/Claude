@@ -11,6 +11,8 @@ import { SectionNavProvider } from "@/components/SectionNavContext";
 import { createPublicClient } from "@/lib/supabase/public";
 import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import SplashScreen from "@/components/system/SplashScreen";
+import { SPLASH_BOOT_SCRIPT } from "@/lib/splashScreen";
 
 // Inter for body copy — optimized for on-screen reading at small sizes,
 // which matters here given how much clinical/pricing detail patients read.
@@ -97,8 +99,30 @@ export default async function RootLayout({
       : DEFAULT_ADMIN_SETTINGS.farewellBannerSeconds;
 
   return (
-    <html lang="en" className={`h-full antialiased ${inter.variable} ${jakarta.variable}`}>
+    // suppressHydrationWarning covers this one element's own attributes:
+    // the splash boot script below writes data-splash onto <html> before
+    // React hydrates, so the server's markup and the live DOM legitimately
+    // differ by that attribute. It does not reach any descendant, so a real
+    // mismatch anywhere inside the page still warns.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`h-full antialiased ${inter.variable} ${jakarta.variable}`}
+    >
+      <head>
+        {/* Decides whether this load gets the brand splash, and does it
+            before the browser paints. It has to be inline and blocking:
+            an effect runs after first paint, so the greeting would drop
+            on top of a site the visitor can already see. See
+            src/lib/splashScreen.ts — the script, the CSS in globals.css
+            and the component all read their keys and timings from there. */}
+        <script dangerouslySetInnerHTML={{ __html: SPLASH_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-800 font-sans">
+        {/* Always in the HTML, painted only when the script above says so —
+            keeping the markup constant is what stops this being a
+            hydration mismatch on every page. */}
+        <SplashScreen siteName={brand.siteName} />
         {showDebugNav && <DebugNav />}
         <Navbar
           offsetTop={showDebugNav}

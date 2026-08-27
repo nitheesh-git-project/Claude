@@ -936,6 +936,29 @@ having its own layout:
 | `Testimonials` | Patient quotes with portraits, shared by Home and `/mission`. |
 | `ClosingCta` | Every page ends the same way: one sentence, one action. |
 
+### The opening splash
+
+Every page under the root layout paints a full-screen brand greeting —
+the site name, the line **"Movement Is Medicine"** — for about a second and
+a half, then dissolves into the page underneath, which was fully rendered
+the whole time.
+
+It shows on the **first load of a browser tab**, and again when a tab left
+in the background for more than fifteen minutes is returned to. It does not
+show on an internal navigation, a reload of the same tab, or a quick flick
+away and back: someone approving a UPI payment in their bank's app comes
+back mid-checkout, and a splash over a payment in progress is the failure
+this rule exists to prevent. Visitors who have asked their system for
+reduced motion never see it at all.
+
+The phrase and every timing are in `src/lib/splashScreen.ts`; the component
+is `src/components/system/SplashScreen.tsx` and its styling is at the foot
+of `src/app/globals.css`. To change the wording, edit `SPLASH_PHRASE`; to
+change how long it holds or how long a tab must be away to earn a replay,
+edit `SPLASH_HOLD_MS` and `SPLASH_REVISIT_AWAY_MS`. Change `SPLASH_FADE_MS`
+and the transition in `globals.css` together — they are the same fade
+described twice.
+
 **The index is defined once.** `src/lib/marketingNav.ts` holds the seven
 pages with a one-line purpose each. The header nav, the footer's Explore
 column, the home page's connector grid and the "Where to go next" strip on
