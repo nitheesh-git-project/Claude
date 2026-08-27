@@ -457,6 +457,7 @@ export default function AdminAllSessionsTab({
             />
           </label>
           <select
+            aria-label="Filter by delivery mode"
             value={modeFilter}
             onChange={(e) => setModeFilter(e.target.value as typeof modeFilter)}
             className={selectCls()}
@@ -466,6 +467,7 @@ export default function AdminAllSessionsTab({
             <option value="home_visit">Home visit</option>
           </select>
           <select
+            aria-label="Filter by status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className={selectCls()}

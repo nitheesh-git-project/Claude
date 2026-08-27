@@ -88,6 +88,7 @@ export default function ConditionsListFilter({ rows }: { rows: Row[] }) {
           className="flex-1 min-w-[160px] p-2 rounded-lg border border-slate-300 text-sm"
         />
         <select
+          aria-label="Filter by status"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
           className="p-2 rounded-lg border border-slate-300 text-sm"
@@ -103,6 +104,7 @@ export default function ConditionsListFilter({ rows }: { rows: Row[] }) {
           ))}
         </select>
         <select
+          aria-label="Filter by condition type"
           value={specialtyFilter}
           onChange={(e) => setSpecialtyFilter(e.target.value as typeof specialtyFilter)}
           className="p-2 rounded-lg border border-slate-300 text-sm"
@@ -114,6 +116,7 @@ export default function ConditionsListFilter({ rows }: { rows: Row[] }) {
           ))}
         </select>
         <select
+          aria-label="Sort by"
           value={sortKey}
           onChange={(e) => setSortKey(e.target.value as SortKey)}
           className="p-2 rounded-lg border border-slate-300 text-sm"

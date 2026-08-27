@@ -104,12 +104,12 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
     expect(rowCountText).toMatch(/\d+ of \d+/);
 
     // Filtering to home visits must not error and must keep the table.
-    await page.getByRole("combobox").filter({ hasText: /Any mode/ }).selectOption("home_visit");
+    await page.getByRole("combobox", { name: "Filter by delivery mode" }).selectOption("home_visit");
     await expect(page.getByRole("table")).toBeVisible();
-    await page.getByRole("combobox").filter({ hasText: /Home visit/ }).selectOption("all");
+    await page.getByRole("combobox", { name: "Filter by delivery mode" }).selectOption("all");
 
     // The unassigned filter is the one an admin actually reaches for.
-    await page.getByRole("combobox").filter({ hasText: /Any status/ }).selectOption("unassigned");
+    await page.getByRole("combobox", { name: "Filter by status" }).first().selectOption("unassigned");
     await expect(page.getByRole("table")).toBeVisible();
   });
 
@@ -189,7 +189,7 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
     await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all`);
     await expect(page.getByRole("heading", { level: 2, name: /^All Sessions/ })).toBeVisible();
 
-    await page.getByRole("combobox").filter({ hasText: /Any mode/ }).selectOption("home_visit");
+    await page.getByRole("combobox", { name: "Filter by delivery mode" }).selectOption("home_visit");
     await page.waitForTimeout(500);
 
     // A reload is the test: a filter an admin has to re-set on every visit is
@@ -199,13 +199,13 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
       timeout: 60_000,
     });
     await expect(
-      page.getByRole("combobox").filter({ hasText: /Home visit/ }).first()
+      page.getByRole("combobox", { name: "Filter by delivery mode" })
     ).toHaveValue("home_visit");
 
     // Clearing puts it back, and the cleared state is what persists next.
     await page.getByRole("button", { name: "Clear filters" }).click();
     await page.reload();
-    await expect(page.getByRole("combobox").filter({ hasText: /Any mode/ }).first()).toHaveValue(
+    await expect(page.getByRole("combobox", { name: "Filter by delivery mode" })).toHaveValue(
       "all"
     );
 
