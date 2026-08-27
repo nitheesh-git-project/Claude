@@ -106,6 +106,7 @@ export default function PatientOnboardingCard({
           draftEndpoint="/api/therapist/condition-profile/save-draft"
           patientId={patientId}
           extraPayload={{ specialty: chosen, triageData }}
+          voice="clinician"
           initialData={resumeAnswers ?? {}}
           onClose={close}
         />

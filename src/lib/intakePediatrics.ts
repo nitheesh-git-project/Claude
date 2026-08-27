@@ -34,6 +34,7 @@ export const PEDS_CAREGIVER_QUESTIONS: IntakeQuestion[] = [
     placeholder: "e.g. Priya Sharma",
     inputType: "text",
     required: true,
+    excludeFromCount: true,
   },
   {
     key: "peds_caregiver_relationship",
@@ -42,6 +43,7 @@ export const PEDS_CAREGIVER_QUESTIONS: IntakeQuestion[] = [
     placeholder: "e.g. Mother",
     inputType: "text",
     required: true,
+    excludeFromCount: true,
   },
 ];
 

@@ -7,6 +7,7 @@ import AreaPainPicker from "@/components/profile/AreaPainPicker";
 import {
   countAnswered,
   findMissingRequiredKeys,
+  countedQuestions,
   isAnswered,
   parseAreaPain,
   parseMultiSelect,
@@ -44,6 +45,7 @@ export default function ConditionIntakeWizard({
   questions,
   endpoint,
   extraPayload,
+  voice = "patient",
   draftEndpoint,
   patientId,
   initialData,
@@ -57,6 +59,14 @@ export default function ConditionIntakeWizard({
    *  triageData }` -- two lines here rather than teaching the wizard what
    *  a specialty is. */
   extraPayload?: Record<string, unknown>;
+  /** Who is holding the screen. The same wizard now serves two people:
+   *  the patient editing their own record, and the therapist filling it
+   *  in with them at the first session. The copy cannot be true for both
+   *  -- "your therapist reads this before your first session" is false
+   *  when the therapist is typing it during that session, and "an admin
+   *  checks it first" is false on the onboarding path, which writes
+   *  live. */
+  voice?: "patient" | "clinician";
   draftEndpoint?: string;
   patientId?: string;
   initialData: Record<string, string>;
@@ -72,6 +82,7 @@ export default function ConditionIntakeWizard({
   // step is the review. Resume on the first unanswered question when the
   // patient already has answers to come back to, so continuing a draft
   // doesn't mean tapping Next past everything already filled in.
+  const clinician = voice === "clinician";
   const [step, setStep] = useState(() => {
     const initialCount = countAnswered(
       questions,
@@ -94,6 +105,9 @@ export default function ConditionIntakeWizard({
   const reviewStep = questions.length + 1;
   const totalSteps = reviewStep + 1;
   const answeredCount = countAnswered(questions, values);
+  // What the person is told they are doing: seven questions, whatever the
+  // key count is. A pre-step is asked but not counted.
+  const countedTotal = countedQuestions(questions).length;
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
@@ -297,11 +311,14 @@ export default function ConditionIntakeWizard({
             {step === 0 && (
               <div className="space-y-4 text-sm text-slate-600">
                 <p className="text-base font-semibold text-slate-800">
-                  {questions.length} short questions about what&apos;s hurting.
+                  {clinician
+                    ? `${countedTotal} short questions to go through together.`
+                    : `${countedTotal} short questions about your condition.`}
                 </p>
                 <p>
-                  Your therapist reads this before your first session, so the time you&apos;ve paid for goes
-                  into treating you instead of into questions. It takes about two minutes.
+                  {clinician
+                    ? "Ask them in the patient's own words and record what they say. This goes straight onto their chart and is what opens their health profile to them."
+                    : "This is your own account of your condition, in your words. Your therapist and the clinic's admin read it; nobody else does. It takes about two minutes."}
                 </p>
                 <ul className="space-y-2">
                   <li className="flex gap-2">
@@ -481,8 +498,9 @@ export default function ConditionIntakeWizard({
             {step === reviewStep && (
               <div className="space-y-3">
                 <p className="text-sm text-slate-600">
-                  Here&apos;s what you told us. Change anything that doesn&apos;t look right, then send it in — an
-                  admin checks it before your therapist sees it.
+                  {clinician
+                    ? "Check this over with the patient before you send it. It goes onto their chart straight away — no waiting on a review — and opens their health profile to them."
+                    : "Here's what you told us. Change anything that doesn't look right, then send it in — an admin checks it before it reaches your chart."}
                 </p>
                 {missingRequiredKeys.length > 0 && (
                   <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-800">
@@ -558,7 +576,7 @@ export default function ConditionIntakeWizard({
                   disabled={isPending}
                   className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-50"
                 >
-                  {isPending ? "Sending..." : "Send for review"}
+                  {isPending ? "Saving..." : clinician ? "Save to their chart" : "Send for review"}
                 </button>
               ) : (
                 <button

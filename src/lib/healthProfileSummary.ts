@@ -9,6 +9,7 @@ import {
 } from "@/lib/painMap";
 import {
   countAnswered,
+  countedQuestions,
   parseAreaPain,
   parseMultiSelect,
   type IntakeQuestion,
@@ -96,11 +97,12 @@ export function intakeCompletion({
   questions: IntakeQuestion[];
   data: Record<string, string>;
 }): IntakeCompletion {
+  const total = countedQuestions(questions).length;
   const answered = countAnswered(questions, data);
   return {
     answered,
-    totalQuestions: questions.length,
-    completionPercent: questions.length === 0 ? 0 : Math.round((answered / questions.length) * 100),
+    totalQuestions: total,
+    completionPercent: total === 0 ? 0 : Math.round((answered / total) * 100),
   };
 }
 

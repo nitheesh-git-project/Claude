@@ -3,7 +3,7 @@
 import { useState } from "react";
 import ConditionIntakeWizard from "@/components/profile/ConditionIntakeWizard";
 import SpecialtySummary from "@/components/profile/SpecialtySummary";
-import { countAnswered, isAnswered, type IntakeQuestion } from "@/lib/conditionIntake";
+import { countAnswered, countedQuestions, isAnswered, type IntakeQuestion } from "@/lib/conditionIntake";
 import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
 
 // The dashboard-side face of the Patient Care Intake: what's on file,
@@ -56,10 +56,13 @@ export default function ConditionIntakePanel({
   const [open, setOpen] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
 
+  // "N of 7", not "N of 9": a pre-step like the paediatric caregiver pair
+  // is asked but not counted -- see IntakeQuestion.excludeFromCount.
+  const countedTotal = countedQuestions(questions).length;
   const answeredNow = countAnswered(questions, currentData);
   const draftAnswered = countAnswered(questions, formInitialData);
   const started = draftAnswered > 0;
-  const complete = draftAnswered === questions.length;
+  const complete = draftAnswered === countedTotal;
   const missingRequired = questions.filter((q) => q.required && !isAnswered(q, formInitialData)).length;
   // An unfinished fill the patient can pick up again: there are answers
   // in the resume buffer that haven't made it into the live profile yet.
@@ -72,7 +75,7 @@ export default function ConditionIntakePanel({
           <p className="font-display text-base font-bold text-slate-800">Nothing on file yet</p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-slate-600">
             {emptyStateText ??
-              `${questions.length} short questions, one at a time, about two minutes.`}
+              `${countedTotal} short questions, one at a time, about two minutes.`}
           </p>
         </div>
       ) : (
@@ -88,7 +91,7 @@ export default function ConditionIntakePanel({
           <i aria-hidden className="fa-solid fa-pen-to-square mt-0.5 text-xs text-amber-600" />
           <p className="text-xs text-amber-800">
             <span className="font-semibold">You left off part-way through.</span> Everything you typed was saved
-            — {draftAnswered} of {questions.length} answered
+            — {draftAnswered} of {countedTotal} answered
             {missingRequired > 0 && `, ${missingRequired} needed ${missingRequired === 1 ? "one" : "ones"} still blank`}
             . Nothing reaches your therapist until you send it in.
           </p>
@@ -112,7 +115,7 @@ export default function ConditionIntakePanel({
                 : "Add the missing answers"}
         </button>
         <span className="text-xs text-slate-500">
-          {draftAnswered} of {questions.length} answered
+          {draftAnswered} of {countedTotal} answered
         </span>
       </div>
       )}

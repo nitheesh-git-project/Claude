@@ -362,6 +362,7 @@ export default async function TherapistPatientHealthProfilePage({
           </p>
           <SpecialtyExamPanel
             specialty={specialty}
+            voice="clinician"
             assessments={assessments ?? []}
             areaPain={isOrtho ? parseAreaPain(currentData.area_pain) : []}
             record={

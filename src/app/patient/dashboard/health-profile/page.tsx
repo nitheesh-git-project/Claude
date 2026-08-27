@@ -66,6 +66,12 @@ const STATUS_HEADLINE: Record<ConditionProfileStatus, string> = {
 // theirs. This is a state of its own, in the patient's terms.
 const AWAITING_THERAPIST_HEADLINE = "Your therapist fills this in with you at your first session";
 
+// "Your therapist has your answers" is the right line when the patient
+// sent them. It is the wrong one the first time they see a record their
+// therapist wrote -- it credits them with something they did not do, and
+// this screen's whole job is being clear about who writes which half.
+const THERAPIST_WROTE_IT_HEADLINE = "Your therapist filled this in with you";
+
 export default async function PatientHealthProfilePage() {
   const supabase = await createClient();
   const {
@@ -111,7 +117,7 @@ export default async function PatientHealthProfilePage() {
     supabase.from("profiles").select("patient_code").eq("id", user.id).maybeSingle(),
     supabase
       .from("patient_condition_profiles")
-      .select("data, draft_data, schema_version, status")
+      .select("data, draft_data, schema_version, status, last_submitted_role")
       .eq("patient_id", user.id)
       .maybeSingle(),
     supabase
@@ -263,8 +269,18 @@ export default async function PatientHealthProfilePage() {
             <p className="text-sm font-semibold">
               {gate.reason === "awaiting_therapist"
                 ? AWAITING_THERAPIST_HEADLINE
-                : STATUS_HEADLINE[status]}
+                : status === "active" && conditionProfile?.last_submitted_role === "therapist"
+                  ? THERAPIST_WROTE_IT_HEADLINE
+                  : STATUS_HEADLINE[status]}
             </p>
+            {status === "active" &&
+              conditionProfile?.last_submitted_role === "therapist" &&
+              gate.canEdit && (
+                <p className="mt-1 text-xs font-normal">
+                  Read it over — if anything is not quite right, or you remember something later, you
+                  can correct it yourself from here.
+                </p>
+              )}
             {gate.reason === "awaiting_therapist" && (
               <p className="mt-1 text-xs font-normal">
                 They go through a short set of questions with you and write down your answers. It

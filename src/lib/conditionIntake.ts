@@ -24,6 +24,13 @@ export type IntakeQuestion = {
    *  string like every other answer and needs no special case in the
    *  storage, the required check, the diff view or the PDF. */
   options?: string[];
+  /** True for a question that is asked but does not count towards "N of
+   *  7" -- the paediatric caregiver pre-step. Who is speaking for the
+   *  child is provenance, not a clinical question, so counting it would
+   *  make that set read as nine questions when the cap is seven. It is
+   *  still `required`, and still blocks submission when blank; this
+   *  governs the progress figures only. */
+  excludeFromCount?: boolean;
   /** Only for the triage set: show this question only once another
    *  question has a particular answer. Nothing in the specialty sets uses
    *  it -- a patient-facing set that hides questions can't honestly say
@@ -286,8 +293,16 @@ export function isAnswered(question: IntakeQuestion, answers: Record<string, str
   return !!value && !!value.trim();
 }
 
+/** The questions that count towards the progress figures -- everything
+ *  except a pre-step like the paediatric caregiver pair. Every surface
+ *  that prints "N of M" runs through this so the three sets all read as
+ *  seven, which is the cap they were designed to. */
+export function countedQuestions(questions: IntakeQuestion[]): IntakeQuestion[] {
+  return questions.filter((q) => !q.excludeFromCount);
+}
+
 export function countAnswered(questions: IntakeQuestion[], answers: Record<string, string>): number {
-  return questions.filter((q) => isAnswered(q, answers)).length;
+  return countedQuestions(questions).filter((q) => isAnswered(q, answers)).length;
 }
 
 // --- The patient's write gate --------------------------------------------
