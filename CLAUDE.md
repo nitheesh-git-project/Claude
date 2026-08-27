@@ -27,6 +27,18 @@ instead, falling back to `CatalogImage`'s shared placeholder.
 - `supabase/schema.sql` — the entire database schema, RLS policies, views,
   and triggers. Single source of truth, re-runnable, append-only.
 
+**The debug bar stays switched on, in every environment, until launch.**
+This app has no real patients yet. `isDebugNavVisible()`
+(`src/lib/debugNavVisible.ts`) is the single source of that rule: on unless
+`NEXT_PUBLIC_SHOW_DEBUG_NAV` is exactly `"false"`, so `next dev`,
+`next build` + `next start` and the deployed site all show it. Do not gate
+it back behind `NODE_ENV`, do not hide it "because production", and do not
+re-inline that expression at a call site. The owner removes it by hand
+before going live — and removal means deleting the bar, since the flag is
+public and the bar names `/admin/login` and `/admin/dashboard`. The
+database-wipe flag (`ALLOW_DEBUG_DATA_RESET`) is a separate, server-only
+thing and stays unset.
+
 Patient files (avatars, and the test reports and scans patients upload to
 their health profile) live in Supabase Storage, never in a table column —
 `patient_medical_documents` holds metadata only, and its bucket is private.

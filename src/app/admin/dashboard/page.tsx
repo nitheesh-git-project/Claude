@@ -67,6 +67,7 @@ import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import { retryDueMeetSyncs, MAX_MEET_SYNC_AUTO_ATTEMPTS } from "@/lib/retryDueMeetSyncs";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Dr. Pooja's Physio",
@@ -2012,14 +2013,9 @@ export default async function AdminDashboardPage({
     />
   );
 
-  // Same computation as the root layout's own showDebugNav -- duplicated
-  // here (rather than threaded through props from a layout) because this
-  // page hides the shared Navbar entirely and needs the same dev-only-bar
-  // offset for its own fixed sidebar. See AdminShell's offsetTop prop.
-  const showDebugNav =
-    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
-    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
-      process.env.NODE_ENV !== "production");
+  // This page hides the shared Navbar entirely, so it needs the debug
+  // bar's own top offset for its fixed sidebar. See AdminShell's offsetTop prop.
+  const showDebugNav = isDebugNavVisible();
 
   // ---- Today's action inbox -------------------------------------------
   // Every count here already existed somewhere on this page; what didn't

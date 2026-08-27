@@ -1010,16 +1010,24 @@ change that genuinely needs no doc update can ignore it.
 
 ## Gotchas
 
-- **`.env.production` sets the debug bar's flag and nothing else.** It once
-  armed both the public debug nav (`NEXT_PUBLIC_SHOW_DEBUG_NAV=true`) and
-  the whole-database reset (`ALLOW_DEBUG_DATA_RESET=true`) on the live site,
-  and was deleted for that reason; it is back with only the first line,
-  because a production build otherwise hides the bar and every published
-  change had to be checked without it. Keep the two apart: the nav flag is
-  public and merely names routes, the reset flag empties the database. Never
-  add the second one to this file. Both are pre-launch only — delete the
-  file before real launch, and check the hosting dashboard's own env vars
-  too, since a file cannot clear those.
+- **The debug bar is on in every environment, on purpose.** The app is
+  pre-launch with no real patients, so `isDebugNavVisible()`
+  (`src/lib/debugNavVisible.ts`) returns true unless
+  `NEXT_PUBLIC_SHOW_DEBUG_NAV` is exactly `"false"` — local dev,
+  `next build` + `next start`, and the deployed site alike. It used to
+  default off whenever `NODE_ENV === "production"`, which hid it in the one
+  environment worth checking a published change in. Don't gate it back
+  behind `NODE_ENV`, and don't reintroduce the ten copies of that
+  expression: the root layout, three dashboard shells and six pages that
+  hide the shared Navbar all call the one helper. At real launch, **delete**
+  the bar rather than flipping the flag — it is a public flag, and the bar
+  names every route including `/admin/login` and `/admin/dashboard`.
+- **`.env.production` stays deleted.** It armed both the public debug nav
+  and the whole-database reset on the live site. The nav no longer needs it
+  (the default above covers it), and the reset must never be armed from a
+  committed file — `ALLOW_DEBUG_DATA_RESET` belongs in a server environment,
+  set deliberately, against a project whose data is throwaway. Check the
+  hosting dashboard's own env vars too, since a file cannot clear those.
 - **Every route tree has an error boundary, and a thrown message never
   reaches the screen.** `RouteError` / `RouteLoading`
   (`src/components/system/`) back `error.tsx` and `loading.tsx` in each

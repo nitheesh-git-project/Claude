@@ -8,6 +8,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import { HOSPITAL_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
+import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 export const metadata: Metadata = {
   title: "Edit Profile | Dr. Pooja's Physio",
@@ -51,14 +52,9 @@ export default async function HospitalProfilePage() {
   const adminSettings = parseAdminSettings(settingsRow);
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
 
-  // Same computation as the root layout's own showDebugNav -- duplicated
-  // here (rather than threaded through props from a layout) because this
-  // page hides the shared Navbar entirely and needs the same dev-only-bar
-  // offset for its own fixed sidebar. See DashboardShell's offsetTop prop.
-  const showDebugNav =
-    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
-    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
-      process.env.NODE_ENV !== "production");
+  // This page hides the shared Navbar entirely, so it needs the debug
+  // bar's own top offset for its fixed sidebar. See DashboardShell's offsetTop prop.
+  const showDebugNav = isDebugNavVisible();
 
   return (
     <DashboardShell

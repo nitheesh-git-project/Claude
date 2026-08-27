@@ -24,6 +24,7 @@ import {
   parseAreaPain,
   type ConditionProfileStatus,
 } from "@/lib/conditionIntake";
+import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 export const metadata: Metadata = {
   title: "Patient Health Profile | Dr. Pooja's Physio",
@@ -150,9 +151,7 @@ export default async function TherapistPatientHealthProfilePage({
   const canRecordExam = isAssigned;
   const adminSettings = parseAdminSettings(settingsRow);
 
-  const showDebugNav =
-    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
-    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" && process.env.NODE_ENV !== "production");
+  const showDebugNav = isDebugNavVisible();
 
   return (
     <DashboardShell

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import type { PatientDashboardData } from "@/lib/patientDashboardData";
+import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 /**
  * The chrome every patient dashboard screen shares: sidebar, header,
@@ -22,9 +23,7 @@ export default function PatientDashboardShell({
   subtitle?: ReactNode;
   children: ReactNode;
 }) {
-  const showDebugNav =
-    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
-    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" && process.env.NODE_ENV !== "production");
+  const showDebugNav = isDebugNavVisible();
 
   return (
     // Every JoinSessionButton under this shell reads its window from here

@@ -81,34 +81,33 @@ Copy `.env.example` to `.env.local` and fill in:
 | `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` | OAuth2 Web application credentials from Google Cloud Console |
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer |
+| `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional kill switch for the pre-launch debug bar. The bar is on in every environment; set to exactly `false` to hide it |
+| `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which empties every table. Never set it on a deployment holding real data |
 | `SUPABASE_ACCESS_TOKEN` | Optional. A Supabase Personal Access Token (Account → Access Tokens on supabase.com, **not** the service role key or DB password), only needed to run `node scripts/run-schema.mjs` |
 
 Use Razorpay Test Mode keys (`rzp_test_…`) until the payment flow has been
 verified end to end.
 
-`.env.production` exists again, and carries **one** line:
-`NEXT_PUBLIC_SHOW_DEBUG_NAV=true`, which restores the debug "jump to page"
-bar on production builds and on the deployed site. That flag is public — it
-ships in the browser bundle, so the bar renders for every visitor and its
-dropdown names every route, protected dashboards included. It is a
-pre-launch testing convenience: delete the file, or flip the value to
-`false`, before real launch.
+The debug bar is **on in every environment**, including production builds
+and the deployed site: `isDebugNavVisible()` (`src/lib/debugNavVisible.ts`)
+returns true unless `NEXT_PUBLIC_SHOW_DEBUG_NAV` is exactly `"false"`. That
+is deliberate while the app is pre-launch — the bar's "jump to page" list,
+its simulated clock and its Reset button are how a published change gets
+checked. **Delete the bar before real launch**: the flag is public, and the
+bar's dropdown names every route, protected dashboards included.
 
-The file deliberately does **not** set `ALLOW_DEBUG_DATA_RESET`. It used to,
-and that armed the bar's "Reset data" button against the live database —
-every table truncated, no undo, for any signed-in full-scope admin who typed
-`RESET ALL DATA`. Unset, the button still renders but
-`/api/admin/debug-reset` answers 404 rather than 403, so a probe cannot even
-learn the endpoint exists. Restoring the bar is not a reason to re-arm the
-wipe; set that variable in a server environment only, and only against a
-project whose data is throwaway.
+`.env.production` stays **deleted**. It used to set that flag plus
+`ALLOW_DEBUG_DATA_RESET=true`, which armed the button that truncates every
+table. The bar no longer needs the file, and the reset flag should never
+live in a committed one: unset, `/api/admin/debug-reset` answers 404 rather
+than 403, so a probe cannot learn the endpoint exists.
 
-If either variable is also set in a hosting dashboard (Vercel project settings,
-for instance), the file does **not** override it — check there too. The
-matching `debug_reset_all_data()` function still exists in `supabase/schema.sql`
-and should be dropped once it is no longer needed for testing; `EXECUTE` on it
-is revoked from `anon` and `authenticated`, so only the service-role key can
-reach it in the meantime.
+If either variable is set in a hosting dashboard (Vercel project settings,
+for instance), that value wins over anything in the repo — check there too.
+The matching `debug_reset_all_data()` function still exists in
+`supabase/schema.sql` and should be dropped once it is no longer needed for
+testing; `EXECUTE` on it is revoked from `anon` and `authenticated`, so only
+the service-role key can reach it in the meantime.
 
 ### Error and loading states
 

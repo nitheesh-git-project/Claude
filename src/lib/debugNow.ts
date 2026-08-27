@@ -10,8 +10,8 @@
 //
 // Client-only and additive: every call site that reads debugNow() instead
 // of Date.now() falls back to the real clock when no override is set, so
-// this has zero effect on production once the debug bar itself is hidden
-// (see NEXT_PUBLIC_SHOW_DEBUG_NAV). Deliberately never wired into any
+// this has zero effect once the debug bar itself is gone at launch (see
+// src/lib/debugNavVisible.ts). Deliberately never wired into any
 // server-side/API-route time check (refund eligibility, payout math, etc.)
 // -- those must stay grounded in the server's real clock; only client-
 // rendered advisory gates read this.

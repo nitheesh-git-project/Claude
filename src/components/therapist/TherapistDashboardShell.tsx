@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import type { TherapistDashboardData } from "@/lib/therapistDashboardData";
+import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 /**
  * The chrome every therapist dashboard screen shares. Same role as
@@ -19,9 +20,7 @@ export default function TherapistDashboardShell({
   subtitle?: ReactNode;
   children: ReactNode;
 }) {
-  const showDebugNav =
-    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
-    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" && process.env.NODE_ENV !== "production");
+  const showDebugNav = isDebugNavVisible();
 
   return (
     <JoinWindowProvider

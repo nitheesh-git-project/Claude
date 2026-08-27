@@ -8,6 +8,7 @@ import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
 import { prepSummary, type SessionNoteRow } from "@/lib/sessionNotes";
 import TherapistPatientsView from "@/components/therapist/TherapistPatientsView";
+import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 // Same module-level helper the other dashboards use rather than a bare
 // Date.now() in the component body -- a Server Component's render stays
@@ -205,9 +206,7 @@ export default async function TherapistHealthProfilesPage() {
   const newPatientCount = sortedPatients.filter((p) => !approvedPatientIds.has(p.id)).length;
   const adminSettings = parseAdminSettings(settingsRow);
 
-  const showDebugNav =
-    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
-    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" && process.env.NODE_ENV !== "production");
+  const showDebugNav = isDebugNavVisible();
 
   return (
     <DashboardShell

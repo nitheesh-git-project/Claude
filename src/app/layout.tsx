@@ -10,6 +10,7 @@ import ScrollHint from "@/components/ScrollHint";
 import { SectionNavProvider } from "@/components/SectionNavContext";
 import { createPublicClient } from "@/lib/supabase/public";
 import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings";
+import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 // Inter for body copy — optimized for on-screen reading at small sizes,
 // which matters here given how much clinical/pricing detail patients read.
@@ -50,14 +51,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Defaults to hidden on any production build (next build/start sets
-  // NODE_ENV=production automatically — no env var to remember), visible
-  // during local dev for convenience. NEXT_PUBLIC_SHOW_DEBUG_NAV overrides
-  // either way if a real need for it in a specific environment comes up.
-  const showDebugNav =
-    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV === "true" ||
-    (process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false" &&
-      process.env.NODE_ENV !== "production");
+  // On in every environment while the app is pre-launch — see
+  // debugNavVisible.ts for why, and for the one kill switch.
+  const showDebugNav = isDebugNavVisible();
 
   // Brand & Contact Details (admin Site Content tab) -- the Navbar/Footer
   // used to hardcode these. Fetched here rather than in each component
