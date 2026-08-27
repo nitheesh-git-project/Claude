@@ -1072,9 +1072,14 @@ Notable conventions:
 
 ## Knowledge graph (optional, one-time)
 
-`graphify-out/graph.json` and `GRAPH_REPORT.md` are committed and refreshed by
-CI on every merge to `main` (`.github/workflows/graphify.yml`), so a fresh
-clone already has a current graph. To also refresh it locally whenever you
+`graphify-out/graph.json`, `GRAPH_REPORT.md` and `manifest.json` are committed
+and refreshed by CI on every merge to `main`
+(`.github/workflows/graphify.yml`), so a fresh clone already has a current
+graph. `manifest.json` is what keeps the refresh incremental — it records the
+hashes of the last build, so CI re-extracts only what changed instead of the
+whole repo. When the semantic pass can't run (no `GEMINI_API_KEY` secret, or
+its free-tier quota is spent), CI falls back to a structural graph rather than
+failing. To also refresh it locally whenever you
 merge into `main`:
 
 ```bash

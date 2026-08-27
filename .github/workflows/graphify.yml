@@ -44,17 +44,34 @@ jobs:
         run: |
           # --no-viz: the interactive HTML is large and regenerable locally,
           # and is gitignored anyway. CI produces the committed text outputs
-          # (graph.json, GRAPH_REPORT.md) only.
-          if [ -f graphify-out/graph.json ]; then
-            graphify . --update --no-viz
-          else
-            graphify . --no-viz
+          # (graph.json, GRAPH_REPORT.md, manifest.json) only.
+          build() {
+            if [ -f graphify-out/graph.json ]; then
+              graphify . --update --no-viz
+            else
+              graphify . --no-viz
+            fi
+            # `extract`/`update` intentionally stop at graph.json --
+            # GRAPH_REPORT.md and named communities are a separate step
+            # (graphify's own "next: run graphify cluster-only" hint), so
+            # without this the report never gets produced even though the run
+            # succeeds.
+            graphify cluster-only . --no-viz
+          }
+
+          # Semantic extraction runs against Gemini's free tier, which allows
+          # 20 requests per day per model. A day with a few merges exhausts it,
+          # every chunk then comes back 429 ("RESOURCE_EXHAUSTED"), and graphify
+          # exits 1 -- so the committed graph goes stale on exactly the days the
+          # repo changed most. A structural graph is already the documented
+          # answer to "no key configured", so give "key out of quota" the same
+          # answer rather than failing the run: unset the key and rebuild
+          # structurally, which needs no API at all.
+          if ! build; then
+            echo "Semantic extraction failed (quota or API error). Rebuilding structurally."
+            unset GEMINI_API_KEY GOOGLE_API_KEY
+            build
           fi
-          # `extract`/`update` intentionally stop at graph.json -- GRAPH_REPORT.md
-          # and named communities are a separate step (graphify's own
-          # "next: run graphify cluster-only" hint), so without this the report
-          # never gets produced even though the run succeeds.
-          graphify cluster-only . --no-viz
 
       - name: Commit the refreshed graph
         run: |

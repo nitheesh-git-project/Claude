@@ -1057,7 +1057,14 @@ change that genuinely needs no doc update can ignore it.
   `today&tab=sync`, tabs that never existed. Build these with
   `adminScreenHref(section, tab)`, which is typed against `adminNav.ts`.
 - `graphify-out/` is CI-generated (`.github/workflows/graphify.yml`); only
-  `graph.json` and `GRAPH_REPORT.md` are committed. Don't hand-edit them.
+  `graph.json`, `GRAPH_REPORT.md` and `manifest.json` are committed. Don't
+  hand-edit them. `manifest.json` is the per-file hash record `--update`
+  diffs against, and it is committed for a reason: without it every CI run
+  re-extracts the whole corpus, and the semantic pass then spends the Gemini
+  free tier's 20 requests per day on files nothing touched, which is what
+  made the workflow fail with a wall of 429s. That failure is now soft --
+  the run retries with the key unset and commits a structural graph rather
+  than leaving the committed one stale.
 - Secrets (`SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET`, Google
   credentials) are server-only. Never add a `NEXT_PUBLIC_` prefix to them and
   never commit real values.
