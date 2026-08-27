@@ -4,14 +4,22 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 import { hasApprovedConditionAccess } from "@/lib/conditionAccess";
-import { INTAKE_QUESTIONS, findMissingRequiredKeys, mergeIntakeQuestionOverrides } from "@/lib/conditionIntake";
+import { findMissingRequiredKeys, questionKeysForSpecialty } from "@/lib/conditionIntake";
+import { loadConditionProfileCore, loadMergedIntakeQuestions } from "@/lib/conditionProfileServer";
 
-const ALLOWED_KEYS = new Set(INTAKE_QUESTIONS.map((q) => q.key));
-
-// Therapist submits a Patient Care Intake on a patient's behalf, after the
-// patient's admin has approved their access grant. Goes through the same
-// admin-review queue as a patient's own submission (Flow B) — the grant
+// Therapist EDITS an existing Patient Care Intake on a patient's behalf,
+// after the patient's admin has approved their access grant. Goes through
+// the same admin-review queue as a patient's own submission — the grant
 // only gates who may propose a change, not whether it needs review.
+//
+// Note what this route is not: creating the record in the first place is
+// /api/therapist/condition-profile/onboard, which needs only assignment
+// and writes live. The split is the create-vs-edit line -- the first fill
+// is the therapist's own clinical record of a session they ran, the same
+// kind of thing a Pain Map exam or a session note is, while this is
+// editing the patient's own account of their history and keeps needing a
+// human to approve it. The specialty cannot be changed through here
+// either; re-triage is a clinical decision and goes through onboard.
 export async function POST(request: NextRequest) {
   const { data: body, error: parseError } = await parseJsonBody<{
     patientId?: string;
@@ -25,11 +33,6 @@ export async function POST(request: NextRequest) {
   if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
     return NextResponse.json({ error: "Missing data" }, { status: 400 });
   }
-  const invalidKeys = Object.keys(answers).filter((k) => !ALLOWED_KEYS.has(k));
-  if (invalidKeys.length > 0) {
-    return NextResponse.json({ error: "Submission contains unknown fields." }, { status: 400 });
-  }
-
   const supabase = await createClient();
   const {
     data: { user },
@@ -57,12 +60,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const patientProfile = await loadConditionProfileCore(admin, patientId);
+  const allowedKeys = new Set(questionKeysForSpecialty(patientProfile.specialty));
+  const invalidKeys = Object.keys(answers).filter((k) => !allowedKeys.has(k));
+  if (invalidKeys.length > 0) {
+    return NextResponse.json({ error: "Submission contains unknown fields." }, { status: 400 });
+  }
+
   // Re-check required fields server-side against the current admin
   // question bank -- never trust the client-side check alone.
-  const { data: intakeOverrideRows } = await admin
-    .from("intake_question_templates")
-    .select("question_key, question_text, required");
-  const questions = mergeIntakeQuestionOverrides(INTAKE_QUESTIONS, intakeOverrideRows ?? []);
+  const questions = await loadMergedIntakeQuestions(admin, patientProfile.specialty);
   const missingKeys = findMissingRequiredKeys(questions, answers as Record<string, string>);
   if (missingKeys.length > 0) {
     return NextResponse.json(
@@ -88,6 +95,7 @@ export async function POST(request: NextRequest) {
     submitted_by: user.id,
     submitted_by_role: "therapist",
     proposed_data: answers,
+    proposed_specialty: patientProfile.specialty,
     status: "pending",
   });
   if (insertError) {

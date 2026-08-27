@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { INTAKE_QUESTIONS } from "@/lib/conditionIntake";
-
-const ALLOWED_KEYS = new Set(INTAKE_QUESTIONS.map((q) => q.key));
+import { patientIntakeGate, questionKeysForSpecialty } from "@/lib/conditionIntake";
+import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
 
 // Silent autosave while a patient is filling the intake form — not a
 // submission, doesn't touch condition_change_requests, doesn't need admin
@@ -20,11 +19,6 @@ export async function POST(request: NextRequest) {
   if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
     return NextResponse.json({ error: "Missing data" }, { status: 400 });
   }
-  const invalidKeys = Object.keys(answers).filter((k) => !ALLOWED_KEYS.has(k));
-  if (invalidKeys.length > 0) {
-    return NextResponse.json({ error: "Submission contains unknown fields." }, { status: 400 });
-  }
-
   const supabase = await createClient();
   const {
     data: { user },
@@ -34,17 +28,31 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { data: existing } = await admin
-    .from("patient_condition_profiles")
-    .select("status")
-    .eq("patient_id", user.id)
-    .maybeSingle();
+  const existing = await loadConditionProfileCore(admin, user.id);
+  const gate = patientIntakeGate(existing);
+  if (!gate.canEdit) {
+    return NextResponse.json(
+      {
+        error:
+          gate.reason === "awaiting_therapist"
+            ? "Your therapist fills this in with you at your first session."
+            : "A submission for your health profile is already awaiting admin review.",
+      },
+      { status: gate.reason === "awaiting_therapist" ? 403 : 409 }
+    );
+  }
+
+  const allowedKeys = new Set(questionKeysForSpecialty(existing.specialty));
+  const invalidKeys = Object.keys(answers).filter((k) => !allowedKeys.has(k));
+  if (invalidKeys.length > 0) {
+    return NextResponse.json({ error: "Submission contains unknown fields." }, { status: 400 });
+  }
 
   const { error } = await admin.from("patient_condition_profiles").upsert(
     {
       patient_id: user.id,
       draft_data: answers,
-      status: !existing || existing.status === "not_started" ? "draft" : existing.status,
+      status: !existing.exists || existing.status === "not_started" ? "draft" : existing.status,
     },
     { onConflict: "patient_id" }
   );

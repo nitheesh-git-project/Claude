@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
-import { countAnswered, INTAKE_QUESTIONS } from "@/lib/conditionIntake";
+import { countAnswered, patientIntakeGate, questionsForSpecialty } from "@/lib/conditionIntake";
+import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
 import { buildPatientFeed } from "@/lib/dashboardFeed";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { expireDueHomeVisitPurchases } from "@/lib/expireHomeVisitPurchases";
@@ -245,11 +246,17 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     needFeed
       ? supabase
           .from("condition_change_requests")
-          .select("id, status, admin_notes, created_at")
+          .select("id, status, admin_notes, submitted_by_role, created_at")
           .eq("patient_id", user.id)
           .order("created_at", { ascending: false })
           .limit(5)
-      : emptyRows<{ id: string; status: string; admin_notes: string | null; created_at: string }>(),
+      : emptyRows<{
+          id: string;
+          status: string;
+          admin_notes: string | null;
+          submitted_by_role: string | null;
+          created_at: string;
+        }>(),
 
     // The home-visit columns for this patient's own appointments. Isolated
     // from the main appointments select above for the same reason as
@@ -492,14 +499,34 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // The reminder banner counts what's actually filled in -- an
   // autosaved draft included -- rather than only saying "not done":
   // "3 of 7 answered" is what makes someone who abandoned the pop-up
-  // half-way come back and finish it, and INTAKE_QUESTIONS is the code
-  // default here on purpose (the banner is a nudge, not the form, so it
-  // doesn't need the admin's per-question wording overrides).
+  // half-way come back and finish it, and the code defaults are used here
+  // on purpose (the banner is a nudge, not the form, so it doesn't need
+  // the admin's per-question wording overrides).
+  //
+  // `specialty` is a new column, so it is read on its own and merged in:
+  // the conditionProfile select above feeds both the reminder banner and
+  // the overview cell, and an unknown-column error there would blank both.
+  const { data: conditionSpecialtyRow } = await supabase
+    .from("patient_condition_profiles")
+    .select("specialty")
+    .eq("patient_id", user.id)
+    .maybeSingle();
+  const intakeSpecialty = parseConditionSpecialty(conditionSpecialtyRow?.specialty);
+  const intakeQuestions = questionsForSpecialty(intakeSpecialty);
   const intakeAnswers = ((conditionProfile?.draft_data ?? conditionProfile?.data ?? {}) as Record<
     string,
     string
   >) ?? {};
-  const intakeAnswered = countAnswered(INTAKE_QUESTIONS, intakeAnswers);
+  const intakeAnswered = countAnswered(intakeQuestions, intakeAnswers);
+  const intakeTotal = intakeQuestions.length;
+  // The patient no longer opens their own record -- a therapist fills it
+  // in at the first session. Until then there is nothing here for them to
+  // do, and every nudge on this dashboard has to know that or it becomes a
+  // to-do marker for somebody else's job.
+  const intakeGate = patientIntakeGate({
+    data: (conditionProfile?.data ?? {}) as Record<string, string>,
+    status: conditionProfile?.status ?? null,
+  });
 
   // ---- Overview -----------------------------------------------------
   // Everything the shared DashboardOverview needs, derived here so the
@@ -568,18 +595,30 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       accent: "bg-blue-500",
       href: "/patient/dashboard/packages",
     },
-    {
-      label: "Health profile",
-      value: `${Math.round((intakeAnswered / INTAKE_QUESTIONS.length) * 100)}%`,
-      note:
-        intakeAnswered === INTAKE_QUESTIONS.length
-          ? "Your therapist has your answers"
-          : `${INTAKE_QUESTIONS.length - intakeAnswered} question${
-              INTAKE_QUESTIONS.length - intakeAnswered === 1 ? "" : "s"
-            } left`,
-      accent: intakeAnswered === INTAKE_QUESTIONS.length ? "bg-emerald-500" : "bg-amber-500",
-      href: "/patient/dashboard/health-profile",
-    },
+    // Before a therapist has filled it in, this deliberately reads "—" on
+    // a slate accent rather than "0%" on amber: an amber zero asserts the
+    // patient is behind on something nobody has asked them for. Same
+    // label and href either way, so the strip keeps its shape.
+    intakeGate.reason === "awaiting_therapist"
+      ? {
+          label: "Health profile",
+          value: "—",
+          note: "Your therapist fills this in at your first session",
+          accent: "bg-slate-400",
+          href: "/patient/dashboard/health-profile",
+        }
+      : {
+          label: "Health profile",
+          value: `${intakeTotal === 0 ? 0 : Math.round((intakeAnswered / intakeTotal) * 100)}%`,
+          note:
+            intakeAnswered === intakeTotal
+              ? "Your therapist has your answers"
+              : `${intakeTotal - intakeAnswered} question${
+                  intakeTotal - intakeAnswered === 1 ? "" : "s"
+                } left`,
+          accent: intakeAnswered === intakeTotal ? "bg-emerald-500" : "bg-amber-500",
+          href: "/patient/dashboard/health-profile",
+        },
   ];  const navItems = buildPatientNavItems({
     hasOwnedPackages,
     hasAvailablePackages,
@@ -633,6 +672,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     hasOwnedHomeVisitPackages,
     navItems,
     intakeAnswered,
+    intakeTotal,
+    intakeGate,
+    intakeSpecialty,
     nextSession,
     patientFeed,
     overviewCells,

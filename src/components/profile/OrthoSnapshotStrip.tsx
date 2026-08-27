@@ -1,6 +1,6 @@
 import { PAIN_BAND_LABEL, formatPainOutOfTen } from "@/lib/painMap";
 import StatStrip, { StripProgress, type StatCell } from "@/components/dashboard/StatStrip";
-import type { HealthSnapshot } from "@/lib/healthProfileSummary";
+import type { OrthoSnapshot } from "@/lib/healthProfileSummary";
 
 const SELF_SEVERITY_WORD = (value: number) => (value <= 3 ? "Mild" : value <= 6 ? "Moderate" : "Severe");
 
@@ -18,15 +18,16 @@ const BAND_TEXT: Record<string, string> = {
 };
 
 /**
- * The Health Profile's own four figures, in the shared dashboard strip
- * (StatStrip) so they line up with the therapist's, hospital's and admin's.
+ * The ORTHOPAEDIC four figures, in the shared dashboard strip (StatStrip)
+ * so they line up with the therapist's, hospital's and admin's. One of
+ * three, picked by SpecialtySnapshotStrip.
  *
  * Deliberately mixes the two datasets in one row even though they're
  * separate layers (self-report 0-10 vs clinical 0-100%): a patient thinks
  * of it as one condition, and keeping the units and the labels distinct is
  * what stops them being read as the same measurement.
  */
-export default function HealthSnapshotStrip({ snapshot }: { snapshot: HealthSnapshot }) {
+export default function OrthoSnapshotStrip({ snapshot }: { snapshot: OrthoSnapshot }) {
   const {
     selfSeverity,
     selfAreas,

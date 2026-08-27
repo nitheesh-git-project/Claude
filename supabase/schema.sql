@@ -3351,7 +3351,8 @@ begin
     online_booking_lead_time_hours = default,
     online_cancellation_refund_hours = default,
     journey_step_seconds = default,
-    session_completed_after_minutes = default
+    session_completed_after_minutes = default,
+    enabled_intake_specialties = default
   where id = true;
 
   return jsonb_build_object(
@@ -4150,3 +4151,143 @@ select * from (values
   )
 ) as seed
 where not exists (select 1 from testimonials);
+
+-- ---------------------------------------------------------------------------
+-- Multi-specialty health profiles: Orthopaedic / Neurological / Paediatric
+-- ---------------------------------------------------------------------------
+-- The Patient Care Intake above was one fixed set of seven questions, and
+-- every figure derived from it (severity gauge, pain-area chips, Pain Map
+-- comparison, trend line) is a *pain* measure. That fits an orthopaedic
+-- patient and nobody else: a stroke patient's recovery is measured by
+-- independence and gait, a child's by milestones reached. So a profile now
+-- carries a `specialty`, and the question set is chosen from it.
+--
+-- Three things about the shape here are deliberate and load-bearing:
+--
+-- 1. `not null default 'ortho'` IS the migration. Postgres backfills every
+--    existing row on the add-column, so there is no separate (and therefore
+--    non-idempotent) backfill statement in this re-runnable file. Existing
+--    answers already *are* the ortho set, verbatim.
+-- 2. `data` stays FLAT. Question keys are globally unique across the three
+--    sets (ortho keys unchanged, neuro keys all neuro_*, peds keys all
+--    peds_*), so re-triaging a patient can keep the previous specialty's
+--    answers in the same blob without collision -- and no jsonb migration
+--    is needed inside a re-runnable file. src/lib/conditionIntake.ts asserts
+--    that uniqueness at module load; violated silently it would
+--    cross-contaminate two patients' charts.
+-- 3. Because of (2), applying an approved change must MERGE, not replace --
+--    see mergeSpecialtyAnswers() in src/lib/conditionIntake.ts. A replace
+--    would delete the ortho answers the moment a neuro record is written.
+alter table patient_condition_profiles
+  add column if not exists specialty text not null default 'ortho';
+do $$
+begin
+  alter table patient_condition_profiles
+    add constraint patient_condition_profiles_specialty_check
+    check (specialty in ('ortho', 'neuro', 'pediatrics'));
+exception
+  when duplicate_object then null;
+end $$;
+
+-- What the therapist answered at triage to arrive at the specialty. Kept
+-- apart from `data` because it is not the patient's record of themselves --
+-- it is how the clinician routed them, and it is never rendered as one of
+-- the patient's own answers.
+alter table patient_condition_profiles
+  add column if not exists triage_data jsonb not null default '{}'::jsonb;
+
+-- Autosave buffers for the therapist's onboarding dialog, alongside the
+-- existing draft_data rather than inside it: draft_data is typed
+-- Record<string,string> end to end, and a magic "__specialty" key in there
+-- would leak into countAnswered, the wizard's prefill and the resume logic.
+alter table patient_condition_profiles add column if not exists draft_specialty text;
+alter table patient_condition_profiles add column if not exists draft_triage_data jsonb;
+
+-- A change request now records which specialty's question set it was
+-- answering. Nullable on purpose: rows written before this change carry
+-- none and are implicitly ortho.
+alter table condition_change_requests add column if not exists proposed_specialty text;
+do $$
+begin
+  alter table condition_change_requests
+    add constraint condition_change_requests_proposed_specialty_check
+    check (proposed_specialty is null or proposed_specialty in ('ortho', 'neuro', 'pediatrics'));
+exception
+  when duplicate_object then null;
+end $$;
+alter table condition_change_requests add column if not exists proposed_triage_data jsonb;
+
+-- The admin's wording/required-ness overrides become per-specialty. The
+-- three sets have disjoint key namespaces, so matching on question_key
+-- alone would also work -- keying on (specialty, question_key) means a
+-- future violation of that rule degrades to "override ignored" rather than
+-- "wrong wording on another specialty's chart".
+--
+-- intake_question_templates_question_key_key is Postgres's deterministic
+-- auto-name for the original column-level `unique`, so dropping it by that
+-- name is safe and idempotent. A unique INDEX rather than a named
+-- constraint replaces it so `if not exists` works; PostgREST resolves
+-- on_conflict against a unique index just as happily.
+alter table intake_question_templates
+  add column if not exists specialty text not null default 'ortho';
+do $$
+begin
+  alter table intake_question_templates
+    add constraint intake_question_templates_specialty_check
+    check (specialty in ('ortho', 'neuro', 'pediatrics'));
+exception
+  when duplicate_object then null;
+end $$;
+alter table intake_question_templates drop constraint if exists intake_question_templates_question_key_key;
+create unique index if not exists intake_question_templates_specialty_question_key
+  on intake_question_templates (specialty, question_key);
+
+-- Which specialties triage may offer. One jsonb array rather than three
+-- boolean columns, modelled on booking_languages: three booleans are three
+-- chances to forget one in SITE_SETTINGS_SELECT, which is the exact failure
+-- that constant's comment exists to prevent. Switching a specialty off
+-- removes it from *triage only* -- an existing profile carrying it keeps
+-- rendering, or turning pediatrics off would blank live patient charts.
+alter table site_settings
+  add column if not exists enabled_intake_specialties jsonb
+  default '["ortho", "neuro", "pediatrics"]'::jsonb;
+
+-- The patient no longer opens their own record: the therapist fills it in
+-- at the first session, and that first fill is what unlocks the patient.
+-- The route enforces this, but `revoke` on this table only ever covered
+-- `update` -- the insert policy genuinely lets a patient POST straight to
+-- PostgREST with the anon key, around the route. So the lock has to live
+-- here too: a patient may only submit once their profile has data on it.
+--
+-- The therapist branch is deliberately NOT widened for the first fill.
+-- That write goes live through a service-role route
+-- (/api/therapist/condition-profile/onboard, gated on assignment the same
+-- way a Pain Map exam and a session note are), so the browser never
+-- inserts it and leaving this policy grant-only is both simpler and
+-- stricter. What still comes through here is a therapist *editing* a live
+-- profile on the patient's behalf, which is editing the patient's own
+-- account of their history and keeps needing an approved grant.
+drop policy if exists "condition_change_requests_insert_gated" on condition_change_requests;
+create policy "condition_change_requests_insert_gated" on condition_change_requests
+  for insert with check (
+    auth.uid() = submitted_by and status = 'pending'
+    and (
+      (
+        submitted_by_role = 'patient' and auth.uid() = patient_id
+        and exists (
+          select 1 from patient_condition_profiles p
+          where p.patient_id = condition_change_requests.patient_id
+            and p.data <> '{}'::jsonb
+        )
+      )
+      or (
+        submitted_by_role = 'therapist'
+        and exists (
+          select 1 from condition_access_grants g
+          where g.patient_id = condition_change_requests.patient_id
+            and g.therapist_id = auth.uid()
+            and g.status = 'approved'
+        )
+      )
+    )
+  );

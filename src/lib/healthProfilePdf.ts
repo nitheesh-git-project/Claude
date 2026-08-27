@@ -7,7 +7,12 @@ import {
   mergeQuestionOverrides,
   type QuestionOverrideRow,
 } from "@/lib/painMap";
-import type { IntakeQuestion } from "@/lib/conditionIntake";
+import {
+  formatAreaPainForText,
+  parseAreaPain,
+  parseMultiSelect,
+  type IntakeQuestion,
+} from "@/lib/conditionIntake";
 import { toWinAnsi, toWinAnsiTidy, wrapText } from "@/lib/pdfText";
 
 // The patient's own copy of their record, as a document they can hand to
@@ -35,8 +40,25 @@ export type HealthProfilePdfInput = {
   patientEmail: string | null;
   exportedAt: Date;
   status: string;
+  /** Which question set produced these answers. A clinician receiving
+   *  this needs to know; the same PDF with a paediatric set and an
+   *  orthopaedic one read as the same document otherwise. */
+  specialtyLabel: string;
+  /** Paediatric records are somebody speaking for someone else. Printed
+   *  in the header block, where a receiving clinician looks for
+   *  provenance. Derived in the export route so this module never learns
+   *  question key names. */
+  respondent?: { name: string; relationship: string } | null;
   questions: IntakeQuestion[];
   answers: Record<string, string>;
+  /** Answers from a specialty this patient used to be recorded under.
+   *  The screen shows the current specialty only, but an export handed to
+   *  another clinician that silently loses the whole prior history is a
+   *  clinical loss rather than a simplification. */
+  earlierProfiles?: {
+    specialtyLabel: string;
+    entries: { label: string; value: string }[];
+  }[];
   assessments: {
     region: string;
     side: string;
@@ -50,7 +72,37 @@ export type HealthProfilePdfInput = {
    *  flattened into one list. */
   painMapOverridesByRegion: Record<string, QuestionOverrideRow[]>;
   documents: { title: string; document_type: string; taken_on: string | null; created_at: string }[];
+  /** False for a non-orthopaedic profile: the Pain Map section is left
+   *  out entirely rather than printed empty. */
+  showExaminations: boolean;
 };
+
+// Renders one stored answer the way a person reads it, driven off the
+// question's input type rather than its key -- so a neurological or
+// paediatric scale gets the same treatment for free.
+//
+// Two gaps this closes. `area_pain` was dumped as raw JSON, which is
+// unreadable in a document meant to be handed to another clinician; and a
+// 0-10 answer was printed as a bare digit next to exam figures that ARE
+// labelled, which is the "one pain scale on screen" rule the rest of the
+// app follows.
+function answerLines(question: IntakeQuestion, raw: string): string[] {
+  const value = (raw ?? "").trim();
+  if (!value) return [];
+  if (question.inputType === "area_pain_list") {
+    const regionLabel = new Map(PAIN_MAP_REGIONS.map((r) => [r.key as string, r.label]));
+    const lines = formatAreaPainForText(parseAreaPain(value), (region) =>
+      regionLabel.get(region) ?? region
+    );
+    return lines.length > 0 ? lines : ["None marked"];
+  }
+  if (question.inputType === "multi_select") {
+    const picked = parseMultiSelect(value);
+    return picked.length > 0 ? [picked.join(", ")] : [];
+  }
+  if (question.inputType === "scale_0_10") return [`${value} / 10`];
+  return [value];
+}
 
 function formatDate(iso: string | Date): string {
   const d = typeof iso === "string" ? new Date(iso) : iso;
@@ -170,7 +222,7 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
   doc.setProducer(input.siteName);
 
   cur.text(input.siteName, { size: 16, bold: true, gap: 1 });
-  cur.text("Patient health profile", { size: 11, color: MUTED });
+  cur.text(`${input.specialtyLabel} health profile`, { size: 11, color: MUTED });
   cur.rule();
 
   cur.text(patientName, { size: 14, bold: true, gap: 1 });
@@ -179,6 +231,16 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
     input.patientEmail,
   ].filter(Boolean) as string[];
   if (idLine.length > 0) cur.text(idLine.join("  |  "), { size: 10, color: MUTED, gap: 1 });
+  if (input.respondent) {
+    cur.text(
+      `Answered by ${toWinAnsiTidy(input.respondent.name, "a caregiver")}${
+        input.respondent.relationship
+          ? ` (${toWinAnsiTidy(input.respondent.relationship, "caregiver").toLowerCase()})`
+          : ""
+      }`,
+      { size: 10, color: MUTED, gap: 1 }
+    );
+  }
   cur.text(`Downloaded ${formatDate(input.exportedAt)}  |  Intake status: ${input.status}`, {
     size: 9,
     color: MUTED,
@@ -192,10 +254,32 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
     for (const question of answered) {
       cur.need(34);
       cur.text(question.label, { size: 9.5, bold: true, color: MUTED, gap: 1 });
-      cur.text(input.answers[question.key].trim(), { size: 10.5, gap: 7 });
+      for (const line of answerLines(question, input.answers[question.key])) {
+        cur.text(line, { size: 10.5, gap: 1 });
+      }
+      cur.space(6);
     }
   }
 
+  if (input.earlierProfiles?.length) {
+    for (const earlier of input.earlierProfiles) {
+      cur.heading(`Earlier profile (${earlier.specialtyLabel.toLowerCase()})`);
+      cur.text(
+        "Recorded before this patient's condition type was changed. Kept for continuity; not shown on screen.",
+        { size: 9, color: MUTED, gap: 6 }
+      );
+      for (const entry of earlier.entries) {
+        cur.need(34);
+        cur.text(entry.label, { size: 9.5, bold: true, color: MUTED, gap: 1 });
+        cur.text(entry.value, { size: 10.5, gap: 7 });
+      }
+    }
+  }
+
+  // Omitted entirely rather than printed with "not applicable" under it:
+  // the Pain Map is an ORTHOPAEDIC instrument, and a heading with nothing
+  // beneath it reads as missing data rather than an inapplicable section.
+  if (input.showExaminations) {
   cur.heading("Examinations by the therapist");
   if (input.assessments.length === 0) {
     cur.text("No examinations recorded yet.", { size: 10, color: MUTED });
@@ -227,6 +311,7 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
       }
       cur.space(8);
     }
+  }
   }
 
   // Listed, not embedded: the files themselves live in storage and are

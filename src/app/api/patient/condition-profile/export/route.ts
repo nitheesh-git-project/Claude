@@ -4,11 +4,28 @@ import { buildHealthProfilePdf, healthProfilePdfFilename } from "@/lib/healthPro
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
   CONDITION_STATUS_LABEL,
-  INTAKE_QUESTIONS,
+  INTAKE_QUESTIONS_BY_SPECIALTY,
   mergeIntakeQuestionOverrides,
+  questionsForSpecialty,
   type ConditionProfileStatus,
 } from "@/lib/conditionIntake";
+import {
+  CONDITION_SPECIALTIES,
+  parseConditionSpecialty,
+  specialtyLabel,
+} from "@/lib/conditionSpecialty";
 import { MEDICAL_DOCUMENT_TYPE_LABEL, type MedicalDocumentType } from "@/lib/medicalDocuments";
+
+/** Shape of the rows the Pain Map query returns, so the non-orthopaedic
+ *  branch's empty placeholder keeps the same type. */
+type PainExportRow = {
+  region: string;
+  side: string;
+  pain_percent: number;
+  submitted_by_role: string;
+  answers: unknown;
+  created_at: string;
+};
 
 // The patient's own copy of their record: approved Patient Care Intake,
 // every Pain Map exam, and what reports they have on file. Delivered as a
@@ -35,6 +52,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Same two-phase read as the health-profile pages: the specialty
+  // decides whether this export has a Pain Map section at all, and a
+  // non-orthopaedic one must not query pain_assessments rather than
+  // fetching rows it then discards.
+  const { data: specialtyRow } = await supabase
+    .from("patient_condition_profiles")
+    .select("specialty")
+    .eq("patient_id", user.id)
+    .maybeSingle();
+  const specialty = parseConditionSpecialty(specialtyRow?.specialty);
+  const isOrtho = specialty === "ortho";
+
   const [
     { data: profile },
     { data: conditionProfile },
@@ -56,18 +85,24 @@ export async function GET(request: NextRequest) {
       .select("submitted_by_role, proposed_data, status, admin_notes, created_at")
       .eq("patient_id", user.id)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("pain_assessments")
-      .select("region, side, pain_percent, submitted_by_role, answers, created_at")
-      .eq("patient_id", user.id)
-      .order("created_at", { ascending: false }),
+    isOrtho
+      ? supabase
+          .from("pain_assessments")
+          .select("region, side, pain_percent, submitted_by_role, answers, created_at")
+          .eq("patient_id", user.id)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as PainExportRow[] }),
     supabase
       .from("patient_medical_documents")
       .select("title, document_type, taken_on, created_at")
       .eq("patient_id", user.id)
       .order("created_at", { ascending: false }),
-    supabase.from("intake_question_templates").select("question_key, question_text, required"),
-    supabase.from("pain_map_question_templates").select("region, question_key, question_text"),
+    supabase
+      .from("intake_question_templates")
+      .select("question_key, question_text, required, specialty"),
+    isOrtho
+      ? supabase.from("pain_map_question_templates").select("region, question_key, question_text")
+      : Promise.resolve({ data: [] as { region: string; question_key: string; question_text: string }[] }),
     supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
   ]);
 
@@ -79,6 +114,7 @@ export async function GET(request: NextRequest) {
         email: profile?.email ?? null,
         patient_code: profile?.patient_code ?? null,
       },
+      specialty,
       condition_profile: conditionProfile ?? null,
       submission_history: changeRequests ?? [],
       pain_map_assessments: assessments ?? [],
@@ -99,6 +135,32 @@ export async function GET(request: NextRequest) {
 
   const patientName = profile?.full_name ?? "Patient";
   const status = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
+  const answers = (conditionProfile?.data ?? {}) as Record<string, string>;
+  const questions = mergeIntakeQuestionOverrides(
+    questionsForSpecialty(specialty),
+    intakeOverrideRows ?? [],
+    specialty
+  );
+
+  // Who spoke for the child. Resolved here rather than in
+  // healthProfilePdf.ts so that module never learns question key names.
+  const caregiverName = (answers.peds_caregiver_name ?? "").trim();
+  const respondent = caregiverName
+    ? { name: caregiverName, relationship: (answers.peds_caregiver_relationship ?? "").trim() }
+    : null;
+
+  // A patient re-triaged from one specialty to another keeps the previous
+  // set's answers on file (hidden on screen, never deleted). They belong
+  // in a document handed to another clinician -- losing a whole prior
+  // history silently is a clinical loss, not a simplification.
+  const earlierProfiles = CONDITION_SPECIALTIES.filter((s) => s.key !== specialty)
+    .map((s) => ({
+      specialtyLabel: s.label,
+      entries: INTAKE_QUESTIONS_BY_SPECIALTY[s.key]
+        .filter((q) => (answers[q.key] ?? "").trim())
+        .map((q) => ({ label: q.label, value: (answers[q.key] ?? "").trim() })),
+    }))
+    .filter((s) => s.entries.length > 0);
 
   const pdf = await buildHealthProfilePdf({
     siteName: parseAdminSettings(settingsRow).siteName,
@@ -107,8 +169,12 @@ export async function GET(request: NextRequest) {
     patientEmail: profile?.email ?? null,
     exportedAt: new Date(),
     status: CONDITION_STATUS_LABEL[status],
-    questions: mergeIntakeQuestionOverrides(INTAKE_QUESTIONS, intakeOverrideRows ?? []),
-    answers: (conditionProfile?.data ?? {}) as Record<string, string>,
+    specialtyLabel: specialtyLabel(specialty),
+    respondent,
+    questions,
+    answers,
+    earlierProfiles,
+    showExaminations: isOrtho,
     assessments: (assessments ?? []).map((a) => ({
       region: a.region,
       side: a.side,

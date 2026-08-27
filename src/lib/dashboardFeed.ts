@@ -65,6 +65,10 @@ export type FeedRequest = {
   created_at: string;
   admin_notes?: string | null;
   label?: string;
+  /** Who submitted it. The patient sees a therapist's submissions as well
+   *  as their own, and the two need different wording -- see
+   *  buildPatientFeed. */
+  submitted_by_role?: string | null;
 };
 
 export type FeedPayout = {
@@ -143,18 +147,33 @@ export function buildPatientFeed({
     }
   }
 
+  // These rows are visible to the patient whoever wrote them
+  // (condition_change_requests_select_involved matches on patient_id), so
+  // who submitted decides the wording. Told flatly, a therapist's own
+  // submission would announce "your health profile was sent for review"
+  // about something the patient never sent -- and a declined one would
+  // land on them as a to-do they cannot act on.
   for (const r of conditionRequests) {
+    const byTherapist = r.submitted_by_role === "therapist";
     if (r.status === "pending") {
       items.push({
         id: `cond-${r.id}`,
         at: r.created_at,
         icon: "fa-file-waveform",
         tone: "info",
-        title: "Health profile sent for review",
-        detail: "Your therapist sees the previous answers until the clinic approves this one.",
+        title: byTherapist
+          ? "Your therapist updated your health profile"
+          : "Health profile sent for review",
+        detail: byTherapist
+          ? "The clinic is checking it before it goes onto your chart."
+          : "Your therapist sees the previous answers until the clinic approves this one.",
         href: "/patient/dashboard/health-profile",
       });
     } else if (r.status === "declined") {
+      // A therapist's declined submission is the therapist's and the
+      // admin's business. Showing it here would be a nudge with nothing
+      // behind it.
+      if (byTherapist) continue;
       items.push({
         id: `cond-${r.id}`,
         at: r.created_at,
@@ -171,8 +190,14 @@ export function buildPatientFeed({
         at: r.created_at,
         icon: "fa-circle-check",
         tone: "good",
-        title: "Health profile approved",
-        detail: "Your therapist can now read your answers.",
+        title: byTherapist ? "Your health profile is ready" : "Health profile approved",
+        // The unlock announcement, and the most useful item in this
+        // flow: until a therapist fills the record in, the patient's own
+        // Health Profile is read-only and there is nothing telling them
+        // when that changes.
+        detail: byTherapist
+          ? "Your therapist has filled it in — you can read it and add to it now."
+          : "Your therapist can now read your answers.",
         href: "/patient/dashboard/health-profile",
       });
     }

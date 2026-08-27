@@ -6,7 +6,6 @@ import PatientSuggestionCard from "@/components/packages/PatientSuggestionCard";
 import OnboardingTour from "@/components/patient/OnboardingTour";
 import { StripProgress } from "@/components/dashboard/StatStrip";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
-import { INTAKE_QUESTIONS } from "@/lib/conditionIntake";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
 
@@ -31,7 +30,14 @@ export default async function PatientDashboardPage() {
     >
       {!d.onboardingRow?.onboarding_seen_at && <OnboardingTour />}
 
-      {(!conditionProfile ||
+      {/* The nudge is dropped entirely while the record is the
+          therapist's to write. An amber banner is a to-do marker, and
+          there is nothing here for the patient to do until their first
+          session -- a warning-coloured card linking to a read-only page is
+          the exact confusion this whole screen keeps correcting. It comes
+          back once the profile is theirs and still incomplete. */}
+      {d.intakeGate.canEdit &&
+        (!conditionProfile ||
         conditionProfile.status === "not_started" ||
         conditionProfile.status === "draft") && (
         <Link
@@ -41,19 +47,19 @@ export default async function PatientDashboardPage() {
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-amber-800">
               {intakeAnswered > 0
-                ? `You're ${intakeAnswered} of ${INTAKE_QUESTIONS.length} questions into your health profile.`
-                : "Complete your health profile so your therapist knows your condition before your first session."}
+                ? `You're ${intakeAnswered} of ${d.intakeTotal} questions into your health profile.`
+                : "Add to your health profile so your therapist has the full picture before your next session."}
             </span>
             <span className="mt-1 block text-xs text-amber-700">
               {intakeAnswered > 0
                 ? "Your answers were saved — picking up where you left off takes about a minute."
-                : "Seven short questions, asked one at a time. About two minutes."}
+                : `${d.intakeTotal} short questions, asked one at a time. About two minutes.`}
             </span>
             {intakeAnswered > 0 && (
               <span className="mt-2 block h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-amber-200">
                 <span
                   className="block h-full rounded-full bg-amber-500"
-                  style={{ width: `${(intakeAnswered / INTAKE_QUESTIONS.length) * 100}%` }}
+                  style={{ width: `${d.intakeTotal === 0 ? 0 : (intakeAnswered / d.intakeTotal) * 100}%` }}
                 />
               </span>
             )}
@@ -89,10 +95,12 @@ export default async function PatientDashboardPage() {
         }
         cells={d.overviewCells}
         stripFooter={
-          <StripProgress
-            percent={Math.round((intakeAnswered / INTAKE_QUESTIONS.length) * 100)}
-            caption={`Health profile ${intakeAnswered}/${INTAKE_QUESTIONS.length} answered`}
-          />
+          d.intakeGate.canEdit ? (
+            <StripProgress
+              percent={d.intakeTotal === 0 ? 0 : Math.round((intakeAnswered / d.intakeTotal) * 100)}
+              caption={`Health profile ${intakeAnswered}/${d.intakeTotal} answered`}
+            />
+          ) : undefined
         }
         feed={d.patientFeed}
         feedEmptyBody="Bookings, payments and health-profile updates show up here as they happen."
@@ -105,14 +113,16 @@ export default async function PatientDashboardPage() {
             primary: true,
           },
           {
-            label:
-              intakeAnswered === INTAKE_QUESTIONS.length
+            label: !d.intakeGate.canEdit
+              ? "See your health profile"
+              : intakeAnswered === d.intakeTotal
                 ? "Review your health profile"
                 : "Finish your health profile",
-            hint:
-              intakeAnswered === INTAKE_QUESTIONS.length
+            hint: !d.intakeGate.canEdit
+              ? "Your therapist fills this in at your first session"
+              : intakeAnswered === d.intakeTotal
                 ? "Keep it current before your next session"
-                : `${INTAKE_QUESTIONS.length - intakeAnswered} questions left, about 2 minutes`,
+                : `${d.intakeTotal - intakeAnswered} questions left, about 2 minutes`,
             icon: "fa-notes-medical",
             href: "/patient/dashboard/health-profile",
           },

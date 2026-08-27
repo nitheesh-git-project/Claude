@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import ConditionIntakeWizard from "@/components/profile/ConditionIntakeWizard";
-import ConditionSummaryCard from "@/components/profile/ConditionSummaryCard";
+import SpecialtySummary from "@/components/profile/SpecialtySummary";
 import { countAnswered, isAnswered, type IntakeQuestion } from "@/lib/conditionIntake";
+import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
 
 // The dashboard-side face of the Patient Care Intake: what's on file,
 // rendered as a finished piece of the patient's chart, plus one button
@@ -13,6 +14,7 @@ import { countAnswered, isAnswered, type IntakeQuestion } from "@/lib/conditionI
 // seeing seven fields at once was the thing patients read as paperwork
 // and abandoned. Answers live here, inputs live in the pop-up.
 export default function ConditionIntakePanel({
+  specialty,
   questions,
   endpoint,
   draftEndpoint,
@@ -21,7 +23,10 @@ export default function ConditionIntakePanel({
   formInitialData,
   locked,
   lockedMessage,
+  canEdit = true,
+  emptyStateText,
 }: {
+  specialty: ConditionSpecialty;
   questions: IntakeQuestion[];
   endpoint: string;
   draftEndpoint?: string;
@@ -37,6 +42,16 @@ export default function ConditionIntakePanel({
    *  clears. */
   locked: boolean;
   lockedMessage?: string;
+  /** False when this record is not the viewer's to open at all -- a
+   *  patient before their therapist has filled it in. Distinct from
+   *  `locked`, which means "yours, but not right now" (a submission is in
+   *  review). When false the button and the answered counter are ABSENT
+   *  rather than disabled: a greyed-out "Start — 2 minutes" reads as
+   *  broken software, absence reads as "not your job". */
+  canEdit?: boolean;
+  /** Replaces the default "nothing on file" copy, which assumes the
+   *  reader is the one who will fill it in. */
+  emptyStateText?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
@@ -56,15 +71,19 @@ export default function ConditionIntakePanel({
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-5 text-center">
           <p className="font-display text-base font-bold text-slate-800">Nothing on file yet</p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-slate-600">
-            Seven short questions, one at a time, about two minutes. Answer them and your therapist walks into
-            your first session already knowing what hurts.
+            {emptyStateText ??
+              `${questions.length} short questions, one at a time, about two minutes.`}
           </p>
         </div>
       ) : (
-        <ConditionSummaryCard questions={questions} data={answeredNow > 0 ? currentData : formInitialData} />
+        <SpecialtySummary
+          specialty={specialty}
+          questions={questions}
+          data={answeredNow > 0 ? currentData : formInitialData}
+        />
       )}
 
-      {hasUnfinishedWork && !locked && (
+      {canEdit && hasUnfinishedWork && !locked && (
         <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
           <i aria-hidden className="fa-solid fa-pen-to-square mt-0.5 text-xs text-amber-600" />
           <p className="text-xs text-amber-800">
@@ -76,6 +95,7 @@ export default function ConditionIntakePanel({
         </div>
       )}
 
+      {canEdit && (
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -95,13 +115,16 @@ export default function ConditionIntakePanel({
           {draftAnswered} of {questions.length} answered
         </span>
       </div>
+      )}
 
-      {locked && lockedMessage && <p className="mt-2 text-xs text-slate-500">{lockedMessage}</p>}
+      {lockedMessage && (locked || !canEdit) && (
+        <p className="mt-3 text-xs text-slate-500">{lockedMessage}</p>
+      )}
       {justSubmitted && (
         <p className="mt-2 text-xs font-semibold text-emerald-600">Sent — an admin will review it shortly.</p>
       )}
 
-      {open && (
+      {canEdit && open && (
         <ConditionIntakeWizard
           questions={questions}
           endpoint={endpoint}

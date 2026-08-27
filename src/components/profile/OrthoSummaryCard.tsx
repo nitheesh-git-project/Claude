@@ -37,16 +37,22 @@ function GenericAnswer({ question, value }: { question: IntakeQuestion; value: s
 }
 
 /**
- * The patient's own answers, rendered as a piece of their chart rather
- * than as a filled-in form: the complaint reads as a headline, severity
- * as a gauge, painful areas as colored chips.
+ * The ORTHOPAEDIC summary: the patient's own answers rendered as a piece
+ * of their chart rather than as a filled-in form -- the complaint reads as
+ * a headline, severity as a gauge, painful areas as colored chips.
+ *
+ * One of three, picked by SpecialtySummary. The neurological and
+ * paediatric cards have their own vocabulary and deliberately do not
+ * import PAIN_MAP_REGIONS or parseAreaPain: that import boundary is what
+ * keeps the Pain Map an ortho-only layer in practice rather than only in
+ * intent.
  *
  * This is what a completed profile looks like at rest. The form itself
  * only exists inside the wizard pop-up (ConditionIntakeWizard), so the
  * dashboard never shows input fields -- a page of inputs reads as unpaid
  * homework, a page of answers reads as care already taken.
  */
-export default function ConditionSummaryCard({
+export default function OrthoSummaryCard({
   questions,
   data,
 }: {

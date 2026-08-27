@@ -2,15 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { INTAKE_QUESTIONS, INTAKE_QUESTIONS_VERSION } from "@/lib/conditionIntake";
+import {
+  intakeVersionForSpecialty,
+  mergeSpecialtyAnswers,
+  questionKeysForSpecialty,
+} from "@/lib/conditionIntake";
+import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
+import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
 
-const ALLOWED_KEYS = new Set(INTAKE_QUESTIONS.map((q) => q.key));
-
-// Approve or decline a Patient Care Intake submission (Flow B — shared by
-// patient self-submissions and therapist-on-behalf submissions alike).
-// Approving copies proposed_data onto the live profile; declining requires
-// a note and keeps proposed_data intact so the submitter can amend and
-// resubmit instead of retyping everything.
+// Approve or decline a Patient Care Intake submission — a patient editing
+// their own record, or a therapist editing it on their behalf with an
+// approved access grant. (The therapist's *first* fill does not come
+// through here: it writes live via /api/therapist/condition-profile/onboard
+// and records itself as an already-approved row in this same table.)
+//
+// Approving MERGES proposed_data onto the live profile rather than
+// replacing it. `data` is one flat blob shared by all three specialty
+// question sets, so a replace would delete a re-triaged patient's earlier
+// record the moment a submission for their current specialty was
+// approved. See mergeSpecialtyAnswers in conditionIntake.ts.
+//
+// Declining requires a note and keeps proposed_data intact so the
+// submitter can amend and resubmit instead of retyping everything.
 export async function POST(request: NextRequest) {
   const adminUser = await getAdminUser();
   if (!adminUser) {
@@ -44,13 +57,45 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This request has already been reviewed" }, { status: 400 });
   }
 
+  // proposed_specialty is a newer column, so it is read on its own and
+  // merged in -- an unknown-column error here must not take the whole
+  // review action down with it. A row written before the column existed
+  // reads as ortho, which is what it was.
+  const { data: proposedSpecialtyRow } = await admin
+    .from("condition_change_requests")
+    .select("proposed_specialty")
+    .eq("id", requestId)
+    .maybeSingle();
+
+  const profile = await loadConditionProfileCore(admin, changeRequest.patient_id);
+  // The submission was written against whichever set was current when it
+  // was made; the profile's own specialty is the fallback for rows that
+  // predate the column.
+  const targetSpecialty = parseConditionSpecialty(
+    proposedSpecialtyRow?.proposed_specialty ?? profile.specialty
+  );
+  const targetKeys = questionKeysForSpecialty(targetSpecialty);
+
   if (action === "approve") {
     const proposedData = changeRequest.proposed_data as Record<string, unknown>;
-    const invalidKeys = Object.keys(proposedData).filter((k) => !ALLOWED_KEYS.has(k));
+    const allowedKeys = new Set(targetKeys);
+    const invalidKeys = Object.keys(proposedData).filter((k) => !allowedKeys.has(k));
     if (invalidKeys.length > 0) {
       return NextResponse.json(
         { error: "This request contains fields that can't be applied." },
         { status: 400 }
+      );
+    }
+    // A therapist re-triaged the patient while this was sitting in the
+    // queue, so these answers belong to a set the profile no longer has.
+    // Refuse rather than write a record nothing will render.
+    if (targetSpecialty !== profile.specialty && profile.specialtyChosen) {
+      return NextResponse.json(
+        {
+          error:
+            "The patient's condition type changed after this was submitted, so these answers no longer apply. Decline it and ask for a fresh submission.",
+        },
+        { status: 409 }
       );
     }
   }
@@ -80,14 +125,15 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === "approve") {
-    const proposedData = changeRequest.proposed_data as Record<string, unknown>;
+    const proposedData = changeRequest.proposed_data as Record<string, string>;
     const { error: profileError } = await admin
       .from("patient_condition_profiles")
       .upsert(
         {
           patient_id: changeRequest.patient_id,
-          data: proposedData,
-          schema_version: INTAKE_QUESTIONS_VERSION,
+          data: mergeSpecialtyAnswers(profile.data, proposedData, targetKeys),
+          specialty: targetSpecialty,
+          schema_version: intakeVersionForSpecialty(targetSpecialty),
           status: "active",
           last_submitted_by: changeRequest.submitted_by,
           last_submitted_role: changeRequest.submitted_by_role,
@@ -102,15 +148,7 @@ export async function POST(request: NextRequest) {
     // Declining leaves the profile's own status where it was before this
     // submission (active if there was already approved data, not_started
     // otherwise) rather than stuck on pending_review forever.
-    const { data: existingProfile } = await admin
-      .from("patient_condition_profiles")
-      .select("data")
-      .eq("patient_id", changeRequest.patient_id)
-      .maybeSingle();
-    const fallbackStatus =
-      existingProfile?.data && Object.keys(existingProfile.data as object).length > 0
-        ? "active"
-        : "not_started";
+    const fallbackStatus = profile.specialtyChosen ? "active" : "not_started";
     await admin
       .from("patient_condition_profiles")
       .update({ status: fallbackStatus })

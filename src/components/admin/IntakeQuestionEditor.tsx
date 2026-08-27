@@ -1,33 +1,56 @@
 "use client";
 
 import { useState } from "react";
-import { INTAKE_QUESTIONS, mergeIntakeQuestionOverrides, type IntakeQuestionOverrideRow } from "@/lib/conditionIntake";
+import {
+  mergeIntakeQuestionOverrides,
+  questionsForSpecialty,
+  type IntakeQuestionOverrideRow,
+} from "@/lib/conditionIntake";
+import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
 
-// Admin edits Patient Care Intake question wording and toggles which
-// questions are mandatory — same per-row save pattern as
+// Admin edits one specialty's Patient Care Intake question wording and
+// toggles which questions are mandatory — same per-row save pattern as
 // PainMapQuestionEditor, plus a required checkbox since that's editable
 // here (Pain Map has no per-question required concept).
+//
+// One specialty at a time, chosen by the tabs in IntakeQuestionBank: all
+// three sets stacked is twenty-odd rows of textareas, which is the
+// wall-of-fields shape this codebase keeps correcting.
 export default function IntakeQuestionEditor({
+  specialty,
   overrideRows,
 }: {
+  specialty: ConditionSpecialty;
   overrideRows: IntakeQuestionOverrideRow[];
 }) {
-  const questions = mergeIntakeQuestionOverrides(INTAKE_QUESTIONS, overrideRows);
+  const questions = mergeIntakeQuestionOverrides(
+    questionsForSpecialty(specialty),
+    overrideRows,
+    specialty
+  );
 
   return (
     <div className="space-y-3">
       {questions.map((q) => (
-        <QuestionRow key={q.key} questionKey={q.key} text={q.label} required={q.required} />
+        <QuestionRow
+          key={q.key}
+          specialty={specialty}
+          questionKey={q.key}
+          text={q.label}
+          required={q.required}
+        />
       ))}
     </div>
   );
 }
 
 function QuestionRow({
+  specialty,
   questionKey,
   text,
   required,
 }: {
+  specialty: ConditionSpecialty;
   questionKey: string;
   text: string;
   required: boolean;
@@ -47,7 +70,7 @@ function QuestionRow({
     const res = await fetch("/api/admin/intake-questions/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ questionKey, questionText: value, required: isRequired }),
+      body: JSON.stringify({ specialty, questionKey, questionText: value, required: isRequired }),
     });
     setSaving(false);
     if (res.ok) {

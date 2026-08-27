@@ -9,6 +9,8 @@ import {
   findMissingRequiredKeys,
   isAnswered,
   parseAreaPain,
+  parseMultiSelect,
+  serializeMultiSelect,
   type IntakeQuestion,
 } from "@/lib/conditionIntake";
 import { PAIN_MAP_REGIONS } from "@/lib/painMap";
@@ -41,6 +43,7 @@ const AUTOSAVE_DELAY_MS = 1500;
 export default function ConditionIntakeWizard({
   questions,
   endpoint,
+  extraPayload,
   draftEndpoint,
   patientId,
   initialData,
@@ -49,6 +52,11 @@ export default function ConditionIntakeWizard({
 }: {
   questions: IntakeQuestion[];
   endpoint: string;
+  /** Extra fields merged into both the submit and the draft body. The
+   *  therapist's onboarding flow uses it to carry `{ specialty,
+   *  triageData }` -- two lines here rather than teaching the wizard what
+   *  a specialty is. */
+  extraPayload?: Record<string, unknown>;
   draftEndpoint?: string;
   patientId?: string;
   initialData: Record<string, string>;
@@ -101,6 +109,12 @@ export default function ConditionIntakeWizard({
   // next save rather than clobbered by it.
   const savingRef = useRef(false);
   const queuedValuesRef = useRef<Record<string, string> | null>(null);
+  // Held in a ref rather than in fireAutosave's dependency array: callers
+  // pass a fresh object literal each render, so depending on it would
+  // rebuild the callback every render and restart the debounce every
+  // keystroke -- the opposite of what an autosave debounce is for.
+  const extraPayloadRef = useRef(extraPayload);
+  extraPayloadRef.current = extraPayload;
 
   const fireAutosave = useCallback(
     function save(vals: Record<string, string>) {
@@ -113,7 +127,11 @@ export default function ConditionIntakeWizard({
       fetch(draftEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patientId ? { patientId, data: vals } : { data: vals }),
+        body: JSON.stringify({
+          ...extraPayloadRef.current,
+          ...(patientId ? { patientId } : {}),
+          data: vals,
+        }),
       })
         .then((res) => {
           if (res.ok) setDraftSavedAt(new Date());
@@ -204,7 +222,7 @@ export default function ConditionIntakeWizard({
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patientId ? { patientId, data: values } : { data: values }),
+        body: JSON.stringify({ ...extraPayload, ...(patientId ? { patientId } : {}), data: values }),
       });
       if (res.ok) {
         onSubmitted?.();
@@ -357,10 +375,82 @@ export default function ConditionIntakeWizard({
                           );
                         })}
                       </div>
+                      {/* The endpoints come from the question, not from
+                          the component: this control serves the ortho pain
+                          score AND the neurological independence score,
+                          which run in opposite directions. Hardcoding
+                          "no pain / worst imaginable" would have told a
+                          stroke patient that being independent is the
+                          worst outcome. */}
                       <div className="mt-1.5 flex justify-between text-[11px] font-semibold text-slate-400">
-                        <span>0 — no pain</span>
-                        <span>10 — worst imaginable</span>
+                        <span>{scaleEnds(question)[0]}</span>
+                        <span>{scaleEnds(question)[1]}</span>
                       </div>
+                    </div>
+                  ) : question.inputType === "select" ? (
+                    // Tappable options rather than a <select>: on a phone a
+                    // native picker hides every choice behind one tap, and
+                    // these lists are short enough to read at once.
+                    <div className="grid gap-2">
+                      {(question.options ?? []).map((option) => {
+                        const selected = values[question.key] === option;
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => setValues((v) => ({ ...v, [question.key]: option }))}
+                            className={`rounded-xl border px-3.5 py-3 text-left text-sm font-semibold transition ${
+                              selected
+                                ? "border-teal-700 bg-teal-700 text-white"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : question.inputType === "multi_select" ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {(question.options ?? []).map((option) => {
+                        const picked = parseMultiSelect(values[question.key]);
+                        const selected = picked.includes(option);
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() =>
+                              setValues((v) => ({
+                                ...v,
+                                [question.key]: serializeMultiSelect(
+                                  selected
+                                    ? picked.filter((p) => p !== option)
+                                    : [...picked, option]
+                                ),
+                              }))
+                            }
+                            className={`flex items-center gap-2 rounded-xl border px-3.5 py-3 text-left text-sm font-semibold transition ${
+                              selected
+                                ? "border-teal-700 bg-teal-50 text-teal-800"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                            }`}
+                          >
+                            <span
+                              aria-hidden
+                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[9px] ${
+                                selected
+                                  ? "border-teal-700 bg-teal-700 text-white"
+                                  : "border-slate-300 bg-white"
+                              }`}
+                            >
+                              {selected && <i className="fa-solid fa-check" />}
+                            </span>
+                            {option}
+                          </button>
+                        );
+                      })}
                     </div>
                   ) : question.inputType === "textarea" ? (
                     <textarea
@@ -493,6 +583,16 @@ export default function ConditionIntakeWizard({
   );
 }
 
+/** The two ends of a 0-10 scale, in that question's own terms. Derived
+ *  from the label rather than hardcoded, because this control is shared by
+ *  scores that run in opposite directions -- ten is the bad end of a pain
+ *  score and the good end of an independence score. */
+function scaleEnds(question: IntakeQuestion): [string, string] {
+  const match = question.label.match(/\(\s*0\s*=\s*([^,]+),\s*10\s*=\s*([^)]+)\)/i);
+  if (match) return [`0 — ${match[1].trim()}`, `10 — ${match[2].trim()}`];
+  return ["0", "10"];
+}
+
 /** Renders one stored answer the way a person wrote it -- the area_pain
  *  JSON blob has to be spelled back out as regions, not shown raw. Shared
  *  by the wizard's review step and the dashboard summary card. */
@@ -511,6 +611,11 @@ export function AnswerPreview({ question, value }: { question: IntakeQuestion; v
           .join(", ")}
       </>
     );
+  }
+  if (question.inputType === "multi_select") {
+    const picked = parseMultiSelect(value);
+    if (picked.length === 0) return <span className="text-slate-400">Not answered</span>;
+    return <>{picked.join(", ")}</>;
   }
   if (!value || !value.trim()) return <span className="text-slate-400">Not answered</span>;
   if (question.inputType === "scale_0_10") return <>{value}/10</>;

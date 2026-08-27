@@ -1,3 +1,5 @@
+import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
+
 import { DEFAULT_PAYMENT_GATEWAY_FEE_PERCENT } from "@/lib/operatingCosts";
 export type AdminSettings = {
   sessionPackagesVisible: boolean;
@@ -47,6 +49,11 @@ export type AdminSettings = {
   // How long each step of the home page's "Booking to recovery" walkthrough
   // holds before the next one takes over. 0 means it doesn't advance on its
   // own -- same "0 is off" convention as sessionTimeoutMinutes.
+  /** Which condition specialties triage may offer. Switching one off
+   *  removes it from the therapist's onboarding picker only -- an existing
+   *  profile carrying that specialty keeps rendering, or turning
+   *  pediatrics off would blank live patient charts. */
+  enabledIntakeSpecialties: ConditionSpecialty[];
   journeyStepSeconds: number;
 };
 
@@ -118,6 +125,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   onlineBookingLeadTimeHours: 12,
   onlineCancellationRefundHours: 24,
   paymentGatewayFeePercent: DEFAULT_PAYMENT_GATEWAY_FEE_PERCENT,
+  enabledIntakeSpecialties: ["ortho", "neuro", "pediatrics"],
   journeyStepSeconds: 4,
 };
 
@@ -139,7 +147,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
 // .select(SITE_SETTINGS_SELECT) call fall back to an unusable
 // GenericStringError result type instead of a real row shape.
 export const SITE_SETTINGS_SELECT =
-  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, session_completed_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, payment_gateway_fee_percent, farewell_banner_seconds, journey_step_seconds";
+  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, session_completed_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, payment_gateway_fee_percent, farewell_banner_seconds, journey_step_seconds, enabled_intake_specialties";
 
 type SiteSettingsRow = {
   session_packages_visible?: boolean | null;
@@ -167,6 +175,7 @@ type SiteSettingsRow = {
   online_cancellation_refund_hours?: number | null;
   farewell_banner_seconds?: number | null;
   journey_step_seconds?: number | null;
+  enabled_intake_specialties?: unknown;
   site_name?: string | null;
   site_tagline?: string | null;
   site_description?: string | null;
@@ -192,6 +201,22 @@ export function parseBookingLanguages(raw: unknown): string[] {
     languages.push(trimmed);
   }
   return languages.length > 0 ? languages : DEFAULT_BOOKING_LANGUAGES;
+}
+
+// Same normalisation shape as parseBookingLanguages, with two extra
+// invariants that are not style points: the result is never empty, and it
+// always contains ortho. An admin who could switch every specialty off
+// would leave the therapist's triage picker with nothing to pick and no
+// way to onboard anybody.
+export function parseEnabledIntakeSpecialties(raw: unknown): ConditionSpecialty[] {
+  if (!Array.isArray(raw)) return DEFAULT_ADMIN_SETTINGS.enabledIntakeSpecialties;
+  const seen = new Set<ConditionSpecialty>(["ortho"]);
+  for (const entry of raw) {
+    if (entry === "ortho" || entry === "neuro" || entry === "pediatrics") seen.add(entry);
+  }
+  // Stable order, so the toggles and the triage picker never disagree
+  // about which comes first.
+  return (["ortho", "neuro", "pediatrics"] as const).filter((s) => seen.has(s));
 }
 
 // A stored-but-blank string (e.g. a field an admin cleared and never
@@ -315,6 +340,7 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
       typeof row?.payment_gateway_fee_percent === "number"
         ? row.payment_gateway_fee_percent
         : DEFAULT_ADMIN_SETTINGS.paymentGatewayFeePercent,
+    enabledIntakeSpecialties: parseEnabledIntakeSpecialties(row?.enabled_intake_specialties),
     journeyStepSeconds:
       typeof row?.journey_step_seconds === "number"
         ? row.journey_step_seconds

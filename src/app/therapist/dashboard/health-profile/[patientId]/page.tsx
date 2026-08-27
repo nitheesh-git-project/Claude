@@ -6,24 +6,31 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConditionIntakePanel from "@/components/profile/ConditionIntakePanel";
-import ConditionSummaryCard from "@/components/profile/ConditionSummaryCard";
+import SpecialtySummary from "@/components/profile/SpecialtySummary";
+import SpecialtyExamPanel from "@/components/profile/SpecialtyExamPanel";
+import PatientOnboardingCard from "@/components/therapist/PatientOnboardingCard";
 import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import SessionNoteHistory from "@/components/therapist/SessionNoteHistory";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
-import PainMapExplorer from "@/components/profile/PainMapExplorer";
 import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
 import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
-import type { QuestionOverrideRow } from "@/lib/painMap";
+import type { PainAssessmentRow, QuestionOverrideRow } from "@/lib/painMap";
 import RequestConditionAccessButton from "@/components/therapist/RequestConditionAccessButton";
 import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
   CONDITION_STATUS_LABEL,
-  INTAKE_QUESTIONS,
   mergeIntakeQuestionOverrides,
   parseAreaPain,
+  questionsForSpecialty,
   type ConditionProfileStatus,
 } from "@/lib/conditionIntake";
+import { readEnabledSpecialties } from "@/lib/conditionProfileServer";
+import {
+  CONDITION_SPECIALTIES,
+  parseConditionSpecialty,
+  type ConditionSpecialty,
+} from "@/lib/conditionSpecialty";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 export const metadata: Metadata = {
@@ -55,6 +62,20 @@ export default async function TherapistPatientHealthProfilePage({
   // client), so that one lookup is admin-client + an explicit
   // isTherapistAssignedToPatient gate below instead of relying on RLS.
   const admin = createAdminClient();
+
+  // Two-phase read, for the same reason as the patient's own Health
+  // Profile page: the specialty decides whether this chart has a Pain Map
+  // at all, and a non-orthopaedic profile must never query
+  // pain_assessments rather than merely hiding the component. `specialty`
+  // is a new column, so it is read on its own.
+  const { data: specialtyRow } = await supabase
+    .from("patient_condition_profiles")
+    .select("specialty, draft_specialty, triage_data, draft_triage_data")
+    .eq("patient_id", patientId)
+    .maybeSingle();
+  const specialty = parseConditionSpecialty(specialtyRow?.specialty);
+  const isOrtho = specialty === "ortho";
+
   const [
     { data: profile },
     { data: therapistCodeRow },
@@ -68,6 +89,7 @@ export default async function TherapistPatientHealthProfilePage({
     { data: overrideRows },
     { data: settingsRow },
     { data: intakeOverrideRows },
+    enabledSpecialties,
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
@@ -85,10 +107,12 @@ export default async function TherapistPatientHealthProfilePage({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from("pain_assessments")
-      .select("region, side, pain_percent, created_at, submitted_by_role")
-      .eq("patient_id", patientId),
+    isOrtho
+      ? supabase
+          .from("pain_assessments")
+          .select("region, side, pain_percent, created_at, submitted_by_role")
+          .eq("patient_id", patientId)
+      : Promise.resolve({ data: [] as PainAssessmentRow[] }),
     supabase
       .from("patient_medical_documents")
       .select("id, title, document_type, taken_on, mime_type, size_bytes, created_at")
@@ -104,7 +128,10 @@ export default async function TherapistPatientHealthProfilePage({
       .maybeSingle(),
     supabase.from("pain_map_question_templates").select("region, question_key, question_text"),
     supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
-    supabase.from("intake_question_templates").select("question_key, question_text, required")
+    supabase
+      .from("intake_question_templates")
+      .select("question_key, question_text, required, specialty"),
+    readEnabledSpecialties(admin),
   ]);
 
   if (!patient || !isAssigned) {
@@ -125,7 +152,11 @@ export default async function TherapistPatientHealthProfilePage({
     .order("created_at", { ascending: false });
   const notes = (noteRows ?? []) as SessionNoteRow[];
 
-  const questions = mergeIntakeQuestionOverrides(INTAKE_QUESTIONS, intakeOverrideRows ?? []);
+  const questions = mergeIntakeQuestionOverrides(
+    questionsForSpecialty(specialty),
+    intakeOverrideRows ?? [],
+    specialty
+  );
 
   const status = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
   const currentData = (conditionProfile?.data ?? {}) as Record<string, string>;
@@ -148,7 +179,12 @@ export default async function TherapistPatientHealthProfilePage({
   // requirement. Reaching this page at all already means assigned, but the
   // flag is passed explicitly rather than assumed.
   const canEditIntake = grant?.status === "approved";
-  const canRecordExam = isAssigned;
+  const canRecordExam = isAssigned && isOrtho;
+  // "Nobody has onboarded this patient" is "there is no record on file",
+  // not "the specialty column is null": the column defaults to ortho, and
+  // an autosaved draft creates the row before anyone has decided anything.
+  const needsOnboarding = !questions.some((q) => currentData[q.key]?.trim());
+  const specialtyDef = CONDITION_SPECIALTIES.find((s) => s.key === specialty);
   const adminSettings = parseAdminSettings(settingsRow);
 
   const showDebugNav = isDebugNavVisible();
@@ -210,19 +246,50 @@ export default async function TherapistPatientHealthProfilePage({
         </SurfaceCard>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
             <h2 className="font-display font-bold text-lg text-slate-800">Patient Care Intake</h2>
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-              {CONDITION_STATUS_LABEL[status]}
-            </span>
+            <div className="flex items-center gap-2">
+              {!needsOnboarding && specialtyDef && (
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${specialtyDef.chipClass}`}
+                >
+                  <i aria-hidden className={`fa-solid ${specialtyDef.icon} mr-1 text-[10px]`} />
+                  {specialtyDef.label}
+                </span>
+              )}
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                {CONDITION_STATUS_LABEL[status]}
+              </span>
+            </div>
           </div>
           {status !== "pending_review" && lastRequest?.status === "declined" && (
             <p className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
               Your last submission was declined: {lastRequest.admin_notes}. You can edit and resubmit below.
             </p>
           )}
-          {canEditIntake ? (
+
+          {/* Onboarding is a state of this card, not a screen of its own:
+              the queue it belongs to is the same rows My Patients already
+              lists, and a different view of the same rows never earns a
+              nav entry. */}
+          {needsOnboarding ? (
+            <PatientOnboardingCard
+              patientId={patientId}
+              patientName={patient.full_name}
+              currentSpecialty={null}
+              enabledSpecialties={enabledSpecialties}
+              overrideRows={intakeOverrideRows ?? []}
+              initialTriage={(specialtyRow?.draft_triage_data ?? undefined) as Record<string, string> | undefined}
+              initialAnswers={formInitialData}
+              draftSpecialty={
+                specialtyRow?.draft_specialty
+                  ? (parseConditionSpecialty(specialtyRow.draft_specialty) as ConditionSpecialty)
+                  : null
+              }
+            />
+          ) : canEditIntake ? (
             <ConditionIntakePanel
+              specialty={specialty}
               questions={questions}
               endpoint="/api/therapist/condition-profile/submit"
               draftEndpoint="/api/therapist/condition-profile/save-draft"
@@ -232,19 +299,33 @@ export default async function TherapistPatientHealthProfilePage({
               locked={status === "pending_review"}
               lockedMessage="A submission for this patient is already waiting on admin review — one at a time."
             />
-          ) : questions.some((q) => currentData[q.key]) ? (
+          ) : (
             // Read-only until an access grant is approved -- the same
             // rendering the patient sees of their own answers, so the
             // therapist reads a chart rather than a dump of field values.
-            <ConditionSummaryCard questions={questions} data={currentData} />
-          ) : (
-            <p className="text-sm text-slate-600">No intake submitted yet.</p>
+            <SpecialtySummary specialty={specialty} questions={questions} data={currentData} />
+          )}
+
+          {/* Re-triage sits with the record it describes. Changing the
+              condition type needs only assignment, like the first fill and
+              like a Pain Map exam -- it is the therapist's own clinical
+              judgement, not an edit to the patient's account of
+              themselves. */}
+          {!needsOnboarding && (
+            <PatientOnboardingCard
+              patientId={patientId}
+              patientName={patient.full_name}
+              currentSpecialty={specialty}
+              enabledSpecialties={enabledSpecialties}
+              overrideRows={intakeOverrideRows ?? []}
+              initialTriage={(specialtyRow?.triage_data ?? undefined) as Record<string, string> | undefined}
+            />
           )}
 
           {/* The access gate lives on this card because this is the only
               thing it still gates. Recording your own exam findings moved
-              out from behind it -- see the Pain Map card below. */}
-          {!canEditIntake && (
+              out from behind it -- see the exam card below. */}
+          {!needsOnboarding && !canEditIntake && (
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               <p className="text-xs font-semibold text-slate-700">
                 {grant?.status === "requested"
@@ -256,7 +337,8 @@ export default async function TherapistPatientHealthProfilePage({
               <p className="mt-1 text-xs text-slate-500">
                 These are the patient&apos;s own words about their history, so editing them on their
                 behalf needs an admin to approve it first. Recording your own exam findings does
-                not — that is the Pain Map below.
+                not, and neither does changing the condition type — those are your clinical
+                judgement from a session you ran.
               </p>
               {(!grant || grant.status === "declined" || grant.status === "revoked") && (
                 <div className="mt-2.5">
@@ -268,15 +350,20 @@ export default async function TherapistPatientHealthProfilePage({
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Pain Map</h2>
+          <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
+            {isOrtho ? "Pain Map" : "Examination"}
+          </h2>
           <p className="text-xs text-slate-500 mb-4">
-            {canRecordExam
-              ? "Tap any marked point for that area's detail, or record what you found this session."
-              : "Exam findings on record, and how they compare with what the patient reported."}
+            {!isOrtho
+              ? "What this specialty's examination chart will hold once it is built."
+              : canRecordExam
+                ? "Tap any marked point for that area's detail, or record what you found this session."
+                : "Exam findings on record, and how they compare with what the patient reported."}
           </p>
-          <PainMapExplorer
+          <SpecialtyExamPanel
+            specialty={specialty}
             assessments={assessments ?? []}
-            areaPain={parseAreaPain(currentData.area_pain)}
+            areaPain={isOrtho ? parseAreaPain(currentData.area_pain) : []}
             record={
               canRecordExam
                 ? {

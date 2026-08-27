@@ -13,6 +13,7 @@ const ALLOWED_COLUMNS = new Set([
   "join_window_after_minutes",
   "session_completed_after_minutes",
   "booking_languages",
+  "enabled_intake_specialties",
   "package_default_validity_days",
   "package_therapist_lock_enabled",
   "package_bulk_schedule_max",
@@ -230,6 +231,25 @@ export async function POST(request: NextRequest) {
       );
     }
     nextValue = languages;
+  }
+
+  // Which specialties triage offers. Normalised rather than trusted for
+  // the same reason as booking_languages, plus two invariants the parser
+  // in adminSettings.ts also enforces: never empty, and always containing
+  // ortho. An admin who switched all three off would leave the therapist's
+  // onboarding picker with nothing to pick and no way to onboard anybody.
+  if (key === "enabled_intake_specialties") {
+    if (!Array.isArray(value)) {
+      return NextResponse.json({ error: "value must be an array" }, { status: 400 });
+    }
+    const picked = new Set<string>(["ortho"]);
+    for (const entry of value) {
+      if (entry !== "ortho" && entry !== "neuro" && entry !== "pediatrics") {
+        return NextResponse.json({ error: "Unknown condition type." }, { status: 400 });
+      }
+      picked.add(entry);
+    }
+    nextValue = ["ortho", "neuro", "pediatrics"].filter((s) => picked.has(s));
   }
 
   if (BRAND_TEXT_FIELDS.has(key) || LONG_TEXT_FIELDS.has(key) || CONTACT_FIELDS.has(key)) {

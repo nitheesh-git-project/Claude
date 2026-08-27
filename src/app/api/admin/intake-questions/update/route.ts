@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { INTAKE_QUESTIONS } from "@/lib/conditionIntake";
-
-const VALID_KEYS = new Set(INTAKE_QUESTIONS.map((q) => q.key));
+import { questionKeysForSpecialty } from "@/lib/conditionIntake";
+import { isConditionSpecialty } from "@/lib/conditionSpecialty";
 
 // Admin overrides one Patient Care Intake question's wording and/or
 // required-ness. Both are saved together per question (one editor row =
@@ -19,13 +18,23 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: body, error: parseError } = await parseJsonBody<{
+    specialty?: unknown;
     questionKey?: string;
     questionText?: string;
     required?: boolean;
   }>(request);
   if (parseError) return parseError;
   const { questionKey, questionText, required } = body;
-  if (!questionKey || !VALID_KEYS.has(questionKey) || !questionText?.trim() || typeof required !== "boolean") {
+  if (!isConditionSpecialty(body.specialty)) {
+    return NextResponse.json({ error: "Missing or invalid specialty" }, { status: 400 });
+  }
+  const specialty = body.specialty;
+  // The key must belong to the specialty named, not merely to some
+  // specialty: the three sets have disjoint namespaces, and letting a
+  // neuro key be saved under the ortho tab would write an override no
+  // merge would ever pick up.
+  const validKeys = new Set(questionKeysForSpecialty(specialty));
+  if (!questionKey || !validKeys.has(questionKey) || !questionText?.trim() || typeof required !== "boolean") {
     return NextResponse.json(
       { error: "Missing or invalid questionKey/questionText/required" },
       { status: 400 }
@@ -35,13 +44,14 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { error } = await admin.from("intake_question_templates").upsert(
     {
+      specialty,
       question_key: questionKey,
       question_text: questionText.trim(),
       required,
       updated_by: adminUser.id,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "question_key" }
+    { onConflict: "specialty,question_key" }
   );
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
