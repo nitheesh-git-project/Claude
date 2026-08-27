@@ -60,8 +60,8 @@ export default async function HospitalsPage() {
   const sectionNavItems: SectionNavItem[] = [
     { id: "the-gap", label: "The Gap", icon: "fa-triangle-exclamation" },
     { id: "our-approach", label: "Our Approach", icon: "fa-hand-holding-medical" },
-    { id: "explore", label: "Explore the Site", icon: "fa-compass" },
     { id: "enquire", label: "Talk to Us", icon: "fa-paper-plane" },
+    { id: "explore", label: "Explore the Site", icon: "fa-compass" },
   ];
 
   return (
@@ -122,8 +122,10 @@ export default async function HospitalsPage() {
         </div>
       </Section>
 
-      <ExploreSection current="hospitals" homeVisitEnabled={homeVisitEnabled} />
-
+      {/* The referral form sits above "Where to go next" rather than after it:
+          this is the one page whose closing action is a form, and a visitor
+          who has just read the argument should meet it before being offered
+          the rest of the site. Explore stays last, as on every other page. */}
       <Section
         id="enquire"
         tone="panel"
@@ -135,6 +137,8 @@ export default async function HospitalsPage() {
           <HospitalInquiryForm />
         </div>
       </Section>
+
+      <ExploreSection current="hospitals" homeVisitEnabled={homeVisitEnabled} />
     </>
   );
 }
