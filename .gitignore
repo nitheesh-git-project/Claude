@@ -49,15 +49,21 @@ next-env.d.ts
 __pycache__/
 *.pyc
 
-# graphify knowledge-graph output. graph.json and GRAPH_REPORT.md are
-# committed on purpose -- CI refreshes them on every merge to main
-# (.github/workflows/graphify.yml) so a fresh clone has a current graph.
+# graphify knowledge-graph output. graph.json, GRAPH_REPORT.md and
+# manifest.json are committed on purpose -- CI refreshes them on every merge
+# to main (.github/workflows/graphify.yml) so a fresh clone has a current
+# graph. manifest.json is what makes `--update` actually incremental: it
+# records the per-file hashes of the last build, and its keys are relative to
+# the scan root, so it is portable across clones. Without it every CI run
+# re-extracts the whole corpus and burns the Gemini free tier's 20 requests
+# per day on files that never changed.
 # Everything else graphify emits is bulky, regenerable, and stays out:
 # the interactive viz, the exported graph formats, the wiki/vault, and any
 # source material pulled in by `graphify add`.
 graphify-out/*
 !graphify-out/graph.json
 !graphify-out/GRAPH_REPORT.md
+!graphify-out/manifest.json
 
 # Local QA scratch (session-only; never committed)
 .qa-*
