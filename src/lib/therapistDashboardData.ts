@@ -292,6 +292,31 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   const patientNameById = new Map(
     (patients ?? []).map((p) => [p.id, p.full_name ?? "Unknown patient"])
   );
+  // Which of this therapist's patients nobody has onboarded yet. Overview
+  // only -- it feeds one feed item, and every other screen would pay for
+  // a query it never renders.
+  //
+  // Its own call, and keyed off whether there is a record on file rather
+  // than off the specialty column: `specialty` defaults to ortho, and an
+  // autosaved draft creates the row before anyone has decided anything.
+  // Isolated for the usual migration-tolerance reason.
+  const { data: conditionProfileRows } =
+    screen === "overview" && patientIds.length > 0
+      ? await supabase
+          .from("patient_condition_profiles")
+          .select("patient_id, data")
+          .in("patient_id", patientIds)
+      : { data: [] as { patient_id: string; data: Record<string, string> | null }[] };
+  const onboardedPatientIds = new Set(
+    (conditionProfileRows ?? [])
+      .filter((r) =>
+        Object.values((r.data ?? {}) as Record<string, string>).some(
+          (v) => typeof v === "string" && v.trim()
+        )
+      )
+      .map((r) => r.patient_id)
+  );
+
   const homeVisitPerVisitFeeByPurchaseId = new Map(
     (homeVisitPurchasesForFees ?? []).map((p) => [
       p.id,
@@ -390,6 +415,23 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       paid_at: b.created_at,
     })),
     accessGrants: [],
+    onboardingPatients:
+      screen === "overview"
+        ? patientIds
+            .filter((id) => !onboardedPatientIds.has(id))
+            .map((id) => ({
+              id,
+              name: patientNameById.get(id) ?? "a patient",
+              // Their earliest appointment with this therapist is when
+              // the task began, so it sorts alongside everything else in
+              // the feed rather than always pinning to now.
+              assignedAt:
+                (appointments ?? [])
+                  .filter((a) => a.patient_id === id && a.slot_time)
+                  .map((a) => a.slot_time as string)
+                  .sort()[0] ?? new Date(nowMsForOverview).toISOString(),
+            }))
+        : [],
   }).concat(
     notesOwed.slice(0, 4).map((s) => ({
       id: `note-${s.id}`,

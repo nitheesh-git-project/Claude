@@ -25,7 +25,7 @@ const STEPS: Step[] = [
   {
     targetId: "nav-health-profile",
     title: "Health Profile",
-    body: "Tell us about your condition, and see your therapist's pain assessments after each exam.",
+    body: "Your condition, your therapist's findings, and any scans you upload — all in one place.",
     ctaHref: "/patient/dashboard/health-profile",
     ctaLabel: "Fill it in now",
   },
@@ -41,7 +41,16 @@ type Rect = { top: number; left: number; width: number; height: number };
 // onboarding_seen_at so it never shows again. The separate
 // "complete your health profile" reminder banner keeps nudging
 // independently of this, based on intake status rather than this flag.
-export default function OnboardingTour() {
+export default function OnboardingTour({
+  intakeLocked = false,
+}: {
+  /** True before a therapist has written this patient's record. The step
+   *  stays -- the screen is still worth knowing about, and the reports
+   *  uploader on it works -- but its CTA is dropped and the wording stops
+   *  implying there is a form waiting for them. A tour that sends someone
+   *  to a read-only page with "Fill it in now" is worse than no tour. */
+  intakeLocked?: boolean;
+}) {
   const [open, setOpen] = useState(true);
   const [stepIndex, setStepIndex] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
@@ -57,8 +66,19 @@ export default function OnboardingTour() {
     // Filtering by DOM presence can only happen post-mount -- there's no
     // external system besides the DOM this could otherwise sync from.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSteps(STEPS.filter((s) => !s.targetId || document.getElementById(s.targetId)));
-  }, []);
+    setSteps(
+      STEPS.filter((s) => !s.targetId || document.getElementById(s.targetId)).map((s) =>
+        intakeLocked && s.targetId === "nav-health-profile"
+          ? {
+              ...s,
+              body: "Your therapist fills this in with you at your first session. Any scans or reports you already have can go here now.",
+              ctaHref: undefined,
+              ctaLabel: undefined,
+            }
+          : s
+      )
+    );
+  }, [intakeLocked]);
 
   const step = steps[Math.min(stepIndex, steps.length - 1)];
 

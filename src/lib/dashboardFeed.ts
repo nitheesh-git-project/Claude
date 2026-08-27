@@ -212,13 +212,32 @@ export function buildTherapistFeed({
   appointments,
   payouts,
   accessGrants,
+  onboardingPatients = [],
 }: {
   appointments: FeedAppointment[];
   payouts: FeedPayout[];
   accessGrants: FeedRequest[];
+  /** Patients assigned to this therapist whose condition record nobody
+   *  has written yet. Their own health profile is locked until it is
+   *  done, which is why this is a needsYou item rather than a nicety. */
+  onboardingPatients?: { id: string; name: string; assignedAt: string }[];
 }): FeedItem[] {
   const items: FeedItem[] = [];
   const now = Date.now();
+
+  for (const p of onboardingPatients) {
+    items.push({
+      id: `onboard-${p.id}`,
+      at: p.assignedAt,
+      icon: "fa-clipboard-question",
+      tone: "warn",
+      title: `Onboarding needed — ${p.name}`,
+      detail:
+        "A few questions to decide what kind of case this is, then that condition's own set. Their health profile stays locked to them until it is done.",
+      href: `/therapist/dashboard/health-profile/${p.id}`,
+      needsYou: true,
+    });
+  }
 
   for (const a of appointments) {
     const when = a.slot_time ?? a.created_at ?? "";

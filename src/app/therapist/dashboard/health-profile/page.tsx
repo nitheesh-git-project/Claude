@@ -142,6 +142,33 @@ export default async function TherapistHealthProfilesPage() {
   const notes = (noteRows ?? []) as SessionNoteRow[];
   const nowMs = nowTimestamp();
 
+  // Who still needs onboarding. Its own query, and deliberately keyed off
+  // whether there is a record on file rather than off the specialty
+  // column: `specialty` defaults to ortho, and an autosaved draft creates
+  // the row before anyone has decided anything, so a null check would
+  // read a half-filled draft as a finished chart. Isolated for the usual
+  // migration-tolerance reason -- an unknown-column error here must cost
+  // the chip, not the whole directory.
+  const chartPatientIds = (patients ?? []).map((p) => p.id);
+  const { data: conditionProfileRows } = chartPatientIds.length
+    ? await supabase
+        .from("patient_condition_profiles")
+        .select("patient_id, data")
+        .in("patient_id", chartPatientIds)
+    : { data: [] as { patient_id: string; data: Record<string, string> | null }[] };
+  const onboardedPatientIds = new Set(
+    (conditionProfileRows ?? [])
+      .filter((r) =>
+        Object.values((r.data ?? {}) as Record<string, string>).some(
+          (v) => typeof v === "string" && v.trim()
+        )
+      )
+      .map((r) => r.patient_id)
+  );
+  const onboardingPatientIds = new Set(
+    chartPatientIds.filter((id) => !onboardedPatientIds.has(id))
+  );
+
   // Same in-memory derivation the therapist dashboard loader uses: every
   // session on a purchase locked to this therapist already carries their
   // own therapist_id, so counting them needs no extra round trip.
@@ -195,7 +222,15 @@ export default async function TherapistHealthProfilesPage() {
   // Whoever you are seeing soonest comes first -- this page's job is
   // preparing for the next session, not browsing a directory. Patients
   // with nothing booked fall to the bottom, alphabetically.
+  //
+  // Ahead of all of that: anyone nobody has onboarded yet. Until a
+  // therapist triages them and writes their first record, that patient's
+  // own health profile is locked and there is nothing in their chart to
+  // prepare from -- so it outranks "seeing them soonest".
   const sortedPatients = [...(patients ?? [])].sort((a, b) => {
+    const aOnboard = onboardingPatientIds.has(a.id);
+    const bOnboard = onboardingPatientIds.has(b.id);
+    if (aOnboard !== bOnboard) return aOnboard ? -1 : 1;
     const aNext = nextSessionByPatient.get(a.id);
     const bNext = nextSessionByPatient.get(b.id);
     if (aNext && bNext) return new Date(aNext).getTime() - new Date(bNext).getTime();
@@ -203,7 +238,10 @@ export default async function TherapistHealthProfilesPage() {
     if (bNext) return 1;
     return a.full_name.localeCompare(b.full_name);
   });
-  const newPatientCount = sortedPatients.filter((p) => !approvedPatientIds.has(p.id)).length;
+  const onboardingCount = sortedPatients.filter((p) => onboardingPatientIds.has(p.id)).length;
+  const newPatientCount = sortedPatients.filter(
+    (p) => !approvedPatientIds.has(p.id) && !onboardingPatientIds.has(p.id)
+  ).length;
   const adminSettings = parseAdminSettings(settingsRow);
 
   const showDebugNav = isDebugNavVisible();
@@ -243,6 +281,14 @@ export default async function TherapistHealthProfilesPage() {
             pendingSuggestion: pendingSuggestionByPurchase.get(p.id) ?? null,
           }))}
         >
+        {onboardingCount > 0 && (
+          <p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-800">
+            {onboardingCount} patient{onboardingCount > 1 ? "s" : ""} need
+            {onboardingCount > 1 ? "" : "s"} onboarding — a few questions to decide what kind of case
+            it is, then that condition&apos;s own set. Their health profile stays locked to them
+            until it is done.
+          </p>
+        )}
         {newPatientCount > 0 && (
           <p className="mb-4 rounded-lg bg-teal-50 border border-teal-200 px-3 py-2 text-xs font-semibold text-teal-800">
             {newPatientCount} new patient{newPatientCount > 1 ? "s" : ""} — you haven&apos;t looked at their Health
@@ -288,7 +334,11 @@ export default async function TherapistHealthProfilesPage() {
                             Nothing booked
                           </span>
                         )}
-                        {grantStatus ? (
+                        {onboardingPatientIds.has(p.id) ? (
+                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                            Needs onboarding
+                          </span>
+                        ) : grantStatus ? (
                           <span
                             className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${GRANT_STYLE[grantStatus] ?? GRANT_STYLE.requested}`}
                           >

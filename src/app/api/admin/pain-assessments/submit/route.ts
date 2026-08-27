@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
 import {
   isPainMapRegion,
   regionRequiresSide,
@@ -53,6 +54,23 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+
+  // The Pain Map is an ORTHOPAEDIC instrument -- seventeen body regions
+  // and a pain percentage. A patient recorded as neurological or
+  // paediatric does not render it, so an exam posted against one would be
+  // orphaned clinical data: written, stored, and shown nowhere. Refuse it
+  // instead. Rows recorded before a re-triage stay (this table is
+  // append-only) and simply stop being displayed.
+  const conditionProfile = await loadConditionProfileCore(admin, patientId);
+  if (conditionProfile.specialty !== "ortho") {
+    return NextResponse.json(
+      {
+        error:
+          "The Pain Map applies to orthopaedic profiles. This patient is recorded under a different condition type.",
+      },
+      { status: 400 }
+    );
+  }
 
   const { data: overrideRows } = await admin
     .from("pain_map_question_templates")

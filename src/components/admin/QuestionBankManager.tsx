@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import IntakeQuestionBank from "@/components/admin/IntakeQuestionBank";
+import IntakeSpecialtyToggles from "@/components/admin/IntakeSpecialtyToggles";
 import PainMapQuestionEditor from "@/components/admin/PainMapQuestionEditor";
 import { readEnabledSpecialties } from "@/lib/conditionProfileServer";
 import type { IntakeQuestionOverrideRow } from "@/lib/conditionIntake";
@@ -43,6 +44,12 @@ export default async function QuestionBankManager() {
 
   return (
     <div className="space-y-6">
+      {/* Above the question banks, because it decides which of them are
+          in use. It lives here rather than in Feature Control: that
+          screen is about booking and session behaviour, this one already
+          owns the clinical question sets. */}
+      <IntakeSpecialtyToggles enabled={enabledSpecialties} />
+
       <div>
         <h3 className="text-sm font-bold text-slate-700 mb-1">Patient Care Intake questions</h3>
         <p className="mb-3 text-xs text-slate-500">

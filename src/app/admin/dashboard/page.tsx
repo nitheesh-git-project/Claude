@@ -54,6 +54,10 @@ import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
 import ConditionsListFilter from "@/components/admin/ConditionsListFilter";
 import { parseAreaPain } from "@/lib/conditionIntake";
+import {
+  DEFAULT_CONDITION_SPECIALTY,
+  parseConditionSpecialty,
+} from "@/lib/conditionSpecialty";
 import AdminFeatureControlTab from "@/components/admin/AdminFeatureControlTab";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -1162,6 +1166,35 @@ export default async function AdminDashboardPage({
     (conditionProfiles ?? []).map((c) => [c.patient_id, c.status as string])
   );
 
+  // "Has anyone written a record for this patient" -- keyed off the data
+  // rather than off the specialty column, which defaults to ortho and so
+  // is never null. An autosaved draft creates the row before anyone has
+  // decided anything, which a null check would misread as a finished
+  // chart.
+  const onboardedPatientIds = new Set(
+    (conditionProfiles ?? [])
+      .filter((c) =>
+        Object.values((c.data ?? {}) as Record<string, string>).some(
+          (v) => typeof v === "string" && v.trim()
+        )
+      )
+      .map((c) => c.patient_id as string)
+  );
+
+  // `specialty` is a new column, so it is read in its own query and
+  // merged in. The dashboard's main Promise.all is ~40 queries deep and
+  // an unknown-column error inside it would blank every screen rather
+  // than one chip -- the rule treatment_categories.image_url documents.
+  const { data: conditionSpecialtyRows } = await admin
+    .from("patient_condition_profiles")
+    .select("patient_id, specialty");
+  const conditionSpecialtyByPatientId = new Map(
+    (conditionSpecialtyRows ?? []).map((c) => [
+      c.patient_id as string,
+      parseConditionSpecialty(c.specialty),
+    ])
+  );
+
   const patientsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
@@ -1244,6 +1277,8 @@ export default async function AdminDashboardPage({
             email: p.email,
             status: conditionStatusByPatientId.get(p.id) ?? "not_started",
             updatedAt: conditionUpdatedAtByPatientId.get(p.id) ?? null,
+            specialty: conditionSpecialtyByPatientId.get(p.id) ?? DEFAULT_CONDITION_SPECIALTY,
+            onboarded: onboardedPatientIds.has(p.id),
           }))}
         />
       )}

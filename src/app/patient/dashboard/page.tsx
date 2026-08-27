@@ -28,7 +28,7 @@ export default async function PatientDashboardPage() {
       title={`Welcome back, ${d.profile?.full_name ?? "there"}`}
       subtitle="Your virtual physical therapy dashboard"
     >
-      {!d.onboardingRow?.onboarding_seen_at && <OnboardingTour />}
+      {!d.onboardingRow?.onboarding_seen_at && <OnboardingTour intakeLocked={!d.intakeGate.canEdit} />}
 
       {/* The nudge is dropped entirely while the record is the
           therapist's to write. An amber banner is a to-do marker, and
