@@ -719,64 +719,116 @@ patient's condition data, both surfaced on `/patient/dashboard/health-profile`
 (patient), the therapist's `/therapist/dashboard/health-profile/[patientId]`,
 and the admin's **Patient Conditions** tab.
 
+**The intake is per specialty.** A `patient_condition_profiles` row carries
+`specialty` — `ortho`, `neuro` or `pediatrics` — and that decides everything
+about how the profile reads: which seven questions are asked, which summary
+card renders, which four figures the snapshot strip shows, and what the
+progress line plots. The original set only ever fitted orthopaedic patients:
+every figure derived from it is a *pain* measure, and a stroke patient's
+recovery is measured by independence and gait while a child's is measured by
+milestones reached.
+
+| Specialty | The seven | Its headline figure |
+| --- | --- | --- |
+| Orthopaedic | complaint, how long, 0–10 severity, painful areas on the body map, what worsens it, what helps, other notes | pain, from the Pain Map |
+| Neurological | condition and onset, affected side, how they move indoors, 0–10 independence, symptoms present, falls in three months, main goal | `neuro_independence` |
+| Paediatric | main concern, birth history, milestones reached, diagnosis, equipment, hardest day-to-day, goal (plus a caregiver "who is answering" pre-step) | milestones ticked |
+
+Neither of the two new sets has a pain scale or a body map. Their keys are
+namespaced (`neuro_*`, `peds_*`) so that `patient_condition_profiles.data`
+can stay one flat blob shared by all three: re-triaging a patient keeps the
+previous specialty's answers on file rather than deleting them, and
+approving a change *merges* rather than replaces.
+
+**The therapist writes the first record; the patient is read-only until
+then.** The flow, end to end:
+
+1. A patient books. Their Health Profile says what happens next and offers
+   the reports uploader — which stays open, and is the one useful thing
+   they can do beforehand. No questions, no amber banner, and the overview
+   figure reads `—` rather than `0%`: nobody has asked them for anything
+   yet.
+2. A therapist is assigned. A **Patient onboarding** task appears on their
+   Overview feed and on My Patients, where those rows sort above everyone
+   else with an amber "Needs onboarding" chip.
+3. The therapist opens that patient's chart and answers four triage
+   questions (`ConditionTriageDialog`) — age band, presenting problem,
+   neurological signs, and, for a child, whether there is a developmental
+   concern. Those *suggest* a specialty, with the reason shown; the
+   therapist confirms or overrides. A fourteen-year-old with a sprained
+   ankle correctly lands on orthopaedic, which is why the child question
+   exists.
+4. The dialog runs straight on into that specialty's own questions, in the
+   same pop-up. Submitting **goes live immediately** — no review queue.
+5. The patient's profile unlocks in that specialty's shape, and a feed item
+   tells them so. From then on they can correct and add to it, and *their*
+   edits queue for admin exactly as before.
+6. A therapist can re-triage later from the same card. The previous
+   specialty's answers stay in the row, hidden on screen and printed in the
+   PDF under "Earlier profile".
+
+The two write gates are different because they record different things.
+Onboarding and re-triage need only that the therapist is **assigned**
+(`/api/therapist/condition-profile/onboard`): deciding what kind of case
+this is, and writing down what the patient told you in a session you ran,
+is the therapist's own clinical record — the same kind of thing a Pain Map
+exam or a session note is. The access-grant queue also cannot sit in front
+of the first record ever existing, and an admin approval in between would
+leave the patient on a locked screen after their first session with nothing
+happening. *Editing* a live record on the patient's behalf is editing their
+own account of their history, and still needs an admin-approved
+`condition_access_grants` request plus review. Live is not unrecorded:
+every onboarding and re-triage writes an already-`approved`
+`condition_change_requests` row, so it lands in the same Review History as
+everything else.
+
 - *Patient Care Intake* (`patient_condition_profiles`,
-  `condition_change_requests`) is general history/severity answers plus a
-  self-reported per-area pain scale (`src/lib/conditionIntake.ts` —
-  `chief_complaint`, `since_when`, `severity`, `area_pain`, `worsens`,
-  `helps`, `notes`). `area_pain` reuses the same 17 regions and
+  `condition_change_requests`) is general history/severity answers. The
+  orthopaedic set's `area_pain` reuses the same 17 regions and
   `BodyMapDiagram` as the Pain Map below, but is the *patient's own*
   self-report (0–10 per tapped area, `AreaPainPicker.tsx`) — a separate
-  dataset from the therapist's clinical exam, so the two can later be
-  compared. Question wording and which questions are mandatory are both
-  admin-editable (`intake_question_templates`, same override-table pattern
-  as Pain Map's question bank — see below), enforced both client- and
-  server-side on submit. The patient fills it themselves, or a therapist
-  fills it on their behalf once granted access. Every submission — first
-  fill or a later edit, from either role — queues in
-  `condition_change_requests` and only becomes the live profile once an
-  admin approves it; declining keeps the proposed data intact so the
-  submitter can amend and resubmit. Admin's own edits (`ConditionDirectEditForm`)
-  apply immediately, no review needed. One pending submission per patient at
-  a time. The fill itself is a
-  step-by-step pop-up, not a form on the page: `ConditionIntakePanel.tsx`
-  shows only what's on file plus a "start / continue" button, and
+  dataset from the therapist's clinical exam, so the two can be compared.
+  Question wording and which questions are mandatory are admin-editable
+  per specialty (`intake_question_templates`, keyed
+  `(specialty, question_key)`), enforced both client- and server-side on
+  submit. Help text, placeholder and short label are code-side and
+  deliberately *not* admin-editable — only wording and required-ness are.
+  The fill itself is a step-by-step pop-up, not a form on the page:
+  `ConditionIntakePanel.tsx` shows only what's on file plus a button, and
   `ConditionIntakeWizard.tsx` asks one question per screen with
-  plain-language help text saying why that answer matters, a progress bar,
-  and a final review step before sending. Seven fields at once read as
-  paperwork; one question at a time reads as a conversation. Help text,
-  placeholder and short label are code-side (`IntakeQuestion.helpText` /
-  `placeholder` / `shortLabel`) and deliberately *not* admin-editable —
-  only wording and required-ness are. Answers autosave to
-  `patient_condition_profiles.draft_data` as it is filled (`/api/patient/condition-profile/save-draft`,
-  `/api/therapist/condition-profile/save-draft`) so closing mid-fill loses
-  nothing; a submission clears the draft. Reopening the wizard prioritizes an
-  in-progress draft, then a declined submission's answers, then the last
-  approved data, and resumes on the first still-unanswered question. An
-  abandoned fill is therefore never lost and never submitted: the answers
-  sit in `draft_data`, the patient dashboard's reminder banner counts them
-  ("You're 3 of 7 questions in"), and the Health Profile offers "Finish
-  where you left off". Nothing reaches the therapist until the patient
-  sends it and an admin approves it. Once approved, the answers render as
-  `ConditionSummaryCard.tsx` — a chart, not a filled-in form — under a
-  four-cell snapshot strip (`HealthSnapshotStrip.tsx`) and a three-step
-  explainer (`HealthProfileSteps.tsx`) that says who writes which half of
-  this screen.
+  plain-language help text, a progress bar and a review step. Seven fields
+  at once read as paperwork; one at a time reads as a conversation. The
+  therapist's own surfaces invert that on purpose — the triage dialog
+  shows everything at once with headings, because a clinician filling this
+  after every assignment wants to scan it. Answers autosave to
+  `draft_data` as they are filled, so closing mid-fill loses nothing;
+  reopening prioritises an in-progress draft, then a declined submission's
+  answers, then the last approved data. Once live, the answers render as
+  the specialty's own summary card — a chart, not a filled-in form — under
+  a four-cell snapshot strip and a three-step explainer that says who
+  writes which half of this screen.
 - *Pain Map* (`pain_assessments`, `pain_map_question_templates`,
   `src/lib/painMap.ts`) is a 17-region clinical exam a therapist fills in
   after examining the patient — region-specific question sets with an
   admin-editable question bank, ending in a 0–100 pain percentage per
-  region. Unlike the intake, this posts live immediately (it's the
-  therapist's own clinical judgement, not an administrative edit). It also
-  needs no access grant: a therapist assigned to the patient can record what
-  they found, the same rule session notes use, while editing the patient's
-  *intake* on their behalf still queues for admin approval. Rows are
-  append-only so the patient's dashboard can show a trend against the
-  previous assessment for that region. The patient can only view this, never
-  edit it. Admin can also post an entry directly
-  (`/api/admin/pain-assessments/submit`, no access-grant needed — admin is
-  the final authority, same reasoning as the intake's direct-edit path),
-  through the identical dialog so the two can never drift apart; like every
-  other write here it's a new row, never an edit of a past one.
+  region. **It is orthopaedic only.** A neurological or paediatric profile
+  does not merely hide it: the page never queries `pain_assessments`, and
+  both exam-submit routes refuse such a patient rather than accumulating
+  rows nothing renders. Those two specialties get a progress line anyway,
+  read back out of the approved submissions already on file — independence
+  over time, or milestones reached. Their own examination layers (tone,
+  power, balance and gait; posture and milestones) are deliberately
+  deferred, and `SpecialtyExamPanel` exists now with placeholder arms so
+  adding one later is one more arm rather than a page rewrite.
+
+  Unlike the intake, a Pain Map exam posts live immediately (it's the
+  therapist's own clinical judgement) and needs no access grant — a
+  therapist assigned to the patient can record what they found, the same
+  rule session notes use. Rows are append-only so the patient's dashboard
+  can show a trend against the previous assessment for that region. The
+  patient can only view this, never edit it. Admin can also post an entry
+  directly (`/api/admin/pain-assessments/submit`), through the identical
+  dialog so the two can never drift apart.
 
   Recording an exam happens in `PainExamDialog`, opened from the one body
   map by **Record an exam** or by tapping a region. The region is chosen by
@@ -803,26 +855,31 @@ Both question banks (Patient Care Intake and Pain Map) are managed from
 one place — a **Manage Questions** section at the top of the admin's
 **Patient Conditions** tab (`QuestionBankManager.tsx`), not per-patient —
 since question wording/required-ness is global config, not something tied
-to one patient's record.
+to one patient's record. The intake bank has one tab per specialty, and
+above it sit the toggles for which specialties triage offers. Switching one
+off removes it from that picker only: an existing profile carrying it keeps
+rendering exactly as before, and a therapist re-triaging such a patient is
+still offered it. Orthopaedic can never be switched off, or triage would
+have nothing to land on.
 
-Both layers share one write-access model (`condition_access_grants`): a
-therapist may only write to a patient's condition data after the patient's
-admin approves an access request (`/therapist/dashboard/health-profile` →
-"Request access to edit"). Read access is automatic for the patient's
-assigned therapist — only *write* is gated. "Assigned" means the therapist
-has ever had an appointment with the patient, or holds a package's
-`locked_therapist_id`. Write access is exclusive to one therapist per
-patient at a time — approving a new therapist's request automatically
-revokes any other therapist's currently-approved grant for that same
-patient, rather than leaving two therapists able to edit the same
-condition data at once.
+`condition_access_grants` gates one thing: a therapist *editing* a live
+record on the patient's behalf. Read access is automatic for the patient's
+assigned therapist, and so are the two writes that are the therapist's own
+clinical record rather than an edit to the patient's account of
+themselves — onboarding/re-triage and a Pain Map exam. "Assigned" means the
+therapist has ever had an appointment with the patient, or holds a
+package's `locked_therapist_id`. Edit access is exclusive to one therapist
+per patient at a time — approving a new therapist's request automatically
+revokes any other therapist's currently-approved grant for that patient.
 
 A patient's first dashboard visit also shows a one-time, skippable guided
 spotlight tour (`src/components/patient/OnboardingTour.tsx`,
 `profiles.onboarding_seen_at`) that highlights the actual sidebar nav items
-in sequence. The Health Profile step also carries a "Fill it in now" CTA
-that jumps straight there (marking the tour seen, same as Skip/Done) instead
-of requiring the rest of the tour to finish first. The tour is separate from
+in sequence. The Health Profile step carries a "Fill it in now" CTA that
+jumps straight there (marking the tour seen, same as Skip/Done) — dropped
+while the record is still the therapist's to write, since sending someone
+to a read-only page with a fill-it-in button is worse than not mentioning
+it. The tour is separate from
 the persistent "complete your health profile" banner on the main patient
 dashboard, which keeps nudging based on intake status regardless of whether
 the tour was seen or skipped.
@@ -844,10 +901,14 @@ data useful once it's collected, not just to collect it:
   in one line. Deliberately one series: the patient's own 0–10 severity is
   a different scale and never shares the axis.
 - **Point of care** — the therapist's Assigned Sessions cards link straight
-  to that patient's Health Profile, and the Health Profiles list flags
-  patients with no *approved* access grant yet as "New" (a merely-requested,
-  not-yet-approved grant still counts as new — it still needs admin's
-  attention) so a first-time assignment doesn't go unnoticed.
+  to that patient's Health Profile. That list sorts anyone still needing
+  onboarding to the very top with an amber chip, ahead of "seeing them
+  soonest": until their record is written, that patient's own profile is
+  locked and there is nothing in the chart to prepare from. Below them,
+  patients with no *approved* access grant yet are flagged "New" (a
+  merely-requested grant still counts) so a first-time assignment doesn't
+  go unnoticed. The admin's Patient Conditions list has the same queue as
+  an "Awaiting onboarding" filter, beside a specialty filter and chip.
 - **Admin audit trail** — a direct intake edit (`ConditionDirectEditForm`)
   also inserts an already-"approved" `condition_change_requests` row, so it
   shows up in the same Review History as every reviewed submission instead
@@ -875,7 +936,13 @@ data useful once it's collected, not just to collect it:
 - **Patient data export** (`/api/patient/condition-profile/export`) — a
   typeset **PDF** of the patient's own intake, every Pain Map exam and the
   reports they have on file, downloaded as `Name_PatientCode.pdf` (e.g.
-  `Priya_Sharma_PT0042.pdf`). Built server-side with `pdf-lib` in
+  `Priya_Sharma_PT0042.pdf`). Its header names the specialty (a receiving
+  clinician needs to know which question set produced these answers) and,
+  for a child, who answered. The examinations section is omitted entirely
+  for a non-orthopaedic profile rather than printed empty, and a
+  re-triaged patient's earlier answers are printed under "Earlier
+  profile" — an export handed to another clinician that silently loses a
+  whole prior history is a clinical loss, not a simplification. Built server-side with `pdf-lib` in
   `src/lib/healthProfilePdf.ts`; the standard PDF fonts encode WinAnsi
   only, so every string is transliterated first and a name in a
   non-Latin script degrades rather than throwing. `?format=json` still

@@ -122,6 +122,13 @@ src/lib/mission.ts       the mission, vision, promises and stated limits
 src/lib/marketingPhotos.ts every photograph the public pages use
 src/lib/careAreas.ts     the six areas of practice, shared by / and /conditions
 src/lib/adminScope.ts    admin scopes and which sections each one may open
+src/lib/conditionSpecialty.ts the three condition specialties, the triage
+                         questions and the suggestion rule
+src/lib/intakeOrtho.ts   the orthopaedic intake question set
+src/lib/intakeNeuro.ts   the neurological intake question set
+src/lib/intakePediatrics.ts the paediatric intake question set
+src/lib/conditionProfileServer.ts server-side helpers every condition
+                         route and page shares
 src/proxy.ts             auth proxy over the four dashboard route trees
 supabase/schema.sql      the entire schema: tables, RLS, views, triggers
 scripts/                 one-off tooling
@@ -373,55 +380,129 @@ client is the only writer and the log is append-only from any session.
   `packageProgress`, `homeVisitPricing`, `homeVisitProgress`,
   `therapistCashLedger`, `healthProfileSummary`) so it can be reasoned about
   without rendering. Keep new math there rather than inside components.
-- **Patient Care Intake and Pain Map are two separate data layers**, both
-  gated behind one write-access model. Patient Care Intake
-  (`patient_condition_profiles` / `condition_change_requests`, question set
-  in `src/lib/conditionIntake.ts`) is patient- or therapist-submitted
-  general history and always queues for admin review before it goes live —
-  first fill and later edits alike. It is filled through a one-question-at-a-time
-  pop-up (`ConditionIntakeWizard.tsx`, launched from `ConditionIntakePanel.tsx`),
-  never as a form rendered on the dashboard: a wall of seven fields is what
-  patients read as paperwork and abandon. A new question therefore needs
-  `helpText` (why this answer matters, in the patient's words) and a
-  `shortLabel` alongside its `label`, not just the label. Once answered, the
-  dashboard shows the answers, never inputs: `ConditionSummaryCard.tsx`
-  renders them as a piece of the patient's chart (complaint as a headline,
-  severity as a gauge, painful areas as colored chips) and every reading
-  figure on the page — the four-cell snapshot strip, the ranked exam list,
-  the progress line — is derived in `src/lib/healthProfileSummary.ts`, not
-  inside a component. Pain Map (`pain_assessments` /
-  `pain_map_question_templates`, region + question logic in
-  `src/lib/painMap.ts`) is therapist-only, per-region clinical exam data
-  that posts live immediately with no review step, and is append-only (a
-  re-assessment is a new row, never an edit) so the UI can show a trend
-  against the previous visit. The two layers have **different write
-  gates**, because they record different things. Editing the intake is
-  editing the patient's own account of their history, so a therapist doing
-  it on their behalf still needs an admin-approved
-  `condition_access_grants` request. Recording a Pain Map exam is the
-  therapist's own observation from a session they ran — the same kind of
-  thing a session note is, and session notes have never needed a grant — so
-  it requires only that they are **assigned** to the patient (ever had an
-  appointment with them, or hold a package's `locked_therapist_id`),
-  enforced by `pain_assessments_insert_assigned_therapist` and mirrored in
-  the submit route by `isTherapistAssignedToPatient`. One shared gate meant
-  a clinician could finish an examination with nowhere to put it until an
-  admin noticed a request, which is how findings end up in private notes
-  instead of the chart. *Read* access needs no request either way and is
-  automatic for the assigned therapist. Both layers render on **one** body-map
-  surface (`PainMapExplorer.tsx`: the exam figure with a switch to the
-  patient-vs-exam comparison), and that same surface is where an exam gets
-  recorded — via `PainExamDialog`, not a form beneath the map. The
-  therapist's screen used to stack a second body map plus a 17-item region
-  dropdown plus all twenty questions under the first one, which is the
-  duplicate-figure mistake this rule exists to prevent, reintroduced inside
-  a single card. The region is chosen by tapping the figure (or a chip in
-  the dialog), never a `<select>`, and it stays in the dialog header while
-  the clinician types. Questions are grouped by `PAIN_EXAM_GROUPS`
-  (`painMap.ts`) rather than listed flat: a patient's once-ever intake is
-  paced one question at a time because patients abandon walls of fields, a
-  clinician filling this after every session gets the whole thing at once
-  with headings to scan by — never a wall of fields for either.
+- **Patient Care Intake and Pain Map are two separate data layers**, and
+  the intake is **per specialty**. A `patient_condition_profiles` row
+  carries `specialty` — `ortho`, `neuro` or `pediatrics` — and that
+  decides its question set (`src/lib/intakeOrtho.ts` / `intakeNeuro.ts` /
+  `intakePediatrics.ts`, assembled in `conditionIntake.ts`), its summary
+  card, its snapshot strip and its progress line. Four things about this
+  are load-bearing:
+  1. **Question keys are globally unique across the three sets and `data`
+     stays flat.** Ortho keys are unchanged, neuro keys are all `neuro_*`,
+     peds keys all `peds_*`. That is what lets a re-triaged patient keep
+     the previous specialty's answers in the same blob (hidden, never
+     deleted) with no jsonb migration inside a re-runnable file. A
+     module-load assertion in `conditionIntake.ts` throws if the rule is
+     ever broken — violated silently it cross-contaminates two patients'
+     charts.
+  2. **Applying an approved change MERGES, it does not replace.**
+     `mergeSpecialtyAnswers()` keeps every key the incoming specialty does
+     not own. The approve path used to write `data: proposedData`
+     outright, which under re-triage deletes a patient's whole
+     orthopaedic record the moment a neurological one is written.
+  3. **`schema_version` is per specialty**
+     (`INTAKE_QUESTIONS_VERSION_BY_SPECIALTY`), so it means "version of
+     *this profile's own* set". One shared scalar bumped to 3 would have
+     fired the "we've changed some of these questions" banner at every
+     existing patient even though ortho's seven are byte-identical.
+  4. **Pain Map is ORTHOPAEDIC and stays so.** Neuro and paediatric exam
+     layers are deferred. A non-ortho page does not merely hide the body
+     map — it never queries `pain_assessments` (both health-profile pages
+     do a two-phase read to know the specialty before choosing what to
+     fetch), and both exam-submit routes 400. When those layers are
+     built they are a **new table** (`neuro_assessments`), a new question
+     module, a new `*Snapshot`, and one more arm on `SpecialtyExamPanel`
+     — never a `specialty` column on `pain_assessments`, which would make
+     every reader branch. The two new summary cards must not import
+     `PAIN_MAP_REGIONS` or `parseAreaPain`; that import boundary is what
+     keeps the rule true in practice rather than only in intent.
+
+  **The therapist owns the first fill, and it is not reviewed.** A
+  patient's record does not exist until a therapist triages them
+  (`ConditionTriageDialog`, four questions in
+  `src/lib/conditionSpecialty.ts` that *suggest* a specialty with its
+  reason shown, never auto-accepted) and fills that specialty's set.
+  `/api/therapist/condition-profile/onboard` needs only
+  `isTherapistAssignedToPatient` and writes **live**. Both halves matter:
+  the access-grant queue cannot sit in front of the first record ever
+  existing (the exact failure the Pain Map gate was changed to avoid),
+  and the patient is locked out of their own health profile until it
+  lands, so an admin approval in between would leave them on a read-only
+  screen after their session with nothing happening. Live is not
+  unrecorded — every onboarding and re-triage writes an
+  already-`approved` `condition_change_requests` row, the pattern
+  `ConditionDirectEditForm` already uses, so it appears in the ordinary
+  Review History with no new concept and no queue.
+
+  **The line is create versus edit.** Deciding what kind of patient this
+  is, and writing down what they told you in a session you ran, is the
+  therapist's own clinical record — the same kind of thing a Pain Map
+  exam or a session note is, and gated the same way. *Editing* a live
+  record on the patient's behalf is editing their own account of their
+  history and still needs an admin-approved `condition_access_grants`
+  request plus review (`/api/therapist/condition-profile/submit`).
+
+  **The patient is read-only until that first fill**, computed once by
+  `patientIntakeGate()` — a four-state union, not a boolean, because "not
+  yours to do" and "yours, but not right now" need different copy. It is
+  enforced in `submit` *and* `save-draft` (which flips `status` to
+  `draft`, one of the gate's own inputs) and in
+  `condition_change_requests_insert_gated`, without which the lock is
+  cosmetic: `revoke` on that table only ever covered `update`. While
+  locked, the CTA and the answered counter are **absent**, not disabled;
+  the amber dashboard banner is dropped entirely rather than recoloured;
+  the overview cell reads `—` on slate rather than `0%` on amber; and the
+  reports uploader stays **open**, because it is the one useful thing the
+  patient can do beforehand.
+
+  Patient Care Intake is filled through a one-question-at-a-time pop-up
+  (`ConditionIntakeWizard.tsx`), never as a form rendered on the
+  dashboard: a wall of seven fields is what patients read as paperwork
+  and abandon. A new question therefore needs `helpText` (why this answer
+  matters, in the patient's words) and a `shortLabel` alongside its
+  `label`. The therapist's own surfaces invert that pacing on purpose —
+  the triage dialog shows everything at once with headings, the same rule
+  `PainExamDialog` follows: a clinician filling this after every
+  assignment wants to scan it, and the gentleness is for the patient who
+  does it once. Once answered, the dashboard shows the answers, never
+  inputs, and every reading figure on the page is derived in
+  `src/lib/healthProfileSummary.ts`, not inside a component — that module
+  now carries `orthoSnapshot` / `neuroSnapshot` / `pediatricsSnapshot`
+  plus `intakeTrendSeries()`, which gives the two specialties with no
+  exam layer a progress line read back out of the approved submissions
+  already on file (no new table, no cron).
+
+  Pain Map (`pain_assessments`, `pain_map_question_templates`, region and
+  question logic in `src/lib/painMap.ts`) is therapist-only, per-region
+  clinical exam data that posts live immediately with no review step, and
+  is append-only (a re-assessment is a new row, never an edit) so the UI
+  can show a trend against the previous visit. Recording one requires
+  only that the therapist is **assigned** — enforced by
+  `pain_assessments_insert_assigned_therapist` and mirrored in the submit
+  route by `isTherapistAssignedToPatient`. *Read* access needs no request
+  either way and is automatic for the assigned therapist. Both layers
+  render on **one** body-map surface (`PainMapExplorer.tsx`), and that
+  same surface is where an exam gets recorded — via `PainExamDialog`, not
+  a form beneath the map. The region is chosen by tapping the figure (or
+  a chip in the dialog), never a `<select>`, and it stays in the dialog
+  header while the clinician types. Questions are grouped by
+  `PAIN_EXAM_GROUPS` rather than listed flat.
+
+  **The paediatric caregiver is a pre-step, not one of the seven.**
+  `peds_caregiver_name` and `peds_caregiver_relationship` are ordinary
+  flat keys — so the wizard, the required check, the admin's question
+  bank and the PDF all handle them with no special case — but they are
+  excluded from the seven-question count, because who is speaking for the
+  child is provenance rather than a clinical question.
+
+  **Admin edits wording per specialty, and can switch one off.**
+  `intake_question_templates` is keyed `(specialty, question_key)`;
+  Manage Questions has one tab per specialty (tabs, not three stacked
+  sections — twenty-odd textareas is the wall-of-fields shape this
+  codebase keeps correcting). `enabled_intake_specialties` removes a
+  specialty from **triage only**: an existing profile carrying it must
+  keep rendering, and a therapist re-triaging such a patient is still
+  offered it. Ortho can never be switched off.
 - **One pain scale on screen, whatever the column says.** Assessments are
   stored 0–100 and a patient rates their own pain 0–10; both used to be
   printed raw, so "How you rate it 6/10" sat beside "Last exam found 34%"
@@ -938,7 +1019,8 @@ client is the only writer and the log is append-only from any session.
   and Brand & Contact Details — site name, tagline, description, contact
   email, WhatsApp number, contact phone, footer copyright text — and the
   Home page walkthrough's per-step rotation seconds, where 0 means "don't
-  rotate") is read
+  rotate" — and `enabled_intake_specialties`, which condition types
+  triage offers) is read
   through `src/lib/adminSettings.ts` with defaults — don't hardcode these.
   Every dashboard page must select `SITE_SETTINGS_SELECT` from that module
   rather than its own column list, or a new setting silently reads as its

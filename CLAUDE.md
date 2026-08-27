@@ -39,6 +39,15 @@ public and the bar names `/admin/login` and `/admin/dashboard`. The
 database-wipe flag (`ALLOW_DEBUG_DATA_RESET`) is a separate, server-only
 thing and stays unset.
 
+The health profile is **per specialty**: a condition profile carries
+`specialty` (`ortho`, `neuro`, `pediatrics`), and that decides its seven
+questions, its summary card, its snapshot figures and its progress line.
+A therapist triages the patient at first contact and writes the first
+record — needing only assignment, and going live with no review — and that
+fill is what unlocks the patient's own access to it. The Pain Map is an
+orthopaedic layer and stays one; the other two exam layers are explicitly
+deferred. See the "Patient Care Intake and Pain Map" rule in `AGENTS.md`.
+
 Patient files (avatars, and the test reports and scans patients upload to
 their health profile) live in Supabase Storage, never in a table column —
 `patient_medical_documents` holds metadata only, and its bucket is private.
