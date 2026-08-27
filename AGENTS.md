@@ -41,8 +41,8 @@ admin-configured rotation pace (`journey-pace.spec.ts`), and self-signup
 going through with no email-confirmation step
 (`patient-registration.spec.ts`), the Session Completed cutoff on every
 surface that lists a session (`session-completed-cutoff.spec.ts`), and the
-brand splash's cold-open, reload and long-absence rules
-(`splash-screen.spec.ts`). It needs a
+brand splash's cold-open, reload and long-absence rules together with its
+admin settings (`splash-screen.spec.ts`). It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
@@ -773,7 +773,15 @@ client is the only writer and the log is append-only from any session.
   short or leaves an invisible sheet eating clicks. Anyone who has asked for
   reduced motion is skipped outright — it is decoration over content that is
   already rendered, so the honest answer to "don't animate" is not to show
-  it. `e2e/splash-screen.spec.ts` holds all four rules.
+  it. The wording, the hold and the away threshold are admin-configurable
+  (`site_settings.splash_*`, Settings → Public Site → Opening Splash), and
+  `splash_revisit_minutes = 0` means "greet the first load only" — there is
+  deliberately **no** value meaning "greet on every tab focus", because that
+  is the setting that would splash over a checkout in progress. The fade
+  length stays a constant for the reason above: it is the same duration
+  written in two places, so it is a design decision rather than a policy an
+  admin should be able to desynchronise.
+  `e2e/splash-screen.spec.ts` holds these rules.
 
 - **The eight public pages are one template, not eight layouts.** `/`,
   `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`
@@ -965,7 +973,9 @@ client is the only writer and the log is append-only from any session.
   and Brand & Contact Details — site name, tagline, description, contact
   email, WhatsApp number, contact phone, footer copyright text — and the
   Home page walkthrough's per-step rotation seconds, where 0 means "don't
-  rotate") is read
+  rotate" — and the opening splash's four settings — on/off, its one line,
+  the hold in seconds, and the minutes a tab must be away to earn a second
+  greeting, where 0 means "first load only") is read
   through `src/lib/adminSettings.ts` with defaults — don't hardcode these.
   Every dashboard page must select `SITE_SETTINGS_SELECT` from that module
   rather than its own column list, or a new setting silently reads as its

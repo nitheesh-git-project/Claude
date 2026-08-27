@@ -5,10 +5,8 @@ import {
   SPLASH_ATTR,
   SPLASH_FADE_MS,
   SPLASH_HIDDEN_AT_KEY,
-  SPLASH_HOLD_MS,
-  SPLASH_PHRASE,
-  SPLASH_REVISIT_AWAY_MS,
   SPLASH_SHOWN_KEY,
+  type SplashConfig,
 } from "@/lib/splashScreen";
 
 /**
@@ -32,7 +30,24 @@ import {
  * and a screen reader gains nothing from a decorative sheet it cannot
  * dismiss.
  */
-export default function SplashScreen({ siteName }: { siteName: string }) {
+export default function SplashScreen({
+  siteName,
+  config,
+}: {
+  siteName: string;
+  config: SplashConfig;
+}) {
+  // The admin's values, held in a ref so the effect below can subscribe
+  // once and stay mounted for the life of the tab. Reading them from props
+  // in that effect's dependencies instead would re-run it — and its
+  // cleanup clears the attribute, so a settings change landing mid-greeting
+  // would blank the sheet halfway through. Kept in step by its own effect
+  // rather than assigned during render, which React forbids.
+  const settings = useRef(config);
+  useEffect(() => {
+    settings.current = config;
+  }, [config]);
+
   // Timers for the hold and the fade. Kept in a ref so a replay (tab
   // returned to after a long absence) can cancel a sequence still in
   // flight instead of racing it — two overlapping runs would clear the
@@ -60,7 +75,7 @@ export default function SplashScreen({ siteName }: { siteName: string }) {
           timers.current.push(
             window.setTimeout(() => root.removeAttribute(SPLASH_ATTR), SPLASH_FADE_MS)
           );
-        }, SPLASH_HOLD_MS)
+        }, settings.current.holdMs)
       );
     };
 
@@ -94,6 +109,9 @@ export default function SplashScreen({ siteName }: { siteName: string }) {
 
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
+      // 0 is the admin saying "greet the first load only" — no amount of
+      // time away earns a replay then.
+      const awayMs = settings.current.revisitAwayMs;
       let hiddenAt = 0;
       try {
         hiddenAt = Number(window.sessionStorage.getItem(SPLASH_HIDDEN_AT_KEY) ?? 0);
@@ -101,7 +119,7 @@ export default function SplashScreen({ siteName }: { siteName: string }) {
       } catch {
         return;
       }
-      if (!hiddenAt || Date.now() - hiddenAt < SPLASH_REVISIT_AWAY_MS) return;
+      if (awayMs <= 0 || !hiddenAt || Date.now() - hiddenAt < awayMs) return;
       play();
     };
 
@@ -123,7 +141,7 @@ export default function SplashScreen({ siteName }: { siteName: string }) {
           <i className="fa-solid fa-user-doctor" />
         </span>
         <span className="splash-screen__brand">{siteName}</span>
-        <span className="splash-screen__phrase font-display">{SPLASH_PHRASE}</span>
+        <span className="splash-screen__phrase font-display">{config.phrase}</span>
         <span className="splash-screen__rule" />
       </div>
     </div>

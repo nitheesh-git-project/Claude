@@ -1,33 +1,51 @@
-// The brand splash: what a visitor sees for the first second and a half of
-// a cold open, and — just as important — what they don't see the rest of
-// the time.
+// The brand splash: what a visitor sees for the first second or two of a
+// cold open, what they don't see the rest of the time, and what the admin
+// can change about it (site_settings.splash_*).
 //
-// Browser-only, like section-nav.spec.ts. Every rule under test is about
-// paint order and per-tab session state: whether the greeting is already
-// on screen at first paint (rather than dropping onto a page the visitor
-// can read), whether it lets go of the pointer afterwards, and whether it
-// stays quiet on a reload. None of that is visible to an API-level check.
-import { test, expect, type Page } from "@playwright/test";
-import { BASE } from "./helpers";
+// Half browser, half API, like journey-pace.spec.ts. Every timing rule is
+// only observable as elapsed time in a real browser; the route's bounds are
+// only observable from an admin request. Both halves can fail
+// independently, so both are covered.
+import { test, expect, request, type APIRequestContext, type Page } from "@playwright/test";
+import { BASE, QA_EMAILS, adminClient, cookieHeaderFor } from "./helpers";
 
-// Kept in step with src/lib/splashScreen.ts. Not imported from it: this
-// spec is asserting the values the app actually ships, so reading them
-// from the same module would make the assertions pass by construction.
-const HOLD_MS = 1400;
-const FADE_MS = 550;
-const AWAY_MS = 15 * 60 * 1000;
+const db = adminClient();
+
+// What the columns default to (schema.sql / splashScreen.ts). Restored in
+// afterAll: every other browser spec loads these pages too, and a leftover
+// "switched off" would quietly make this suite's coverage meaningless on
+// the next run.
+const DEFAULTS = {
+  splash_enabled: true,
+  splash_phrase: "Movement Is Medicine",
+  splash_hold_seconds: 1.5,
+  splash_revisit_minutes: 15,
+};
+
 const HIDDEN_AT_KEY = "dpp.splash.hiddenAt";
+
+async function setSplash(values: Partial<typeof DEFAULTS>) {
+  const { error } = await db.from("site_settings").update(values).eq("id", true);
+  if (error) throw new Error(`could not update splash settings: ${error.message}`);
+}
+
+async function adminContext(): Promise<APIRequestContext> {
+  return request.newContext({
+    baseURL: BASE,
+    extraHTTPHeaders: { Cookie: await cookieHeaderFor(QA_EMAILS.admin) },
+  });
+}
 
 const splashState = (page: Page) =>
   page.evaluate(() => document.documentElement.getAttribute("data-splash"));
 
-// Waits for the greeting to be completely gone rather than sleeping out
-// its nominal duration: the timers start when the component mounts, which
-// under `next dev` can be several hundred ms after domcontentloaded, and a
-// fixed sleep then reads a frame mid-fade and fails a working splash.
+// Waits for the greeting to be completely gone rather than sleeping out its
+// nominal duration: the timers start when the component mounts, which under
+// `next dev` can be several hundred ms after domcontentloaded, and a fixed
+// sleep then reads a frame mid-fade and fails a working splash.
 const settle = (page: Page) =>
   page.waitForFunction(() => !document.documentElement.hasAttribute("data-splash"), null, {
-    timeout: HOLD_MS + FADE_MS + 10_000,
+    timeout: 15_000,
   });
 
 // Fakes a tab going away and coming back. visibilityState is read-only, so
@@ -49,13 +67,20 @@ async function leaveAndReturn(page: Page, awayMs: number) {
 }
 
 test.describe("brand splash", () => {
+  test.beforeAll(async () => {
+    await setSplash(DEFAULTS);
+  });
+  test.afterAll(async () => {
+    await setSplash(DEFAULTS);
+  });
+
   test("SP-001 covers the site on a cold open, then hands it back", async ({ page }) => {
     await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
 
     // Set by the inline boot script, so it is true at first paint — the
     // greeting is never seen arriving on top of a page already on screen.
     expect(await splashState(page)).toBe("on");
-    await expect(page.getByText("Movement Is Medicine")).toBeVisible();
+    await expect(page.getByText(DEFAULTS.splash_phrase)).toBeVisible();
 
     await settle(page);
 
@@ -74,20 +99,19 @@ test.describe("brand splash", () => {
     expect(await splashState(page)).toBeNull();
   });
 
-  test("SP-003 replays only after a long absence from the tab", async ({ page }) => {
+  test("SP-003 replays only after the configured time away", async ({ page }) => {
     await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
     await settle(page);
 
     // A minute away is someone fetching an OTP or approving a UPI payment
-    // in their bank's app. Splashing over a checkout in progress is the
-    // one thing this must never do.
-    await leaveAndReturn(page, 60 * 1000);
+    // in their bank's app. Splashing over a checkout in progress is the one
+    // thing this must never do.
+    await leaveAndReturn(page, 60_000);
     expect(await splashState(page)).toBeNull();
 
-    await leaveAndReturn(page, AWAY_MS + 60 * 1000);
+    await leaveAndReturn(page, (DEFAULTS.splash_revisit_minutes + 1) * 60_000);
     expect(await splashState(page)).toBe("on");
     await settle(page);
-    expect(await splashState(page)).toBeNull();
   });
 
   test("SP-004 does not run at all under reduced motion", async ({ browser }) => {
@@ -100,5 +124,62 @@ test.describe("brand splash", () => {
     expect(await splashState(page)).toBeNull();
     await expect(page.locator(".splash-screen")).toBeHidden();
     await context.close();
+  });
+
+  test("SP-005 honours the admin's wording, hold and off switch", async ({ page }) => {
+    await setSplash({ splash_phrase: "Care that meets you at home", splash_hold_seconds: 0.6 });
+    await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByText("Care that meets you at home")).toBeVisible();
+    await settle(page);
+
+    // Off means the overlay is not in the page at all, and neither is the
+    // script that would paint it — not merely hidden by CSS.
+    await setSplash({ splash_enabled: false });
+    const fresh = await page.context().browser()?.newContext();
+    if (!fresh) throw new Error("no browser context");
+    const offPage = await fresh.newPage();
+    await offPage.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+    expect(await splashState(offPage)).toBeNull();
+    await expect(offPage.locator(".splash-screen")).toHaveCount(0);
+    await fresh.close();
+  });
+
+  test("SP-006 zero minutes means first load only", async ({ page }) => {
+    await setSplash({ splash_revisit_minutes: 0 });
+    await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+    await settle(page);
+
+    // No length of absence earns a replay at 0 — the admin has said "greet
+    // the first load of a tab and nothing else".
+    await leaveAndReturn(page, 24 * 60 * 60_000);
+    expect(await splashState(page)).toBeNull();
+  });
+
+  test("SP-007 the route refuses values the splash could not honour", async () => {
+    const ctx = await adminContext();
+    const post = (key: string, value: unknown) =>
+      ctx.post("/api/admin/update-setting", { data: { key, value } });
+
+    // Too quick to read, and long enough to feel like a hang.
+    expect((await post("splash_hold_seconds", 0.1)).status()).toBe(400);
+    expect((await post("splash_hold_seconds", 30)).status()).toBe(400);
+    // A blank line leaves a full screen of teal that reads as a failed
+    // load; switching the splash off is the way to have no greeting.
+    expect((await post("splash_phrase", "   ")).status()).toBe(400);
+    expect((await post("splash_phrase", "x".repeat(200))).status()).toBe(400);
+    expect((await post("splash_revisit_minutes", -1)).status()).toBe(400);
+    expect((await post("splash_revisit_minutes", 4.5)).status()).toBe(400);
+    expect((await post("splash_enabled", "yes")).status()).toBe(400);
+
+    // And accepts the values in range, writing them where the layout reads.
+    expect((await post("splash_hold_seconds", 2)).status()).toBe(200);
+    expect((await post("splash_phrase", "Movement Is Medicine")).status()).toBe(200);
+    const { data } = await db
+      .from("site_settings")
+      .select("splash_hold_seconds, splash_phrase")
+      .maybeSingle();
+    expect(Number(data?.splash_hold_seconds)).toBe(2);
+    expect(data?.splash_phrase).toBe("Movement Is Medicine");
+    await ctx.dispose();
   });
 });

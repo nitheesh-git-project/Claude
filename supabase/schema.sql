@@ -3351,6 +3351,10 @@ begin
     online_booking_lead_time_hours = default,
     online_cancellation_refund_hours = default,
     journey_step_seconds = default,
+    splash_enabled = default,
+    splash_phrase = default,
+    splash_hold_seconds = default,
+    splash_revisit_minutes = default,
     session_completed_after_minutes = default
   where id = true;
 
@@ -4150,3 +4154,33 @@ select * from (values
   )
 ) as seed
 where not exists (select 1 from testimonials);
+
+-- ---------------------------------------------------------------------------
+-- The opening splash (Settings -> Public Site -> Opening Splash)
+--
+-- The brand sheet the root layout paints over the site for a beat on a cold
+-- open. Four columns: whether it runs at all, the line it says, how long it
+-- holds, and how long a tab must sit in the background before returning to
+-- it earns a second greeting.
+--
+-- splash_revisit_minutes = 0 means "greet the first load of a tab only".
+-- There is deliberately no value meaning "greet every time the tab is
+-- focused": a patient paying by UPI leaves the tab for their bank's app and
+-- comes back mid-checkout, and a splash over a payment in progress is the
+-- one failure this feature must not be configurable into.
+--
+-- The fade duration is deliberately absent -- it is written in both
+-- globals.css and SPLASH_FADE_MS, and a value that must match a stylesheet
+-- is a design decision rather than a policy an admin should be able to
+-- desynchronise.
+alter table site_settings
+  add column if not exists splash_enabled boolean not null default true;
+alter table site_settings
+  add column if not exists splash_phrase text not null default 'Movement Is Medicine'
+    check (char_length(splash_phrase) between 1 and 48);
+alter table site_settings
+  add column if not exists splash_hold_seconds numeric not null default 1.5
+    check (splash_hold_seconds >= 0.5 and splash_hold_seconds <= 6);
+alter table site_settings
+  add column if not exists splash_revisit_minutes integer not null default 15
+    check (splash_revisit_minutes >= 0 and splash_revisit_minutes <= 1440);

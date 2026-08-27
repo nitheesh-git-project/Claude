@@ -12,7 +12,11 @@ import { createPublicClient } from "@/lib/supabase/public";
 import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
-import { SPLASH_BOOT_SCRIPT } from "@/lib/splashScreen";
+import {
+  DEFAULT_SPLASH_CONFIG,
+  splashBootScript,
+  type SplashConfig,
+} from "@/lib/splashScreen";
 
 // Inter for body copy — optimized for on-screen reading at small sizes,
 // which matters here given how much clinical/pricing detail patients read.
@@ -98,6 +102,32 @@ export default async function RootLayout({
       ? farewellRow.farewell_banner_seconds
       : DEFAULT_ADMIN_SETTINGS.farewellBannerSeconds;
 
+  // The opening splash's four settings, in their own isolated select for
+  // the same migration-tolerance reason as the two above: these columns are
+  // the newest in the table, and an unknown-column error here must not take
+  // the site name and tagline down with it. Falls back to the defaults in
+  // splashScreen.ts, which is what a database that has never configured the
+  // greeting should get.
+  const { data: splashRow } = await supabase
+    .from("site_settings")
+    .select("splash_enabled, splash_phrase, splash_hold_seconds, splash_revisit_minutes")
+    .maybeSingle();
+  const splash: SplashConfig = {
+    enabled: splashRow?.splash_enabled ?? DEFAULT_SPLASH_CONFIG.enabled,
+    phrase:
+      typeof splashRow?.splash_phrase === "string" && splashRow.splash_phrase.trim()
+        ? splashRow.splash_phrase.trim()
+        : DEFAULT_SPLASH_CONFIG.phrase,
+    holdMs:
+      typeof splashRow?.splash_hold_seconds === "number"
+        ? Math.round(splashRow.splash_hold_seconds * 1000)
+        : DEFAULT_SPLASH_CONFIG.holdMs,
+    revisitAwayMs:
+      typeof splashRow?.splash_revisit_minutes === "number"
+        ? splashRow.splash_revisit_minutes * 60_000
+        : DEFAULT_SPLASH_CONFIG.revisitAwayMs,
+  };
+
   return (
     // suppressHydrationWarning covers this one element's own attributes:
     // the splash boot script below writes data-splash onto <html> before
@@ -115,14 +145,18 @@ export default async function RootLayout({
             an effect runs after first paint, so the greeting would drop
             on top of a site the visitor can already see. See
             src/lib/splashScreen.ts — the script, the CSS in globals.css
-            and the component all read their keys and timings from there. */}
-        <script dangerouslySetInnerHTML={{ __html: SPLASH_BOOT_SCRIPT }} />
+            and the component all read their keys and timings from there.
+            Omitted entirely when an admin has switched the splash off, so
+            nothing can set the attribute the CSS paints on. */}
+        {splash.enabled && (
+          <script dangerouslySetInnerHTML={{ __html: splashBootScript(splash) }} />
+        )}
       </head>
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-800 font-sans">
         {/* Always in the HTML, painted only when the script above says so —
             keeping the markup constant is what stops this being a
             hydration mismatch on every page. */}
-        <SplashScreen siteName={brand.siteName} />
+        {splash.enabled && <SplashScreen siteName={brand.siteName} config={splash} />}
         {showDebugNav && <DebugNav />}
         <Navbar
           offsetTop={showDebugNav}

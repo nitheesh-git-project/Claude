@@ -591,6 +591,12 @@ range 2–60, or 0 to stop the rotation and let visitors tap through the steps
 themselves). The rotation pauses while a pointer or keyboard focus is inside
 the widget, and never runs at all under `prefers-reduced-motion`.
 
+It also carries **Opening Splash** — the brand sheet the site paints over
+itself on a cold open: on/off, the line it says, how long it holds, and how
+many minutes a tab must sit in the background before returning to it earns
+a second greeting. See [The opening splash](#the-opening-splash) for the
+columns, the bounds and what 0 minutes means.
+
 Brand & Contact Details fields save individually (click Edit on a field,
 change it, Save) via `/api/admin/update-setting`, same as every other
 `site_settings` column; the root layout reads them on every request to pass
@@ -951,13 +957,32 @@ back mid-checkout, and a splash over a payment in progress is the failure
 this rule exists to prevent. Visitors who have asked their system for
 reduced motion never see it at all.
 
-The phrase and every timing are in `src/lib/splashScreen.ts`; the component
-is `src/components/system/SplashScreen.tsx` and its styling is at the foot
-of `src/app/globals.css`. To change the wording, edit `SPLASH_PHRASE`; to
-change how long it holds or how long a tab must be away to earn a replay,
-edit `SPLASH_HOLD_MS` and `SPLASH_REVISIT_AWAY_MS`. Change `SPLASH_FADE_MS`
-and the transition in `globals.css` together — they are the same fade
-described twice.
+**The admin controls it** from Settings → Public Site → **Opening Splash**,
+which writes four `site_settings` columns:
+
+| Setting | Column | Default |
+| --- | --- | --- |
+| Whether it runs at all | `splash_enabled` | on |
+| The line it says | `splash_phrase` | "Movement Is Medicine" |
+| How long it holds before fading | `splash_hold_seconds` | 1.5 |
+| Minutes away that earn a second greeting | `splash_revisit_minutes` | 15 |
+
+Setting the minutes to **0** means "greet the first load of a tab only".
+There is deliberately no value meaning "greet on every tab focus" — that is
+the setting that would splash over a payment in progress. Switching the
+splash off removes the overlay and its boot script from the page entirely
+rather than hiding them.
+
+The fade length is **not** admin-configurable on purpose: it is the same
+duration written twice, as `SPLASH_FADE_MS` in `src/lib/splashScreen.ts` and
+as the transition at the foot of `src/app/globals.css`, and the timer is
+what takes the sheet out of the page. Change those two together or the fade
+either cuts short or leaves an invisible sheet swallowing clicks.
+
+The defaults every caller falls back to (including a database that has not
+run the migration adding those columns) live in `src/lib/splashScreen.ts`;
+the component is `src/components/system/SplashScreen.tsx` and the admin form
+is `src/components/admin/SplashScreenForm.tsx`.
 
 **The index is defined once.** `src/lib/marketingNav.ts` holds the seven
 pages with a one-line purpose each. The header nav, the footer's Explore

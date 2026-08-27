@@ -1,4 +1,9 @@
 import { DEFAULT_PAYMENT_GATEWAY_FEE_PERCENT } from "@/lib/operatingCosts";
+import {
+  DEFAULT_SPLASH_HOLD_SECONDS,
+  DEFAULT_SPLASH_PHRASE,
+  DEFAULT_SPLASH_REVISIT_MINUTES,
+} from "@/lib/splashScreen";
 export type AdminSettings = {
   sessionPackagesVisible: boolean;
   sessionTimeoutMinutes: number;
@@ -48,6 +53,15 @@ export type AdminSettings = {
   // holds before the next one takes over. 0 means it doesn't advance on its
   // own -- same "0 is off" convention as sessionTimeoutMinutes.
   journeyStepSeconds: number;
+  // The opening splash: whether it runs at all, the line it says, how long
+  // it holds, and how long a tab must sit in the background before coming
+  // back to it earns a second greeting. 0 minutes means "first load only" --
+  // there is deliberately no way to configure "every time the tab is
+  // focused", see splashScreen.ts.
+  splashEnabled: boolean;
+  splashPhrase: string;
+  splashHoldSeconds: number;
+  splashRevisitMinutes: number;
 };
 
 // The sole hardcoded language in the app, and only as the fallback for an
@@ -119,6 +133,10 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   onlineCancellationRefundHours: 24,
   paymentGatewayFeePercent: DEFAULT_PAYMENT_GATEWAY_FEE_PERCENT,
   journeyStepSeconds: 4,
+  splashEnabled: true,
+  splashPhrase: DEFAULT_SPLASH_PHRASE,
+  splashHoldSeconds: DEFAULT_SPLASH_HOLD_SECONDS,
+  splashRevisitMinutes: DEFAULT_SPLASH_REVISIT_MINUTES,
 };
 
 // The one column list every dashboard page selects from the site_settings
@@ -139,7 +157,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
 // .select(SITE_SETTINGS_SELECT) call fall back to an unusable
 // GenericStringError result type instead of a real row shape.
 export const SITE_SETTINGS_SELECT =
-  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, session_completed_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, payment_gateway_fee_percent, farewell_banner_seconds, journey_step_seconds";
+  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, session_completed_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, payment_gateway_fee_percent, farewell_banner_seconds, journey_step_seconds, splash_enabled, splash_phrase, splash_hold_seconds, splash_revisit_minutes";
 
 type SiteSettingsRow = {
   session_packages_visible?: boolean | null;
@@ -167,6 +185,10 @@ type SiteSettingsRow = {
   online_cancellation_refund_hours?: number | null;
   farewell_banner_seconds?: number | null;
   journey_step_seconds?: number | null;
+  splash_enabled?: boolean | null;
+  splash_phrase?: string | null;
+  splash_hold_seconds?: number | null;
+  splash_revisit_minutes?: number | null;
   site_name?: string | null;
   site_tagline?: string | null;
   site_description?: string | null;
@@ -319,5 +341,15 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
       typeof row?.journey_step_seconds === "number"
         ? row.journey_step_seconds
         : DEFAULT_ADMIN_SETTINGS.journeyStepSeconds,
+    splashEnabled: row?.splash_enabled ?? DEFAULT_ADMIN_SETTINGS.splashEnabled,
+    splashPhrase: stringOrDefault(row?.splash_phrase, DEFAULT_ADMIN_SETTINGS.splashPhrase),
+    splashHoldSeconds:
+      typeof row?.splash_hold_seconds === "number"
+        ? row.splash_hold_seconds
+        : DEFAULT_ADMIN_SETTINGS.splashHoldSeconds,
+    splashRevisitMinutes:
+      typeof row?.splash_revisit_minutes === "number"
+        ? row.splash_revisit_minutes
+        : DEFAULT_ADMIN_SETTINGS.splashRevisitMinutes,
   };
 }
