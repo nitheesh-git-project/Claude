@@ -3,18 +3,15 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CONDITION_SPECIALTIES, type ConditionSpecialty } from "@/lib/conditionSpecialty";
+// One set of status words, shared with the detail screen one click away --
+// this file used to re-declare its own ("Draft" vs "Draft — not submitted").
+import { CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
 
 const CONDITION_STATUS_STYLE: Record<string, string> = {
   not_started: "bg-slate-100 text-slate-500",
   draft: "bg-slate-100 text-slate-500",
   pending_review: "bg-amber-100 text-amber-700",
   active: "bg-emerald-100 text-emerald-700",
-};
-const CONDITION_STATUS_LABEL: Record<string, string> = {
-  not_started: "Not started",
-  draft: "Draft",
-  pending_review: "Pending review",
-  active: "Complete",
 };
 // "Waiting for a therapist to onboard them" is a state of its own, not
 // one of the four stored statuses -- the row may not even exist yet. It
@@ -100,8 +97,8 @@ export default function ConditionsListFilter({ rows }: { rows: Row[] }) {
               {s === "all"
                 ? "All statuses"
                 : s === "awaiting_onboarding"
-                  ? "Awaiting onboarding"
-                  : CONDITION_STATUS_LABEL[s]}
+                  ? "Needs onboarding"
+                  : CONDITION_STATUS_LABEL[s as ConditionProfileStatus]}
             </option>
           ))}
         </select>
@@ -153,7 +150,7 @@ export default function ConditionsListFilter({ rows }: { rows: Row[] }) {
                     <span
                       className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${CONDITION_STATUS_STYLE[r.status] ?? CONDITION_STATUS_STYLE.not_started}`}
                     >
-                      {CONDITION_STATUS_LABEL[r.status] ?? "Not started"}
+                      {CONDITION_STATUS_LABEL[r.status as ConditionProfileStatus] ?? "Not started"}
                     </span>
                   ) : (
                     <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800">

@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         error:
           gate.reason === "awaiting_therapist"
             ? "Your therapist fills this in with you at your first session. You can add to it once they have."
-            : "A submission for your health profile is already awaiting admin review.",
+            : "Your last change to your health profile is still being checked by the clinic.",
       },
       { status: gate.reason === "awaiting_therapist" ? 403 : 409 }
     );
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     .eq("status", "pending");
   if (pendingCount && pendingCount > 0) {
     return NextResponse.json(
-      { error: "A submission for your health profile is already awaiting admin review." },
+      { error: "Your last change to your health profile is still being checked by the clinic." },
       { status: 409 }
     );
   }
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     // server error.
     if (insertError.code === "23505") {
       return NextResponse.json(
-        { error: "A submission for your health profile is already awaiting admin review." },
+        { error: "Your last change to your health profile is still being checked by the clinic." },
         { status: 409 }
       );
     }

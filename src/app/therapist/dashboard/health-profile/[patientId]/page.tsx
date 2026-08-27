@@ -70,7 +70,7 @@ export default async function TherapistPatientHealthProfilePage({
   // is a new column, so it is read on its own.
   const { data: specialtyRow } = await supabase
     .from("patient_condition_profiles")
-    .select("specialty, draft_specialty, triage_data, draft_triage_data")
+    .select("specialty, draft_specialty, triage_data, draft_triage_data, draft_saved_by_role")
     .eq("patient_id", patientId)
     .maybeSingle();
   const specialty = parseConditionSpecialty(specialtyRow?.specialty);
@@ -212,7 +212,7 @@ export default async function TherapistPatientHealthProfilePage({
     >
       <div className="max-w-2xl mx-auto space-y-6">
         <Link href="/therapist/dashboard/health-profile" className="text-xs text-teal-700 font-semibold">
-          ← Back to Health Profiles
+          ← Back to My Patients
         </Link>
 
         {/* The edit-access card used to sit here, three sections above the
@@ -247,7 +247,7 @@ export default async function TherapistPatientHealthProfilePage({
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-            <h2 className="font-display font-bold text-lg text-slate-800">Patient Care Intake</h2>
+            <h2 className="font-display font-bold text-lg text-slate-800">Health Profile</h2>
             <div className="flex items-center gap-2">
               {!needsOnboarding && specialtyDef && (
                 <span
@@ -290,6 +290,8 @@ export default async function TherapistPatientHealthProfilePage({
           ) : canEditIntake ? (
             <ConditionIntakePanel
               specialty={specialty}
+              voice="clinician"
+              draftIsMine={specialtyRow?.draft_saved_by_role === "therapist"}
               questions={questions}
               endpoint="/api/therapist/condition-profile/submit"
               draftEndpoint="/api/therapist/condition-profile/save-draft"
@@ -355,7 +357,7 @@ export default async function TherapistPatientHealthProfilePage({
           </h2>
           <p className="text-xs text-slate-500 mb-4">
             {!isOrtho
-              ? "What this specialty's examination chart will hold once it is built."
+              ? "What this condition type's examination chart will hold once it is built."
               : canRecordExam
                 ? "Tap any marked point for that area's detail, or record what you found this session."
                 : "Exam findings on record, and how they compare with what the patient reported."}

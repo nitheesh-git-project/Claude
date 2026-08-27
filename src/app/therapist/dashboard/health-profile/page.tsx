@@ -284,9 +284,9 @@ export default async function TherapistHealthProfilesPage() {
         {onboardingCount > 0 && (
           <p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-800">
             {onboardingCount} patient{onboardingCount > 1 ? "s" : ""} need
-            {onboardingCount > 1 ? "" : "s"} onboarding — a few questions to decide what kind of case
-            it is, then that condition&apos;s own set. Their health profile stays locked to them
-            until it is done.
+            {onboardingCount > 1 ? "" : "s"} onboarding — four questions to set the condition type,
+            then that type&apos;s own seven. Their Health Profile stays locked to them until it is
+            done.
           </p>
         )}
         {newPatientCount > 0 && (

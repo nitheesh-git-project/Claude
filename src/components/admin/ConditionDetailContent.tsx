@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import ConditionRequestActions from "@/components/admin/ConditionRequestActions";
 import ConditionAccessActions from "@/components/admin/ConditionAccessActions";
 import ConditionDirectEditForm from "@/components/admin/ConditionDirectEditForm";
-import PainMapExplorer from "@/components/profile/PainMapExplorer";
+import SpecialtyExamPanel from "@/components/profile/SpecialtyExamPanel";
 import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
 import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
 import SurfaceCard from "@/components/dashboard/SurfaceCard";
@@ -27,7 +27,7 @@ import {
   TRIAGE_QUESTIONS,
   type ConditionSpecialty,
 } from "@/lib/conditionSpecialty";
-import { PAIN_MAP_REGIONS, type QuestionOverrideRow } from "@/lib/painMap";
+import { PAIN_MAP_REGIONS, type PainAssessmentRow, type QuestionOverrideRow } from "@/lib/painMap";
 
 const regionLabel = (region: string) =>
   PAIN_MAP_REGIONS.find((r) => r.key === region)?.label ?? region;
@@ -109,6 +109,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       .eq("patient_id", id),
   ]);
   const specialty = parseConditionSpecialty(specialtyRow?.specialty);
+  const isOrthoProfile = specialty === "ortho";
   const proposedSpecialtyById = new Map(
     (proposedSpecialtyRows ?? []).map((r) => [
       r.id as string,
@@ -146,11 +147,17 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       .select("id, therapist_id, status, requested_at, decided_at")
       .eq("patient_id", id)
       .order("requested_at", { ascending: false }),
-    admin
-      .from("pain_assessments")
-      .select("id, region, side, pain_percent, submitted_by_role, created_at")
-      .eq("patient_id", id)
-      .order("created_at", { ascending: false }),
+    // The Pain Map is an ORTHOPAEDIC instrument. The patient's and the
+    // therapist's screens branch through SpecialtyExamPanel; this one has
+    // to as well, or a stroke patient's admin chart carries a permanently
+    // empty body map. Not fetched at all for the other two, same rule.
+    isOrthoProfile
+      ? admin
+          .from("pain_assessments")
+          .select("id, region, side, pain_percent, submitted_by_role, created_at")
+          .eq("patient_id", id)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as PainAssessmentRow[] }),
     admin.from("intake_question_templates").select("question_key, question_text, required"),
     admin.from("pain_map_question_templates").select("region, question_key, question_text"),
     // Clinician-only session notes. Admins are the second audience for
@@ -219,7 +226,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display font-bold text-lg text-slate-800">Patient Care Intake</h2>
+          <h2 className="font-display font-bold text-lg text-slate-800">Health Profile</h2>
           <div className="flex items-center gap-2">
             {specialtyDef && (
               <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${specialtyDef.chipClass}`}>
@@ -228,8 +235,11 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
               </span>
             )}
             {status === "active" && (
-              <span className="rounded-full bg-slate-100 px-2 py-1 font-mono text-[10px] font-semibold text-slate-400">
-                v{profile?.schema_version ?? 1}
+              <span
+                className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-400"
+                title="Which version of this condition type's question set the patient answered."
+              >
+                Question set v{profile?.schema_version ?? 1}
               </span>
             )}
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
@@ -295,7 +305,8 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
             therapist's re-triage; a dropdown buried in an answers form is
             how it gets changed by accident. */}
         <p className="text-xs font-semibold text-slate-500 mb-2">
-          Current (approved) {specialtyLabel(specialty).toLowerCase()} data — admin can edit directly
+          Live {specialtyLabel(specialty).toLowerCase()} answers — editing here applies straight
+          away, without going through the review queue above
         </p>
         <ConditionDirectEditForm
           questions={questions}
@@ -310,7 +321,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
               Review history ({requestHistory.length})
             </summary>
             <ul className="mt-2 space-y-2">
-              {requestHistory.map((r) => {
+              {requestHistory.map((r, index) => {
                 const proposed = proposedSpecialtyById.get(r.id);
                 // A therapist's onboarding and re-triage write live and
                 // record themselves here as already-approved rows, so this
@@ -318,8 +329,19 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
                 // the single most consequential thing on this screen: two
                 // entries whose answers simply look different are not the
                 // same as one that says the condition type changed.
+                // Against the row BEFORE it in time, not against the
+                // profile's current type. Comparing to current meant the
+                // row that actually moved the patient never said so, while
+                // an older, since-reverted one did -- the one line on this
+                // screen an admin most needs, attached to the wrong entry.
+                // requestHistory is newest-first, so the previous state is
+                // the next index along.
+                const earlier = requestHistory
+                  .slice(index + 1)
+                  .map((older) => proposedSpecialtyById.get(older.id)?.specialty)
+                  .find((sp) => !!sp);
                 const changedSpecialty =
-                  proposed && proposed.specialty !== specialty ? proposed.specialty : null;
+                  proposed && earlier && proposed.specialty !== earlier ? proposed.specialty : null;
                 const triage = proposed?.triage
                   ? TRIAGE_QUESTIONS.map((q) => ({
                       label: q.shortLabel ?? q.label,
@@ -412,26 +434,38 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       </SurfaceCard>
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Pain Map</h2>
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
+          {isOrthoProfile ? "Pain Map" : "Examination"}
+        </h2>
         <p className="text-xs text-slate-500 mb-4">
-          Exam findings, and the same figure switched to compare them against what the patient reported.
+          {isOrthoProfile
+            ? "Exam findings, and the same figure switched to compare them against what the patient reported."
+            : "This condition type has no on-screen examination chart yet."}
         </p>
         {/* Same one surface and the same recording dialog the therapist
             uses -- an admin entering an exam on someone's behalf should be
             filling in the identical form, not a second one that can drift. */}
-        <PainMapExplorer
+        <SpecialtyExamPanel
+          specialty={specialty}
+          voice="clinician"
           assessments={assessments ?? []}
-          areaPain={parseAreaPain(currentData.area_pain)}
-          record={{
-            endpoint: "/api/admin/pain-assessments/submit",
-            patientId: id,
-            overridesByRegion: painMapOverridesByRegion,
-          }}
+          areaPain={isOrthoProfile ? parseAreaPain(currentData.area_pain) : []}
+          record={
+            isOrthoProfile
+              ? {
+                  endpoint: "/api/admin/pain-assessments/submit",
+                  patientId: id,
+                  overridesByRegion: painMapOverridesByRegion,
+                }
+              : undefined
+          }
         />
-        <p className="mt-3 text-xs text-slate-400">
-          Recording here posts live immediately, same as a therapist&apos;s own entry — it adds a new
-          reading rather than editing any past one, since Pain Map history is append-only.
-        </p>
+        {isOrthoProfile && (
+          <p className="mt-3 text-xs text-slate-400">
+            Recording here posts live immediately, same as a therapist&apos;s own entry — it adds a
+            new reading rather than editing any past one, since Pain Map history is append-only.
+          </p>
+        )}
       </section>
     </div>
   );

@@ -714,7 +714,7 @@ still need the viewer carry `needsYou`, which pins them to the top and
 drives the "N things need you" count; there is deliberately no read/unread
 state.
 
-**Patient Care Intake and Pain Map.** Two linked but separate layers of a
+**Health Profile and Pain Map.** Two linked but separate layers of a
 patient's condition data, both surfaced on `/patient/dashboard/health-profile`
 (patient), the therapist's `/therapist/dashboard/health-profile/[patientId]`,
 and the admin's **Patient Conditions** tab.
@@ -782,7 +782,7 @@ every onboarding and re-triage writes an already-`approved`
 `condition_change_requests` row, so it lands in the same Review History as
 everything else.
 
-- *Patient Care Intake* (`patient_condition_profiles`,
+- *The intake half* (`patient_condition_profiles`,
   `condition_change_requests`) is general history/severity answers. The
   orthopaedic set's `area_pain` reuses the same 17 regions and
   `BodyMapDiagram` as the Pain Map below, but is the *patient's own*
@@ -851,7 +851,7 @@ everything else.
   dropdown, and tapping an assessed point in view mode (patient/admin)
   opens a popup with that region's detail.
 
-Both question banks (Patient Care Intake and Pain Map) are managed from
+Both question banks (Health Profile and Pain Map) are managed from
 one place — a **Manage Questions** section at the top of the admin's
 **Patient Conditions** tab (`QuestionBankManager.tsx`), not per-patient —
 since question wording/required-ness is global config, not something tied

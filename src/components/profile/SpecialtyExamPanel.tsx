@@ -81,15 +81,17 @@ function DeferredExamNotice({
       <p className="mt-3 font-display text-base font-bold text-slate-800">
         {clinician
           ? "Record these findings in your session notes for now"
-          : "Examination findings are recorded in your notes for now"}
+          : "Your therapist goes through these with you"}
       </p>
       <p className="mx-auto mt-1.5 max-w-sm text-sm text-slate-600">
         The on-screen examination chart for{" "}
-        {def?.patientLabel.toLowerCase() ?? "this kind of care"} — {measures} — is still being
-        built.{" "}
         {clinician
-          ? "Until it lands, your session note is where these belong; the Pain Map is an orthopaedic instrument and does not fit this case."
-          : "Until it lands, your therapist keeps these findings in their session notes and goes through them with you."}
+          ? (def?.label.toLowerCase() ?? "this condition type")
+          : (def?.patientLabel.toLowerCase() ?? "this kind of care")}{" "}
+        — {measures} — is still being built.{" "}
+        {clinician
+          ? "Until it lands, your session note is where these belong; the Pain Map is an orthopaedic instrument and does not fit this condition type."
+          : "Until it lands there is nothing to show you here — your therapist talks you through what they found at the end of each session instead."}
       </p>
     </div>
   );

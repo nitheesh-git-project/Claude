@@ -12,8 +12,10 @@ import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
+  answerAuthorship,
   intakeTrendSeries,
   painTrendSeries,
+  type AuthorshipRow,
   type IntakeTrendRow,
 } from "@/lib/healthProfileSummary";
 import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
@@ -97,6 +99,17 @@ export default async function PatientHealthProfilePage() {
   const specialty = parseConditionSpecialty(specialtyRow?.specialty);
   const isOrtho = specialty === "ortho";
 
+  // Who left the autosaved draft. `draft_data` is one column shared by both
+  // roles' autosave, so without this a therapist's abandoned half-edit is
+  // announced back to the patient as their own unfinished work. New
+  // column, so its own call.
+  const { data: draftOwnerRow } = await supabase
+    .from("patient_condition_profiles")
+    .select("draft_saved_by_role")
+    .eq("patient_id", user.id)
+    .maybeSingle();
+  const draftIsMine = draftOwnerRow?.draft_saved_by_role === "patient";
+
   const [
     { data: profile },
     { data: patientCodeRow },
@@ -133,18 +146,18 @@ export default async function PatientHealthProfilePage() {
           .select("region, side, pain_percent, created_at, submitted_by_role")
           .eq("patient_id", user.id)
       : Promise.resolve({ data: [] as PainAssessmentRow[] }),
-    // The progress line for the two specialties with no exam layer: every
-    // approved submission is already a dated row here, so the figure each
-    // one treats as its headline can be read back out in order. Nothing
-    // new is collected for it.
-    isOrtho
-      ? Promise.resolve({ data: [] as IntakeTrendRow[] })
-      : supabase
-          .from("condition_change_requests")
-          .select("proposed_data, reviewed_at, created_at, status")
-          .eq("patient_id", user.id)
-          .eq("status", "approved")
-          .order("created_at", { ascending: true }),
+    // Two jobs from one read. It is the progress line for the specialties
+    // with no exam layer -- every approved submission is a dated row, so
+    // their headline figure can be read back out in order -- and it is how
+    // the page knows who wrote each answer, so the counter can say "3
+    // answered with your therapist" rather than implying four were left
+    // blank. Nothing new is collected for either.
+    supabase
+      .from("condition_change_requests")
+      .select("proposed_data, submitted_by_role, reviewed_at, created_at, status")
+      .eq("patient_id", user.id)
+      .eq("status", "approved")
+      .order("created_at", { ascending: true }),
     supabase
       .from("patient_medical_documents")
       .select("id, title, document_type, taken_on, mime_type, size_bytes, created_at")
@@ -225,6 +238,7 @@ export default async function PatientHealthProfilePage() {
   const trendPoints = painTrendSeries(assessments ?? []);
   const intakeTrend =
     isOrtho ? [] : intakeTrendSeries((intakeHistory ?? []) as IntakeTrendRow[], specialty);
+  const authorship = answerAuthorship((intakeHistory ?? []) as AuthorshipRow[]);
   const milestoneCount =
     questions.find((q) => q.key === "peds_milestones")?.options?.length ?? 0;
 
@@ -249,7 +263,11 @@ export default async function PatientHealthProfilePage() {
         "intake_question_templates",
       ]}
       headerTitle="Health Profile"
-      headerSubtitle="What you told us about your condition, and what your therapist found."
+      headerSubtitle={
+        gate.reason === "awaiting_therapist"
+          ? "Your condition and your therapist's findings, once your first session has happened."
+          : "Your condition, and what your therapist found."
+      }
     >
       <div className="mx-auto max-w-5xl space-y-5">
         <div
@@ -314,9 +332,15 @@ export default async function PatientHealthProfilePage() {
           questions={questions}
           data={currentData}
           assessments={assessments ?? []}
+          showProgress={!gate.canEdit}
         />
 
-        <HealthProfileSteps specialty={specialty} />
+        {/* Full while the flow is still ahead of them; one line once they
+            have written to the record themselves. */}
+        <HealthProfileSteps
+          specialty={specialty}
+          collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
+        />
 
         {/* Two columns on a wide screen, one on a phone: what you said on
             the left, what the exam found on the right. The body map is
@@ -329,8 +353,8 @@ export default async function PatientHealthProfilePage() {
                 <h2 className="font-display text-lg font-bold text-slate-800">Your condition</h2>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {gate.canEdit
-                    ? `Recorded as ${specialtyPatientLabel(specialty).toLowerCase()}. Only your therapist and the clinic's admin can read this.`
-                    : "Only your therapist and the clinic's admin can read this."}
+                    ? `Recorded as ${specialtyPatientLabel(specialty).toLowerCase()}. Only your therapist and the clinic can read this.`
+                    : "Only your therapist and the clinic can read this."}
                 </p>
               </div>
               <ConditionIntakePanel
@@ -341,10 +365,12 @@ export default async function PatientHealthProfilePage() {
                 currentData={currentData}
                 formInitialData={formInitialData}
                 canEdit={gate.canEdit}
+                authorship={authorship}
+                draftIsMine={draftIsMine}
                 locked={isPending}
                 emptyStateText={
                   gate.reason === "awaiting_therapist"
-                    ? "Nothing here for you to fill in. Your therapist writes this down with you at your first session, and it opens up to you straight after."
+                    ? "Nothing here for you to fill in yet."
                     : undefined
                 }
                 lockedMessage={
@@ -380,8 +406,8 @@ export default async function PatientHealthProfilePage() {
                   unit={specialty === "neuro" ? "/ 10" : "milestones"}
                   caption={
                     specialty === "neuro"
-                      ? "Each dot is a time your independence was recorded."
-                      : "Each dot is a time the milestone list was updated."
+                      ? "Each dot is a time your independence was recorded — the line going up is the goal."
+                      : "Each dot is a time the milestone list was updated — the line going up is the goal."
                   }
                   emptyText={
                     specialty === "neuro"
@@ -400,8 +426,8 @@ export default async function PatientHealthProfilePage() {
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">
                 {isOrtho
-                  ? "Filled in by your therapist after examining you — tap any marked point for that area's detail. Nothing here for you to fill in."
-                  : "What your therapist found when they examined you. Nothing here for you to fill in."}
+                  ? "Filled in by your therapist after examining you — tap any marked point for that area's detail."
+                  : "What your therapist found when they examined you."}
               </p>
             </div>
             <SpecialtyExamPanel

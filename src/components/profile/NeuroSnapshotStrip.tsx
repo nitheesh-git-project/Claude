@@ -21,7 +21,7 @@ const INDEPENDENCE_TEXT = (value: number) =>
 const INDEPENDENCE_ACCENT = (value: number) =>
   value <= 3 ? "bg-red-500" : value <= 6 ? "bg-amber-500" : "bg-emerald-500";
 
-export default function NeuroSnapshotStrip({ snapshot }: { snapshot: NeuroSnapshot }) {
+export default function NeuroSnapshotStrip({ snapshot, showProgress = true }: { snapshot: NeuroSnapshot; showProgress?: boolean }) {
   const { independence, mobility, symptomCount, falls, answered, totalQuestions, completionPercent } =
     snapshot;
 
@@ -34,7 +34,7 @@ export default function NeuroSnapshotStrip({ snapshot }: { snapshot: NeuroSnapsh
       unit: independence === null ? undefined : "/ 10",
       note:
         independence === null
-          ? "Fills in once this is answered"
+          ? "Your therapist records this with you"
           : `${INDEPENDENCE_WORD(independence)} — day to day`,
       accent: independence === null ? "bg-slate-400" : INDEPENDENCE_ACCENT(independence),
       valueClass: independence === null ? "text-slate-800" : INDEPENDENCE_TEXT(independence),
@@ -49,7 +49,7 @@ export default function NeuroSnapshotStrip({ snapshot }: { snapshot: NeuroSnapsh
       label: "Symptoms present",
       value: String(symptomCount),
       unit: symptomCount === 1 ? "symptom" : "symptoms",
-      note: symptomCount === 0 ? "Nothing ticked yet" : "From the checklist",
+      note: symptomCount === 0 ? "Nothing ticked yet" : "Fewer is better",
       accent: "bg-blue-500",
     },
     {
@@ -65,10 +65,12 @@ export default function NeuroSnapshotStrip({ snapshot }: { snapshot: NeuroSnapsh
     <StatStrip
       cells={cells}
       footer={
-        <StripProgress
-          percent={completionPercent}
-          caption={`${answered} of ${totalQuestions} questions answered`}
-        />
+        showProgress ? (
+          <StripProgress
+            percent={completionPercent}
+            caption={`${answered} of ${totalQuestions} questions answered`}
+          />
+        ) : undefined
       }
     />
   );

@@ -56,10 +56,36 @@ const STEP_THREE_BY_SPECIALTY: Record<ConditionSpecialty, Step> = {
 
 export default function HealthProfileSteps({
   specialty = "ortho",
+  collapsed = false,
 }: {
   specialty?: ConditionSpecialty;
+  /** True once the patient has written to their own record. They have been
+   *  through the flow; three cards explaining it, in the present tense,
+   *  above their live answers is an explainer for something that already
+   *  happened. It collapses to one line they can reopen. */
+  collapsed?: boolean;
 }) {
   const steps: Step[] = [STEP_ONE, STEP_TWO, STEP_THREE_BY_SPECIALTY[specialty]];
+
+  if (collapsed) {
+    return (
+      <details className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm print:hidden">
+        <summary className="cursor-pointer text-xs font-semibold text-slate-500">
+          Who writes what on this page
+        </summary>
+        <ol className="mt-2 space-y-1.5">
+          {steps.map((step, index) => (
+            <li key={step.title} className="text-xs text-slate-500">
+              <span className="font-semibold text-slate-700">
+                {index + 1}. {step.title}
+              </span>{" "}
+              — {step.body}
+            </li>
+          ))}
+        </ol>
+      </details>
+    );
+  }
 
   return (
     <ol className="grid gap-3 sm:grid-cols-3 print:hidden">

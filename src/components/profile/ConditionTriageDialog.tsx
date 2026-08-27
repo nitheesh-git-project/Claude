@@ -34,7 +34,6 @@ export default function ConditionTriageDialog({
   currentSpecialty,
   enabledSpecialties,
   initialTriage,
-  requireChange,
   onCancel,
   onConfirm,
 }: {
@@ -42,10 +41,6 @@ export default function ConditionTriageDialog({
   currentSpecialty: ConditionSpecialty | null;
   enabledSpecialties: ConditionSpecialty[];
   initialTriage?: Record<string, string>;
-  /** True when re-triaging: a different pick is required before Continue
-   *  enables, so a mis-tap cannot write a no-op change over a live
-   *  record. */
-  requireChange?: boolean;
   onCancel: () => void;
   onConfirm: (specialty: ConditionSpecialty, triageData: Record<string, string>) => void;
 }) {
@@ -78,8 +73,6 @@ export default function ConditionTriageDialog({
     (s) => enabledSpecialties.includes(s.key) || s.key === currentSpecialty
   );
 
-  const isNoOp = !!requireChange && effectivePick === currentSpecialty;
-
   function handleContinue() {
     if (!ready) {
       setError("Answer the questions above first.");
@@ -87,10 +80,6 @@ export default function ConditionTriageDialog({
     }
     if (!effectivePick) {
       setError("Pick a condition type.");
-      return;
-    }
-    if (isNoOp) {
-      setError("That is already this patient's condition type. Pick a different one, or cancel.");
       return;
     }
     // Only the questions actually shown are stored: a hidden
@@ -111,7 +100,7 @@ export default function ConditionTriageDialog({
               {currentSpecialty ? "Changing the condition type" : "Patient onboarding"}
             </p>
             <h2 className="font-display text-lg font-bold text-slate-900">
-              What kind of case is this?
+              Which condition type is this?
             </h2>
             <p className="mt-1 text-xs text-slate-500">
               Four questions, then pick one. It decides which set of questions the patient answers
@@ -204,12 +193,15 @@ export default function ConditionTriageDialog({
               })}
             </div>
 
-            {currentSpecialty && (
-              <p className="mt-3 text-xs text-slate-500">
-                Their answers to the {CONDITION_SPECIALTIES.find((s) => s.key === currentSpecialty)?.label.toLowerCase()}{" "}
-                questions stay on file — they just stop being shown.
-              </p>
-            )}
+            {/* Stated on the first pass as well as on a change. The
+                reassurance used to render only once a condition type
+                existed -- silent at the one moment the decision is
+                actually being made. */}
+            <p className="mt-3 text-xs text-slate-500">
+              {currentSpecialty
+                ? `Their answers to the ${CONDITION_SPECIALTIES.find((s) => s.key === currentSpecialty)?.label.toLowerCase()} questions stay on file — they just stop being shown.`
+                : "You can change this later if the case turns out to be something else; nothing answered is ever lost."}
+            </p>
           </div>
         </div>
 
@@ -217,7 +209,9 @@ export default function ConditionTriageDialog({
           {error ? (
             <p className="text-xs font-semibold text-red-600">{error}</p>
           ) : (
-            <span className="text-xs text-slate-400">Nothing is saved until you finish the questions.</span>
+            <span className="text-xs text-slate-400">
+              Your answers save as you go — you can close this and come back.
+            </span>
           )}
           <div className="flex shrink-0 gap-2">
             <button
@@ -230,7 +224,7 @@ export default function ConditionTriageDialog({
             <button
               type="button"
               onClick={handleContinue}
-              disabled={!ready || !effectivePick || isNoOp}
+              disabled={!ready || !effectivePick}
               className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-50"
             >
               Continue to the questions

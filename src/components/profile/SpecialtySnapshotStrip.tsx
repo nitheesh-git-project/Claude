@@ -23,19 +23,24 @@ export default function SpecialtySnapshotStrip({
   questions,
   data,
   assessments,
+  showProgress = true,
 }: {
   specialty: ConditionSpecialty;
   questions: IntakeQuestion[];
   data: Record<string, string>;
   assessments: PainAssessmentRow[];
+  /** False where the panel below already prints the count. Two statements
+   *  of one figure, in different words, on one screen is the redundancy
+   *  this page keeps collecting. */
+  showProgress?: boolean;
 }) {
   switch (specialty) {
     case "ortho":
-      return <OrthoSnapshotStrip snapshot={orthoSnapshot({ questions, data, assessments })} />;
+      return <OrthoSnapshotStrip showProgress={showProgress} snapshot={orthoSnapshot({ questions, data, assessments })} />;
     case "neuro":
-      return <NeuroSnapshotStrip snapshot={neuroSnapshot({ questions, data })} />;
+      return <NeuroSnapshotStrip showProgress={showProgress} snapshot={neuroSnapshot({ questions, data })} />;
     case "pediatrics":
-      return <PediatricsSnapshotStrip snapshot={pediatricsSnapshot({ questions, data })} />;
+      return <PediatricsSnapshotStrip showProgress={showProgress} snapshot={pediatricsSnapshot({ questions, data })} />;
     default: {
       const exhaustive: never = specialty;
       return exhaustive;

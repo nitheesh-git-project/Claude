@@ -165,7 +165,7 @@ export function buildPatientFeed({
           ? "Your therapist updated your health profile"
           : "Health profile sent for review",
         detail: byTherapist
-          ? "The clinic is checking it before it goes onto your chart."
+          ? "The clinic is checking it before it goes on your record."
           : "Your therapist sees the previous answers until the clinic approves this one.",
         href: "/patient/dashboard/health-profile",
       });
@@ -233,7 +233,7 @@ export function buildTherapistFeed({
       tone: "warn",
       title: `Onboarding needed — ${p.name}`,
       detail:
-        "A few questions to decide what kind of case this is, then that condition's own set. Their health profile stays locked to them until it is done.",
+        "Four questions to set the condition type, then that type's own seven. Their Health Profile stays locked to them until it is done.",
       href: `/therapist/dashboard/health-profile/${p.id}`,
       needsYou: true,
     });

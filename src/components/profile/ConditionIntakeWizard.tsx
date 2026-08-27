@@ -103,11 +103,22 @@ export default function ConditionIntakeWizard({
 
   const missingRequiredKeys = findMissingRequiredKeys(questions, values);
   const reviewStep = questions.length + 1;
-  const totalSteps = reviewStep + 1;
   const answeredCount = countAnswered(questions, values);
   // What the person is told they are doing: seven questions, whatever the
   // key count is. A pre-step is asked but not counted.
   const countedTotal = countedQuestions(questions).length;
+
+  // "Question 3 of 7", counting only the questions the person was told
+  // there were. A pre-step (the paediatric caregiver pair) is asked but not
+  // numbered -- numbering it made the header say "of 9" one screen after
+  // the intro promised seven.
+  function questionNumberLabel(atStep: number): string {
+    const q = questions[atStep - 1];
+    if (!q) return "";
+    if (q.excludeFromCount) return "Before we start";
+    const position = countedQuestions(questions.slice(0, atStep)).length;
+    return `Question ${position} of ${countedTotal}`;
+  }
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
@@ -249,7 +260,12 @@ export default function ConditionIntakeWizard({
     });
   }
 
-  const progressPercent = Math.round((step / (totalSteps - 1)) * 100);
+  // Measured on the questions, not on the screens: counting the intro and
+  // the review step made the bar disagree with the "Question N of M"
+  // printed directly beside it.
+  const answeredSoFar = countedQuestions(questions.slice(0, Math.max(step, 0))).length;
+  const progressPercent =
+    countedTotal === 0 ? 0 : Math.round((Math.min(answeredSoFar, countedTotal) / countedTotal) * 100);
 
   return (
     <AnimatePresence>
@@ -284,10 +300,10 @@ export default function ConditionIntakeWizard({
                     ? "Before we start"
                     : step === reviewStep
                       ? "Last look"
-                      : `Question ${step} of ${questions.length}`}
+                      : questionNumberLabel(step)}
                 </p>
                 <h2 id="intake-wizard-title" className="text-lg font-bold text-slate-800">
-                  Your health profile
+                  {clinician ? "Their health profile" : "Your health profile"}
                 </h2>
               </div>
               <button
@@ -318,27 +334,36 @@ export default function ConditionIntakeWizard({
                 <p>
                   {clinician
                     ? "Ask them in the patient's own words and record what they say. This goes straight onto their chart and is what opens their health profile to them."
-                    : "This is your own account of your condition, in your words. Your therapist and the clinic's admin read it; nobody else does. It takes about two minutes."}
+                    : "This is your own account of your condition, in your words. Only your therapist and the clinic read it. It takes about two minutes."}
                 </p>
                 <ul className="space-y-2">
                   <li className="flex gap-2">
                     <span aria-hidden className="text-teal-600">
                       •
                     </span>
-                    <span>One question at a time — answer in your own words, no medical terms needed.</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span aria-hidden className="text-teal-600">
-                      •
+                    <span>
+                      {clinician
+                        ? "One question at a time — record their answer in their own words."
+                        : "One question at a time — answer in your own words, no medical terms needed."}
                     </span>
-                    <span>Stop any time. Everything you type is saved, and you can pick up where you left off.</span>
                   </li>
                   <li className="flex gap-2">
                     <span aria-hidden className="text-teal-600">
                       •
                     </span>
                     <span>
-                      Only your therapist and the clinic&apos;s admin can see your answers. You can edit them later.
+                      Stop any time. Everything you type is saved, and you can pick up where you left
+                      off.
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span aria-hidden className="text-teal-600">
+                      •
+                    </span>
+                    <span>
+                      {clinician
+                        ? "This opens their health profile to them, and they can add to it afterwards."
+                        : "You can change any of these later."}
                     </span>
                   </li>
                 </ul>
@@ -354,7 +379,11 @@ export default function ConditionIntakeWizard({
                   {question.label}
                 </label>
                 <p className="mt-1 text-xs font-semibold text-slate-400">
-                  {question.required ? "Needed" : "Optional — skip it if you're not sure"}
+                  {question.required
+                    ? "Needed"
+                    : clinician
+                      ? "Optional — leave it if they're not sure"
+                      : "Optional — skip it if you're not sure"}
                 </p>
                 {question.helpText && (
                   <p className="mt-3 rounded-xl bg-teal-50/70 px-3.5 py-3 text-sm leading-relaxed text-teal-900">
@@ -500,7 +529,7 @@ export default function ConditionIntakeWizard({
                 <p className="text-sm text-slate-600">
                   {clinician
                     ? "Check this over with the patient before you send it. It goes onto their chart straight away — no waiting on a review — and opens their health profile to them."
-                    : "Here's what you told us. Change anything that doesn't look right, then send it in — an admin checks it before it reaches your chart."}
+                    : "Here's what you told us. Change anything that doesn't look right, then send it in — the clinic checks it before it goes on your record."}
                 </p>
                 {missingRequiredKeys.length > 0 && (
                   <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-800">

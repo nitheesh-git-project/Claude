@@ -27,7 +27,7 @@ const BAND_TEXT: Record<string, string> = {
  * of it as one condition, and keeping the units and the labels distinct is
  * what stops them being read as the same measurement.
  */
-export default function OrthoSnapshotStrip({ snapshot }: { snapshot: OrthoSnapshot }) {
+export default function OrthoSnapshotStrip({ snapshot, showProgress = true }: { snapshot: OrthoSnapshot; showProgress?: boolean }) {
   const {
     selfSeverity,
     selfAreas,
@@ -43,24 +43,24 @@ export default function OrthoSnapshotStrip({ snapshot }: { snapshot: OrthoSnapsh
 
   const cells: StatCell[] = [
     {
-      label: "How you rate it",
+      label: "You said",
       value: selfSeverity === null ? "—" : String(selfSeverity),
       unit: selfSeverity === null ? undefined : "/ 10",
       note:
         selfSeverity === null
-          ? "You haven't answered this yet"
-          : `${SELF_SEVERITY_WORD(selfSeverity)} — in your words`,
+          ? "Not answered yet"
+          : `${SELF_SEVERITY_WORD(selfSeverity)} — your own words. Lower is better`,
       accent: "bg-teal-500",
     },
     {
       label: "Areas you marked",
       value: String(selfAreas),
       unit: selfAreas === 1 ? "area" : "areas",
-      note: selfAreas === 0 ? "Nothing marked on the body map yet" : "Where you said it hurts",
+      note: selfAreas === 0 ? "Nothing marked on the body map yet" : "Where it hurts",
       accent: "bg-blue-500",
     },
     {
-      label: "Last exam found",
+      label: "Your therapist measured",
       value: clinicalPercent === null ? "—" : formatPainOutOfTen(clinicalPercent),
       note:
         clinicalPercent === null
@@ -88,10 +88,12 @@ export default function OrthoSnapshotStrip({ snapshot }: { snapshot: OrthoSnapsh
     <StatStrip
       cells={cells}
       footer={
-        <StripProgress
-          percent={completionPercent}
-          caption={`${answered} of ${totalQuestions} questions answered`}
-        />
+        showProgress ? (
+          <StripProgress
+            percent={completionPercent}
+            caption={`${answered} of ${totalQuestions} questions answered`}
+          />
+        ) : undefined
       }
     />
   );

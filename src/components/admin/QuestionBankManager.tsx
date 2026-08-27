@@ -51,7 +51,7 @@ export default async function QuestionBankManager() {
       <IntakeSpecialtyToggles enabled={enabledSpecialties} />
 
       <div>
-        <h3 className="text-sm font-bold text-slate-700 mb-1">Patient Care Intake questions</h3>
+        <h3 className="text-sm font-bold text-slate-700 mb-1">Health Profile questions</h3>
         <p className="mb-3 text-xs text-slate-500">
           Each condition type has its own set. Wording and which answers are required are yours to
           change; which questions exist is not.

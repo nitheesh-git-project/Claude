@@ -89,7 +89,6 @@ export default function PatientOnboardingCard({
           currentSpecialty={currentSpecialty}
           enabledSpecialties={enabledSpecialties}
           initialTriage={triageData}
-          requireChange={isRetriage}
           onCancel={close}
           onConfirm={(specialty, answers) => {
             setChosen(specialty);
@@ -131,10 +130,11 @@ function FirstFillPrompt({
             {patientName.split(" ")[0]} needs onboarding
           </p>
           <p className="mt-1 max-w-md text-sm text-slate-600">
-            Four questions to decide whether this is an orthopaedic, neurological or paediatric
-            case, then that condition&apos;s own short set. Go through it with them in the first
-            session — it goes straight onto their chart and is what opens their health profile to
-            them.
+            Four questions to decide the condition type — orthopaedic, neurological or paediatric
+            — then that type&apos;s own short set of seven. Go through it with them in the first
+            session: it goes on their record straight away, and it is what opens their Health
+            Profile to them. You can change the condition type later if the case turns out to be
+            something else.
           </p>
         </div>
       </div>

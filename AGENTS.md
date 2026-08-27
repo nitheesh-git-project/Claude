@@ -503,6 +503,46 @@ client is the only writer and the log is append-only from any session.
   specialty from **triage only**: an existing profile carrying it must
   keep rendering, and a therapist re-triaging such a patient is still
   offered it. Ortho can never be switched off.
+- **One word for the record, one for the condition type, one for the
+  reviewer.** The clinical counterpart of the money-word rules below, added
+  after an audit found **ten** user-facing names for the health profile and
+  **eight** for the condition type — four of the ten on one screen. The
+  words multiply whenever someone extends a surface rather than naming a
+  concept, and every extra one is a patient wondering whether "your chart"
+  and "your health profile" are two different things.
+  - The record is **Health Profile**, to all three roles. Not "Patient Care
+    Intake" (a code and docs term now), not "condition data", not "the
+    questionnaire". "chart" is clinician register: fine on a therapist or
+    admin screen, never on a patient's.
+  - The kind of patient is a **condition type** to clinicians and admins.
+    Never "specialty" (that is the column name), never "case". A patient is
+    never shown a category word at all — name the care instead
+    ("Children's physiotherapy"), and keep "triage" and "onboarding" off
+    their screens entirely.
+  - Whoever approves a change is **the clinic** to a patient, and **admin**
+    on admin screens. Not both, and not "us".
+  Before adding a noun to any of these screens, check it is not a fifth name
+  for something already named.
+
+- **Copy that two roles read needs a `voice`, not a compromise.**
+  `ConditionIntakeWizard` and `ConditionIntakePanel` are filled by the
+  patient *and* by a therapist on their behalf, and the same sentence cannot
+  be true for both — a clinician was being told "this is your own account of
+  your condition, in your words". Both take `voice: "patient" | "clinician"`
+  and branch every sentence that addresses someone. A new string on a
+  shared surface either reads correctly for both or gets a branch; there is
+  no third option, and "mostly fine" is how the leak happened.
+
+- **Never tell someone they did something they did not do.** Three separate
+  bugs came out of one habit: `draft_data` is shared by both roles' autosave,
+  so a therapist's abandoned edit told the patient *"You left off part-way
+  through"* (fixed with `draft_saved_by_role`); the counter said "3 of 7
+  answered" over "Add the missing answers" for questions a clinician wrote
+  and never asked (fixed with `answerAuthorship()`, derived from the
+  approved-submission rows already on file rather than a new column); and
+  the banner said "Your therapist has your answers" about a record the
+  patient never sent. Attribution is not a nicety on a medical record.
+
 - **One pain scale on screen, whatever the column says.** Assessments are
   stored 0–100 and a patient rates their own pain 0–10; both used to be
   printed raw, so "How you rate it 6/10" sat beside "Last exam found 34%"

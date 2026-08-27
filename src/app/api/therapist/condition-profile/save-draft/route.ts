@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
     {
       patient_id: patientId,
       draft_data: answers,
+      draft_saved_by_role: "therapist",
       draft_specialty: draftSpecialty,
       ...(triageData ? { draft_triage_data: triageData } : {}),
       status: !existing.exists || existing.status === "not_started" ? "draft" : existing.status,

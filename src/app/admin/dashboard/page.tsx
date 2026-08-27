@@ -1256,7 +1256,7 @@ export default async function AdminDashboardPage({
         )}
       </h2>
       <p className="text-xs text-slate-500 mb-4">
-        Patient Care Intake and Pain Map data for every patient. Open a patient to review
+        Health Profile answers and Pain Map data for every patient. Open a patient to review
         submissions, therapist access requests, and pain assessments.
       </p>
 
@@ -1991,7 +1991,7 @@ export default async function AdminDashboardPage({
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Clinical Questions</h2>
       <p className="text-xs text-slate-500 mb-4">
-        The Patient Care Intake question set and the Pain Map templates. Editing these changes
+        The Health Profile question sets and the Pain Map templates. Editing these changes
         what patients and therapists are asked from here on; answers already submitted are
         untouched.
       </p>

@@ -4291,3 +4291,26 @@ create policy "condition_change_requests_insert_gated" on condition_change_reque
       )
     )
   );
+
+-- Whose autosaved draft is sitting in draft_data.
+--
+-- `draft_data` is one column shared by both roles' autosave: the patient
+-- filling their own record, and a therapist editing it on their behalf.
+-- Nothing recorded which of them wrote it, so the patient's dashboard
+-- showed a therapist's abandoned half-edit back to the patient as "You
+-- left off part-way through. Everything you typed was saved." -- an
+-- accusation about work they never did.
+--
+-- last_submitted_role cannot answer this: it describes the last
+-- *submission*, not the draft, and a draft exists precisely when there has
+-- been no submission. Null on rows written before this column, which read
+-- as "unknown" and are treated as not-the-patient's.
+alter table patient_condition_profiles add column if not exists draft_saved_by_role text;
+do $$
+begin
+  alter table patient_condition_profiles
+    add constraint patient_condition_profiles_draft_saved_by_role_check
+    check (draft_saved_by_role is null or draft_saved_by_role in ('patient', 'therapist', 'admin'));
+exception
+  when duplicate_object then null;
+end $$;

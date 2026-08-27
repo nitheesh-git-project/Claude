@@ -10,6 +10,7 @@ import {
 import {
   countAnswered,
   countedQuestions,
+  isAnswered,
   parseAreaPain,
   parseMultiSelect,
   type IntakeQuestion,
@@ -286,4 +287,73 @@ export function intakeTrendSeries(
   return Array.from(byDate.entries())
     .map(([date, value]) => ({ date, value }))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// --- Who answered what ----------------------------------------------------
+//
+// The patient's record is now written by two people: their therapist fills
+// it in at the first session, and the patient corrects and adds to it
+// afterwards. A screen that shows "3 of 7 answered" over a primary button
+// reading "Add the missing answers" -- with nothing saying a clinician
+// wrote those three, and some of the rest optional -- reads as a to-do list
+// the patient is behind on.
+//
+// No new column is needed to fix that. Every approved submission is already
+// a dated condition_change_requests row carrying `proposed_data` and
+// `submitted_by_role`, so walking them newest-first and taking the first
+// row that set a given key gives that answer's author exactly. A
+// profile-level `last_submitted_role` cannot: it describes the last write
+// to the whole record, so one patient edit would re-attribute every answer
+// the therapist made.
+export type AnswerAuthor = "patient" | "therapist" | "admin";
+
+export type AuthorshipRow = {
+  proposed_data: Record<string, string> | null;
+  submitted_by_role: string | null;
+  status: string;
+  reviewed_at: string | null;
+  created_at: string;
+};
+
+export function answerAuthorship(rows: AuthorshipRow[]): Map<string, AnswerAuthor> {
+  const byKey = new Map<string, AnswerAuthor>();
+  const newestFirst = [...rows]
+    .filter((r) => r.status === "approved" && r.proposed_data)
+    .sort((a, b) =>
+      (b.reviewed_at ?? b.created_at).localeCompare(a.reviewed_at ?? a.created_at)
+    );
+
+  for (const row of newestFirst) {
+    const role = row.submitted_by_role;
+    if (role !== "patient" && role !== "therapist" && role !== "admin") continue;
+    for (const [key, value] of Object.entries(row.proposed_data ?? {})) {
+      // Only a non-empty answer claims authorship -- a submission that left
+      // a question blank did not answer it, and must not take credit for
+      // whoever filled it in earlier.
+      if (byKey.has(key) || typeof value !== "string" || !value.trim()) continue;
+      byKey.set(key, role);
+    }
+  }
+  return byKey;
+}
+
+/** How the answered questions split between the patient and their
+ *  clinicians, for the "3 answered with your therapist" line. */
+export function authorshipSplit(
+  questions: IntakeQuestion[],
+  data: Record<string, string>,
+  authorship: Map<string, AnswerAuthor>
+): { byPatient: number; byClinician: number; unanswered: number } {
+  let byPatient = 0;
+  let byClinician = 0;
+  let unanswered = 0;
+  for (const q of countedQuestions(questions)) {
+    if (!isAnswered(q, data)) {
+      unanswered++;
+      continue;
+    }
+    if (authorship.get(q.key) === "patient") byPatient++;
+    else byClinician++;
+  }
+  return { byPatient, byClinician, unanswered };
 }

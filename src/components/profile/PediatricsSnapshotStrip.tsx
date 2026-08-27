@@ -11,8 +11,10 @@ import type { PediatricsSnapshot } from "@/lib/healthProfileSummary";
 
 export default function PediatricsSnapshotStrip({
   snapshot,
+  showProgress = true,
 }: {
   snapshot: PediatricsSnapshot;
+  showProgress?: boolean;
 }) {
   const {
     milestonesReached,
@@ -33,13 +35,13 @@ export default function PediatricsSnapshotStrip({
       note:
         milestonesReached === 0
           ? "Fills in once these are ticked"
-          : "What your child can do on their own",
+          : "What your child can do on their own — more is better",
       accent: "bg-emerald-500",
     },
     {
       label: "Born",
       value: birthHistory ?? "—",
-      note: birthHistory ? "As recorded at onboarding" : "Not answered yet",
+      note: birthHistory ? "From your first session" : "Not answered yet",
       accent: "bg-amber-500",
     },
     {
@@ -63,10 +65,12 @@ export default function PediatricsSnapshotStrip({
     <StatStrip
       cells={cells}
       footer={
-        <StripProgress
-          percent={completionPercent}
-          caption={`${answered} of ${totalQuestions} questions answered`}
-        />
+        showProgress ? (
+          <StripProgress
+            percent={completionPercent}
+            caption={`${answered} of ${totalQuestions} questions answered`}
+          />
+        ) : undefined
       }
     />
   );

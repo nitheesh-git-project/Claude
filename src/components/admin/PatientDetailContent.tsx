@@ -317,7 +317,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         <span>
           <span className="block text-sm font-bold text-slate-800">Care Record</span>
           <span className="block text-xs text-slate-500">
-            Patient Care Intake, therapist access requests, and the Pain Map history.
+            Health Profile answers, therapist access requests, and the Pain Map history.
           </span>
         </span>
         <i className="fa-solid fa-chevron-right text-xs text-slate-300"></i>

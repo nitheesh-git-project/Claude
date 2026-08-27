@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         error:
           gate.reason === "awaiting_therapist"
             ? "Your therapist fills this in with you at your first session."
-            : "A submission for your health profile is already awaiting admin review.",
+            : "Your last change to your health profile is still being checked by the clinic.",
       },
       { status: gate.reason === "awaiting_therapist" ? 403 : 409 }
     );
@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
     {
       patient_id: user.id,
       draft_data: answers,
+      draft_saved_by_role: "patient",
       status: !existing.exists || existing.status === "not_started" ? "draft" : existing.status,
     },
     { onConflict: "patient_id" }
