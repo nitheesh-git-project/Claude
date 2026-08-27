@@ -29,6 +29,8 @@ export type ConditionProfileCore = {
   data: Record<string, string>;
   draftData: Record<string, string> | null;
   status: string;
+  /** The version token for the compare-and-set in /onboard. */
+  updatedAt: string | null;
 };
 
 /** Reads the profile plus its specialty. `specialty` and `triage_data` are
@@ -43,7 +45,7 @@ export async function loadConditionProfileCore(
   const [{ data: base }, { data: specialtyRow }] = await Promise.all([
     admin
       .from("patient_condition_profiles")
-      .select("data, draft_data, status")
+      .select("data, draft_data, status, updated_at")
       .eq("patient_id", patientId)
       .maybeSingle(),
     admin
@@ -66,6 +68,7 @@ export async function loadConditionProfileCore(
     data,
     draftData: (base?.draft_data as Record<string, string> | null) ?? null,
     status: (base?.status as string | null) ?? "not_started",
+    updatedAt: (base?.updated_at as string | null) ?? null,
   };
 }
 

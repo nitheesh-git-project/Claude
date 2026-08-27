@@ -160,30 +160,83 @@ export async function POST(request: NextRequest) {
     specialtyKeys
   );
 
-  const { error: upsertError } = await admin.from("patient_condition_profiles").upsert(
-    {
-      patient_id: patientId,
-      specialty,
-      data: mergedData,
-      triage_data: triageData,
-      schema_version: intakeVersionForSpecialty(specialty),
-      status: "active",
-      last_submitted_by: user.id,
-      last_submitted_role: "therapist",
-      updated_at: new Date().toISOString(),
-      draft_data: null,
-      draft_specialty: null,
-      draft_triage_data: null,
-    },
-    { onConflict: "patient_id" }
-  );
-  if (upsertError) {
-    return NextResponse.json({ error: upsertError.message }, { status: 500 });
+  const nowIso = new Date().toISOString();
+  const write = {
+    specialty,
+    data: mergedData,
+    triage_data: triageData,
+    schema_version: intakeVersionForSpecialty(specialty),
+    status: "active",
+    last_submitted_by: user.id,
+    last_submitted_role: "therapist",
+    updated_at: nowIso,
+    draft_data: null,
+    draft_specialty: null,
+    draft_triage_data: null,
+  };
+
+  // Compare-and-set, not a bare upsert. Ten taps on Save used to run ten
+  // upserts -- harmless to the profile, since they all write the same
+  // thing -- and then ten audit rows, so the admin's Review History showed
+  // the onboarding ten times. The history is the only record that a live
+  // write happened, so duplicating it is worse than cosmetic.
+  //
+  // Only the caller whose write actually lands claims the row, and only
+  // the claimant writes the audit entry. Same shape as the therapist_id
+  // claim in /api/admin/assign-appointment.
+  let claimed = false;
+  if (existing.exists) {
+    const { data: won, error: updateError } = await admin
+      .from("patient_condition_profiles")
+      .update(write)
+      .eq("patient_id", patientId)
+      // The version token: whoever read this row's updated_at and got here
+      // first is the only one who can still match it.
+      .eq("updated_at", existing.updatedAt ?? "")
+      .select("patient_id")
+      .maybeSingle();
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+    claimed = !!won;
+  } else {
+    const { data: won, error: insertError } = await admin
+      .from("patient_condition_profiles")
+      .insert({ patient_id: patientId, ...write })
+      .select("patient_id")
+      .maybeSingle();
+    // 23505 = another caller inserted the first row a moment ago. That is
+    // a lost race, not a server error.
+    if (insertError && insertError.code !== "23505") {
+      return NextResponse.json({ error: insertError.message }, { status: 500 });
+    }
+    claimed = !!won;
+  }
+
+  if (!claimed) {
+    // Somebody else wrote this record between our read and our write. If
+    // what landed is what this caller was asking for -- the ordinary
+    // double-tap -- their intent is satisfied and there is nothing to
+    // report. If it differs, they picked a condition type that did not
+    // win, and must be told rather than left thinking theirs applied.
+    const now = await loadConditionProfileCore(admin, patientId);
+    if (now.specialty === specialty) {
+      return NextResponse.json({ success: true, specialty });
+    }
+    return NextResponse.json(
+      {
+        error:
+          "Someone else updated this patient's health profile a moment ago. Reload to see where it landed before changing it again.",
+      },
+      { status: 409 }
+    );
   }
 
   // Best-effort audit row, deliberately after the write it describes and
   // deliberately not fatal: the clinical record landing matters more than
-  // its history entry, same posture as recordAdminActivity().
+  // its history entry, same posture as recordAdminActivity(). Reached only
+  // by the caller that claimed the row above, so it is written once per
+  // change rather than once per tap.
   await admin.from("condition_change_requests").insert({
     patient_id: patientId,
     submitted_by: user.id,
@@ -193,7 +246,7 @@ export async function POST(request: NextRequest) {
     proposed_triage_data: triageData,
     status: "approved",
     reviewed_by: user.id,
-    reviewed_at: new Date().toISOString(),
+    reviewed_at: nowIso,
     admin_notes:
       existing.specialtyChosen && specialty !== existing.specialty
         ? "Condition type changed by the therapist at re-triage."

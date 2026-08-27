@@ -133,6 +133,12 @@ export default function ConditionIntakeWizard({
   // race, so whichever one is in flight is always superseded by the very
   // next save rather than clobbered by it.
   const savingRef = useRef(false);
+  // Guards the SUBMIT, not the autosave. `isPending` from useTransition
+  // drives the button's `disabled`, and a disabled attribute lands a
+  // render too late -- three clicks inside one frame all got through and
+  // all three reached the server. Same synchronous-ref pattern as
+  // PatientSuggestionCard and SuggestSessionControl.
+  const submittingRef = useRef(false);
   const queuedValuesRef = useRef<Record<string, string> | null>(null);
   // Held in a ref rather than in fireAutosave's dependency array: callers
   // pass a fresh object literal each render, so depending on it would
@@ -243,19 +249,34 @@ export default function ConditionIntakeWizard({
       setStepError("This one's needed before we can go on.");
       return;
     }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     startTransition(async () => {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...extraPayload, ...(patientId ? { patientId } : {}), data: values }),
-      });
-      if (res.ok) {
-        onSubmitted?.();
-        router.refresh();
-        onClose();
-      } else {
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...extraPayload, ...(patientId ? { patientId } : {}), data: values }),
+        });
+        if (res.ok) {
+          onSubmitted?.();
+          router.refresh();
+          onClose();
+          return;
+        }
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? "Could not submit. Please try again.");
+      } catch {
+        // A rejected fetch -- offline, DNS, a dead tunnel. This used to
+        // fall out of the transition unhandled, so the button returned to
+        // its resting label and said nothing: a clinician was left
+        // believing a clinical record had saved when it had not. Never
+        // clear the answers here; the person keeps exactly what they typed.
+        setError("Could not reach the clinic — check your connection and try again. Nothing you typed has been lost.");
+      } finally {
+        // Released on failure so they can retry. On success the dialog has
+        // already closed and unmounted.
+        submittingRef.current = false;
       }
     });
   }
