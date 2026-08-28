@@ -1,0 +1,2978 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dr. Pooja's Physio — End-to-End Test Plan &amp; Feature Guide</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm 16mm 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 10.2pt; line-height: 1.45; color: #10202b; margin: 0; }
+  h1 { font-size: 24pt; margin: 0 0 6px; color: #0f766e; }
+  h2 { font-size: 16pt; margin: 26px 0 8px; color: #0f766e; border-bottom: 2px solid #0f766e; padding-bottom: 4px; page-break-after: avoid; }
+  h3 { font-size: 12.5pt; margin: 18px 0 6px; color: #134e4a; page-break-after: avoid; }
+  h4 { font-size: 11pt; margin: 14px 0 4px; page-break-after: avoid; }
+  p, li { margin: 4px 0; }
+  ul, ol { margin: 4px 0 8px 18px; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 12px; font-size: 9.2pt; page-break-inside: avoid; }
+  th, td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #ecfdf5; font-weight: 700; }
+  code { font-family: "Courier New", monospace; font-size: 9pt; background: #f1f5f9; padding: 0 3px; border-radius: 3px; }
+  .tc { border: 1px solid #cbd5e1; border-left: 4px solid #0f766e; border-radius: 4px; padding: 8px 10px; margin: 10px 0; page-break-inside: avoid; }
+  .tc h4 { margin: 0 0 4px; color: #0f172a; }
+  .meta { font-size: 8.8pt; color: #475569; margin: 0 0 6px; }
+  .exp { background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 4px; padding: 6px 8px; margin-top: 6px; }
+  .exp b { color: #0f766e; }
+  .note { background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px; padding: 8px 10px; margin: 10px 0; }
+  .warn { background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 8px 10px; margin: 10px 0; }
+  .cover { text-align: center; padding-top: 60mm; page-break-after: always; }
+  .cover h1 { font-size: 30pt; }
+  .cover p { color: #475569; }
+  .toc ol { margin-left: 16px; }
+  .pb { page-break-before: always; }
+  .small { font-size: 9pt; color: #475569; }
+  .tag { display: inline-block; background: #0f766e; color: #fff; border-radius: 3px; padding: 0 5px; font-size: 8.5pt; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>Dr. Pooja's Physio</h1>
+  <h2 style="border:none; color:#134e4a;">End-to-End Test Plan &amp; Feature Guide</h2>
+  <p>Manual, click-by-click test plan for the whole application</p>
+  <p>Personas covered: Patient · Therapist · Admin (Operations) · Finance · Hospital Partner</p>
+  <p class="small">Version 1.0 · Prepared for a tester with no prior knowledge of this application</p>
+</div>
+
+
+<h2>Contents</h2>
+<div class="toc">
+<ol>
+  <li><b>Part 0 — Read this first:</b> what the app is · vocabulary · prerequisites · the debug bar · <b>STEP 1: reset all data</b> · test card data · master test data · factory defaults · how to report a bug · execution order</li>
+  <li><b>Part 1 — Admin: set the clinic up.</b> Login · Brand &amp; Contact · Public Site (splash, walkthrough, testimonials, FAQs) · Booking Rules (lead time, refunds, join window, completed cutoff, timeouts, languages, packages, home visits) · Conditions · Packages · Service Areas · Team &amp; Access (scopes) · Clinical Questions · Costs · Activity Log</li>
+  <li><b>Part 2 — As a patient.</b> Public site · registration &amp; approval · booking wizard (single session) · session packages · home visits · dashboard &amp; tour · sessions and joining · cancellations &amp; refunds · health profile, reports and PDF export · payments · profile &amp; addresses · therapist suggestions · ratings</li>
+  <li><b>Part 3 — As a therapist.</b> Application &amp; approval · availability &amp; leave · delivering sessions, notes and no-shows · triage and the health profile (all three condition types) · Pain Map · access requests · programmes &amp; suggestions · earnings &amp; payout requests · profile</li>
+  <li><b>Part 4 — As an admin (operations).</b> Today &amp; approvals · schedule, all sessions, assignment, reassignment, admin-made bookings, cancel/reopen · roster · delivery metrics · people &amp; partners · catalog upkeep · sync health, activity log, exports, realtime</li>
+  <li><b>Part 5 — As finance.</b> Scope enforcement · Money Summary and its two identities · transactions · payouts and cash netting · costs and operating profit · refunds (full, partial, pro-rata, cash) · breakdown · glossary</li>
+  <li><b>Part 6 — As a hospital partner.</b> Provisioned login · referrals (online and home visit) · assignment · withdrawal · referral code &amp; invite link · partner earnings · profile</li>
+  <li><b>Part 7 — Cross-cutting.</b> Access-control matrix · error/loading/404 · splash, sign-out banner, idle timeout · lists and exports · responsive &amp; accessibility</li>
+  <li><b>Appendices.</b> A: simulated clock cookbook · B: what the clock cannot do · C: coverage checklist · D: bug report template</li>
+</ol>
+</div>
+
+<h2 class="pb">0. Read this first</h2>
+
+<h3>0.1 What this application is</h3>
+<p>Dr. Pooja's Physio is a physiotherapy practice run mostly online. The website sells and delivers physiotherapy in two ways:</p>
+<ul>
+  <li><b>Video consultation (online)</b> — the patient books a slot, pays, and joins a Google Meet video call at the appointed time.</li>
+  <li><b>Home visit</b> — a physiotherapist travels to the patient's home. The patient's pincode must be inside an admin-configured service area, and a travel fee is added on top of the price.</li>
+</ul>
+<p>Around that sit five things you will test:</p>
+<ol>
+  <li>A <b>public marketing website</b> of eight pages that explains the practice and funnels visitors into booking.</li>
+  <li>A <b>patient portal</b>: book, pay, see sessions, buy multi-session packages, keep a health profile, upload scan reports, cancel and get refunds.</li>
+  <li>A <b>therapist portal</b>: set weekly availability, run sessions, write clinical records (triage, health profile, pain map, session notes), see earnings and request payouts.</li>
+  <li>An <b>admin back office</b> with six sections (Today, Sessions, People, Money, Catalog, Settings) that runs everything — approvals, assignment, catalog, pricing, refunds, payouts and every product setting.</li>
+  <li>A <b>hospital (partner) portal</b>: refer patients to the clinic and earn a share of the revenue those patients generate.</li>
+</ol>
+
+<h3>0.2 Vocabulary you need before you start</h3>
+<table>
+  <tr><th>Term</th><th>What it means here</th></tr>
+  <tr><td>Session / appointment</td><td>One booked treatment, either a video call or a home visit.</td></tr>
+  <tr><td>Programme / package</td><td>A bundle of sessions sold at one price (e.g. 6 sessions for ₹9,999) with a validity period.</td></tr>
+  <tr><td>Treatment category (also "condition")</td><td>What the patient needs help with — e.g. "Back &amp; Spine Care". Carries its own price and duration.</td></tr>
+  <tr><td>Lead time</td><td>Minimum notice for a booking. Default 12 hours online, 24 hours for a home visit. Admin-editable.</td></tr>
+  <tr><td>Refund window</td><td>Cancel earlier than this many hours before the slot = full refund; inside it = no refund. Default 24 hours.</td></tr>
+  <tr><td>Approved / Active</td><td>Two flags on every account. A new patient or therapist is <i>not approved</i> until an admin approves them. "Not active" = suspended.</td></tr>
+  <tr><td>Admin scope</td><td>An admin is Full, Operations, Finance or Clinical. The scope decides which of the six sections they can open.</td></tr>
+  <tr><td>Therapist lock</td><td>Once a therapist takes the first session of a programme, the rest of that programme is automatically theirs.</td></tr>
+  <tr><td>Travel fee</td><td>Home-visit-only charge, paid to the therapist in full, never counted as clinic revenue.</td></tr>
+  <tr><td>Health Profile</td><td>The patient's clinical record. A therapist writes the first version; after that the patient can edit it, with admin review.</td></tr>
+  <tr><td>Pain Map</td><td>A body diagram where the therapist records a clinical examination per body region. Orthopaedic patients only.</td></tr>
+  <tr><td>Paise</td><td>Money is stored as integers in paise. ₹1,999 = 199900 paise. Only relevant if you inspect the database.</td></tr>
+</table>
+
+<h3>0.3 What you need before testing</h3>
+<table>
+  <tr><th>Item</th><th>Detail</th></tr>
+  <tr><td>Application URL</td><td>The staging/test URL you were given (referred to below as <code>[SITE]</code>). Locally this is <code>http://localhost:3000</code>.</td></tr>
+  <tr><td>Browser</td><td>Google Chrome, latest. Use one normal window for the patient and a second <b>incognito</b> window for the admin, so two roles can be signed in at once. A third browser (Firefox/Edge) is handy for the therapist.</td></tr>
+  <tr><td>Admin login</td><td>The existing admin email and password supplied by the project owner. This account survives the data reset in section 0.5.</td></tr>
+  <tr><td>Razorpay mode</td><td>The site must run on Razorpay <b>test keys</b> (<code>rzp_test_…</code>). Never test payments against live keys.</td></tr>
+  <tr><td>Database</td><td>A throwaway/test Supabase project. Step 1 of this plan empties it.</td></tr>
+  <tr><td>Server flag</td><td><code>ALLOW_DEBUG_DATA_RESET=true</code> must be set on the server, or the "Reset data" button in step 1 will report that reset is switched off.</td></tr>
+  <tr><td>Screen recorder</td><td>Optional but recommended. A 10-second clip attached to a bug report saves an hour of back-and-forth.</td></tr>
+</table>
+
+<h3>0.4 The debug bar (your main tool)</h3>
+<p>Every page of this application currently shows a black <b>Debug</b> bar pinned to the very top of the screen. It exists only before launch and carries three controls:</p>
+<table>
+  <tr><th>Control</th><th>What it does</th><th>How to use it</th></tr>
+  <tr><td><b>Jump to page</b> (dropdown)</td><td>Navigates straight to any route, including protected dashboards.</td><td>Click the dropdown, pick e.g. "14b. Admin Dashboard (protected)".</td></tr>
+  <tr><td><b>Simulate now</b> (date/time field + <b>Set</b>)</td><td>Moves the browser's idea of "now" forward or backward, so time-gated features can be tested without waiting.</td><td>Click the field, type/pick a date &amp; time, click <b>Set</b>. The page reloads and runs on the simulated clock. Click <b>Reset to Real Time</b> to undo.</td></tr>
+  <tr><td><b>Reset data</b></td><td>Empties every table and deletes every non-admin account.</td><td>See step 1 below.</td></tr>
+</table>
+<div class="warn">
+<p><b>Important limitation of the simulated clock — read this or you will file false bugs.</b> The simulated clock is a <i>browser-side</i> override only. It changes what the following surfaces believe the time is:</p>
+<ul>
+  <li>the date/time picker in both booking wizards (which dates and hours are offered),</li>
+  <li>the <b>Tap to Join</b> button (when it opens, and when it turns into <b>Session Completed</b>),</li>
+  <li>the therapist-suggested-session cards (when a suggestion stops being acceptable).</li>
+</ul>
+<p>It does <b>not</b> change the server's clock. Refund eligibility, payout maths, package expiry sweeps and the server-side lead-time re-check all use the real server time. So: jumping the clock <i>forward</i> to make a session look joinable is fine and expected. Jumping the clock <i>backward</i> to book a slot that is really only 2 hours away will be rejected by the server — that is correct behaviour, not a bug.</p>
+</div>
+
+<h3>0.5 STEP 1 — Reset all data (do this once, before anything else)</h3>
+<p>The plan below assumes an empty database, so that counts, lists and money figures start from zero and every expected result is exact.</p>
+<ol>
+  <li>Open <code>[SITE]</code> in Chrome.</li>
+  <li>In the black Debug bar at the top, click <b>Reset data</b> (it may read <i>Empty the database, keeping admin accounts</i>).</li>
+  <li>A confirmation field appears. Type exactly <code>RESET ALL DATA</code> (capital letters, one space between words).</li>
+  <li>Click <b>Reset</b>.</li>
+</ol>
+<div class="exp"><b>Expected result:</b> the button shows "Resetting…", then the page refreshes. Every patient, therapist, hospital, booking, payment, package, health record and setting change is gone; admin logins still work; all product settings are back to their factory defaults (listed in section 0.8). If you instead see <i>"Reset is switched off on this server (ALLOW_DEBUG_DATA_RESET is not set)"</i>, stop and ask the owner to set that server variable — do not continue, because leftover data will make later expected results wrong.</div>
+<div class="note">If you are testing on an environment where the reset button is intentionally disabled, you can still run the plan, but treat every "the list is empty" expectation as "your new row appears at the top of the list".</div>
+
+<h3>0.6 Test payment instruments (Razorpay test mode)</h3>
+<p>When the Razorpay checkout window opens, use these. No real money moves.</p>
+<table>
+  <tr><th>Purpose</th><th>Instrument</th><th>Details</th></tr>
+  <tr><td>Successful card payment</td><td>Card</td><td>Number <code>4111 1111 1111 1111</code> · Expiry any future date, e.g. <code>12/30</code> · CVV <code>123</code> · Name <code>Test Patient</code>. On the simulated bank page click <b>Success</b>.</td></tr>
+  <tr><td>Alternative success card</td><td>Mastercard</td><td><code>5267 3181 8797 5449</code> · Expiry <code>12/30</code> · CVV <code>123</code>.</td></tr>
+  <tr><td>Failed card payment</td><td>Card</td><td><code>4000 0000 0000 0002</code> · Expiry <code>12/30</code> · CVV <code>123</code>. If it still reaches the bank page, click <b>Failure</b> there.</td></tr>
+  <tr><td>Successful UPI</td><td>UPI VPA</td><td><code>success@razorpay</code></td></tr>
+  <tr><td>Failed UPI</td><td>UPI VPA</td><td><code>failure@razorpay</code></td></tr>
+  <tr><td>Netbanking</td><td>Any bank</td><td>Pick any bank, then click <b>Success</b> or <b>Failure</b> on the simulated page.</td></tr>
+  <tr><td>Abandoned payment</td><td>—</td><td>Open checkout and close it with the <b>×</b> in the corner, or press <kbd>Esc</kbd>.</td></tr>
+</table>
+<p class="small">If a card above is rejected as invalid, Razorpay has rotated its test set — take the current numbers from <code>razorpay.com/docs/payments/payments/test-card-details/</code> and note the substitution in your test log.</p>
+
+<h3>0.7 Master test data</h3>
+<p>Use exactly these values. Every expected result in this plan refers to them by name. Password for every account is <code>Test@1234</code> unless stated.</p>
+<h4>People</h4>
+<table>
+  <tr><th>#</th><th>Role</th><th>Full name</th><th>Email</th><th>Phone</th><th>Other fields</th></tr>
+  <tr><td>P1</td><td>Patient (online, ortho)</td><td>Priya Sharma</td><td>priya.sharma@example.com</td><td>+91 98765 00011</td><td>Referral code: leave blank</td></tr>
+  <tr><td>P2</td><td>Patient (home visit)</td><td>Rahul Verma</td><td>rahul.verma@example.com</td><td>+91 98765 00012</td><td>Address in section below</td></tr>
+  <tr><td>P3</td><td>Patient (package buyer)</td><td>Anita Desai</td><td>anita.desai@example.com</td><td>+91 98765 00013</td><td>—</td></tr>
+  <tr><td>P4</td><td>Patient (neurological)</td><td>Suresh Iyer</td><td>suresh.iyer@example.com</td><td>+91 98765 00014</td><td>—</td></tr>
+  <tr><td>P5</td><td>Patient (paediatric)</td><td>Aarav Nair</td><td>meera.nair@example.com</td><td>+91 98765 00015</td><td>Caregiver: Meera Nair, Mother</td></tr>
+  <tr><td>P6</td><td>Patient (hospital referred)</td><td>Fatima Khan</td><td>fatima.khan@example.com</td><td>+91 98765 00016</td><td>Registers with the hospital's referral code</td></tr>
+  <tr><td>T1</td><td>Therapist (ortho)</td><td>Kavya Menon</td><td>kavya.menon@example.com</td><td>+91 98765 00021</td><td>Credentials: <code>BPT, MPT (Ortho) — Council Reg: PT-100234</code></td></tr>
+  <tr><td>T2</td><td>Therapist (neuro)</td><td>Arjun Rao</td><td>arjun.rao@example.com</td><td>+91 98765 00022</td><td>Credentials: <code>MPT (Neuro) — Council Reg: PT-100987</code></td></tr>
+  <tr><td>A1</td><td>Admin — Full</td><td>(the existing owner account)</td><td>supplied to you</td><td>—</td><td>Scope: Full access</td></tr>
+  <tr><td>A2</td><td>Admin — Operations</td><td>Ops Tester</td><td>ops.admin@example.com</td><td>+91 98765 00031</td><td>Scope: Operations</td></tr>
+  <tr><td>A3</td><td>Admin — Finance</td><td>Finance Tester</td><td>finance.admin@example.com</td><td>+91 98765 00032</td><td>Scope: Finance</td></tr>
+  <tr><td>A4</td><td>Admin — Clinical</td><td>Clinical Tester</td><td>clinical.admin@example.com</td><td>+91 98765 00033</td><td>Scope: Clinical</td></tr>
+  <tr><td>H1</td><td>Hospital partner</td><td>Sunrise Multispeciality Hospital</td><td>partner.sunrise@example.com</td><td>+91 44420 00011</td><td>Contact person: Dr. Nisha Pillai · Revenue share: 15%</td></tr>
+</table>
+<h4>Catalog and configuration data</h4>
+<table>
+  <tr><th>Item</th><th>Values to enter</th></tr>
+  <tr><td>Treatment category 1</td><td>Title <b>Back &amp; Spine Care</b> · Price <b>1999</b> · Duration <b>60</b> min · Description "Assessment and rehab for back, neck and spinal pain." · Show on home page: yes</td></tr>
+  <tr><td>Treatment category 2</td><td>Title <b>Knee &amp; Joint Rehab</b> · Price <b>2499</b> · Duration <b>45</b> min</td></tr>
+  <tr><td>Treatment category 3</td><td>Title <b>Stroke Rehabilitation</b> · Price <b>2999</b> · Duration <b>60</b> min</td></tr>
+  <tr><td>Treatment category 4</td><td>Title <b>Paediatric Physiotherapy</b> · Price <b>1799</b> · Duration <b>45</b> min</td></tr>
+  <tr><td>Session package</td><td>Title <b>Back Care 6-Session Programme</b> · Category: Back &amp; Spine Care · Sessions <b>6</b> · Price <b>9999</b> · Compare-at <b>11994</b> · Validity <b>90</b> days · Minimum gap <b>2</b> days · Max per week <b>3</b> · Max purchases per patient <b>2</b> · One therapist for the programme: <b>on</b></td></tr>
+  <tr><td>Home visit package</td><td>Title <b>Home Recovery 4-Visit Pack</b> · Visits <b>4</b> · Price <b>11999</b> · Validity <b>60</b> days</td></tr>
+  <tr><td>Home visit single</td><td>Title <b>Single Home Visit</b> · Visits <b>1</b> · Price <b>2999</b> · Validity <b>30</b> days</td></tr>
+  <tr><td>Service area 1</td><td>Pincode <b>600020</b> · Area name <b>Adyar</b> · Travel fee <b>250</b></td></tr>
+  <tr><td>Service area 2</td><td>Pincode <b>600041</b> · Area name <b>Thiruvanmiyur</b> · Travel fee <b>350</b></td></tr>
+  <tr><td>Unserviceable pincode (negative test)</td><td><b>110001</b> — never add this one</td></tr>
+  <tr><td>Patient address (P2 Rahul)</td><td>Label <b>Home</b> · Line 1 <b>12 Kasturba Nagar, 2nd Cross Street</b> · Line 2 <b>Flat 3B</b> · Landmark <b>Opposite Adyar Bakery</b> · Pincode <b>600020</b> · Contact phone <b>+91 98765 00012</b> · Access notes <b>Lift to 3rd floor; call on arrival</b></td></tr>
+  <tr><td>Business expense</td><td>Description <b>Clinic software subscription</b> · Amount <b>4500</b> · Date: today</td></tr>
+  <tr><td>Testimonial</td><td>Name <b>Test Reviewer</b> · Quote "Recovered from six months of back pain in eight weeks." · Rating 5</td></tr>
+  <tr><td>FAQ</td><td>Question "Do I need a referral to book?" · Answer "No. You can book directly from the website."</td></tr>
+</table>
+
+<h3>0.8 Factory defaults after a reset (use these to verify the reset worked)</h3>
+<table>
+  <tr><th>Setting</th><th>Default</th><th>Where it is edited</th></tr>
+  <tr><td>Online booking lead time</td><td>12 hours</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Online cancellation refund window</td><td>24 hours</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Join button window</td><td>15 minutes before, 15 minutes after</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Session Completed cutoff</td><td>60 minutes after slot start</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Session timeout (idle)</td><td>0 = never</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Sign-out message duration</td><td>6 seconds</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Auto-create Meet links</td><td>On</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Session packages visible</td><td>On</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Package default validity</td><td>90 days</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>One therapist per programme</td><td>On</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Bulk scheduler limit (package)</td><td>8 sessions</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Package expiry reminder</td><td>14 days</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Home Visit master switch</td><td><b>Off</b></td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Home visit cash payment</td><td>On</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Home visit lead time</td><td>24 hours</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Home visit refund window</td><td>24 hours</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Home visit travel buffer</td><td>45 minutes</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Payment gateway fee</td><td>2%</td><td>Money → Costs</td></tr>
+  <tr><td>Booking languages</td><td>English</td><td>Settings → Booking Rules</td></tr>
+  <tr><td>Home page walkthrough pace</td><td>4 seconds per step</td><td>Settings → Public Site</td></tr>
+  <tr><td>Opening splash</td><td>On · phrase "Movement Is Medicine" · hold 1.5s · revisit 15 min</td><td>Settings → Public Site</td></tr>
+  <tr><td>Condition types offered at triage</td><td>Orthopaedic, Neurological, Paediatric</td><td>Settings → Clinical Questions</td></tr>
+  <tr><td>Site name</td><td>Dr. Pooja's Physio</td><td>Settings → Brand &amp; Contact</td></tr>
+</table>
+
+<h3>0.9 How to run a test case and how to report a bug</h3>
+<p>Each test case below has an <b>ID</b>, a <b>persona</b> (who is signed in), a <b>precondition</b>, numbered <b>steps</b>, and an <b>expected result</b>. Do the steps in order. Compare what you see against the expected result <i>literally</i>: if the expected result says the button reads "Review Booking →" and it reads "Next", that is a bug.</p>
+<p>When something does not match, paste this into the chat:</p>
+<table>
+  <tr><th>Field</th><th>Example</th></tr>
+  <tr><td>Test case ID</td><td>PAT-BOOK-004</td></tr>
+  <tr><td>Persona / account</td><td>Patient — priya.sharma@example.com</td></tr>
+  <tr><td>What I did</td><td>Steps 1–6 of PAT-BOOK-004, chose 12 Feb, 10:00–11:00, English</td></tr>
+  <tr><td>Expected</td><td>"Continue to Medical Details" button appears</td></tr>
+  <tr><td>Actual</td><td>Nothing appears; console shows "TypeError: h is not a function"</td></tr>
+  <tr><td>Environment</td><td>staging URL, Chrome 130, simulated clock OFF</td></tr>
+  <tr><td>Evidence</td><td>screenshot / screen recording / copied error text</td></tr>
+</table>
+<p class="small">Always say whether the simulated clock was on, and what it was set to. Most "wrong time" bugs are actually a clock left set from an earlier case.</p>
+
+<h3>0.10 Suggested execution order</h3>
+<p>Sections are ordered so that each one's data exists by the time you need it. Running them out of order will leave you with an empty catalog and nothing to book.</p>
+<ol>
+  <li><b>Part 1 — Admin setup.</b> Creates the catalog, packages, service areas, staff accounts and settings.</li>
+  <li><b>Part 2 — Patient.</b> Registration, booking, payment, packages, home visits, health profile, cancellations.</li>
+  <li><b>Part 3 — Therapist.</b> Availability, delivery, clinical records, earnings, payout requests.</li>
+  <li><b>Part 4 — Admin operations.</b> Approvals, assignment, session management, catalog upkeep, system health.</li>
+  <li><b>Part 5 — Finance.</b> Money screens, payouts, refunds, costs, cash ledger.</li>
+  <li><b>Part 6 — Hospital partner.</b> Referrals, referral codes, partner earnings.</li>
+  <li><b>Part 7 — Cross-cutting.</b> Access control, error states, realtime, responsive, splash, session timeout.</li>
+</ol>
+
+<h2 class="pb">Part 1 — Admin: set the clinic up (run first)</h2>
+<p><b>Why this part exists.</b> After the reset the clinic sells nothing: there are no treatment categories, no packages, no service areas and no staff. Every later part depends on this one. You are signed in as the <b>Full-access admin (A1)</b> throughout Part 1.</p>
+
+<h3>1.1 Signing in to the back office</h3>
+
+<div class="tc">
+<h4>ADM-001 · Admin login with valid credentials</h4>
+<p class="meta">Persona: Admin (Full) · Precondition: data reset done · Data: the admin email/password you were given</p>
+<ol>
+  <li>Open <code>[SITE]/admin/login</code> (or use the Debug bar dropdown → <b>14. Admin Login</b>).</li>
+  <li>Click the <b>Email Address</b> field, type the admin email.</li>
+  <li>Click the <b>Password</b> field, type the password.</li>
+  <li>Click <b>Sign In</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the browser lands on <code>/admin/dashboard</code>. A left sidebar shows, top to bottom: <b>Back to Home</b>, then six sections — <b>Today, Sessions, People, Money, Catalog, Settings</b>. The screen opens on <b>Today</b>, showing four headline figures, an activity feed and a quick-actions list. No error banner.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-002 · Admin login with a wrong password</h4>
+<p class="meta">Persona: none · Precondition: signed out</p>
+<ol>
+  <li>Open <code>[SITE]/admin/login</code>.</li>
+  <li>Type the correct admin email and the password <code>WrongPass1</code>.</li>
+  <li>Click <b>Sign In</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> a red error box appears with a credentials message (e.g. "Invalid login credentials"). You stay on the login page. The error must <b>not</b> say whether the email exists.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-003 · The back office is not advertised to other roles</h4>
+<p class="meta">Persona: any signed-in non-admin (do this later, after a patient exists) · Precondition: signed in as patient P1</p>
+<ol>
+  <li>Signed in as Priya Sharma, type <code>[SITE]/admin/dashboard</code> in the address bar and press Enter.</li>
+</ol>
+<div class="exp"><b>Expected:</b> you are redirected to <code>/get-started</code>. You are <b>not</b> sent to <code>/admin/login</code> and no message names an admin area.</div>
+</div>
+
+<h3>1.2 Settings → Brand &amp; Contact</h3>
+<p><b>What this is.</b> The site's own name, tagline, description and contact details. The public header and footer read these, so a change here is visible on every public page immediately.</p>
+
+<div class="tc">
+<h4>ADM-010 · Edit the site name and see it on the public site</h4>
+<p class="meta">Persona: Admin (Full) · Data: Website Name <code>Dr. Pooja's Physio QA</code></p>
+<ol>
+  <li>In the sidebar click <b>Settings</b>, then the <b>Brand &amp; Contact</b> tab.</li>
+  <li>Find the field labelled <b>Website Name</b>. Click its <b>Edit</b> control.</li>
+  <li>Clear the field and type <code>Dr. Pooja's Physio QA</code>.</li>
+  <li>Click <b>Save</b>.</li>
+  <li>Open <code>[SITE]/</code> in a second tab.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the field shows a "Saved." confirmation. On the public home page the header logo/name and the footer both read <b>Dr. Pooja's Physio QA</b>. Change it back to <code>Dr. Pooja's Physio</code> before continuing.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-011 · Edit tagline, description, contact email, WhatsApp, phone, footer text</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Settings → <b>Brand &amp; Contact</b>.</li>
+  <li>For each of <b>Tagline</b>, <b>Description</b>, <b>Contact Email</b>, <b>WhatsApp Number</b>, <b>Contact Number</b> and <b>Footer Copyright Text</b>: click <b>Edit</b>, change the value (e.g. append " QA"), click <b>Save</b>.</li>
+  <li>Reload the public home page and scroll to the footer.</li>
+</ol>
+<div class="exp"><b>Expected:</b> every field saves individually with its own "Saved." confirmation, no full-page reload needed. Footer shows the new copyright text, the new contact email and phone. The WhatsApp link opens <code>wa.me</code> with the new number. Restore the originals afterwards.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-012 · A blank brand field falls back to the default</h4>
+<p class="meta">Persona: Admin (Full) · Negative test</p>
+<ol>
+  <li>Settings → Brand &amp; Contact → <b>Website Name</b> → <b>Edit</b>.</li>
+  <li>Delete everything in the field, click <b>Save</b>.</li>
+  <li>Reload the public home page.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the public site shows the default name <b>Dr. Pooja's Physio</b> rather than an empty header. The header must never render blank.</div>
+</div>
+
+<h3>1.3 Settings → Public Site</h3>
+<p><b>What this is.</b> Controls for things a visitor sees: the opening splash animation, the home page walkthrough's rotation speed, testimonials and FAQs.</p>
+
+<div class="tc">
+<h4>ADM-020 · Opening splash — change the phrase and hold time</h4>
+<p class="meta">Persona: Admin (Full) · Data: phrase <code>Movement Is Medicine QA</code>, hold <code>3</code> seconds, revisit <code>15</code> minutes</p>
+<ol>
+  <li>Settings → <b>Public Site</b> → scroll to <b>Opening Splash</b>.</li>
+  <li>In the phrase field, replace the text with <code>Movement Is Medicine QA</code>.</li>
+  <li>Set <b>hold seconds</b> to <code>3</code>.</li>
+  <li>Click <b>Save</b>.</li>
+  <li>Open a brand-new browser tab and load <code>[SITE]/</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> "Saved." appears. In the new tab, a full-screen teal sheet shows the site name and the line <b>Movement Is Medicine QA</b>, holds for about 3 seconds, then fades to reveal the home page (which was already rendered underneath). Set the phrase and hold back to their defaults afterwards.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-021 · Splash brand line blank follows the site name</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Settings → Public Site → Opening Splash. Leave the <b>name above the line</b> field <b>empty</b>. Click <b>Save</b>.</li>
+  <li>Open a new tab on <code>[SITE]/</code>.</li>
+  <li>Now set that field to <code>QA Brand</code>, save, and open another new tab.</li>
+</ol>
+<div class="exp"><b>Expected:</b> with the field empty, the splash prints the site name from Brand &amp; Contact. With <code>QA Brand</code> set, the splash prints <b>QA Brand</b> while the navbar still shows the site name. Blank is a valid value here, not an error.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-022 · Splash off removes it entirely</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Settings → Public Site → Opening Splash → switch <b>Opening splash</b> off. Save.</li>
+  <li>Open a new tab on <code>[SITE]/</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the page paints straight away with no teal sheet and no flash. Switch it back on afterwards.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-023 · Home page walkthrough rotation pace</h4>
+<p class="meta">Persona: Admin (Full) · Data: <code>2</code> seconds, then <code>0</code></p>
+<ol>
+  <li>Settings → Public Site → <b>Home Page Walkthrough</b>. Set the seconds per step to <code>2</code>. Save.</li>
+  <li>Open <code>[SITE]/</code> and scroll to the "Booking to recovery" walkthrough (three steps).</li>
+  <li>Watch without moving the mouse over it.</li>
+  <li>Return to the admin, set the value to <code>0</code>, save, reload the home page.</li>
+</ol>
+<div class="exp"><b>Expected:</b> at 2 seconds the steps advance every ~2 seconds; hovering the mouse inside the widget pauses it and moving away resumes. At <code>0</code> it never advances on its own and the visitor taps the step names to move. Values below 2 or above 60 (other than 0) are rejected with a validation message.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-024 · Create a testimonial and see it on the public site</h4>
+<p class="meta">Persona: Admin (Full) · Data: the testimonial row in section 0.7</p>
+<ol>
+  <li>Settings → Public Site → <b>Testimonials</b> (or the testimonials manager on that screen).</li>
+  <li>Click <b>Add</b> / <b>New testimonial</b>.</li>
+  <li>Name: <code>Test Reviewer</code>. Quote: <code>Recovered from six months of back pain in eight weeks.</code> Rating: <code>5</code>.</li>
+  <li>Click <b>Save</b>.</li>
+  <li>Open <code>[SITE]/</code> and scroll to the reviews band; also open <code>[SITE]/mission</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the new testimonial appears in the admin list and in the reviews band on both the home page and <code>/mission</code>, with the reviewer's initial shown when no photo is set. The form warns that testimonials need the patient's consent.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-025 · Create, edit and delete an FAQ</h4>
+<p class="meta">Persona: Admin (Full) · Data: the FAQ row in section 0.7</p>
+<ol>
+  <li>Settings → Public Site → <b>FAQs</b>. Click <b>Add</b>.</li>
+  <li>Question: <code>Do I need a referral to book?</code> Answer: <code>No. You can book directly from the website.</code> Save.</li>
+  <li>Open <code>[SITE]/faq</code> and click the new question.</li>
+  <li>Back in admin, edit the answer to append <code> Payment is taken at booking.</code> and save. Reload <code>/faq</code>.</li>
+  <li>Back in admin, delete the FAQ and confirm. Reload <code>/faq</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the question appears on <code>/faq</code> and expands to show the answer; the edit is reflected after reload; after deletion it is gone from both the admin list and the public page.</div>
+</div>
+
+<h3>1.4 Settings → Booking Rules (the rules that drive most later tests)</h3>
+<p><b>What this is.</b> Every time-based and money-based rule the product enforces. Note the values you set here — Part 2 and Part 5 expected results depend on them.</p>
+
+<div class="tc">
+<h4>ADM-030 · Online booking lead time</h4>
+<p class="meta">Persona: Admin (Full) · Data: change to <code>24</code>, then back to <code>12</code></p>
+<ol>
+  <li>Settings → <b>Booking Rules</b> → <b>Online Booking Lead Time</b>.</li>
+  <li>Set the value to <code>24</code>. Click <b>Save</b>.</li>
+  <li>Open <code>[SITE]/book</code> in a second tab (signed out is fine) and look at the date/time picker and the label under <b>Preferred Date</b>.</li>
+  <li>Return to admin, set it back to <code>12</code>, save, reload <code>/book</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> "Saved." appears. With 24, the helper text under Preferred Date reads "(at least 24 hours from now)" and today/tomorrow slots inside 24 hours are not offered. With 12, it reads 12 hours and more slots appear. A value of 0 or a negative number is rejected.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-031 · Online cancellation refund window</h4>
+<p class="meta">Persona: Admin (Full) · Data: leave at <code>24</code> after checking</p>
+<ol>
+  <li>Settings → Booking Rules → <b>Online Cancellation Refund Window</b>. Set <code>48</code>, save.</li>
+  <li>Open <code>[SITE]/book</code>, go through to step 3 (see PAT-BOOK cases) and read the cancellation line.</li>
+  <li>Set it back to <code>24</code> and save.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the booking review step states free cancellation up to the configured number of hours before the slot. The number on that screen matches the setting.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-032 · Join Button Window</h4>
+<p class="meta">Persona: Admin (Full) · Data: before <code>15</code>, after <code>15</code></p>
+<ol>
+  <li>Settings → Booking Rules → <b>Join Button Window</b>.</li>
+  <li>Confirm the two values (minutes before the slot, minutes after) read <code>15</code> and <code>15</code>. Change the "before" to <code>30</code> and save, then change back to <code>15</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> both fields save with "Saved.". This window is verified end-to-end in PAT-SESS-030 using the simulated clock.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-033 · Session Completed cutoff</h4>
+<p class="meta">Persona: Admin (Full) · Data: <code>60</code> default; set <code>30</code> for the later test</p>
+<ol>
+  <li>Settings → Booking Rules → <b>Session Completed Cutoff</b>.</li>
+  <li>Read the current value (should be <code>60</code>). Set it to <code>30</code> and save.</li>
+</ol>
+<div class="exp"><b>Expected:</b> saves with "Saved."; the helper text explains that past this many minutes from the scheduled start every "Tap to Join" control reads <b>Session Completed</b>. Values below 1 are rejected. Leave it at 30 for PAT-SESS-032.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-034 · Auto-create Meet links toggle</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Settings → Booking Rules → <b>Google Meet / Calendar</b> → <b>Auto-Create Meet Links</b>.</li>
+  <li>Switch it off, then on again.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the toggle saves immediately and states its effect. With it off, later confirmed online sessions get a calendar event but no Meet link and no Join button link; home visits still get a calendar event either way.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-035 · Idle session timeout and sign-out message</h4>
+<p class="meta">Persona: Admin (Full) · Data: timeout <code>1</code> minute for the test, then back to <code>0</code>; sign-out banner <code>6</code> seconds</p>
+<ol>
+  <li>Settings → Booking Rules → <b>Session Timeout of Inactivity</b>. Set <code>1</code>. Save.</li>
+  <li>Sign in as patient P1 in another browser, open the patient dashboard, and do not touch it for just over a minute.</li>
+  <li>Back in admin, set the timeout to <code>0</code> and save.</li>
+  <li>Settings → Booking Rules → <b>Sign-out message</b>: confirm <code>6</code> seconds.</li>
+</ol>
+<div class="exp"><b>Expected:</b> with a 1-minute timeout the patient sees an inactivity warning dialog and is then signed out and returned to <code>/patient/login</code>. With <code>0</code> nobody is ever timed out. After any sign-out, the public site shows a one-line "signed out" banner that clears itself after ~6 seconds.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-036 · Booking languages</h4>
+<p class="meta">Persona: Admin (Full) · Data: add <code>Hindi</code> and <code>Tamil</code></p>
+<ol>
+  <li>Settings → Booking Rules → <b>Booking Languages</b>.</li>
+  <li>Add <code>Hindi</code>, add <code>Tamil</code>. Save.</li>
+  <li>Open <code>[SITE]/book</code> and look at <b>Preferred Language</b> in step 1.</li>
+  <li>Try adding <code>hindi</code> (lower case) in admin.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the booking wizard offers English, Hindi and Tamil as chips. The duplicate <code>hindi</code> is not added twice (matching is case-insensitive). If every language is removed, the wizard still shows <b>English</b> rather than an empty picker.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-037 · Package-wide settings</h4>
+<p class="meta">Persona: Admin (Full) · Data: leave defaults, but exercise each control</p>
+<ol>
+  <li>Settings → Booking Rules → package settings block.</li>
+  <li>Toggle <b>Session Packages Visible</b> off; open <code>[SITE]/</code> and <code>[SITE]/conditions</code>; toggle it back on.</li>
+  <li>Change <b>Default Validity</b> to <code>60</code>, save, then back to <code>90</code>.</li>
+  <li>Change <b>Bulk Scheduler Limit</b> to <code>3</code>, save (leave it at 3 for PAT-PKG-030).</li>
+  <li>Confirm <b>Therapist Lock (site-wide)</b> is on and <b>Expiry Reminder Lead Time</b> is <code>14</code> days.</li>
+  <li>Switch <b>Therapist-Suggested Sessions</b> <b>on</b> (needed for Part 3).</li>
+</ol>
+<div class="exp"><b>Expected:</b> with packages hidden, no package cards appear on the home or conditions pages and <code>/book?package=…</code> reports the package is unavailable. Each numeric field saves with "Saved.". Therapist-suggested sessions is off by default and must be switched on deliberately.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-038 · Home Visit settings and master switch</h4>
+<p class="meta">Persona: Admin (Full) · Data: switch <b>on</b>; lead time 24h; refund window 24h; travel buffer 45 min; cash on</p>
+<ol>
+  <li>Settings → Booking Rules → <b>Home Visit</b> block.</li>
+  <li>With the master switch still <b>off</b>, open <code>[SITE]/home-visit</code> in another tab.</li>
+  <li>Switch the master switch <b>on</b> and save. Reload <code>[SITE]/home-visit</code> and also check the site header menu and footer.</li>
+  <li>Confirm <b>cash payment</b> is on, <b>lead time</b> 24, <b>refund window</b> 24, <b>default validity</b> 90, <b>bulk limit</b> 8, <b>travel buffer</b> 45.</li>
+  <li>Edit the page heading to <code>Physiotherapy at your doorstep — QA</code>, save, reload the public page.</li>
+</ol>
+<div class="exp"><b>Expected:</b> while off, <code>/home-visit</code> returns a 404 page and "Home Visit" does not appear in the header, footer or the "where to go next" grids. Once on, the page loads, the link appears everywhere, and the heading shows your edited text.</div>
+</div>
+
+<h3>1.5 Catalog → Conditions (treatment categories)</h3>
+<p><b>What this is.</b> The list of things the clinic treats. Each row carries its own price and session length, and drives the booking wizard's "What would you like help with?" dropdown and the programme cards on the public site.</p>
+
+<div class="tc">
+<h4>ADM-040 · Create the four treatment categories</h4>
+<p class="meta">Persona: Admin (Full) · Data: the four categories in section 0.7</p>
+<ol>
+  <li>Sidebar → <b>Catalog</b> → <b>Conditions</b> tab.</li>
+  <li>In the create form, <b>Category Name</b>: <code>Back &amp; Spine Care</code>.</li>
+  <li>Fill the description with <code>Assessment and rehab for back, neck and spinal pain.</code></li>
+  <li><b>Price (₹)</b>: <code>1999</code>. <b>Session Length (min)</b>: <code>60</code>. <b>Order</b>: <code>1</code>. <b>Button Text</b>: <code>Book Assessment</code>.</li>
+  <li>Tick the visibility checkbox so it shows on the public site.</li>
+  <li>Click <b>Save</b> / <b>Add Category</b>.</li>
+  <li>Repeat for <code>Knee &amp; Joint Rehab</code> (2499 / 45 / order 2), <code>Stroke Rehabilitation</code> (2999 / 60 / order 3) and <code>Paediatric Physiotherapy</code> (1799 / 45 / order 4).</li>
+  <li>Open <code>[SITE]/conditions</code> and <code>[SITE]/book</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> four rows appear in the admin list in order 1–4. On <code>/conditions</code> each appears as a card with its price. In the booking wizard's step 2 dropdown each option reads e.g. <b>Back &amp; Spine Care — ₹1,999 / 60 min</b>. Money is shown in rupees with Indian grouping, never in paise.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-041 · Edit a category's price and see it everywhere</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Catalog → Conditions → click <b>Edit</b> on <b>Knee &amp; Joint Rehab</b>.</li>
+  <li>Change <b>Price (₹)</b> to <code>2699</code>. Save.</li>
+  <li>Reload <code>[SITE]/conditions</code> and <code>[SITE]/book</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the new price ₹2,699 appears on the public card and in the wizard dropdown. Change it back to 2499 afterwards.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-042 · Reorder and hide a category</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Catalog → Conditions. Use the up/down (reorder) control to move <b>Paediatric Physiotherapy</b> above <b>Stroke Rehabilitation</b>.</li>
+  <li>Reload <code>[SITE]/conditions</code>.</li>
+  <li>Untick the visibility checkbox on <b>Paediatric Physiotherapy</b> and save. Reload the public page.</li>
+  <li>Tick it back on.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the public order matches the admin order. A hidden category disappears from the public pages but stays available in the admin and on any existing bookings that used it.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-043 · Delete a category</h4>
+<p class="meta">Persona: Admin (Full) · Data: create a throwaway category <code>QA Delete Me</code> first</p>
+<ol>
+  <li>Create a category named <code>QA Delete Me</code>, price <code>999</code>, length <code>30</code>.</li>
+  <li>Click <b>Delete</b> on it and confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> a confirmation is required before deleting; after confirming, the row disappears from the admin list and from the public pages. Deleting a category that already has bookings should either be refused with an explanation or leave those bookings intact — note which behaviour you see.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-044 · Add a cover image to a category</h4>
+<p class="meta">Persona: Admin (Full) · Data: any public image URL, e.g. <code>https://images.pexels.com/photos/4506109/pexels-photo-4506109.jpeg</code></p>
+<ol>
+  <li>Catalog → Conditions → Edit <b>Back &amp; Spine Care</b>.</li>
+  <li>Paste the URL into the cover image field. Save.</li>
+  <li>Reload <code>[SITE]/conditions</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the card shows the photograph. Clear the URL and save: the card falls back to a tinted placeholder panel of the same height — it must never look like a broken image.</div>
+</div>
+
+<h3>1.6 Catalog → Packages</h3>
+<p><b>What this is.</b> Two catalogs side by side: multi-session <b>online programmes</b> and <b>home-visit packages</b>. A package is a bundle price plus rules (validity, minimum gap, max per week, max purchases per patient, therapist lock).</p>
+
+<div class="tc">
+<h4>ADM-050 · Create the online session package</h4>
+<p class="meta">Persona: Admin (Full) · Data: "Back Care 6-Session Programme" from section 0.7</p>
+<ol>
+  <li>Catalog → <b>Packages</b> → in the session-package form click <b>New package</b>.</li>
+  <li><b>Package Name</b>: <code>Back Care 6-Session Programme</code>.</li>
+  <li><b>Category</b>: <code>Back &amp; Spine Care</code>.</li>
+  <li><b>Subtitle</b>: <code>12 weeks, one therapist, measured progress</code>.</li>
+  <li><b>Sessions Included</b>: <code>6</code>. <b>Session Duration (min)</b>: leave blank (uses the category default).</li>
+  <li><b>Bundle Price (₹)</b>: <code>9999</code>. <b>Compare-at Price (₹)</b>: <code>11994</code>.</li>
+  <li><b>Validity (days)</b>: <code>90</code>.</li>
+  <li><b>Minimum gap between sessions (hours)</b>: <code>48</code>. <b>Maximum sessions per week</b>: <code>3</code>. <b>Maximum purchases per patient</b>: <code>2</code>.</li>
+  <li><b>What We Promise</b>: add three lines — <code>One therapist throughout</code>, <code>Written plan after every session</code>, <code>Progress measured, not guessed</code>.</li>
+  <li><b>Terms</b>: <code>Sessions expire 90 days after purchase. Unused sessions are refundable pro-rata.</code></li>
+  <li>Tick the visibility options for the home page and the conditions page, and make sure the package is <b>active</b>.</li>
+  <li>Click <b>Save</b>.</li>
+  <li>Open <code>[SITE]/</code> and <code>[SITE]/conditions</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the package appears in the admin list, and as a card on both public pages showing 6 sessions, ₹9,999 with ₹11,994 struck through and a savings percentage (roughly 17%). Tapping the card body opens a detail dialog with the description, promises, terms and scheduling rules; a separate <b>Book package</b> link sits on the card and again at the foot of the dialog and goes to <code>/book?package=…</code>.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-051 · Create the two home-visit packages</h4>
+<p class="meta">Persona: Admin (Full) · Precondition: home visit master switch ON (ADM-038)</p>
+<ol>
+  <li>Catalog → Packages → home-visit package form → <b>New package</b>.</li>
+  <li><b>Package Name</b>: <code>Home Recovery 4-Visit Pack</code>. <b>Condition Category</b>: <code>Back &amp; Spine Care</code>.</li>
+  <li><b>Visits Included</b>: <code>4</code>. <b>Visit Duration (minutes)</b>: <code>60</code>.</li>
+  <li><b>Package Price (₹)</b>: <code>11999</code>. <b>Validity (days)</b>: <code>60</code>.</li>
+  <li><b>Minimum gap between visits (hours)</b>: <code>48</code>. <b>Maximum visits per week</b>: <code>3</code>. <b>Maximum purchases per patient</b>: <code>2</code>.</li>
+  <li>Turn on <b>Lock to one therapist</b>, <b>Show on the Home Visit page</b>, <b>Show in the patient dashboard</b> and <b>Active</b>. Leave <b>Travel fee included in price</b> <b>off</b>.</li>
+  <li>Save. Repeat for <code>Single Home Visit</code>: 1 visit, ₹2999, validity 30 days.</li>
+  <li>Open <code>[SITE]/home-visit</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> both packages appear as cards on <code>/home-visit</code>, each opening a detail dialog and each with its own <b>Book</b> link to <code>/book-home-visit?package=…</code>. The card price does <b>not</b> include the travel fee; the fee is shown separately once a pincode is known.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-052 · Deactivate a package</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Catalog → Packages → edit <b>Single Home Visit</b> → turn <b>Active</b> off → Save.</li>
+  <li>Reload <code>[SITE]/home-visit</code>.</li>
+  <li>Turn it back on.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the inactive package disappears from the public page, and a direct <code>/book-home-visit?package=…</code> link for it reports that it is unavailable rather than allowing a purchase.</div>
+</div>
+
+<h3>1.7 Catalog → Service Areas (home visits only)</h3>
+
+<div class="tc">
+<h4>ADM-060 · Add service areas with travel fees</h4>
+<p class="meta">Persona: Admin (Full) · Data: 600020 / Adyar / ₹250 and 600041 / Thiruvanmiyur / ₹350</p>
+<ol>
+  <li>Catalog → <b>Service Areas</b>.</li>
+  <li>In <b>Pincodes</b> type <code>600020</code>. <b>Area name</b>: <code>Adyar</code>. <b>City</b>: <code>Chennai</code>. Travel fee: <code>250</code>.</li>
+  <li>Click <b>Add</b> / <b>Save</b>.</li>
+  <li>Repeat for <code>600041</code>, <code>Thiruvanmiyur</code>, <code>Chennai</code>, fee <code>350</code>.</li>
+  <li>Now paste several pincodes at once into <b>Pincodes</b>: <code>600028, 600018, 600004</code> with area <code>South Chennai</code> and fee <code>300</code>, and save.</li>
+</ol>
+<div class="exp"><b>Expected:</b> each pincode becomes its own row with its fee. The bulk paste creates three rows in one action. The list shows each pincode once — adding a duplicate pincode is either rejected or updates the existing row rather than creating a second one.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-061 · Delete a service area and check the public effect</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Catalog → Service Areas → delete the <code>600004</code> row and confirm.</li>
+  <li>Open <code>[SITE]/book-home-visit</code>, enter pincode <code>600004</code> and click the check button.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the row is gone from the admin list, and the public serviceability check answers that the pincode is not covered, offering the waitlist instead of an address form.</div>
+</div>
+
+<h3>1.8 Settings → Team &amp; Access</h3>
+<p><b>What this is.</b> Where staff accounts are created and where an admin's <b>scope</b> is set. Scope decides which of the six sections that admin can open — and it is enforced on the server, not just in the sidebar.</p>
+
+<div class="tc">
+<h4>ADM-070 · Create the three scoped admins</h4>
+<p class="meta">Persona: Admin (Full) · Data: A2/A3/A4 in section 0.7</p>
+<ol>
+  <li>Settings → <b>Team &amp; Access</b>.</li>
+  <li>In the create form set <b>Role</b> = <code>Admin</code>.</li>
+  <li><b>Name</b>: <code>Ops Tester</code>. <b>Email</b>: <code>ops.admin@example.com</code>. <b>Phone</b>: <code>+919876500031</code>.</li>
+  <li><b>Scope</b>: <code>Operations</code>.</li>
+  <li>Click <b>Create</b>. Copy the temporary password shown.</li>
+  <li>Repeat for <code>Finance Tester</code> / <code>finance.admin@example.com</code> / scope <b>Finance</b>, and <code>Clinical Tester</code> / <code>clinical.admin@example.com</code> / scope <b>Clinical</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> each account is created immediately and appears in the admins list with its scope label (Full access / Operations / Finance / Clinical) and blurb. A temporary password is displayed once — record all three. No email is sent.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-071 · Create a patient and a therapist by hand</h4>
+<p class="meta">Persona: Admin (Full) · Data: therapist T2 Arjun Rao</p>
+<ol>
+  <li>Settings → Team &amp; Access → create form → <b>Role</b> = <code>Therapist</code>.</li>
+  <li><b>Name</b>: <code>Arjun Rao</code>. <b>Email</b>: <code>arjun.rao@example.com</code>. <b>Phone</b>: <code>+919876500022</code>. <b>Credentials</b>: <code>MPT (Neuro) — Council Reg: PT-100987</code>.</li>
+  <li>Click <b>Create</b> and record the temporary password.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the therapist exists straight away and appears under People → Therapists. An admin-created account is already approved (it does not sit in the Approvals queue) — confirm this on People → Therapists.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-072 · An admin cannot change their own scope</h4>
+<p class="meta">Persona: Admin (Full) · Negative test</p>
+<ol>
+  <li>Settings → Team &amp; Access → find your own row in the admins list.</li>
+  <li>Try to change your own scope.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the control for your own row is disabled or the attempt is refused with an explanation. You can change other admins' scopes.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-073 · The last Full admin cannot be narrowed</h4>
+<p class="meta">Persona: Admin (Full) · Negative test · Precondition: exactly one Full-access admin exists</p>
+<ol>
+  <li>Settings → Team &amp; Access.</li>
+  <li>Attempt to change the only Full-access admin's scope to <code>Operations</code> (do this from a second Full admin if one exists; otherwise confirm the control is blocked).</li>
+</ol>
+<div class="exp"><b>Expected:</b> the change is refused with a message explaining that the last full admin cannot be narrowed. This protects against locking everyone out.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-074 · A non-Full admin cannot mint an admin</h4>
+<p class="meta">Persona: Admin (Operations) — sign in as A2 · Negative test</p>
+<ol>
+  <li>Sign in as <code>ops.admin@example.com</code> at <code>[SITE]/admin/login</code>.</li>
+  <li>Look at the sidebar.</li>
+  <li>Type <code>[SITE]/admin/dashboard?section=settings&amp;tab=team</code> in the address bar.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the Operations admin's sidebar shows only <b>Today, Sessions, People, Catalog</b> — no Money, no Settings. The deep link does <b>not</b> open Team &amp; Access; it lands on a section this admin is allowed to see (or shows a not-permitted state). Hiding a section in the sidebar is not the only protection — the server enforces it.</div>
+</div>
+
+<h3>1.9 Settings → Clinical Questions</h3>
+<p><b>What this is.</b> The wording of the health-profile questions (one tab per condition type), which of them are mandatory, which condition types the therapist's triage may offer, and the pain-map question bank.</p>
+
+<div class="tc">
+<h4>ADM-080 · Edit a health-profile question's wording</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Settings → <b>Clinical Questions</b>.</li>
+  <li>Select the <b>Orthopaedic</b> tab.</li>
+  <li>Find the first question (the main complaint) and change its wording to <code>What is bothering you most right now? (QA)</code>.</li>
+  <li>Save.</li>
+</ol>
+<div class="exp"><b>Expected:</b> saves with a confirmation. The new wording appears in the patient's health-profile wizard and in the therapist's triage dialog. Help text and placeholder are <b>not</b> editable here — only wording and whether the question is required.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-081 · Make a question required / not required</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Settings → Clinical Questions → Orthopaedic tab → toggle "required" off for the "other notes" question. Save.</li>
+  <li>Later, in PAT-HP-020, confirm the patient can submit without answering it.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the required flag is enforced in the patient wizard <i>and</i> on the server, not only in the browser.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-082 · Switch a condition type off for triage</h4>
+<p class="meta">Persona: Admin (Full) · Negative test included</p>
+<ol>
+  <li>Settings → Clinical Questions → the condition-type toggles above the tabs.</li>
+  <li>Switch <b>Paediatric</b> off. Save.</li>
+  <li>Try to switch <b>Orthopaedic</b> off.</li>
+  <li>Switch Paediatric back on.</li>
+</ol>
+<div class="exp"><b>Expected:</b> with Paediatric off, a therapist's triage dialog no longer offers it as a choice, but any patient already on a paediatric profile keeps rendering normally. Orthopaedic cannot be switched off at all — the control refuses, because triage must always have something to land on.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-083 · Edit the pain-map question bank</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Settings → Clinical Questions → the Pain Map question bank section.</li>
+  <li>Change the wording of one question and save.</li>
+  <li>Later, in THR-PM-010, confirm the therapist's exam dialog shows the new wording.</li>
+</ol>
+<div class="exp"><b>Expected:</b> saves with a confirmation; the exam dialog reflects it. Questions are grouped (what they describe · what sets it off · pain on testing · your findings), and nothing in the exam is mandatory.</div>
+</div>
+
+<h3>1.10 Money → Costs (setup only; the maths is tested in Part 5)</h3>
+
+<div class="tc">
+<h4>ADM-090 · Set the payment gateway fee percentage</h4>
+<p class="meta">Persona: Admin (Full) · Data: <code>2</code>%</p>
+<ol>
+  <li>Sidebar → <b>Money</b> → <b>Costs</b>.</li>
+  <li>Confirm the gateway fee percentage reads <code>2</code>. Change it to <code>2.5</code>, save, then set it back to <code>2</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the value saves and the "Payment fees" line on Money → Summary recalculates from it. A value of exactly <code>0</code> must be accepted and kept (a clinic on a zero-fee plan), not silently replaced by the default.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-091 · Record a business expense</h4>
+<p class="meta">Persona: Admin (Full) · Data: Clinic software subscription, ₹4,500, today</p>
+<ol>
+  <li>Money → Costs → the expense form.</li>
+  <li>Description <code>Clinic software subscription</code>, amount <code>4500</code>, date: today.</li>
+  <li>Save.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the expense appears in the list with its date, and Money → Summary's "Running costs" figure includes it for a date range covering today. Deleting it removes it from both.</div>
+</div>
+
+<h3>1.11 Settings → Activity Log</h3>
+
+<div class="tc">
+<h4>ADM-095 · Every admin change you just made is recorded</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Settings → <b>Activity Log</b>.</li>
+  <li>Read the most recent rows.</li>
+</ol>
+<div class="exp"><b>Expected:</b> a row exists for each mutating action from Part 1 — settings changed, category created, package created, admin account created — each naming the actor, the action, the subject and a timestamp. The log is append-only: there is no edit or delete control on any row.</div>
+</div>
+
+<h2 class="pb">Part 2 — As a patient</h2>
+
+<h3>2.1 The public website</h3>
+<p><b>What this is.</b> Eight pages built from one template: <code>/</code> (home), <code>/conditions</code>, <code>/how-it-works</code>, <code>/home-visit</code>, <code>/team</code>, <code>/mission</code>, <code>/faq</code>, <code>/hospitals</code>. Every page opens with a photograph and one headline, carries the same four reassurances under the hero, and ends with the same "where to go next" grid and closing call to action. A right-hand <b>section rail</b> lists the bands on the current page, and a floating arrow at the bottom right scrolls to the next band.</p>
+
+<div class="tc">
+<h4>PUB-001 · Every page in the header menu loads</h4>
+<p class="meta">Persona: signed-out visitor · Precondition: home visit master switch ON</p>
+<ol>
+  <li>Open <code>[SITE]/</code>.</li>
+  <li>Click each entry in the header navigation one at a time, returning to the home page between clicks: <b>Conditions</b>, <b>How It Works</b>, <b>Home Visit</b>, <b>Team</b>, <b>Mission</b>, <b>FAQ</b>, <b>Hospitals</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> all eight pages load with no error, each showing a hero photograph, one headline, one sentence, and up to two buttons. No page shows a broken image or an empty band. The footer's "Explore" column lists the same pages as the header.</div>
+</div>
+
+<div class="tc">
+<h4>PUB-002 · Home Visit disappears when the master switch is off</h4>
+<p class="meta">Persona: visitor + Admin · Negative test</p>
+<ol>
+  <li>As admin: Settings → Booking Rules → Home Visit → switch the master switch <b>off</b>. Save.</li>
+  <li>As a visitor, reload <code>[SITE]/</code>, open the header menu, scroll to the footer, and scroll to the "where to go next" grid on <code>/conditions</code>.</li>
+  <li>Type <code>[SITE]/home-visit</code> directly.</li>
+  <li>Switch the master switch back <b>on</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> "Home Visit" is absent from the header, the footer and every "where to go next" grid, and the direct URL shows the 404 page — never a link into a dead end.</div>
+</div>
+
+<div class="tc">
+<h4>PUB-003 · Section rail and scroll arrow</h4>
+<p class="meta">Persona: visitor</p>
+<ol>
+  <li>Open <code>[SITE]/conditions</code> on a desktop-width window.</li>
+  <li>Read the section rail (the list of band names, usually right-hand side).</li>
+  <li>Click the third entry in the rail.</li>
+  <li>Scroll back to the top, then click the floating arrow at the bottom right repeatedly.</li>
+</ol>
+<div class="exp"><b>Expected:</b> every entry in the rail corresponds to a band that actually exists on the page, in the same order as they appear top to bottom. Clicking an entry scrolls to that band. The arrow moves down the same list one band at a time and never jumps backwards.</div>
+</div>
+
+<div class="tc">
+<h4>PUB-004 · "What we treat" showcase</h4>
+<p class="meta">Persona: visitor</p>
+<ol>
+  <li>Open <code>[SITE]/</code> and scroll to the areas-of-practice band.</li>
+  <li>Click the arrow buttons to move between areas; then click a name in the picker; on a touch device, swipe the photograph.</li>
+  <li>Watch it for 30 seconds without touching it.</li>
+</ol>
+<div class="exp"><b>Expected:</b> photograph on the left, explanation with three ticked points on the right, one area at a time. Arrows, picker and swipe all agree about which area is showing. It never advances on its own. Keyboard arrow keys move between the picker's names.</div>
+</div>
+
+<div class="tc">
+<h4>PUB-005 · Programme and package cards open a dialog</h4>
+<p class="meta">Persona: visitor · Precondition: ADM-040 and ADM-050 done</p>
+<ol>
+  <li>Open <code>[SITE]/conditions</code>. Scroll to the programme cards.</li>
+  <li>Click the body of the <b>Back Care 6-Session Programme</b> card (not the button).</li>
+  <li>Read the dialog: description, promises, terms, scheduling rules, per-session price comparison.</li>
+  <li>Press <kbd>Esc</kbd> to close it.</li>
+  <li>Now click the <b>Book package</b> link on the card.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the card body opens the dialog (it does not navigate). Escape closes it and focus returns to the card. The Book link is a separate control and goes to <code>/book?package=…</code> with the package summary already loaded.</div>
+</div>
+
+<div class="tc">
+<h4>PUB-006 · Team page and "Book with Dr. X"</h4>
+<p class="meta">Persona: visitor · Precondition: therapist T1 approved and visible on the team page (Part 3 / Part 4)</p>
+<ol>
+  <li>Open <code>[SITE]/team</code>.</li>
+  <li>Click the card for <b>Kavya Menon</b>.</li>
+  <li>In the dialog, click <b>Book with Dr. Kavya Menon</b> (wording may name the therapist).</li>
+  <li>On the booking wizard, complete step 1 and continue to step 2.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the URL is <code>/book?therapist=…</code>. Step 2 shows a teal panel reading <b>Requested: Kavya Menon</b> with a note that they will be booked with them if free, and another specialist otherwise. A <b>Remove</b> button clears the request. The wizard must never claim the booking is confirmed with that therapist.</div>
+</div>
+
+<div class="tc">
+<h4>PUB-007 · A hidden or unknown therapist id is ignored</h4>
+<p class="meta">Persona: visitor · Negative test</p>
+<ol>
+  <li>Open <code>[SITE]/book?therapist=00000000-0000-0000-0000-000000000000</code>.</li>
+  <li>Continue to step 2.</li>
+</ol>
+<div class="exp"><b>Expected:</b> no "Requested:" panel appears and the booking continues normally with no error. A stale link must not break booking.</div>
+</div>
+
+<div class="tc">
+<h4>PUB-008 · The B2B enquiry form on /hospitals</h4>
+<p class="meta">Persona: visitor · Data: Sunrise Multispeciality Hospital, Dr. Nisha Pillai, partner.sunrise@example.com, +914442000011</p>
+<ol>
+  <li>Open <code>[SITE]/hospitals</code> and scroll to the enquiry form.</li>
+  <li>Fill in organisation name, contact person, email, phone and a short message.</li>
+  <li>Click the submit button.</li>
+  <li>As admin, open <b>People → Partners</b> and look at the leads list.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the visitor sees a thank-you confirmation. The lead appears in the admin's partner leads list with status <b>New</b>, and its status can be moved to Contacted / Onboarded. A visitor can never read the leads list back.</div>
+</div>
+
+<h3>2.2 Registering as a patient</h3>
+<p><b>What this is.</b> Two ways in: a plain sign-up at <code>/patient/register</code>, or signing up inside the booking wizard while paying. A plain sign-up waits for an admin to approve it; a genuine payment attempt approves the account automatically. There is deliberately <b>no email confirmation step</b> — nobody has to click a link in an inbox.</p>
+
+<div class="tc">
+<h4>PAT-REG-001 · Self-registration, then Pending Approval</h4>
+<p class="meta">Persona: visitor → patient P1 · Data: Priya Sharma, priya.sharma@example.com, +919876500011, Test@1234</p>
+<ol>
+  <li>Open <code>[SITE]/patient/login</code>.</li>
+  <li>Click the <b>Register Account</b> tab.</li>
+  <li><b>Full Name</b>: <code>Priya Sharma</code>.</li>
+  <li><b>Email</b>: <code>priya.sharma@example.com</code>.</li>
+  <li><b>Phone</b>: choose country <b>India (+91)</b> and type <code>9876500011</code>.</li>
+  <li><b>Create Password</b>: <code>Test@1234</code>.</li>
+  <li><b>Confirm Password</b>: <code>Test@1234</code>.</li>
+  <li>Leave <b>Referral Code</b> empty.</li>
+  <li>Click <b>Create Account</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the button reads "Creating account..." and then the browser lands on <code>/pending-approval</code> — already signed in, with a message that an admin is reviewing the account. You are <b>not</b> asked to check your email. Trying to open <code>/patient/dashboard</code> now bounces back to <code>/pending-approval</code>.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-REG-002 · Password mismatch is caught</h4>
+<p class="meta">Persona: visitor · Negative test</p>
+<ol>
+  <li><code>[SITE]/patient/login</code> → <b>Register Account</b>.</li>
+  <li>Fill name <code>QA Mismatch</code>, email <code>qa.mismatch@example.com</code>, phone <code>+91 98765 00099</code>.</li>
+  <li>Password <code>Test@1234</code>, Confirm password <code>Test@9999</code>.</li>
+  <li>Click <b>Create Account</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> a red error reads "Passwords do not match. Please re-enter them." No account is created.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-REG-003 · Invalid email and invalid phone are caught</h4>
+<p class="meta">Persona: visitor · Negative test</p>
+<ol>
+  <li>Register tab. Enter email <code>notanemail</code>, a valid phone, matching passwords. Submit.</li>
+  <li>Correct the email to <code>qa.badphone@example.com</code>, set phone to <code>12345</code>. Submit.</li>
+</ol>
+<div class="exp"><b>Expected:</b> first submit shows "Please enter a valid email address."; second shows "Please enter a valid phone number." Neither creates an account.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-REG-004 · Registering with an email that already exists</h4>
+<p class="meta">Persona: visitor · Negative test · Precondition: PAT-REG-001 done</p>
+<ol>
+  <li>Register tab. Use <code>priya.sharma@example.com</code> again with any password.</li>
+  <li>Submit.</li>
+</ol>
+<div class="exp"><b>Expected:</b> a clear error that the account already exists (or an instruction to sign in). No duplicate account, no crash, no raw database error text on screen.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-REG-005 · Registering with a hospital referral code</h4>
+<p class="meta">Persona: visitor → patient P6 · Precondition: hospital H1 onboarded (Part 6) and its referral code known · Data: Fatima Khan</p>
+<ol>
+  <li>Register tab. Fill Fatima Khan's details from section 0.7.</li>
+  <li>Type the hospital's referral code into <b>Referral Code</b>, then click outside the field.</li>
+  <li>Submit.</li>
+  <li>As admin, open <b>People → Patients</b> and open Fatima's record.</li>
+</ol>
+<div class="exp"><b>Expected:</b> as soon as focus leaves the field a green line reads "Valid — referred by Sunrise Multispeciality Hospital". After registration the admin's patient record shows she was referred by that hospital, and her sessions later count toward that hospital's revenue share.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-REG-006 · An unknown referral code blocks the submit</h4>
+<p class="meta">Persona: visitor · Negative test</p>
+<ol>
+  <li>Register tab. Fill valid details, type <code>NOTACODE123</code> in Referral Code, click outside the field.</li>
+  <li>Click <b>Create Account</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> a red line reads "Code not recognized — double-check it or leave blank", and submitting shows an error asking you to fix or clear the code. Clearing the field lets registration proceed.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-REG-007 · Sign in before approval, and after</h4>
+<p class="meta">Persona: patient P1 + Admin</p>
+<ol>
+  <li>Sign out. Open <code>[SITE]/patient/login</code>, sign in as <code>priya.sharma@example.com</code> / <code>Test@1234</code>.</li>
+  <li>As admin (other window): <b>Today → Approvals</b>, find Priya Sharma under the <b>Patients</b> filter, click <b>Approve</b>.</li>
+  <li>Back in the patient window, reload the page.</li>
+</ol>
+<div class="exp"><b>Expected:</b> before approval the patient always lands on <code>/pending-approval</code>. After the admin approves, the same session reaches <code>/patient/dashboard</code> with no re-login and nothing further to verify.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-REG-008 · Forgot password</h4>
+<p class="meta">Persona: patient P1</p>
+<ol>
+  <li><code>[SITE]/patient/login</code> → <b>Forgot password?</b>.</li>
+  <li>Type <code>priya.sharma@example.com</code>, click <b>Send Reset Link</b>.</li>
+  <li>Repeat with an email that has no account, e.g. <code>nobody@example.com</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> both attempts show the same message ("If an account exists for that email, we've sent a password reset link…"). The wording must not reveal whether the address is registered.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-REG-009 · A suspended patient is blocked</h4>
+<p class="meta">Persona: Admin + patient · Negative test</p>
+<ol>
+  <li>As admin: <b>People → Patients</b> → open Priya Sharma → switch her account to <b>suspended / inactive</b>.</li>
+  <li>In the patient window, reload the dashboard.</li>
+  <li>Re-activate her afterwards.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the patient is sent to <code>/account-suspended</code> and cannot reach any dashboard page. After re-activation, a reload restores normal access.</div>
+</div>
+
+<h3>2.3 Booking a single video session (the booking wizard)</h3>
+<p><b>What this is — read before testing.</b> <code>/book</code> is a three-step wizard:</p>
+<ul>
+  <li><b>Step 1 — When.</b> A calendar of bookable dates, a row of time chips for the chosen date, and a row of language chips. The wizard pre-picks the earliest legal date, the earliest legal hour and the first language, so the step is complete on arrival; each pre-pick is highlighted once until the patient chooses for themselves. Only slots at least <b>[online booking lead time]</b> hours ahead are offered (12 by default, set in Settings → Booking Rules).</li>
+  <li><b>Step 2 — Who and what.</b> If signed out: full name, email, password, phone, confirm password and an optional referral code — this creates the account. If signed in, it just says "Booking as …". Then the treatment category ("What would you like help with?"), an optional therapist request, an optional note, and a mandatory telehealth consent tick.</li>
+  <li><b>Step 3 — Review and pay.</b> A summary, the cancellation rule, and a payment button that opens Razorpay. The session is only confirmed after the server verifies the payment signature — never on the browser's word.</li>
+</ul>
+<p>Admin settings that change this screen: <b>online booking lead time</b>, <b>booking languages</b>, <b>online cancellation refund window</b>, <b>treatment categories</b> (which options exist and at what price), <b>session packages visible</b> (for <code>?package=</code> links).</p>
+
+<div class="tc">
+<h4>PAT-BOOK-001 · Book and pay for a single session (happy path)</h4>
+<p class="meta">Persona: patient P1 (signed in, approved) · Data: Back &amp; Spine Care, ₹1,999, card 4111 1111 1111 1111</p>
+<ol>
+  <li>Signed in as Priya, open <code>[SITE]/</code> and click the <b>Book</b> button in the header (or the hero's booking button).</li>
+  <li>Step 1 opens. Read the line "Times shown in <i>your timezone</i> — detected automatically".</li>
+  <li>In the calendar, click a date <b>3 days from today</b>.</li>
+  <li>In <b>Preferred Time</b>, click the chip <b>10:00 – 11:00</b> (or any offered chip).</li>
+  <li>In <b>Preferred Language</b>, click <b>English</b>.</li>
+  <li>Click <b>Continue to Medical Details →</b>.</li>
+  <li>Step 2 shows "Booking as Priya Sharma (priya.sharma@example.com)". In <b>What would you like help with?</b> choose <b>Back &amp; Spine Care — ₹1,999 / 60 min</b>.</li>
+  <li>In <b>Anything else we should know?</b> type <code>Lower back pain since a fall, worse when sitting.</code></li>
+  <li>Tick the telehealth consent checkbox.</li>
+  <li>Click <b>Review Booking →</b>.</li>
+  <li>Step 3 shows Name, Email, Preferred Time, Language, Concern and <b>Session Fee ₹1,999 INR</b>. Read the cancellation line.</li>
+  <li>Click <b>Request Booking</b>.</li>
+  <li>The Razorpay window opens. Choose <b>Card</b>, enter <code>4111 1111 1111 1111</code>, expiry <code>12/30</code>, CVV <code>123</code>, name <code>Test Patient</code>, and pay. On the simulated bank page click <b>Success</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b>
+<ul>
+  <li>Each step header reads "Step 1 of 3", "Step 2 of 3", "Step 3 of 3".</li>
+  <li>After payment the wizard shows a tick, the heading <b>Payment Confirmed</b>, a line saying the session is booked and paid and the link will follow, and a <b>Go to Dashboard</b> button.</li>
+  <li>On <code>/patient/dashboard</code> the session appears with the chosen date/time, status <b>Confirmed</b> or <b>Requested</b> (unassigned), and payment showing as paid.</li>
+  <li>In the admin's <b>Sessions → All Sessions</b> the same session appears with a session code beginning <code>SS</code>, the patient's name, the amount ₹1,999 and payment status paid.</li>
+</ul></div>
+</div>
+
+<div class="tc">
+<h4>PAT-BOOK-002 · Guest books and creates the account in the wizard</h4>
+<p class="meta">Persona: signed-out visitor → patient P3 · Data: Anita Desai</p>
+<ol>
+  <li>Sign out completely (or use a fresh incognito window). Open <code>[SITE]/book</code>.</li>
+  <li>Step 1: pick a date 4 days out, a time chip, and <b>English</b>. Click <b>Continue to Medical Details →</b>.</li>
+  <li>Step 2: <b>Full Name</b> <code>Anita Desai</code>; <b>Email</b> <code>anita.desai@example.com</code>; <b>Create Password</b> <code>Test@1234</code>; <b>Phone</b> +91 <code>9876500013</code>; <b>Confirm Password</b> <code>Test@1234</code>; leave referral blank.</li>
+  <li>Choose category <b>Knee &amp; Joint Rehab</b>, tick consent, click <b>Review Booking →</b>.</li>
+  <li>Click <b>Request Booking</b> and pay with the success card.</li>
+  <li>Click <b>Go to Dashboard</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the account is created and signed in during the same flow — no "check your email" step at any point. After a successful payment the patient reaches <code>/patient/dashboard</code> directly (not <code>/pending-approval</code>): a genuine payment attempt approves the account automatically. The new session is listed and paid.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-BOOK-003 · Payment abandoned three times offers the escape hatch</h4>
+<p class="meta">Persona: signed-out visitor → new patient · Data: use qa.escape@example.com</p>
+<ol>
+  <li>Open <code>[SITE]/book</code> signed out; complete steps 1 and 2 with a new email <code>qa.escape@example.com</code>, name <code>QA Escape</code>, phone +91 <code>9876500098</code>, password <code>Test@1234</code>, category <b>Back &amp; Spine Care</b>, consent ticked.</li>
+  <li>On step 3 click <b>Request Booking</b>, then close the Razorpay window with the <b>×</b>.</li>
+  <li>Click <b>Pay ₹1,999 Now</b> and close it again.</li>
+  <li>Click <b>Pay ₹1,999 Now</b> a third time and close it again.</li>
+</ol>
+<div class="exp"><b>Expected:</b> after each dismissal an error reads "Payment was not completed. You can try again below." After the third, an amber panel appears: "Having trouble paying? Your booking is saved as pending — you can come back and pay any time from your dashboard." with a <b>Go to Dashboard →</b> link. Following it lands on the patient dashboard (not the pending-approval page) with the session listed as unpaid/pending and a <b>Pay Now</b> button on it.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-BOOK-004 · Failed card payment</h4>
+<p class="meta">Persona: patient P1 · Negative test · Data: card 4000 0000 0000 0002</p>
+<ol>
+  <li>Start a new booking as Priya for a date 5 days out, category <b>Back &amp; Spine Care</b>.</li>
+  <li>On step 3 click <b>Request Booking</b>; in Razorpay use the failure card, or pick <b>Failure</b> on the simulated bank page.</li>
+</ol>
+<div class="exp"><b>Expected:</b> an error explains the payment did not go through; the wizard stays on step 3 with a <b>Pay … Now</b> button to retry. The appointment exists as unpaid and can still be paid later from the dashboard. It must never show as confirmed or paid.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-BOOK-005 · Lead time is enforced</h4>
+<p class="meta">Persona: patient P1 · Negative test · Precondition: lead time = 12 hours</p>
+<ol>
+  <li>Open <code>[SITE]/book</code>.</li>
+  <li>Look at today's date in the calendar and at the time chips offered for today.</li>
+  <li>Note the current clock time.</li>
+</ol>
+<div class="exp"><b>Expected:</b> no date or time chip is offered that starts less than 12 hours from now — if it is 09:00 today, today's remaining chips are absent and tomorrow's chips before ~21:00 are absent. The label under <b>Preferred Date</b> reads "(at least 12 hours from now)".</div>
+</div>
+
+<div class="tc">
+<h4>PAT-BOOK-006 · Lead time change is picked up</h4>
+<p class="meta">Persona: Admin + patient P1</p>
+<ol>
+  <li>As admin, set the online booking lead time to <code>48</code> hours. Save.</li>
+  <li>As the patient, reload <code>[SITE]/book</code>.</li>
+  <li>Set it back to <code>12</code> and reload again.</li>
+</ol>
+<div class="exp"><b>Expected:</b> at 48 hours the first bookable date moves two days out and the helper text reads 48 hours. At 12 the earlier dates come back. The picker and the server always agree — a slot the calendar offers is never rejected on submit.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-BOOK-007 · Double-booking the same time is refused</h4>
+<p class="meta">Persona: patient P1 · Negative test · Precondition: PAT-BOOK-001 booked a slot</p>
+<ol>
+  <li>Start a new booking as Priya and choose <b>exactly the same date and time</b> as the session booked in PAT-BOOK-001.</li>
+  <li>Complete step 2 and click <b>Request Booking</b> on step 3.</li>
+</ol>
+<div class="exp"><b>Expected:</b> an error reads "You already have a session scheduled around this time. Please pick a different slot, or check your dashboard for existing bookings." No second appointment is created and no payment window opens.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-BOOK-008 · Consent is mandatory</h4>
+<p class="meta">Persona: patient P1 · Negative test</p>
+<ol>
+  <li>Start a booking, complete step 1, choose a category on step 2, leave the consent checkbox <b>unticked</b>.</li>
+  <li>Click <b>Review Booking →</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the wizard stays on step 2 with "Please agree to the telehealth consent terms to continue."</div>
+</div>
+
+<div class="tc">
+<h4>PAT-BOOK-009 · Category is mandatory</h4>
+<p class="meta">Persona: patient P1 · Negative test</p>
+<ol>
+  <li>Start a booking, complete step 1, tick consent but leave the category dropdown on "— Select what you need help with —".</li>
+  <li>Click <b>Review Booking →</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> "Please select what you'd like help with." No category is silently chosen for the patient — the price must never be decided by a default.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-BOOK-010 · Only a patient account can book</h4>
+<p class="meta">Persona: therapist / hospital / admin · Negative test</p>
+<ol>
+  <li>Sign in as therapist <code>kavya.menon@example.com</code>.</li>
+  <li>In the same browser open <code>[SITE]/book</code>.</li>
+  <li>Repeat signed in as the hospital partner, and again as an admin.</li>
+</ol>
+<div class="exp"><b>Expected:</b> instead of the wizard, a panel explains this account cannot book and points each role at what is theirs — a hospital is sent to <b>Refer a Patient</b>, an admin to the back office's own booking screen, and any clinician wanting therapy is told to sign out and use a separate patient account. Every "go to my dashboard" link on that panel points at <code>/dashboard</code>, never at an admin URL.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-BOOK-011 · Pay later from the dashboard</h4>
+<p class="meta">Persona: patient P1 · Precondition: an unpaid session exists (PAT-BOOK-003 or -004)</p>
+<ol>
+  <li>Open <code>/patient/dashboard/sessions</code>.</li>
+  <li>Find the unpaid session and click <b>Pay Now</b>.</li>
+  <li>Pay with the success card.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the Razorpay window opens with the correct amount; after success the card refreshes to show the session as paid, and the admin's list shows the same. No duplicate appointment is created.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-BOOK-012 · Continue with the same therapist</h4>
+<p class="meta">Persona: patient P1 · Precondition: at least one past session with Kavya Menon</p>
+<ol>
+  <li>Start a new booking as Priya. On step 2 look for <b>Continue with the same therapist?</b>.</li>
+  <li>Select <b>Kavya Menon</b>, finish the booking and pay.</li>
+  <li>As admin, open the new session in <b>Sessions → All Sessions</b> and open the assign form.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the dropdown lists only therapists this patient has actually seen, plus "No preference — any available specialist". In the admin's assign form, Kavya Menon is preselected and marked <b>(requested)</b>. The admin can still choose someone else.</div>
+</div>
+
+<h3>2.4 Buying and using a session package</h3>
+<p><b>What this is.</b> A package is a bundle of sessions at one price, valid for a set number of days, normally delivered by a single therapist ("therapist lock"). Buying one uses the same wizard with the category step replaced by a read-only package summary, and step 1's date/time becomes <b>session 1</b>. Later sessions are scheduled from the patient dashboard, one at a time or several at once with the bulk scheduler.</p>
+
+<div class="tc">
+<h4>PAT-PKG-001 · Buy the 6-session programme</h4>
+<p class="meta">Persona: patient P3 Anita Desai · Data: Back Care 6-Session Programme, ₹9,999</p>
+<ol>
+  <li>Signed in as Anita, open <code>[SITE]/conditions</code>, find the package card and click <b>Book package</b>.</li>
+  <li>Step 1: choose a date 3 days out, a time chip and <b>English</b>. Continue.</li>
+  <li>Step 2 shows a teal <b>Your package</b> panel: title, "6 sessions • ₹9,999 bundle", a savings percentage, and "One therapist for your whole programme". Tick consent. Continue.</li>
+  <li>Step 3 shows Session 1 Preferred Time, Package, Sessions Included <b>6</b>, Valid For <b>90 days</b>, the promise list, Bundle Price ₹9,999 with ₹11,994 struck through, and the terms.</li>
+  <li>Click <b>Pay ₹9,999 for Package</b> and pay with the success card.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the wizard shows <b>Package Purchased</b> and says the package is paid for and session 1 is booked. On <code>/patient/dashboard/packages</code> the purchase shows <b>1 of 6 used</b>, days remaining ≈90, and a <b>Schedule sessions</b> button. The admin's <b>Catalog → Purchases</b> lists the purchase with ₹9,999 collected.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-PKG-002 · Package hidden site-wide cannot be bought</h4>
+<p class="meta">Persona: Admin + patient · Negative test</p>
+<ol>
+  <li>As admin, Settings → Booking Rules → switch <b>Session Packages Visible</b> off.</li>
+  <li>As the patient, open the package's <code>/book?package=…</code> URL directly.</li>
+  <li>Switch it back on.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the wizard reports "This package isn't available right now." with a link to book a single session instead. The payment button stays disabled — the rule is enforced on the server, not only by hiding cards.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-PKG-010 · Schedule the remaining sessions one at a time</h4>
+<p class="meta">Persona: patient P3 · Precondition: PAT-PKG-001 done</p>
+<ol>
+  <li>Open <code>/patient/dashboard/packages</code>.</li>
+  <li>Click <b>Schedule sessions</b> on the purchase.</li>
+  <li>Select one date/time at least 48 hours after session 1 (the package's minimum gap) and confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the session is booked and the counter moves to <b>2 of 6 used</b>. Because the programme is therapist-locked and a therapist is already assigned, the new session is auto-assigned to that therapist, auto-confirmed (payment was collected up front) and gets its own video link.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-PKG-011 · The minimum gap rule is enforced</h4>
+<p class="meta">Persona: patient P3 · Negative test · Data: minimum gap 48 hours</p>
+<ol>
+  <li>Open the bulk scheduler again and pick a slot <b>24 hours</b> after an already-booked session.</li>
+  <li>Confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> that slot is refused with a message naming the minimum gap, and the counter does not move. Slots that satisfy the rule in the same request still go through, and the result says exactly which ones were booked and which were not.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-PKG-012 · The max-per-week rule is enforced</h4>
+<p class="meta">Persona: patient P3 · Negative test · Data: max 3 per week</p>
+<ol>
+  <li>In the bulk scheduler, select four slots inside the same calendar week (respecting the 48-hour gap where possible).</li>
+  <li>Confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> at most three are booked; the fourth is reported as refused with the reason. The counter increases by exactly the number actually booked.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-PKG-013 · The bulk scheduler limit is enforced</h4>
+<p class="meta">Persona: patient P3 · Negative test · Precondition: bulk limit set to 3 in ADM-037</p>
+<ol>
+  <li>Open the bulk scheduler and try to select <b>4</b> slots.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the fourth selection is refused in the UI (or the request is refused server-side) with a message naming the limit of 3 per request.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-PKG-014 · Cannot schedule more sessions than the package holds</h4>
+<p class="meta">Persona: patient P3 · Negative test</p>
+<ol>
+  <li>Schedule sessions until the counter reads <b>6 of 6 used</b>.</li>
+  <li>Click <b>Schedule sessions</b> again.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the scheduler reports that no sessions remain (or the button is gone). No seventh session can be created against the purchase.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-PKG-015 · Package detail modal, viewer-scoped</h4>
+<p class="meta">Persona: patient P3, then therapist T1</p>
+<ol>
+  <li>As the patient, open <code>/patient/dashboard/sessions</code> and click the package chip on any package-covered session card.</li>
+  <li>Read the modal; close it with <kbd>Esc</kbd>.</li>
+  <li>As the locked therapist, open the same programme from <b>My Patients → Programmes</b> and open its detail.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the patient's view shows what they paid, sessions used/remaining, validity and the locked therapist. The therapist's view shows the clinical picture and progress but <b>not</b> the money. Escape closes the dialog and focus returns to the chip.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-PKG-016 · Expiry warning appears inside the reminder window</h4>
+<p class="meta">Persona: Admin + patient P3 · Data: reminder window 14 days</p>
+<ol>
+  <li>As admin, open <b>Catalog → Purchases</b>, find Anita's purchase and use <b>Extend expiry</b> to set the expiry date to <b>7 days from today</b>.</li>
+  <li>As the patient, reload <code>/patient/dashboard/packages</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the package widget shows a highlighted "expiring soon" warning with the days remaining, and the admin's package screen counts it under "expiring within N days".</div>
+</div>
+
+<div class="tc">
+<h4>PAT-PKG-017 · An expired package cannot be scheduled against</h4>
+<p class="meta">Persona: Admin + patient P3 · Negative test</p>
+<ol>
+  <li>As admin, set the purchase's expiry to <b>yesterday</b> (Catalog → Purchases → extend/edit expiry).</li>
+  <li>As the patient, reload the dashboard and try <b>Schedule sessions</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the purchase now reads <b>Expired</b> (the status flips the next time a dashboard loads — there is no background job) and scheduling is refused. Restore a future expiry afterwards so later tests can use the package.</div>
+</div>
+
+<h3>2.5 Booking a home visit</h3>
+<p><b>What this is.</b> A four-step wizard at <code>/book-home-visit</code>: <b>1 Where</b> (pincode serviceability check, then the address), <b>2 When</b>, <b>3 About you</b>, <b>4 Review and pay</b>. Home visits have their own lead time (24 h), their own refund window, a travel fee per pincode, and can be paid by card or in cash at the door. A home visit produces a calendar event but no video link, and its session code starts <code>HV</code>.</p>
+
+<div class="tc">
+<h4>PAT-HV-001 · Serviceability check — covered pincode</h4>
+<p class="meta">Persona: patient P2 Rahul Verma · Data: pincode 600020</p>
+<ol>
+  <li>Sign in as Rahul (register him first exactly as in PAT-REG-001 with his own details, and have the admin approve him).</li>
+  <li>Open <code>[SITE]/home-visit</code> and click <b>Book</b> on <b>Home Recovery 4-Visit Pack</b>.</li>
+  <li>Step 1: type <code>600020</code> into the pincode field and click the check button.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the wizard confirms the area is covered, names it (<b>Adyar</b>) and shows the travel fee <b>₹250</b>. Only then does the address form appear.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HV-002 · Serviceability check — uncovered pincode</h4>
+<p class="meta">Persona: patient P2 · Negative test · Data: pincode 110001</p>
+<ol>
+  <li>On step 1, type <code>110001</code> and click check.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the wizard says the area is not covered yet and offers to take the patient's details for a waitlist. No address form, no package price, and no way to continue to payment for that pincode.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HV-003 · Book and prepay a home visit package</h4>
+<p class="meta">Persona: patient P2 · Data: Rahul's address in section 0.7; card 4111 1111 1111 1111</p>
+<ol>
+  <li>Step 1: pincode <code>600020</code>, check, then fill <b>Address line 1</b> <code>12 Kasturba Nagar, 2nd Cross Street</code>, <b>line 2</b> <code>Flat 3B</code>, <b>landmark</b> <code>Opposite Adyar Bakery</code>, <b>contact phone</b> <code>+91 98765 00012</code>, <b>access notes</b> <code>Lift to 3rd floor; call on arrival</code>, label <code>Home</code>. Continue.</li>
+  <li>Step 2 (<b>When suits you?</b>): pick a date at least <b>2 days</b> ahead and a time chip. Continue.</li>
+  <li>Step 3 (<b>About you</b>): confirm name/email are prefilled; in the concern field type <code>Lower back pain since a fall</code>; tick consent. Continue.</li>
+  <li>Step 4 (<b>Review and pay</b>): check the breakdown — package price ₹11,999 <b>plus</b> travel fee ₹250 = ₹12,249 total.</li>
+  <li>Choose <b>Pay now</b> (prepaid) and pay with the success card.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the wizard confirms the purchase; the patient dashboard shows a <b>Your Home Visit Packages</b> widget reading <b>1 of 4 used</b> with the address and the days remaining. The first visit appears under Sessions with a home-visit badge, an address (not a Meet link) and a session code starting <code>HV</code>. The admin's Catalog → Purchases shows the purchase, and Money screens treat the ₹250 travel fee as the therapist's, never as clinic revenue.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HV-004 · Book a home visit with cash at the door</h4>
+<p class="meta">Persona: patient P2 · Precondition: home visit cash payment ON · Data: Single Home Visit ₹2,999 + ₹250</p>
+<ol>
+  <li>Open <code>[SITE]/home-visit</code> → <b>Single Home Visit</b> → Book.</li>
+  <li>Complete steps 1–3 using the saved address.</li>
+  <li>On step 4 choose <b>Pay cash at the visit</b> and confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the visit is booked immediately with no Razorpay window. It shows as <b>unpaid</b> with a cash badge and is <b>not</b> auto-confirmed — the admin assigns a therapist before anyone travels. The admin's Cash Ledger shows the expected cash amount as outstanding.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HV-005 · Cash switched off removes the option</h4>
+<p class="meta">Persona: Admin + patient · Negative test</p>
+<ol>
+  <li>As admin, Settings → Booking Rules → Home Visit → switch <b>cash payment</b> off.</li>
+  <li>As the patient, start a home-visit booking and reach step 4.</li>
+  <li>Switch it back on.</li>
+</ol>
+<div class="exp"><b>Expected:</b> only the prepaid option is offered; the cash choice is absent and cannot be forced through.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HV-006 · Home visit lead time (24 h) is enforced</h4>
+<p class="meta">Persona: patient P2 · Negative test</p>
+<ol>
+  <li>Start a home-visit booking and look at step 2's date/time options.</li>
+</ol>
+<div class="exp"><b>Expected:</b> nothing inside 24 hours from now is offered — this is deliberately stricter than the 12-hour online rule, because a therapist has to travel.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HV-007 · Schedule remaining visits in bulk</h4>
+<p class="meta">Persona: patient P2 · Precondition: PAT-HV-003 done</p>
+<ol>
+  <li>Open <code>/patient/dashboard/packages</code> → <b>Your Home Visit Packages</b> → <b>Schedule visits</b>.</li>
+  <li>Select two dates respecting the 48-hour gap and confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> both visits are booked against the same saved address, the counter moves to <b>3 of 4 used</b>, and each new visit is auto-assigned to the locked therapist where they are free. A clash does not cost the patient a visit — that visit lands unassigned in the admin queue instead.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HV-008 · Editing a saved address does not rewrite past visits</h4>
+<p class="meta">Persona: patient P2</p>
+<ol>
+  <li>Open <code>/patient/dashboard/profile</code> → <b>My Addresses</b>.</li>
+  <li>Edit the saved Home address: change line 2 to <code>Flat 5C</code>. Save.</li>
+  <li>Open a home visit booked <i>before</i> the edit and read its address.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the already-booked visit still shows <b>Flat 3B</b> — the address was snapshotted onto the visit. Only visits booked after the edit use <b>Flat 5C</b>.</div>
+</div>
+
+<h3>2.6 The patient dashboard</h3>
+<p><b>What this is.</b> Every dashboard in this app opens on the same <b>Overview</b>: four headline figures, a "what needs you" feed, and quick actions. The sidebar shows only sections the patient can actually use — Sessions, Packages and Payments appear once they have one; <b>Book a Session</b> is always there.</p>
+
+<div class="tc">
+<h4>PAT-DASH-001 · Overview layout and figures</h4>
+<p class="meta">Persona: patient P1 · Precondition: at least one paid session</p>
+<ol>
+  <li>Open <code>/patient/dashboard</code>.</li>
+  <li>Read the four figures at the top, then the feed, then the quick actions.</li>
+</ol>
+<div class="exp"><b>Expected:</b> four figures including the next session and the health-profile completeness, then a feed with the newest items and anything still needing the patient pinned to the top with a count ("N things need you"), then quick actions. There is no read/unread state anywhere.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-DASH-002 · Sidebar hides sections that would be empty</h4>
+<p class="meta">Persona: a brand-new approved patient with no bookings</p>
+<ol>
+  <li>Register a fresh patient (<code>qa.empty@example.com</code>), approve them, sign in.</li>
+  <li>Read the sidebar.</li>
+</ol>
+<div class="exp"><b>Expected:</b> Overview, Book a Session, Health Profile and Edit Profile are present. <b>Your Sessions</b>, <b>Packages</b> and <b>Payments</b> are absent until the patient actually has one. Book a Session is always shown.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-DASH-003 · First-visit guided tour</h4>
+<p class="meta">Persona: the fresh patient from PAT-DASH-002</p>
+<ol>
+  <li>On the first load of the dashboard, follow the spotlight tour through its steps using <b>Next</b>.</li>
+  <li>Click <b>Skip</b> on a second account, and reload both dashboards.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the tour highlights real sidebar entries in sequence, can be skipped, and never appears again after finishing or skipping (even after a reload). It is separate from the persistent "complete your health profile" banner.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-DASH-004 · Back to Home</h4>
+<p class="meta">Persona: patient P1</p>
+<ol>
+  <li>On any dashboard page, click <b>Back to Home</b> at the top of the sidebar.</li>
+  <li>Repeat on the collapsed sidebar rail and, at mobile width, inside the drawer menu.</li>
+</ol>
+<div class="exp"><b>Expected:</b> each takes you to the public home page while staying signed in. The link is present in all three renders — expanded sidebar, collapsed rail and mobile drawer.</div>
+</div>
+
+<h3>2.7 Sessions, joining, and the clock-dependent rules</h3>
+
+<div class="tc">
+<h4>PAT-SESS-001 · Sessions screen filters</h4>
+<p class="meta">Persona: patient P2 (has both video sessions and home visits)</p>
+<ol>
+  <li>Open <code>/patient/dashboard/sessions</code>.</li>
+  <li>Click through the filters <b>Upcoming</b>, <b>Past</b>, <b>Cancelled</b>.</li>
+  <li>Use the <b>Video / Home visit</b> filter.</li>
+  <li>Switch the view from <b>List</b> to <b>Calendar</b> and back.</li>
+</ol>
+<div class="exp"><b>Expected:</b> one screen lists both delivery modes. The Video/Home visit filter only appears for a patient who has both. The calendar view shows the same sessions as the list — the two can never disagree. At the bottom, a pager offers "Show N per page" with Previous/Next greying out at the ends and an "x–y of n" count.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-SESS-030 · Join button opens inside its window (simulated clock)</h4>
+<p class="meta">Persona: patient P1 · Precondition: a confirmed video session with a Meet link; join window 15/15</p>
+<ol>
+  <li>Note the exact date and time of a confirmed upcoming session, e.g. <b>12 Feb, 10:00</b>.</li>
+  <li>In the Debug bar's <b>Simulate now</b> field set <b>12 Feb, 09:30</b> (30 minutes before) and click <b>Set</b>.</li>
+  <li>Look at the session card.</li>
+  <li>Set the clock to <b>09:50</b> (10 minutes before) and click <b>Set</b>.</li>
+  <li>Set the clock to <b>10:20</b> and click <b>Set</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> at 09:30 the join control is inert and typically shows a countdown or "opens 15 minutes before". At 09:50 it reads <b>Tap to Join</b> and is clickable, opening the Meet link in a new tab. At 10:20 (inside the 15-minute grace after the slot) it is still joinable.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-SESS-031 · Session Completed cutoff (simulated clock)</h4>
+<p class="meta">Persona: patient P1 · Precondition: ADM-033 set the cutoff to 30 minutes</p>
+<ol>
+  <li>With the same session (slot 10:00), set the simulated clock to <b>10:45</b>. Click <b>Set</b>.</li>
+  <li>Read the join control on the patient dashboard.</li>
+  <li>Check the same session on the therapist dashboard and in the admin's session list.</li>
+  <li>Click <b>Reset to Real Time</b> when done.</li>
+</ol>
+<div class="exp"><b>Expected:</b> past 30 minutes from the slot start, every "Tap to Join" control for that session reads <b>Session Completed</b> and is inert — on the patient's, therapist's and hospital's dashboards <i>and</i> in the admin's own lists. A cancelled session reads <b>Session Cancelled</b> instead, never "completed".</div>
+</div>
+
+<div class="tc">
+<h4>PAT-SESS-032 · Meet links off</h4>
+<p class="meta">Persona: Admin + patient</p>
+<ol>
+  <li>As admin, switch <b>Auto-Create Meet Links</b> off.</li>
+  <li>Have a new online session confirmed (admin assigns a therapist to one).</li>
+  <li>As the patient, look at that session card inside the join window.</li>
+  <li>Switch the setting back on.</li>
+</ol>
+<div class="exp"><b>Expected:</b> no video link is attached; the card explains the link is not available rather than showing a dead button. A calendar event is still created for home visits regardless of this setting.</div>
+</div>
+
+<h3>2.8 Cancelling and refunds (patient side)</h3>
+
+<div class="tc">
+<h4>PAT-CANCEL-001 · Cancel outside the refund window → full refund</h4>
+<p class="meta">Persona: patient P1 · Precondition: a paid session more than 24 hours away</p>
+<ol>
+  <li>Open <code>/patient/dashboard/sessions</code>, find a paid session at least 2 days out.</li>
+  <li>Click <b>Cancel</b>.</li>
+  <li>In the prompt ("Cancel this session? You can add a reason (optional):") type <code>Travelling that week</code> and confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the session moves to <b>Cancelled</b>. A refund is issued through Razorpay and the card/receipt shows a refunded amount of the full session fee. In the admin's Money → Transactions the refund appears as processed, and Money → Summary's "Refunded" figure increases by ₹1,999.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-CANCEL-002 · Cancel inside the refund window → no refund</h4>
+<p class="meta">Persona: patient P1 · Negative test · Precondition: a paid session less than 24 hours away</p>
+<ol>
+  <li>Book and pay for a session roughly 13–20 hours from now (allowed: lead time is 12 hours).</li>
+  <li>Cancel it.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the cancellation is accepted but no refund is issued, and the screen says so plainly before or after confirming. The admin's Money screens show no refund for it. (This is where the admin's <i>partial refund</i> tool exists as the manual override — see FIN-REF-002.)</div>
+</div>
+
+<div class="tc">
+<h4>PAT-CANCEL-003 · Cancelling an unpaid session</h4>
+<p class="meta">Persona: patient P1</p>
+<ol>
+  <li>Cancel a session that was never paid.</li>
+</ol>
+<div class="exp"><b>Expected:</b> it cancels cleanly with no refund attempted and no error.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-CANCEL-004 · Cancelling a home visit uses the home-visit window</h4>
+<p class="meta">Persona: patient P2 · Data: home visit refund window 24 hours (ADM-038)</p>
+<ol>
+  <li>As admin, set the <b>home visit</b> refund window to <code>48</code> hours; leave the online one at 24.</li>
+  <li>As the patient, cancel a prepaid home visit that is <b>36 hours</b> away.</li>
+</ol>
+<div class="exp"><b>Expected:</b> no refund, because a home visit uses its own 48-hour rule — even though an online session 36 hours out would have been refunded. The two windows are independent. Set it back to 24 afterwards.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-CANCEL-005 · Cancelling a cash home visit already collected</h4>
+<p class="meta">Persona: patient P2 · Precondition: a cash visit where the therapist recorded cash collected</p>
+<ol>
+  <li>Cancel that visit while still eligible for a refund.</li>
+  <li>As admin, open <b>Money → Payouts / Cash Ledger</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> because there is no card payment to reverse, the refund is marked <b>manual pending</b> and appears on the admin's Cash Ledger as an action ("cash to hand back") until an admin marks it returned.</div>
+</div>
+
+<h3>2.9 The Health Profile (patient side)</h3>
+<p><b>What this is.</b> The patient's clinical record. Crucially, <b>the therapist writes the first version</b>: until a therapist has triaged the patient and filled in the first record, the patient's health profile is read-only. Before that the only thing the patient can do there is upload test reports and scans. Once the therapist's record is live, the patient can correct and extend it — their edits go to an admin for review.</p>
+
+<div class="tc">
+<h4>PAT-HP-001 · Before onboarding the profile is read-only</h4>
+<p class="meta">Persona: patient P1, before any therapist has triaged her</p>
+<ol>
+  <li>Open <code>/patient/dashboard/health-profile</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the page explains what happens next (a therapist will complete the first record after the first session). There is <b>no</b> "start filling" button and <b>no</b> "0 of 7 answered" counter — those are absent, not greyed out. There is no amber nag banner. The overview figure for the profile reads <b>—</b>, not <b>0%</b>. The <b>reports and scans uploader is open</b> and usable.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HP-002 · Upload a test report</h4>
+<p class="meta">Persona: patient P1 · Data: any PDF under 10 MB, e.g. a 1-page "MRI report"</p>
+<ol>
+  <li>On the health profile, find the reports/scans panel and click <b>Upload</b>.</li>
+  <li>Choose a PDF. Give it a label such as <code>Lumbar MRI Jan</code> if asked. Confirm.</li>
+  <li>Click the uploaded file to open it.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the file uploads, appears in the list with its name, type and size, and opens in a new tab through a short-lived signed link. Copy that link, wait ~3 minutes and open it again: it must have expired. The assigned therapist and the admin can open the same file from their side; nobody else can.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HP-003 · Upload limits</h4>
+<p class="meta">Persona: patient P1 · Negative test</p>
+<ol>
+  <li>Try to upload a file larger than 10 MB.</li>
+  <li>Try to upload a <code>.docx</code> or <code>.exe</code>.</li>
+  <li>Upload files until 20 are on file, then try one more.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the oversized file is refused naming the 10 MB limit; the unsupported type is refused naming the allowed types (PDF and photos); the 21st upload is refused naming the 20-file limit. A photographed report is compressed in the browser before upload.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HP-004 · Delete an uploaded report</h4>
+<p class="meta">Persona: patient P1</p>
+<ol>
+  <li>Delete one uploaded file and confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> it disappears from the patient's list and from the therapist's and admin's view of the chart. There is no "edit" for a report — correcting one means deleting and re-uploading.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HP-020 · After onboarding, fill in the profile (one question at a time)</h4>
+<p class="meta">Persona: patient P1 · Precondition: therapist T1 has triaged Priya as <b>orthopaedic</b> and submitted the first record (THR-HP-010)</p>
+<ol>
+  <li>Open <code>/patient/dashboard/health-profile</code>.</li>
+  <li>Read the summary card — it should show the therapist's answers as a chart, not as empty inputs.</li>
+  <li>Click the button that opens the questions (e.g. <b>Update my answers</b>).</li>
+  <li>Answer one question, click <b>Next</b>. Repeat through the set, using the progress bar to track position.</li>
+  <li>Close the pop-up half way through, then reopen it.</li>
+  <li>Finish the questions and submit on the review step.</li>
+</ol>
+<div class="exp"><b>Expected:</b> questions appear <b>one per screen</b> in a pop-up with plain-language help text and a progress bar — never seven fields on one page. Closing mid-way keeps the answers (autosaved as a draft) and reopening resumes where you were. Submitting queues the change for the clinic's review; the live record does not change until it is approved. Wording addresses the patient in their own voice ("your answers"), never a clinician.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HP-021 · Attribution: the patient is never told they did something they did not do</h4>
+<p class="meta">Persona: patient P1</p>
+<ol>
+  <li>Have the therapist start (but not finish) an edit on this patient's profile, leaving a draft behind.</li>
+  <li>As the patient, open the health profile.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the patient is <b>not</b> told "you left off part-way through" for a draft the therapist wrote. Counters and banners must not credit the patient with answers a clinician supplied.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HP-022 · Pain scale is consistent on screen</h4>
+<p class="meta">Persona: patient P1 · Precondition: therapist has recorded a Pain Map exam</p>
+<ol>
+  <li>Open the health profile and read the snapshot strip and the body map figures.</li>
+</ol>
+<div class="exp"><b>Expected:</b> every pain figure on screen is out of ten. You must never see "6/10" beside "34%" describing the same kind of measurement.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HP-023 · Export the health profile as a PDF</h4>
+<p class="meta">Persona: patient P1</p>
+<ol>
+  <li>On the health profile, click <b>Export</b> / <b>Download PDF</b>.</li>
+  <li>Open the downloaded file.</li>
+</ol>
+<div class="exp"><b>Expected:</b> a typeset PDF named like <code>Priya_Sharma_PT0042.pdf</code> containing the intake answers, every Pain Map examination and the list of uploaded reports. Its header names the condition type. <b>Session notes are not included.</b> For a non-orthopaedic patient the examinations section is omitted entirely rather than printed empty; for a re-triaged patient the previous condition type's answers appear under "Earlier profile".</div>
+</div>
+
+<div class="tc">
+<h4>PAT-HP-024 · Neurological and paediatric profiles look different</h4>
+<p class="meta">Persona: patients P4 Suresh (neuro) and P5 Aarav (paediatric) · Precondition: triaged accordingly in Part 3</p>
+<ol>
+  <li>Sign in as Suresh and open the health profile.</li>
+  <li>Sign in as Meera (Aarav's caregiver account) and open the health profile.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the neurological profile asks about condition and onset, affected side, indoor mobility, a 0–10 <i>independence</i> score, symptoms, falls in three months and the main goal — with independence as its headline figure and <b>no body map and no pain scale</b>. The paediatric profile asks about the main concern, birth history, milestones, diagnosis, equipment, hardest part of the day and the goal, plus a caregiver pre-step ("who is answering") that is <b>not</b> counted among the seven questions. Neither shows the Pain Map. Both still show a progress line built from previous submissions.</div>
+</div>
+
+<h3>2.10 Payments and receipts</h3>
+
+<div class="tc">
+<h4>PAT-PAY-001 · Payments screen lists everything paid</h4>
+<p class="meta">Persona: patient P1</p>
+<ol>
+  <li>Open <code>/patient/dashboard/payments</code>.</li>
+  <li>Read the list and open a receipt.</li>
+</ol>
+<div class="exp"><b>Expected:</b> every session fee, package purchase and refund is listed with a date, amount and status. Amounts match what was actually charged (₹1,999, ₹9,999, ₹12,249 including travel where relevant). Refunds show as negative or clearly labelled refunds. The list pages with the standard pager.</div>
+</div>
+
+<h3>2.11 Profile, addresses and security</h3>
+
+<div class="tc">
+<h4>PAT-PROF-001 · Edit personal details (queued for review)</h4>
+<p class="meta">Persona: patient P1</p>
+<ol>
+  <li>Open <code>/patient/dashboard/profile</code>.</li>
+  <li>In <b>Personal Details</b>, change the full name to <code>Priya Sharma R</code> and save.</li>
+  <li>As admin, open <b>Today → Approvals</b>.</li>
+  <li>Approve the change; then reload the patient's profile.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the patient sees that the change is awaiting the clinic's review. It appears in the admin's approvals queue as a profile change request, and only takes effect on the patient's record after the admin approves it. Declining it leaves the old value and tells the patient.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-PROF-002 · Upload a profile photo</h4>
+<p class="meta">Persona: patient P1 · Data: any JPG/PNG under a few MB</p>
+<ol>
+  <li>Profile → <b>Photo</b> → upload an image.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the avatar updates in the sidebar/header immediately after upload.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-PROF-003 · Add, edit and remove an address</h4>
+<p class="meta">Persona: patient P2</p>
+<ol>
+  <li>Profile → <b>My Addresses</b> → <b>Add address</b>.</li>
+  <li>Label <code>Office</code>, line 1 <code>4th Floor, Tidel Park</code>, pincode <code>600041</code>, phone <code>+91 98765 00012</code>. Save.</li>
+  <li>Edit it, then remove it.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the address book holds several addresses; each is selectable when booking a home visit; removing one does not change any visit already booked against it.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-PROF-004 · Change password</h4>
+<p class="meta">Persona: patient P1</p>
+<ol>
+  <li>Profile → <b>Account Security</b> → change the password to <code>Test@5678</code>.</li>
+  <li>Sign out, sign in with the new password, then set it back to <code>Test@1234</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the change succeeds, the old password no longer works, and the new one does.</div>
+</div>
+
+<h3>2.12 Therapist-suggested sessions (patient side)</h3>
+<p><b>What this is.</b> With the feature switched on (ADM-037), a therapist can <i>propose</i> the next session on a programme they own. Nothing is scheduled and no session is spent until the patient accepts. A suggestion holds no slot: the therapist's calendar is only re-checked when the patient accepts.</p>
+
+<div class="tc">
+<h4>PAT-SUG-001 · Accept a suggestion</h4>
+<p class="meta">Persona: patient P3 · Precondition: therapist T1 suggested a slot (THR-SUG-001)</p>
+<ol>
+  <li>Open <code>/patient/dashboard</code>.</li>
+  <li>Find the suggestion card ("your therapist suggests …" with the date and time).</li>
+  <li>Click <b>Accept</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the session is booked against the package, the counter increases by one, the session appears under Sessions with the therapist assigned and a video link, and the suggestion card disappears. Accepting is what spends the session — never the suggestion itself.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-SUG-002 · Decline a suggestion</h4>
+<p class="meta">Persona: patient P3</p>
+<ol>
+  <li>With a second suggestion pending, click <b>Decline</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the card clears, no session is booked, and the package counter does <b>not</b> change. The therapist sees it was declined.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-SUG-003 · Button spam and a dropped connection</h4>
+<p class="meta">Persona: patient P3 · Negative test</p>
+<ol>
+  <li>With a suggestion pending, click <b>Accept</b> five times as fast as you can.</li>
+  <li>On another suggestion, open the browser's developer tools → Network → set it to "Offline", click <b>Accept</b>, then set it back online.</li>
+</ol>
+<div class="exp"><b>Expected:</b> rapid clicking books exactly <b>one</b> session (the control locks on the first click, not a render later). With the network down the card stays exactly as it was with an error — it must not clear optimistically and lose the suggestion.</div>
+</div>
+
+<div class="tc">
+<h4>PAT-SUG-004 · A suggestion inside the lead time stops being acceptable</h4>
+<p class="meta">Persona: patient P3 · Simulated clock</p>
+<ol>
+  <li>With a suggestion for, say, 14 Feb 10:00 pending, set the simulated clock to <b>14 Feb 06:00</b> (inside the 12-hour lead time) and click <b>Set</b>.</li>
+  <li>Look at the suggestion card. Then click <b>Reset to Real Time</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the card explains the slot is now too soon to book and Accept is not offered. Nothing anywhere marks it "expired" — it simply stops being acceptable.</div>
+</div>
+
+<h3>2.13 Rating a session</h3>
+
+<div class="tc">
+<h4>PAT-FB-001 · Rate a completed session</h4>
+<p class="meta">Persona: patient P1 · Precondition: therapist marked a session complete</p>
+<ol>
+  <li>Open <code>/patient/dashboard/sessions</code> → <b>Past</b>.</li>
+  <li>On the completed session click the rating control, choose <b>5</b> stars, type <code>Very clear explanation and a plan I can follow.</code> and submit.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the rating is saved and the card shows it. The therapist's average rating updates, and (unless the admin has hidden ratings) the public team page's rating summary reflects it.</div>
+</div>
+
+<h2 class="pb">Part 3 — As a therapist</h2>
+<p><b>What a therapist does in this app.</b> Applies for an account, waits for the admin to approve it, publishes a weekly availability grid, is assigned sessions by the admin (or automatically for a locked programme), delivers them, marks them complete, writes the clinical record (triage, health profile, pain map, session notes), collects cash on home visits, and requests payouts against their revenue share.</p>
+
+<h3>3.1 Application and approval</h3>
+
+<div class="tc">
+<h4>THR-REG-001 · Apply to join</h4>
+<p class="meta">Persona: visitor → therapist T1 · Data: Kavya Menon, kavya.menon@example.com, +919876500021, credentials <code>BPT, MPT (Ortho) — Council Reg: PT-100234</code>, password Test@1234</p>
+<ol>
+  <li>Open <code>[SITE]/therapist/login</code>.</li>
+  <li>Click the <b>Apply to Join</b> tab.</li>
+  <li><b>Full Name</b>: <code>Kavya Menon</code>.</li>
+  <li><b>Email</b>: <code>kavya.menon@example.com</code>.</li>
+  <li><b>Phone</b>: India (+91) <code>9876500021</code>.</li>
+  <li><b>Qualifications &amp; License / Council Reg No.</b>: <code>BPT, MPT (Ortho) — Council Reg: PT-100234</code>.</li>
+  <li><b>Create Password</b> and <b>Confirm Password</b>: <code>Test@1234</code>.</li>
+  <li>Click <b>Submit Application</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the application is submitted and the therapist lands on <code>/pending-approval</code>, already signed in, with no email-confirmation step. Attempting <code>/therapist/dashboard</code> bounces back to pending approval.</div>
+</div>
+
+<div class="tc">
+<h4>THR-REG-002 · Admin approves the therapist</h4>
+<p class="meta">Persona: Admin (Full) then therapist T1</p>
+<ol>
+  <li>As admin: <b>Today → Approvals</b>, filter <b>Therapists</b>, find Kavya Menon.</li>
+  <li>Read the row: name, email, credentials, applied date.</li>
+  <li>Click <b>Approve</b>.</li>
+  <li>As the therapist, reload the page.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the queue count on Today drops by one; the therapist's session immediately reaches <code>/therapist/dashboard</code>. The therapist now also appears under <b>People → Therapists</b>.</div>
+</div>
+
+<div class="tc">
+<h4>THR-REG-003 · Declining an application</h4>
+<p class="meta">Persona: Admin · Negative test · Data: apply as <code>qa.reject@example.com</code> first</p>
+<ol>
+  <li>Create a throwaway therapist application.</li>
+  <li>As admin, Today → Approvals → <b>Decline</b> it, giving a reason if asked.</li>
+  <li>Try to sign in as that therapist.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the row leaves the queue; the declined applicant cannot reach the therapist dashboard and sees the pending/declined state instead.</div>
+</div>
+
+<h3>3.2 Availability</h3>
+<p><b>What this is.</b> A weekly grid of day × hour. What the therapist switches on is what the clinic can book them for. On top of the weekly template sit per-date overrides and a leave flag, and a conflict check stops double-booking. For home visits the conflict check is padded by the travel buffer (45 minutes by default) on both sides of a visit.</p>
+
+<div class="tc">
+<h4>THR-AVL-001 · Set the weekly availability</h4>
+<p class="meta">Persona: therapist T1</p>
+<ol>
+  <li>Open <code>/therapist/dashboard/availability</code>.</li>
+  <li>In <b>Your Weekly Availability</b>, click the cells for <b>Monday to Friday, 09:00 to 17:00</b> so they switch on.</li>
+  <li>Click <b>Save</b>.</li>
+  <li>Reload the page.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the button shows "Saving..." then the grid persists after reload with exactly the cells you selected. In the admin's <b>Sessions → Roster</b> this therapist now shows as available in those hours.</div>
+</div>
+
+<div class="tc">
+<h4>THR-AVL-002 · Remove an hour</h4>
+<p class="meta">Persona: therapist T1</p>
+<ol>
+  <li>Click <b>Wednesday 13:00</b> to switch it off. Save. Reload.</li>
+</ol>
+<div class="exp"><b>Expected:</b> that hour is off and the admin's roster no longer offers it. Any session already booked in that hour is unaffected.</div>
+</div>
+
+<div class="tc">
+<h4>THR-AVL-003 · Go on leave</h4>
+<p class="meta">Persona: therapist T1 + Admin</p>
+<ol>
+  <li>On the availability screen, switch the <b>on leave</b> toggle on.</li>
+  <li>As admin, open <b>Sessions → Roster</b> and try to assign this therapist to a new unassigned session.</li>
+  <li>Switch the leave toggle back off.</li>
+</ol>
+<div class="exp"><b>Expected:</b> while on leave the therapist is shown as unavailable and the admin is warned (or prevented) when assigning them. Turning it off restores normal availability.</div>
+</div>
+
+<div class="tc">
+<h4>THR-AVL-004 · Admin sets a per-date override</h4>
+<p class="meta">Persona: Admin · Data: next Tuesday, unavailable</p>
+<ol>
+  <li>As admin, <b>Sessions → Roster</b> → find Kavya Menon → set an availability override for next Tuesday marking her unavailable.</li>
+  <li>As the therapist, reload the availability screen and look at upcoming overrides.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the override shows on the therapist's screen, the weekly template is unchanged, and the admin cannot assign a session to her on that date without a warning.</div>
+</div>
+
+<h3>3.3 Delivering sessions</h3>
+
+<div class="tc">
+<h4>THR-SESS-001 · See assigned sessions</h4>
+<p class="meta">Persona: therapist T1 · Precondition: admin assigned Priya's session to Kavya (ADM-OPS-020)</p>
+<ol>
+  <li>Open <code>/therapist/dashboard/sessions</code>.</li>
+  <li>Read a session card: patient name, date/time, duration, mode (video / home visit), status, and any note the patient left.</li>
+  <li>Use the <b>Upcoming / Past / Cancelled</b> filters and the <b>List / Calendar</b> switch.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the assigned session appears with the correct patient and slot. Video sessions show a join control; home visits show the address, a working map link, the patient's phone and any access notes — and <b>no</b> join button.</div>
+</div>
+
+<div class="tc">
+<h4>THR-SESS-002 · Join a session (simulated clock)</h4>
+<p class="meta">Persona: therapist T1</p>
+<ol>
+  <li>Set the simulated clock to 10 minutes before an upcoming confirmed video session. Click <b>Set</b>.</li>
+  <li>Click <b>Tap to Join</b>.</li>
+  <li>Click <b>Reset to Real Time</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the join control activates inside the window and opens the Meet link in a new tab — the same link the patient sees.</div>
+</div>
+
+<div class="tc">
+<h4>THR-SESS-003 · Mark a session complete</h4>
+<p class="meta">Persona: therapist T1</p>
+<ol>
+  <li>On a session whose slot time has passed, click <b>Mark complete</b> (or similar).</li>
+  <li>Read the confirmation: "Mark this session as done? You'll be asked to rate it next." Confirm.</li>
+  <li>Rate the session and submit.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the session moves to <b>Completed</b> in one tap; a rating prompt follows but nothing is blocked on it. The therapist's Overview figure "sessions to mark complete" drops by one, and their earnings now include this session (only <i>completed, paid</i> sessions earn a share).</div>
+</div>
+
+<div class="tc">
+<h4>THR-SESS-004 · Mark a no-show</h4>
+<p class="meta">Persona: therapist T1</p>
+<ol>
+  <li>On a past session, use the <b>No show</b> control and confirm.</li>
+  <li>As admin, open <b>Sessions → Delivery</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the session is recorded as a no-show and counts toward the admin's no-show rate on the Delivery screen. It does not count as a delivered session for earnings.</div>
+</div>
+
+<div class="tc">
+<h4>THR-SESS-005 · Write a session note</h4>
+<p class="meta">Persona: therapist T1 · Precondition: a completed session</p>
+<ol>
+  <li>On the completed session card click <b>Write note</b> / the notes control.</li>
+  <li>Fill in what was treated (<code>L4-L5 mobilisation, glute activation</code>), how the patient responded (<code>Good tolerance, pain 6→4</code>), home exercise (<code>Cat-camel x10, twice daily</code>), plan for next time (<code>Progress to loaded hinge</code>), anything to watch (<code>Night pain</code>), and free text.</li>
+  <li>Save.</li>
+  <li>Reopen the note and edit one field, save again.</li>
+  <li>Ask the patient (other window) to look for the note in their dashboard and their exported PDF.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the note opens as a pop-up from the session card (no page navigation). It saves and shows on the therapist's card and on the admin's view of the patient. It stays editable for <b>24 hours</b>, and each edit inside that window keeps a copy of the previous version. <b>The patient can never see it</b> — not on any screen, not in the PDF export, not in the JSON export. The dialog says so to the writer.</div>
+</div>
+
+<div class="tc">
+<h4>THR-SESS-006 · Session notes lock after 24 hours</h4>
+<p class="meta">Persona: therapist T1 · Precondition: a note written more than 24 hours ago (use a session from an earlier test day, or ask the owner to back-date one)</p>
+<ol>
+  <li>Try to edit a note older than 24 hours.</li>
+</ol>
+<div class="exp"><b>Expected:</b> editing is refused with an explanation of the 24-hour window. The note is still readable.</div>
+</div>
+
+<div class="tc">
+<h4>THR-SESS-007 · Home visit delivery and cash collection</h4>
+<p class="meta">Persona: therapist T1 · Precondition: a cash home visit assigned to them (PAT-HV-004)</p>
+<ol>
+  <li>Open the home visit card on <code>/therapist/dashboard/sessions</code>.</li>
+  <li>Click the map link and confirm it opens the right location.</li>
+  <li>Mark the visit complete.</li>
+  <li>Click the cash-collection control and record the cash collected (₹2,999 + ₹250 travel as configured).</li>
+</ol>
+<div class="exp"><b>Expected:</b> the address, phone and access notes are all visible; the map link works. After recording collection the visit shows cash collected with a timestamp, and the admin's <b>Cash Ledger</b> shows this therapist as holding that cash until it is remitted.</div>
+</div>
+
+<h3>3.4 Clinical records: triage, health profile, pain map</h3>
+<p><b>What this is — the most important rule in this area.</b> A patient's health profile does not exist until the therapist creates it. The therapist answers four <b>triage</b> questions, which <i>suggest</i> a condition type (orthopaedic / neurological / paediatric) with the reason shown; the therapist confirms or overrides it, then fills that condition type's own seven questions in the same pop-up. This <b>goes live immediately with no review queue</b>, and it is what unlocks the patient's own access. Later <i>edits on the patient's behalf</i> are different: those need an admin-approved access grant and go through review.</p>
+
+<div class="tc">
+<h4>THR-HP-001 · The onboarding queue</h4>
+<p class="meta">Persona: therapist T1 · Precondition: assigned to Priya Sharma, whose profile has never been filled</p>
+<ol>
+  <li>Open <code>/therapist/dashboard</code> and read the feed.</li>
+  <li>Open <code>/therapist/dashboard/health-profile</code> (My Patients).</li>
+</ol>
+<div class="exp"><b>Expected:</b> a "Patient onboarding" task appears in the Overview feed. On My Patients, Priya sorts to the very top with an amber <b>Needs onboarding</b> chip, above patients whose sessions are sooner. Patients with no approved edit-access grant yet are flagged <b>New</b>.</div>
+</div>
+
+<div class="tc">
+<h4>THR-HP-010 · Triage and write the first record (orthopaedic)</h4>
+<p class="meta">Persona: therapist T1 · Patient: Priya Sharma</p>
+<ol>
+  <li>My Patients → open Priya Sharma's chart.</li>
+  <li>Click the onboarding / triage control.</li>
+  <li>Answer the four triage questions: age band <code>26–40</code>, presenting problem <code>musculoskeletal pain</code>, neurological signs <code>no</code>, developmental concern <code>not applicable</code>.</li>
+  <li>Read the suggested condition type and its stated reason. Accept <b>Orthopaedic</b>.</li>
+  <li>The dialog continues into the orthopaedic questions, all visible at once with headings. Fill: complaint <code>Lower back pain</code>; how long <code>3 months</code>; severity <code>6</code>; painful areas — tap <b>lower back</b> and <b>left hip</b> on the body map; what worsens it <code>Sitting, bending</code>; what helps <code>Walking, heat</code>; other notes <code>Desk job, 8h seated</code>.</li>
+  <li>Submit.</li>
+</ol>
+<div class="exp"><b>Expected:</b>
+<ul>
+  <li>Triage <i>suggests</i> and never auto-accepts — the therapist can override the suggestion.</li>
+  <li>The therapist's form shows all questions at once (unlike the patient's one-at-a-time wizard) and addresses a clinician, not a patient.</li>
+  <li>Submitting goes live immediately: no approval queue, no waiting.</li>
+  <li>The amber "Needs onboarding" chip disappears; the patient's own health profile unlocks (verify in PAT-HP-020) and they get a feed item telling them so.</li>
+  <li>The action still appears in the admin's <b>Review History</b> for this patient as an already-approved change.</li>
+</ul></div>
+</div>
+
+<div class="tc">
+<h4>THR-HP-011 · Triage a neurological patient</h4>
+<p class="meta">Persona: therapist T2 Arjun Rao · Patient: Suresh Iyer</p>
+<ol>
+  <li>Assign Suresh to Arjun (admin action) and open his chart from My Patients.</li>
+  <li>Triage: age band <code>60+</code>, presenting problem <code>after a stroke</code>, neurological signs <code>yes</code>.</li>
+  <li>Accept <b>Neurological</b>, then fill: condition and onset <code>Left MCA stroke, 4 months ago</code>; affected side <code>Right</code>; indoor mobility <code>Walks with a stick</code>; independence <code>5</code>; symptoms <code>Weakness, stiffness</code>; falls in three months <code>1</code>; main goal <code>Walk to the gate unaided</code>.</li>
+  <li>Submit and open the resulting profile.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the neurological question set is used (no pain scale, no body map). The profile's headline figure is <b>independence</b>. The Pain Map section is <b>absent entirely</b> — not merely hidden — and there is no way to record a pain exam for this patient.</div>
+</div>
+
+<div class="tc">
+<h4>THR-HP-012 · Triage a paediatric patient</h4>
+<p class="meta">Persona: therapist T2 · Patient: Aarav Nair (caregiver Meera)</p>
+<ol>
+  <li>Triage: age band <code>0–12</code>, developmental concern <code>yes</code>. Accept <b>Paediatric</b>.</li>
+  <li>Fill the caregiver pre-step: name <code>Meera Nair</code>, relationship <code>Mother</code>.</li>
+  <li>Fill the seven paediatric questions (main concern <code>Delayed walking</code>, birth history <code>Term, normal delivery</code>, milestones reached, diagnosis, equipment <code>Ankle-foot orthosis</code>, hardest part of the day <code>Stairs</code>, goal <code>Walk independently</code>).</li>
+  <li>Submit and read the summary card and the exported PDF header.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the caregiver questions are ordinary fields but are <b>excluded from the seven-question count</b>. The headline figure is milestones reached. The PDF header names the condition type and, for a child, who answered.</div>
+</div>
+
+<div class="tc">
+<h4>THR-HP-013 · Re-triage keeps the earlier answers</h4>
+<p class="meta">Persona: therapist T1 · Patient: Priya Sharma</p>
+<ol>
+  <li>Open Priya's chart and use the re-triage control.</li>
+  <li>Change the condition type to <b>Neurological</b> and fill the neurological questions.</li>
+  <li>Submit, then export the patient's PDF (from the admin or patient side).</li>
+  <li>Re-triage back to <b>Orthopaedic</b> and check the previously entered orthopaedic answers.</li>
+</ol>
+<div class="exp"><b>Expected:</b> switching condition type does <b>not</b> delete the previous set's answers. The PDF prints them under <b>"Earlier profile"</b>. Switching back shows the original orthopaedic answers still intact. This is the single most damaging failure to miss — if the old answers are gone, report it immediately.</div>
+</div>
+
+<div class="tc">
+<h4>THR-PM-010 · Record a Pain Map examination</h4>
+<p class="meta">Persona: therapist T1 · Patient: Priya Sharma (orthopaedic)</p>
+<ol>
+  <li>Open Priya's chart and scroll to the body map.</li>
+  <li>Click <b>Record an exam</b>, or tap the <b>lower back</b> point on the figure.</li>
+  <li>The exam dialog opens with the region named in its header, alongside what that area scored last time.</li>
+  <li>Answer questions across the four groups (what they describe · what sets it off · pain on testing · your findings) — leave some blank.</li>
+  <li>Set the pain percentage for the region and submit.</li>
+  <li>Record a second exam on the same region a moment later with a lower score.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the exam posts live with no review step (a therapist assigned to the patient may record one; no access grant is needed). The region is chosen by tapping the figure or a chip — never a dropdown. Nothing in the exam is mandatory. The second exam is a <b>new entry</b>, not an edit: the region's popup shows a history list, a trend sparkline, who posted the latest entry, and an improvement arrow against the previous exam. Every pain figure on screen is out of ten.</div>
+</div>
+
+<div class="tc">
+<h4>THR-PM-011 · Pain Map is refused for a non-orthopaedic patient</h4>
+<p class="meta">Persona: therapist T2 · Patient: Suresh Iyer (neurological) · Negative test</p>
+<ol>
+  <li>Open Suresh's chart and look for a body map or a "record an exam" control.</li>
+</ol>
+<div class="exp"><b>Expected:</b> there is none. The page shows the neurological progress line instead (independence over time), built from the submissions already on file. Any attempt to submit an exam for this patient is refused by the server.</div>
+</div>
+
+<div class="tc">
+<h4>THR-HP-020 · Request access to edit the patient's own answers</h4>
+<p class="meta">Persona: therapist T1 + Admin</p>
+<ol>
+  <li>On Priya's chart, find the "request access to edit" card — it sits inside the section it unlocks, and states what is readable regardless.</li>
+  <li>Click <b>Request access</b>, add a reason (<code>Patient asked me to correct their history</code>) and submit.</li>
+  <li>As admin, open <b>People → Patients → Patient Conditions</b> (or the access requests queue) and <b>approve</b> it.</li>
+  <li>Back as the therapist, edit one of the patient's answers and submit.</li>
+  <li>As admin, review and approve that edit.</li>
+</ol>
+<div class="exp"><b>Expected:</b> reading the chart never required a request. Editing the patient's own answers does: the request appears for the admin, and only after approval can the therapist submit an edit — which then goes to review like any patient submission. Approving a second therapist's request for the same patient automatically revokes the first therapist's grant (only one at a time).</div>
+</div>
+
+<div class="tc">
+<h4>THR-HP-021 · Approving a change merges, never replaces</h4>
+<p class="meta">Persona: Admin + therapist · Critical regression check</p>
+<ol>
+  <li>Ensure Priya has both orthopaedic answers (from THR-HP-010) and, after a re-triage, neurological answers.</li>
+  <li>Have the therapist submit a change to one neurological answer, and have the admin approve it.</li>
+  <li>Re-triage Priya back to orthopaedic and read her answers; also export the PDF.</li>
+</ol>
+<div class="exp"><b>Expected:</b> approving the neurological change must not wipe the orthopaedic answers. Both sets are still on file, and the PDF still prints the earlier profile.</div>
+</div>
+
+<h3>3.5 Programmes and suggesting sessions</h3>
+
+<div class="tc">
+<h4>THR-PRG-001 · Programme patients view</h4>
+<p class="meta">Persona: therapist T1 · Precondition: locked to Anita Desai's package</p>
+<ol>
+  <li>Open <code>/therapist/dashboard/health-profile</code> (My Patients).</li>
+  <li>Switch the view from <b>Patients</b> to <b>Programmes</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the same people, grouped by package purchase, showing sessions used and remaining, validity and progress — with the money hidden. It is a view switch on the same screen, not a separate sidebar entry.</div>
+</div>
+
+<div class="tc">
+<h4>THR-SUG-001 · Suggest the next session</h4>
+<p class="meta">Persona: therapist T1 · Precondition: therapist-suggested sessions ON (ADM-037)</p>
+<ol>
+  <li>My Patients → Programmes → open Anita's programme.</li>
+  <li>Click <b>Suggest next session</b>, choose a date/time at least 12 hours ahead, add a short note, and submit.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the suggestion is recorded and shown as pending. <b>No session is scheduled and the package counter does not move.</b> No slot is held.</div>
+</div>
+
+<div class="tc">
+<h4>THR-SUG-002 · Only one suggestion may be pending per programme</h4>
+<p class="meta">Persona: therapist T1 · Negative test</p>
+<ol>
+  <li>With a suggestion pending, try to create a second one on the same programme (including by double-clicking the submit control).</li>
+</ol>
+<div class="exp"><b>Expected:</b> refused — at most one pending suggestion per purchase, enforced even against a fast double tap.</div>
+</div>
+
+<div class="tc">
+<h4>THR-SUG-003 · Withdraw a suggestion</h4>
+<p class="meta">Persona: therapist T1</p>
+<ol>
+  <li>Click <b>Withdraw</b> on the pending suggestion.</li>
+  <li>Check the patient's dashboard.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the suggestion disappears from both sides; nothing was booked and nothing was spent.</div>
+</div>
+
+<div class="tc">
+<h4>THR-SUG-004 · The feature switch actually gates it</h4>
+<p class="meta">Persona: Admin + therapist · Negative test</p>
+<ol>
+  <li>As admin, switch <b>Therapist-Suggested Sessions</b> off.</li>
+  <li>As the therapist, reload Programmes.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the suggest control is gone. Turn the setting back on for later tests.</div>
+</div>
+
+<h3>3.6 Earnings and payouts (therapist side)</h3>
+<p><b>What this is.</b> Each therapist has a revenue share percentage. They earn on sessions actually <b>delivered</b> (completed and paid) — never on a session merely booked. A home visit's travel fee is added to their share in full. Cash they are holding from home visits is netted off what a payout actually transfers.</p>
+
+<div class="tc">
+<h4>THR-PAY-001 · Earnings screen</h4>
+<p class="meta">Persona: therapist T1 · Precondition: at least one completed paid session; revenue share set by admin (e.g. 60%)</p>
+<ol>
+  <li>Open <code>/therapist/dashboard/earnings</code>.</li>
+  <li>Read the figures and the per-session list.</li>
+</ol>
+<div class="exp"><b>Expected:</b> only completed, paid sessions appear. For a ₹1,999 session at 60% the therapist's share is ₹1,199.40 (check how it is rounded and note it). A cancelled or no-show session earns nothing. A home visit shows the travel fee separately and in full.</div>
+</div>
+
+<div class="tc">
+<h4>THR-PAY-002 · Request a payout</h4>
+<p class="meta">Persona: therapist T1</p>
+<ol>
+  <li>On the earnings screen click <b>Request Payout</b>.</li>
+  <li>Confirm.</li>
+  <li>Click the button again immediately.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the button changes to <b>Request Pending</b>, then to <b>Under Review</b> once an admin starts reviewing. A second click while a request is pending does not create a second request. The admin's <b>Money → Payouts</b> shows the request.</div>
+</div>
+
+<div class="tc">
+<h4>THR-PAY-003 · Payout receipts</h4>
+<p class="meta">Persona: therapist T1 · Precondition: admin settled a payout (FIN-PAY-002)</p>
+<ol>
+  <li>Reload <code>/therapist/dashboard/earnings</code>.</li>
+  <li>Open the settled payout's receipt.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the settled amount, its date and the sessions it covered are listed, and a downloadable receipt is available. Anything the therapist was holding in cash has been deducted, and the receipt makes that deduction visible rather than silently reducing the total.</div>
+</div>
+
+<h3>3.7 Therapist profile</h3>
+
+<div class="tc">
+<h4>THR-PROF-001 · Edit public details</h4>
+<p class="meta">Persona: therapist T1</p>
+<ol>
+  <li>Open <code>/therapist/dashboard/profile</code>.</li>
+  <li>Update the public bio to <code>Orthopaedic physiotherapist focused on spine and knee rehabilitation.</code> and save.</li>
+  <li>Upload a profile photo.</li>
+  <li>As admin, approve the change if it is queued, then open <code>[SITE]/team</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> changes that appear publicly are reviewed by an admin before they go live (they show as pending on the therapist's screen). Once approved, the bio and photo appear on the public team page — provided the admin has that therapist visible on the team.</div>
+</div>
+
+<h2 class="pb">Part 4 — As an admin (operations)</h2>
+<p><b>What this covers.</b> The daily running of the clinic: what is waiting, assigning therapists to sessions, changing and cancelling bookings, managing people and the catalog, and keeping the system healthy. Sign in as the <b>Full</b> admin unless a case says otherwise; every case here is also runnable by an <b>Operations</b> admin except those under Money.</p>
+
+<h3>4.1 Today — the queue</h3>
+
+<div class="tc">
+<h4>ADM-OPS-001 · Today screen and the action inbox</h4>
+<p class="meta">Persona: Admin (Full) · Precondition: Parts 2 and 3 have created real data</p>
+<ol>
+  <li>Open <code>/admin/dashboard</code> (it opens on <b>Today</b>).</li>
+  <li>Read the four figures, the feed, then the inbox queue rows beside it.</li>
+  <li>Click one queue row, e.g. <b>Pending approvals</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the figures are sessions today, queue totals, unassigned sessions and cash to remit. Every inbox row shows a count, a one-line hint of what to do, and links to the exact screen where that work is done — no row leads to an empty or wrong tab. Rows representing money at risk render in red.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-002 · Approvals queue: patients and therapists</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Today → <b>Approvals</b>.</li>
+  <li>Use the filter chips <b>Therapists</b> / <b>Patients</b>.</li>
+  <li>Approve one and decline another.</li>
+</ol>
+<div class="exp"><b>Expected:</b> both queues live here, not on the People directory. Counts on Today update immediately after an action (or after the automatic refresh). Filter chips only appear when at least two of them would have rows behind them.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-003 · Profile change requests</h4>
+<p class="meta">Persona: Admin (Full) · Precondition: PAT-PROF-001 submitted a change</p>
+<ol>
+  <li>Today → Approvals → find the profile change request from Priya Sharma.</li>
+  <li>Read the before/after values, then click <b>Approve</b>.</li>
+  <li>Submit another change from a patient and <b>Decline</b> it with a reason.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the old and new values are both shown. Approving writes the new value onto the profile; declining leaves it unchanged and the patient is told. Both actions appear in the activity log.</div>
+</div>
+
+<h3>4.2 Sessions</h3>
+
+<div class="tc">
+<h4>ADM-OPS-010 · Schedule (calendar) view</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Sidebar → <b>Sessions</b> → <b>Schedule</b>.</li>
+  <li>Move between months, then click a day with sessions.</li>
+  <li>Click a session in the day panel.</li>
+</ol>
+<div class="exp"><b>Expected:</b> days show their session counts; the day panel lists that day's sessions; clicking one opens the same <b>session detail drawer</b> used everywhere else in the back office.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-011 · All Sessions list, filters and paging</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Sessions → <b>All Sessions</b>.</li>
+  <li>Filter by status, by delivery mode (video / home visit), by therapist, and by date range.</li>
+  <li>Set the pager to "Show 10 per page" and click Next / Previous to the ends.</li>
+  <li>Reload the page.</li>
+</ol>
+<div class="exp"><b>Expected:</b> one list covers every session — video and home visit, past and future. Previous/Next grey out at the ends and the count reads "x–y of n". The filters (but not the date range) are remembered after a reload. Totals and exports always cover the whole filtered set, never just the visible page.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-012 · Session detail drawer</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Open any session from All Sessions.</li>
+  <li>Read every panel: patient, therapist, slot, status, payment, session code, notes; for a home visit also address, travel fee and cash state.</li>
+</ol>
+<div class="exp"><b>Expected:</b> home-visit specifics are a panel <b>inside this drawer</b>, not a separate screen. Session codes read <code>SS####</code> for online and <code>HV####</code> for home visits.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-020 · Assign a therapist to an unassigned session</h4>
+<p class="meta">Persona: Admin (Full) · Precondition: Priya's paid session is unassigned</p>
+<ol>
+  <li>Open the session's drawer → the assign form.</li>
+  <li>Note whether a therapist is preselected and marked <b>(requested)</b>.</li>
+  <li>Choose <b>Kavya Menon</b> and confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the session becomes <b>Confirmed</b> and assigned. A Google Calendar event with a Meet link is created (unless Meet links are switched off), and both the patient's and the therapist's dashboards show the session with a join control. If the calendar call fails, the booking still succeeds and the failure is recorded for retry — a calendar problem must never block a booking.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-021 · Assignment respects availability and conflicts</h4>
+<p class="meta">Persona: Admin (Full) · Negative test</p>
+<ol>
+  <li>Try to assign Kavya Menon to a session in an hour she has switched off, or one that overlaps a session she already has.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the admin is warned about the conflict or unavailability, with enough detail to decide. For a home visit the conflict check is padded by the travel buffer (45 minutes each side), so a visit that ends 20 minutes before another begins is flagged.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-022 · Reassign a whole programme</h4>
+<p class="meta">Persona: Admin (Full) · Precondition: Anita's programme is locked to Kavya and has completed and future sessions</p>
+<ol>
+  <li>Catalog → <b>Purchases</b> → open Anita's purchase → <b>Reassign therapist</b>.</li>
+  <li>Choose <b>Arjun Rao</b> and confirm.</li>
+  <li>Look at the programme's completed and future sessions.</li>
+</ol>
+<div class="exp"><b>Expected:</b> only <b>future</b> sessions move to Arjun. Completed sessions keep Kavya, who actually delivered them, and her earnings for those are unchanged.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-023 · Admin books on a patient's behalf</h4>
+<p class="meta">Persona: Admin (Full) · Data: patient Priya Sharma, Back &amp; Spine Care, tomorrow 15:00</p>
+<ol>
+  <li>Sessions → <b>New Booking</b>.</li>
+  <li><b>Patient</b>: choose <code>Priya Sharma</code>.</li>
+  <li><b>Treatment</b>: choose <code>Back &amp; Spine Care</code>.</li>
+  <li><b>Date</b> and <b>Time</b>: tomorrow, 15:00.</li>
+  <li><b>Therapist</b>: choose <code>Kavya Menon</code> (or leave unassigned to send it to the queue).</li>
+  <li>Set the payment state explicitly (e.g. unpaid / paid by cash) as offered.</li>
+  <li>Add a note: <code>Booked by phone.</code></li>
+  <li>If the slot is inside the lead time, tick the override checkbox and confirm.</li>
+  <li>Click the create/confirm button.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the session is created with the same conflict check and calendar sync as a patient's own booking. A lead-time override is logged. Home visits cannot be booked here (they need an address and a serviceable pincode) and the screen says so.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-024 · Change a session's time</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Open a confirmed session's drawer → edit the slot to a different hour → save.</li>
+  <li>Check the patient's and therapist's dashboards.</li>
+</ol>
+<div class="exp"><b>Expected:</b> both sides show the new time, the calendar event is updated (or a sync failure is recorded for retry), and the change appears in the activity log.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-025 · Admin cancels a session with a refund</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Open a paid session more than 24 hours out → <b>Cancel</b> → give a reason → confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the session is cancelled, the refund is issued and stamped on the session, and Money → Transactions shows the refund as processed. Cancelling twice in quick succession must never issue two refunds.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-026 · Reopen a session / restore a package session</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>On a cancelled session, use <b>Reopen</b> and confirm.</li>
+  <li>On a package purchase where a session was forfeited, use <b>Restore session</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> reopening returns the session to an active state; restoring gives the patient the session back and the counter drops by one (e.g. from 3 of 6 used to 2 of 6). Both are logged.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-027 · Roster</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Sessions → <b>Roster</b>.</li>
+  <li>Read each therapist's weekly availability, leave state and upcoming overrides; set and remove an override.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the roster matches what the therapist set in THR-AVL-001, and an override added here appears on the therapist's own screen.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-028 · Delivery metrics</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Sessions → <b>Delivery</b>.</li>
+  <li>Read no-show rate, cancellation rate, repeat-booking rate and sessions per therapist. Change the date range.</li>
+</ol>
+<div class="exp"><b>Expected:</b> these operational figures live under Sessions, <b>not</b> under Money. They recompute for the chosen range and are consistent with what you did in Parts 2 and 3 (e.g. one no-show recorded in THR-SESS-004 shows here).</div>
+</div>
+
+<h3>4.3 People</h3>
+
+<div class="tc">
+<h4>ADM-OPS-030 · Patient directory and detail</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>People → <b>Patients</b>. Search for <code>Priya</code>; use the Active/Suspended filter.</li>
+  <li>Click her row.</li>
+  <li>Read the detail: contact, sessions, packages, payments, referral source, severity signal, notes.</li>
+  <li>Open the same record by pasting <code>/admin/dashboard/patients/&lt;id&gt;</code> in the address bar.</li>
+</ol>
+<div class="exp"><b>Expected:</b> clicking the row opens an overlay; the direct URL renders the same content as a full page. The severity signal (self-reported severity and number of painful areas) is visible here without a separate trip.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-031 · Suspend and reactivate a patient</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>On a patient's detail, switch the account to suspended, then back to active.</li>
+</ol>
+<div class="exp"><b>Expected:</b> as in PAT-REG-009: a suspended patient is bounced to <code>/account-suspended</code> immediately (on their next navigation) and restored on reactivation.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-032 · Reset a patient's or therapist's password</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>On a patient's detail click the password-reset control and confirm.</li>
+  <li>Repeat on a therapist.</li>
+</ol>
+<div class="exp"><b>Expected:</b> a temporary password is produced (or a reset is triggered) and the action is logged. Signing in with it works, and the user is prompted to set their own.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-033 · Therapist detail: revenue share, visibility, ratings</h4>
+<p class="meta">Persona: Admin (Full) · Data: revenue share 60%, home-visit share 65%</p>
+<ol>
+  <li>People → <b>Therapists</b> → open Kavya Menon.</li>
+  <li>Set <b>revenue share</b> to <code>60</code> and save.</li>
+  <li>Set the separate home-visit revenue share to <code>65</code> and save.</li>
+  <li>Toggle <b>visible on the team page</b> off, reload <code>[SITE]/team</code>, then toggle it back on.</li>
+  <li>Hide one individual rating, then hide this therapist's ratings entirely, then restore both.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the shares save and immediately drive the earnings and Money figures. A therapist hidden from the team page disappears from <code>/team</code> and can no longer be requested by a <code>?therapist=</code> link. Hidden ratings drop out of the public average.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-034 · Partners (hospitals)</h4>
+<p class="meta">Persona: Admin (Full) · Data: Sunrise Multispeciality Hospital, 15% share</p>
+<ol>
+  <li>People → <b>Partners</b> → onboard a hospital.</li>
+  <li>Organisation <code>Sunrise Multispeciality Hospital</code>, contact <code>Dr. Nisha Pillai</code>, email <code>partner.sunrise@example.com</code>, phone <code>+914442000011</code>, revenue share <code>15</code>.</li>
+  <li>Create it and record the temporary password and the referral code.</li>
+  <li>Later, change the revenue share to <code>12</code> and check Money → Breakdown.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the hospital account is created with no self-signup, its referral code is shown, and its share drives the "partners' share" figure on the Money screens.</div>
+</div>
+
+<h3>4.4 Catalog upkeep</h3>
+
+<div class="tc">
+<h4>ADM-OPS-040 · Purchases screen</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Catalog → <b>Purchases</b>.</li>
+  <li>Read both tables (session packages and home-visit packages): patient, package, amount, sessions used, expiry, status.</li>
+  <li>Open one purchase's detail.</li>
+</ol>
+<div class="exp"><b>Expected:</b> counts match what the patient sees (sessions <i>claimed</i>, not just completed). Every table offers <b>CSV</b> and <b>PDF</b> export.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-041 · Extend a purchase's expiry</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Open a purchase → <b>Extend expiry</b> → add 30 days → confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the new expiry shows on both the admin and patient screens; if it was expired, it becomes active again and scheduling works.</div>
+</div>
+
+<h3>4.5 System health, sync and audit</h3>
+
+<div class="tc">
+<h4>ADM-OPS-050 · Sync Health panel and manual retry</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Settings → <b>System Health</b>.</li>
+  <li>Read the sync health list: sessions whose calendar/Meet creation failed, with the error and the number of attempts.</li>
+  <li>If any row is marked <b>Needs attention</b>, click <b>Retry</b>.</li>
+  <li>Click Retry twice quickly on the same row.</li>
+</ol>
+<div class="exp"><b>Expected:</b> a retry re-attempts the calendar event and re-arms the automatic attempts. A second click while one is running answers "already running, try again in a moment" rather than creating a second calendar event. Rows that have used up their attempts stay flagged for a person.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-051 · Activity log completeness</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>Settings → <b>Activity Log</b>.</li>
+  <li>Filter/scan for today's actions: approvals, assignment, cancellation, refund, settings changes, payouts.</li>
+  <li>Export it as CSV and as PDF.</li>
+</ol>
+<div class="exp"><b>Expected:</b> every mutating admin action from Parts 1–4 has a row naming the actor, the action, the subject, the amount where relevant, and the time. The CSV and the PDF contain exactly the rows on screen with the filters applied, and the PDF prints what it was scoped to.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-052 · Exports agree with the screen</h4>
+<p class="meta">Persona: Admin (Full)</p>
+<ol>
+  <li>On <b>All Sessions</b>, apply a status filter and a date range so the list shows, say, 7 rows.</li>
+  <li>Click <b>CSV</b> and open the file; click <b>PDF</b> and open that.</li>
+</ol>
+<div class="exp"><b>Expected:</b> both files contain exactly those 7 rows with the same columns and the same values — never the unfiltered set, never just the visible page if paging is on. The PDF names the range/filters it was scoped to. Nothing in the admin exports JSON.</div>
+</div>
+
+<div class="tc">
+<h4>ADM-OPS-053 · Realtime refresh</h4>
+<p class="meta">Persona: Admin (Full) + patient</p>
+<ol>
+  <li>Open the admin dashboard on <b>Today</b> and leave it untouched.</li>
+  <li>In another window, have a patient book and pay for a session.</li>
+  <li>Watch the admin screen for up to a minute.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the admin screen refreshes on its own and the new session appears in the figures/queues without a manual reload. A burst of changes does not cause a storm of refreshes.</div>
+</div>
+
+<h2 class="pb">Part 5 — As finance</h2>
+<p><b>Who this persona is.</b> An admin whose scope is <b>Finance</b> (account A3, <code>finance.admin@example.com</code>). They can open <b>Today</b>, <b>People</b> and <b>Money</b> — and nothing else. Everything in this part except the scope tests can also be done by a Full admin.</p>
+
+<h3>5.1 Scope enforcement</h3>
+
+<div class="tc">
+<h4>FIN-SCOPE-001 · The Finance admin sees only their sections</h4>
+<p class="meta">Persona: Admin (Finance) · Data: finance.admin@example.com + temporary password from ADM-070</p>
+<ol>
+  <li>Sign in at <code>[SITE]/admin/login</code> as the finance admin.</li>
+  <li>Read the sidebar.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the sidebar shows <b>Today</b>, <b>People</b> and <b>Money</b> only. Sessions, Catalog and Settings are absent.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-SCOPE-002 · Deep links to forbidden sections are blocked server-side</h4>
+<p class="meta">Persona: Admin (Finance) · Negative test</p>
+<ol>
+  <li>Paste <code>[SITE]/admin/dashboard?section=settings&amp;tab=booking</code> into the address bar.</li>
+  <li>Paste <code>[SITE]/admin/dashboard?section=catalog&amp;tab=packages</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> neither opens the forbidden screen. You land on a section this admin is allowed to see. Hiding a section in the sidebar is presentation only — the server must refuse it too.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-SCOPE-003 · The Clinical admin has no Money</h4>
+<p class="meta">Persona: Admin (Clinical) · Negative test</p>
+<ol>
+  <li>Sign in as <code>clinical.admin@example.com</code>.</li>
+  <li>Read the sidebar; then try <code>?section=money&amp;tab=payouts</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> sidebar shows Today, Sessions and People. The Money deep link does not open payouts.</div>
+</div>
+
+<h3>5.2 Money → Summary and the two identities</h3>
+<p><b>What this is.</b> Every figure on Money comes out of one calculation, so the strip, the cards and the chart can never disagree. Two identities must always hold:</p>
+<ul>
+  <li><code>net revenue = gross revenue − refunds processed</code></li>
+  <li><code>clinic share = splittable net − therapists' share − partners' share</code></li>
+</ul>
+<p>Three rules to check against: a therapist's share is earned only on a <b>completed</b> paid session (not on a booked-and-forfeited one); a home visit's <b>travel fee is part of the therapist's share</b> and is never revenue; and a refund reverses the <b>partner's</b> commission but not a therapist's share (a refunded session was never delivered).</p>
+
+<div class="tc">
+<h4>FIN-SUM-001 · Read the summary and verify the identities by hand</h4>
+<p class="meta">Persona: Admin (Finance) · Precondition: Parts 2–4 produced real bookings, one refund, one completed session and one home visit</p>
+<ol>
+  <li>Money → <b>Summary</b>.</li>
+  <li>Set the date range to cover all the test bookings.</li>
+  <li>Write down: Gross revenue, Refunded, Net revenue, Therapists' share, Partners' share, Clinic share, Payment fees, Running costs, Operating profit.</li>
+  <li>Compute <code>gross − refunds</code> and compare with Net.</li>
+  <li>Compute <code>splittable net − therapists − partners</code> and compare with Clinic share.</li>
+</ol>
+<div class="exp"><b>Expected:</b> both identities hold exactly (to the rupee). Any session whose split cannot be known (therapist with no share set, or a partner with no share configured) is <b>excluded from the split and named as a separate count/amount</b> — never guessed at. The glossary at the bottom defines every word used.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-SUM-002 · A booked-but-not-delivered session earns no therapist share</h4>
+<p class="meta">Persona: Admin (Finance)</p>
+<ol>
+  <li>Find a paid session that was <b>cancelled inside the refund window</b> (PAT-CANCEL-002) — the money was kept, the session was never delivered.</li>
+  <li>Look at the Therapists' share figure for a range that includes it.</li>
+</ol>
+<div class="exp"><b>Expected:</b> that session's fee is in gross revenue, but <b>no therapist share is deducted for it</b> — so the clinic's share for that forfeited session is the whole net amount.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-SUM-003 · A home visit's travel fee goes to the therapist, never to revenue</h4>
+<p class="meta">Persona: Admin (Finance) · Precondition: a completed home visit with a ₹250 travel fee</p>
+<ol>
+  <li>Note the visit's package price and its travel fee.</li>
+  <li>Check gross revenue for the range, then the therapists' share.</li>
+</ol>
+<div class="exp"><b>Expected:</b> gross revenue includes the visit price but <b>not</b> the ₹250; the therapist's share includes the ₹250 <b>in full</b> on top of their percentage. If the travel fee shows up inside the clinic's share, that is a bug worth reporting immediately.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-SUM-004 · A balance is not date-filtered</h4>
+<p class="meta">Persona: Admin (Finance)</p>
+<ol>
+  <li>Note the "Owed to therapists" figure.</li>
+  <li>Narrow the date range to a quiet single day with no sessions.</li>
+  <li>Read "Owed to therapists" again, and read the range-scoped figures (revenue, refunds, settled).</li>
+</ol>
+<div class="exp"><b>Expected:</b> "Owed to therapists" does <b>not</b> change with the range — it is an all-time balance, already net of cash therapists are holding, and it matches the Payouts screen and what the Pay button would transfer. Every other figure does change with the range, and each label says which kind it is.</div>
+</div>
+
+<h3>5.3 Money → Transactions</h3>
+
+<div class="tc">
+<h4>FIN-TXN-001 · Every payment and refund is listed</h4>
+<p class="meta">Persona: Admin (Finance)</p>
+<ol>
+  <li>Money → <b>Transactions</b>.</li>
+  <li>Filter by patient, by status, and by date range.</li>
+  <li>Export CSV and PDF.</li>
+</ol>
+<div class="exp"><b>Expected:</b> every session fee, package purchase and refund from Parts 2–4 appears with its amount, method and Razorpay reference. Failed payment attempts are visible as failures, not as revenue. Exports match the filtered rows exactly.</div>
+</div>
+
+<h3>5.4 Money → Payouts</h3>
+
+<div class="tc">
+<h4>FIN-PAY-001 · Review a payout request</h4>
+<p class="meta">Persona: Admin (Finance) · Precondition: THR-PAY-002 requested a payout</p>
+<ol>
+  <li>Money → <b>Payouts</b>.</li>
+  <li>Find Kavya Menon's request and click <b>Start review</b>.</li>
+  <li>Read the breakdown: completed paid sessions in the period, her share on each, travel fees, cash held, and the net transferable amount.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the therapist's screen now shows <b>Under Review</b>. The amounts match her earnings screen exactly. Cash she is holding is shown as a deduction, not silently netted with no explanation.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-PAY-002 · Settle a payout</h4>
+<p class="meta">Persona: Admin (Finance)</p>
+<ol>
+  <li>On the same request click <b>Settle</b> / <b>Pay</b> and confirm.</li>
+  <li>Open the receipt.</li>
+  <li>Check the Cash Ledger for the visits whose cash was netted off.</li>
+  <li>Immediately request and settle again to see what remains owed.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the transfer amount equals earnings minus cash held. Exactly those cash visits are marked <b>remitted</b> in the same action, so the <b>same rupees are never deducted twice</b> on the next payout, and they leave the Cash Ledger's "chase this" list. "Owed to therapists" drops by the settled amount. A receipt is downloadable.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-PAY-003 · A therapist holding more cash than they are owed</h4>
+<p class="meta">Persona: Admin (Finance) · Data: arrange a therapist with, say, ₹3,000 cash held and ₹1,000 earned</p>
+<ol>
+  <li>Have the therapist collect cash on visits worth more than their current earnings (PAT-HV-004 + THR-SESS-007).</li>
+  <li>Open their payout on Money → Payouts.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the transfer floors at <b>zero</b> (never negative), the difference is shown as still owed <i>to the business</i>, and those cash collections stay open on the Cash Ledger for someone to chase.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-PAY-004 · Double-settling is prevented</h4>
+<p class="meta">Persona: Admin (Finance) · Negative test</p>
+<ol>
+  <li>Open a payout request in two browser tabs.</li>
+  <li>Click <b>Settle</b> in the first tab and confirm.</li>
+  <li>Click <b>Settle</b> in the second tab.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the second attempt is refused with a message that it has already been settled. There is exactly one settlement, one receipt and one deduction.</div>
+</div>
+
+<h3>5.5 Money → Costs and operating profit</h3>
+
+<div class="tc">
+<h4>FIN-COST-001 · Gateway fee is derived, not typed</h4>
+<p class="meta">Persona: Admin (Finance) · Data: fee 2%</p>
+<ol>
+  <li>Money → <b>Costs</b>. Confirm the gateway percentage is 2.</li>
+  <li>Money → Summary: note "Payment fees" for a range where you know exactly what was collected online.</li>
+  <li>Compute 2% of the gross <b>online</b> collections in that range and compare.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the fee equals 2% of what was collected online, taken on <b>gross</b> (a processor keeps its fee through a refund). Cash-on-visit collections are excluded, because they never touch a gateway.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-COST-002 · Add and delete an expense</h4>
+<p class="meta">Persona: Admin (Finance) · Data: Clinic software subscription ₹4,500, dated today</p>
+<ol>
+  <li>Money → Costs → add the expense (ADM-091 if not already done).</li>
+  <li>Add a second expense dated <b>last month</b>: <code>Rent</code>, <code>25000</code>.</li>
+  <li>Set the range to this month only and read Running costs and Operating profit.</li>
+  <li>Widen the range to include last month and read them again.</li>
+  <li>Delete the rent expense.</li>
+</ol>
+<div class="exp"><b>Expected:</b> costs are dated by <b>when they were incurred</b>, not when they were typed in — so the rent only counts in a range covering last month. Operating profit = clinic share − payment fees − running costs. Deleting the expense removes it from both.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-COST-003 · Operating profit with no costs recorded says so</h4>
+<p class="meta">Persona: Admin (Finance)</p>
+<ol>
+  <li>Set the date range to a period with revenue but no recorded expenses.</li>
+  <li>Read the Operating profit figure and its caption.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the screen states that with no costs recorded the figure is a <b>ceiling</b>, not the real number. Nothing anywhere is labelled "net profit" — nothing here is post-tax.</div>
+</div>
+
+<h3>5.6 Refunds</h3>
+
+<div class="tc">
+<h4>FIN-REF-001 · Full refund on a cancellation outside the window</h4>
+<p class="meta">Persona: Admin (Finance) · Precondition: PAT-CANCEL-001</p>
+<ol>
+  <li>Money → Transactions → find the refund.</li>
+  <li>Open the session and confirm the refund is stamped on it.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the refund amount equals the full session fee, is marked processed, and appears in the Refunded figure on Summary.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-REF-002 · Partial (manual) refund on a paid session</h4>
+<p class="meta">Persona: Admin (Finance) · Data: refund ₹500 of a ₹1,999 session, reason "Goodwill — late therapist"</p>
+<ol>
+  <li>Open a paid session's drawer → the partial refund control.</li>
+  <li>Enter <code>500</code> and the reason <code>Goodwill — late therapist</code>. Confirm.</li>
+  <li>Try to refund <code>5000</code> on the same session.</li>
+  <li>Try to submit a refund with no reason.</li>
+</ol>
+<div class="exp"><b>Expected:</b> ₹500 is refunded, marked as a <b>manual</b> refund, and logged with the reason. The over-amount attempt is capped at what is still refundable and refused with an explanation. A reason is mandatory.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-REF-003 · Pro-rata refund of an unused package balance</h4>
+<p class="meta">Persona: Admin (Finance) · Precondition: Anita's programme with, say, 2 of 6 used</p>
+<ol>
+  <li>Catalog → Purchases → open Anita's purchase → the refund control.</li>
+  <li>Read the computed refundable amount (the unused balance) and confirm.</li>
+  <li>Check her still-scheduled future sessions.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the refund covers the unused sessions only, and any still-scheduled future sessions on that purchase are cancelled by the same action. The purchase is closed out. The figure matches (unused ÷ total) × amount paid — check the arithmetic by hand.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-REF-004 · Cash refund becomes a manual pending action</h4>
+<p class="meta">Persona: Admin (Finance) · Precondition: PAT-CANCEL-005</p>
+<ol>
+  <li>Money → Payouts / <b>Cash Ledger</b>.</li>
+  <li>Find the cancelled cash visit with a pending manual refund.</li>
+  <li>Click <b>Mark cash returned</b> and confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> until it is marked, the row stays on the ledger as an outstanding action. After marking, it leaves the queue and is recorded in the activity log. There was never a Razorpay refund to reverse for it.</div>
+</div>
+
+<h3>5.7 Money → Breakdown and partner share</h3>
+
+<div class="tc">
+<h4>FIN-BRK-001 · Breakdown chart agrees with Summary</h4>
+<p class="meta">Persona: Admin (Finance)</p>
+<ol>
+  <li>Money → <b>Breakdown</b> with the same date range as FIN-SUM-001.</li>
+  <li>Compare each slice with the figures you wrote down.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the chart's slices equal the Summary's figures exactly — they come from one calculation, so any difference is a bug.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-BRK-002 · A refund reverses the partner's commission</h4>
+<p class="meta">Persona: Admin (Finance) · Precondition: a hospital-referred patient's paid session, then refunded</p>
+<ol>
+  <li>Note the partners' share before the refund.</li>
+  <li>Refund the referred patient's session.</li>
+  <li>Read the partners' share again, and the therapist's share.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the partner's commission is reduced by their percentage of the refunded net. The <b>therapist's</b> share is unaffected, because a refunded (cancelled) session was never delivered and therefore never earned one.</div>
+</div>
+
+<div class="tc">
+<h4>FIN-BRK-003 · Unknown splits are named, not guessed</h4>
+<p class="meta">Persona: Admin (Finance) · Data: create a therapist with <b>no</b> revenue share set and complete a paid session with them</p>
+<ol>
+  <li>Create therapist <code>QA NoShare</code> via Team &amp; Access, leave the revenue share unset.</li>
+  <li>Book, pay, assign and complete a session with them.</li>
+  <li>Read Money → Summary.</li>
+</ol>
+<div class="exp"><b>Expected:</b> that session counts in gross/net revenue but is <b>excluded from the split</b>, and the screen names how many sessions and how much money are excluded. No percentage is invented to make the numbers tie.</div>
+</div>
+
+<h3>5.8 Money glossary</h3>
+
+<div class="tc">
+<h4>FIN-GLS-001 · The glossary is on every Money screen</h4>
+<p class="meta">Persona: Admin (Finance)</p>
+<ol>
+  <li>Visit Summary, Transactions, Payouts, Costs and Breakdown and scroll to the bottom of each.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the same money glossary appears on every Money screen, defining gross, net, refunds, package cash collected, recognised revenue, therapists' share, partners' share, clinic share, payment fees, running costs and operating profit. No two figures share a word with two different meanings.</div>
+</div>
+
+<h2 class="pb">Part 6 — As a hospital partner</h2>
+<p><b>What this is.</b> Hospitals do not sign up: an admin provisions them. They refer patients (by form, by sharing a referral code, or by an invite link) and earn a configured share of the net revenue those patients generate.</p>
+
+<div class="tc">
+<h4>HOSP-001 · First sign-in with the temporary password</h4>
+<p class="meta">Persona: hospital H1 · Precondition: ADM-OPS-034 created the account</p>
+<ol>
+  <li>Open <code>[SITE]/hospital/login</code>.</li>
+  <li>Sign in with <code>partner.sunrise@example.com</code> and the temporary password.</li>
+  <li>Set a new password when prompted (<code>Test@1234</code>).</li>
+</ol>
+<div class="exp"><b>Expected:</b> the partner reaches <code>/hospital/dashboard</code>, which opens on the same Overview shape as every other role: four figures, a feed and quick actions. The sidebar reads Overview · Refer a Patient · Your Referrals · <b>Earnings</b> · Edit Profile.</div>
+</div>
+
+<div class="tc">
+<h4>HOSP-002 · Refer a patient for an online session</h4>
+<p class="meta">Persona: hospital H1 · Data: patient <code>Vikram Rao</code>, +91 98765 00051, issue "Post-op knee stiffness"</p>
+<ol>
+  <li>Sidebar → <b>Refer a Patient</b>.</li>
+  <li><b>Patient Full Name</b>: <code>Vikram Rao</code>.</li>
+  <li><b>Session Type</b>: choose the online/video option.</li>
+  <li>Fill contact details and <b>Medical Issue</b>: <code>Post-op knee stiffness, 6 weeks after ACL repair</code>.</li>
+  <li>Submit.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the referral is submitted and appears under <b>Your Referrals</b> with status <b>Needs triage</b> (pending review). The admin sees it in their referrals queue.</div>
+</div>
+
+<div class="tc">
+<h4>HOSP-003 · Refer a patient for a home visit</h4>
+<p class="meta">Persona: hospital H1 · Data: pincode 600020</p>
+<ol>
+  <li>Refer a Patient → <b>Session Type</b>: home visit.</li>
+  <li>Fill the address and <b>Pincode</b> <code>600020</code>.</li>
+  <li>Submit; then try again with pincode <code>110001</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the serviceable pincode is accepted and carries the address through to the eventual visit. The unserviceable one is refused or flagged, rather than creating a visit nobody can deliver.</div>
+</div>
+
+<div class="tc">
+<h4>HOSP-004 · Admin assigns a referral</h4>
+<p class="meta">Persona: Admin → hospital</p>
+<ol>
+  <li>As admin, open the referrals queue (People → Partners, or Today's inbox row).</li>
+  <li>Assign a therapist and a slot to Vikram Rao's referral and confirm.</li>
+  <li>As the hospital, reload <b>Your Referrals</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the referral moves to <b>Therapist assigned</b>, then to <b>Booked</b> once the session exists. Assigning the same referral twice from two tabs must produce one booking, not two. Home-visit referrals get the travel-buffer conflict padding.</div>
+</div>
+
+<div class="tc">
+<h4>HOSP-005 · Withdraw a referral</h4>
+<p class="meta">Persona: hospital H1</p>
+<ol>
+  <li>Your Referrals → pick a referral still awaiting triage → <b>Withdraw</b> → confirm.</li>
+</ol>
+<div class="exp"><b>Expected:</b> its status becomes <b>Withdrawn</b> and it leaves the admin's action queue. A referral already converted into a booking cannot be withdrawn this way.</div>
+</div>
+
+<div class="tc">
+<h4>HOSP-006 · Referral code and invite link</h4>
+<p class="meta">Persona: hospital H1 → patient P6</p>
+<ol>
+  <li>On the hospital dashboard, find the referral code and the invite link.</li>
+  <li>Open the invite link in an incognito window and register Fatima Khan (PAT-REG-005).</li>
+  <li>Have Fatima book and pay for a session; the admin assigns and the therapist completes it.</li>
+  <li>As the hospital, open <b>Earnings</b>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the invite link pre-fills the referral code. Fatima's account is permanently attributed to Sunrise. Her completed paid session appears in the hospital's earnings with 15% of the net as their share.</div>
+</div>
+
+<div class="tc">
+<h4>HOSP-007 · The hospital cannot book therapy for itself</h4>
+<p class="meta">Persona: hospital H1 · Negative test</p>
+<ol>
+  <li>Signed in as the hospital, open <code>[SITE]/book</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the wrong-account panel appears and points the hospital at <b>Refer a Patient</b> / its referral code, not at a booking form.</div>
+</div>
+
+<div class="tc">
+<h4>HOSP-008 · Partner earnings screen</h4>
+<p class="meta">Persona: hospital H1</p>
+<ol>
+  <li>Open <code>/hospital/dashboard/revenue</code> (sidebar: <b>Earnings</b>).</li>
+  <li>Read the figures and the per-session list; change the date range.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the screen is called <b>Earnings</b> (never "Revenue &amp; Payouts"), lists only this hospital's referred patients' sessions, and agrees with the partners' share the admin sees on Money → Breakdown for the same range.</div>
+</div>
+
+<div class="tc">
+<h4>HOSP-009 · Edit Profile is admin-reviewed</h4>
+<p class="meta">Persona: hospital H1</p>
+<ol>
+  <li>Open <code>/hospital/dashboard/profile</code>.</li>
+  <li>Change the organisation name to <code>Sunrise Multispeciality Hospital (QA)</code> and save.</li>
+  <li>As admin, approve it.</li>
+</ol>
+<div class="exp"><b>Expected:</b> organisation details are reviewed before they change (patients are told who referred them). Contact preferences and password changes apply immediately.</div>
+</div>
+
+<h2 class="pb">Part 7 — Cross-cutting checks (every role)</h2>
+
+<h3>7.1 Access control matrix</h3>
+<p>Sign in as each role in turn and type each URL into the address bar. Record what happens. This is the single most important security check in the plan.</p>
+<table>
+  <tr><th>URL</th><th>Signed out</th><th>Patient</th><th>Therapist</th><th>Hospital</th><th>Admin (Full)</th></tr>
+  <tr><td><code>/patient/dashboard</code></td><td>→ patient login</td><td>opens</td><td>bounced away</td><td>bounced away</td><td>bounced away</td></tr>
+  <tr><td><code>/therapist/dashboard</code></td><td>→ therapist login</td><td>bounced away</td><td>opens</td><td>bounced away</td><td>bounced away</td></tr>
+  <tr><td><code>/hospital/dashboard</code></td><td>→ hospital login</td><td>bounced away</td><td>bounced away</td><td>opens</td><td>bounced away</td></tr>
+  <tr><td><code>/admin/dashboard</code></td><td>→ admin login</td><td>→ <code>/get-started</code></td><td>→ <code>/get-started</code></td><td>→ <code>/get-started</code></td><td>opens</td></tr>
+  <tr><td><code>/dashboard</code></td><td>→ <code>/get-started</code></td><td>→ patient dashboard</td><td>→ therapist dashboard</td><td>→ hospital dashboard</td><td>→ admin dashboard</td></tr>
+  <tr><td><code>/book</code></td><td>wizard (guest)</td><td>wizard</td><td>wrong-account panel</td><td>wrong-account panel</td><td>wrong-account panel</td></tr>
+  <tr><td><code>/book-home-visit</code></td><td>wizard (guest)</td><td>wizard</td><td>wrong-account panel</td><td>wrong-account panel</td><td>wrong-account panel</td></tr>
+  <tr><td><code>/pending-approval</code></td><td>→ login</td><td>opens if unapproved</td><td>opens if unapproved</td><td>—</td><td>—</td></tr>
+</table>
+
+<div class="tc">
+<h4>SEC-001 · Run the matrix</h4>
+<p class="meta">Persona: all five · Critical</p>
+<ol>
+  <li>For each column, sign in as that role in a clean browser window.</li>
+  <li>Type each URL from the table and note the outcome.</li>
+</ol>
+<div class="exp"><b>Expected:</b> every cell behaves as the table says. In particular a signed-in non-admin reaching <code>/admin/dashboard</code> must land on <code>/get-started</code> — never on <code>/admin/login</code>, which would confirm the back office exists and name its door.</div>
+</div>
+
+<div class="tc">
+<h4>SEC-002 · A patient cannot read another patient's data</h4>
+<p class="meta">Persona: patient P1 · Negative test</p>
+<ol>
+  <li>As Priya, copy the URL of one of her own sessions or her patient id from the dashboard.</li>
+  <li>Sign in as Anita (P3) in another window and try to open Priya's session/health-profile URL.</li>
+</ol>
+<div class="exp"><b>Expected:</b> nothing of Priya's is shown — an error, an empty state, or a redirect. Never another patient's name, session or medical document.</div>
+</div>
+
+<div class="tc">
+<h4>SEC-003 · A signed-out visitor cannot open a medical document link</h4>
+<p class="meta">Persona: visitor · Negative test</p>
+<ol>
+  <li>As Priya, open an uploaded report and copy the file URL from the new tab.</li>
+  <li>Sign out (or use incognito) and paste that URL after ~3 minutes.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the link has expired and access is refused. Medical files must never be readable from a permanently public URL.</div>
+</div>
+
+<div class="tc">
+<h4>SEC-004 · The debug bar's reset needs all four gates</h4>
+<p class="meta">Persona: various · Negative test</p>
+<ol>
+  <li>Signed out, click <b>Reset data</b> in the debug bar and try to type the phrase.</li>
+  <li>Signed in as a non-Full admin (Operations), try the same.</li>
+  <li>As a Full admin, type <code>reset all data</code> in lower case and submit.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the reset only proceeds for a signed-in <b>Full</b> admin, with the server flag set, and with the phrase typed exactly as <code>RESET ALL DATA</code>. Anything else is refused.</div>
+</div>
+
+<h3>7.2 Error, loading and not-found states</h3>
+
+<div class="tc">
+<h4>ERR-001 · Unknown URL</h4>
+<p class="meta">Persona: any</p>
+<ol>
+  <li>Open <code>[SITE]/this-page-does-not-exist</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> a styled 404 page with a way back to the site, not a raw stack trace.</div>
+</div>
+
+<div class="tc">
+<h4>ERR-002 · No raw error text ever reaches a patient</h4>
+<p class="meta">Persona: any · Check while running every other part</p>
+<ol>
+  <li>Whenever an error screen appears anywhere in the app, read it carefully.</li>
+</ol>
+<div class="exp"><b>Expected:</b> error screens show a short human message and at most a short reference/digest code. They must never print a database column name, a row id, a table name, an SQL string, or a "row-level security policy" message. Report any that does.</div>
+</div>
+
+<div class="tc">
+<h4>ERR-003 · Dashboard loading state keeps the chrome</h4>
+<p class="meta">Persona: patient / therapist / hospital</p>
+<ol>
+  <li>Throttle the network (DevTools → Network → Slow 3G) and navigate between two dashboard screens.</li>
+</ol>
+<div class="exp"><b>Expected:</b> a skeleton appears <b>with</b> the sidebar rail still drawn — the chrome must not blank out on every navigation.</div>
+</div>
+
+<h3>7.3 Splash, sign-out banner and idle timeout</h3>
+
+<div class="tc">
+<h4>UX-001 · Splash shows on a cold open only</h4>
+<p class="meta">Persona: visitor · Precondition: splash on, revisit 15 minutes</p>
+<ol>
+  <li>Open a brand-new tab on <code>[SITE]/</code> — note the splash.</li>
+  <li>Navigate to <code>/conditions</code> from the menu.</li>
+  <li>Press <kbd>F5</kbd> to reload that page.</li>
+  <li>Switch to another tab for 10 seconds and come back.</li>
+  <li>Switch away for more than 15 minutes and come back.</li>
+</ol>
+<div class="exp"><b>Expected:</b> splash on step 1 only, <b>not</b> on internal navigation, <b>not</b> on reload, <b>not</b> on a quick tab flick — and again on step 5 after the long absence. This matters because a patient approving a UPI payment leaves the tab and comes back mid-checkout.</div>
+</div>
+
+<div class="tc">
+<h4>UX-002 · Splash with "first load only"</h4>
+<p class="meta">Persona: Admin + visitor · Data: revisit minutes = 0</p>
+<ol>
+  <li>As admin, set the splash revisit minutes to <code>0</code>. Save.</li>
+  <li>As a visitor, open a new tab, then leave it in the background for 20 minutes and return.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the splash shows on the first load and never again in that tab, however long you are away. There must be no setting meaning "greet on every tab focus".</div>
+</div>
+
+<div class="tc">
+<h4>UX-003 · Reduced motion skips the splash</h4>
+<p class="meta">Persona: visitor</p>
+<ol>
+  <li>In Chrome DevTools open the Command Menu (<kbd>Ctrl/Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>), run "Emulate CSS prefers-reduced-motion: reduce".</li>
+  <li>Open a new tab on <code>[SITE]/</code>.</li>
+  <li>Also check the home page walkthrough and the care-area showcase.</li>
+</ol>
+<div class="exp"><b>Expected:</b> no splash at all, and no self-advancing animation anywhere. Content is fully usable.</div>
+</div>
+
+<div class="tc">
+<h4>UX-004 · Sign-out banner</h4>
+<p class="meta">Persona: patient · Data: 6 seconds (default)</p>
+<ol>
+  <li>Sign out from the patient dashboard.</li>
+  <li>Time how long the confirmation banner stays.</li>
+  <li>As admin set the duration to <code>0</code>, then sign out again.</li>
+</ol>
+<div class="exp"><b>Expected:</b> at 6 seconds the banner clears itself after roughly six seconds; at 0 it stays until dismissed. On a shared machine the default must not leave the previous person's goodbye on screen indefinitely.</div>
+</div>
+
+<h3>7.4 Lists, filters, paging and exports (spot check across the app)</h3>
+
+<div class="tc">
+<h4>LIST-001 · Every long list behaves the same</h4>
+<p class="meta">Persona: admin, patient, therapist, hospital</p>
+<ol>
+  <li>Visit at least six lists across the app: admin All Sessions, admin Activity Log, admin Purchases, patient Sessions, therapist Earnings, hospital Referrals.</li>
+  <li>On each: change "Show N per page", click Previous/Next to the ends, read the count, and apply a filter chip if present.</li>
+</ol>
+<div class="exp"><b>Expected:</b> the same control everywhere: a page-size field, Previous/Next greying out at the ends, an "x–y of n" count. Page size is remembered per list, per browser. Filters, totals and exports always run over the whole filtered set, never just the page in view. Filter chips only appear when at least two of them would have rows.</div>
+</div>
+
+<h3>7.5 Responsive and accessibility spot checks</h3>
+
+<div class="tc">
+<h4>RESP-001 · Phone width</h4>
+<p class="meta">Persona: patient · Device: DevTools device toolbar, iPhone 14 width (390px)</p>
+<ol>
+  <li>Walk through: home page, <code>/book</code> steps 1–3, patient dashboard, sessions, health profile.</li>
+  <li>On the health profile, tap points on the body map.</li>
+</ol>
+<div class="exp"><b>Expected:</b> nothing scrolls sideways; wide tables scroll inside their own box. The booking calendar's cells stay tappable. The body map's front and back views stack vertically so tap targets stay finger-sized rather than shrinking.</div>
+</div>
+
+<div class="tc">
+<h4>A11Y-001 · Keyboard and dialogs</h4>
+<p class="meta">Persona: any</p>
+<ol>
+  <li>Open a catalog detail dialog with the keyboard (Tab to the card, press Enter).</li>
+  <li>Press <kbd>Tab</kbd> repeatedly inside it, then <kbd>Esc</kbd>.</li>
+  <li>Repeat for the package detail modal and the therapist popup on <code>/team</code>.</li>
+</ol>
+<div class="exp"><b>Expected:</b> focus stays inside an open dialog, Escape closes it, focus returns to the control that opened it, and the page behind does not scroll while it is open.</div>
+</div>
+
+<h2 class="pb">Appendix A — Simulated clock cookbook</h2>
+<table>
+  <tr><th>What you want to test</th><th>Set "Simulate now" to</th><th>Then look at</th></tr>
+  <tr><td>Join button not yet open</td><td>20+ minutes before the slot</td><td>Session card — control inert / countdown</td></tr>
+  <tr><td>Join button open</td><td>10 minutes before the slot</td><td>Session card — <b>Tap to Join</b> active</td></tr>
+  <tr><td>Late arrival still allowed</td><td>10 minutes after the slot</td><td>Still joinable (15-minute grace)</td></tr>
+  <tr><td>Session Completed cutoff</td><td>Cutoff + 5 minutes after the slot</td><td>All four dashboards read <b>Session Completed</b></td></tr>
+  <tr><td>Suggestion no longer acceptable</td><td>Inside the booking lead time before the suggested slot</td><td>Patient's suggestion card — no Accept</td></tr>
+  <tr><td>Booking calendar's lead-time edge</td><td>A time that makes a known slot exactly 11h59m away</td><td>That slot is not offered</td></tr>
+</table>
+<div class="warn"><b>Always click "Reset to Real Time" before moving to a different test area.</b> A clock left in the future makes unrelated screens look broken, and the server is still on real time regardless.</div>
+
+<h2>Appendix B — What the simulated clock cannot do</h2>
+<p>These need either real waiting or an admin action, because they are decided on the server:</p>
+<table>
+  <tr><th>Rule</th><th>How to test it instead</th></tr>
+  <tr><td>Package expiry</td><td>Admin → Catalog → Purchases → set the expiry to a past date, then reload a dashboard (the sweep runs on page load, there is no background job)</td></tr>
+  <tr><td>Home-visit purchase expiry</td><td>Same, on the home-visit purchase</td></tr>
+  <tr><td>Refund eligibility (24-hour window)</td><td>Book a real session inside/outside the window (12-hour lead time makes a 13-hour-out session easy to create), or change the admin's refund-window setting</td></tr>
+  <tr><td>Session note 24-hour edit lock</td><td>Ask the owner to back-date a note, or test it the next day</td></tr>
+  <tr><td>Meet-sync automatic retry</td><td>Reload the admin dashboard — the sweep runs at the top of that render</td></tr>
+  <tr><td>Payout maths</td><td>Complete real sessions; the maths never reads the browser clock</td></tr>
+</table>
+
+<h2>Appendix C — Coverage checklist</h2>
+<p>Tick each area only when every case in it has been run and its result recorded.</p>
+<table>
+  <tr><th>Area</th><th>Cases</th><th>Run</th><th>Passed</th><th>Bugs raised</th></tr>
+  <tr><td>Admin setup (Part 1)</td><td>ADM-001 … ADM-095</td><td></td><td></td><td></td></tr>
+  <tr><td>Public site</td><td>PUB-001 … PUB-008</td><td></td><td></td><td></td></tr>
+  <tr><td>Patient registration</td><td>PAT-REG-001 … 009</td><td></td><td></td><td></td></tr>
+  <tr><td>Booking wizard</td><td>PAT-BOOK-001 … 012</td><td></td><td></td><td></td></tr>
+  <tr><td>Session packages</td><td>PAT-PKG-001 … 017</td><td></td><td></td><td></td></tr>
+  <tr><td>Home visits</td><td>PAT-HV-001 … 008</td><td></td><td></td><td></td></tr>
+  <tr><td>Patient dashboard &amp; sessions</td><td>PAT-DASH-*, PAT-SESS-*</td><td></td><td></td><td></td></tr>
+  <tr><td>Cancellation &amp; refunds (patient)</td><td>PAT-CANCEL-001 … 005</td><td></td><td></td><td></td></tr>
+  <tr><td>Health profile &amp; documents</td><td>PAT-HP-001 … 024</td><td></td><td></td><td></td></tr>
+  <tr><td>Suggestions (patient)</td><td>PAT-SUG-001 … 004</td><td></td><td></td><td></td></tr>
+  <tr><td>Therapist onboarding &amp; availability</td><td>THR-REG-*, THR-AVL-*</td><td></td><td></td><td></td></tr>
+  <tr><td>Therapist delivery &amp; notes</td><td>THR-SESS-001 … 007</td><td></td><td></td><td></td></tr>
+  <tr><td>Clinical records</td><td>THR-HP-*, THR-PM-*</td><td></td><td></td><td></td></tr>
+  <tr><td>Therapist earnings</td><td>THR-PAY-001 … 003</td><td></td><td></td><td></td></tr>
+  <tr><td>Admin operations</td><td>ADM-OPS-001 … 053</td><td></td><td></td><td></td></tr>
+  <tr><td>Finance</td><td>FIN-*</td><td></td><td></td><td></td></tr>
+  <tr><td>Hospital partner</td><td>HOSP-001 … 009</td><td></td><td></td><td></td></tr>
+  <tr><td>Security &amp; cross-cutting</td><td>SEC-*, ERR-*, UX-*, LIST-*, RESP-*, A11Y-*</td><td></td><td></td><td></td></tr>
+</table>
+
+<h2>Appendix D — Bug report template (copy this)</h2>
+<table>
+  <tr><th>Field</th><th>Your entry</th></tr>
+  <tr><td>Test case ID</td><td></td></tr>
+  <tr><td>Persona / account used</td><td></td></tr>
+  <tr><td>Steps taken (which numbered steps)</td><td></td></tr>
+  <tr><td>Expected result (copy from the case)</td><td></td></tr>
+  <tr><td>Actual result</td><td></td></tr>
+  <tr><td>Simulated clock: on/off, and value</td><td></td></tr>
+  <tr><td>Browser + window size</td><td></td></tr>
+  <tr><td>Any red text in the browser console (F12 → Console)</td><td></td></tr>
+  <tr><td>Screenshot / recording attached?</td><td></td></tr>
+  <tr><td>How often it happens (always / sometimes / once)</td><td></td></tr>
+</table>
+<p class="small">Paste this filled-in table into the chat and the failing behaviour will be investigated and fixed. One bug per table, please — two bugs in one report almost always means one of them is missed.</p>
+
+</body>
+</html>
