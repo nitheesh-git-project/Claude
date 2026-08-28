@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { applyLedgerSessionBalance, readLedgerAuthoritative } from "@/lib/ledgerBalances";
 
 // Self-service counterpart to /api/admin/package-purchase-detail -- backs
 // the shared PackageDetailModal in patient/therapist mode. Deliberately
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  const { data: purchase } = await supabase
+  const { data: purchaseRow } = await supabase
     .from("patient_package_purchases")
     .select(
       "id, purchase_code, patient_id, package_id, category_id, session_count, sessions_used, amount_paid_paise, payment_status, status, locked_therapist_id, expires_at, paid_at, created_at"
@@ -34,12 +35,12 @@ export async function GET(request: NextRequest) {
     .eq("id", purchaseId)
     .maybeSingle();
 
-  if (!purchase) {
+  if (!purchaseRow) {
     return NextResponse.json({ error: "Package purchase not found" }, { status: 404 });
   }
 
-  const viewerIsPatient = purchase.patient_id === user.id;
-  const viewerIsTherapist = purchase.locked_therapist_id === user.id;
+  const viewerIsPatient = purchaseRow.patient_id === user.id;
+  const viewerIsTherapist = purchaseRow.locked_therapist_id === user.id;
   if (!viewerIsPatient && !viewerIsTherapist) {
     // Shouldn't be reachable (RLS already filtered the row above), but
     // fail closed rather than assume.
@@ -63,6 +64,14 @@ export async function GET(request: NextRequest) {
   ]);
 
   const admin = createAdminClient();
+
+  // The balance shown comes from the ledger once it is authoritative.
+  // Read with the admin client, not the caller's: the purchase row above is
+  // already the authorization check (see this route's header), and
+  // site_settings is not readable by a patient's own session.
+  const purchase = await applyLedgerSessionBalance(admin, purchaseRow, {
+    authoritative: await readLedgerAuthoritative(admin),
+  });
   const [{ data: packageRow }, { data: category }, { data: otherParty }] = await Promise.all([
     admin
       .from("treatment_category_packages")

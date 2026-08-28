@@ -28,6 +28,10 @@ import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import AccountingHealthPanel from "@/components/admin/AccountingHealthPanel";
 import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
+import {
+  applyLedgerSessionBalances,
+  applyLedgerVisitBalances,
+} from "@/lib/ledgerBalances";
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
 import { adminScreenHref, type InboxGroup } from "@/lib/adminNav";
 import { parseAdminScope, scopeCanOpen, sectionsForScope } from "@/lib/adminScope";
@@ -525,6 +529,24 @@ export default async function AdminDashboardPage({
   );
 
   const adminSettings = parseAdminSettings(settingsRow);
+
+  // When the ledger is authoritative, every balance on this page comes from
+  // it instead of from sessions_used / visits_used. Applied to the rows
+  // once, here, rather than to the ~8 components that read them -- they all
+  // consume the same `session_count` / `sessions_used` shape, so replacing
+  // the number on the row flips all of them at once. A no-op while the flag
+  // is off.
+  const ledgerAuthoritative = adminSettings.entitlementLedgerAuthoritative;
+  const packagePurchasesForDisplay = await applyLedgerSessionBalances(
+    admin,
+    packagePurchaseSummaries ?? [],
+    { authoritative: ledgerAuthoritative }
+  );
+  const homeVisitPurchasesForDisplay = await applyLedgerVisitBalances(
+    admin,
+    homeVisitPurchases ?? [],
+    { authoritative: ledgerAuthoritative }
+  );
 
   // Its own call, not part of SITE_SETTINGS_SELECT: this column is newer
   // than the rest, and a database that hasn't run the latest schema.sql
@@ -1714,7 +1736,7 @@ export default async function AdminDashboardPage({
 
   const packageTitleMap = new Map((packages ?? []).map((p) => [p.id, p.title]));
   const categoryTitleMap = new Map((treatmentCategories ?? []).map((c) => [c.id, c.title]));
-  const packagePurchaseRows = (packagePurchaseSummaries ?? []).map((p) => ({
+  const packagePurchaseRows = packagePurchasesForDisplay.map((p) => ({
     id: p.id,
     purchaseCode: p.purchase_code,
     patientId: p.patient_id,
@@ -1809,7 +1831,7 @@ export default async function AdminDashboardPage({
       );
     }
   }
-  const homeVisitPurchaseRows = (homeVisitPurchases ?? []).map((p) => {
+  const homeVisitPurchaseRows = homeVisitPurchasesForDisplay.map((p) => {
     const completedCount = homeVisitCompletedByPurchase.get(p.id) ?? 0;
     const scheduledCount = homeVisitScheduledByPurchase.get(p.id) ?? 0;
     return {

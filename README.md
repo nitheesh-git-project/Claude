@@ -371,9 +371,20 @@ to and delivered sessions with no payment, package or cash behind them.
 Nothing there is repaired automatically — each finding is either a data
 problem or someone working outside the normal flow, and both want a person.
 
-The ledger is currently written **alongside** the older `sessions_used` /
-`visits_used` counters rather than instead of them, so the two can be
-reconciled before anything reads the ledger. Completing a session now also
+Which of the two the app believes is an admin switch — **Settings → Booking
+Rules → Session Balances From The Ledger**, off by default. While it is off,
+every balance comes from the older `sessions_used` / `visits_used` counters
+and the ledger is written beside them as a shadow, so the two can be
+reconciled before anything depends on the ledger. Turned on, the balance
+shown and offered comes from the ledger instead. Both keep being written
+either way, so the switch is reversible in a second rather than needing a
+release.
+
+Turning it on is also a correctness fix, not only an architecture change: a
+refund never decremented the old counters — it cancels the remaining
+appointments in place — so a refunded package still reads as having sessions
+pending. The ledger voids what was unspent, keeps what was actually
+delivered, and reads zero. Completing a session now also
 emits the `session_completed` / `visit_completed` purchase events, which had
 been declared since packages were built and never written — a programme's
 timeline used to show sessions being scheduled and then simply stopping.

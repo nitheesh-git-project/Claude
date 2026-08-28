@@ -13,6 +13,7 @@ import {
 
 const ALLOWED_COLUMNS = new Set([
   "therapist_suggestions_enabled",
+  "entitlement_ledger_authoritative",
   "session_packages_visible",
   "session_timeout_minutes",
   "google_meet_enabled",
@@ -126,6 +127,7 @@ export async function POST(request: NextRequest) {
       key === "home_visit_enabled" ||
       key === "home_visit_cash_enabled" ||
       key === "therapist_suggestions_enabled" ||
+      key === "entitlement_ledger_authoritative" ||
       key === "splash_enabled") &&
     typeof value !== "boolean"
   ) {

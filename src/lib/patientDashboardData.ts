@@ -1,6 +1,10 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  applyLedgerSessionBalances,
+  applyLedgerVisitBalances,
+} from "@/lib/ledgerBalances";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
@@ -312,6 +316,23 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
 
   const adminSettings = parseAdminSettings(settingsRow);
 
+  // Balances the patient sees come from the ledger once it is
+  // authoritative. Substituted on the rows here, so the package widget, the
+  // Packages screen and the suggestion cards all move together -- they read
+  // the same `session_count` / `sessions_used` shape. A no-op while the
+  // flag is off.
+  const ledgerAuthoritative = adminSettings.entitlementLedgerAuthoritative;
+  const ownedPackagesForDisplay = await applyLedgerSessionBalances(
+    admin,
+    ownedPackages ?? [],
+    { authoritative: ledgerAuthoritative }
+  );
+  const ownedHomeVisitPackagesForDisplay = await applyLedgerVisitBalances(
+    admin,
+    ownedHomeVisitPackages ?? [],
+    { authoritative: ledgerAuthoritative }
+  );
+
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
@@ -342,8 +363,8 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ...new Set(
       [
         ...(appointments ?? []).map((a) => a.therapist_id),
-        ...(ownedPackages ?? []).map((p) => p.locked_therapist_id),
-        ...(ownedHomeVisitPackages ?? []).map((p) => p.locked_therapist_id),
+        ...ownedPackagesForDisplay.map((p) => p.locked_therapist_id),
+        ...ownedHomeVisitPackagesForDisplay.map((p) => p.locked_therapist_id),
       ].filter(Boolean)
     ),
   ];
@@ -352,10 +373,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // active/visible-only policy wouldn't cover that, so this is its own
   // admin-client lookup, same reasoning as categoryPrices below.
   const ownedPackageIds = [
-    ...new Set((ownedPackages ?? []).map((p) => p.package_id).filter(Boolean)),
+    ...new Set(ownedPackagesForDisplay.map((p) => p.package_id).filter(Boolean)),
   ];
   const ownedHomeVisitPackageIds = [
-    ...new Set((ownedHomeVisitPackages ?? []).map((p) => p.package_id).filter(Boolean)),
+    ...new Set(ownedHomeVisitPackagesForDisplay.map((p) => p.package_id).filter(Boolean)),
   ];
   const [{ data: categoryPrices }, { data: therapists }, { data: ownedPackageInfo }, { data: ownedHomeVisitPackageInfo }] =
     await Promise.all([
@@ -386,7 +407,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const activeCategoryMap = new Map((activeCategories ?? []).map((c) => [c.id, c.title]));
   const ownedPackageInfoMap = new Map((ownedPackageInfo ?? []).map((p) => [p.id, p]));
   const ownedHomeVisitPackageInfoMap = new Map((ownedHomeVisitPackageInfo ?? []).map((p) => [p.id, p]));
-  const purchaseCodeById = new Map((ownedPackages ?? []).map((p) => [p.id, p.purchase_code]));
+  const purchaseCodeById = new Map(ownedPackagesForDisplay.map((p) => [p.id, p.purchase_code]));
 
   // Times this patient's therapist has suggested and they haven't answered.
   // Read in its own call for the usual migration tolerance: without the
@@ -409,7 +430,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       }>();
 
   const pendingSuggestions = (suggestionRows ?? []).flatMap((row) => {
-    const purchase = (ownedPackages ?? []).find((p) => p.id === row.purchase_id);
+    const purchase = ownedPackagesForDisplay.find((p) => p.id === row.purchase_id);
     if (!purchase) return [];
     return [
       {
@@ -454,7 +475,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     }
   }
 
-  const hasOwnedPackages = !!ownedPackages && ownedPackages.length > 0;
+  const hasOwnedPackages = ownedPackagesForDisplay.length > 0;
   const hasAvailablePackages =
     adminSettings.sessionPackagesVisible && !!availablePackages && availablePackages.length > 0;
 
@@ -494,7 +515,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   }
 
   const hasOwnedHomeVisitPackages =
-    !!ownedHomeVisitPackages && ownedHomeVisitPackages.length > 0;
+    ownedHomeVisitPackagesForDisplay.length > 0;
 
   // The reminder banner counts what's actually filled in -- an
   // autosaved draft included -- rather than only saying "not done":
@@ -543,7 +564,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     .sort((a, b) => new Date(a.slot_time!).getTime() - new Date(b.slot_time!).getTime());
   const nextSession = upcoming[0] ?? null;
   const completedCount = appointments.filter((a) => a.status === "completed").length;
-  const sessionsLeftInPackages = (ownedPackages ?? []).reduce(
+  const sessionsLeftInPackages = ownedPackagesForDisplay.reduce(
     (sum, p) => sum + Math.max(0, (p.session_count ?? 0) - (p.sessions_used ?? 0)),
     0
   );
@@ -646,8 +667,11 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     allPackagePurchases,
     paymentFailures,
     availablePackages,
-    ownedPackages,
-    ownedHomeVisitPackages,
+    // The substituted rows, not the raw ones -- the Packages screen and the
+    // widgets read these directly, and handing them the counter here would
+    // undo the flip for exactly the two screens a patient looks at.
+    ownedPackages: ownedPackagesForDisplay,
+    ownedHomeVisitPackages: ownedHomeVisitPackagesForDisplay,
     homeVisitPackages,
     bookableCategories,
     onboardingRow,

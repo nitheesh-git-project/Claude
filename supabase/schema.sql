@@ -6040,3 +6040,28 @@ end;
 $$;
 
 revoke execute on function public.ensure_entitlement_for_purchase(uuid, text) from anon, authenticated;
+
+-- --------------------------------------------------------------------------
+-- entitlement_ledger_authoritative: which number the app believes
+-- --------------------------------------------------------------------------
+-- Off by default, so applying this file changes nothing.
+--
+-- While off, `sessions_used` / `visits_used` are what every screen shows and
+-- every availability decision uses, and the ledger is written beside them as
+-- a shadow. Turned on, the balance shown and offered comes from the ledger
+-- instead -- which is the point of having built it, and also the moment a
+-- bug in it starts costing patients sessions.
+--
+-- So it is a switch rather than a deploy: Settings → Booking Rules, one
+-- boolean, reversible in a second without a release. Turn it on only once
+-- Settings → System Health has reported zero accounting mismatches over a
+-- real period of traffic, and turn it straight back off if anything looks
+-- wrong -- the counters keep being written either way, so nothing is lost
+-- by flipping back.
+--
+-- Deliberately does NOT change how a session is *claimed*. The
+-- compare-and-swap on the counter is still what wins a booking race; the
+-- ledger's own row lock runs beside it. Making the ledger the claiming
+-- mechanism means deleting the counter writes, which is its own change with
+-- its own risk, and is not this one.
+alter table site_settings add column if not exists entitlement_ledger_authoritative boolean not null default false;

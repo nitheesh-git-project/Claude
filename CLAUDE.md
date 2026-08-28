@@ -62,7 +62,9 @@ over `session_entitlements`, not in a mutable counter. Every movement goes
 through a database function holding a real row lock, keyed for idempotency
 on the appointment or payment that caused it, and
 `verify_entitlement_balances()` reports any disagreement on Settings →
-System Health. Admins can change any balance — grant, reverse, revive, all
+System Health. Whether balances are read from the ledger or from the older
+counters is one admin switch (`entitlement_ledger_authoritative`), off by
+default and reversible without a release. Admins can change any balance — grant, reverse, revive, all
 with a mandatory reason — and cannot change any history.
 
 Payments are recorded in `payments` (one row per Razorpay order, unique on

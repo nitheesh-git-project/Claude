@@ -264,6 +264,29 @@ client is the only writer and the log is append-only from any session.
      `revive-entitlement`: an admin can change any balance, and cannot
      change any history.
 
+  **Which number the app believes is a switch, not a deploy.**
+  `site_settings.entitlement_ledger_authoritative` (Settings → Booking
+  Rules, off by default) decides whether a balance shown and offered comes
+  from the ledger or from `sessions_used` / `visits_used`. Flipping it is
+  reversible in a second, because both are still written either way.
+
+  The flip needed no screen to change. Every surface that shows a balance —
+  the patient's widget, the therapist's programme list, both detail modals,
+  the admin Purchases table, the bulk scheduler — reads the same
+  `session_count` / `sessions_used` shape, so `src/lib/ledgerBalances.ts`
+  substitutes `sessions_used` on the row **once, where the row is loaded**
+  (`sessions_granted - available`), and every consumer follows. Add a new
+  balance surface by loading its rows through that helper, not by reading
+  the ledger yourself. It leaves `session_count` alone on purpose, so a
+  refunded package still reads "6 sessions" with none pending rather than
+  becoming a 1-session package, and it never touches a purchase with no
+  entitlement — a database without the backfill behaves exactly as before.
+
+  The flip deliberately does **not** change how a session is *claimed*. The
+  counter's compare-and-swap still wins the booking race, with the ledger's
+  row lock beside it. Making the ledger the claiming mechanism means
+  deleting the counter writes, which is its own change with its own risk.
+
   **The ledger is written alongside the old counters, and does not yet
   replace them.** All eight statements in `src/` that mutate
   `sessions_used` / `visits_used` now have a mirror call beside them

@@ -34,6 +34,11 @@ export default function PackageSettingsForm({
   const [optimisticSuggestions, setOptimisticSuggestions] = useOptimistic(
     therapistSuggestionsEnabled
   );
+  const [optimisticLedger, setOptimisticLedger] = useOptimistic(
+    settings.entitlementLedgerAuthoritative
+  );
+  const [isLedgerPending, startLedgerTransition] = useTransition();
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
   const [isSuggestionsPending, startSuggestionsTransition] = useTransition();
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
@@ -100,6 +105,20 @@ export default function PackageSettingsForm({
         router.refresh();
       } catch (e) {
         setSuggestionsError(e instanceof Error ? e.message : "Could not save. Please try again.");
+      }
+    });
+  }
+
+  function handleToggleLedger() {
+    const next = !optimisticLedger;
+    setLedgerError(null);
+    startLedgerTransition(async () => {
+      setOptimisticLedger(next);
+      try {
+        await saveSetting("entitlement_ledger_authoritative", next);
+        router.refresh();
+      } catch (e) {
+        setLedgerError(e instanceof Error ? e.message : "Could not save. Please try again.");
       }
     });
   }
@@ -197,6 +216,35 @@ export default function PackageSettingsForm({
           </button>
         </div>
         {lockError && <p className="text-[11px] text-red-600 mt-2">{lockError}</p>}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="font-bold text-sm text-slate-800">Session Balances From The Ledger</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-md">
+              Which number the app believes. Off, every balance comes from the older
+              per-purchase counter and the ledger is written beside it as a shadow. On, the
+              balance shown and offered comes from the ledger instead.
+            </p>
+            <p className="text-xs text-slate-500 mt-2 max-w-md">
+              Turn this on only once <span className="font-semibold">System Health</span> has
+              reported no accounting mismatches over a real stretch of bookings — and turn it
+              straight back off if anything looks wrong. Both are still written either way, so
+              nothing is lost by switching back.
+            </p>
+          </div>
+          <button
+            onClick={handleToggleLedger}
+            disabled={isLedgerPending}
+            className={`text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-60 ${
+              optimisticLedger ? "bg-teal-700 hover:bg-teal-800 text-white" : "bg-slate-200 hover:bg-slate-300 text-slate-800"
+            }`}
+          >
+            {optimisticLedger ? "Ledger" : "Counter"}
+          </button>
+        </div>
+        {ledgerError && <p className="text-[11px] text-red-600 mt-2">{ledgerError}</p>}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

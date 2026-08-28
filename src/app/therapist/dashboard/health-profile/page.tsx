@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/dashboard/SurfaceCard";
 import { prepSummary, type SessionNoteRow } from "@/lib/sessionNotes";
 import TherapistPatientsView from "@/components/therapist/TherapistPatientsView";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import { applyLedgerSessionBalances, readLedgerAuthoritative } from "@/lib/ledgerBalances";
 
 // Same module-level helper the other dashboards use rather than a bare
 // Date.now() in the component body -- a Server Component's render stays
@@ -119,6 +120,18 @@ export default async function TherapistHealthProfilesPage() {
       .not("package_purchase_id", "is", null),
   ]);
 
+  // Programme balances come from the ledger once it is authoritative --
+  // including the "N sessions left" the Suggest control gates on, so a
+  // therapist is never offered a suggestion the booking would refuse. Read
+  // with the admin client because site_settings is not readable by a
+  // therapist's own session; the rows themselves came back through RLS
+  // above. A no-op while the flag is off.
+  const programmePurchases = await applyLedgerSessionBalances(
+    admin,
+    lockedPurchases ?? [],
+    { authoritative: await readLedgerAuthoritative(admin) }
+  );
+
   // Pending suggestions, read in their own call so a database that hasn't
   // run the latest schema.sql loses the Suggest control rather than this
   // whole screen -- the same migration tolerance every newer column here
@@ -189,7 +202,7 @@ export default async function TherapistHealthProfilesPage() {
   }
 
   const programmePackageIds = [
-    ...new Set((lockedPurchases ?? []).map((p) => p.package_id).filter(Boolean)),
+    ...new Set(programmePurchases.map((p) => p.package_id).filter(Boolean)),
   ];
   const nextSessionByPatient = new Map<string, string>();
   for (const row of upcomingRows ?? []) {
@@ -267,7 +280,7 @@ export default async function TherapistHealthProfilesPage() {
           patientCount={sortedPatients.length}
           suggestionsEnabled={suggestionsEnabled}
           leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
-          programmes={(lockedPurchases ?? []).map((p) => ({
+          programmes={programmePurchases.map((p) => ({
             id: p.id,
             purchaseCode: p.purchase_code,
             patientName: patientNameById.get(p.patient_id) ?? "Unknown patient",
