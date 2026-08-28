@@ -1910,6 +1910,8 @@ export default async function AdminDashboardPage({
 
       <SplashScreenForm
         enabled={adminSettings.splashEnabled}
+        brandLine={adminSettings.splashBrandLine}
+        siteName={adminSettings.siteName}
         phrase={adminSettings.splashPhrase}
         holdSeconds={adminSettings.splashHoldSeconds}
         revisitMinutes={adminSettings.splashRevisitMinutes}

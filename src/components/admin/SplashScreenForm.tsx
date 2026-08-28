@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  MAX_SPLASH_BRAND_LINE_LENGTH,
   MAX_SPLASH_HOLD_SECONDS,
   MAX_SPLASH_PHRASE_LENGTH,
   MAX_SPLASH_REVISIT_MINUTES,
@@ -27,17 +28,25 @@ import {
  */
 export default function SplashScreenForm({
   enabled,
+  brandLine,
+  siteName,
   phrase,
   holdSeconds,
   revisitMinutes,
 }: {
   enabled: boolean;
+  /** The override as stored — blank means the splash follows siteName. */
+  brandLine: string;
+  /** Brand & Contact Details' site name, shown as the placeholder so the
+   *  admin can see what blank actually renders as. */
+  siteName: string;
   phrase: string;
   holdSeconds: number;
   revisitMinutes: number;
 }) {
   const router = useRouter();
   const [on, setOn] = useState(enabled);
+  const [brandInput, setBrandInput] = useState(brandLine);
   const [phraseInput, setPhraseInput] = useState(phrase);
   const [holdInput, setHoldInput] = useState(String(holdSeconds));
   const [revisitInput, setRevisitInput] = useState(String(revisitMinutes));
@@ -76,10 +85,15 @@ export default function SplashScreenForm({
 
   function handleSave() {
     setSaved(false);
+    const brand = brandInput.trim();
     const trimmed = phraseInput.trim();
     const hold = Number(holdInput);
     const revisit = Math.floor(Number(revisitInput));
 
+    if (brand.length > MAX_SPLASH_BRAND_LINE_LENGTH) {
+      setError(`Keep the name to ${MAX_SPLASH_BRAND_LINE_LENGTH} characters or fewer.`);
+      return;
+    }
     if (!trimmed) {
       setError("Give the splash a line to say, or switch it off.");
       return;
@@ -109,9 +123,11 @@ export default function SplashScreenForm({
         // One column per request, same as every other setting here. Saved
         // in sequence rather than in parallel so a failure part-way names
         // the field that refused instead of racing three writes.
+        await save("splash_brand_line", brand);
         await save("splash_phrase", trimmed);
         await save("splash_hold_seconds", hold);
         await save("splash_revisit_minutes", revisit);
+        setBrandInput(brand);
         setPhraseInput(trimmed);
         setHoldInput(String(hold));
         setRevisitInput(String(revisit));
@@ -148,6 +164,32 @@ export default function SplashScreenForm({
       </label>
 
       <div className="space-y-4">
+        <div>
+          <label
+            htmlFor="splash-brand-line"
+            className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1"
+          >
+            The name above it
+          </label>
+          <input
+            id="splash-brand-line"
+            type="text"
+            value={brandInput}
+            placeholder={siteName}
+            maxLength={MAX_SPLASH_BRAND_LINE_LENGTH}
+            onChange={(e) => {
+              setBrandInput(e.target.value);
+              setSaved(false);
+            }}
+            className="w-full max-w-sm text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
+          />
+          <p className="text-[11px] text-slate-400 mt-1">
+            Leave this blank to use the site name from Brand &amp; Contact Details (
+            {siteName}), so the greeting and the header always agree. Fill it in only when the
+            splash should say something different. It prints in capitals, so keep it short.
+          </p>
+        </div>
+
         <div>
           <label
             htmlFor="splash-phrase"

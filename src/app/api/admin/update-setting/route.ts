@@ -4,6 +4,7 @@ import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import {
+  MAX_SPLASH_BRAND_LINE_LENGTH,
   MAX_SPLASH_HOLD_SECONDS,
   MAX_SPLASH_PHRASE_LENGTH,
   MAX_SPLASH_REVISIT_MINUTES,
@@ -52,6 +53,7 @@ const ALLOWED_COLUMNS = new Set([
   // The opening splash: on/off, its one line, how long it holds, and how
   // long a tab must be away to earn a second greeting.
   "splash_enabled",
+  "splash_brand_line",
   "splash_phrase",
   "splash_hold_seconds",
   "splash_revisit_minutes",
@@ -333,6 +335,22 @@ export async function POST(request: NextRequest) {
     nextValue = value.trim();
   }
 
+  // The one text setting where blank is a real value rather than an error:
+  // an empty brand line means "use the site name", which is how an admin
+  // undoes an override without having to retype the site name into it.
+  if (key === "splash_brand_line") {
+    if (typeof value !== "string") {
+      return NextResponse.json({ error: "value must be text" }, { status: 400 });
+    }
+    if (value.trim().length > MAX_SPLASH_BRAND_LINE_LENGTH) {
+      return NextResponse.json(
+        { error: `Please keep this to ${MAX_SPLASH_BRAND_LINE_LENGTH} characters or fewer.` },
+        { status: 400 }
+      );
+    }
+    nextValue = value.trim();
+  }
+
   if (key === "contact_email") {
     if (typeof value !== "string" || !EMAIL_RE.test(value.trim())) {
       return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
@@ -400,6 +418,7 @@ export async function POST(request: NextRequest) {
     // script is inlined into the HTML of every statically-rendered page
     // under it, so nothing short of layout-wide invalidation reaches them.
     key === "splash_enabled" ||
+    key === "splash_brand_line" ||
     key === "splash_phrase" ||
     key === "splash_hold_seconds" ||
     key === "splash_revisit_minutes"

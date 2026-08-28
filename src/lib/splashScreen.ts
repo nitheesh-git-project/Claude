@@ -23,6 +23,18 @@ export const DEFAULT_SPLASH_PHRASE = "Movement Is Medicine";
 /** Longest phrase an admin may save — this is one line on a phone. */
 export const MAX_SPLASH_PHRASE_LENGTH = 48;
 
+/**
+ * The small line above the phrase. Stored blank by default, which means
+ * "use the site name from Brand & Contact Details" — the greeting and the
+ * navbar then cannot drift apart on their own. An admin who wants the
+ * splash to say something the header does not fills this in.
+ *
+ * Shorter cap than the site name's 120, because this renders uppercase
+ * with wide letter-spacing: a name that fits the navbar can still wrap to
+ * three lines here.
+ */
+export const MAX_SPLASH_BRAND_LINE_LENGTH = 60;
+
 /** How long the splash holds at full opacity before it starts leaving. */
 export const DEFAULT_SPLASH_HOLD_SECONDS = 1.5;
 
@@ -74,6 +86,8 @@ export const SPLASH_ATTR = "data-splash";
 /** What the root layout resolves out of site_settings and hands around. */
 export type SplashConfig = {
   enabled: boolean;
+  /** Already resolved: the override when set, the site name otherwise. */
+  brandLine: string;
   phrase: string;
   holdMs: number;
   /** 0 means the greeting never replays on a return to the tab. */
@@ -82,6 +96,9 @@ export type SplashConfig = {
 
 export const DEFAULT_SPLASH_CONFIG: SplashConfig = {
   enabled: true,
+  // No default of its own: the root layout resolves this from the site name
+  // when the override is blank, and the site name has its own default.
+  brandLine: "",
   phrase: DEFAULT_SPLASH_PHRASE,
   holdMs: Math.round(DEFAULT_SPLASH_HOLD_SECONDS * 1000),
   revisitAwayMs: DEFAULT_SPLASH_REVISIT_MINUTES * 60_000,

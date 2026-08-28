@@ -30,13 +30,7 @@ import {
  * and a screen reader gains nothing from a decorative sheet it cannot
  * dismiss.
  */
-export default function SplashScreen({
-  siteName,
-  config,
-}: {
-  siteName: string;
-  config: SplashConfig;
-}) {
+export default function SplashScreen({ config }: { config: SplashConfig }) {
   // The admin's values, held in a ref so the effect below can subscribe
   // once and stay mounted for the life of the tab. Reading them from props
   // in that effect's dependencies instead would re-run it — and its
@@ -140,7 +134,7 @@ export default function SplashScreen({
         <span className="splash-screen__mark">
           <i className="fa-solid fa-user-doctor" />
         </span>
-        <span className="splash-screen__brand">{siteName}</span>
+        <span className="splash-screen__brand">{config.brandLine}</span>
         <span className="splash-screen__phrase font-display">{config.phrase}</span>
         <span className="splash-screen__rule" />
       </div>

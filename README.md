@@ -963,11 +963,16 @@ which writes four `site_settings` columns:
 | Setting | Column | Default |
 | --- | --- | --- |
 | Whether it runs at all | `splash_enabled` | on |
+| The name above the line | `splash_brand_line` | blank — follows `site_name` |
 | The line it says | `splash_phrase` | "Movement Is Medicine" |
 | How long it holds before fading | `splash_hold_seconds` | 1.5 |
 | Minutes away that earn a second greeting | `splash_revisit_minutes` | 15 |
 
-Setting the minutes to **0** means "greet the first load of a tab only".
+Leaving the **name** blank means the splash prints the site name from Brand
+& Contact Details, so the greeting and the header cannot drift apart on
+their own; fill it in only when the splash should say something the navbar
+does not. Setting the minutes to **0** means "greet the first load of a tab
+only".
 There is deliberately no value meaning "greet on every tab focus" — that is
 the setting that would splash over a payment in progress. Switching the
 splash off removes the overlay and its boot script from the page entirely

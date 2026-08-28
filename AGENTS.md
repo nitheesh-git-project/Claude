@@ -773,8 +773,13 @@ client is the only writer and the log is append-only from any session.
   short or leaves an invisible sheet eating clicks. Anyone who has asked for
   reduced motion is skipped outright — it is decoration over content that is
   already rendered, so the honest answer to "don't animate" is not to show
-  it. The wording, the hold and the away threshold are admin-configurable
+  it. The name line, the wording, the hold and the away threshold are
+  admin-configurable
   (`site_settings.splash_*`, Settings → Public Site → Opening Splash), and
+  `splash_brand_line` is blank by default and falls back to `site_name`, so
+  the greeting and the navbar say one thing until an admin deliberately
+  parts them — it is the one text setting where blank is a value rather than
+  an error, since blank is how the override is undone.
   `splash_revisit_minutes = 0` means "greet the first load only" — there is
   deliberately **no** value meaning "greet on every tab focus", because that
   is the setting that would splash over a checkout in progress. The fade
@@ -973,9 +978,10 @@ client is the only writer and the log is append-only from any session.
   and Brand & Contact Details — site name, tagline, description, contact
   email, WhatsApp number, contact phone, footer copyright text — and the
   Home page walkthrough's per-step rotation seconds, where 0 means "don't
-  rotate" — and the opening splash's four settings — on/off, its one line,
-  the hold in seconds, and the minutes a tab must be away to earn a second
-  greeting, where 0 means "first load only") is read
+  rotate" — and the opening splash's five settings — on/off, the name above
+  the line (blank follows the site name), its one line, the hold in seconds,
+  and the minutes a tab must be away to earn a second greeting, where 0
+  means "first load only") is read
   through `src/lib/adminSettings.ts` with defaults — don't hardcode these.
   Every dashboard page must select `SITE_SETTINGS_SELECT` from that module
   rather than its own column list, or a new setting silently reads as its

@@ -110,10 +110,18 @@ export default async function RootLayout({
   // greeting should get.
   const { data: splashRow } = await supabase
     .from("site_settings")
-    .select("splash_enabled, splash_phrase, splash_hold_seconds, splash_revisit_minutes")
+    .select(
+      "splash_enabled, splash_brand_line, splash_phrase, splash_hold_seconds, splash_revisit_minutes"
+    )
     .maybeSingle();
   const splash: SplashConfig = {
     enabled: splashRow?.splash_enabled ?? DEFAULT_SPLASH_CONFIG.enabled,
+    // Blank (the default) means "follow the site name", so the greeting and
+    // the navbar say the same thing unless an admin deliberately parts them.
+    brandLine:
+      typeof splashRow?.splash_brand_line === "string" && splashRow.splash_brand_line.trim()
+        ? splashRow.splash_brand_line.trim()
+        : brand.siteName,
     phrase:
       typeof splashRow?.splash_phrase === "string" && splashRow.splash_phrase.trim()
         ? splashRow.splash_phrase.trim()
@@ -156,7 +164,7 @@ export default async function RootLayout({
         {/* Always in the HTML, painted only when the script above says so —
             keeping the markup constant is what stops this being a
             hydration mismatch on every page. */}
-        {splash.enabled && <SplashScreen siteName={brand.siteName} config={splash} />}
+        {splash.enabled && <SplashScreen config={splash} />}
         {showDebugNav && <DebugNav />}
         <Navbar
           offsetTop={showDebugNav}

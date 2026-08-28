@@ -3352,6 +3352,7 @@ begin
     online_cancellation_refund_hours = default,
     journey_step_seconds = default,
     splash_enabled = default,
+    splash_brand_line = default,
     splash_phrase = default,
     splash_hold_seconds = default,
     splash_revisit_minutes = default,
@@ -4175,6 +4176,13 @@ where not exists (select 1 from testimonials);
 -- desynchronise.
 alter table site_settings
   add column if not exists splash_enabled boolean not null default true;
+-- Blank/null on purpose: the root layout then falls back to site_name, so
+-- the greeting and the navbar cannot drift apart unless an admin means them
+-- to. Filled in only when the splash should say something the header does
+-- not.
+alter table site_settings
+  add column if not exists splash_brand_line text
+    check (splash_brand_line is null or char_length(splash_brand_line) <= 60);
 alter table site_settings
   add column if not exists splash_phrase text not null default 'Movement Is Medicine'
     check (char_length(splash_phrase) between 1 and 48);

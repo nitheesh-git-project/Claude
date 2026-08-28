@@ -17,6 +17,8 @@ const db = adminClient();
 // the next run.
 const DEFAULTS = {
   splash_enabled: true,
+  // Blank is the shipped state: the splash follows the site name.
+  splash_brand_line: "",
   splash_phrase: "Movement Is Medicine",
   splash_hold_seconds: 1.5,
   splash_revisit_minutes: 15,
@@ -144,7 +146,31 @@ test.describe("brand splash", () => {
     await fresh.close();
   });
 
-  test("SP-006 zero minutes means first load only", async ({ page }) => {
+  test("SP-006 names the site by default and the override when set", async ({ page }) => {
+    const { data: brand } = await db.from("site_settings").select("site_name").maybeSingle();
+    const siteName = brand?.site_name ?? "";
+    expect(siteName).not.toBe("");
+
+    // Blank override: the greeting and the navbar say the same thing, which
+    // is what stops the two drifting apart on their own.
+    await setSplash({ splash_brand_line: "" });
+    await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".splash-screen__brand")).toHaveText(siteName);
+    await settle(page);
+
+    await setSplash({ splash_brand_line: "Pooja Physiotherapy Clinic" });
+    const fresh = await page.context().browser()?.newContext();
+    if (!fresh) throw new Error("no browser context");
+    const overridden = await fresh.newPage();
+    await overridden.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+    await expect(overridden.locator(".splash-screen__brand")).toHaveText(
+      "Pooja Physiotherapy Clinic"
+    );
+    await fresh.close();
+    await setSplash({ splash_brand_line: "" });
+  });
+
+  test("SP-007 zero minutes means first load only", async ({ page }) => {
     await setSplash({ splash_revisit_minutes: 0 });
     await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
     await settle(page);
@@ -155,7 +181,7 @@ test.describe("brand splash", () => {
     expect(await splashState(page)).toBeNull();
   });
 
-  test("SP-007 the route refuses values the splash could not honour", async () => {
+  test("SP-008 the route refuses values the splash could not honour", async () => {
     const ctx = await adminContext();
     const post = (key: string, value: unknown) =>
       ctx.post("/api/admin/update-setting", { data: { key, value } });
@@ -170,6 +196,10 @@ test.describe("brand splash", () => {
     expect((await post("splash_revisit_minutes", -1)).status()).toBe(400);
     expect((await post("splash_revisit_minutes", 4.5)).status()).toBe(400);
     expect((await post("splash_enabled", "yes")).status()).toBe(400);
+    expect((await post("splash_brand_line", "x".repeat(200))).status()).toBe(400);
+    // Blank is how an admin *undoes* the override, so it must be accepted
+    // here even though every other text setting refuses an empty string.
+    expect((await post("splash_brand_line", "  ")).status()).toBe(200);
 
     // And accepts the values in range, writing them where the layout reads.
     expect((await post("splash_hold_seconds", 2)).status()).toBe(200);
