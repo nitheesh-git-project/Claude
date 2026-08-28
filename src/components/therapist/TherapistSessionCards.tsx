@@ -34,6 +34,7 @@ export function renderTherapistSessionCard(
     patientMap,
     noteByAppointmentId,
     nowMs: nowMsForOverview,
+    recommendablePackages,
   } = d;
     const patient = patientMap.get(a.patient_id);
     return (
@@ -114,6 +115,9 @@ export function renderTherapistSessionCard(
                     ? noteEditHoursLeft(noteByAppointmentId.get(a.id)!, nowMsForOverview)
                     : null
                 }
+                patientId={a.patient_id}
+                sessionCompleted={a.status === "completed"}
+                recommendable={recommendablePackages}
               />
             )}
         </div>

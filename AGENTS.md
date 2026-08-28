@@ -646,6 +646,46 @@ client is the only writer and the log is append-only from any session.
   specialty from **triage only**: an existing profile carrying it must
   keep rendering, and a therapist re-triaging such a patient is still
   offered it. Ortho can never be switched off.
+- **A therapist recommends; the clinic prices.** A care plan
+  (`care_plans` + `care_plan_versions`) is what a therapist proposes after a
+  session, and it is the only route by which a patient buys a programme once
+  the consultation-first flow is on. Five rules hold it together:
+  1. **A therapist picks a package, never a price.** Session count, price,
+     validity, duration and the gap rules all come from an
+     admin-configured `treatment_category_packages` / `home_visit_packages`
+     row, re-read server-side in
+     `/api/therapist/care-plan/submit`. There is no price column, no session
+     count column and no discount column on a version, so "the therapist set
+     their own price" is not a policy anyone enforces — it is a thing the
+     schema cannot express. The four fields they *do* choose
+     (`hands_on_required`, `frequency_per_week`, `clinical_rationale`,
+     `instructions`) are clinical judgement.
+  2. **A version needs a completed session that therapist ran.**
+     `source_appointment_id` is NOT NULL, and the route re-derives the
+     appointment rather than trusting the body. That is what makes
+     "recommend to everyone and see who bites" impossible rather than
+     discouraged.
+  3. **It writes live, with no review.** Same reasoning as
+     `condition-profile/onboard`: a queue in front of a clinician's own
+     judgement means the patient hears nothing for hours after a session
+     that just ended. Live is not unrecorded — versions are append-only,
+     attributed and dated.
+  4. **Versions are append-only, by trigger.** Only `is_current` may
+     change; every other column raises on update, and delete raises
+     outright. A recommendation that changed is a new version.
+  5. **A purchased plan is never re-versioned.** Once `status = 'accepted'`
+     the thread is closed and a later recommendation opens a new one with
+     `supersedes_id` set, because editing a purchased plan would change the
+     description of something already paid for. `care_plans_one_active_per_patient`
+     keeps at most one live plan, so a patient never sees two competing
+     recommendations.
+
+  One record, two readers: `CarePlanHistory` renders the same
+  `care_plan_versions` rows on the therapist's chart and the patient's
+  Health Profile, branching on `voice` rather than keeping a copy per
+  surface. Read them through `src/lib/carePlanServer.ts`, never with your
+  own query.
+
 - **One word for the record, one for the condition type, one for the
   reviewer.** The clinical counterpart of the money-word rules below, added
   after an audit found **ten** user-facing names for the health profile and

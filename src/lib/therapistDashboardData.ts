@@ -13,6 +13,7 @@ import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { sessionsAwaitingNote, type SessionNoteRow } from "@/lib/sessionNotes";
 import type { StatCell } from "@/components/dashboard/StatStrip";
+import { loadRecommendablePackages } from "@/lib/carePlanServer";
 
 // Everything the therapist dashboard's screens read, loaded once per
 // request -- the same split as the patient's loader, and for the same
@@ -495,6 +496,12 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // Shared between "Assigned Patient Sessions" and the Calendar tab's
   // tap-a-date detail list -- one true card style for a session, not two
   // copies that can drift apart.
+  // Programmes a therapist may recommend, resolved once for the whole
+  // dashboard rather than per session card. Its own call and failure
+  // tolerant: `recommendable` is a new column, and losing it must cost the
+  // recommend control rather than the dashboard.
+  const recommendablePackages = await loadRecommendablePackages(admin);
+
   return {
     user,
     sessionCodeByAppointmentId,
@@ -520,6 +527,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     navItems,
     sessionNotes,
     noteByAppointmentId,
+    recommendablePackages,
     notesOwed,
     therapistFeed,
     overviewCells,

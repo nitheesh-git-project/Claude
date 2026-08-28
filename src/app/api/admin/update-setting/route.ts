@@ -14,6 +14,8 @@ import {
 const ALLOWED_COLUMNS = new Set([
   "therapist_suggestions_enabled",
   "entitlement_ledger_authoritative",
+  "care_plan_default_expiry_days",
+  "care_plan_max_frequency_per_week",
   "session_packages_visible",
   "session_timeout_minutes",
   "google_meet_enabled",
@@ -244,10 +246,25 @@ export async function POST(request: NextRequest) {
       // that has already started, with no chance of a therapist reaching
       // the address -- the whole point of this setting being separate from
       // the online lead time is that travel takes real hours.
-      key === "home_visit_lead_time_hours") &&
+      key === "home_visit_lead_time_hours" ||
+      // A zero-day expiry would lapse a recommendation the moment it was
+      // written, so the patient would never see one.
+      key === "care_plan_default_expiry_days") &&
     (typeof value !== "number" || !Number.isInteger(value) || value < 1)
   ) {
     return NextResponse.json({ error: "value must be a positive whole number" }, { status: 400 });
+  }
+
+  // A week has seven days, so a frequency cap outside 1-7 is not a
+  // stricter rule, it is a typo.
+  if (
+    key === "care_plan_max_frequency_per_week" &&
+    (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 7)
+  ) {
+    return NextResponse.json(
+      { error: "value must be a whole number between 1 and 7" },
+      { status: 400 }
+    );
   }
 
   // Normalized here rather than trusted from the client: this list is

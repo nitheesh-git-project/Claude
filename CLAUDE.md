@@ -67,6 +67,15 @@ counters is one admin switch (`entitlement_ledger_authoritative`), off by
 default and reversible without a release. Admins can change any balance — grant, reverse, revive, all
 with a mandatory reason — and cannot change any history.
 
+A therapist recommends treatment after a session as a **care plan**
+(`care_plans` + append-only `care_plan_versions`), written from the session
+note dialog. They pick an admin-configured package — never a price, a
+session count or a discount, none of which exist as columns — plus four
+clinical fields. It needs a completed session they ran, writes live with no
+review, and a purchased plan is never re-versioned: a later recommendation
+opens a new thread. The same rows render on the therapist's chart and the
+patient's Health Profile.
+
 Payments are recorded in `payments` (one row per Razorpay order, unique on
 both the order id and the payment id) and confirmed by whichever of the
 browser callback or `/api/razorpay/webhook` arrives first — both go through

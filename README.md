@@ -371,6 +371,35 @@ to and delivered sessions with no payment, package or cash behind them.
 Nothing there is repaired automatically — each finding is either a data
 problem or someone working outside the normal flow, and both want a person.
 
+### Care plans
+
+A therapist recommends treatment **after** seeing a patient, from the same
+dialog they write the session note in. They pick a programme the admin has
+marked recommendable and add four clinical fields — whether hands-on
+treatment is needed, how often per week, why this for this patient, and
+anything the patient should do or know. Session count, price, validity and
+duration all come with the programme: there is no price field, no
+session-count field and no discount field on a recommendation, so a
+therapist cannot set their own terms.
+
+A recommendation needs a **completed session that therapist ran**, writes
+live with no review step (the same reasoning as the first health-profile
+fill), and is versioned rather than edited — `care_plan_versions` is
+append-only by trigger, and only `is_current` may move. Revising a
+recommendation adds a version; the old one stays readable with what changed
+shown beside it.
+
+Once a patient has **bought** a plan, that thread is closed. A later
+recommendation opens a new one marked as superseding it, because editing a
+purchased plan would change the description of something already paid for.
+At most one recommendation is live at a time, so a patient is never looking
+at two competing proposals.
+
+The same records render on the therapist's patient chart and on the
+patient's own Health Profile — one authoritative history with two readers,
+in each one's own voice. `care_plan_default_expiry_days` and
+`care_plan_max_frequency_per_week` are admin-editable.
+
 Which of the two the app believes is an admin switch — **Settings → Booking
 Rules → Session Balances From The Ledger**, off by default. While it is off,
 every balance comes from the older `sessions_used` / `visits_used` counters

@@ -11,6 +11,8 @@ import SpecialtyExamPanel from "@/components/profile/SpecialtyExamPanel";
 import PatientOnboardingCard from "@/components/therapist/PatientOnboardingCard";
 import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import SessionNoteHistory from "@/components/therapist/SessionNoteHistory";
+import CarePlanHistory from "@/components/therapist/CarePlanHistory";
+import { loadCarePlanHistory } from "@/lib/carePlanServer";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
 import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
 import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
@@ -189,6 +191,19 @@ export default async function TherapistPatientHealthProfilePage({
 
   const showDebugNav = isDebugNavVisible();
 
+  const carePlanVersions = await loadCarePlanHistory(admin, patientId);
+  const carePlanAuthorNames = new Map<string, string>();
+  if (carePlanVersions.length > 0) {
+    // Author names are not readable through RLS from a therapist's session
+    // (profiles_select_own), so they come from the admin client -- the same
+    // lookup this page already makes for the patient's own name.
+    const { data: authors } = await admin
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", [...new Set(carePlanVersions.map((v) => v.authoredBy))]);
+    for (const a of authors ?? []) carePlanAuthorNames.set(a.id, a.full_name);
+  }
+
   return (
     <DashboardShell
       brandLabel="Therapist Panel"
@@ -244,6 +259,15 @@ export default async function TherapistPatientHealthProfilePage({
             emptyBody="After your first session with this patient, what you record appears here and becomes the prep for the next one."
           />
         </SurfaceCard>
+
+        {/* Recommendations sit beside the notes rather than on a screen of
+            their own: "what I did" and "what I think should happen next"
+            are read together, and the plan was written from the note. */}
+        <CarePlanHistory
+          versions={carePlanVersions}
+          authorNames={carePlanAuthorNames}
+          voice="clinician"
+        />
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-1">

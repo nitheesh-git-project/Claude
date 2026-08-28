@@ -6065,3 +6065,229 @@ revoke execute on function public.ensure_entitlement_for_purchase(uuid, text) fr
 -- mechanism means deleting the counter writes, which is its own change with
 -- its own risk, and is not this one.
 alter table site_settings add column if not exists entitlement_ledger_authoritative boolean not null default false;
+
+-- ==========================================================================
+-- Care plans: what a therapist recommends after seeing a patient
+-- ==========================================================================
+-- The clinical order this practice sells in was backwards: a patient could
+-- buy a six-session programme before any clinician had seen them, so the
+-- treatment volume was decided before the assessment that would justify it.
+-- A care plan is the correction -- the therapist assesses, then recommends,
+-- and the patient buys what was recommended.
+--
+-- Two tables, for the same reason session notes have two: a thread that has
+-- an identity and a current state, and versions that are written once and
+-- never touched again. A recommendation that can be silently edited after
+-- the fact is not a clinical record.
+--
+-- The one rule that shapes everything else: **a therapist picks a package,
+-- never a price.** Session count, price, validity, duration and the gap
+-- rules all come from an admin-configured `treatment_category_packages` (or
+-- `home_visit_packages`) row. There is no price column here, no session
+-- count column and no discount column, so "the therapist set their own
+-- price" is not a policy anyone has to enforce -- it is a thing the schema
+-- cannot express.
+
+create table if not exists care_plans (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  -- Whose recommendation this is. A plan stays attributed to its author
+  -- even after the patient moves to another therapist.
+  therapist_id uuid not null references profiles(id) on delete cascade,
+  category_id uuid references treatment_categories(id) on delete set null,
+
+  current_version_id uuid,
+
+  status text not null default 'active' check (status in (
+    'active', 'accepted', 'declined', 'withdrawn', 'expired', 'superseded'
+  )),
+
+  -- Set when the patient pays. From that moment the thread is closed: a
+  -- later recommendation opens a NEW thread rather than adding a version
+  -- here, because editing a purchased plan would change the description of
+  -- something already bought.
+  accepted_version_id uuid,
+  accepted_at timestamptz,
+  entitlement_id uuid references session_entitlements(id) on delete set null,
+
+  -- The thread this one replaces, when a therapist recommends again after a
+  -- purchase. Gives the history a spine to be read along.
+  supersedes_id uuid references care_plans(id) on delete set null,
+
+  declined_at timestamptz,
+  decline_reason text,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- At most one live plan per patient at a time. A patient looking at two
+-- competing recommendations cannot tell which one their therapist meant,
+-- and the partial index makes that a database guarantee rather than a
+-- route check two concurrent requests can both pass -- the same reasoning
+-- as session_suggestions_one_pending_per_purchase.
+create unique index if not exists care_plans_one_active_per_patient
+  on care_plans (patient_id) where status = 'active';
+
+create index if not exists care_plans_patient_idx on care_plans (patient_id, created_at desc);
+create index if not exists care_plans_therapist_idx on care_plans (therapist_id, created_at desc);
+
+create table if not exists care_plan_versions (
+  id uuid primary key default gen_random_uuid(),
+  care_plan_id uuid not null references care_plans(id) on delete cascade,
+  version_no integer not null check (version_no > 0),
+
+  authored_by uuid not null references profiles(id),
+  authored_at timestamptz not null default now(),
+
+  -- The session this came out of. Required: a recommendation is made after
+  -- seeing someone, and tying it to the appointment that produced it is
+  -- what stops "recommend to everyone and see who bites" being possible at
+  -- all. The note is optional only because a therapist may write the plan
+  -- before the note.
+  source_appointment_id uuid not null references appointments(id) on delete cascade,
+  source_session_note_id uuid references session_notes(id) on delete set null,
+
+  offer_kind text not null check (offer_kind in ('session_package', 'home_visit_package')),
+  session_package_id uuid references treatment_category_packages(id) on delete set null,
+  home_visit_package_id uuid references home_visit_packages(id) on delete set null,
+  constraint care_plan_versions_one_offer check (
+    num_nonnulls(session_package_id, home_visit_package_id) = 1
+  ),
+
+  -- The catalog row as it stood when this was recommended, so the patient
+  -- is shown the plan they were actually offered even if an admin re-prices
+  -- the package before they answer. Checkout re-reads the live row and
+  -- refuses on a mismatch rather than silently charging a different amount.
+  offer_snapshot jsonb not null default '{}'::jsonb,
+
+  -- The therapist's own clinical judgement -- the only fields here they
+  -- actually choose.
+  hands_on_required boolean not null default false,
+  frequency_per_week integer check (frequency_per_week is null or frequency_per_week between 1 and 7),
+  clinical_rationale text,
+  instructions text,
+
+  expires_at timestamptz,
+  is_current boolean not null default true,
+
+  created_at timestamptz not null default now(),
+  unique (care_plan_id, version_no)
+);
+
+create unique index if not exists care_plan_versions_one_current
+  on care_plan_versions (care_plan_id) where is_current;
+create index if not exists care_plan_versions_plan_idx
+  on care_plan_versions (care_plan_id, version_no desc);
+create index if not exists care_plan_versions_appointment_idx
+  on care_plan_versions (source_appointment_id);
+
+-- Append-only, by trigger rather than by RLS -- same reasoning as the
+-- credit ledger. Every route writes with the service-role client, which
+-- bypasses RLS entirely, so "no route updates it" is not the guarantee
+-- "an update raises" is. The one column that legitimately changes is
+-- is_current, which is how a version becomes superseded, so that single
+-- transition is allowed and nothing else is.
+create or replace function public.care_plan_versions_is_append_only()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'care_plan_versions is append-only: a recommendation that changed is a new version, never an edited one';
+  end if;
+  if new.is_current = old.is_current then
+    raise exception 'care_plan_versions is append-only: supersede this version with a new one rather than editing it';
+  end if;
+  if row(new.*) is distinct from row(old.*) and (
+       new.care_plan_id is distinct from old.care_plan_id
+    or new.version_no is distinct from old.version_no
+    or new.authored_by is distinct from old.authored_by
+    or new.source_appointment_id is distinct from old.source_appointment_id
+    or new.offer_kind is distinct from old.offer_kind
+    or new.session_package_id is distinct from old.session_package_id
+    or new.home_visit_package_id is distinct from old.home_visit_package_id
+    or new.offer_snapshot is distinct from old.offer_snapshot
+    or new.hands_on_required is distinct from old.hands_on_required
+    or new.frequency_per_week is distinct from old.frequency_per_week
+    or new.clinical_rationale is distinct from old.clinical_rationale
+    or new.instructions is distinct from old.instructions
+  ) then
+    raise exception 'care_plan_versions is append-only: only is_current may change';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_care_plan_versions_append_only on care_plan_versions;
+create trigger trg_care_plan_versions_append_only
+  before update or delete on care_plan_versions
+  for each row execute function public.care_plan_versions_is_append_only();
+
+alter table care_plans enable row level security;
+alter table care_plan_versions enable row level security;
+
+-- The patient reads their own plans; the authoring therapist reads theirs;
+-- admins read everything. No write policy at all -- a plan is created by a
+-- service-role route that has re-derived the therapist's assignment and the
+-- session they ran, neither of which is expressible as a policy.
+drop policy if exists "care_plans_select_own" on care_plans;
+create policy "care_plans_select_own" on care_plans
+  for select using (auth.uid() = patient_id or auth.uid() = therapist_id);
+
+drop policy if exists "care_plans_select_admin" on care_plans;
+create policy "care_plans_select_admin" on care_plans
+  for select using (is_admin());
+
+drop policy if exists "care_plan_versions_select_own" on care_plan_versions;
+create policy "care_plan_versions_select_own" on care_plan_versions
+  for select using (
+    exists (
+      select 1 from care_plans p
+      where p.id = care_plan_versions.care_plan_id
+        and (p.patient_id = auth.uid() or p.therapist_id = auth.uid())
+    )
+  );
+
+drop policy if exists "care_plan_versions_select_admin" on care_plan_versions;
+create policy "care_plan_versions_select_admin" on care_plan_versions
+  for select using (is_admin());
+
+revoke insert, update, delete on care_plans from authenticated;
+revoke insert, update, delete on care_plan_versions from authenticated;
+
+-- Both sides watch a plan live: the patient needs one to appear without
+-- reloading, and the therapist needs the answer.
+do $$
+begin
+  alter publication supabase_realtime add table care_plans;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table care_plan_versions;
+exception when duplicate_object then null;
+end $$;
+
+-- Which packages a therapist may recommend. Separate from the three
+-- visibility flags on purpose: those decide where a package is advertised
+-- to the public, and this decides whether a clinician may put it in front
+-- of one patient. An admin who stops selling a package on the website has
+-- not necessarily stopped it being the right treatment.
+alter table treatment_category_packages
+  add column if not exists recommendable boolean not null default true;
+alter table home_visit_packages
+  add column if not exists recommendable boolean not null default true;
+
+-- Names the first booking for what it is on the patient's screen.
+alter table treatment_categories add column if not exists consultation_label text;
+
+-- Care plan rules, admin-editable rather than hardcoded (Settings →
+-- Booking Rules). The expiry is how long a recommendation stays
+-- purchasable before it lapses; the frequency cap bounds what a clinician
+-- may recommend per week, on top of whatever the package's own
+-- max_sessions_per_week already allows.
+alter table site_settings add column if not exists care_plan_default_expiry_days integer not null default 30
+  check (care_plan_default_expiry_days > 0);
+alter table site_settings add column if not exists care_plan_max_frequency_per_week integer not null default 5
+  check (care_plan_max_frequency_per_week between 1 and 7);

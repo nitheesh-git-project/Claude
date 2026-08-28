@@ -9,6 +9,10 @@ import {
   type SessionNoteData,
   type SessionNoteRow,
 } from "@/lib/sessionNotes";
+import CarePlanFields, {
+  type CarePlanDraft,
+  type RecommendableOption,
+} from "@/components/therapist/CarePlanFields";
 
 /**
  * The post-session note, written in a pop-up straight after a session
@@ -30,10 +34,22 @@ export default function SessionNoteDialog({
   existing,
   locked,
   hoursLeft,
+  patientId,
+  sessionCompleted,
+  recommendable,
   onClose,
 }: {
   appointmentId: string;
   patientName: string;
+  patientId: string;
+  /** Whether this session has actually been marked complete. A plan is
+   *  written after seeing someone, so the recommend section only appears
+   *  once it has -- and the submit route re-checks, which is the real
+   *  enforcement. */
+  sessionCompleted: boolean;
+  /** The programmes admin has cleared for recommendation. Empty means the
+   *  section stays hidden rather than showing an empty picker. */
+  recommendable: RecommendableOption[];
   /** When the session was, for the dialog's own subtitle. */
   sessionLabel: string;
   existing: SessionNoteRow | null;
@@ -49,6 +65,12 @@ export default function SessionNoteDialog({
     return initial;
   });
   const [freeText, setFreeText] = useState(existing?.free_text ?? "");
+  // The plan is optional and lives beside the note rather than after it:
+  // the therapist is already here, having just written what happened, and
+  // "what should happen next" is the same thought. A separate screen for it
+  // is a screen that gets skipped.
+  const [plan, setPlan] = useState<CarePlanDraft | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
@@ -89,13 +111,43 @@ export default function SessionNoteDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appointmentId, data: values, freeText }),
       });
-      if (res.ok) {
-        router.refresh();
-        onClose();
-      } else {
+      if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         setError(body.error ?? "Could not save the note. Please try again.");
+        return;
       }
+
+      // The plan is submitted after the note, and its failure is reported
+      // separately: the note is already saved by this point, and telling a
+      // therapist their note failed because the recommendation did would
+      // send them back to rewrite work that is safely stored.
+      if (plan) {
+        const planRes = await fetch("/api/therapist/care-plan/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            patientId,
+            appointmentId,
+            offerKind: plan.offerKind,
+            packageId: plan.packageId,
+            handsOnRequired: plan.handsOnRequired,
+            frequencyPerWeek: plan.frequencyPerWeek,
+            clinicalRationale: plan.clinicalRationale,
+            instructions: plan.instructions,
+          }),
+        });
+        if (!planRes.ok) {
+          const body = await planRes.json().catch(() => ({}));
+          setPlanError(
+            body.error ?? "Your note was saved, but the recommendation could not be sent."
+          );
+          router.refresh();
+          return;
+        }
+      }
+
+      router.refresh();
+      onClose();
     });
   }
 
@@ -243,7 +295,19 @@ export default function SessionNoteDialog({
               />
             </div>
 
+            {!locked && sessionCompleted && recommendable.length > 0 && (
+              <CarePlanFields
+                options={recommendable}
+                value={plan}
+                onChange={(next) => {
+                  setPlan(next);
+                  setPlanError(null);
+                }}
+              />
+            )}
+
             {error && <p className="text-xs font-semibold text-red-600">{error}</p>}
+            {planError && <p className="text-xs font-semibold text-amber-700">{planError}</p>}
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
@@ -261,7 +325,13 @@ export default function SessionNoteDialog({
                 disabled={isPending}
                 className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-50"
               >
-                {isPending ? "Saving..." : existing ? "Save changes" : "Save note"}
+                {isPending
+                  ? "Saving..."
+                  : plan
+                    ? "Save note & recommend"
+                    : existing
+                      ? "Save changes"
+                      : "Save note"}
               </button>
             )}
           </div>

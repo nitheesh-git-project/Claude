@@ -9,6 +9,9 @@ import IntakeTrendChart from "@/components/profile/IntakeTrendChart";
 import HealthProfileSteps from "@/components/profile/HealthProfileSteps";
 import HealthProfileActions from "@/components/profile/HealthProfileActions";
 import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
+import CarePlanHistory from "@/components/therapist/CarePlanHistory";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { loadCarePlanHistory } from "@/lib/carePlanServer";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
@@ -244,6 +247,21 @@ export default async function PatientHealthProfilePage() {
 
   const showDebugNav = isDebugNavVisible();
 
+  // Read with the admin client: a patient can select their own care_plans
+  // through RLS, but not the therapist names attached to them
+  // (profiles_select_own), which is the same lookup every dashboard makes
+  // for a therapist's name.
+  const carePlanAdmin = createAdminClient();
+  const carePlanVersions = await loadCarePlanHistory(carePlanAdmin, user.id);
+  const carePlanAuthorNames = new Map<string, string>();
+  if (carePlanVersions.length > 0) {
+    const { data: authors } = await carePlanAdmin
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", [...new Set(carePlanVersions.map((v) => v.authoredBy))]);
+    for (const a of authors ?? []) carePlanAuthorNames.set(a.id, a.full_name);
+  }
+
   return (
     <DashboardShell
       brandLabel="Patient Panel"
@@ -455,6 +473,16 @@ export default async function PatientHealthProfilePage() {
             emptyMessage="Nothing uploaded yet. If a doctor has given you a scan or a test result, add it here."
           />
         </section>
+
+        {/* The same care_plan_versions rows the therapist's chart renders --
+            one authoritative record, two readers, in the patient's own
+            voice. Their live recommendation and its Accept button live on
+            Suggested Sessions; this is the history behind it. */}
+        <CarePlanHistory
+          versions={carePlanVersions}
+          authorNames={carePlanAuthorNames}
+          voice="patient"
+        />
       </div>
     </DashboardShell>
   );
