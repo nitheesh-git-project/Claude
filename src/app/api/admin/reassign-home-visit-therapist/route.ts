@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -14,7 +14,7 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 // every other home-visit scheduling decision, since a therapist finishing
 // one visit cannot be at another minutes later.
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("catalog");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

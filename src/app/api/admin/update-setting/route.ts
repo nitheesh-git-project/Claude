@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import {
@@ -110,7 +110,7 @@ const MAX_HOME_VISIT_SUBHEADING_LENGTH = 300;
 // generalized to any of this feature's columns instead of one dedicated
 // route per toggle.
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("settings");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

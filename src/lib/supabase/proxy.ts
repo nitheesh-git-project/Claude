@@ -122,8 +122,17 @@ export async function updateSession(request: NextRequest) {
     // anyway -- the only thing it does is advertise the back office. An
     // unauthenticated visitor still goes to /admin/login above, since that
     // is the real admin's way in.
-    if (path.startsWith("/admin/dashboard") && profile?.role !== "admin") {
-      return redirectTo("/get-started");
+    if (path.startsWith("/admin/dashboard")) {
+      if (profile?.role !== "admin") {
+        return redirectTo("/get-started");
+      }
+      // Same suspension gate the other three roles have had all along. The
+      // admin branch used to check role alone, so flipping profiles.active
+      // on an admin took nothing away -- see getAdminUser for why `approved`
+      // is deliberately not checked for this one role.
+      if (!profile.active) {
+        return redirectTo("/account-suspended");
+      }
     }
 
     if (path.startsWith("/hospital/dashboard")) {

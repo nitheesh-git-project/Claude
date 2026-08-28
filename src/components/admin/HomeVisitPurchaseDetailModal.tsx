@@ -56,10 +56,14 @@ type DetailResponse = {
 export default function HomeVisitPurchaseDetailModal({
   purchaseId,
   therapists,
+  canSeeMoney,
   onClose,
 }: {
   purchaseId: string;
   therapists: { id: string; full_name: string }[];
+  // Same rule as the online package modal -- refunding is a Money
+  // capability on a Catalog screen. See PackagePurchaseDetailModal.
+  canSeeMoney: boolean;
   onClose: () => void;
 }) {
   const [data, setData] = useState<DetailResponse | null>(null);
@@ -346,7 +350,8 @@ export default function HomeVisitPurchaseDetailModal({
                 >
                   Extend expiry
                 </button>
-                {data.purchase.status === "active" &&
+                {canSeeMoney &&
+                  data.purchase.status === "active" &&
                   data.purchase.payment_mode === "prepaid" &&
                   data.purchase.payment_status === "paid" && (
                     <button

@@ -3,12 +3,30 @@ import { parseAdminScope, scopeCanOpen, type AdminScope } from "@/lib/adminScope
 import type { AdminSectionKey } from "@/lib/adminNav";
 
 export type AdminContext = {
-  userId: string;
+  // Named `id`, not `userId`, so it reads the same as the Supabase `User`
+  // this replaced at 80-odd call sites -- `adminUser.id` means one thing in
+  // this codebase and renaming it here would have meant 51 mechanical edits
+  // whose only purpose was to say the same word differently.
+  id: string;
   email: string | null;
   scope: AdminScope;
 };
 
-/** Returns the signed-in user if they're an admin, otherwise null. */
+/**
+ * Returns the signed-in user if they're an active admin, otherwise null.
+ *
+ * `active` is checked here and nowhere else in the admin stack: every other
+ * role is gated on it twice (the proxy for navigation, requireActiveProfile
+ * inside the API routes), but the admin branch checked role alone -- so
+ * suspending an admin took away their sidebar and left their session cookie
+ * able to POST every admin route, including the ones that move money.
+ *
+ * `approved` is deliberately NOT checked. An admin is promoted by hand in
+ * Supabase rather than passing through the signup queue, so an existing
+ * admin's `approved` may legitimately be false; gating on it would lock out
+ * the people this is meant to protect. `active` is the suspension flag and
+ * the only one that means anything for this role.
+ */
 export async function getAdminUser() {
   const supabase = await createClient();
   const {
@@ -18,11 +36,12 @@ export async function getAdminUser() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, active")
     .eq("id", user.id)
     .single();
 
   if (profile?.role !== "admin") return null;
+  if (profile.active === false) return null;
   return user;
 }
 
@@ -46,7 +65,7 @@ export async function getAdminContext(): Promise<AdminContext | null> {
     .maybeSingle();
 
   return {
-    userId: user.id,
+    id: user.id,
     email: user.email ?? null,
     scope: parseAdminScope(scopeRow?.admin_scope),
   };

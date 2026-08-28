@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
@@ -11,7 +11,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 // reopened, that premise no longer holds and both sides should be asked
 // again once it's genuinely done.
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("sessions");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

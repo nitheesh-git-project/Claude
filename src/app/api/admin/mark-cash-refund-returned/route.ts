@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -10,7 +10,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 // Razorpay payment behind cash, so nothing can refund itself -- this is the
 // human step that clears the action queue on the Cash Ledger.
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("money");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

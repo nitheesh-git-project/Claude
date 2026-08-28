@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Excludes (or re-includes) one side's rating on one session from every
@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // explicit boolean rather than a blind toggle so a double-click or two open
 // tabs can't flip it back and forth unpredictably.
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("sessions");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

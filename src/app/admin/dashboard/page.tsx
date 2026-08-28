@@ -28,7 +28,7 @@ import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
 import { adminScreenHref, type InboxGroup } from "@/lib/adminNav";
-import { parseAdminScope, sectionsForScope } from "@/lib/adminScope";
+import { parseAdminScope, scopeCanOpen, sectionsForScope } from "@/lib/adminScope";
 import type { SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
 import AdminPayoutRequestsTab, { type PayoutRequestRow } from "@/components/admin/AdminPayoutRequestsTab";
@@ -488,6 +488,19 @@ export default async function AdminDashboardPage({
       .order("incurred_on", { ascending: false })
       .limit(500),
   ]);
+
+  // Resolved here rather than beside the admin-team list further down,
+  // because the screens built below gate their own money controls on it. A
+  // control a viewer's scope can't call must not render: the routes now
+  // enforce scope (requireAdminScope), so an ungated button would be a 403
+  // the admin can see but never explain. The session controls need no
+  // equivalent flag here -- they only ever render inside the Sessions
+  // section, which a viewer reaching them can open by definition. The
+  // person pages are the exception, and compute their own (see
+  // PatientDetailContent).
+  const adminScopeById = new Map((adminScopeRows ?? []).map((r) => [r.id, r.admin_scope]));
+  const viewerScope = parseAdminScope(adminScopeById.get(user.id));
+  const canSeeMoney = scopeCanOpen(viewerScope, "money");
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
     (t) => t.active !== false
@@ -1343,6 +1356,7 @@ export default async function AdminDashboardPage({
 
   const calendarTab = (
     <AdminCalendarTab
+      canSeeMoney={canSeeMoney}
       appointments={appointmentsWithSessionCode}
       people={allPeople}
       categories={categoriesForReassign}
@@ -1354,6 +1368,7 @@ export default async function AdminDashboardPage({
 
   const allSessionsTab = (
     <AdminAllSessionsTab
+      canSeeMoney={canSeeMoney}
       appointments={appointmentsWithSessionCode}
       homeVisits={homeVisitRows}
       people={allPeople}
@@ -1820,6 +1835,7 @@ export default async function AdminDashboardPage({
           Every online programme bought, and how much of it has been used.
         </p>
         <PackagePurchasesTable
+          canSeeMoney={canSeeMoney}
           purchases={packagePurchaseRows}
           packages={(packages ?? []).map((p) => ({ id: p.id, title: p.title }))}
           categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
@@ -1835,6 +1851,7 @@ export default async function AdminDashboardPage({
           reading that as money owed.
         </p>
         <HomeVisitPurchasesTable
+          canSeeMoney={canSeeMoney}
           purchases={homeVisitPurchaseRows}
           packages={(homeVisitPackages ?? []).map((p) => ({ id: p.id, title: p.title }))}
           therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
@@ -2027,8 +2044,6 @@ export default async function AdminDashboardPage({
     />
   );
 
-  const adminScopeById = new Map((adminScopeRows ?? []).map((r) => [r.id, r.admin_scope]));
-  const viewerScope = parseAdminScope(adminScopeById.get(user.id));
   const adminRows: AdminRow[] = (allProfiles ?? [])
     .filter((p) => p.role === "admin")
     .map((p) => ({

@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       category,
       description: trimmedDescription,
       amount_paise: amountPaise,
-      created_by: context.userId,
+      created_by: context.id,
     })
     .select("id")
     .single();
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await recordAdminActivity(admin, context.userId, {
+  await recordAdminActivity(admin, context.id, {
     action: "expense.create",
     targetId: created.id,
     targetLabel: `${category}${trimmedDescription ? ` — ${trimmedDescription}` : ""}`,

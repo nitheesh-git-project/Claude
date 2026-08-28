@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Backs the admin Purchases table's tap-to-open detail popup -- fetched
@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // purchase's full appointment history and event timeline is only ever
 // needed for the one purchase currently open, not all of them at once.
 export async function GET(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("catalog");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

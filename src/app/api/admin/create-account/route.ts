@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  await recordAdminActivity(admin, context.userId, {
+  await recordAdminActivity(admin, context.id, {
     action: "account.create",
     targetId: created.user.id,
     targetLabel: `${fullName} (${role})`,

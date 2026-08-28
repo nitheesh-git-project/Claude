@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   if (!scope || !ADMIN_SCOPES.includes(scope as AdminScope)) {
     return NextResponse.json({ error: "Unknown access level." }, { status: 400 });
   }
-  if (userId === context.userId) {
+  if (userId === context.id) {
     return NextResponse.json(
       { error: "You can't change your own access. Ask another full-access admin." },
       { status: 409 }
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  await recordAdminActivity(admin, context.userId, {
+  await recordAdminActivity(admin, context.id, {
     action: "admin.set_scope",
     targetId: userId,
     targetLabel: target.full_name,

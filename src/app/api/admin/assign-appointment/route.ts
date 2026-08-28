@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
@@ -10,7 +10,7 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
 
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("sessions");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

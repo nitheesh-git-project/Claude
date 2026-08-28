@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Razorpay from "razorpay";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -22,7 +22,7 @@ const MAX_REASON_LENGTH = 500;
 // cancelAppointmentAndRefund already flags any cash actually collected as
 // refund_status 'manual_pending' on the Cash Ledger.
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("money");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

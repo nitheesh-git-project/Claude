@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await recordAdminActivity(admin, context.userId, {
+  await recordAdminActivity(admin, context.id, {
     action: totalRefunded >= paid ? "refund.issue" : "refund.partial",
     targetId: appointmentId,
     targetLabel: appointment.session_code,
