@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -31,6 +32,12 @@ export async function POST(request: NextRequest) {
   if (!updated) {
     return NextResponse.json({ error: "Therapist not found" }, { status: 404 });
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "account.set_active",
+    targetId: therapistId,
+    details: { role: "therapist", active },
+  });
 
   return NextResponse.json({ success: true, active });
 }

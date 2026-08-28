@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -174,6 +175,17 @@ export async function POST(request: NextRequest) {
       console.error("Failed to log therapist_reassigned event for purchase", purchaseId, eventError);
     }
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "package.reassign_therapist",
+    targetId: purchaseId,
+    details: {
+      oldTherapistId: purchase.locked_therapist_id,
+      newTherapistId: therapistId,
+      reassignedCount: reassigned.length,
+      skippedCount: skipped.length,
+    },
+  });
 
   return NextResponse.json({ success: true, reassigned, skipped });
 }

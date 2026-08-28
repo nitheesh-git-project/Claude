@@ -29,6 +29,9 @@ export type AdminActivityAction =
   | "session.reopen"
   | "session.restore"
   | "session.mark_paid_cash"
+  // purchases (a programme, not one session)
+  | "package.extend_expiry"
+  | "package.reassign_therapist"
   // money
   | "payout.settle"
   | "payout_request.start_review"
@@ -39,6 +42,10 @@ export type AdminActivityAction =
   | "cash.mark_refund_returned"
   | "expense.create"
   | "expense.delete"
+  // Every future payout for this therapist is computed from this
+  // percentage, so changing it moves more money than most single refunds
+  // do -- see isMoneyAction, which counts it as one.
+  | "therapist.set_revenue_share"
   // partners
   | "hospital.onboard"
   | "hospital.set_active"
@@ -107,6 +114,8 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "session.reopen": "Reopened session",
   "session.restore": "Restored session",
   "session.mark_paid_cash": "Marked paid by cash",
+  "package.extend_expiry": "Extended programme expiry",
+  "package.reassign_therapist": "Reassigned programme therapist",
   "payout.settle": "Settled payout",
   "payout_request.start_review": "Started payout review",
   "payout_request.complete": "Completed payout request",
@@ -116,6 +125,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "cash.mark_refund_returned": "Marked cash refund returned",
   "expense.create": "Recorded a cost",
   "expense.delete": "Removed a cost",
+  "therapist.set_revenue_share": "Changed therapist revenue share",
   "hospital.onboard": "Onboarded hospital",
   "hospital.set_active": "Changed hospital status",
   "hospital.set_revenue_share": "Changed hospital revenue share",
@@ -137,6 +147,11 @@ export function isMoneyAction(action: string): boolean {
     action.startsWith("cash.") ||
     action.startsWith("expense.") ||
     action === "session.mark_paid_cash" ||
-    action === "hospital.set_revenue_share"
+    action === "hospital.set_revenue_share" ||
+    action === "therapist.set_revenue_share" ||
+    // Handing a forfeited session back is money: the patient keeps value
+    // they had otherwise lost, and the clinic's recognised revenue moves
+    // with it.
+    action === "session.restore"
   );
 }

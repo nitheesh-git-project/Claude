@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 
@@ -132,6 +133,15 @@ export async function POST(request: NextRequest) {
   // The public page lists the areas served, so it has to reflect a newly
   // opened catchment rather than waiting out its ISR window.
   revalidatePath("/home-visit");
+
+  // Catalog rows decide what is sold and at what price, so every
+  // create/update/delete belongs in the same log every other admin
+  // action is read from.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "catalog.create",
+    targetId: null,
+    targetLabel: "Service areas",
+  });
 
   return NextResponse.json({
     success: true,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import {
   findTherapistConflict,
   findConflictingAppointmentOnly,
@@ -161,6 +162,12 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "referral.assign",
+    targetId: referralId,
+    details: { therapistId },
+  });
 
   return NextResponse.json({ inviteToken });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -222,6 +223,15 @@ export async function POST(request: NextRequest) {
       timezone: appointment.timezone,
     });
   }
+
+  // appointment_reassignment_log already records the before/after of the
+  // session itself; this records that an admin was the one who did it, in
+  // the same place every other admin action is read from.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "session.update",
+    targetId: appointmentId,
+    details: { therapistChanged, slotChanged, categoryChanged },
+  });
 
   return NextResponse.json({ success: true });
 }

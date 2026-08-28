@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 function generatePassword() {
   return crypto.randomBytes(9).toString("base64url");
@@ -47,6 +48,15 @@ export async function POST(request: NextRequest) {
     therapist_id: therapistId,
     temp_password: password,
     temp_password_set_at: new Date().toISOString(),
+  });
+
+  // The generated password is deliberately NOT in the log -- it is a live
+  // credential, and admin_activity_log is read by every admin. That an
+  // admin reset it, for whom, and when is the part worth keeping.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "account.reset_password",
+    targetId: therapistId,
+    details: { role: "therapist" },
   });
 
   return NextResponse.json({ email: therapist.email, password });

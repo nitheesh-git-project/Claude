@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
 const MAX_REASON_LENGTH = 500;
@@ -120,6 +121,17 @@ export async function POST(request: NextRequest) {
   if (eventError) {
     console.error("Failed to log session_restored event for purchase", purchaseId, eventError);
   }
+
+  // The purchase event above is the programme's own timeline; this is the
+  // clinic-wide one. Restoring hands a forfeited session back, so the
+  // patient keeps value they had lost and recognised revenue moves with it
+  // -- isMoneyAction counts session.restore for exactly that reason.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "session.restore",
+    targetId: appointmentId,
+    targetLabel: purchaseId,
+    details: { purchaseId, reason: reason?.trim() || null },
+  });
 
   return NextResponse.json({ success: true });
 }

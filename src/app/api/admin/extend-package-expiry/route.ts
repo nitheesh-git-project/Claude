@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
 const MAX_REASON_LENGTH = 500;
@@ -94,6 +95,16 @@ export async function POST(request: NextRequest) {
   if (eventError) {
     console.error("Failed to log expiry_extended event for purchase", purchaseId, eventError);
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "package.extend_expiry",
+    targetId: purchaseId,
+    details: {
+      oldExpiresAt: purchase.expires_at,
+      newExpiresAt: newExpiryIso,
+      reason: reason?.trim() || null,
+    },
+  });
 
   return NextResponse.json({ success: true });
 }

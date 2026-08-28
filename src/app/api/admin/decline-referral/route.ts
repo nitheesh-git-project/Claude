@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -54,6 +55,11 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "referral.decline",
+    targetId: referralId,
+  });
 
   return NextResponse.json({ success: true });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { GATED_PROFILE_FIELDS } from "@/lib/gatedProfileFields";
 
 export async function POST(request: NextRequest) {
@@ -74,6 +75,12 @@ export async function POST(request: NextRequest) {
   if (reviewError) {
     return NextResponse.json({ error: reviewError.message }, { status: 500 });
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "profile_change.approve",
+    targetId: requestId,
+    details: { userId: changeRequest.user_id },
+  });
 
   return NextResponse.json({ success: true });
 }
