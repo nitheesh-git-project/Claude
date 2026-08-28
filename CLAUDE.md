@@ -57,6 +57,14 @@ The patient's own record leaves the app as a PDF named
 Before writing code: read the relevant guide in `node_modules/next/dist/docs/`
 — this Next.js version differs from training data.
 
+Payments are recorded in `payments` (one row per Razorpay order, unique on
+both the order id and the payment id) and confirmed by whichever of the
+browser callback or `/api/razorpay/webhook` arrives first — both go through
+the one idempotent `record_payment_capture` function. Setting
+`RAZORPAY_WEBHOOK_SECRET` is what makes the webhook half work; without it
+a patient who pays and closes the tab leaves a paid order against an unpaid
+booking.
+
 Quick commands: `npm run dev`, `npm run build`, `npm run lint` (which also
 runs `npm run check:realtime`, the Supabase Realtime publication coverage
 check). A Playwright

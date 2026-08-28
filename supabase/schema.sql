@@ -4436,3 +4436,570 @@ begin
 exception
   when duplicate_object then null;
 end $$;
+
+-- --------------------------------------------------------------------------
+-- payments: one row per Razorpay order, whatever it was for
+-- --------------------------------------------------------------------------
+-- Until now there was no payments table. Payment state lived as columns on
+-- three tables -- appointments, patient_package_purchases and
+-- home_visit_package_purchases -- each with its own razorpay_order_id,
+-- razorpay_payment_id, payment_status, amount and paid_at. That worked for
+-- "is this one thing paid for?" and failed at everything else:
+--
+--   * Nothing in the database stopped one Razorpay payment id being
+--     recorded against two rows. There was no unique index on
+--     razorpay_payment_id or razorpay_order_id anywhere in this file.
+--   * There was no place to record a payment that had not yet been matched
+--     to anything -- which is exactly what a webhook delivers.
+--   * "What did this patient actually pay us?" meant a union across three
+--     tables, which is why receipts.ts and paymentHistory.ts are both
+--     aggregations rather than reads.
+--
+-- This table does not replace those columns. They stay, they keep being
+-- written, and every existing query keeps working; this sits alongside as
+-- the record of money, and the two unique indexes below are what make a
+-- duplicate credit impossible rather than merely unlikely.
+--
+-- purpose says what was bought. target_* is which row it was bought for,
+-- nullable because a webhook can legitimately arrive before the app has
+-- matched it (a payment captured on a device that never came back to
+-- /verify) -- an unmatched captured payment is a real state, and one an
+-- admin needs to see rather than one to be prevented.
+create table if not exists payments (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid references profiles(id) on delete set null,
+  purpose text not null check (purpose in
+    ('consultation', 'session_package', 'home_visit_package', 'other')),
+  razorpay_order_id text not null,
+  razorpay_payment_id text,
+  amount_paise integer not null check (amount_paise > 0),
+  -- Mirrors Razorpay's own vocabulary rather than inventing a parallel one,
+  -- so a row can be read against the Razorpay dashboard without a mapping
+  -- table in someone's head.
+  status text not null default 'created' check (status in
+    ('created', 'authorized', 'captured', 'failed', 'refunded', 'partially_refunded')),
+  -- Running total, same semantics as appointments.refund_amount_paise.
+  refunded_paise integer not null default 0 check (refunded_paise >= 0),
+  target_appointment_id uuid references appointments(id) on delete set null,
+  target_package_purchase_id uuid references patient_package_purchases(id) on delete set null,
+  target_home_visit_purchase_id uuid references home_visit_package_purchases(id) on delete set null,
+  captured_at timestamptz,
+  -- The provider's own payload for the capture, kept verbatim. When our
+  -- reading of a payment is ever disputed, this is the evidence.
+  raw jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- The two indexes this whole table exists for.
+--
+-- One Razorpay order is one checkout attempt, and one Razorpay payment id
+-- is one capture. Making both unique is what turns "a duplicate webhook
+-- must not credit twice" from a rule the routes remember into a rule the
+-- database enforces -- a second insert claiming the same payment fails with
+-- 23505 rather than succeeding quietly.
+--
+-- If either index fails to create against a live database, that failure is
+-- the finding: it means a duplicate already exists and wants investigating
+-- before anything is built on top of this.
+create unique index if not exists payments_razorpay_order_id_key
+  on payments (razorpay_order_id);
+create unique index if not exists payments_razorpay_payment_id_key
+  on payments (razorpay_payment_id)
+  where razorpay_payment_id is not null;
+
+create index if not exists payments_patient_idx on payments (patient_id, created_at desc);
+create index if not exists payments_status_idx on payments (status, created_at desc);
+create index if not exists payments_target_appointment_idx
+  on payments (target_appointment_id) where target_appointment_id is not null;
+
+alter table payments enable row level security;
+
+-- Read your own, or everything as an admin. No insert/update/delete policy
+-- at all: payments are written only by the service role, from the verify
+-- routes and the webhook. Same posture as patient_package_purchases, and
+-- for a stronger reason -- a client that can write a payment row can mint
+-- money.
+drop policy if exists "payments_select_own" on payments;
+create policy "payments_select_own" on payments
+  for select using (auth.uid() = patient_id);
+
+drop policy if exists "payments_select_admin" on payments;
+create policy "payments_select_admin" on payments
+  for select using (is_admin());
+
+revoke insert, update, delete on payments from authenticated;
+
+-- --------------------------------------------------------------------------
+-- payment_webhook_events: every webhook Razorpay sends us, exactly once
+-- --------------------------------------------------------------------------
+-- There was no webhook handler at all before this. Payment confirmation
+-- depended entirely on the patient's browser reaching /verify after
+-- checkout, so a patient who paid and closed the tab left a paid Razorpay
+-- order against an unpaid appointment, recoverable only if they came back
+-- and pressed Pay a second time.
+--
+-- razorpay_event_id is unique, and inserting the event is the FIRST thing
+-- the handler does. A replay, a retry after a timeout, or Razorpay's own
+-- at-least-once delivery all collide on that index and are answered 200
+-- without being processed twice. The row is kept whether or not processing
+-- succeeded, so a webhook that failed to apply is visible rather than lost.
+create table if not exists payment_webhook_events (
+  id uuid primary key default gen_random_uuid(),
+  razorpay_event_id text not null unique,
+  event_type text not null,
+  razorpay_order_id text,
+  razorpay_payment_id text,
+  payload jsonb not null,
+  received_at timestamptz not null default now(),
+  processed_at timestamptz,
+  processing_error text
+);
+
+create index if not exists payment_webhook_events_received_idx
+  on payment_webhook_events (received_at desc);
+create index if not exists payment_webhook_events_unprocessed_idx
+  on payment_webhook_events (received_at desc) where processed_at is null;
+
+alter table payment_webhook_events enable row level security;
+
+drop policy if exists "payment_webhook_events_select_admin" on payment_webhook_events;
+create policy "payment_webhook_events_select_admin" on payment_webhook_events
+  for select using (is_admin());
+
+-- Nobody but the service role writes these, and nobody but an admin reads
+-- them -- a webhook payload carries the provider's own view of a payment.
+revoke insert, update, delete on payment_webhook_events from authenticated;
+
+-- --------------------------------------------------------------------------
+-- payments: backfill from the three tables that carried payment state
+-- --------------------------------------------------------------------------
+-- One row per razorpay_order_id already recorded anywhere. Guarded by `not
+-- exists` on the order id rather than by a global "is the table empty"
+-- check, so it fills gaps on a re-run instead of running once and never
+-- again -- an order recorded after the first apply still gets picked up.
+--
+-- `on conflict do nothing` on top of that: the unique indexes above are the
+-- real arbiter, and two source rows sharing an order id (which should be
+-- impossible and, before those indexes existed, was not prevented) must not
+-- fail the whole apply.
+--
+-- status is derived, not guessed: a row with a razorpay_payment_id was
+-- captured, one without is still just an order. A refunded source row maps
+-- to 'refunded' only when the whole amount went back -- a running total
+-- short of the amount is 'partially_refunded', matching the vocabulary
+-- above.
+insert into payments (
+  patient_id, purpose, razorpay_order_id, razorpay_payment_id,
+  amount_paise, status, refunded_paise, target_appointment_id, captured_at, created_at
+)
+select
+  a.patient_id,
+  'consultation',
+  a.razorpay_order_id,
+  a.razorpay_payment_id,
+  greatest(coalesce(a.amount_paid_paise, 0), 1),
+  case
+    when coalesce(a.refund_amount_paise, 0) > 0
+      and coalesce(a.refund_amount_paise, 0) >= coalesce(a.amount_paid_paise, 0) then 'refunded'
+    when coalesce(a.refund_amount_paise, 0) > 0 then 'partially_refunded'
+    when a.razorpay_payment_id is not null then 'captured'
+    else 'created'
+  end,
+  coalesce(a.refund_amount_paise, 0),
+  a.id,
+  a.paid_at,
+  a.created_at
+from appointments a
+where a.razorpay_order_id is not null
+  and not exists (select 1 from payments p where p.razorpay_order_id = a.razorpay_order_id)
+on conflict do nothing;
+
+insert into payments (
+  patient_id, purpose, razorpay_order_id, razorpay_payment_id,
+  amount_paise, status, refunded_paise, target_package_purchase_id, captured_at, created_at
+)
+select
+  pp.patient_id,
+  'session_package',
+  pp.razorpay_order_id,
+  pp.razorpay_payment_id,
+  greatest(coalesce(pp.amount_paid_paise, 0), 1),
+  case
+    when coalesce(pp.refund_amount_paise, 0) > 0
+      and coalesce(pp.refund_amount_paise, 0) >= coalesce(pp.amount_paid_paise, 0) then 'refunded'
+    when coalesce(pp.refund_amount_paise, 0) > 0 then 'partially_refunded'
+    when pp.razorpay_payment_id is not null then 'captured'
+    else 'created'
+  end,
+  coalesce(pp.refund_amount_paise, 0),
+  pp.id,
+  pp.paid_at,
+  pp.created_at
+from patient_package_purchases pp
+where pp.razorpay_order_id is not null
+  and not exists (select 1 from payments p where p.razorpay_order_id = pp.razorpay_order_id)
+on conflict do nothing;
+
+insert into payments (
+  patient_id, purpose, razorpay_order_id, razorpay_payment_id,
+  amount_paise, status, refunded_paise, target_home_visit_purchase_id, captured_at, created_at
+)
+select
+  hp.patient_id,
+  'home_visit_package',
+  hp.razorpay_order_id,
+  hp.razorpay_payment_id,
+  greatest(coalesce(hp.amount_paid_paise, 0), 1),
+  case
+    when coalesce(hp.refund_amount_paise, 0) > 0
+      and coalesce(hp.refund_amount_paise, 0) >= coalesce(hp.amount_paid_paise, 0) then 'refunded'
+    when coalesce(hp.refund_amount_paise, 0) > 0 then 'partially_refunded'
+    when hp.razorpay_payment_id is not null then 'captured'
+    else 'created'
+  end,
+  coalesce(hp.refund_amount_paise, 0),
+  hp.id,
+  hp.paid_at,
+  hp.created_at
+from home_visit_package_purchases hp
+where hp.razorpay_order_id is not null
+  and not exists (select 1 from payments p where p.razorpay_order_id = hp.razorpay_order_id)
+on conflict do nothing;
+
+-- Cash-on-visit purchases never touch a gateway, so they have no order id
+-- and are deliberately absent from the backfill above. They are not missing
+-- payments: payment_mode = 'cash_on_visit' with money collected at the door
+-- is recorded on the appointment (cash_collected_at / _amount_paise / _by),
+-- which is where therapistCashLedger already reads it. A payments row for
+-- them would imply a gateway transaction that does not exist.
+
+-- --------------------------------------------------------------------------
+-- record_payment_capture: the one place a capture is applied
+-- --------------------------------------------------------------------------
+-- Both the browser callback (/api/razorpay/verify and its two siblings) and
+-- the webhook (/api/razorpay/webhook) call this. Whichever arrives first
+-- does the work; the second gets `already_captured` and changes nothing.
+-- That single property is what makes duplicate webhooks, Razorpay's
+-- at-least-once retries, a delayed webhook racing a browser callback, and a
+-- double-clicked Pay button all safe, without any of the four needing to
+-- know about the others.
+--
+-- It is a database function rather than TypeScript because supabase-js
+-- cannot express a transaction: the existing routes do compare-and-swap
+-- against a single column, which is the best they can do over PostgREST and
+-- is not enough once one capture has to move a payments row and a target
+-- row together. `select ... for update` here is a real lock held for a real
+-- transaction.
+--
+-- Deliberately does NOT confirm an appointment or create a Meet event.
+-- Those need an outbound Google call, so they stay in the route; this
+-- returns what the caller needs to decide. And it never resurrects a
+-- cancelled booking -- the same guard razorpay/verify already applies --
+-- because money arriving late for something already called off is a
+-- reconciliation problem for a person, not a booking to quietly revive.
+--
+-- security definer with a pinned search_path, and EXECUTE revoked from
+-- anon/authenticated below: only the service role may call it.
+create or replace function public.record_payment_capture(
+  p_order_id text,
+  p_payment_id text,
+  p_amount_paise integer default null,
+  p_raw jsonb default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_payment payments%rowtype;
+  v_patient_id uuid;
+  v_purpose text;
+  v_amount integer;
+  v_appointment_id uuid;
+  v_package_id uuid;
+  v_home_visit_id uuid;
+  v_appointment_status text;
+  v_target_updated boolean := false;
+begin
+  if p_order_id is null or p_order_id = '' or p_payment_id is null or p_payment_id = '' then
+    raise exception 'record_payment_capture needs both an order id and a payment id';
+  end if;
+
+  select * into v_payment from payments where razorpay_order_id = p_order_id for update;
+
+  -- No payments row yet: this order predates the table, or the capture is
+  -- arriving before whatever would have created it. Find what the order was
+  -- for from the three tables that carry the order id, and create the row.
+  if not found then
+    select a.id, a.patient_id, a.amount_paid_paise
+      into v_appointment_id, v_patient_id, v_amount
+      from appointments a where a.razorpay_order_id = p_order_id limit 1;
+    if v_appointment_id is not null then
+      v_purpose := 'consultation';
+    else
+      select pp.id, pp.patient_id, pp.amount_paid_paise
+        into v_package_id, v_patient_id, v_amount
+        from patient_package_purchases pp where pp.razorpay_order_id = p_order_id limit 1;
+      if v_package_id is not null then
+        v_purpose := 'session_package';
+      else
+        select hp.id, hp.patient_id, hp.amount_paid_paise
+          into v_home_visit_id, v_patient_id, v_amount
+          from home_visit_package_purchases hp where hp.razorpay_order_id = p_order_id limit 1;
+        if v_home_visit_id is not null then
+          v_purpose := 'home_visit_package';
+        else
+          -- Money we cannot attribute to anything. Recorded rather than
+          -- dropped: an unmatched capture is exactly the case an admin has
+          -- to chase, and it cannot be chased if the only trace is a
+          -- Razorpay dashboard nobody is watching.
+          v_purpose := 'other';
+        end if;
+      end if;
+    end if;
+
+    insert into payments (
+      patient_id, purpose, razorpay_order_id, razorpay_payment_id, amount_paise,
+      status, target_appointment_id, target_package_purchase_id,
+      target_home_visit_purchase_id, captured_at, raw
+    ) values (
+      v_patient_id, v_purpose, p_order_id, p_payment_id,
+      greatest(coalesce(p_amount_paise, v_amount, 0), 1),
+      'captured', v_appointment_id, v_package_id, v_home_visit_id, now(), p_raw
+    )
+    returning * into v_payment;
+  else
+    -- The row exists. If it is already captured this call is a duplicate --
+    -- a retried webhook, or the browser callback arriving after the webhook
+    -- already did the work. Answer with what happened the first time.
+    if v_payment.status in ('captured', 'refunded', 'partially_refunded') then
+      return jsonb_build_object(
+        'applied', false,
+        'already_captured', true,
+        'payment_id', v_payment.id,
+        'purpose', v_payment.purpose,
+        'target_appointment_id', v_payment.target_appointment_id,
+        'target_package_purchase_id', v_payment.target_package_purchase_id,
+        'target_home_visit_purchase_id', v_payment.target_home_visit_purchase_id
+      );
+    end if;
+
+    update payments
+      set razorpay_payment_id = p_payment_id,
+          status = 'captured',
+          captured_at = now(),
+          raw = coalesce(p_raw, raw),
+          amount_paise = greatest(coalesce(p_amount_paise, amount_paise), 1),
+          updated_at = now()
+      where id = v_payment.id
+      returning * into v_payment;
+  end if;
+
+  -- Apply the capture to whatever it paid for. Every branch is guarded on
+  -- the target still being unpaid, so a target already marked paid by the
+  -- other caller is left exactly as it is.
+  if v_payment.target_appointment_id is not null then
+    select status into v_appointment_status
+      from appointments where id = v_payment.target_appointment_id for update;
+    -- Never revive a cancelled booking. Same rule as razorpay/verify.
+    if v_appointment_status in ('requested', 'confirmed') then
+      update appointments
+        set payment_status = 'paid',
+            razorpay_payment_id = p_payment_id,
+            paid_at = coalesce(paid_at, now())
+        where id = v_payment.target_appointment_id
+          and payment_status <> 'paid';
+      get diagnostics v_target_updated = row_count;
+    end if;
+  elsif v_payment.target_package_purchase_id is not null then
+    update patient_package_purchases
+      set payment_status = 'paid',
+          razorpay_payment_id = p_payment_id,
+          paid_at = coalesce(paid_at, now())
+      where id = v_payment.target_package_purchase_id
+        and payment_status <> 'paid';
+    get diagnostics v_target_updated = row_count;
+  elsif v_payment.target_home_visit_purchase_id is not null then
+    update home_visit_package_purchases
+      set payment_status = 'paid',
+          razorpay_payment_id = p_payment_id,
+          paid_at = coalesce(paid_at, now())
+      where id = v_payment.target_home_visit_purchase_id
+        and payment_status <> 'paid';
+    get diagnostics v_target_updated = row_count;
+  end if;
+
+  return jsonb_build_object(
+    'applied', true,
+    'already_captured', false,
+    'target_updated', v_target_updated,
+    'appointment_status', v_appointment_status,
+    'payment_id', v_payment.id,
+    'purpose', v_payment.purpose,
+    'target_appointment_id', v_payment.target_appointment_id,
+    'target_package_purchase_id', v_payment.target_package_purchase_id,
+    'target_home_visit_purchase_id', v_payment.target_home_visit_purchase_id
+  );
+end;
+$$;
+
+revoke execute on function public.record_payment_capture(text, text, integer, jsonb)
+  from anon, authenticated;
+
+-- Payment tables belong in the wipe list for the same reason every other
+-- table does: a reset that leaves payment rows behind leaves the next round
+-- of testing reconciling against money that was never collected.
+-- (See debug_reset_all_data above -- this is a reminder for whoever next
+-- edits that function, since the TRUNCATE list is written out by hand.)
+
+-- --------------------------------------------------------------------------
+-- debug_reset_all_data: now clears the payment tables too
+-- --------------------------------------------------------------------------
+-- Redefined in full rather than edited in place, matching how this file
+-- already carries several revisions of assign_session_code and
+-- public_therapist_profiles: later definitions win because the file runs
+-- top to bottom, and nothing earlier is rewritten.
+--
+-- payments would in fact be caught by the existing CASCADE, since it
+-- references appointments -- but it is listed explicitly anyway, because
+-- "a reset must empty this" should be readable from the list rather than
+-- inferred from a foreign key that a later migration could drop.
+-- payment_webhook_events has no foreign key at all and would genuinely
+-- have survived a reset, leaving the next round of testing to reconcile
+-- against webhooks for payments that no longer exist.
+create or replace function public.debug_reset_all_data()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  admin_count integer;
+  deleted_accounts integer;
+begin
+  select count(*) into admin_count from profiles where role = 'admin';
+  -- Without at least one admin surviving, this would empty a database that
+  -- then has no way back into it.
+  if admin_count = 0 then
+    raise exception 'no admin accounts -- refusing to reset';
+  end if;
+
+  -- One statement, so it either all happens or none of it does. Order is
+  -- irrelevant inside a single TRUNCATE; CASCADE covers anything added later
+  -- that references one of these and was not listed.
+  -- Note: this clears patient_medical_documents' rows but not the objects
+  -- they point at in the private medical-reports bucket. Storage is not
+  -- reachable from a plain SQL function; clear that bucket from the
+  -- Supabase dashboard if a reset needs to reclaim its space too.
+  truncate table
+    payment_webhook_events,
+    payments,
+    business_expenses,
+    admin_activity_log,
+    session_suggestions,
+    appointment_reassignment_log,
+    payment_failure_log,
+    package_purchase_events,
+    home_visit_purchase_events,
+    appointments,
+    patient_package_purchases,
+    home_visit_package_purchases,
+    therapist_payout_requests,
+    therapist_payout_batches,
+    session_note_revisions,
+    session_notes,
+    patient_medical_documents,
+    pain_assessments,
+    condition_change_requests,
+    condition_access_grants,
+    patient_condition_profiles,
+    patient_addresses,
+    patient_admin_notes,
+    therapist_admin_notes,
+    hospital_admin_notes,
+    profile_change_requests,
+    therapist_availability_override,
+    therapist_availability_template,
+    patient_referrals,
+    b2b_leads,
+    home_visit_waitlist,
+    home_visit_areas,
+    home_visit_packages,
+    treatment_category_packages,
+    treatment_categories,
+    testimonials,
+    faqs,
+    intake_question_templates,
+    pain_map_question_templates
+  cascade;
+
+  -- Every account that is not an admin. Deleting the auth user cascades its
+  -- profile row; deleting the profile alone would leave a login that can
+  -- still sign in and have a fresh profile created for it by the signup
+  -- trigger.
+  with removed as (
+    delete from auth.users
+    where id not in (select id from profiles where role = 'admin')
+    returning 1
+  )
+  select count(*) into deleted_accounts from removed;
+
+  -- Configuration back to defaults. The row is kept rather than deleted and
+  -- re-inserted: it is a singleton keyed `id = true` that every page reads,
+  -- and nulling the columns lets each fall back to its own schema default,
+  -- which is the same value the app would use for a missing column anyway.
+  update site_settings set
+    site_name = default,
+    site_tagline = default,
+    site_description = default,
+    contact_email = default,
+    whatsapp_number = default,
+    contact_phone = default,
+    footer_copyright_text = default,
+    home_visit_page_heading = null,
+    home_visit_page_subheading = null,
+    ratings_visible_publicly = default,
+    session_packages_visible = default,
+    session_timeout_minutes = default,
+    google_meet_enabled = default,
+    join_window_minutes = default,
+    join_window_after_minutes = default,
+    booking_languages = default,
+    package_default_validity_days = default,
+    package_therapist_lock_enabled = default,
+    package_bulk_schedule_max = default,
+    package_expiry_reminder_days = default,
+    home_visit_enabled = default,
+    home_visit_cash_enabled = default,
+    home_visit_lead_time_hours = default,
+    home_visit_cancellation_refund_hours = default,
+    home_visit_default_validity_days = default,
+    home_visit_bulk_schedule_max = default,
+    home_visit_travel_buffer_minutes = default,
+    online_booking_lead_time_hours = default,
+    online_cancellation_refund_hours = default,
+    journey_step_seconds = default,
+    splash_enabled = default,
+    splash_brand_line = default,
+    splash_phrase = default,
+    splash_hold_seconds = default,
+    splash_revisit_minutes = default,
+    session_completed_after_minutes = default,
+    enabled_intake_specialties = default
+  where id = true;
+
+  return jsonb_build_object(
+    'admins_kept', admin_count,
+    'accounts_deleted', deleted_accounts
+  );
+end;
+$$;
+
+-- CREATE OR REPLACE preserves a function's existing privileges, so the
+-- revokes further up still bind this definition. Repeated anyway: for a
+-- function that empties the database, "it should still be revoked" is not
+-- a thing to leave to a reader's knowledge of Postgres semantics.
+revoke all on function public.debug_reset_all_data() from public;
+revoke all on function public.debug_reset_all_data() from anon;
+revoke all on function public.debug_reset_all_data() from authenticated;

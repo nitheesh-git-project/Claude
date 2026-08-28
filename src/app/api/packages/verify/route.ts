@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookPackageSession } from "@/lib/bookPackageSession";
@@ -145,6 +146,18 @@ export async function POST(request: NextRequest) {
   } catch (eventError) {
     console.error("Failed to log purchased event for purchase", packagePurchaseId, eventError);
   }
+
+  // Record the money itself, in the one place that holds every payment
+  // regardless of what it bought. Idempotent: if the webhook already
+  // handled this capture, this finds it captured and changes nothing.
+  // Best-effort and after the write above -- the patient has already been
+  // charged by this point, so a failure here is a server-log problem, not
+  // something to report back as a failed payment.
+  await recordPaymentCapture(admin, {
+    orderId: razorpay_order_id,
+    paymentId: razorpay_payment_id,
+    amountPaise: purchase.amount_paid_paise ?? null,
+  });
 
   if (!slotDateTime) {
     return NextResponse.json({ success: true });

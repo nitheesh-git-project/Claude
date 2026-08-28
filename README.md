@@ -78,6 +78,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only key that bypasses RLS. Never prefix with `NEXT_PUBLIC_`, never commit |
 | `NEXT_PUBLIC_RAZORPAY_KEY_ID` | Razorpay Key ID, sent to the browser to open checkout |
 | `RAZORPAY_KEY_SECRET` | Razorpay secret, server-only (order creation, signature verification, refunds) |
+| `RAZORPAY_WEBHOOK_SECRET` | Razorpay **webhook** signing secret, server-only — a different secret from the one above. Without it `/api/razorpay/webhook` answers 503 and payment confirmation falls back to the browser callback alone |
 | `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` | OAuth2 Web application credentials from Google Cloud Console |
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer |
@@ -329,7 +330,37 @@ browser has no insert access to `appointments` at all). Then Razorpay
 checkout: `/api/razorpay/create-order` creates the
 order, the browser opens the widget, and `/api/razorpay/verify` verifies the
 signature server-side before the appointment is confirmed. Failures are
-recorded in `payment_failure_log`. Session packages are bought the same way
+recorded in `payment_failure_log`.
+
+A browser callback is not the only way a payment is confirmed.
+`/api/razorpay/webhook` receives Razorpay's own server-to-server
+notification, verifies the HMAC over the **raw** request body with
+`RAZORPAY_WEBHOOK_SECRET`, and applies the capture. Whichever arrives first
+— the patient's browser or the webhook — does the work; the second changes
+nothing. That is what covers the patient who pays and closes the tab, or
+whose phone loses signal on the way back from their UPI app: before this
+existed, that left a paid Razorpay order sitting against an unpaid booking,
+recoverable only if they returned and pressed Pay again.
+
+Both paths go through one database function, `record_payment_capture`,
+which takes a real row lock and either applies the capture or reports it as
+already captured. Duplicate webhooks, Razorpay's at-least-once retries, a
+delayed webhook racing the browser, and a double-clicked Pay button are all
+the same case to it. It never revives a cancelled booking — money arriving
+for something already called off is recorded for reconciliation, not used
+to resurrect the session.
+
+Every capture also lands in **`payments`**, one row per Razorpay order
+whatever it bought, with unique indexes on `razorpay_order_id` and
+`razorpay_payment_id`. Those two indexes are what make a duplicate credit
+impossible rather than merely unlikely; before them nothing in the database
+stopped one payment id being recorded against two rows. The per-table
+payment columns on `appointments` and the two purchase tables are unchanged
+and still authoritative for "is this thing paid for" — `payments` sits
+alongside as the record of money. Every webhook Razorpay sends is stored in
+`payment_webhook_events`, deduplicated on its event id, which is what makes
+"process each event once" a database guarantee rather than something the
+route has to remember. Session packages are bought the same way
 via `/api/packages/create-order` and `/api/packages/verify` — the latter
 also books session 1 when the wizard supplied a slot, via
 `src/lib/bookPackageSession.ts` — then any later sessions are redeemed with

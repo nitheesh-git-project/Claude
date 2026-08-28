@@ -165,16 +165,34 @@ role, an id, or an amount sent from the client — re-derive it server-side.
 
 Admins additionally carry a scope (`profiles.admin_scope`: `full`,
 `operations`, `finance`, `clinical` — see `src/lib/adminScope.ts`), which
-decides which dashboard sections they can open. A route that belongs to one
-section guards with `requireAdminScope(section)` rather than
-`getAdminUser()`; the sidebar hiding a section is presentation only, since a
-session cookie can call any route directly. Only a `full` admin can change
+decides which dashboard sections they can open. **Every** admin route guards
+with `requireAdminScope(section)`, not `getAdminUser()`; the sidebar hiding a
+section is presentation only, since a session cookie can call any route
+directly. The section is chosen by the capability, not by where the button
+happens to sit — a refund is `money` even though its button lives on a
+Catalog screen. And a guarded route needs the UI to match: a control an
+admin's scope cannot call must not render, or they get a 403 with nothing
+to explain it. `ProfileSessionList`, `SessionDetailDrawer` and the two
+purchase detail modals take `canSeeMoney` / `canManageSessions` for exactly
+that reason.
+
+`getAdminUser()` and the proxy's admin branch both refuse a suspended admin
+(`profiles.active`). They deliberately do **not** check `approved`: an admin
+is promoted by hand rather than through the signup queue, so gating on it
+would lock out the people it protects. Only a `full` admin can change
 scopes or mint another admin, nobody can change their own, and the last
 `full` admin cannot be narrowed — otherwise a single mis-click locks
 everyone out permanently.
 
-Every mutating admin route should record what happened via
-`recordAdminActivity()` (`src/lib/adminActivityLog.ts`). It is best-effort
+Every mutating admin route records what happened via
+`recordAdminActivity()` (`src/lib/adminActivityLog.ts`), and every action in
+the `AdminActivityAction` union has a caller — that used to be true of only
+16 of them, which left the largest money move in the app (`payout.settle`)
+unattributed. Adding an action without a caller, or a mutating route without
+a call, puts the log back where it was. A generated password never goes in
+`details`: the log is readable by every admin, so who reset what and when is
+the part with audit value. The call goes **after** the route's CAS claim,
+so the log cannot record a settlement or cancellation that lost its race. It is best-effort
 and never throws: an audit write failing must not block the action it
 describes, same posture as the Meet-sync rule below. `admin_activity_log`
 has a select policy and deliberately no insert policy, so the service-role
@@ -208,6 +226,13 @@ client is the only writer and the log is append-only from any session.
   every field of a shared query.
 - Money is integer paise. Times are `timestamptz`. Percentages
   (`revenue_share_percent`) are 0–100.
+- **An invariant the app enforces belongs in the database too.**
+  `sessions_used` / `visits_used` were guarded only by application-level
+  compare-and-swap — correct, and true only for as long as every writer
+  remembers the `.eq()` predicate, and not true at all for a hand-run
+  UPDATE in the table editor. Both now carry CHECK constraints. If one
+  fails against a live database, that failure is the finding: reconcile the
+  rows, don't weaken the check.
 - Any new table needs RLS policies written alongside it in the same file.
 - A change to `schema.sql` only reaches the live database once it's applied
   — either by hand with `node scripts/run-schema.mjs`, or automatically via
@@ -227,6 +252,38 @@ client is the only writer and the log is append-only from any session.
   `src/lib/checkTherapistConflict.ts`).
 - **Payments** must be verified server-side: `/api/razorpay/verify` checks the
   signature before anything is confirmed. Never confirm on a client callback.
+  **A capture is applied in exactly one place**: `record_payment_capture` in
+  `schema.sql`, called through `src/lib/recordPaymentCapture.ts` by the three
+  verify routes and by `/api/razorpay/webhook`. It is a database function
+  rather than TypeScript because supabase-js cannot express a transaction,
+  and a capture has to move a `payments` row and the row it paid for
+  together under a real `select ... for update`. It is idempotent by
+  construction — the second caller for an order finds it captured and
+  changes nothing — which is what makes duplicate webhooks, Razorpay's
+  at-least-once retries, a webhook racing the browser callback and a
+  double-clicked Pay button all safe without any of them knowing about the
+  others. It deliberately does **not** confirm an appointment or create a
+  Meet event (those need an outbound Google call, so they stay in the
+  route), and it never revives a cancelled booking. Add a new payment
+  purpose by extending its `purpose` check, not by writing a second
+  fulfilment path.
+  **The webhook's signature is checked against the raw body.** `await
+  request.text()`, never a re-serialised parse: `JSON.parse` then
+  `JSON.stringify` does not round-trip byte-for-byte, so verifying a
+  re-serialised body rejects legitimate webhooks and tempts someone to
+  "fix" it by skipping the check. The webhook inserts its
+  `payment_webhook_events` row **before** doing any work, because that
+  insert colliding on `razorpay_event_id` is the deduplication; processing
+  first and recording after would let a retry arriving mid-flight do the
+  work twice.
+  **`payments` has unique indexes on `razorpay_order_id` and
+  `razorpay_payment_id`, and they are the point of the table.** Nothing in
+  this database previously stopped one payment id being recorded against
+  two rows. The per-table payment columns on `appointments` and the two
+  purchase tables are unchanged and still answer "is this paid for";
+  `payments` is the record of money. Don't drop those indexes to make an
+  import succeed — a collision means a duplicate already exists and wants
+  investigating.
   For a single online session, `/api/razorpay/create-order` flips the paying
   patient's `profiles.approved` to `true` the moment they genuinely attempt
   checkout (`approvePatientForGenuinePaymentAttempt` in
