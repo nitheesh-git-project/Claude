@@ -4868,6 +4868,11 @@ revoke execute on function public.record_payment_capture(text, text, integer, js
 -- payment_webhook_events has no foreign key at all and would genuinely
 -- have survived a reset, leaving the next round of testing to reconcile
 -- against webhooks for payments that no longer exist.
+--
+-- session_entitlements and session_credit_ledger are listed on the same
+-- basis: both would be caught by CASCADE through profiles, but a reset that
+-- left a patient's credit ledger behind would hand the next round of
+-- testing a balance with no purchase under it.
 create or replace function public.debug_reset_all_data()
 returns jsonb
 language plpgsql
@@ -4893,6 +4898,8 @@ begin
   -- reachable from a plain SQL function; clear that bucket from the
   -- Supabase dashboard if a reset needs to reclaim its space too.
   truncate table
+    session_credit_ledger,
+    session_entitlements,
     payment_webhook_events,
     payments,
     business_expenses,
@@ -5003,3 +5010,912 @@ $$;
 revoke all on function public.debug_reset_all_data() from public;
 revoke all on function public.debug_reset_all_data() from anon;
 revoke all on function public.debug_reset_all_data() from authenticated;
+
+-- ==========================================================================
+-- Session entitlements and the credit ledger
+-- ==========================================================================
+-- What a patient bought, and every movement of what they bought.
+--
+-- Until now a package's remaining sessions were one mutable integer,
+-- patient_package_purchases.sessions_used, guarded by an application-level
+-- compare-and-swap. That is the best supabase-js can do over PostgREST and
+-- it has three costs this pair fixes:
+--
+--   * A counter records the balance and nothing else. "Why does this
+--     patient have four sessions left?" is unanswerable -- there is no
+--     record of the grant, the bookings, the cancellation that gave one
+--     back, or the admin who adjusted it.
+--   * A cancellation's restore is explicitly best-effort (see
+--     cancelAppointment.ts): losing a race silently fails to return a
+--     session the patient paid for.
+--   * Nothing ties a session to the money that bought it. A completed
+--     appointment with no payment behind it is invisible.
+--
+-- The ledger is the source of truth. The counts on the entitlement are a
+-- cache, maintained by a trigger, and the CHECK on that cache is what makes
+-- an impossible balance impossible rather than merely unwritten -- a ledger
+-- row that would overdraw fails the constraint and takes its whole
+-- transaction with it.
+--
+-- Nothing reads these yet. They are populated alongside the existing
+-- counters (see the backfill below) so the two can be reconciled before
+-- anything depends on them.
+
+create table if not exists session_entitlements (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+
+  -- Where these credits came from. 'legacy_*' marks a row created by the
+  -- backfill from an existing purchase rather than by a real grant.
+  source_kind text not null check (source_kind in (
+    'legacy_package', 'legacy_home_visit', 'admin_grant'
+  )),
+
+  offer_kind text not null check (offer_kind in ('session_package', 'home_visit_package')),
+  offer_package_id uuid,
+
+  -- The catalog row exactly as it stood when this was bought: price,
+  -- session count, validity, duration, gap rules, terms. This is what makes
+  -- a purchase immutable. An admin re-pricing or re-sizing the package
+  -- later changes what is on sale, never what someone already owns -- so
+  -- nothing may resolve a purchased entitlement by joining the live catalog
+  -- row. Read the snapshot.
+  package_snapshot jsonb not null default '{}'::jsonb,
+
+  payment_id uuid references payments(id) on delete set null,
+  amount_paid_paise integer,
+
+  -- How many credits this entitlement was issued with. Immutable after
+  -- insert (see the trigger below): the balance moves through the ledger,
+  -- the definition does not move at all.
+  sessions_granted integer not null check (sessions_granted > 0),
+
+  expires_at timestamptz,
+  locked_therapist_id uuid references profiles(id) on delete set null,
+
+  status text not null default 'active' check (status in (
+    'active', 'exhausted', 'expired', 'refunded', 'cancelled'
+  )),
+
+  -- Which legacy purchase this mirrors, so the two can be reconciled
+  -- against each other for as long as both are being written.
+  legacy_purchase_id uuid references patient_package_purchases(id) on delete cascade,
+  legacy_home_visit_purchase_id uuid references home_visit_package_purchases(id) on delete cascade,
+
+  -- Derived from the ledger by trigger. Never written by hand, and never
+  -- read as the truth when the two disagree -- verify_entitlement_balances
+  -- exists to find exactly that case.
+  granted_count integer not null default 0,
+  reserved_count integer not null default 0,
+  consumed_count integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  -- The invariant, stated once. Everything else in this section exists to
+  -- keep it true.
+  constraint session_entitlements_counts_sane check (
+    granted_count >= 0
+    and reserved_count >= 0
+    and consumed_count >= 0
+    and reserved_count + consumed_count <= granted_count
+  ),
+  constraint session_entitlements_one_source check (
+    num_nonnulls(legacy_purchase_id, legacy_home_visit_purchase_id) <= 1
+  )
+);
+
+-- One entitlement per legacy purchase, so the backfill can be re-run and a
+-- dual-write cannot create a second.
+create unique index if not exists session_entitlements_legacy_purchase_key
+  on session_entitlements (legacy_purchase_id) where legacy_purchase_id is not null;
+create unique index if not exists session_entitlements_legacy_home_visit_key
+  on session_entitlements (legacy_home_visit_purchase_id)
+  where legacy_home_visit_purchase_id is not null;
+
+create index if not exists session_entitlements_patient_idx
+  on session_entitlements (patient_id, status);
+create index if not exists session_entitlements_expiry_idx
+  on session_entitlements (expires_at) where status = 'active';
+
+alter table session_entitlements enable row level security;
+
+-- Read your own; the therapist a programme is locked to reads theirs;
+-- admins read everything. Mirrors package_purchases_select_* exactly. No
+-- write policy at all: a client that can write an entitlement can mint
+-- sessions.
+drop policy if exists "session_entitlements_select_own" on session_entitlements;
+create policy "session_entitlements_select_own" on session_entitlements
+  for select using (auth.uid() = patient_id);
+
+drop policy if exists "session_entitlements_select_locked_therapist" on session_entitlements;
+create policy "session_entitlements_select_locked_therapist" on session_entitlements
+  for select using (auth.uid() = locked_therapist_id);
+
+drop policy if exists "session_entitlements_select_admin" on session_entitlements;
+create policy "session_entitlements_select_admin" on session_entitlements
+  for select using (is_admin());
+
+revoke insert, update, delete on session_entitlements from authenticated;
+
+-- --------------------------------------------------------------------------
+-- session_credit_ledger: every movement, append-only
+-- --------------------------------------------------------------------------
+-- One row per thing that happened to a credit. Signed deltas rather than
+-- absolute counts, so the balance is a sum and a correction is a new row --
+-- there is no state to overwrite and therefore no lost update.
+--
+-- The lifecycle, and which deltas each step writes:
+--
+--   grant        +granted            money captured, or an admin grant
+--   reserve                +reserved a booking claimed a credit
+--   consume                -reserved the session was delivered (or
+--                          +consumed no-showed -- a no-show forfeits)
+--   release                -reserved cancelled before delivery, credit back
+--   refund_void  -granted            refunded; never voids consumed credits
+--   expire_void  -granted            past expires_at, the unused remainder
+--   admin_adjust  any                the override lane; reason required
+--
+-- idempotency_key is what makes a retried caller safe: the unique index
+-- below turns a second attempt into a 23505 the caller can read as "already
+-- done" rather than a second movement. Every RPC below derives its key from
+-- the thing that happened (an appointment id, a payment id), never from a
+-- random value -- a random key makes every retry look like a new event,
+-- which is the bug the key exists to prevent.
+create table if not exists session_credit_ledger (
+  id uuid primary key default gen_random_uuid(),
+  entitlement_id uuid not null references session_entitlements(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+
+  entry_type text not null check (entry_type in (
+    'grant', 'reserve', 'consume', 'release', 'refund_void', 'expire_void', 'admin_adjust'
+  )),
+
+  delta_granted integer not null default 0,
+  delta_reserved integer not null default 0,
+  delta_consumed integer not null default 0,
+
+  appointment_id uuid references appointments(id) on delete set null,
+  actor_id uuid references profiles(id) on delete set null,
+  actor_role text check (actor_role in ('patient', 'therapist', 'admin', 'system')),
+
+  -- Required on admin_adjust (enforced below). An unexplained adjustment to
+  -- someone's balance is the thing this whole table exists to prevent.
+  reason text,
+
+  idempotency_key text not null,
+  created_at timestamptz not null default now(),
+
+  constraint session_credit_ledger_adjust_needs_reason check (
+    entry_type <> 'admin_adjust' or (reason is not null and length(btrim(reason)) >= 10)
+  )
+);
+
+create unique index if not exists session_credit_ledger_idempotency_key
+  on session_credit_ledger (entitlement_id, idempotency_key);
+create index if not exists session_credit_ledger_entitlement_idx
+  on session_credit_ledger (entitlement_id, created_at);
+create index if not exists session_credit_ledger_appointment_idx
+  on session_credit_ledger (appointment_id) where appointment_id is not null;
+create index if not exists session_credit_ledger_patient_idx
+  on session_credit_ledger (patient_id, created_at desc);
+
+alter table session_credit_ledger enable row level security;
+
+drop policy if exists "session_credit_ledger_select_own" on session_credit_ledger;
+create policy "session_credit_ledger_select_own" on session_credit_ledger
+  for select using (auth.uid() = patient_id);
+
+drop policy if exists "session_credit_ledger_select_admin" on session_credit_ledger;
+create policy "session_credit_ledger_select_admin" on session_credit_ledger
+  for select using (is_admin());
+
+revoke insert, update, delete on session_credit_ledger from authenticated;
+
+-- Append-only, enforced by a trigger rather than by the revoke above.
+--
+-- The revoke covers a browser session; it does not cover the service-role
+-- client, which bypasses RLS entirely and is what every route in this app
+-- writes with. For a table whose whole value is that it cannot be rewritten,
+-- "no route currently updates it" is not the same guarantee as "an update
+-- raises". Same reasoning as admin_activity_log having no insert policy,
+-- taken one step further because this table is money.
+create or replace function public.session_credit_ledger_is_append_only()
+returns trigger
+language plpgsql
+as $$
+begin
+  raise exception
+    'session_credit_ledger is append-only: correct a balance with a new admin_adjust entry, never by editing or deleting history';
+end;
+$$;
+
+drop trigger if exists trg_session_credit_ledger_append_only on session_credit_ledger;
+create trigger trg_session_credit_ledger_append_only
+  before update or delete on session_credit_ledger
+  for each row execute function public.session_credit_ledger_is_append_only();
+
+-- sessions_granted and package_snapshot are the definition of a purchase,
+-- not its state. Freezing them here is what makes "a purchase is immutable"
+-- true of the database rather than only of the routes: an admin adds or
+-- removes credits with an admin_adjust ledger entry, which moves the
+-- balance and leaves a reason and an actor behind.
+create or replace function public.session_entitlements_freeze_definition()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.sessions_granted is distinct from old.sessions_granted then
+    raise exception
+      'session_entitlements.sessions_granted is immutable: adjust the balance with a session_credit_ledger admin_adjust entry instead';
+  end if;
+  if new.package_snapshot is distinct from old.package_snapshot then
+    raise exception
+      'session_entitlements.package_snapshot is immutable: it is what this patient bought, not what is currently on sale';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_session_entitlements_freeze on session_entitlements;
+create trigger trg_session_entitlements_freeze
+  before update on session_entitlements
+  for each row execute function public.session_entitlements_freeze_definition();
+
+-- The cache. Recomputed from the ledger rather than incremented, so it can
+-- never drift by a missed delta -- and the CHECK on the entitlement is what
+-- rejects the ledger row that would have overdrawn, because this runs
+-- inside that insert's transaction.
+--
+-- Also moves status between 'active' and 'exhausted' as the balance hits
+-- zero and comes back. It deliberately does not touch 'expired',
+-- 'refunded' or 'cancelled': those are decisions someone made, not
+-- arithmetic.
+create or replace function public.session_entitlements_sync_counts()
+returns trigger
+language plpgsql
+as $$
+declare
+  v_granted integer;
+  v_reserved integer;
+  v_consumed integer;
+  v_status text;
+begin
+  select
+    coalesce(sum(delta_granted), 0),
+    coalesce(sum(delta_reserved), 0),
+    coalesce(sum(delta_consumed), 0)
+  into v_granted, v_reserved, v_consumed
+  from session_credit_ledger
+  where entitlement_id = new.entitlement_id;
+
+  select status into v_status from session_entitlements where id = new.entitlement_id;
+
+  update session_entitlements
+    set granted_count = v_granted,
+        reserved_count = v_reserved,
+        consumed_count = v_consumed,
+        status = case
+          when v_status in ('active', 'exhausted')
+            then case when v_granted - v_reserved - v_consumed <= 0 then 'exhausted' else 'active' end
+          else v_status
+        end,
+        updated_at = now()
+    where id = new.entitlement_id;
+
+  return null;
+end;
+$$;
+
+drop trigger if exists trg_session_credit_ledger_sync on session_credit_ledger;
+create trigger trg_session_credit_ledger_sync
+  after insert on session_credit_ledger
+  for each row execute function public.session_entitlements_sync_counts();
+
+-- --------------------------------------------------------------------------
+-- The credit RPCs
+-- --------------------------------------------------------------------------
+-- Every movement of a credit goes through one of these. They exist as
+-- database functions for the same reason record_payment_capture does:
+-- supabase-js cannot express a transaction, so a route can only ever
+-- compare-and-swap one column. `select ... for update` here is a real lock
+-- held for a real transaction, and the entitlement's CHECK constraint fires
+-- inside it -- so two concurrent bookings against one remaining credit
+-- cannot both win, whichever order they interleave in.
+--
+-- All of them are idempotent on (entitlement_id, idempotency_key): a
+-- retried caller gets `applied: false, duplicate: true` and the balance
+-- does not move. All of them are revoked from anon/authenticated at the end
+-- of this section -- service role only.
+
+-- Shared body: lock, check, insert. Every public function below is a thin
+-- wrapper that decides the deltas and the key.
+create or replace function public.session_credit_entry(
+  p_entitlement_id uuid,
+  p_entry_type text,
+  p_delta_granted integer,
+  p_delta_reserved integer,
+  p_delta_consumed integer,
+  p_idempotency_key text,
+  p_appointment_id uuid default null,
+  p_actor_id uuid default null,
+  p_actor_role text default 'system',
+  p_reason text default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ent session_entitlements%rowtype;
+  v_available integer;
+begin
+  if p_idempotency_key is null or btrim(p_idempotency_key) = '' then
+    raise exception 'a credit ledger entry needs an idempotency key';
+  end if;
+
+  -- The lock. Everything after this is serialised per entitlement, which is
+  -- what makes the available-balance read below trustworthy rather than a
+  -- guess that a concurrent writer invalidates a microsecond later.
+  select * into v_ent from session_entitlements where id = p_entitlement_id for update;
+  if not found then
+    return jsonb_build_object('applied', false, 'error', 'no_such_entitlement');
+  end if;
+
+  -- Idempotency is checked inside the lock, so two simultaneous retries of
+  -- the same key cannot both pass it. The unique index is still the final
+  -- arbiter for anything that gets past this.
+  if exists (
+    select 1 from session_credit_ledger
+    where entitlement_id = p_entitlement_id and idempotency_key = p_idempotency_key
+  ) then
+    return jsonb_build_object(
+      'applied', false, 'duplicate', true,
+      'available', v_ent.granted_count - v_ent.reserved_count - v_ent.consumed_count
+    );
+  end if;
+
+  v_available := v_ent.granted_count - v_ent.reserved_count - v_ent.consumed_count;
+
+  insert into session_credit_ledger (
+    entitlement_id, patient_id, entry_type,
+    delta_granted, delta_reserved, delta_consumed,
+    appointment_id, actor_id, actor_role, reason, idempotency_key
+  ) values (
+    p_entitlement_id, v_ent.patient_id, p_entry_type,
+    coalesce(p_delta_granted, 0), coalesce(p_delta_reserved, 0), coalesce(p_delta_consumed, 0),
+    p_appointment_id, p_actor_id, coalesce(p_actor_role, 'system'), p_reason, p_idempotency_key
+  );
+
+  -- Re-read: the AFTER INSERT trigger has recomputed the counts from the
+  -- ledger and the CHECK has already had its say, so anything returned here
+  -- is a balance that actually holds.
+  select * into v_ent from session_entitlements where id = p_entitlement_id;
+
+  return jsonb_build_object(
+    'applied', true,
+    'duplicate', false,
+    'entitlement_id', p_entitlement_id,
+    'granted', v_ent.granted_count,
+    'reserved', v_ent.reserved_count,
+    'consumed', v_ent.consumed_count,
+    'available', v_ent.granted_count - v_ent.reserved_count - v_ent.consumed_count,
+    'status', v_ent.status
+  );
+end;
+$$;
+
+-- CREATE. Called once per entitlement, keyed on what paid for it.
+create or replace function public.grant_session_credits(
+  p_entitlement_id uuid,
+  p_count integer,
+  p_idempotency_key text,
+  p_actor_id uuid default null,
+  p_actor_role text default 'system',
+  p_reason text default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_count is null or p_count <= 0 then
+    raise exception 'grant_session_credits needs a positive count';
+  end if;
+  return session_credit_entry(
+    p_entitlement_id, 'grant', p_count, 0, 0,
+    p_idempotency_key, null, p_actor_id, p_actor_role, p_reason
+  );
+end;
+$$;
+
+-- RESERVE. A booking claimed a credit. Refuses when nothing is available,
+-- when the entitlement is not active, or when it has expired -- all three
+-- inside the lock, so the answer is still true when the row is written.
+create or replace function public.reserve_session_credit(
+  p_entitlement_id uuid,
+  p_appointment_id uuid,
+  p_actor_id uuid default null,
+  p_actor_role text default 'patient'
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ent session_entitlements%rowtype;
+begin
+  if p_appointment_id is null then
+    raise exception 'reserve_session_credit needs the appointment it is reserving for';
+  end if;
+
+  select * into v_ent from session_entitlements where id = p_entitlement_id for update;
+  if not found then
+    return jsonb_build_object('applied', false, 'error', 'no_such_entitlement');
+  end if;
+
+  -- Idempotency is checked BEFORE availability, expiry or status, and the
+  -- ordering is the whole point. A retried booking request for an
+  -- appointment that was already reserved is a duplicate, not a failure --
+  -- checking availability first answers 'no_credits_available' for a
+  -- booking that in fact succeeded, which is how a patient gets told they
+  -- are out of sessions immediately after spending their last one.
+  if exists (
+    select 1 from session_credit_ledger
+    where entitlement_id = p_entitlement_id
+      and idempotency_key = 'reserve:' || p_appointment_id::text
+  ) then
+    return jsonb_build_object(
+      'applied', false, 'duplicate', true,
+      'available', v_ent.granted_count - v_ent.reserved_count - v_ent.consumed_count
+    );
+  end if;
+
+  if v_ent.status not in ('active', 'exhausted') then
+    return jsonb_build_object('applied', false, 'error', 'entitlement_' || v_ent.status);
+  end if;
+  if v_ent.expires_at is not null and v_ent.expires_at <= now() then
+    return jsonb_build_object('applied', false, 'error', 'entitlement_expired');
+  end if;
+  if v_ent.granted_count - v_ent.reserved_count - v_ent.consumed_count < 1 then
+    return jsonb_build_object('applied', false, 'error', 'no_credits_available');
+  end if;
+
+  -- Keyed on the appointment, so a retried booking request for the same
+  -- appointment reserves once. Booking a second session is a second
+  -- appointment and therefore a second key.
+  return session_credit_entry(
+    p_entitlement_id, 'reserve', 0, 1, 0,
+    'reserve:' || p_appointment_id::text, p_appointment_id, p_actor_id, p_actor_role, null
+  );
+end;
+$$;
+
+-- CONSUME. The session was delivered -- or no-showed, which forfeits it,
+-- matching the rule cancelAppointment already applies to a late
+-- cancellation. Moves the credit from reserved to consumed rather than
+-- taking a second one.
+create or replace function public.consume_session_credit(
+  p_appointment_id uuid,
+  p_actor_id uuid default null,
+  p_actor_role text default 'therapist'
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_entitlement_id uuid;
+begin
+  -- Find the reservation this consumes. No reservation means this session
+  -- was not credit-backed (a directly-paid consultation), which is not an
+  -- error -- it is the ordinary case for most sessions.
+  select entitlement_id into v_entitlement_id
+  from session_credit_ledger
+  where appointment_id = p_appointment_id and entry_type = 'reserve'
+  limit 1;
+
+  if v_entitlement_id is null then
+    return jsonb_build_object('applied', false, 'error', 'no_reservation_for_appointment');
+  end if;
+
+  return session_credit_entry(
+    v_entitlement_id, 'consume', 0, -1, 1,
+    'consume:' || p_appointment_id::text, p_appointment_id, p_actor_id, p_actor_role, null
+  );
+end;
+$$;
+
+-- RELEASE. Cancelled before delivery, outside the forfeit window. Gives the
+-- credit back. Refuses if the session was already consumed -- a delivered
+-- session's credit is spent, and handing it back is an admin_adjust with a
+-- reason, not a release.
+create or replace function public.release_session_credit(
+  p_appointment_id uuid,
+  p_actor_id uuid default null,
+  p_actor_role text default 'patient',
+  p_reason text default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_entitlement_id uuid;
+begin
+  select entitlement_id into v_entitlement_id
+  from session_credit_ledger
+  where appointment_id = p_appointment_id and entry_type = 'reserve'
+  limit 1;
+
+  if v_entitlement_id is null then
+    return jsonb_build_object('applied', false, 'error', 'no_reservation_for_appointment');
+  end if;
+
+  if exists (
+    select 1 from session_credit_ledger
+    where appointment_id = p_appointment_id and entry_type = 'consume'
+  ) then
+    return jsonb_build_object('applied', false, 'error', 'already_consumed');
+  end if;
+
+  return session_credit_entry(
+    v_entitlement_id, 'release', 0, -1, 0,
+    'release:' || p_appointment_id::text, p_appointment_id, p_actor_id, p_actor_role, p_reason
+  );
+end;
+$$;
+
+-- REFUND / EXPIRE. Voids what is still available and nothing else --
+-- consumed credits are sessions that were delivered, and a refund does not
+-- un-deliver them. Reserved credits are voided too, on the understanding
+-- that the caller cancels those bookings in the same operation, which is
+-- what refund-package already does.
+create or replace function public.void_session_credits(
+  p_entitlement_id uuid,
+  p_kind text,
+  p_idempotency_key text,
+  p_actor_id uuid default null,
+  p_reason text default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ent session_entitlements%rowtype;
+  v_voidable integer;
+  v_entry_type text;
+  v_new_status text;
+begin
+  if p_kind not in ('refund', 'expire') then
+    raise exception 'void_session_credits kind must be refund or expire';
+  end if;
+  v_entry_type := case when p_kind = 'refund' then 'refund_void' else 'expire_void' end;
+  v_new_status := case when p_kind = 'refund' then 'refunded' else 'expired' end;
+
+  select * into v_ent from session_entitlements where id = p_entitlement_id for update;
+  if not found then
+    return jsonb_build_object('applied', false, 'error', 'no_such_entitlement');
+  end if;
+
+  -- Everything not yet delivered.
+  v_voidable := v_ent.granted_count - v_ent.consumed_count;
+
+  if v_voidable > 0 then
+    perform session_credit_entry(
+      p_entitlement_id, v_entry_type, -v_voidable, -v_ent.reserved_count, 0,
+      p_idempotency_key, null, p_actor_id, 'admin', p_reason
+    );
+  end if;
+
+  update session_entitlements set status = v_new_status, updated_at = now()
+    where id = p_entitlement_id;
+
+  select * into v_ent from session_entitlements where id = p_entitlement_id;
+  return jsonb_build_object(
+    'applied', true, 'voided', v_voidable,
+    'consumed', v_ent.consumed_count, 'status', v_ent.status
+  );
+end;
+$$;
+
+-- ADJUST. The admin override lane. The only entry type with free-form
+-- deltas, and the only one that requires a reason -- enforced by the CHECK
+-- on the table, not just here, so it holds for any caller.
+--
+-- The entitlement's own CHECK still binds it: an adjustment can never leave
+-- reserved + consumed above granted, or any count below zero, so even a
+-- mistyped override cannot produce an impossible balance.
+create or replace function public.adjust_session_credits(
+  p_entitlement_id uuid,
+  p_delta_granted integer,
+  p_delta_reserved integer,
+  p_delta_consumed integer,
+  p_reason text,
+  p_actor_id uuid,
+  p_idempotency_key text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_actor_id is null then
+    raise exception 'an adjustment must name the admin who made it';
+  end if;
+  return session_credit_entry(
+    p_entitlement_id, 'admin_adjust',
+    coalesce(p_delta_granted, 0), coalesce(p_delta_reserved, 0), coalesce(p_delta_consumed, 0),
+    p_idempotency_key, null, p_actor_id, 'admin', p_reason
+  );
+end;
+$$;
+
+-- Reconciliation. Read-only: reports rows where the cached counts disagree
+-- with the ledger they are derived from, or where the ledger disagrees with
+-- the legacy counter it is being written alongside.
+--
+-- Deliberately reports rather than repairs. A silent auto-fix on a money
+-- record is how a discrepancy becomes permanent -- the mismatch itself is
+-- the finding, and someone has to look at it.
+create or replace function public.verify_entitlement_balances()
+returns table (
+  entitlement_id uuid,
+  patient_id uuid,
+  problem text,
+  cached_available integer,
+  ledger_available integer,
+  legacy_available integer
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with ledger as (
+    select
+      e.id,
+      e.patient_id,
+      e.granted_count - e.reserved_count - e.consumed_count as cached_available,
+      coalesce(sum(l.delta_granted), 0)
+        - coalesce(sum(l.delta_reserved), 0)
+        - coalesce(sum(l.delta_consumed), 0) as ledger_available,
+      case
+        when pp.id is not null then greatest(pp.session_count - pp.sessions_used, 0)
+        when hp.id is not null then greatest(hp.visit_count - hp.visits_used, 0)
+        else null
+      end as legacy_available
+    from session_entitlements e
+    left join session_credit_ledger l on l.entitlement_id = e.id
+    left join patient_package_purchases pp on pp.id = e.legacy_purchase_id
+    left join home_visit_package_purchases hp on hp.id = e.legacy_home_visit_purchase_id
+    where e.status in ('active', 'exhausted')
+    group by e.id, e.patient_id, e.granted_count, e.reserved_count, e.consumed_count,
+             pp.id, pp.session_count, pp.sessions_used, hp.id, hp.visit_count, hp.visits_used
+  )
+  select
+    id, patient_id,
+    case
+      when cached_available <> ledger_available then 'cache_disagrees_with_ledger'
+      else 'ledger_disagrees_with_legacy_counter'
+    end,
+    cached_available, ledger_available, legacy_available
+  from ledger
+  where cached_available <> ledger_available
+     or (legacy_available is not null and ledger_available <> legacy_available);
+$$;
+
+revoke execute on function public.session_credit_entry(uuid, text, integer, integer, integer, text, uuid, uuid, text, text) from anon, authenticated;
+revoke execute on function public.grant_session_credits(uuid, integer, text, uuid, text, text) from anon, authenticated;
+revoke execute on function public.reserve_session_credit(uuid, uuid, uuid, text) from anon, authenticated;
+revoke execute on function public.consume_session_credit(uuid, uuid, text) from anon, authenticated;
+revoke execute on function public.release_session_credit(uuid, uuid, text, text) from anon, authenticated;
+revoke execute on function public.void_session_credits(uuid, text, text, uuid, text) from anon, authenticated;
+revoke execute on function public.adjust_session_credits(uuid, integer, integer, integer, text, uuid, text) from anon, authenticated;
+revoke execute on function public.verify_entitlement_balances() from anon, authenticated;
+
+-- --------------------------------------------------------------------------
+-- Backfill: an entitlement per existing purchase, and a ledger replay
+-- --------------------------------------------------------------------------
+-- Nothing reads these yet. The point of populating them now is that the
+-- ledger and the legacy counters can be reconciled against each other
+-- (verify_entitlement_balances above) before anything depends on the
+-- ledger -- a cutover onto numbers nobody has checked is how a patient
+-- quietly loses sessions they paid for.
+--
+-- Re-runnable twice over: `not exists` on the legacy id for the
+-- entitlements, and the ledger's own idempotency keys for the movements. A
+-- second apply fills gaps rather than duplicating, and a purchase created
+-- after the first apply is picked up by the next.
+--
+-- package_snapshot is the catalog row as it stands *today*, which is the
+-- best available approximation for a purchase made before snapshots
+-- existed -- source_kind = 'legacy_*' records that it is an approximation
+-- rather than a real capture-time snapshot.
+do $$
+begin
+  insert into session_entitlements (
+    patient_id, source_kind, offer_kind, offer_package_id, package_snapshot,
+    payment_id, amount_paid_paise, sessions_granted, expires_at,
+    locked_therapist_id, status, legacy_purchase_id, created_at
+  )
+  select
+    pp.patient_id,
+    'legacy_package',
+    'session_package',
+    pp.package_id,
+    coalesce(to_jsonb(tcp) - 'created_at', '{}'::jsonb),
+    pay.id,
+    pp.amount_paid_paise,
+    pp.session_count,
+    pp.expires_at,
+    pp.locked_therapist_id,
+    case pp.status when 'refunded' then 'refunded' when 'expired' then 'expired' else 'active' end,
+    pp.id,
+    pp.created_at
+  from patient_package_purchases pp
+  left join treatment_category_packages tcp on tcp.id = pp.package_id
+  left join payments pay on pay.target_package_purchase_id = pp.id
+  where pp.payment_status = 'paid'
+    and pp.session_count > 0
+    and not exists (
+      select 1 from session_entitlements e where e.legacy_purchase_id = pp.id
+    );
+
+  -- Home visits, including cash-on-visit. A cash purchase legitimately sits
+  -- at payment_status 'unpaid' for its whole life with real confirmed
+  -- visits hanging off it, so gating these on 'paid' the way the online
+  -- packages are gated would silently drop them.
+  insert into session_entitlements (
+    patient_id, source_kind, offer_kind, offer_package_id, package_snapshot,
+    payment_id, amount_paid_paise, sessions_granted, expires_at,
+    locked_therapist_id, status, legacy_home_visit_purchase_id, created_at
+  )
+  select
+    hp.patient_id,
+    'legacy_home_visit',
+    'home_visit_package',
+    hp.package_id,
+    coalesce(to_jsonb(hvp) - 'created_at', '{}'::jsonb),
+    pay.id,
+    hp.amount_paid_paise,
+    hp.visit_count,
+    hp.expires_at,
+    hp.locked_therapist_id,
+    case hp.status when 'refunded' then 'refunded' when 'expired' then 'expired' else 'active' end,
+    hp.id,
+    hp.created_at
+  from home_visit_package_purchases hp
+  left join home_visit_packages hvp on hvp.id = hp.package_id
+  left join payments pay on pay.target_home_visit_purchase_id = hp.id
+  where hp.visit_count > 0
+    and (hp.payment_status = 'paid' or hp.payment_mode = 'cash_on_visit')
+    and not exists (
+      select 1 from session_entitlements e where e.legacy_home_visit_purchase_id = hp.id
+    );
+end $$;
+
+-- The grant. One per entitlement, keyed so a re-apply is a no-op.
+insert into session_credit_ledger (
+  entitlement_id, patient_id, entry_type, delta_granted,
+  actor_role, idempotency_key, created_at
+)
+select e.id, e.patient_id, 'grant', e.sessions_granted, 'system',
+       'backfill:grant:' || e.id::text, e.created_at
+from session_entitlements e
+where not exists (
+  select 1 from session_credit_ledger l
+  where l.entitlement_id = e.id and l.entry_type = 'grant'
+);
+
+-- The movements, replayed from the appointments themselves rather than
+-- from the purchase event trail -- the trail has holes exactly where they
+-- would matter, since session_completed and session_cancelled are declared
+-- event types that nothing has ever emitted.
+--
+-- Every appointment that claimed a credit gets a reserve. What happened
+-- next decides the rest:
+--
+--   completed / no-show     consume  (a no-show forfeits, same rule the
+--                                     cancellation window already applies)
+--   cancelled               release  only when the counter shows it was
+--                                    actually given back -- a late
+--                                    cancellation forfeits, and its credit
+--                                    stays reserved-then-consumed
+--   still upcoming          nothing further; it stays reserved
+insert into session_credit_ledger (
+  entitlement_id, patient_id, entry_type, delta_reserved,
+  appointment_id, actor_role, idempotency_key, created_at
+)
+select e.id, a.patient_id, 'reserve', 1, a.id, 'system',
+       'backfill:reserve:' || a.id::text, a.created_at
+from appointments a
+join session_entitlements e
+  on e.legacy_purchase_id = a.package_purchase_id
+  or e.legacy_home_visit_purchase_id = a.home_visit_purchase_id
+where (a.package_purchase_id is not null or a.home_visit_purchase_id is not null)
+  and not exists (
+    select 1 from session_credit_ledger l
+    where l.appointment_id = a.id and l.entry_type = 'reserve'
+  );
+
+insert into session_credit_ledger (
+  entitlement_id, patient_id, entry_type, delta_reserved, delta_consumed,
+  appointment_id, actor_role, idempotency_key, created_at
+)
+select l.entitlement_id, a.patient_id, 'consume', -1, 1, a.id, 'system',
+       'backfill:consume:' || a.id::text, coalesce(a.slot_time, a.created_at)
+from appointments a
+join session_credit_ledger l on l.appointment_id = a.id and l.entry_type = 'reserve'
+where a.status = 'completed'
+  and not exists (
+    select 1 from session_credit_ledger c
+    where c.appointment_id = a.id and c.entry_type in ('consume', 'release')
+  );
+
+-- A cancelled session's credit was given back only if the legacy counter
+-- says so. Rather than re-deriving the refund window for every historical
+-- cancellation -- whose setting may since have changed -- this releases
+-- only as many as the counter can account for, oldest first, and leaves the
+-- rest reserved. Any residual disagreement is exactly what
+-- verify_entitlement_balances is for.
+insert into session_credit_ledger (
+  entitlement_id, patient_id, entry_type, delta_reserved,
+  appointment_id, actor_role, idempotency_key, created_at
+)
+select ranked.entitlement_id, ranked.patient_id, 'release', -1, ranked.appointment_id, 'system',
+       'backfill:release:' || ranked.appointment_id::text, ranked.cancelled_at
+from (
+  select
+    l.entitlement_id,
+    a.patient_id,
+    a.id as appointment_id,
+    coalesce(a.cancelled_at, a.created_at) as cancelled_at,
+    row_number() over (partition by l.entitlement_id order by a.cancelled_at nulls last) as rn,
+    -- How many of this entitlement's cancelled sessions were actually
+    -- given back, derived from the legacy counter rather than by
+    -- re-deriving a refund window whose setting may since have changed.
+    --
+    --   claimed (sessions_used) = still-live sessions + forfeited ones
+    --   so forfeited            = sessions_used - live
+    --   and released            = cancelled - forfeited
+    --
+    -- Getting this wrong in either direction is a patient who silently
+    -- gains or loses a session at cutover, which is why
+    -- verify_entitlement_balances runs over the result.
+    (
+      select count(*) from appointments a3
+      join session_credit_ledger l3
+        on l3.appointment_id = a3.id and l3.entry_type = 'reserve'
+      where l3.entitlement_id = l.entitlement_id and a3.status = 'cancelled'
+    )
+      - coalesce(pp.sessions_used, hp.visits_used)
+      + (
+          select count(*) from appointments a2
+          join session_credit_ledger l2
+            on l2.appointment_id = a2.id and l2.entry_type = 'reserve'
+          where l2.entitlement_id = l.entitlement_id and a2.status <> 'cancelled'
+        )
+      -- Minus what previous applies already released. Without this the
+      -- quota is recomputed against the full population every time while
+      -- the candidate set shrinks, so each re-apply releases one more --
+      -- and a forfeited credit silently comes back. Found by
+      -- verify_entitlement_balances, which is the entire reason the
+      -- backfill is reconciled instead of trusted.
+      - (
+          select count(*) from session_credit_ledger l4
+          where l4.entitlement_id = l.entitlement_id and l4.entry_type = 'release'
+        ) as releasable
+  from appointments a
+  join session_credit_ledger l on l.appointment_id = a.id and l.entry_type = 'reserve'
+  join session_entitlements e on e.id = l.entitlement_id
+  left join patient_package_purchases pp on pp.id = e.legacy_purchase_id
+  left join home_visit_package_purchases hp on hp.id = e.legacy_home_visit_purchase_id
+  where a.status = 'cancelled'
+    and not exists (
+      select 1 from session_credit_ledger c
+      where c.appointment_id = a.id and c.entry_type in ('consume', 'release')
+    )
+) ranked
+where ranked.releasable > 0 and ranked.rn <= ranked.releasable;

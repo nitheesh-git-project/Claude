@@ -350,6 +350,36 @@ the same case to it. It never revives a cancelled booking — money arriving
 for something already called off is recorded for reconciliation, not used
 to resurrect the session.
 
+Session credits are an append-only ledger rather than a counter.
+**`session_entitlements`** is what a patient bought — including a
+`package_snapshot` of the catalog row as it stood at purchase, which is what
+makes a purchase immutable when an admin later re-prices the package — and
+**`session_credit_ledger`** is every movement of it: the grant, each booking
+that reserved a credit, each session that consumed one, each cancellation
+that released one, refunds, expiries and admin adjustments. The counts on
+the entitlement are a cache the ledger maintains, and the CHECK constraint
+on that cache is what rejects a movement that would overdraw.
+
+Every movement goes through a database function holding a real row lock
+(`select … for update`), so two simultaneous bookings against one remaining
+credit cannot both succeed. Each is idempotent on a key derived from the
+appointment or payment that caused it, so a retried request moves the
+balance once. `verify_entitlement_balances()` reports where the cache, the
+ledger and the older `sessions_used` counter disagree; it is shown on
+**Settings → System Health** alongside captured payments nothing is attached
+to and delivered sessions with no payment, package or cash behind them.
+Nothing there is repaired automatically — each finding is either a data
+problem or someone working outside the normal flow, and both want a person.
+
+An admin can put that right without touching the database:
+`/api/admin/grant-session-credits` adds sessions (service recovery,
+goodwill, or cash genuinely paid offline — only the last counts as revenue),
+`/api/admin/reverse-session-credit` returns a credit spent on a session that
+did not really happen, and `/api/admin/revive-entitlement` reopens a lapsed
+package and restores the credits its expiry voided. All three require a
+stated reason, write a ledger row and an audit row, and are scoped to Money.
+An admin can change any balance; nobody can change history.
+
 Every capture also lands in **`payments`**, one row per Razorpay order
 whatever it bought, with unique indexes on `razorpay_order_id` and
 `razorpay_payment_id`. Those two indexes are what make a duplicate credit

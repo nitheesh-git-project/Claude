@@ -226,6 +226,50 @@ client is the only writer and the log is append-only from any session.
   every field of a shared query.
 - Money is integer paise. Times are `timestamptz`. Percentages
   (`revenue_share_percent`) are 0–100.
+- **Session credits are a ledger, not a counter.** `session_entitlements`
+  is what a patient bought; `session_credit_ledger` is every movement of it,
+  append-only. The counts on the entitlement are a *cache* the ledger
+  maintains by trigger, and the CHECK on that cache is what makes an
+  impossible balance impossible rather than merely unwritten — a ledger row
+  that would overdraw fails the constraint and takes its transaction with
+  it. Six rules hold this together:
+  1. **Every movement goes through an RPC** (`reserve_session_credit`,
+     `consume_session_credit`, `release_session_credit`,
+     `void_session_credits`, `adjust_session_credits`), called from
+     `src/lib/sessionCredits.ts`. They open with `select … for update`,
+     which is a real lock — verified with 12 concurrent reserves against one
+     credit, of which exactly one won. Never write the ledger directly.
+  2. **Idempotency keys are derived from the thing that happened**, never
+     random: `reserve:<appointment_id>`, `consume:<appointment_id>`. A
+     random key makes every retry look like a new event, which is the bug
+     the key exists to prevent. Idempotency is checked *before* availability
+     in `reserve_session_credit`, deliberately — checking availability first
+     answers "no credits available" for a booking that in fact succeeded.
+  3. **The ledger is append-only, enforced by a trigger, not by RLS.** The
+     revoke covers a browser session; every route in this app writes with the
+     service-role client, which bypasses RLS entirely. For a table whose
+     whole value is that it cannot be rewritten, "no route updates it" is
+     not the same guarantee as "an update raises".
+  4. **`sessions_granted` and `package_snapshot` are frozen by trigger.**
+     A purchase's definition never moves; its balance moves through the
+     ledger. Never resolve a purchased entitlement by joining the live
+     catalog row — read the snapshot, or an admin re-pricing a package
+     silently rewrites what someone already owns.
+  5. **A refund voids what is available, never what is consumed.** A
+     delivered session stays delivered.
+  6. **`admin_adjust` is the only entry type with free-form deltas, and the
+     only one requiring a reason** — ten characters minimum, enforced by a
+     CHECK so it holds for any caller. It is the override lane behind
+     `/api/admin/grant-session-credits`, `reverse-session-credit` and
+     `revive-entitlement`: an admin can change any balance, and cannot
+     change any history.
+
+  `verify_entitlement_balances()` reports where the cache, the ledger and
+  the legacy counter disagree, on Settings → System Health. It reports and
+  never repairs — a silent auto-fix on a money record is how a discrepancy
+  becomes permanent. It has already earned itself twice, catching two
+  distinct bugs in the backfill it checks.
+
 - **An invariant the app enforces belongs in the database too.**
   `sessions_used` / `visits_used` were guarded only by application-level
   compare-and-swap — correct, and true only for as long as every writer

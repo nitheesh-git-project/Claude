@@ -30,6 +30,12 @@ export type AdminActivityAction =
   | "session.restore"
   | "session.mark_paid_cash"
   // purchases (a programme, not one session)
+  // The admin override lane -- putting credits into an account, taking a
+  // wrongly-spent one back, reopening a lapsed package. Each one moves what
+  // a patient can book, so isMoneyAction counts all three.
+  | "credits.grant"
+  | "credits.reverse"
+  | "credits.revive"
   | "package.extend_expiry"
   | "package.reassign_therapist"
   // money
@@ -114,6 +120,9 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "session.reopen": "Reopened session",
   "session.restore": "Restored session",
   "session.mark_paid_cash": "Marked paid by cash",
+  "credits.grant": "Granted sessions",
+  "credits.reverse": "Returned a spent session",
+  "credits.revive": "Reopened a lapsed package",
   "package.extend_expiry": "Extended programme expiry",
   "package.reassign_therapist": "Reassigned programme therapist",
   "payout.settle": "Settled payout",
@@ -152,6 +161,7 @@ export function isMoneyAction(action: string): boolean {
     // Handing a forfeited session back is money: the patient keeps value
     // they had otherwise lost, and the clinic's recognised revenue moves
     // with it.
-    action === "session.restore"
+    action === "session.restore" ||
+    action.startsWith("credits.")
   );
 }

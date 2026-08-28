@@ -57,6 +57,14 @@ The patient's own record leaves the app as a PDF named
 Before writing code: read the relevant guide in `node_modules/next/dist/docs/`
 — this Next.js version differs from training data.
 
+Session credits live in an append-only ledger (`session_credit_ledger`)
+over `session_entitlements`, not in a mutable counter. Every movement goes
+through a database function holding a real row lock, keyed for idempotency
+on the appointment or payment that caused it, and
+`verify_entitlement_balances()` reports any disagreement on Settings →
+System Health. Admins can change any balance — grant, reverse, revive, all
+with a mandatory reason — and cannot change any history.
+
 Payments are recorded in `payments` (one row per Razorpay order, unique on
 both the order id and the payment id) and confirmed by whichever of the
 browser callback or `/api/razorpay/webhook` arrives first — both go through

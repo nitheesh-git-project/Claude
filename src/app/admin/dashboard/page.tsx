@@ -26,6 +26,8 @@ import HomeVisitPurchasesTable from "@/components/admin/HomeVisitPurchasesTable"
 import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
+import AccountingHealthPanel from "@/components/admin/AccountingHealthPanel";
+import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
 import { adminScreenHref, type InboxGroup } from "@/lib/adminNav";
 import { parseAdminScope, scopeCanOpen, sectionsForScope } from "@/lib/adminScope";
@@ -501,6 +503,15 @@ export default async function AdminDashboardPage({
   const adminScopeById = new Map((adminScopeRows ?? []).map((r) => [r.id, r.admin_scope]));
   const viewerScope = parseAdminScope(adminScopeById.get(user.id));
   const canSeeMoney = scopeCanOpen(viewerScope, "money");
+
+  // Read after the main Promise.all rather than inside it: every query in
+  // there is against a table that has existed for a while, and these are
+  // against three that are brand new. loadAccountingHealth swallows its own
+  // errors and reports `available: false`, so a database that has not
+  // re-run schema.sql shows one panel saying so instead of blanking the
+  // whole dashboard -- the failure mode the migration-tolerance rule exists
+  // to prevent.
+  const accountingHealth = await loadAccountingHealth(admin);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
     (t) => t.active !== false
@@ -2027,12 +2038,15 @@ export default async function AdminDashboardPage({
   );
 
   const settingsHealthTab = (
-    <AdminFeatureControlTab
-      settings={adminSettings}
-      syncIssues={googleMeetSyncIssues}
-      adminEmail={adminProfile?.email ?? user.email ?? ""}
-      view="health"
-    />
+    <div className="space-y-8">
+      <AdminFeatureControlTab
+        settings={adminSettings}
+        syncIssues={googleMeetSyncIssues}
+        adminEmail={adminProfile?.email ?? user.email ?? ""}
+        view="health"
+      />
+      <AccountingHealthPanel health={accountingHealth} />
+    </div>
   );
 
   const settingsSecurityTab = (
@@ -2219,6 +2233,17 @@ export default async function AdminDashboardPage({
           section: "settings",
           tab: "health",
           hint: "Confirmed sessions with no Meet link — the patient has no way in.",
+          urgent: true,
+        },
+        {
+          label: "Accounting checks needing a look",
+          count: accountingProblemCount(accountingHealth),
+          section: "settings",
+          tab: "health",
+          hint: "Balances that disagree, money nothing is attached to, or a delivered session with nothing behind it.",
+          // Money is either unaccounted for or a session was delivered
+          // without it, so this reads red for the same reason the cash
+          // refund queue does.
           urgent: true,
         },
       ],
@@ -2478,7 +2503,7 @@ export default async function AdminDashboardPage({
     "people:partners": b2bBadgeCount,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,
     "catalog:areas": homeVisitWaitlist?.filter((w) => w.status === "new").length ?? 0,
-    "settings:health": googleMeetSyncIssues.length,
+    "settings:health": googleMeetSyncIssues.length + accountingProblemCount(accountingHealth),
   };
 
   return (
