@@ -1,4 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
+import { mirrorVoidExpiredBatch } from "@/lib/sessionCreditMirror";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -34,6 +35,14 @@ export async function expireDueHomeVisitPurchases(admin: AdminClient): Promise<v
       detail: {},
     }))
   );
+  // Void the unused remainder in the ledger. The counters never did this --
+  // an expired purchase kept whatever balance it had, and only
+  // bookPackageSession's own expires_at check stopped it being spent -- so
+  // this is the ledger recording an outcome the counters left implicit.
+  // Keyed on the entitlement, so re-running this sweep on every dashboard
+  // render voids once.
+  await mirrorVoidExpiredBatch(admin, { homeVisitPurchaseIds: expired.map((p) => p.id) });
+
   if (eventError) {
     console.error("Failed to log expired events for home visit purchases", expired, eventError);
   }

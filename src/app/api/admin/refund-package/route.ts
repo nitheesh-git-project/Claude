@@ -3,6 +3,7 @@ import Razorpay from "razorpay";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { mirrorVoid } from "@/lib/sessionCreditMirror";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { deleteMeetEventForAppointment } from "@/lib/googleCalendarSync";
 
@@ -208,6 +209,19 @@ export async function POST(request: NextRequest) {
   if (eventError) {
     console.error("Failed to log refunded event for purchase", purchaseId, eventError);
   }
+
+  // Void whatever is still unspent. This is the first place the ledger
+  // says more than the counters can: a refund never touched
+  // sessions_used/visits_used at all -- it cancels the remaining
+  // appointments in place and leaves the counter inflated -- so there is no
+  // counter write here to mirror, only a fact the counters could not record.
+  // Consumed credits are untouched: a delivered session stays delivered.
+  await mirrorVoid(admin, {
+    packagePurchaseId: purchaseId,
+    kind: "refund",
+    actorId: adminUser.id,
+    reason: reason?.trim() || "Refunded by admin",
+  });
 
   await recordAdminActivity(admin, adminUser.id, {
     action: "refund.issue",

@@ -7,6 +7,7 @@ import { isProfileActive, isPatientProfile } from "@/lib/supabase/requireActiveP
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
+import { mirrorEnsureEntitlement } from "@/lib/sessionCreditMirror";
 
 const MAX_LINE_LENGTH = 300;
 const MAX_NOTES_LENGTH = 1000;
@@ -195,6 +196,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  // A cash-on-visit purchase never becomes payment_status 'paid' -- it sits
+  // unpaid for its whole life with real confirmed visits hanging off it --
+  // so it would never reach either verify route. Its entitlement is created
+  // here instead, before the first visit is booked below.
+  await mirrorEnsureEntitlement(admin, { homeVisitPurchaseId: purchase.id });
 
   try {
     await admin.from("home_visit_purchase_events").insert({

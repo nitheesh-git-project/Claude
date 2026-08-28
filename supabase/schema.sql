@@ -5919,3 +5919,124 @@ from (
     )
 ) ranked
 where ranked.releasable > 0 and ranked.rn <= ranked.releasable;
+
+-- --------------------------------------------------------------------------
+-- ensure_entitlement_for_purchase: the backfill, for one new row
+-- --------------------------------------------------------------------------
+-- The backfill above covers everything that existed when it ran. This
+-- covers everything sold afterwards.
+--
+-- Without it the ledger would quietly stop describing new sales the moment
+-- the backfill finished -- every booking against a fresh purchase would
+-- find no entitlement, log a mirror miss, and leave a patient whose
+-- balance exists only in the old counter. That failure is silent by
+-- construction, which is what makes it worth a function of its own rather
+-- than a note in a route.
+--
+-- Deliberately derives the snapshot and the status exactly as the backfill
+-- does, so a purchase made a minute after the cutover and one made a minute
+-- before are described the same way. Idempotent through the unique index on
+-- legacy_purchase_id: called twice, the second call finds the row and
+-- returns it.
+create or replace function public.ensure_entitlement_for_purchase(
+  p_purchase_id uuid,
+  p_kind text
+) returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_entitlement_id uuid;
+begin
+  if p_kind not in ('session_package', 'home_visit_package') then
+    raise exception 'ensure_entitlement_for_purchase kind must be session_package or home_visit_package';
+  end if;
+
+  if p_kind = 'session_package' then
+    select id into v_entitlement_id
+      from session_entitlements where legacy_purchase_id = p_purchase_id;
+    if v_entitlement_id is not null then
+      return v_entitlement_id;
+    end if;
+
+    insert into session_entitlements (
+      patient_id, source_kind, offer_kind, offer_package_id, package_snapshot,
+      payment_id, amount_paid_paise, sessions_granted, expires_at,
+      locked_therapist_id, status, legacy_purchase_id, created_at
+    )
+    select
+      pp.patient_id, 'legacy_package', 'session_package', pp.package_id,
+      coalesce(to_jsonb(tcp) - 'created_at', '{}'::jsonb),
+      pay.id, pp.amount_paid_paise, pp.session_count, pp.expires_at,
+      pp.locked_therapist_id,
+      case pp.status when 'refunded' then 'refunded' when 'expired' then 'expired' else 'active' end,
+      pp.id, pp.created_at
+    from patient_package_purchases pp
+    left join treatment_category_packages tcp on tcp.id = pp.package_id
+    left join payments pay on pay.target_package_purchase_id = pp.id
+    where pp.id = p_purchase_id and pp.payment_status = 'paid' and pp.session_count > 0
+    on conflict do nothing
+    returning id into v_entitlement_id;
+  else
+    select id into v_entitlement_id
+      from session_entitlements where legacy_home_visit_purchase_id = p_purchase_id;
+    if v_entitlement_id is not null then
+      return v_entitlement_id;
+    end if;
+
+    -- Cash-on-visit is included on purpose: such a purchase legitimately
+    -- sits at payment_status 'unpaid' for its whole life with real
+    -- confirmed visits hanging off it, so gating on 'paid' here would
+    -- leave every cash programme without a ledger.
+    insert into session_entitlements (
+      patient_id, source_kind, offer_kind, offer_package_id, package_snapshot,
+      payment_id, amount_paid_paise, sessions_granted, expires_at,
+      locked_therapist_id, status, legacy_home_visit_purchase_id, created_at
+    )
+    select
+      hp.patient_id, 'legacy_home_visit', 'home_visit_package', hp.package_id,
+      coalesce(to_jsonb(hvp) - 'created_at', '{}'::jsonb),
+      pay.id, hp.amount_paid_paise, hp.visit_count, hp.expires_at,
+      hp.locked_therapist_id,
+      case hp.status when 'refunded' then 'refunded' when 'expired' then 'expired' else 'active' end,
+      hp.id, hp.created_at
+    from home_visit_package_purchases hp
+    left join home_visit_packages hvp on hvp.id = hp.package_id
+    left join payments pay on pay.target_home_visit_purchase_id = hp.id
+    where hp.id = p_purchase_id and hp.visit_count > 0
+      and (hp.payment_status = 'paid' or hp.payment_mode = 'cash_on_visit')
+    on conflict do nothing
+    returning id into v_entitlement_id;
+  end if;
+
+  if v_entitlement_id is null then
+    -- Either the purchase does not qualify yet (an unpaid online package),
+    -- or a concurrent caller won the insert. Re-read before giving up, so
+    -- the loser of that race gets the winner's row rather than null.
+    if p_kind = 'session_package' then
+      select id into v_entitlement_id
+        from session_entitlements where legacy_purchase_id = p_purchase_id;
+    else
+      select id into v_entitlement_id
+        from session_entitlements where legacy_home_visit_purchase_id = p_purchase_id;
+    end if;
+    if v_entitlement_id is null then
+      return null;
+    end if;
+  end if;
+
+  -- The grant. Keyed on the entitlement, so this is safe to call again.
+  perform session_credit_entry(
+    v_entitlement_id, 'grant',
+    (select sessions_granted from session_entitlements where id = v_entitlement_id),
+    0, 0,
+    'backfill:grant:' || v_entitlement_id::text,
+    null, null, 'system', null
+  );
+
+  return v_entitlement_id;
+end;
+$$;
+
+revoke execute on function public.ensure_entitlement_for_purchase(uuid, text) from anon, authenticated;

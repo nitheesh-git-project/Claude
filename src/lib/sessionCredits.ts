@@ -1,6 +1,11 @@
-import type { createAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-type AdminClient = ReturnType<typeof createAdminClient>;
+// Typed on SupabaseClient rather than ReturnType<typeof createAdminClient>
+// so cancelAppointment.ts -- which has only ever taken the wider type --
+// can call these without a cast. It must still be a service-role client:
+// every function below reaches a database function that anon and
+// authenticated have had EXECUTE revoked on.
+type AdminClient = SupabaseClient;
 
 // The credit ledger, from TypeScript.
 //

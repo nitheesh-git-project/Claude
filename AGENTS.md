@@ -264,6 +264,23 @@ client is the only writer and the log is append-only from any session.
      `revive-entitlement`: an admin can change any balance, and cannot
      change any history.
 
+  **The ledger is written alongside the old counters, and does not yet
+  replace them.** All eight statements in `src/` that mutate
+  `sessions_used` / `visits_used` now have a mirror call beside them
+  (`src/lib/sessionCreditMirror.ts`), and a mirror failure never fails the
+  operation it mirrors — the counter is still authoritative, so a logged
+  disagreement that reconciliation surfaces beats refusing a booking
+  because a shadow ledger was unhappy. Two of the mirrors have no counter
+  write to mirror at all, and both are the ledger saying something the
+  counters could not: a **refund** never touched the counters (it cancels
+  the remaining appointments in place and leaves the counter inflated), and
+  an **expiry** left the balance implicit. A **late cancellation** mirrors
+  a `consume` rather than nothing — the balance is the same either way, but
+  leaving the reserve outstanding would claim a cancelled session is still
+  pending. New purchases get their entitlement from
+  `ensure_entitlement_for_purchase`, called by both verify routes and by
+  cash-on-visit booking, which never becomes `paid` and so reaches neither.
+
   `verify_entitlement_balances()` reports where the cache, the ledger and
   the legacy counter disagree, on Settings → System Health. It reports and
   never repairs — a silent auto-fix on a money record is how a discrepancy

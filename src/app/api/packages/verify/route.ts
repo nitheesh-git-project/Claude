@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
+import { mirrorEnsureEntitlement } from "@/lib/sessionCreditMirror";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookPackageSession } from "@/lib/bookPackageSession";
@@ -135,6 +136,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  // Give this purchase its ledger entitlement before session 1 is booked
+  // below -- bookPackageSession mirrors a reserve against it, and a reserve
+  // with no entitlement to hold it is exactly the silent gap this prevents.
+  // Idempotent, so a replayed verify creates one entitlement.
+  await mirrorEnsureEntitlement(admin, { packagePurchaseId });
 
   try {
     await admin.from("package_purchase_events").insert({

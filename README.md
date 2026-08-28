@@ -371,6 +371,13 @@ to and delivered sessions with no payment, package or cash behind them.
 Nothing there is repaired automatically — each finding is either a data
 problem or someone working outside the normal flow, and both want a person.
 
+The ledger is currently written **alongside** the older `sessions_used` /
+`visits_used` counters rather than instead of them, so the two can be
+reconciled before anything reads the ledger. Completing a session now also
+emits the `session_completed` / `visit_completed` purchase events, which had
+been declared since packages were built and never written — a programme's
+timeline used to show sessions being scheduled and then simply stopping.
+
 An admin can put that right without touching the database:
 `/api/admin/grant-session-credits` adds sessions (service recovery,
 goodwill, or cash genuinely paid offline — only the last counts as revenue),

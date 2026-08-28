@@ -2,6 +2,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
+import { mirrorReserve } from "@/lib/sessionCreditMirror";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -193,6 +194,11 @@ export async function bookPackageSession(
     .single();
 
   if (insertError || !appointment) {
+    // Nothing to undo in the ledger here: the credit is reserved below,
+    // *after* the appointment exists, precisely so the reserve is keyed on
+    // a real appointment id. A failed insert means no reserve was ever
+    // made.
+    //
     // Give the claimed session back — the patient didn't actually get a
     // booking out of it. Re-read the current count and CAS-decrement it
     // (same pattern as the restore in cancelAppointment.ts) rather than
@@ -224,6 +230,16 @@ export async function bookPackageSession(
       error: insertError?.message ?? "Could not book this session. Please try again.",
     };
   }
+
+  // Dual-write: the counter above is still what the app reads, and this
+  // records the same claim in the ledger that will replace it. Never fails
+  // the booking -- see sessionCreditMirror.ts for why.
+  await mirrorReserve(admin, {
+    appointmentId: appointment.id,
+    packagePurchaseId: purchase.id,
+    actorId,
+    actorRole: actorId === purchase.patient_id ? "patient" : "admin",
+  });
 
   if (shouldAutoConfirm && assignedTherapistId) {
     // Same call every other paid-and-assigned confirmation path makes

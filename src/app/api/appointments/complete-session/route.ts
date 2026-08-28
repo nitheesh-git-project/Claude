@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { mirrorConsume } from "@/lib/sessionCreditMirror";
 
 // Marks a confirmed session as completed. Callable by the therapist who ran
 // the session, or an admin correcting the record — nobody else. There's no
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: appointment } = await admin
     .from("appointments")
-    .select("id, status, therapist_id")
+    .select("id, status, therapist_id, package_purchase_id, home_visit_purchase_id")
     .eq("id", appointmentId)
     .single();
   if (!appointment) {
@@ -80,6 +81,56 @@ export async function POST(request: NextRequest) {
       { error: "This session was already updated — please refresh and try again." },
       { status: 409 }
     );
+  }
+
+  // Spend the credit this session was booked against. A no-show consumes it
+  // too: forfeiting is the same rule a late cancellation already follows,
+  // and the therapist's time was reserved either way. A session paid for
+  // directly rather than out of a package has no credit, which the mirror
+  // treats as the ordinary case rather than an error.
+  //
+  // Placed after the CAS claim, so a request that lost the race to another
+  // completion cannot also spend the credit.
+  await mirrorConsume(admin, {
+    appointmentId,
+    actorId: user.id,
+    actorRole: adminUser ? "admin" : "therapist",
+  });
+
+  // The other half of what completion never recorded. `session_completed`
+  // and `visit_completed` have been declared event types since packages
+  // were built and nothing has ever emitted them, so a programme's timeline
+  // showed sessions being scheduled and then simply stopping. Best-effort,
+  // like every other purchase event.
+  const purchaseEvent = appointment.package_purchase_id
+    ? {
+        table: "package_purchase_events" as const,
+        purchaseId: appointment.package_purchase_id,
+        eventType: "session_completed" as const,
+      }
+    : appointment.home_visit_purchase_id
+      ? {
+          table: "home_visit_purchase_events" as const,
+          purchaseId: appointment.home_visit_purchase_id,
+          eventType: "visit_completed" as const,
+        }
+      : null;
+
+  if (purchaseEvent) {
+    const { error: eventError } = await admin.from(purchaseEvent.table).insert({
+      purchase_id: purchaseEvent.purchaseId,
+      event_type: purchaseEvent.eventType,
+      actor_id: user.id,
+      appointment_id: appointmentId,
+      detail: { noShow: !!noShow },
+    });
+    if (eventError) {
+      console.error(
+        "Failed to log a completion event for appointment",
+        appointmentId,
+        eventError.message
+      );
+    }
   }
 
   return NextResponse.json({ success: true });

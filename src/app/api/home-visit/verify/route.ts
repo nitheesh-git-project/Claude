@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
+import { mirrorEnsureEntitlement } from "@/lib/sessionCreditMirror";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
@@ -165,6 +166,10 @@ export async function POST(request: NextRequest) {
     orderId: razorpay_order_id,
     paymentId: razorpay_payment_id,
   });
+
+  // Same as the online twin: the entitlement has to exist before visit 1 is
+  // booked below, or its reserve has nothing to hold it.
+  await mirrorEnsureEntitlement(admin, { homeVisitPurchaseId });
 
   try {
     await admin.from("home_visit_purchase_events").insert({

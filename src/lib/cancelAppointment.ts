@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { deleteMeetEventForAppointment } from "@/lib/googleCalendarSync";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { mirrorRelease, mirrorConsume } from "@/lib/sessionCreditMirror";
 
 type CancelResult =
   | { error: string; status: number; payoutSettled?: boolean }
@@ -203,6 +204,16 @@ export async function cancelAppointmentAndRefund(
         );
       }
     }
+    // Dual-write the same restore into the ledger. Unlike the CAS above --
+    // which is best-effort and silently does nothing if it loses a race --
+    // the ledger release is keyed on the appointment, so a concurrent
+    // cancellation cannot make it release twice or skip it.
+    await mirrorRelease(admin, {
+      appointmentId,
+      actorId: cancelledBy,
+      actorRole: "system",
+      reason: reason?.trim() || "Cancelled outside the refund window",
+    });
   }
 
   // The home-visit twin of the package restore above, against its own
@@ -229,6 +240,32 @@ export async function cancelAppointmentAndRefund(
         );
       }
     }
+    await mirrorRelease(admin, {
+      appointmentId,
+      actorId: cancelledBy,
+      actorRole: "system",
+      reason: reason?.trim() || "Cancelled outside the refund window",
+    });
+  }
+
+  // A late cancellation forfeits its session: the counter deliberately
+  // stays where it is, which is why neither restore block above ran.
+  //
+  // In the ledger that has to be an explicit consume rather than nothing.
+  // Leaving the reserve outstanding would keep the balance correct --
+  // available is granted minus reserved minus consumed either way -- while
+  // saying something false: that a cancelled session is still pending.
+  // Consume is the honest word, and it is the same word a no-show gets,
+  // which is the same rule.
+  const forfeited =
+    isLateCancellation &&
+    (appointment.package_purchase_id || appointment.home_visit_purchase_id);
+  if (forfeited) {
+    await mirrorConsume(admin, {
+      appointmentId,
+      actorId: cancelledBy,
+      actorRole: "system",
+    });
   }
 
   let refundId: string | null = null;
