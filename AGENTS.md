@@ -39,8 +39,10 @@ button spam, concurrent answers and a dropped connection
 (`session-suggestions.spec.ts`), the Home page walkthrough's
 admin-configured rotation pace (`journey-pace.spec.ts`), and self-signup
 going through with no email-confirmation step
-(`patient-registration.spec.ts`), and the Session Completed cutoff on every
-surface that lists a session (`session-completed-cutoff.spec.ts`). It needs a
+(`patient-registration.spec.ts`), the Session Completed cutoff on every
+surface that lists a session (`session-completed-cutoff.spec.ts`), and the
+brand splash's cold-open, reload and long-absence rules together with its
+admin settings (`splash-screen.spec.ts`). It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
@@ -869,6 +871,44 @@ client is the only writer and the log is append-only from any session.
   off) resolves to nothing and the request is dropped silently rather than
   failing the booking.
 
+- **The splash greets a cold open, and nothing else.** The teal sheet the
+  root layout paints over the site for a beat
+  (`src/components/system/SplashScreen.tsx`, everything it needs defined once
+  in `src/lib/splashScreen.ts`) shows on the first load of a browser tab and
+  again when a tab that has been in the background for longer than
+  `SPLASH_REVISIT_AWAY_MS` is returned to. It deliberately does **not** show
+  on every navigation, every reload or every tab focus: a patient paying by
+  UPI leaves the tab for their bank's app and comes back mid-checkout, and
+  splashing over a payment in progress is the one thing this must never do.
+  Three details are load-bearing and easy to undo. The decision is made by
+  an inline blocking script in the document head, not by an effect — an
+  effect runs after first paint, so the greeting would land on top of a page
+  the visitor can already read, which looks like a fault. The overlay's
+  markup is in every page's HTML and never changes; visibility is entirely a
+  `data-splash` attribute on `<html>` read by CSS, because deciding it in
+  React state is a hydration mismatch on every page of the app (that
+  attribute is also why `<html>` carries `suppressHydrationWarning` — it
+  covers that one element, never a descendant). And the fade duration lives
+  in both `globals.css` and `SPLASH_FADE_MS`: the timer is what takes the
+  sheet out of the flow, so the two drifting apart either cuts the fade
+  short or leaves an invisible sheet eating clicks. Anyone who has asked for
+  reduced motion is skipped outright — it is decoration over content that is
+  already rendered, so the honest answer to "don't animate" is not to show
+  it. The name line, the wording, the hold and the away threshold are
+  admin-configurable
+  (`site_settings.splash_*`, Settings → Public Site → Opening Splash), and
+  `splash_brand_line` is blank by default and falls back to `site_name`, so
+  the greeting and the navbar say one thing until an admin deliberately
+  parts them — it is the one text setting where blank is a value rather than
+  an error, since blank is how the override is undone.
+  `splash_revisit_minutes = 0` means "greet the first load only" — there is
+  deliberately **no** value meaning "greet on every tab focus", because that
+  is the setting that would splash over a checkout in progress. The fade
+  length stays a constant for the reason above: it is the same duration
+  written in two places, so it is a design decision rather than a policy an
+  admin should be able to desynchronise.
+  `e2e/splash-screen.spec.ts` holds these rules.
+
 - **The eight public pages are one template, not eight layouts.** `/`,
   `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`
   and `/hospitals` all assemble from `src/components/marketing/`: a `PageHero`
@@ -1059,8 +1099,11 @@ client is the only writer and the log is append-only from any session.
   and Brand & Contact Details — site name, tagline, description, contact
   email, WhatsApp number, contact phone, footer copyright text — and the
   Home page walkthrough's per-step rotation seconds, where 0 means "don't
-  rotate" — and `enabled_intake_specialties`, which condition types
-  triage offers) is read
+  rotate" — and the opening splash's five settings — on/off, the name above
+  the line (blank follows the site name), its one line, the hold in seconds,
+  and the minutes a tab must be away to earn a second greeting, where 0
+  means "first load only" — and `enabled_intake_specialties`, which
+  condition types triage offers) is read
   through `src/lib/adminSettings.ts` with defaults — don't hardcode these.
   Every dashboard page must select `SITE_SETTINGS_SELECT` from that module
   rather than its own column list, or a new setting silently reads as its

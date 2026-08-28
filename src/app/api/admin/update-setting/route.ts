@@ -3,6 +3,13 @@ import { revalidatePath } from "next/cache";
 import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import {
+  MAX_SPLASH_BRAND_LINE_LENGTH,
+  MAX_SPLASH_HOLD_SECONDS,
+  MAX_SPLASH_PHRASE_LENGTH,
+  MAX_SPLASH_REVISIT_MINUTES,
+  MIN_SPLASH_HOLD_SECONDS,
+} from "@/lib/splashScreen";
 
 const ALLOWED_COLUMNS = new Set([
   "therapist_suggestions_enabled",
@@ -44,6 +51,13 @@ const ALLOWED_COLUMNS = new Set([
   // How long the post-logout banner stays up. 0 = until dismissed.
   "farewell_banner_seconds",
   "journey_step_seconds",
+  // The opening splash: on/off, its one line, how long it holds, and how
+  // long a tab must be away to earn a second greeting.
+  "splash_enabled",
+  "splash_brand_line",
+  "splash_phrase",
+  "splash_hold_seconds",
+  "splash_revisit_minutes",
 ]);
 
 // The home page walkthrough's rotation pace. Neither of the numeric rules
@@ -111,7 +125,8 @@ export async function POST(request: NextRequest) {
       key === "package_therapist_lock_enabled" ||
       key === "home_visit_enabled" ||
       key === "home_visit_cash_enabled" ||
-      key === "therapist_suggestions_enabled") &&
+      key === "therapist_suggestions_enabled" ||
+      key === "splash_enabled") &&
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
@@ -173,6 +188,43 @@ export async function POST(request: NextRequest) {
       );
     }
   }
+  // The splash's own three values. The hold is the one timing in this file
+  // that is legitimately fractional -- a second and a half is the point of
+  // it, and rounding to whole seconds would make the only two useful
+  // settings 1 and 2. Zero minutes away is legal and means "greet the first
+  // load of a tab only"; there is deliberately no value meaning "greet on
+  // every tab focus", which would splash over a checkout in progress.
+  if (key === "splash_hold_seconds") {
+    if (
+      typeof value !== "number" ||
+      !Number.isFinite(value) ||
+      value < MIN_SPLASH_HOLD_SECONDS ||
+      value > MAX_SPLASH_HOLD_SECONDS
+    ) {
+      return NextResponse.json(
+        {
+          error: `Hold must be between ${MIN_SPLASH_HOLD_SECONDS} and ${MAX_SPLASH_HOLD_SECONDS} seconds.`,
+        },
+        { status: 400 }
+      );
+    }
+  }
+  if (key === "splash_revisit_minutes") {
+    if (
+      typeof value !== "number" ||
+      !Number.isInteger(value) ||
+      value < 0 ||
+      value > MAX_SPLASH_REVISIT_MINUTES
+    ) {
+      return NextResponse.json(
+        {
+          error: `Use 0 for first load only, or up to ${MAX_SPLASH_REVISIT_MINUTES} minutes.`,
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   // Unlike the timers above, these two are a divisor and a loop bound
   // downstream (per-session validity math, the bulk scheduler's date
   // limit) -- zero is meaningless for either, so they're held to > 0
@@ -287,6 +339,38 @@ export async function POST(request: NextRequest) {
     nextValue = value.trim();
   }
 
+  // Blank is not allowed: the sheet is a full screen of teal with the
+  // brand mark on it, and an empty line makes it look like a failed load
+  // rather than a greeting. An admin who wants no splash turns it off.
+  if (key === "splash_phrase") {
+    if (typeof value !== "string" || value.trim().length === 0) {
+      return NextResponse.json({ error: "value must not be blank" }, { status: 400 });
+    }
+    if (value.trim().length > MAX_SPLASH_PHRASE_LENGTH) {
+      return NextResponse.json(
+        { error: `Please keep this to ${MAX_SPLASH_PHRASE_LENGTH} characters or fewer.` },
+        { status: 400 }
+      );
+    }
+    nextValue = value.trim();
+  }
+
+  // The one text setting where blank is a real value rather than an error:
+  // an empty brand line means "use the site name", which is how an admin
+  // undoes an override without having to retype the site name into it.
+  if (key === "splash_brand_line") {
+    if (typeof value !== "string") {
+      return NextResponse.json({ error: "value must be text" }, { status: 400 });
+    }
+    if (value.trim().length > MAX_SPLASH_BRAND_LINE_LENGTH) {
+      return NextResponse.json(
+        { error: `Please keep this to ${MAX_SPLASH_BRAND_LINE_LENGTH} characters or fewer.` },
+        { status: 400 }
+      );
+    }
+    nextValue = value.trim();
+  }
+
   if (key === "contact_email") {
     if (typeof value !== "string" || !EMAIL_RE.test(value.trim())) {
       return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
@@ -349,7 +433,15 @@ export async function POST(request: NextRequest) {
     // The sign-out banner's duration is read by the root layout too, so it
     // needs the same layout-wide invalidation -- otherwise the new value
     // reaches nobody until the ISR window expires.
-    key === "farewell_banner_seconds"
+    key === "farewell_banner_seconds" ||
+    // The opening splash is read by the root layout too -- and its boot
+    // script is inlined into the HTML of every statically-rendered page
+    // under it, so nothing short of layout-wide invalidation reaches them.
+    key === "splash_enabled" ||
+    key === "splash_brand_line" ||
+    key === "splash_phrase" ||
+    key === "splash_hold_seconds" ||
+    key === "splash_revisit_minutes"
   ) {
     revalidatePath("/", "layout");
   }

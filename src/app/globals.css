@@ -52,3 +52,157 @@ h6 {
 .font-display {
   font-family: var(--font-display);
 }
+
+/* ---------------------------------------------------------------------
+   Brand splash (src/components/system/SplashScreen.tsx)
+
+   Every state lives here rather than in React, because the overlay has to
+   be painted on the browser's first frame — before any component has run.
+   The inline boot script in the root layout sets data-splash="on" on
+   <html>, this stylesheet paints it, and the component only moves the
+   attribute along to "leaving" and then removes it. Keep the fade duration
+   in step with SPLASH_FADE_MS in src/lib/splashScreen.ts: that timer is
+   what removes the sheet from the page, so the two drifting apart either
+   cuts the fade short or leaves an invisible sheet eating clicks.
+   --------------------------------------------------------------------- */
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  /* Above the sticky navbar, the debug bar and every dialog — for its
+     second and a half this is the only thing on screen. */
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(120% 120% at 50% 0%, #0f766e 0%, #115e59 45%, #042f2e 100%);
+  color: #f0fdfa;
+  opacity: 0;
+  /* visibility, not display: a hidden sheet must not be hit-testable, and
+     visibility is what makes the fade-out animatable in the first place. */
+  visibility: hidden;
+  pointer-events: none;
+}
+
+html[data-splash="on"] .splash-screen {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+html[data-splash="leaving"] .splash-screen {
+  opacity: 0;
+  visibility: visible;
+  transform: scale(1.04);
+  transition:
+    opacity 550ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 550ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* The page behind is fully rendered the whole time; locking the scroll
+   just stops a stray wheel event moving it while it cannot be seen. */
+html[data-splash] body {
+  overflow: hidden;
+}
+
+.splash-screen__glow {
+  position: absolute;
+  width: 60rem;
+  height: 60rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.35) 0%, rgba(45, 212, 191, 0) 65%);
+  animation: splash-glow 2600ms ease-out forwards;
+}
+
+.splash-screen__inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 1.5rem;
+  text-align: center;
+}
+
+.splash-screen__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 1.125rem;
+  background: rgba(240, 253, 250, 0.12);
+  border: 1px solid rgba(240, 253, 250, 0.25);
+  font-size: 1.5rem;
+  animation: splash-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.splash-screen__brand {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(153, 246, 228, 0.9);
+  animation: splash-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both;
+}
+
+.splash-screen__phrase {
+  font-size: clamp(1.875rem, 7vw, 3.25rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  animation: splash-rise 800ms cubic-bezier(0.22, 1, 0.36, 1) 160ms both;
+}
+
+.splash-screen__rule {
+  width: 4.5rem;
+  height: 2px;
+  border-radius: 9999px;
+  background: rgba(94, 234, 212, 0.85);
+  transform-origin: center;
+  animation: splash-rule 900ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both;
+}
+
+@keyframes splash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes splash-rule {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes splash-glow {
+  from {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* The boot script already declines to show the splash under reduced
+   motion, so this is a backstop for a preference changed mid-session:
+   whatever the attribute says, nothing moves. */
+@media (prefers-reduced-motion: reduce) {
+  .splash-screen,
+  .splash-screen * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
