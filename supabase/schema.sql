@@ -4356,3 +4356,83 @@ begin
 exception
   when duplicate_object then null;
 end $$;
+
+-- --------------------------------------------------------------------------
+-- Session counters: the invariant, stated in the database
+-- --------------------------------------------------------------------------
+-- sessions_used and visits_used have been guarded entirely in application
+-- code: every writer goes through bookPackageSession / bookHomeVisitSession
+-- / cancelAppointment / the restore routes, and each one does a
+-- compare-and-swap (`UPDATE ... WHERE sessions_used = <the value just
+-- read>`). That is correct and it is not enforcement -- it holds only
+-- because every writer remembers the `.eq()` predicate. A new caller that
+-- forgets it, or a hand-run UPDATE in the Supabase table editor, can put a
+-- purchase past its own session count or below zero, and nothing would
+-- notice until a patient was quietly sold sessions that do not exist.
+--
+-- Added as constraints rather than a trigger so the check costs nothing and
+-- cannot be bypassed by the service-role client the way an RLS policy can.
+-- Both are guarded by name, so re-running this file is a no-op.
+--
+-- If either ALTER fails on an existing database, that failure is the point:
+-- it means live data already violates the invariant, and the rows want
+-- reconciling by hand before the constraint goes on. Do not weaken the
+-- check to make it apply.
+do $$
+begin
+  alter table patient_package_purchases
+    add constraint patient_package_purchases_sessions_used_range
+    check (sessions_used >= 0 and sessions_used <= session_count);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter table patient_package_purchases
+    add constraint patient_package_purchases_session_count_positive
+    check (session_count > 0);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter table home_visit_package_purchases
+    add constraint home_visit_package_purchases_visits_used_range
+    check (visits_used >= 0 and visits_used <= visit_count);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter table home_visit_package_purchases
+    add constraint home_visit_package_purchases_visit_count_positive
+    check (visit_count > 0);
+exception
+  when duplicate_object then null;
+end $$;
+
+-- A refund total is never negative. refund_amount_paise is a running total
+-- (a session can be part-refunded more than once), and the route enforces
+-- the real ceiling -- it refuses an amount above what is still refundable,
+-- and now claims that amount with a CAS before calling Razorpay so two
+-- concurrent refunds cannot both pass the same check.
+--
+-- Deliberately NOT `refund_amount_paise <= amount_paid_paise`, which reads
+-- like the stronger and more useful constraint and would be wrong: a home
+-- visit's amount_paid_paise excludes the travel fee (it is a pass-through
+-- reimbursement, never revenue -- see homeVisitPricing.ts), while
+-- refund-home-visit-package refunds the real captured total including it.
+-- Those refunds legitimately exceed amount_paid_paise, so the ceiling has
+-- to stay in the routes that know which figure applies. This bounds the
+-- one thing that is unconditionally true.
+do $$
+begin
+  alter table appointments
+    add constraint appointments_refund_amount_non_negative
+    check (refund_amount_paise is null or refund_amount_paise >= 0);
+exception
+  when duplicate_object then null;
+end $$;
