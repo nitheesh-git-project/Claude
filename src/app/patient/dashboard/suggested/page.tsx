@@ -6,6 +6,7 @@ import CarePlanOfferCard from "@/components/packages/CarePlanOfferCard";
 import PatientSuggestionCard from "@/components/packages/PatientSuggestionCard";
 import CarePlanHistory from "@/components/therapist/CarePlanHistory";
 import { createAdminClient } from "@/lib/supabase/admin";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Suggested Sessions | Dr. Pooja's Physio",
@@ -57,6 +58,12 @@ export default async function Page() {
         .order("created_at", { ascending: false })
     : { data: [] as { id: string; label: string | null; line1: string; city: string | null; pincode: string }[] };
 
+  // What the patient just bought, if anything. Without this the screen a
+  // patient lands on straight after paying says "No recommendations right
+  // now" -- technically true, and a dead end at the exact moment they most
+  // want to be told it worked and shown where their sessions are.
+  const justPurchased = d.carePlanHistory.find((v) => v.planStatus === "accepted") ?? null;
+
   const nothingWaiting = !version && d.pendingSuggestions.length === 0;
 
   return (
@@ -65,7 +72,32 @@ export default async function Page() {
       title="Suggested Sessions"
       subtitle="What your therapist has recommended, and times they've proposed."
     >
-      {nothingWaiting && (
+      {nothingWaiting && justPurchased && (
+        <div className="mt-8">
+          <SurfaceCard title="Your programme is ready" icon="fa-circle-check">
+            <p className="text-sm text-slate-700">
+              Your therapist&apos;s recommendation is paid for. Your sessions are waiting to
+              be booked — pick times that suit you.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href="/patient/dashboard/packages"
+                className="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800"
+              >
+                See your sessions
+              </Link>
+              <Link
+                href="/patient/dashboard/book"
+                className="rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-200"
+              >
+                Book a session
+              </Link>
+            </div>
+          </SurfaceCard>
+        </div>
+      )}
+
+      {nothingWaiting && !justPurchased && (
         <div className="mt-8">
           <SurfaceCard title="Nothing waiting on you" icon="fa-lightbulb">
             <EmptyState

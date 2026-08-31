@@ -456,7 +456,26 @@ export default function BookingWizard({
     );
   }
 
+  // Checked before every other branch: a therapist/hospital/admin session
+  // booking here would write an appointment whose patient is them, which
+  // none of their dashboards can show them (each filters by its own role's
+  // column, and /patient/dashboard bounces a non-patient to /get-started).
+  // They would pay for a session they could never find again.
+  if (signedInRole) {
+    return (
+      <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
+        {header}
+        <WrongAccountForBooking role={signedInRole} name={fullName} email={email} />
+      </div>
+    );
+  }
+
   // A link to the old programme checkout, which no longer exists.
+  //
+  // Ordered after the wrong-account branch on purpose: a therapist who
+  // followed this link needs to be told they cannot book on their own
+  // account at all, which is true of every link they might follow, before
+  // being told about a product change that does not apply to them.
   //
   // Answered rather than ignored: the wizard behind this would sell one
   // session to somebody who followed a link expecting to buy six, and
@@ -481,20 +500,6 @@ export default function BookingWizard({
             Book a first session
           </Link>
         </div>
-      </div>
-    );
-  }
-
-  // Checked before every other branch: a therapist/hospital/admin session
-  // booking here would write an appointment whose patient is them, which
-  // none of their dashboards can show them (each filters by its own role's
-  // column, and /patient/dashboard bounces a non-patient to /get-started).
-  // They would pay for a session they could never find again.
-  if (signedInRole) {
-    return (
-      <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
-        {header}
-        <WrongAccountForBooking role={signedInRole} name={fullName} email={email} />
       </div>
     );
   }

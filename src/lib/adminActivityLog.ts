@@ -27,6 +27,10 @@ export type AdminActivityAction =
   | "session.update"
   | "session.cancel"
   | "session.reopen"
+  // A recommendation is the only route to a programme, so withdrawing one
+  // stops a purchase from happening -- worth the same trail as cancelling
+  // a session.
+  | "care_plan.withdraw"
   | "session.restore"
   | "session.mark_paid_cash"
   // purchases (a programme, not one session)
@@ -122,6 +126,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "session.assign": "Assigned therapist",
   "session.update": "Edited session",
   "session.cancel": "Cancelled session",
+  "care_plan.withdraw": "Withdrew a recommendation",
   "session.reopen": "Reopened session",
   "session.restore": "Restored session",
   "session.mark_paid_cash": "Marked paid by cash",

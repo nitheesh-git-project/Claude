@@ -231,10 +231,23 @@ export function buildTherapistFeed({
   payouts,
   accessGrants,
   onboardingPatients = [],
+  carePlanAnswers = [],
 }: {
   appointments: FeedAppointment[];
   payouts: FeedPayout[];
   accessGrants: FeedRequest[];
+  /** Recommendations this therapist wrote that the patient has answered.
+   *  Neither outcome is `needsYou` -- there is nothing to do about either,
+   *  and marking them so would train the therapist to ignore the badge --
+   *  but a clinician who recommended a course of treatment and never
+   *  learned the answer has to go hunting through a chart for it. */
+  carePlanAnswers?: {
+    id: string;
+    patientName: string;
+    title: string;
+    status: "accepted" | "declined";
+    answeredAt: string;
+  }[];
   /** Patients assigned to this therapist whose condition record nobody
    *  has written yet. Their own health profile is locked until it is
    *  done, which is why this is a needsYou item rather than a nicety. */
@@ -242,6 +255,23 @@ export function buildTherapistFeed({
 }): FeedItem[] {
   const items: FeedItem[] = [];
   const now = Date.now();
+
+  for (const plan of carePlanAnswers) {
+    const accepted = plan.status === "accepted";
+    items.push({
+      id: `care-plan-answer-${plan.id}`,
+      at: plan.answeredAt,
+      icon: accepted ? "fa-circle-check" : "fa-circle-minus",
+      tone: accepted ? "good" : "neutral",
+      title: accepted
+        ? `${plan.patientName} accepted your recommendation`
+        : `${plan.patientName} declined your recommendation`,
+      detail: accepted
+        ? `${plan.title} — their sessions are ready to book.`
+        : `${plan.title} — you can recommend again after their next session.`,
+      href: "/therapist/dashboard/patients",
+    });
+  }
 
   for (const p of onboardingPatients) {
     items.push({

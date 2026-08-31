@@ -81,7 +81,16 @@ import { retryDueMeetSyncs, MAX_MEET_SYNC_AUTO_ATTEMPTS } from "@/lib/retryDueMe
 import { runRiskSweep } from "@/lib/riskDetectors";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
-import type { RiskSignalRow, RiskReviewRow } from "@/components/admin/RiskSignalsTab";
+import AdminCarePlansTab from "@/components/admin/AdminCarePlansTab";
+import type { AdminCarePlanRow } from "@/components/admin/AdminCarePlansTab";
+import { carePlanState, parseOfferSnapshot, type CarePlanStatus } from "@/lib/carePlans";
+import type {
+  RiskSignalRow,
+  RiskReviewRow,
+  CommunicationFlagRow,
+  ContactRevealRow,
+} from "@/components/admin/RiskSignalsTab";
+import { summariseFindings, type LeakFinding } from "@/lib/contactLeakScan";
 import type { RiskSeverity, RiskStatus, RiskSubjectKind } from "@/lib/riskSignals";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
@@ -2139,6 +2148,33 @@ export default async function AdminDashboardPage({
     status: string;
     detected_at: string;
   };
+  type AdminCarePlanQueryRow = {
+    id: string;
+    patient_id: string;
+    therapist_id: string;
+    status: string;
+    current_version_id: string | null;
+    created_at: string;
+  };
+  type CommunicationFlagQueryRow = {
+    id: string;
+    surface: string;
+    author_id: string | null;
+    patient_id: string | null;
+    tier: string;
+    findings: unknown;
+    blocked: boolean;
+    content: string | null;
+    created_at: string;
+  };
+  type ContactRevealQueryRow = {
+    id: string;
+    therapist_id: string;
+    patient_id: string;
+    field: string;
+    reason: string | null;
+    created_at: string;
+  };
   type RiskRuleQueryRow = {
     rule_key: string;
     label: string;
@@ -2202,6 +2238,64 @@ export default async function AdminDashboardPage({
   for (const a of riskAppointments ?? [])
     riskSubjectNames.set(a.id, a.session_code ?? `Session ${a.id.slice(0, 8)}`);
 
+  // The evidence itself, read only for a full admin, on its own so a
+  // database without the tables renders an empty panel rather than blanking
+  // the dashboard.
+  const { data: flagRows } = viewerCanSeeRisk
+    ? await admin
+        .from("communication_flags")
+        .select("id, surface, author_id, patient_id, tier, findings, blocked, content, created_at")
+        .order("created_at", { ascending: false })
+        .limit(200)
+    : { data: [] as CommunicationFlagQueryRow[] };
+  const { data: revealRows } = viewerCanSeeRisk
+    ? await admin
+        .from("contact_reveal_log")
+        .select("id, therapist_id, patient_id, field, reason, created_at")
+        .order("created_at", { ascending: false })
+        .limit(200)
+    : { data: [] as ContactRevealQueryRow[] };
+
+  // One name lookup for both, since RLS gives an admin no route to another
+  // person's name -- the same admin-client lookup every cross-role surface
+  // makes.
+  const evidencePersonIds = [
+    ...new Set(
+      [
+        ...(flagRows ?? []).flatMap((f) => [f.author_id, f.patient_id]),
+        ...(revealRows ?? []).flatMap((r) => [r.therapist_id, r.patient_id]),
+      ].filter((id): id is string => !!id)
+    ),
+  ];
+  const { data: evidencePeople } = evidencePersonIds.length
+    ? await admin.from("profiles").select("id, full_name").in("id", evidencePersonIds)
+    : { data: [] as { id: string; full_name: string }[] };
+  const evidenceNames = new Map(
+    (evidencePeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
+  );
+
+  const riskFlags: CommunicationFlagRow[] = (flagRows ?? []).map((f) => ({
+    id: f.id,
+    surface: f.surface,
+    authorName: f.author_id ? evidenceNames.get(f.author_id) ?? "Unknown" : "Unknown",
+    patientName: f.patient_id ? evidenceNames.get(f.patient_id) ?? null : null,
+    tier: f.tier,
+    blocked: f.blocked,
+    summary: summariseFindings(
+      Array.isArray(f.findings) ? (f.findings as LeakFinding[]) : []
+    ),
+    content: f.content,
+    createdAt: f.created_at,
+  }));
+  const riskReveals: ContactRevealRow[] = (revealRows ?? []).map((r) => ({
+    id: r.id,
+    therapistName: evidenceNames.get(r.therapist_id) ?? "Unknown",
+    patientName: evidenceNames.get(r.patient_id) ?? "Unknown",
+    field: r.field,
+    reason: r.reason,
+    createdAt: r.created_at,
+  }));
+
   const riskSignals: RiskSignalRow[] = (riskSignalRows ?? []).map((r) => ({
     id: r.id,
     ruleKey: r.rule_key,
@@ -2253,9 +2347,84 @@ export default async function AdminDashboardPage({
         enabled: r.enabled,
         config: (r.config ?? {}) as Record<string, unknown>,
       }))}
+      flags={riskFlags}
+      reveals={riskReveals}
       detectorsEnabled={adminSettings.riskSignalsEnabled}
       canReview
     />
+  );
+
+  // Every recommendation, on its own call for the usual
+  // migration-tolerance reason. Sessions scope, matching the withdraw route
+  // and the section it sits in.
+  const canSeeCarePlans = scopeCanOpen(viewerScope, "sessions");
+  const { data: adminCarePlanRows } = canSeeCarePlans
+    ? await admin
+        .from("care_plans")
+        .select("id, patient_id, therapist_id, status, current_version_id, created_at")
+        .order("created_at", { ascending: false })
+        .limit(200)
+    : { data: [] as AdminCarePlanQueryRow[] };
+
+  const adminPlanVersionIds = (adminCarePlanRows ?? [])
+    .map((p) => p.current_version_id)
+    .filter((id): id is string => !!id);
+  const { data: adminPlanVersions } = adminPlanVersionIds.length
+    ? await admin
+        .from("care_plan_versions")
+        .select("id, offer_snapshot, offer_kind, clinical_rationale, expires_at, authored_at")
+        .in("id", adminPlanVersionIds)
+    : {
+        data: [] as {
+          id: string;
+          offer_snapshot: unknown;
+          offer_kind: string;
+          clinical_rationale: string | null;
+          expires_at: string | null;
+          authored_at: string;
+        }[],
+      };
+  const adminPlanVersionById = new Map((adminPlanVersions ?? []).map((v) => [v.id, v]));
+
+  const carePlanPersonIds = [
+    ...new Set(
+      (adminCarePlanRows ?? []).flatMap((p) => [p.patient_id, p.therapist_id])
+    ),
+  ];
+  const { data: carePlanPeople } = carePlanPersonIds.length
+    ? await admin.from("profiles").select("id, full_name").in("id", carePlanPersonIds)
+    : { data: [] as { id: string; full_name: string }[] };
+  const carePlanNames = new Map(
+    (carePlanPeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
+  );
+
+  const adminCarePlans: AdminCarePlanRow[] = (adminCarePlanRows ?? []).map((p) => {
+    const version = p.current_version_id
+      ? adminPlanVersionById.get(p.current_version_id)
+      : undefined;
+    const snapshot = parseOfferSnapshot(version?.offer_snapshot);
+    return {
+      id: p.id,
+      patientName: carePlanNames.get(p.patient_id) ?? "Unknown",
+      therapistName: carePlanNames.get(p.therapist_id) ?? "Unknown",
+      title: snapshot?.title ?? "Treatment programme",
+      sessionCount: snapshot?.sessionCount ?? 0,
+      pricePaise: snapshot?.pricePaise ?? 0,
+      isHomeVisit: version?.offer_kind === "home_visit_package",
+      state: carePlanState(
+        { status: p.status as CarePlanStatus },
+        { expires_at: version?.expires_at ?? null },
+        nowTimestamp()
+      ),
+      status: p.status,
+      authoredAt: version?.authored_at ?? p.created_at,
+      expiresAt: version?.expires_at ?? null,
+      rationale: version?.clinical_rationale ?? null,
+    };
+  });
+
+  const sessionsRecommendationsTab = (
+    <AdminCarePlansTab plans={adminCarePlans} canWithdraw={canSeeCarePlans} />
   );
 
   const settingsActivityTab = (
@@ -2653,6 +2822,7 @@ export default async function AdminDashboardPage({
         </div>
       </>
     ),
+    "sessions:recommendations": sessionsRecommendationsTab,
     "sessions:delivery": deliveryTab,
     "catalog:conditions": (
       <>

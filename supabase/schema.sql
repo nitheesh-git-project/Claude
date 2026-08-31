@@ -6648,3 +6648,28 @@ alter table appointments add column if not exists completed_at timestamptz;
 
 create index if not exists appointments_completed_at_idx
   on appointments (completed_at desc) where completed_at is not null;
+
+-- The Risk tab's own tables. Published so an admin reading the queue is not
+-- looking at a snapshot from whenever they opened the page; subscribed on
+-- the long cooldown (see AdminShell) because none of them is a queue that
+-- needs to be live to the second.
+do $$
+begin
+  alter publication supabase_realtime add table risk_rules;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table risk_reviews;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table communication_flags;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table contact_reveal_log;
+exception when duplicate_object then null;
+end $$;

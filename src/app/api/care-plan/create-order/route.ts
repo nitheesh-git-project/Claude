@@ -180,6 +180,21 @@ export async function POST(request: NextRequest) {
   // still be bought the old way; it cannot now, so it is fixed here.
   let resolvedAddress: ResolvedHomeVisitAddress | null = null;
   if (offerKind === "home_visit_package") {
+    // The master switch, checked here as it is on the direct route. An
+    // admin who turns home visits off has stopped the service; a
+    // recommendation written before that must not stay purchasable, or the
+    // clinic takes money for visits it is not making.
+    const { data: settingsRow } = await admin
+      .from("site_settings")
+      .select("home_visit_enabled")
+      .maybeSingle();
+    if (settingsRow?.home_visit_enabled !== true) {
+      return NextResponse.json(
+        { error: "Home visits aren't available right now. Please talk to your therapist." },
+        { status: 403 }
+      );
+    }
+
     const resolution = await resolveHomeVisitAddress(admin, user.id, {
       addressId: body.addressId,
       address: body.address,

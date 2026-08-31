@@ -116,29 +116,50 @@ test.describe("Catalog detail dialogs", () => {
     await assertDialogContract(page, "4-Visit Home Recovery Programme", "4-Visit Home Recovery Programme");
   });
 
-  test("CD-004: booking links keep their parameters, on the card and in the dialog", async ({
+  test("CD-004: a programme card sells a first session, never the programme", async ({
     page,
   }) => {
     await page.goto(`${BASE}/`);
 
-    // On the card itself.
-    const cardBook = page.locator(`a[href="/book?package=${packageId}"]`);
-    await expect(cardBook.first()).toBeVisible();
+    // The checkout link is gone from the card and from the dialog. This is
+    // the assertion that would catch the consultation-first cutover being
+    // partially reverted -- a card that still linked to package checkout
+    // would take money for something the server now refuses.
+    await expect(page.locator(`a[href*="/book?package="]`)).toHaveCount(0);
+
     const cardProgramme = page.locator(`a[href="/book?category=${categoryId}"]`);
     await expect(cardProgramme.first()).toBeVisible();
 
-    // And repeated inside the dialog, which is the copy a visitor who read
-    // the detail actually presses.
     await page.getByText(PACKAGE_TITLE, { exact: false }).first().click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog.locator(`a[href="/book?package=${packageId}"]`)).toBeVisible();
+    await expect(dialog.locator(`a[href*="/book?package="]`)).toHaveCount(0);
+    await expect(dialog.getByRole("link", { name: /Book a first session/i })).toBeVisible();
   });
 
-  test("CD-005: the dialog's book button navigates into the booking flow", async ({ page }) => {
+  test("CD-005: the dialog's book button starts a first session", async ({ page }) => {
     await page.goto(`${BASE}/`);
     await page.getByText(PACKAGE_TITLE, { exact: false }).first().click();
-    await page.getByRole("dialog").getByRole("link", { name: /Book package/i }).click();
-    await page.waitForURL(new RegExp(`/book\\?package=${packageId}`));
+    await page.getByRole("dialog").getByRole("link", { name: /Book a first session/i }).click();
+    // The destination is the plain booking page, carrying no package id --
+    // asserted on the URL rather than on the wizard's contents, because the
+    // wizard resolves the signed-in role against Supabase from the browser
+    // and that egress is not available in every environment this suite runs
+    // in (see AGENTS.md).
+    await page.waitForURL(/\/book(\?|$)/);
+    expect(new URL(page.url()).searchParams.get("package")).toBeNull();
+  });
+
+  test("CD-007: a stale programme link explains itself instead of selling one session", async ({
+    page,
+  }) => {
+    // Links outlive features -- an old email, a bookmark, a printed card.
+    // Silently selling a single session to somebody who came to buy six is
+    // the one outcome a removed checkout must not produce.
+    await page.goto(`${BASE}/book?package=${packageId}`);
+    await expect(page.getByText(/Programmes come from your therapist now/i)).toBeVisible();
+    await expect(page.getByRole("link", { name: /Book a first session/i })).toBeVisible();
+    // No payment control anywhere on that screen.
+    await expect(page.getByRole("button", { name: /Pay /i })).toHaveCount(0);
   });
 
   test("CD-006: the dialog carries the detail the card leaves out", async ({ page }) => {

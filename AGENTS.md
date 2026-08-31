@@ -21,7 +21,12 @@ Calendar/Meet (`googleapis`) · `motion` for animation · Font Awesome ·
 patient's health profile and the admin's table exports).
 
 Commands: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
-`npm run check:realtime`, `npm run test:e2e`. `npm run lint` runs
+`npm run test`, `npm run check:realtime`, `npm run test:e2e`, and
+`npm run verify` (lint + test + build, the one to run before pushing).
+`npm run test` is Vitest over `src/**/*.test.ts` — the dependency-free
+modules in `src/lib`, which is why the business maths lives there rather
+than inside components. It needs no database and no browser; anything that
+does belongs in `e2e/`. `npm run lint` runs
 `check:realtime` first: `scripts/check-realtime-coverage.mjs` fails the lint
 when a table the UI subscribes to was never added to the `supabase_realtime`
 publication in `schema.sql`. That mismatch has no runtime symptom — the
@@ -746,6 +751,19 @@ client is the only writer and the log is append-only from any session.
   specialty from **triage only**: an existing profile carrying it must
   keep rendering, and a therapist re-triaging such a patient is still
   offered it. Ortho can never be switched off.
+- **The clinic can see every recommendation, and stop one.** A care plan is
+  now the only route by which a patient buys a programme, so Sessions →
+  Recommendations lists them all and `/api/admin/withdraw-care-plan`
+  (`requireAdminScope("sessions")`, mandatory reason, CAS on
+  `status = 'active'`, `care_plan.withdraw` audit row) closes one whose
+  author cannot — on leave, gone, or the reason it is wrong. Withdrawing is
+  deliberately the **whole** of that power: versions are append-only, and a
+  recommendation that changed is a new one written by a clinician who has
+  seen the patient, never an edit made from the back office. A **purchased**
+  plan cannot be withdrawn at all — the patient has paid and the sessions
+  exist, so the honest lane is a refund or a credit adjustment, both of
+  which have their own screens.
+
 - **Treatment volume is never sold before an assessment.** The rule lives in
   `src/lib/consultationFirst.ts` and is a property of the thing being sold,
   not a feature flag: a catalog row may be bought directly only when it is a
@@ -771,7 +789,15 @@ client is the only writer and the log is append-only from any session.
   untouched and keep booking to exhaustion.
   A recommended home visit collects an address at checkout
   (`src/lib/homeVisitAddress.ts`, shared with the direct route) and sets
-  `default_address_id` and `travel_fee_paise`. Without them
+  `default_address_id` and `travel_fee_paise`. The offer card quotes the fee
+  for that address through `/api/home-visit/check-area` and shows
+  programme + travel + total, because travel is charged **per visit** and the
+  card previously printed the programme price on a button that charged more
+  — a four-visit programme in a ₹150 area was ₹600 out. Quoting a different
+  figure than you charge is the one thing a payment screen must never do.
+  `/api/care-plan/create-order` also re-checks `home_visit_enabled`: an admin
+  who switches home visits off has stopped the service, and a recommendation
+  written before that must not stay purchasable. Without them
   `/api/home-visit/book-visits` refuses outright and the therapist funds
   their own transport — both were missing while a programme could still be
   bought the old way, and neither is optional now that it cannot.

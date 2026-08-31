@@ -117,7 +117,9 @@ the one idempotent `record_payment_capture` function. Setting
 a patient who pays and closes the tab leaves a paid order against an unpaid
 booking.
 
-Quick commands: `npm run dev`, `npm run build`, `npm run lint` (which also
+Quick commands: `npm run dev`, `npm run build`, `npm run test` (Vitest over
+the dependency-free `src/lib` modules), `npm run verify` (lint + test +
+build), `npm run lint` (which also
 runs `npm run check:realtime`, the Supabase Realtime publication coverage
 check). A Playwright
 e2e suite covers the money-critical paths, the public pages' section

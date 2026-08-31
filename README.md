@@ -20,7 +20,19 @@ npm run dev
 Open http://localhost:3000.
 
 Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
-`npm run check:realtime`, `npm run test:e2e`.
+`npm run test`, `npm run check:realtime`, `npm run test:e2e`, and
+`npm run verify` (lint, then unit tests, then build — the one to run before
+pushing).
+
+### Unit tests
+
+`npm run test` runs Vitest over `src/**/*.test.ts`. It covers the
+dependency-free modules in `src/lib` — the pricing and payout arithmetic,
+the care-plan state machine and snapshot parsing, the contact scanner and
+its clinical false-positive corpus, contact masking and the reveal window,
+the risk-rule thresholds, and the consultation-first rule. No database and no
+browser, so it runs anywhere in about a second; anything needing either
+belongs in `e2e/`.
 
 `npm run check:realtime` (also run first by `npm run lint`) checks that every
 table the dashboards subscribe to for live updates is present in the
@@ -573,6 +585,19 @@ at checkout and adds travel for that area on top of the programme price.
 
 Nothing already bought is affected: an existing programme keeps its sessions
 and books them to exhaustion exactly as before.
+
+The clinic can see every recommendation on **Sessions → Recommendations**,
+and withdraw one whose author cannot — a therapist on leave, or gone. That is
+the whole of what an admin may do to a plan: versions are append-only, and a
+recommendation that changed is a new one written by a clinician who has seen
+the patient. A plan already paid for cannot be withdrawn at all; a refund or
+a credit adjustment is the honest lane for that, and both have their own
+screens.
+
+For a recommended course of home visits the offer card asks where the visits
+should come, checks the pincode is serviceable, and shows programme, travel
+and total before the patient pays — travel is charged per visit, so a
+four-visit programme carries four trips.
 
 ## Keeping payments on the platform
 

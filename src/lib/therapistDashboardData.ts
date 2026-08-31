@@ -15,6 +15,7 @@ import { sessionsAwaitingNote, type SessionNoteRow } from "@/lib/sessionNotes";
 import type { StatCell } from "@/components/dashboard/StatStrip";
 import { loadRecommendablePackages } from "@/lib/carePlanServer";
 import { maskPhone } from "@/lib/contactMasking";
+import { parseOfferSnapshot } from "@/lib/carePlans";
 
 // Everything the therapist dashboard's screens read, loaded once per
 // request -- the same split as the patient's loader, and for the same
@@ -422,7 +423,57 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     nowMsForOverview
   );
 
+  // Recommendations this therapist wrote that the patient has now answered.
+  // Overview only, and in its own call: it is one feed item, and every
+  // other screen would pay for a query it never renders.
+  const { data: answeredPlans } =
+    screen === "overview"
+      ? await admin
+          .from("care_plans")
+          .select("id, patient_id, status, accepted_at, declined_at, current_version_id")
+          .eq("therapist_id", user.id)
+          .in("status", ["accepted", "declined"])
+          .order("updated_at", { ascending: false })
+          .limit(10)
+      : {
+          data: [] as {
+            id: string;
+            patient_id: string;
+            status: string;
+            accepted_at: string | null;
+            declined_at: string | null;
+            current_version_id: string | null;
+          }[],
+        };
+
+  const answeredVersionIds = (answeredPlans ?? [])
+    .map((p) => p.current_version_id)
+    .filter((id): id is string => !!id);
+  const { data: answeredVersions } = answeredVersionIds.length
+    ? await admin
+        .from("care_plan_versions")
+        .select("id, offer_snapshot")
+        .in("id", answeredVersionIds)
+    : { data: [] as { id: string; offer_snapshot: unknown }[] };
+  const answeredTitleByVersion = new Map(
+    (answeredVersions ?? []).map((v) => [
+      v.id,
+      parseOfferSnapshot(v.offer_snapshot)?.title ?? "Treatment programme",
+    ])
+  );
+
   const therapistFeed = buildTherapistFeed({
+    carePlanAnswers: (answeredPlans ?? [])
+      .filter((p) => p.accepted_at || p.declined_at)
+      .map((p) => ({
+        id: p.id,
+        patientName: patientNameById.get(p.patient_id) ?? "A patient",
+        title: p.current_version_id
+          ? answeredTitleByVersion.get(p.current_version_id) ?? "Treatment programme"
+          : "Treatment programme",
+        status: p.status === "accepted" ? ("accepted" as const) : ("declined" as const),
+        answeredAt: (p.accepted_at ?? p.declined_at) as string,
+      })),
     appointments: (appointments ?? []).map((a) => ({
       id: a.id,
       slot_time: a.slot_time,

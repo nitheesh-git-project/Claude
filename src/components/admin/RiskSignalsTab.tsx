@@ -30,6 +30,27 @@ export type RiskSignalRow = RiskSignal & {
   subjectName: string;
 };
 
+export type CommunicationFlagRow = {
+  id: string;
+  surface: string;
+  authorName: string;
+  patientName: string | null;
+  tier: string;
+  blocked: boolean;
+  summary: string;
+  content: string | null;
+  createdAt: string;
+};
+
+export type ContactRevealRow = {
+  id: string;
+  therapistName: string;
+  patientName: string;
+  field: string;
+  reason: string | null;
+  createdAt: string;
+};
+
 export type RiskReviewRow = {
   id: string;
   signalId: string;
@@ -66,12 +87,18 @@ export default function RiskSignalsTab({
   signals,
   reviews,
   rules,
+  flags,
+  reveals,
   detectorsEnabled,
   canReview,
 }: {
   signals: RiskSignalRow[];
   reviews: RiskReviewRow[];
   rules: RiskRuleRow[];
+  /** The messages the scanner caught, with the text that caused it. */
+  flags: CommunicationFlagRow[];
+  /** Who unmasked whose number, and when. */
+  reveals: ContactRevealRow[];
   detectorsEnabled: boolean;
   /** False for a scoped admin, who can read the queue but not close a row. */
   canReview: boolean;
@@ -116,6 +143,10 @@ export default function RiskSignalsTab({
           />
         )}
       </SurfaceCard>
+
+      {canReview && <FlaggedMessages flags={flags} />}
+
+      {canReview && <RevealTrail reveals={reveals} />}
 
       {canReview && (
         <RulesPanel rules={rules} detectorsEnabled={detectorsEnabled} />
@@ -453,5 +484,152 @@ function ConfigField({
         </button>
       )}
     </span>
+  );
+}
+
+
+const SURFACE_LABELS: Record<string, string> = {
+  session_suggestion_note: "Note on a proposed time",
+  care_plan_rationale: "Recommendation — reasoning",
+  care_plan_instructions: "Recommendation — instructions",
+  pain_assessment_answer: "Pain Map exam answer",
+  appointment_notes: "Patient's booking note",
+  condition_answer: "Health Profile answer",
+};
+
+/**
+ * The messages the scanner caught, with what was actually written.
+ *
+ * The text is the point. A signal saying "payment details in 2 messages"
+ * with a list of row ids behind it is the same failure as showing a verdict:
+ * an admin cannot tell a clinic landline in an instruction from a UPI handle
+ * somebody tried to sneak past without reading the sentence. This is the
+ * only place a refused message is kept, so it is the only place that
+ * distinction can be made.
+ *
+ * Read-only, like the rest of this tab. Nothing here suspends anyone.
+ */
+function FlaggedMessages({ flags }: { flags: CommunicationFlagRow[] }) {
+  const blocked = flags.filter((f) => f.blocked);
+  const delivered = flags.filter((f) => !f.blocked);
+
+  return (
+    <SurfaceCard
+      title="Messages the check caught"
+      icon="fa-comment-slash"
+      subtitle="What was written, and whether it was delivered. A phone number in an instruction is usually nothing; a payment handle never is."
+    >
+      {flags.length === 0 ? (
+        <EmptyState
+          icon="fa-circle-check"
+          title="Nothing caught"
+          body="No message has tripped the check. Clinical text full of numbers is deliberately left alone, so a quiet list here is the expected state."
+        />
+      ) : (
+        <>
+          {blocked.length > 0 && (
+            <div className="mb-4">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-red-700">
+                Refused ({blocked.length})
+              </p>
+              <ul className="space-y-2">
+                {blocked.map((f) => (
+                  <li key={f.id}>
+                    <FlagCard flag={f} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {delivered.length > 0 && (
+            <div>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                Delivered and recorded ({delivered.length})
+              </p>
+              <PagedList
+                items={delivered.map((f) => ({ id: f.id, node: <FlagCard flag={f} /> }))}
+                noun="message"
+                storageKey="admin-comm-flags"
+              />
+            </div>
+          )}
+        </>
+      )}
+    </SurfaceCard>
+  );
+}
+
+function FlagCard({ flag }: { flag: CommunicationFlagRow }) {
+  return (
+    <div
+      className={`rounded-xl border p-3 text-xs ${
+        flag.blocked ? "border-red-200 bg-red-50/40" : "border-slate-200"
+      }`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="font-bold text-slate-900">
+          {flag.authorName}
+          {flag.patientName && (
+            <span className="font-normal text-slate-500"> → {flag.patientName}</span>
+          )}
+        </p>
+        <span className="text-[11px] text-slate-400">
+          {SURFACE_LABELS[flag.surface] ?? flag.surface} ·{" "}
+          {new Date(flag.createdAt).toLocaleDateString()}
+        </span>
+      </div>
+      <p className="mt-1 text-[11px] font-semibold text-slate-600">{flag.summary}</p>
+      {flag.content && (
+        <blockquote className="mt-2 border-l-2 border-slate-300 pl-2.5 text-slate-700">
+          {flag.content}
+        </blockquote>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Who looked up whose number.
+ *
+ * Masking without this is theatre -- the therapist still gets the number and
+ * nobody can tell afterwards how often. A clinician revealing the number of
+ * the patient they are with is the normal case and should read as
+ * unremarkable here; the value is that a caseload being copied would not.
+ */
+function RevealTrail({ reveals }: { reveals: ContactRevealRow[] }) {
+  return (
+    <SurfaceCard
+      title="Contact details shown"
+      icon="fa-address-book"
+      subtitle="Every time a therapist unmasked a patient's number. Revealing is allowed and expected — this is the record that it happened."
+    >
+      {reveals.length === 0 ? (
+        <EmptyState
+          icon="fa-eye-slash"
+          title="No reveals yet"
+          body="Numbers stay masked on therapist screens until somebody asks for one."
+        />
+      ) : (
+        <PagedList
+          items={reveals.map((r) => ({
+            id: r.id,
+            node: (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-2.5 text-xs">
+                <span className="text-slate-700">
+                  <span className="font-semibold">{r.therapistName}</span> saw{" "}
+                  {r.patientName}&apos;s {r.field}
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  {r.reason ? `${r.reason} · ` : ""}
+                  {new Date(r.createdAt).toLocaleString()}
+                </span>
+              </div>
+            ),
+          }))}
+          noun="reveal"
+          storageKey="admin-contact-reveals"
+        />
+      )}
+    </SurfaceCard>
   );
 }

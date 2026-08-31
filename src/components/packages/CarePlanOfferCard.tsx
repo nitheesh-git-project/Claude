@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { payForCarePlan } from "@/lib/carePlanPayment";
 import AddressForm from "@/components/booking/AddressForm";
@@ -90,7 +90,73 @@ export default function CarePlanOfferCard({
   });
   const usingNewAddress = addressId === null;
 
+  // What the visits will actually cost, travel included.
+  //
+  // This card used to print the programme price on the button while
+  // /api/care-plan/create-order charged the programme price PLUS travel for
+  // every visit in it -- a four-visit programme in a ₹150 area was ₹600
+  // more than the button said. Quoting a different number than you charge
+  // is the one thing a payment screen must never do, so the fee is fetched
+  // for the address in front of the patient and shown as its own line.
+  //
+  // check-area is the same endpoint the home-visit wizard uses, so the
+  // serviceability answer here and at checkout come from one place.
+  const pincode = usingNewAddress
+    ? newAddress.pincode?.trim() ?? ""
+    : savedAddresses.find((a) => a.id === addressId)?.pincode ?? "";
+  // Keyed by the pincode it was fetched for, so a changed address derives
+  // "no quote yet" instead of an effect writing state synchronously to
+  // clear it -- which is a cascading render, and would also blink the total
+  // away for a frame while the same answer was refetched.
+  type QuoteResult = { travelFeePaise: number } | "unserviceable";
+  const [quoted, setQuoted] = useState<{ pincode: string; result: QuoteResult } | null>(null);
+  const pincodeReady = /^\d{6}$/.test(pincode);
+  const quote: { state: "idle" | "loading" } | { state: "unserviceable" } | { state: "ready"; travelFeePaise: number } =
+    !offer.isHomeVisit || !pincodeReady
+      ? { state: "idle" }
+      : quoted?.pincode !== pincode
+        ? { state: "loading" }
+        : quoted.result === "unserviceable"
+          ? { state: "unserviceable" }
+          : { state: "ready", travelFeePaise: quoted.result.travelFeePaise };
+
+  useEffect(() => {
+    if (!offer.isHomeVisit || !pincodeReady) return;
+    let cancelled = false;
+    fetch(`/api/home-visit/check-area?pincode=${pincode}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setQuoted({
+          pincode,
+          result:
+            data?.serviceable && typeof data.travelFeePaise === "number"
+              ? { travelFeePaise: data.travelFeePaise }
+              : "unserviceable",
+        });
+      })
+      .catch(() => {
+        // A failed quote must not block the purchase: the server resolves
+        // the real figure at checkout regardless. The button falls back to
+        // saying "Accept & pay" with no number rather than the wrong one.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [offer.isHomeVisit, pincode, pincodeReady]);
+
+
+
   const snapshot = parseOfferSnapshot(offer.offerSnapshot);
+  const travelPaise =
+    offer.isHomeVisit && quote.state === "ready" && snapshot
+      ? quote.travelFeePaise * Math.max(1, snapshot.sessionCount)
+      : 0;
+  // A package with travel already in its price adds nothing on top.
+  const chargeablePaise = snapshot
+    ? snapshot.pricePaise + (snapshot.travelFeeIncluded ? 0 : travelPaise)
+    : null;
+  const totalKnown = !offer.isHomeVisit || quote.state === "ready";
   const state = carePlanState(
     { status: offer.planStatus as CarePlanStatus },
     { expires_at: offer.expiresAt },
@@ -99,9 +165,13 @@ export default function CarePlanOfferCard({
 
   function handlePay() {
     if (inFlight.current) return;
-    if (offer.isHomeVisit && usingNewAddress) {
-      if (!newAddress.line1.trim() || !newAddress.pincode.trim()) {
+    if (offer.isHomeVisit) {
+      if (usingNewAddress && (!newAddress.line1.trim() || !newAddress.pincode.trim())) {
         setError("Add the address these visits should come to.");
+        return;
+      }
+      if (quote.state === "unserviceable") {
+        setError("We don't visit that pincode yet. Try another address, or ask us about it.");
         return;
       }
     }
@@ -265,6 +335,41 @@ export default function CarePlanOfferCard({
               <AddressForm value={newAddress} onChange={setNewAddress} disabled={paying} />
             </div>
           )}
+
+          {quote.state === "unserviceable" && (
+            <p className="mt-3 text-xs font-semibold text-amber-700">
+              We don&apos;t visit that pincode yet. Try another address, or get in touch and
+              we&apos;ll tell you when we do.
+            </p>
+          )}
+
+          {snapshot && quote.state === "ready" && (
+            <dl className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-xs">
+              <div className="flex justify-between">
+                <dt className="text-slate-500">Programme</dt>
+                <dd className="font-semibold text-slate-800">
+                  {formatInr(snapshot.pricePaise)}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-500">
+                  Travel
+                  {!snapshot.travelFeeIncluded && (
+                    <> · {formatInr(quote.travelFeePaise)} × {snapshot.sessionCount} visits</>
+                  )}
+                </dt>
+                <dd className="font-semibold text-slate-800">
+                  {snapshot.travelFeeIncluded ? "Included" : formatInr(travelPaise)}
+                </dd>
+              </div>
+              <div className="flex justify-between border-t border-slate-100 pt-1">
+                <dt className="font-semibold text-slate-700">Total</dt>
+                <dd className="font-bold text-slate-900">
+                  {chargeablePaise !== null ? formatInr(chargeablePaise) : "—"}
+                </dd>
+              </div>
+            </dl>
+          )}
         </div>
       )}
 
@@ -274,13 +379,13 @@ export default function CarePlanOfferCard({
             <button
               type="button"
               onClick={handlePay}
-              disabled={paying}
+              disabled={paying || quote.state === "unserviceable"}
               className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
             >
               {paying
                 ? "Opening payment…"
-                : snapshot
-                  ? `Accept & pay ${formatInr(snapshot.pricePaise)}`
+                : chargeablePaise !== null && totalKnown
+                  ? `Accept & pay ${formatInr(chargeablePaise)}`
                   : "Accept & pay"}
             </button>
             {!decliningOpen && (

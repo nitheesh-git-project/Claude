@@ -63,9 +63,22 @@ function joinButton(page: Page, sessionCode: string) {
     .getByRole("button", { name: /Tap to Join|Session Completed|Session Cancelled/ });
 }
 
+// Opens the screen that lists every session, not Overview.
+//
+// Overview shows what is coming up; every session this spec seeds is
+// deliberately in the past, so on a database carrying rows from earlier runs
+// the seeded card is simply not on that screen and the wait times out. The
+// Sessions screen has an "All" filter, which is the honest place to assert
+// what a past session's join control reads.
 async function openPatientDashboard(page: Page, sessionCode: string) {
-  await page.goto(`${BASE}/patient/dashboard`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${BASE}/patient/dashboard/sessions`, { waitUntil: "domcontentloaded" });
+  await showAllSessions(page);
   await joinButton(page, sessionCode).first().waitFor({ timeout: 60_000 });
+}
+
+async function showAllSessions(page: Page) {
+  const all = page.getByRole("button", { name: /^All/ });
+  if (await all.count()) await all.first().click();
 }
 
 test.describe("Session Completed cutoff", () => {
@@ -189,7 +202,8 @@ test.describe("Session Completed cutoff", () => {
     const ctx = await browser.newContext();
     await ctx.addCookies(await browserCookiesFor(QA_EMAILS.therapistA));
     const page = await ctx.newPage();
-    await page.goto(`${BASE}/therapist/dashboard`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${BASE}/therapist/dashboard/sessions`, { waitUntil: "domcontentloaded" });
+    await showAllSessions(page);
     await expect(
       page.getByRole("button", { name: "Session Completed" }).first()
     ).toBeVisible({ timeout: 30_000 });
@@ -209,12 +223,14 @@ test.describe("Session Completed cutoff", () => {
     // Same session, cutoff pulled in to 30: now over.
     await setCutoff(30);
     await page.reload({ waitUntil: "domcontentloaded" });
+    await showAllSessions(page);
     await joinButton(page, seeded.session_code!).first().waitFor({ timeout: 30_000 });
     await expect(joinButton(page, seeded.session_code!).first()).toHaveText("Session Completed");
 
     // ...and pushing it back out brings the call back.
     await setCutoff(120);
     await page.reload({ waitUntil: "domcontentloaded" });
+    await showAllSessions(page);
     await joinButton(page, seeded.session_code!).first().waitFor({ timeout: 30_000 });
     await expect(joinButton(page, seeded.session_code!).first()).toHaveText("Tap to Join");
     await ctx.close();
