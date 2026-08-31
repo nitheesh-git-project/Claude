@@ -480,6 +480,50 @@ client is the only writer and the log is append-only from any session.
   person exactly where they were. Gated by
   `site_settings.therapist_suggestions_enabled`, off by default.
 
+- **The platform keeps its own conversations, and leaves evidence when it
+  doesn't.** Treatment is paid for through this app, so a patient must never
+  be asked to pay another way — and a therapist and a patient who have met
+  can agree to carry on privately at a lower price, costing the clinic the
+  patient, the revenue and any record that the care happened. Two controls,
+  both admin switches, neither of them a policy nobody can check:
+  1. **Every cross-role free-text write is scanned**
+     (`src/lib/contactLeakScan.ts`, applied through
+     `src/lib/communicationFlags.ts`): the suggestion note, a care plan's
+     `clinical_rationale` and `instructions`, Pain Map exam answers (which
+     reach the patient through the export PDF even though the dashboard
+     does not render them), and the patient's own booking notes. Two tiers,
+     because this text is **clinical** and a scanner that treats digits as
+     suspicious fires on every dose and every exercise prescription: a
+     `block` hit (UPI handle, payment link, payment app) refuses the write,
+     a `flag` hit (phone, email, social handle, bare URL) is delivered and
+     recorded. Phone matching is the Indian mobile shape specifically — ten
+     digits starting 6-9, optional `0`/`91` — not a loose digit run, which
+     flagged order references. The patient direction is `record_only`: a
+     patient is not who this exists to catch, and a 400 at the last step of
+     checkout costs a real booking. `site_settings.contact_scan_mode`
+     (`off` / `flag_only` / `flag_and_block`) is read in its own call and
+     fails **open**.
+  2. **A patient's phone is masked on therapist surfaces and their email is
+     not loaded at all** (`src/lib/contactMasking.ts`, masked once in
+     `therapistDashboardData.ts` where the rows are loaded, so the
+     plaintext number is never in the page). The full number comes one
+     session at a time from `/api/therapist/reveal-contact`, allowed inside
+     a video session's join window or any time on a home visit's own day,
+     never for a cancelled session, and every reveal writes
+     `contact_reveal_log`. That log write is **not** best-effort: a reveal
+     that could not be recorded is refused, unlike the audit log's posture,
+     because a reveal with no trace is the one outcome this route must not
+     produce. `site_settings.contact_masking_enabled` is read in its own
+     call and fails **closed** — the safe answer to "I don't know" is
+     opposite for the two settings, and deliberately so.
+  `communication_flags` and `contact_reveal_log` are admin-select-only and
+  append-only **by trigger**, not only by RLS: every route here writes with
+  the service-role client, which bypasses RLS entirely, so an evidence
+  record the evidenced party could edit is not evidence. Adding a new
+  free-text field that one role writes and another reads means adding a
+  `surface` value and a `guardCommunication` call — the CHECK on that column
+  is what stops a new field quietly skipping the scan.
+
 - **Session packages lock to one therapist by default.** The first therapist
   assigned to any session on a `patient_package_purchases` row sets
   `locked_therapist_id`; every later session on that purchase auto-assigns,
@@ -1283,7 +1327,9 @@ client is the only writer and the log is append-only from any session.
   rotate" — and the opening splash's five settings — on/off, the name above
   the line (blank follows the site name), its one line, the hold in seconds,
   and the minutes a tab must be away to earn a second greeting, where 0
-  means "first load only" — and `enabled_intake_specialties`, which
+  means "first load only" — and the two contact controls,
+  `contact_scan_mode` and `contact_masking_enabled`, on Settings → Team &
+  Access — and `enabled_intake_specialties`, which
   condition types triage offers) is read
   through `src/lib/adminSettings.ts` with defaults — don't hardcode these.
   Every dashboard page must select `SITE_SETTINGS_SELECT` from that module

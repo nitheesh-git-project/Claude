@@ -10,6 +10,8 @@ import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatAddressBlock, mapsSearchUrl, visitAddressFromAppointment } from "@/lib/formatAddress";
 import { isNoteEditable, noteEditHoursLeft } from "@/lib/sessionNotes";
 import type { TherapistDashboardData } from "@/lib/therapistDashboardData";
+import RevealContactButton from "@/components/therapist/RevealContactButton";
+import { maskPhone } from "@/lib/contactMasking";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -45,7 +47,11 @@ export function renderTherapistSessionCard(
               {patient?.full_name ?? "Unknown patient"}
             </p>
             <p className="text-slate-500">
-              {patient?.phone || patient?.email || "No contact on file"}
+              {patient?.phoneMasked && patient.phone ? (
+                <RevealContactButton appointmentId={a.id} masked={patient.phone} />
+              ) : (
+                patient?.phone || "No contact on file"
+              )}
             </p>
             {a.patient_id && (
               <Link
@@ -154,7 +160,15 @@ export function renderTherapistHomeVisitCard(
     // The number to ring at the door, which may deliberately differ from
     // the account holder's -- an elderly patient's booking is often made
     // by a relative.
-    const callNumber = visit?.visit_contact_phone || patient?.phone || null;
+    // patient.phone arrives already masked from the loader, so only the
+    // door number -- which is snapshotted in plaintext on the appointment --
+    // gets masked here. Masking an already-masked string would leave three
+    // dots and no tail.
+    const callNumber = visit?.visit_contact_phone
+      ? patient?.phoneMasked
+        ? maskPhone(visit.visit_contact_phone).masked
+        : visit.visit_contact_phone
+      : patient?.phone || null;
     // An unpaid home visit is a cash-at-the-door booking by definition:
     // the prepaid path marks the appointment paid at creation, so anything
     // still unpaid here is money the therapist collects on arrival.
@@ -165,12 +179,21 @@ export function renderTherapistHomeVisitCard(
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <p className="font-bold text-slate-900">{patient?.full_name ?? "Unknown patient"}</p>
+            {/* The door number is masked like any other, and revealed the
+                same way -- but its window is the whole day of the visit
+                rather than a join window, since ringing from the gate is
+                normal practice and does not happen fifteen minutes
+                either side of a slot. */}
             {callNumber ? (
-              <a href={`tel:${callNumber}`} className="text-teal-700 font-semibold hover:underline">
-                {callNumber}
-              </a>
+              patient?.phoneMasked ? (
+                <RevealContactButton appointmentId={a.id} masked={callNumber} />
+              ) : (
+                <a href={`tel:${callNumber}`} className="text-teal-700 font-semibold hover:underline">
+                  {callNumber}
+                </a>
+              )
             ) : (
-              <p className="text-slate-500">{patient?.email || "No contact on file"}</p>
+              <p className="text-slate-500">No contact on file</p>
             )}
             {a.patient_id && (
               <Link

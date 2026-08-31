@@ -68,14 +68,14 @@ export default async function TherapistHealthProfilesPage() {
   const [{ data: patients }, { data: grants }] =
     patientIds.length > 0
       ? await Promise.all([
-          admin.from("profiles").select("id, full_name, email").in("id", patientIds),
+          admin.from("profiles").select("id, full_name, patient_code").in("id", patientIds),
           supabase
             .from("condition_access_grants")
             .select("patient_id, status")
             .eq("therapist_id", user.id)
             .in("patient_id", patientIds),
         ])
-      : [{ data: [] as { id: string; full_name: string; email: string }[] }, { data: [] as { patient_id: string; status: string }[] }];
+      : [{ data: [] as { id: string; full_name: string; patient_code: string | null }[] }, { data: [] as { patient_id: string; status: string }[] }];
 
   // Prep material: the next booked session per patient, and this
   // therapist's own notes. Both are what turn a directory of names into a
@@ -329,7 +329,7 @@ export default async function TherapistHealthProfilesPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-bold text-slate-800">{p.full_name}</p>
-                        <p className="truncate text-xs text-slate-400">{p.email}</p>
+                        <p className="truncate text-xs text-slate-400">{p.patient_code ?? "—"}</p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
                         {nextSession ? (

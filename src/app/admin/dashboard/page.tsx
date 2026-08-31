@@ -33,6 +33,7 @@ import {
   applyLedgerVisitBalances,
 } from "@/lib/ledgerBalances";
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
+import ContactControlsForm from "@/components/admin/ContactControlsForm";
 import { adminScreenHref, type InboxGroup } from "@/lib/adminNav";
 import { parseAdminScope, scopeCanOpen, sectionsForScope } from "@/lib/adminScope";
 import type { SearchEntity } from "@/components/admin/AdminGlobalSearch";
@@ -2090,7 +2091,14 @@ export default async function AdminDashboardPage({
       isSelf: p.id === user.id,
     }));
 
-  const settingsTeamTab = <AdminTeamAccessTab admins={adminRows} viewerScope={viewerScope} />;
+  // Who can see what, in one place: which admins hold which scope, and how
+  // much of a patient's contact details a therapist is handed by default.
+  const settingsTeamTab = (
+    <div className="space-y-8">
+      <AdminTeamAccessTab admins={adminRows} viewerScope={viewerScope} />
+      <ContactControlsForm settings={adminSettings} />
+    </div>
+  );
 
   const activityRows: ActivityRow[] = (activityLogRows ?? []).map((r) => ({
     id: r.id,

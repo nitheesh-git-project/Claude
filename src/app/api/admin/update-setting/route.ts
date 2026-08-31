@@ -10,10 +10,13 @@ import {
   MAX_SPLASH_REVISIT_MINUTES,
   MIN_SPLASH_HOLD_SECONDS,
 } from "@/lib/splashScreen";
+import { isContactScanMode } from "@/lib/adminSettings";
 
 const ALLOWED_COLUMNS = new Set([
   "therapist_suggestions_enabled",
   "entitlement_ledger_authoritative",
+  "contact_scan_mode",
+  "contact_masking_enabled",
   "care_plan_default_expiry_days",
   "care_plan_max_frequency_per_week",
   "session_packages_visible",
@@ -130,10 +133,19 @@ export async function POST(request: NextRequest) {
       key === "home_visit_cash_enabled" ||
       key === "therapist_suggestions_enabled" ||
       key === "entitlement_ledger_authoritative" ||
+      key === "contact_masking_enabled" ||
       key === "splash_enabled") &&
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
+  }
+  // Matches the column's own check constraint, so a value the database
+  // would reject is refused here with a sentence rather than a 500.
+  if (key === "contact_scan_mode" && !isContactScanMode(value)) {
+    return NextResponse.json(
+      { error: "Unknown checking mode." },
+      { status: 400 }
+    );
   }
   if (key === "payment_gateway_fee_percent" && !isValidGatewayFeePercent(value)) {
     return NextResponse.json(

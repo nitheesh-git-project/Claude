@@ -545,6 +545,40 @@ most one can be waiting per purchase; the therapist can withdraw it.
 Routes: `/api/therapist/suggest-session`,
 `/api/therapist/withdraw-suggestion`, `/api/patient/respond-suggestion`.
 
+## Keeping payments on the platform
+
+Treatment is paid for through this app, so a patient should never be asked
+to pay another way. Two controls make that hard to do by accident and
+visible when it isn't, and both are admin switches on
+**Settings → Team & Access**.
+
+**Message checking.** Everything one role writes and another reads goes
+through `src/lib/contactLeakScan.ts` before it is stored: a therapist's
+proposed-time note, a care plan's rationale and instructions, Pain Map exam
+answers, and the patient's own booking notes. There are two tiers, because
+this text is clinical and a check that treats digits as suspicious would
+fire on every dose and every exercise prescription. A **block** hit — a UPI
+handle, a payment link, a payment app — is refused with a message saying
+what was found. A **flag** hit — a phone number, an email address, a social
+handle, a link — is delivered and recorded for an admin to look at, since a
+clinic's own landline in an instruction is a normal thing to write. The
+patient's own notes are recorded but never refused. `contact_scan_mode`
+switches this between `flag_and_block` (the default), `flag_only` and `off`.
+
+**Contact masking.** A therapist's session cards show the last three digits
+of a patient's number and no email address at all. The full number is one
+tap away — `/api/therapist/reveal-contact` returns it around the time of a
+video session, or any time on the day of a home visit — and every reveal is
+written to `contact_reveal_log`. The point is not to withhold the number
+from a clinician who needs it, but to make asking for it visible: a
+caseload copied for an off-platform practice looks nothing like a therapist
+ringing the patient they are with. `contact_masking_enabled` turns this off
+for a clinic that would rather have the numbers on the card.
+
+Both records — `communication_flags` and `contact_reveal_log` — are readable
+by admins only and cannot be edited or deleted by anyone, including the
+service role.
+
 There's no cron or background worker in this deployment, so a purchase's
 `status` moves from `active` to `expired` lazily: `src/lib/expirePackagePurchases.ts`
 sweeps any purchase past its `expires_at` at the top of the admin and

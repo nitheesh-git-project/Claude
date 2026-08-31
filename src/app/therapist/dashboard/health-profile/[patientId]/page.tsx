@@ -96,7 +96,16 @@ export default async function TherapistPatientHealthProfilePage({
     supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
     isTherapistAssignedToPatient(admin, user.id, patientId),
-    admin.from("profiles").select("id, full_name, email").eq("id", patientId).eq("role", "patient").maybeSingle(),
+    // The patient code rather than the email address. A code identifies a
+    // patient across every screen in this app and is what an admin will ask
+    // for; an email address identifies them to an inbox, which is the
+    // off-platform channel this whole section is about.
+    admin
+      .from("profiles")
+      .select("id, full_name, patient_code")
+      .eq("id", patientId)
+      .eq("role", "patient")
+      .maybeSingle(),
     supabase
       .from("patient_condition_profiles")
       .select("data, draft_data, status")
@@ -223,7 +232,7 @@ export default async function TherapistPatientHealthProfilePage({
         "intake_question_templates",
       ]}
       headerTitle={patient.full_name}
-      headerSubtitle={patient.email}
+      headerSubtitle={patient.patient_code ?? "Patient"}
     >
       <div className="max-w-2xl mx-auto space-y-6">
         <Link href="/therapist/dashboard/health-profile" className="text-xs text-teal-700 font-semibold">

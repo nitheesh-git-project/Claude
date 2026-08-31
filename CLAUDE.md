@@ -79,6 +79,20 @@ which also carries the therapist-proposed times that used to live on
 Overview alone; accepting re-derives the price server-side, refuses on a
 catalog mismatch, and grants exactly the recommended sessions.
 
+Treatment is paid for through this platform, and two admin-switchable
+controls keep it that way. Every string one role writes and another reads is
+scanned (`src/lib/contactLeakScan.ts` via `src/lib/communicationFlags.ts`):
+a payment handle or payment link is refused, a phone number or email is
+delivered and recorded, and clinical text full of numbers is left alone —
+the two tiers exist because a check that cries wolf is a check nobody
+reads. A patient's phone is masked on the therapist's screens and their
+email is not loaded there at all; the real number comes one session at a
+time from `/api/therapist/reveal-contact`, inside a video session's join
+window or on a home visit's own day, and every reveal is logged.
+`communication_flags` and `contact_reveal_log` are admin-read-only and
+append-only by trigger. See the "platform keeps its own conversations" rule
+in `AGENTS.md`.
+
 Payments are recorded in `payments` (one row per Razorpay order, unique on
 both the order id and the payment id) and confirmed by whichever of the
 browser callback or `/api/razorpay/webhook` arrives first — both go through
