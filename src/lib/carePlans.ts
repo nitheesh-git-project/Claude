@@ -55,6 +55,12 @@ export type CarePlanOfferSnapshot = {
   maxPerWeek: number | null;
   therapistLocked: boolean;
   terms: string | null;
+  /** Home-visit packages only: whether travel is already in the price.
+   *  Absent on snapshots written before travel was charged on a
+   *  recommendation, and parsed as false there -- the safe direction, since
+   *  it means travel is shown as a separate line rather than silently
+   *  assumed to be covered. */
+  travelFeeIncluded: boolean;
 };
 
 /** Builds the snapshot from a catalog row of either kind. */
@@ -78,6 +84,7 @@ export function buildOfferSnapshot(
     maxPerWeek: num(isHomeVisit ? row.max_visits_per_week : row.max_sessions_per_week),
     therapistLocked: row.therapist_locked !== false,
     terms: typeof row.terms === "string" ? row.terms : null,
+    travelFeeIncluded: isHomeVisit && row.travel_fee_included === true,
   };
 }
 
@@ -99,6 +106,7 @@ export function parseOfferSnapshot(value: unknown): CarePlanOfferSnapshot | null
     maxPerWeek: r.maxPerWeek === null || r.maxPerWeek === undefined ? null : Number(r.maxPerWeek),
     therapistLocked: r.therapistLocked !== false,
     terms: typeof r.terms === "string" ? r.terms : null,
+    travelFeeIncluded: r.travelFeeIncluded === true,
   };
 }
 

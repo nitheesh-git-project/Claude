@@ -3,6 +3,8 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { payForCarePlan } from "@/lib/carePlanPayment";
+import AddressForm from "@/components/booking/AddressForm";
+import type { HomeVisitAddressForm } from "@/lib/homeVisitPayment";
 import {
   carePlanState,
   parseOfferSnapshot,
@@ -41,15 +43,26 @@ export type CarePlanOffer = {
  * lands a render too late for a fast double-click, and this one opens a
  * payment window.
  */
+export type SavedAddress = {
+  id: string;
+  label: string | null;
+  line1: string;
+  city: string | null;
+  pincode: string;
+};
+
 export default function CarePlanOfferCard({
   offer,
   patientName,
   patientEmail,
+  savedAddresses,
   nowMs,
 }: {
   offer: CarePlanOffer;
   patientName: string;
   patientEmail: string;
+  /** Home-visit recommendations only: what the patient already has on file. */
+  savedAddresses: SavedAddress[];
   /** Passed in from the server so the state does not flip at hydration. */
   nowMs: number;
 }) {
@@ -61,6 +74,22 @@ export default function CarePlanOfferCard({
   const [paying, setPaying] = useState(false);
   const inFlight = useRef(false);
 
+  // Where a recommended course of home visits is delivered.
+  //
+  // Asked here rather than after payment because the purchase itself is
+  // booked against a saved address -- a home-visit purchase with none is
+  // one the patient cannot use, which is exactly the state this card used
+  // to create. Defaults to the first address on file, since a patient being
+  // recommended home visits has usually had one already.
+  const [addressId, setAddressId] = useState<string | null>(
+    savedAddresses[0]?.id ?? null
+  );
+  const [newAddress, setNewAddress] = useState<HomeVisitAddressForm>({
+    line1: "",
+    pincode: "",
+  });
+  const usingNewAddress = addressId === null;
+
   const snapshot = parseOfferSnapshot(offer.offerSnapshot);
   const state = carePlanState(
     { status: offer.planStatus as CarePlanStatus },
@@ -70,11 +99,19 @@ export default function CarePlanOfferCard({
 
   function handlePay() {
     if (inFlight.current) return;
+    if (offer.isHomeVisit && usingNewAddress) {
+      if (!newAddress.line1.trim() || !newAddress.pincode.trim()) {
+        setError("Add the address these visits should come to.");
+        return;
+      }
+    }
     inFlight.current = true;
     setPaying(true);
     setError(null);
     void payForCarePlan({
       carePlanVersionId: offer.versionId,
+      addressId: offer.isHomeVisit ? addressId : null,
+      address: offer.isHomeVisit && usingNewAddress ? newAddress : null,
       name: patientName,
       email: patientEmail,
       description: snapshot?.title ?? "Treatment programme",
@@ -186,6 +223,50 @@ export default function CarePlanOfferCard({
       )}
 
       {error && <p className="mt-3 text-xs font-semibold text-red-600">{error}</p>}
+
+      {actionable && offer.isHomeVisit && (
+        <div className="mt-5 rounded-xl border border-slate-200 p-3">
+          <p className="text-xs font-semibold text-slate-800">Where should we come?</p>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            Travel to your area is added at checkout and shown before you pay.
+          </p>
+          {savedAddresses.length > 0 && (
+            <div className="mt-2 space-y-1.5">
+              {savedAddresses.map((a) => (
+                <label key={a.id} className="flex cursor-pointer items-start gap-2 text-xs">
+                  <input
+                    type="radio"
+                    name={`address-${offer.versionId}`}
+                    className="mt-0.5"
+                    checked={addressId === a.id}
+                    onChange={() => setAddressId(a.id)}
+                  />
+                  <span className="text-slate-700">
+                    {a.label ? <span className="font-semibold">{a.label} · </span> : null}
+                    {a.line1}
+                    {a.city ? `, ${a.city}` : ""} — {a.pincode}
+                  </span>
+                </label>
+              ))}
+              <label className="flex cursor-pointer items-start gap-2 text-xs">
+                <input
+                  type="radio"
+                  name={`address-${offer.versionId}`}
+                  className="mt-0.5"
+                  checked={usingNewAddress}
+                  onChange={() => setAddressId(null)}
+                />
+                <span className="text-slate-700">Somewhere else</span>
+              </label>
+            </div>
+          )}
+          {usingNewAddress && (
+            <div className="mt-3">
+              <AddressForm value={newAddress} onChange={setNewAddress} disabled={paying} />
+            </div>
+          )}
+        </div>
+      )}
 
       {actionable ? (
         <div className="mt-5 space-y-3">

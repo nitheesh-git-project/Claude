@@ -6,14 +6,12 @@ import type { ShellNavItem } from "@/components/dashboard/DashboardShell";
 // has, so both pages need the exact same "hasX" booleans passed in.
 export function buildPatientNavItems({
   hasOwnedPackages,
-  hasAvailablePackages,
   hasOnlineSessions,
   hasHomeVisits,
   hasOwnedHomeVisitPackages,
   hasSuggestions,
 }: {
   hasOwnedPackages: boolean;
-  hasAvailablePackages: boolean;
   /** A live recommendation, or a therapist-proposed time. Same rule as the
    *  entries below: a screen that can only ever be empty is not in the
    *  sidebar. Booking stays the deliberate exception. */
@@ -64,11 +62,15 @@ export function buildPatientNavItems({
           },
         ]
       : []),
-    ...(hasOwnedPackages || hasOwnedHomeVisitPackages || hasAvailablePackages
+    // Owned only. There is no longer a catalogue of programmes a patient
+    // can browse and buy -- a programme comes from a therapist after a
+    // session -- so this entry appears when there is something to show and
+    // never as a shop window.
+    ...(hasOwnedPackages || hasOwnedHomeVisitPackages
       ? [
           {
             id: "packages",
-            label: hasOwnedPackages || hasOwnedHomeVisitPackages ? "Your Packages" : "Session Packages",
+            label: "Your Packages",
             icon: "fa-box-open",
             href: "/patient/dashboard/packages",
           },

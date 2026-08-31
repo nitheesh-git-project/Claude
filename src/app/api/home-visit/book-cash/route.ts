@@ -8,6 +8,10 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
 import { mirrorEnsureEntitlement } from "@/lib/sessionCreditMirror";
+import {
+  isDirectlyPurchasable,
+  PROGRAMME_NEEDS_RECOMMENDATION,
+} from "@/lib/consultationFirst";
 
 const MAX_LINE_LENGTH = 300;
 const MAX_NOTES_LENGTH = 1000;
@@ -122,6 +126,16 @@ export async function POST(request: NextRequest) {
   if (settingsRow?.home_visit_cash_enabled === false) {
     return NextResponse.json(
       { error: "Paying at the door isn't available right now — please pay online instead." },
+      { status: 403 }
+    );
+  }
+  // Same rule as the prepaid route: one visit is a consultation, more than
+  // one is a programme, and a programme is recommended rather than chosen
+  // off a list. Enforced on both paths because paying at the door is a
+  // payment method, not a different product.
+  if (pkg && !isDirectlyPurchasable(pkg.visit_count)) {
+    return NextResponse.json(
+      { error: PROGRAMME_NEEDS_RECOMMENDATION },
       { status: 403 }
     );
   }

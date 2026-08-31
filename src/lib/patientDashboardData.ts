@@ -17,6 +17,7 @@ import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { expireDueHomeVisitPurchases } from "@/lib/expireHomeVisitPurchases";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import type { StatCell } from "@/components/dashboard/StatStrip";
+import { isDirectlyPurchasable } from "@/lib/consultationFirst";
 
 // Everything the patient dashboard's screens read, loaded once per
 // request.
@@ -135,7 +136,6 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     { data: allPackagePurchases },
     { data: paymentFailures },
     { data: activeCategories },
-    { data: availablePackages },
     { data: ownedPackages },
     { data: onboardingRow },
     { data: conditionProfile },
@@ -218,15 +218,6 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
         }>(),
 
     supabase.from("treatment_categories").select("id, title").eq("active", true),
-
-    supabase
-      .from("treatment_category_packages")
-      .select(
-        "id, category_id, title, subtitle, image_url, promises, badge_label, session_count, price_paise, compare_at_paise, validity_days, therapist_locked"
-      )
-      .eq("active", true)
-      .eq("visible_in_dashboard", true)
-      .order("display_order", { ascending: true }),
 
     supabase
       .from("patient_package_purchases")
@@ -382,8 +373,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ),
   ];
   // Owned packages can reference a package that's since been deactivated
-  // or hidden (visible_in_dashboard flipped off) -- availablePackages'
-  // active/visible-only policy wouldn't cover that, so this is its own
+  // or hidden (visible_in_dashboard flipped off), so this is its own
   // admin-client lookup, same reasoning as categoryPrices below.
   const ownedPackageIds = [
     ...new Set(ownedPackagesForDisplay.map((p) => p.package_id).filter(Boolean)),
@@ -492,8 +482,6 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   }
 
   const hasOwnedPackages = ownedPackagesForDisplay.length > 0;
-  const hasAvailablePackages =
-    adminSettings.sessionPackagesVisible && !!availablePackages && availablePackages.length > 0;
 
   const visitDetailById = new Map((visitDetailRows ?? []).map((r) => [r.id, r]));
   const onlineAppointments = appointments.filter(
@@ -669,7 +657,6 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
         },
   ];  const navItems = buildPatientNavItems({
     hasOwnedPackages,
-    hasAvailablePackages,
     hasOnlineSessions: onlineAppointments.length > 0,
     hasHomeVisits: homeVisitAppointments.length > 0,
     hasOwnedHomeVisitPackages,
@@ -679,9 +666,19 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // What the Book a Session hub offers. Both master switches are honoured
   // here rather than inside the hub, so that component stays a pure
   // display of whatever it is handed.
-  const hubOnlinePackages = adminSettings.sessionPackagesVisible ? availablePackages ?? [] : [];
-  const hubHomeVisitPackages = adminSettings.homeVisitEnabled ? homeVisitPackages ?? [] : [];
-  const categoryPriceById = new Map((bookableCategories ?? []).map((c) => [c.id, c.price_paise]));
+  // Nothing multi-session is offered here any more. A course of treatment
+  // comes from a therapist's recommendation after a session they ran, so
+  // the booking hub offers what a patient can decide for themselves: one
+  // online consultation, or one visit at home.
+  //
+  // The single home visit is deliberately still here. Every home visit in
+  // this app is a package purchase and /api/appointments/create books
+  // online only, so a one-visit package IS the home-visit consultation --
+  // dropping it would leave a patient who needs to be seen at home with no
+  // way in at all.
+  const hubHomeVisitPackages = adminSettings.homeVisitEnabled
+    ? (homeVisitPackages ?? []).filter((p) => isDirectlyPurchasable(p.visit_count))
+    : [];
 
   return {
     user,
@@ -694,7 +691,6 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     visitDetailById,
     allPackagePurchases,
     paymentFailures,
-    availablePackages,
     // The substituted rows, not the raw ones -- the Packages screen and the
     // widgets read these directly, and handing them the counter here would
     // undo the flip for exactly the two screens a patient looks at.
@@ -718,11 +714,8 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     scheduledCountByPurchase,
     completedCountByHomeVisitPurchase,
     scheduledCountByHomeVisitPurchase,
-    categoryPriceMapForHub: categoryPriceById,
-    hubOnlinePackages,
     hubHomeVisitPackages,
     hasOwnedPackages,
-    hasAvailablePackages,
     hasOwnedHomeVisitPackages,
     navItems,
     intakeAnswered,

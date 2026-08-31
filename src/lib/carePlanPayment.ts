@@ -1,7 +1,12 @@
 import { loadRazorpayScript } from "@/lib/razorpay";
+import type { HomeVisitAddressForm } from "@/lib/homeVisitPayment";
 
 type PayForCarePlanArgs = {
   carePlanVersionId: string;
+  /** Home-visit recommendations only: where the visits are delivered. One
+   *  of the two is required, and the server refuses without it. */
+  addressId?: string | null;
+  address?: HomeVisitAddressForm | null;
   name: string;
   email: string;
   description: string;
@@ -26,6 +31,8 @@ type PayForCarePlanArgs = {
  */
 export async function payForCarePlan({
   carePlanVersionId,
+  addressId,
+  address,
   name,
   email,
   description,
@@ -39,7 +46,7 @@ export async function payForCarePlan({
     const res = await fetch("/api/care-plan/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ carePlanVersionId }),
+      body: JSON.stringify({ carePlanVersionId, addressId, address }),
     });
     const orderData = await res.json().catch(() => ({}));
 

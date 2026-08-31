@@ -3,6 +3,12 @@ import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { computeHomeVisitTotal } from "@/lib/homeVisitPricing";
+import {
+  resolveHomeVisitAddress,
+  type HomeVisitAddressPayload,
+  type ResolvedHomeVisitAddress,
+} from "@/lib/homeVisitAddress";
 import {
   isProfileActive,
   isPatientProfile,
@@ -27,6 +33,10 @@ import { parseOfferSnapshot, carePlanState } from "@/lib/carePlans";
 export async function POST(request: NextRequest) {
   const { data: body, error: parseError } = await parseJsonBody<{
     carePlanVersionId?: string;
+    // Only read for a home-visit recommendation. Either an address the
+    // patient already has on file, or a new one to save.
+    addressId?: string | null;
+    address?: HomeVisitAddressPayload | null;
   }>(request);
   if (parseError) return parseError;
 
@@ -154,10 +164,46 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const amountPaise = live.snapshot.pricePaise;
-  if (!amountPaise || amountPaise <= 0) {
+  if (!live.snapshot.pricePaise || live.snapshot.pricePaise <= 0) {
     return NextResponse.json({ error: "That programme has no price set." }, { status: 400 });
   }
+
+  // A recommended home visit needs somewhere to be delivered, and this is
+  // the point at which that is decided.
+  //
+  // This route used to insert a home-visit purchase with neither
+  // `default_address_id` nor `travel_fee_paise` set. Both are load-bearing:
+  // /api/home-visit/book-visits refuses outright without the first ("this
+  // package has no saved address on file" -- discovered by the patient
+  // after paying), and the second is what the therapist is reimbursed for
+  // travelling. It survived Phase 6 because a multi-visit programme could
+  // still be bought the old way; it cannot now, so it is fixed here.
+  let resolvedAddress: ResolvedHomeVisitAddress | null = null;
+  if (offerKind === "home_visit_package") {
+    const resolution = await resolveHomeVisitAddress(admin, user.id, {
+      addressId: body.addressId,
+      address: body.address,
+    });
+    if (!resolution.ok) {
+      return NextResponse.json({ error: resolution.error }, { status: resolution.status });
+    }
+    resolvedAddress = resolution.address;
+  }
+
+  // Travel is a pass-through reimbursement paid to the therapist in full
+  // and never revenue, so it is added to what is charged and carried on the
+  // purchase separately -- never folded into the programme price, or a
+  // therapist ends up funding their own transport.
+  const total = resolvedAddress
+    ? computeHomeVisitTotal({
+        packagePricePaise: live.snapshot.pricePaise,
+        travelFeePaise: resolvedAddress.travelFeePaise,
+        travelIncluded: live.snapshot.travelFeeIncluded,
+        visitCount: live.snapshot.sessionCount,
+      })
+    : null;
+  const amountPaise = live.snapshot.pricePaise;
+  const chargePaise = total ? total.totalPaise : amountPaise;
 
   const table =
     offerKind === "session_package"
@@ -212,6 +258,9 @@ export async function POST(request: NextRequest) {
               package_id: packageId,
               visit_count: live.snapshot.sessionCount,
               amount_paid_paise: amountPaise,
+              travel_fee_paise: resolvedAddress?.travelFeePaise ?? 0,
+              payment_mode: "prepaid",
+              default_address_id: resolvedAddress?.addressId ?? null,
               care_plan_version_id: carePlanVersionId,
               locked_therapist_id: lockedTherapistId,
             })
@@ -255,7 +304,10 @@ export async function POST(request: NextRequest) {
   let order;
   try {
     order = await razorpay.orders.create({
-      amount: amountPaise,
+      // The charge, which for a home visit is the programme plus travel.
+      // amount_paid_paise on the purchase stays the programme price alone,
+      // so travel never lands in revenue.
+      amount: chargePaise,
       currency: "INR",
       receipt: purchaseId,
     });
@@ -285,5 +337,12 @@ export async function POST(request: NextRequest) {
     currency: order.currency,
     purchaseId,
     offerKind,
+    breakdown: total
+      ? {
+          packagePricePaise: total.packagePricePaise,
+          travelFeePaise: total.travelFeePaise,
+          totalPaise: total.totalPaise,
+        }
+      : null,
   });
 }

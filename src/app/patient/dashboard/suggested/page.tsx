@@ -44,6 +44,19 @@ export default async function Page() {
     for (const a of authors ?? []) authorNames.set(a.id, a.full_name);
   }
 
+  // Loaded only when there is a home-visit recommendation waiting, and in
+  // its own call: the card needs somewhere to deliver to before it can take
+  // payment, and every other patient on this screen would be paying for a
+  // query they never render.
+  const needsAddress = version?.offerKind === "home_visit_package";
+  const { data: addressRows } = needsAddress
+    ? await admin
+        .from("patient_addresses")
+        .select("id, label, line1, city, pincode")
+        .eq("patient_id", d.user.id)
+        .order("created_at", { ascending: false })
+    : { data: [] as { id: string; label: string | null; line1: string; city: string | null; pincode: string }[] };
+
   const nothingWaiting = !version && d.pendingSuggestions.length === 0;
 
   return (
@@ -82,6 +95,7 @@ export default async function Page() {
             }}
             patientName={d.profile?.full_name ?? ""}
             patientEmail={d.profile?.email ?? ""}
+            savedAddresses={addressRows ?? []}
             // Resolved on the server so the card's state cannot flip
             // between render and hydration.
             nowMs={d.nowMs}

@@ -122,7 +122,6 @@ export default async function PatientHealthProfilePage() {
     { data: intakeHistory },
     { data: medicalDocuments },
     { count: ownedPackagesCount },
-    { count: availablePackagesCount },
     { data: settingsRow },
     { data: intakeOverrideRows },
     { count: onlineSessionCount },
@@ -171,10 +170,6 @@ export default async function PatientHealthProfilePage() {
       .select("id", { count: "exact", head: true })
       .eq("patient_id", user.id)
       .eq("payment_status", "paid"),
-    supabase
-      .from("treatment_category_packages")
-      .select("id", { count: "exact", head: true })
-      .eq("active", true),
     supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
     supabase
       .from("intake_question_templates")
@@ -228,8 +223,6 @@ export default async function PatientHealthProfilePage() {
   const navItems = buildPatientNavItems({
     hasSuggestions: (activePlanCount ?? 0) > 0 || (pendingSuggestionCount ?? 0) > 0,
     hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
-    hasAvailablePackages:
-      adminSettings.sessionPackagesVisible && !!availablePackagesCount && availablePackagesCount > 0,
     hasOnlineSessions: (onlineSessionCount ?? 0) > 0,
     hasHomeVisits: (homeVisitCount ?? 0) > 0,
     hasOwnedHomeVisitPackages: (ownedHomeVisitCount ?? 0) > 0,

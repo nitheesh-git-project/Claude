@@ -79,6 +79,14 @@ which also carries the therapist-proposed times that used to live on
 Overview alone; accepting re-derives the price server-side, refuses on a
 catalog mismatch, and grants exactly the recommended sessions.
 
+A patient's first purchase is **one session**. A multi-session programme is a
+clinical judgement, so it comes from a care plan and never from a price list:
+`src/lib/consultationFirst.ts` allows direct purchase only of a single
+session or visit, and the old `/book?package=` checkout is deleted. A
+one-visit home package is the home-visit consultation and stays purchasable —
+without it, a patient who needs to be seen at home would have no entry point,
+since ordinary consultations are always video.
+
 Treatment is paid for through this platform, and two admin-switchable
 controls keep it that way. Every string one role writes and another reads is
 scanned (`src/lib/contactLeakScan.ts` via `src/lib/communicationFlags.ts`):

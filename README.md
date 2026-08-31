@@ -296,10 +296,11 @@ default, admin-editable at **Settings → Booking Rules**
 `BOOKING_LEAD_TIME_HOURS` in `src/lib/bookingSlots.ts` as the fallback) — the therapist's weekly availability template
 plus per-date overrides (`therapist_availability_template`,
 `therapist_availability_override`), leave flags, and conflict checks
-(`src/lib/checkTherapistConflict.ts`). `/book?package=<id>` switches the same
-wizard into package-purchase mode instead: the category step is replaced by
-a read-only package summary, Step 1's date/time becomes session 1's slot,
-and the review step pays for the whole bundle. `/book?therapist=<id>`
+(`src/lib/checkTherapistConflict.ts`). `/book` sells exactly one
+consultation. It used to sell multi-session programmes too, via
+`?package=<id>`; that is gone, and a link still carrying the parameter is
+answered with an explanation rather than quietly selling a single session to
+someone who came to buy six. `/book?therapist=<id>`
 carries a specialist across from their profile dialog on `/team` ("Book with
 Dr. X"): the id is resolved client-side against `public_therapist_profiles`
 and lands in `appointments.preferred_therapist_id`, which preselects that
@@ -494,10 +495,14 @@ cards on `/` and `/conditions` (each gated by its own `visible_on_home` /
 `visible_on_conditions` flag, plus the site-wide visibility switch). Tapping
 a card opens a detail dialog carrying everything the card has no room for —
 the long description, terms, scheduling rules, a per-session price
-comparison — while **Book package** on the card and again in the dialog goes
-straight to `/book?package=<id>`. Programme cards and the home-visit package
-cards on `/home-visit` behave identically (`/book?category=<id>` and
-`/book-home-visit?package=<id>` respectively). A purchase's `expires_at` is set the moment payment
+comparison — while the card's button now
+starts a first session (`/book`) and says that a programme is arranged by a
+therapist afterwards. The prices are still shown — a visitor should be able
+to see what a course of treatment costs — they are simply no longer a
+checkout link. Programme cards go to `/book?category=<id>`, and on
+`/home-visit` a **single**-visit package still books directly
+(`/book-home-visit?package=<id>`), because that visit is the home-visit
+consultation; multi-visit cards explain instead. A purchase's `expires_at` is set the moment payment
 clears — an abandoned checkout never eats into a validity window — using the
 package's own `validity_days` or the site default. When a package has
 `therapist_locked` on (the default) and the site-wide switch
@@ -544,6 +549,30 @@ stops being acceptable once its slot falls inside the booking lead time. At
 most one can be waiting per purchase; the therapist can withdraw it.
 Routes: `/api/therapist/suggest-session`,
 `/api/therapist/withdraw-suggestion`, `/api/patient/respond-suggestion`.
+
+## How a course of treatment is bought
+
+The first purchase is **one session**. A programme of six is a clinical
+judgement about how much treatment someone needs, so it is recommended by a
+therapist after a session they ran, and appears in the patient's dashboard
+under **Suggested Sessions** to accept and pay for. There is no longer a
+route by which a patient can buy a multi-session programme before anyone has
+seen them.
+
+The rule is written once, in `src/lib/consultationFirst.ts`, as a property of
+the thing being sold rather than as a switch: a package can be bought
+directly only when it is a single session or visit.
+
+Home visits are the exception that proves it. Every home visit in this app is
+a home-visit package purchase, and an ordinary consultation is always a video
+call — so a patient who needs to be seen at home has exactly one way in, and
+that is a **one-visit** package. It stays directly purchasable for the same
+reason a video consultation does. A course of home visits is refused by both
+purchase routes and comes from a recommendation, which collects the address
+at checkout and adds travel for that area on top of the programme price.
+
+Nothing already bought is affected: an existing programme keeps its sessions
+and books them to exhaustion exactly as before.
 
 ## Keeping payments on the platform
 

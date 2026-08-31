@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { computePackageSavings } from "@/lib/packageProgress";
 import { computeHomeVisitSavings } from "@/lib/homeVisitProgress";
 
 export type HubCategory = {
@@ -9,19 +8,6 @@ export type HubCategory = {
   price_paise: number;
   duration_minutes: number;
   cta_label: string | null;
-};
-
-export type HubOnlinePackage = {
-  id: string;
-  category_id: string;
-  title: string;
-  subtitle: string | null;
-  badge_label: string | null;
-  session_count: number;
-  price_paise: number;
-  compare_at_paise: number | null;
-  validity_days: number | null;
-  therapist_locked: boolean;
 };
 
 export type HubHomeVisitPackage = {
@@ -129,17 +115,13 @@ function Group({
  */
 export default function PatientBookingHub({
   categories,
-  onlinePackages,
   homeVisitPackages,
-  categoryPriceById,
 }: {
   categories: HubCategory[];
-  onlinePackages: HubOnlinePackage[];
   homeVisitPackages: HubHomeVisitPackage[];
-  categoryPriceById: Map<string, number>;
 }) {
   const hasAnything =
-    categories.length > 0 || onlinePackages.length > 0 || homeVisitPackages.length > 0;
+    categories.length > 0 || homeVisitPackages.length > 0;
 
   if (!hasAnything) {
     return (
@@ -166,38 +148,6 @@ export default function PatientBookingHub({
               price={c.price_paise}
             />
           ))}
-        </Group>
-      )}
-
-      {onlinePackages.length > 0 && (
-        <Group
-          title="Online session packages"
-          blurb="A bundle of video sessions at a lower per-session price, with the same therapist throughout."
-        >
-          {onlinePackages.map((p) => {
-            const savings = computePackageSavings({
-              sessionCount: p.session_count,
-              pricePaise: p.price_paise,
-              compareAtPaise: p.compare_at_paise,
-              categoryPricePaise: categoryPriceById.get(p.category_id) ?? null,
-            });
-            return (
-              <Card
-                key={p.id}
-                href={`/book?package=${p.id}`}
-                title={p.title}
-                subtitle={p.subtitle}
-                badge={p.badge_label}
-                meta={`${p.session_count} sessions · online`}
-                price={p.price_paise}
-                compareAt={savings.compareAtPaise}
-                savingsPercent={savings.savingsPercent}
-                footnote={`₹${(savings.perSessionPaise / 100).toLocaleString("en-IN")} / session${
-                  p.validity_days ? ` · valid ${p.validity_days} days` : ""
-                }`}
-              />
-            );
-          })}
         </Group>
       )}
 

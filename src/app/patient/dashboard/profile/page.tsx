@@ -33,7 +33,6 @@ export default async function PatientProfilePage() {
     { data: patientCodeRow },
     { data: changeRequests },
     { count: ownedPackagesCount },
-    { count: availablePackagesCount },
     { data: settingsRow },
     { count: onlineSessionCount },
     { count: homeVisitCount },
@@ -59,19 +58,15 @@ export default async function PatientProfilePage() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
 
-    // Cheap existence-only checks, not the full rows the dashboard page
-    // itself fetches -- this page only needs to know whether to show these
-    // two sidebar nav items, so the dashboard page and this one always agree
-    // on what's in the sidebar (see buildPatientNavItems).
+    // Cheap existence-only check, not the full rows the dashboard page
+    // itself fetches -- this page only needs to know whether to show that
+    // sidebar nav item, so the dashboard page and this one always agree on
+    // what's in the sidebar (see buildPatientNavItems).
     supabase
       .from("patient_package_purchases")
       .select("id", { count: "exact", head: true })
       .eq("patient_id", user.id)
       .eq("payment_status", "paid"),
-    supabase
-      .from("treatment_category_packages")
-      .select("id", { count: "exact", head: true })
-      .eq("active", true),
 
     // These site_settings columns are new/migration-dependent -- isolated
     // so a missing migration only disables Feature Control's effects, not
@@ -136,8 +131,6 @@ export default async function PatientProfilePage() {
   const navItems = buildPatientNavItems({
     hasSuggestions: (activePlanCount ?? 0) > 0 || (pendingSuggestionCount ?? 0) > 0,
     hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
-    hasAvailablePackages:
-      adminSettings.sessionPackagesVisible && !!availablePackagesCount && availablePackagesCount > 0,
     hasOnlineSessions: (onlineSessionCount ?? 0) > 0,
     hasHomeVisits: (homeVisitCount ?? 0) > 0,
     hasOwnedHomeVisitPackages: (ownedHomeVisitCount ?? 0) > 0,

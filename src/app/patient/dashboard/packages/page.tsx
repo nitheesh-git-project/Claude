@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
 import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
-import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import PatientPackageWidget from "@/components/packages/PatientPackageWidget";
 import HomeVisitPackageWidget from "@/components/patient/HomeVisitPackageWidget";
-import BuyPackageButton from "@/components/BuyPackageButton";
-import { computePackageSavings } from "@/lib/packageProgress";
 
 export const metadata: Metadata = {
   title: "Packages | Dr. Pooja's Physio",
@@ -15,7 +12,7 @@ export default async function Page() {
   const d = await loadPatientDashboard("packages");
 
   return (
-    <PatientDashboardShell data={d} title="Packages" subtitle="Programmes you own, and the bundles you can buy.">
+    <PatientDashboardShell data={d} title="Packages" subtitle="The programmes your therapist has arranged for you.">
       {d.ownedPackages && d.ownedPackages.length > 0 && (
         <div id="your-packages" className="mt-8">
           <PatientPackageWidget
@@ -62,56 +59,6 @@ export default async function Page() {
         </div>
       )}
 
-      {d.adminSettings.sessionPackagesVisible && d.availablePackages && d.availablePackages.length > 0 && (
-        <SurfaceCard
-          id="session-packages"
-          title="Session Packages"
-          icon="fa-layer-group"
-          subtitle="Buy a bundle of sessions upfront and use them one at a time, whenever you're ready to book."
-          className="mt-8"
-        >
-          <ul className="space-y-3">
-            {d.availablePackages.map((pkg) => {
-              const savings = computePackageSavings({
-                sessionCount: pkg.session_count,
-                pricePaise: pkg.price_paise,
-                compareAtPaise: pkg.compare_at_paise,
-                categoryPricePaise: d.categoryPriceMap.get(pkg.category_id) ?? null,
-              });
-              return (
-                <li
-                  key={pkg.id}
-                  className="p-4 rounded-xl border border-slate-200 text-xs flex items-center justify-between gap-3 flex-wrap"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    {pkg.image_url && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={pkg.image_url} alt="" className="h-12 w-12 rounded-lg object-cover shrink-0" />
-                    )}
-                    <div className="min-w-0">
-                      <p className="font-bold text-slate-900">{pkg.title}</p>
-                      <p className="text-slate-500 mt-1">
-                        {d.activeCategoryMap.get(pkg.category_id) ?? "General Consultation"} •{" "}
-                        {pkg.session_count} sessions • ₹{(savings.perSessionPaise / 100).toFixed(0)}/session
-                        {savings.savingsPercent !== null && (
-                          <span className="text-teal-700 font-semibold"> · Save {savings.savingsPercent}%</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  <BuyPackageButton
-                    packageId={pkg.id}
-                    name={d.profile?.full_name ?? ""}
-                    email={d.profile?.email ?? ""}
-                    description={pkg.title}
-                    priceInPaise={pkg.price_paise}
-                  />
-                </li>
-              );
-            })}
-          </ul>
-        </SurfaceCard>
-      )}
     </PatientDashboardShell>
   );
 }

@@ -746,6 +746,36 @@ client is the only writer and the log is append-only from any session.
   specialty from **triage only**: an existing profile carrying it must
   keep rendering, and a therapist re-triaging such a patient is still
   offered it. Ortho can never be switched off.
+- **Treatment volume is never sold before an assessment.** The rule lives in
+  `src/lib/consultationFirst.ts` and is a property of the thing being sold,
+  not a feature flag: a catalog row may be bought directly only when it is a
+  **single** session or visit. One session is a consultation — there is
+  nothing to assess before selling somebody one appointment — and two or
+  more is a programme, which comes from a care plan a therapist wrote after
+  a session they ran.
+  Direct session-package purchase is **gone**: `/api/packages/create-order`,
+  `/api/packages/verify`, `packagePayment.ts` and `BuyPackageButton` are
+  deleted, and `/book` sells one consultation against a treatment category.
+  The home-visit exception is load-bearing rather than a compromise: every
+  home visit in this app is a `home_visit_packages` purchase and
+  `/api/appointments/create` books `visit_mode: 'online'` only, so applying
+  "no direct package purchase" literally to both catalogs would leave a
+  patient who needs to be seen at home with **no entry point at all**. A
+  one-visit home package is that patient's consultation and stays
+  purchasable; `visit_count > 1` is refused by both
+  `/api/home-visit/create-order` and `/api/home-visit/book-cash` (paying at
+  the door is a payment method, not a different product).
+  Both wizards **answer** a stale `?package=` link rather than ignoring it —
+  taking a different amount of money than somebody came for is the one
+  outcome a removed checkout must not produce. Existing purchases are
+  untouched and keep booking to exhaustion.
+  A recommended home visit collects an address at checkout
+  (`src/lib/homeVisitAddress.ts`, shared with the direct route) and sets
+  `default_address_id` and `travel_fee_paise`. Without them
+  `/api/home-visit/book-visits` refuses outright and the therapist funds
+  their own transport — both were missing while a programme could still be
+  bought the old way, and neither is optional now that it cannot.
+
 - **A therapist recommends; the clinic prices.** A care plan
   (`care_plans` + `care_plan_versions`) is what a therapist proposes after a
   session, and it is the only route by which a patient buys a programme once

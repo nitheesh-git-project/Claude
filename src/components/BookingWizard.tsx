@@ -4,9 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { PROGRAMME_NEEDS_RECOMMENDATION } from "@/lib/consultationFirst";
 import { payForAppointment } from "@/lib/razorpay";
-import { payForPackage, type PackagePaymentResult } from "@/lib/packagePayment";
-import { computePackageSavings } from "@/lib/packageProgress";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
@@ -29,22 +28,6 @@ type Category = {
   title: string;
   price_paise: number;
   duration_minutes: number;
-};
-
-type PackageData = {
-  id: string;
-  category_id: string;
-  title: string;
-  subtitle: string | null;
-  description: string | null;
-  promises: unknown;
-  terms: string | null;
-  session_count: number;
-  price_paise: number;
-  compare_at_paise: number | null;
-  validity_days: number | null;
-  therapist_locked: boolean;
-  session_duration_minutes: number | null;
 };
 
 // After this many failed/dismissed payment attempts on the same booking,
@@ -155,36 +138,19 @@ export default function BookingWizard({
     credentials: string | null;
   } | null>(null);
 
-  // Package-purchase mode: driven by ?package=, same client-side-only
-  // query-param convention as ?category= above -- /book stays ISR-cached,
-  // so nothing package-specific is ever resolved server-side. `idle` means
-  // no ?package= at all (the normal single-session flow); `loading` covers
-  // the one round trip while it resolves; `unavailable` is a package id
-  // that doesn't exist, isn't active, or packages are site-wide hidden.
+  // /book sells one session. It used to sell multi-session programmes too,
+  // via ?package=<id>, which meant the amount of treatment someone bought
+  // was decided by a price list before any clinician had seen them.
+  //
+  // The parameter is still read, and still recognised, because links to it
+  // outlive the feature -- an old email, a bookmark, a printed card. A
+  // wizard that silently ignored it would quietly sell a single session to
+  // someone who came here to buy six, which is a worse outcome than saying
+  // what changed.
   const packageIdParam = searchParams.get("package");
-  const [packageData, setPackageData] = useState<PackageData | null>(null);
-  const [packageLoadState, setPackageLoadState] = useState<
-    "idle" | "loading" | "loaded" | "unavailable"
-  >(packageIdParam ? "loading" : "idle");
-  const [packagePaymentResult, setPackagePaymentResult] = useState<PackagePaymentResult | null>(
-    null
-  );
 
   const supabase = createClient();
   const selectedCategory = categories.find((c) => c.id === categoryId);
-  const packageCategory = packageData ? categories.find((c) => c.id === packageData.category_id) : undefined;
-  const packageDurationMinutes =
-    packageData?.session_duration_minutes ?? packageCategory?.duration_minutes ?? BASE_DURATION_MINUTES;
-  const packageSavings = packageData
-    ? computePackageSavings({
-        sessionCount: packageData.session_count,
-        pricePaise: packageData.price_paise,
-        compareAtPaise: packageData.compare_at_paise,
-        categoryPricePaise: packageCategory?.price_paise ?? null,
-      })
-    : null;
-  const packagePromises =
-    packageData && Array.isArray(packageData.promises) ? (packageData.promises as string[]) : [];
 
   useEffect(() => {
     // Reads the browser's detected timezone, which is only known once
@@ -247,39 +213,6 @@ export default function BookingWizard({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [therapistIdParam]);
-
-  useEffect(() => {
-    if (!packageIdParam) return;
-    let cancelled = false;
-    Promise.all([
-      supabase
-        .from("treatment_category_packages")
-        .select(
-          "id, category_id, title, subtitle, description, promises, terms, session_count, price_paise, compare_at_paise, validity_days, therapist_locked, session_duration_minutes"
-        )
-        .eq("id", packageIdParam)
-        .eq("active", true)
-        .maybeSingle(),
-      supabase.from("site_settings").select("session_packages_visible").maybeSingle(),
-    ])
-      .then(([{ data: pkg }, { data: settingsRow }]) => {
-        if (cancelled) return;
-        if (!pkg || settingsRow?.session_packages_visible === false) {
-          setPackageLoadState("unavailable");
-          return;
-        }
-        setPackageData(pkg);
-        setCategoryId(pkg.category_id);
-        setPackageLoadState("loaded");
-      })
-      .catch(() => {
-        if (!cancelled) setPackageLoadState("unavailable");
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [packageIdParam]);
 
   function handleDateChange(nextDate: string) {
     setBookDate(nextDate);
@@ -350,12 +283,7 @@ export default function BookingWizard({
         return;
       }
     }
-    if (packageIdParam) {
-      if (packageLoadState !== "loaded") {
-        setError("This package isn't available for purchase right now.");
-        return;
-      }
-    } else if (!categoryId) {
+    if (!categoryId) {
       setError("Please select what you'd like help with.");
       return;
     }
@@ -416,7 +344,7 @@ export default function BookingWizard({
       userId = data.user.id;
     }
 
-    const newDuration = packageData ? packageDurationMinutes : selectedCategory?.duration_minutes ?? BASE_DURATION_MINUTES;
+    const newDuration = selectedCategory?.duration_minutes ?? BASE_DURATION_MINUTES;
     const newStart = new Date(slotDateTime).getTime();
     const newEnd = newStart + newDuration * 60_000;
     const { data: existingBookings } = await supabase
@@ -435,41 +363,6 @@ export default function BookingWizard({
       setError(
         "You already have a session scheduled around this time. Please pick a different slot, or check your dashboard for existing bookings."
       );
-      return;
-    }
-
-    // Package purchases have no meaningful "unpaid appointment" draft --
-    // /api/packages/create-order creates the purchase row and the Razorpay
-    // order together, entirely server-side, the moment checkout starts
-    // (see that route's own header comment). So this branches off before
-    // the direct-booking insert below, which only ever applies to a
-    // single, non-package session.
-    if (packageData) {
-      await payForPackage({
-        packageId: packageData.id,
-        name: fullName,
-        email,
-        description: packageData.title,
-        slotDateTime,
-        timezone,
-        notes,
-        preferredTherapistId: preferredTherapistId || undefined,
-        onSuccess: (result) => {
-          setLoading(false);
-          setPackagePaymentResult(result);
-          setDone(true);
-        },
-        onError: (message) => {
-          setLoading(false);
-          setError(message);
-          setFailedAttempts((n) => n + 1);
-        },
-        onDismiss: () => {
-          setLoading(false);
-          setError("Payment was not completed. You can try again below.");
-          setFailedAttempts((n) => n + 1);
-        },
-      });
       return;
     }
 
@@ -543,13 +436,9 @@ export default function BookingWizard({
       <span className="text-[10px] font-bold uppercase tracking-wider text-teal-400 block mb-1">
         {done ? "Booking" : `Step ${step} of 3`}
       </span>
-      <h1 className="text-xl font-bold">
-        {packageData ? packageData.title : "Book Virtual Physical Therapy Session"}
-      </h1>
+      <h1 className="text-xl font-bold">Book Virtual Physical Therapy Session</h1>
       <p className="text-xs text-slate-300 mt-1">
-        {packageData
-          ? `${packageData.session_count} sessions • ${formatInr(packageData.price_paise)} bundle`
-          : selectedCategory
+        {selectedCategory
           ? `${formatInr(selectedCategory.price_paise)} INR • ${
               selectedCategory.duration_minutes
             }-Min HD Video Call & Custom Rehab Plan`
@@ -563,6 +452,35 @@ export default function BookingWizard({
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
         {header}
         <div className="p-8 text-center text-sm text-slate-500">Loading...</div>
+      </div>
+    );
+  }
+
+  // A link to the old programme checkout, which no longer exists.
+  //
+  // Answered rather than ignored: the wizard behind this would sell one
+  // session to somebody who followed a link expecting to buy six, and
+  // taking a different amount of money than a person came for is the one
+  // outcome a removed checkout must not produce.
+  if (packageIdParam) {
+    return (
+      <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
+        {header}
+        <div className="p-8 text-center">
+          <i className="fa-solid fa-user-doctor text-teal-600 text-4xl mb-4"></i>
+          <h2 className="text-xl font-bold text-slate-900">
+            Programmes come from your therapist now
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">
+            {PROGRAMME_NEEDS_RECOMMENDATION}
+          </p>
+          <Link
+            href="/book"
+            className="mt-6 inline-block rounded-xl bg-teal-700 px-6 py-3 text-sm font-bold text-white transition hover:bg-teal-800"
+          >
+            Book a first session
+          </Link>
+        </div>
       </div>
     );
   }
@@ -587,36 +505,10 @@ export default function BookingWizard({
         {header}
         <div className="p-8 text-center">
           <i className="fa-solid fa-circle-check text-teal-600 text-4xl mb-4"></i>
-          <h2 className="text-xl font-bold text-slate-900">
-            {packageData ? "Package Purchased" : "Payment Confirmed"}
-          </h2>
+          <h2 className="text-xl font-bold text-slate-900">Payment Confirmed</h2>
           <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-            {packageData ? (
-              packagePaymentResult?.sessionBooked ? (
-                <>
-                  Your {packageData.session_count}-session package is paid for,
-                  and session 1 is booked. We&apos;ll confirm your exact slot
-                  and send the video call link by email or WhatsApp shortly.
-                  Schedule the rest whenever you&apos;re ready from your
-                  dashboard.
-                </>
-              ) : (
-                <>
-                  Your {packageData.session_count}-session package is paid
-                  for. Head to your dashboard to schedule your first session
-                  {packagePaymentResult?.sessionBookingError
-                    ? ` — we couldn't reserve your requested slot (${packagePaymentResult.sessionBookingError})`
-                    : ""}
-                  .
-                </>
-              )
-            ) : (
-              <>
-                Your session is booked and paid. We&apos;ll confirm your exact
-                slot and send the video call link by email or WhatsApp
-                shortly.
-              </>
-            )}
+            Your session is booked and paid. We&apos;ll confirm your exact slot
+            and send the video call link by email or WhatsApp shortly.
           </p>
           <Link
             href="/patient/dashboard"
@@ -770,67 +662,32 @@ export default function BookingWizard({
             </>
           )}
 
-          {packageIdParam ? (
-            <div>
-              <label className="block font-semibold mb-1.5 text-slate-900">Your package</label>
-              {packageLoadState === "loading" && (
-                <p className="text-xs text-slate-500">Loading package details...</p>
-              )}
-              {packageLoadState === "unavailable" && (
-                <p className="text-xs text-red-600">
-                  This package isn&apos;t available right now.{" "}
-                  <Link href="/book" className="font-semibold underline">
-                    Book a single session instead
-                  </Link>
-                  .
-                </p>
-              )}
-              {packageData && (
-                <div className="bg-teal-50 border border-teal-100 rounded-xl p-4 text-xs space-y-2">
-                  <p className="font-bold text-sm text-slate-900">{packageData.title}</p>
-                  {packageData.subtitle && <p className="text-slate-600">{packageData.subtitle}</p>}
-                  <p className="text-slate-600">
-                    {packageData.session_count} sessions • {formatInr(packageData.price_paise)} bundle
-                    {packageSavings && packageSavings.savingsPercent !== null && (
-                      <span className="text-teal-700 font-semibold"> · Save {packageSavings.savingsPercent}%</span>
-                    )}
-                  </p>
-                  {packageData.therapist_locked && (
-                    <p className="text-teal-700 font-semibold">
-                      <i className="fa-solid fa-user-doctor mr-1" /> One therapist for your whole programme
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div>
-              <label className="block font-semibold mb-1.5 text-slate-900">
-                What would you like help with?
-              </label>
-              {categories.length === 0 ? (
-                <p className="text-xs text-red-600">
-                  No condition categories are available right now — please
-                  contact us directly to book.
-                </p>
-              ) : (
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-300 bg-white"
-                >
-                  <option value="" disabled>
-                    — Select what you need help with —
+          <div>
+            <label className="block font-semibold mb-1.5 text-slate-900">
+              What would you like help with?
+            </label>
+            {categories.length === 0 ? (
+              <p className="text-xs text-red-600">
+                No condition categories are available right now — please
+                contact us directly to book.
+              </p>
+            ) : (
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-300 bg-white"
+              >
+                <option value="" disabled>
+                  — Select what you need help with —
+                </option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title} — {formatInr(c.price_paise)} / {c.duration_minutes} min
                   </option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.title} — {formatInr(c.price_paise)} / {c.duration_minutes} min
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          )}
+                ))}
+              </select>
+            )}
+          </div>
 
           {/* The request carried over from a specialist's profile. Stated as
               a request rather than a booked fact, because the admin assigns
@@ -959,7 +816,7 @@ export default function BookingWizard({
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">
-                {packageData ? "Session 1 Preferred Time" : "Preferred Time"}
+                Preferred Time
               </span>
               <span className="font-bold text-slate-900">
                 {slotDateTime && new Date(slotDateTime).toLocaleString()}
@@ -969,65 +826,16 @@ export default function BookingWizard({
               <span className="text-slate-500">Language</span>
               <span className="font-bold text-slate-900">{language || "—"}</span>
             </div>
-            {packageData ? (
-              <>
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-500">Package</span>
-                  <span className="font-bold text-slate-900">{packageData.title}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-500">Sessions Included</span>
-                  <span className="font-bold text-slate-900">{packageData.session_count}</span>
-                </div>
-                {packageData.validity_days && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-500">Valid For</span>
-                    <span className="font-bold text-slate-900">{packageData.validity_days} days</span>
-                  </div>
-                )}
-                {packagePromises.length > 0 && (
-                  <ul className="pt-2 space-y-1 border-t border-teal-100">
-                    {packagePromises.map((p) => (
-                      <li key={p} className="flex items-start gap-1.5 text-xs text-slate-700">
-                        <i className="fa-solid fa-circle-check mt-0.5 shrink-0 text-teal-600" />
-                        {p}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="flex justify-between text-xs pt-3 border-t border-teal-100">
-                  <span className="text-slate-500">Bundle Price</span>
-                  <span className="font-bold text-slate-900">
-                    {formatInr(packageData.price_paise)} INR
-                    {packageSavings && packageSavings.compareAtPaise !== null && (
-                      <span className="ml-1.5 font-normal text-slate-400 line-through">
-                        {formatInr(packageSavings.compareAtPaise)}
-                      </span>
-                    )}
-                  </span>
-                </div>
-                {packageData.terms && (
-                  <p className="text-[11px] text-slate-500 pt-2 border-t border-teal-100">
-                    {packageData.terms}
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-500">Concern</span>
-                  <span className="font-bold text-slate-900">
-                    {selectedCategory?.title}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs pt-3 border-t border-teal-100">
-                  <span className="text-slate-500">Session Fee</span>
-                  <span className="font-bold text-slate-900">
-                    {selectedCategory ? `${formatInr(selectedCategory.price_paise)} INR` : "—"}
-                  </span>
-                </div>
-              </>
-            )}
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-500">Concern</span>
+              <span className="font-bold text-slate-900">{selectedCategory?.title}</span>
+            </div>
+            <div className="flex justify-between text-xs pt-3 border-t border-teal-100">
+              <span className="text-slate-500">Session Fee</span>
+              <span className="font-bold text-slate-900">
+                {selectedCategory ? `${formatInr(selectedCategory.price_paise)} INR` : "—"}
+              </span>
+            </div>
           </div>
           <p className="text-xs text-slate-500">
             <i className="fa-solid fa-lock text-teal-600 mr-1"></i>
@@ -1059,25 +867,22 @@ export default function BookingWizard({
               Back
             </button>
             <button
-              onClick={packageData ? handleSubmit : appointmentId ? () => startPayment(appointmentId) : handleSubmit}
-              disabled={loading || (!!packageIdParam && !packageData)}
+              onClick={appointmentId ? () => startPayment(appointmentId) : handleSubmit}
+              disabled={loading}
               className="w-2/3 bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition shadow-lg"
             >
               {loading
                 ? "Please wait..."
-                : packageData
-                ? `Pay ${formatInr(packageData.price_paise)} for Package`
                 : appointmentId
                 ? `Pay ${selectedCategory ? formatInr(selectedCategory.price_paise) : ""} Now`
                 : "Request Booking"}
             </button>
           </div>
-          {(appointmentId || packageData) && failedAttempts >= MAX_ATTEMPTS_BEFORE_ESCAPE && (
+          {appointmentId && failedAttempts >= MAX_ATTEMPTS_BEFORE_ESCAPE && (
             <div className="text-xs text-center bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 space-y-2">
               <p>
-                {packageData
-                  ? "Having trouble paying? No charge has gone through — you can try again, or reach out and we'll help you complete the purchase."
-                  : "Having trouble paying? Your booking is saved as pending — you can come back and pay any time from your dashboard."}
+                Having trouble paying? Your booking is saved as pending — you
+                can come back and pay any time from your dashboard.
               </p>
               <Link
                 href="/patient/dashboard"

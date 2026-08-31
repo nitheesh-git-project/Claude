@@ -16,6 +16,7 @@ import {
   type StatTile,
 } from "@/components/catalog/CatalogVisuals";
 import { computeHomeVisitSavings } from "@/lib/homeVisitProgress";
+import { PROGRAMME_CARD_NOTE } from "@/lib/consultationFirst";
 
 export type PublicHomeVisitPackage = {
   id: string;
@@ -171,13 +172,22 @@ export default function HomeVisitPackages({
               </button>
 
               <div className="flex flex-col gap-2 px-6 pb-6">
+                {/* A single visit is the home-visit consultation and is
+                    bought here; a course of visits is a therapist's
+                    recommendation, so its card explains rather than sells.
+                    Both routes refuse a programme regardless. */}
                 <Link
-                  href={`/book-home-visit?package=${pkg.id}`}
+                  href={isSingle ? `/book-home-visit?package=${pkg.id}` : "/book-home-visit"}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                 >
                   <i aria-hidden="true" className="fa-solid fa-calendar-check" />
-                  {isSingle ? "Book this visit" : "Book package"}
+                  {isSingle ? "Book this visit" : "Book a first visit"}
                 </Link>
+                {!isSingle && (
+                  <p className="text-center text-[11px] text-slate-400">
+                    {PROGRAMME_CARD_NOTE}
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => setOpenId(pkg.id)}
@@ -350,15 +360,17 @@ function HomeVisitPackageDetail({
 
             <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-slate-500">
-                Visits are scheduled after purchase, at times you pick.
+                {isSingle
+                  ? "Visits are scheduled after purchase, at times you pick."
+                  : PROGRAMME_CARD_NOTE}
               </p>
               <Link
-                href={`/book-home-visit?package=${pkg.id}`}
+                href={isSingle ? `/book-home-visit?package=${pkg.id}` : "/book-home-visit"}
                 onClick={onClose}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-teal-900/15 transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
               >
                 <i aria-hidden="true" className="fa-solid fa-calendar-check" />
-                {isSingle ? "Book this visit" : "Book package"}
+                {isSingle ? "Book this visit" : "Book a first visit"}
               </Link>
             </div>
           </div>
