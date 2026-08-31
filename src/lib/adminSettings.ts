@@ -6,6 +6,13 @@ import {
   DEFAULT_SPLASH_PHRASE,
   DEFAULT_SPLASH_REVISIT_MINUTES,
 } from "@/lib/splashScreen";
+/** How hard the contact-leak scanner bites. See contactLeakScan.ts. */
+export type ContactScanMode = "off" | "flag_only" | "flag_and_block";
+
+export function isContactScanMode(value: unknown): value is ContactScanMode {
+  return value === "off" || value === "flag_only" || value === "flag_and_block";
+}
+
 export type AdminSettings = {
   sessionPackagesVisible: boolean;
   /** Read session balances from the credit ledger rather than the legacy counters. */
@@ -14,6 +21,10 @@ export type AdminSettings = {
   carePlanDefaultExpiryDays: number;
   /** Cap on the frequency a clinician may recommend, over the package's own rule. */
   carePlanMaxFrequencyPerWeek: number;
+  /** How hard the contact-leak scanner bites on cross-role free text. */
+  contactScanMode: ContactScanMode;
+  /** Masks a patient's phone and hides their email on therapist surfaces. */
+  contactMaskingEnabled: boolean;
   sessionTimeoutMinutes: number;
   /** Seconds the post-logout banner stays up. 0 = until dismissed. */
   farewellBannerSeconds: number;
@@ -111,6 +122,10 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   entitlementLedgerAuthoritative: false,
   carePlanDefaultExpiryDays: 30,
   carePlanMaxFrequencyPerWeek: 5,
+  // Blocking by default. A UPI handle or a payment link in a message to a
+  // patient has one purpose, and none of them is clinical.
+  contactScanMode: "flag_and_block",
+  contactMaskingEnabled: true,
   sessionTimeoutMinutes: 0,
   // Long enough to read a one-line goodbye, short enough that the next
   // person on a shared machine never sees it.
@@ -178,13 +193,15 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
 // .select(SITE_SETTINGS_SELECT) call fall back to an unusable
 // GenericStringError result type instead of a real row shape.
 export const SITE_SETTINGS_SELECT =
-  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, session_completed_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, payment_gateway_fee_percent, farewell_banner_seconds, journey_step_seconds, splash_enabled, splash_brand_line, splash_phrase, splash_hold_seconds, splash_revisit_minutes, enabled_intake_specialties, entitlement_ledger_authoritative, care_plan_default_expiry_days, care_plan_max_frequency_per_week";
+  "session_packages_visible, session_timeout_minutes, google_meet_enabled, join_window_minutes, join_window_after_minutes, session_completed_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, payment_gateway_fee_percent, farewell_banner_seconds, journey_step_seconds, splash_enabled, splash_brand_line, splash_phrase, splash_hold_seconds, splash_revisit_minutes, enabled_intake_specialties, entitlement_ledger_authoritative, care_plan_default_expiry_days, care_plan_max_frequency_per_week, contact_scan_mode, contact_masking_enabled";
 
 type SiteSettingsRow = {
   session_packages_visible?: boolean | null;
   entitlement_ledger_authoritative?: boolean | null;
   care_plan_default_expiry_days?: number | null;
   care_plan_max_frequency_per_week?: number | null;
+  contact_scan_mode?: string | null;
+  contact_masking_enabled?: boolean | null;
   session_timeout_minutes?: number | null;
   google_meet_enabled?: boolean | null;
   join_window_minutes?: number | null;
@@ -292,6 +309,13 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
       typeof row?.care_plan_max_frequency_per_week === "number"
         ? row.care_plan_max_frequency_per_week
         : DEFAULT_ADMIN_SETTINGS.carePlanMaxFrequencyPerWeek,
+    contactScanMode: isContactScanMode(row?.contact_scan_mode)
+      ? row.contact_scan_mode
+      : DEFAULT_ADMIN_SETTINGS.contactScanMode,
+    contactMaskingEnabled:
+      typeof row?.contact_masking_enabled === "boolean"
+        ? row.contact_masking_enabled
+        : DEFAULT_ADMIN_SETTINGS.contactMaskingEnabled,
     sessionTimeoutMinutes:
       typeof row?.session_timeout_minutes === "number"
         ? row.session_timeout_minutes

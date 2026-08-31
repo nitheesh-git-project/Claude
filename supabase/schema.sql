@@ -6318,3 +6318,136 @@ create unique index if not exists patient_package_purchases_one_per_care_plan
   on patient_package_purchases (care_plan_version_id) where care_plan_version_id is not null;
 create unique index if not exists home_visit_package_purchases_one_per_care_plan
   on home_visit_package_purchases (care_plan_version_id) where care_plan_version_id is not null;
+
+-- ============================================================
+-- Off-platform payment controls: scanning and contact masking
+-- ============================================================
+--
+-- The problem these two tables exist for is not hypothetical. A therapist
+-- and a patient who have met each other can agree to carry on privately at
+-- a lower price, and the clinic loses the patient, the revenue and any
+-- record that the care happened. Policy does not stop that; a control that
+-- makes it awkward and leaves evidence does.
+--
+-- Both tables are ADMIN-READ-ONLY and written only by the service role.
+-- Neither carries an insert policy, for the same reason admin_activity_log
+-- does not: the routes all write with the service-role client, which
+-- bypasses RLS entirely, so an insert policy would grant a browser session
+-- a write nothing needs.
+
+-- Scanner hits on text one role writes and another reads.
+--
+-- Stores the offending text itself, because a signal an admin cannot see
+-- the evidence for is a signal they cannot act on. That makes this table
+-- sensitive: it is the only place a rejected message is kept.
+create table if not exists communication_flags (
+  id uuid primary key default gen_random_uuid(),
+  -- Which write produced this. Kept as free text rather than an FK because
+  -- a blocked write has no row to point at -- the whole point is that it
+  -- never landed.
+  surface text not null check (surface in (
+    'session_suggestion_note',
+    'care_plan_rationale',
+    'care_plan_instructions',
+    'pain_assessment_answer',
+    'appointment_notes',
+    'condition_answer'
+  )),
+  author_id uuid references profiles(id) on delete set null,
+  author_role text check (author_role in ('patient','therapist','hospital','admin')),
+  -- Who the text was written about / to, when that is known.
+  patient_id uuid references profiles(id) on delete set null,
+  -- The strongest tier hit, so the admin's queue can sort by seriousness
+  -- without unpacking the findings blob.
+  tier text not null check (tier in ('block','flag')),
+  -- Every finding: kind, tier and the matched fragment.
+  findings jsonb not null default '[]'::jsonb,
+  -- Whether the write was refused. A blocked attempt is the more
+  -- interesting row of the two, and losing that distinction would leave an
+  -- admin unable to tell a clinic landline in an instruction from a UPI
+  -- handle someone tried to sneak past.
+  blocked boolean not null default false,
+  content text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists communication_flags_created_idx
+  on communication_flags (created_at desc);
+create index if not exists communication_flags_author_idx
+  on communication_flags (author_id, created_at desc);
+create index if not exists communication_flags_open_idx
+  on communication_flags (tier, created_at desc) where blocked = true;
+
+alter table communication_flags enable row level security;
+
+drop policy if exists communication_flags_select_admin on communication_flags;
+create policy communication_flags_select_admin on communication_flags
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+-- Who unmasked whose contact details, and when.
+--
+-- Masking without a log is theatre: the therapist still gets the number,
+-- and nobody can tell afterwards how often or why. The log is the actual
+-- control -- revealing is allowed, and it is on the record.
+create table if not exists contact_reveal_log (
+  id uuid primary key default gen_random_uuid(),
+  therapist_id uuid not null references profiles(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  appointment_id uuid references appointments(id) on delete set null,
+  field text not null check (field in ('phone','email')),
+  -- Why the reveal was permitted, recorded rather than recomputed: the
+  -- window that justified it has usually closed by the time anyone reads
+  -- this.
+  reason text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists contact_reveal_log_therapist_idx
+  on contact_reveal_log (therapist_id, created_at desc);
+create index if not exists contact_reveal_log_patient_idx
+  on contact_reveal_log (patient_id, created_at desc);
+
+alter table contact_reveal_log enable row level security;
+
+drop policy if exists contact_reveal_log_select_admin on contact_reveal_log;
+create policy contact_reveal_log_select_admin on contact_reveal_log
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+-- Both tables are append-only from any session, including the service
+-- role's. An evidence record that can be edited by whoever is being
+-- evidenced is not evidence -- same reasoning as session_credit_ledger,
+-- and RLS alone cannot express it because every route here writes with the
+-- service-role client.
+create or replace function communication_evidence_is_append_only()
+returns trigger
+language plpgsql
+as $$
+begin
+  raise exception '% is append-only; corrections are new rows', tg_table_name;
+end;
+$$;
+
+drop trigger if exists communication_flags_no_change on communication_flags;
+create trigger communication_flags_no_change
+  before update or delete on communication_flags
+  for each row execute function communication_evidence_is_append_only();
+
+drop trigger if exists contact_reveal_log_no_change on contact_reveal_log;
+create trigger contact_reveal_log_no_change
+  before update or delete on contact_reveal_log
+  for each row execute function communication_evidence_is_append_only();
+
+-- Both controls are admin switches rather than constants, so a clinic that
+-- finds the scanner too noisy can soften it without a deploy.
+--
+-- 'flag_and_block' is the default: a UPI handle or a payment link in a
+-- message to a patient has exactly one purpose and none of them is
+-- clinical, so that tier is refused. 'flag_only' records everything and
+-- refuses nothing. 'off' disables the scan entirely.
+alter table site_settings add column if not exists contact_scan_mode text not null default 'flag_and_block'
+  check (contact_scan_mode in ('off','flag_only','flag_and_block'));
+alter table site_settings add column if not exists contact_masking_enabled boolean not null default true;

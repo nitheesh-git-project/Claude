@@ -6,6 +6,7 @@ import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { sessionsRemaining } from "@/lib/sessionSuggestions";
+import { guardCommunication } from "@/lib/communicationFlags";
 
 const MAX_NOTE_LENGTH = 500;
 
@@ -147,6 +148,18 @@ export async function POST(request: NextRequest) {
       { error: "You already have a session at that time." },
       { status: 409 }
     );
+  }
+
+  // The note goes straight to the patient's dashboard, which makes it the
+  // oldest cross-role free-text channel in the app and the one that has been
+  // unscanned longest.
+  const leak = await guardCommunication(
+    admin,
+    [{ surface: "session_suggestion_note", text: note }],
+    { authorId: user.id, authorRole: "therapist", patientId: purchase.patient_id }
+  );
+  if (leak.blockedMessage) {
+    return NextResponse.json({ error: leak.blockedMessage }, { status: 400 });
   }
 
   const { data: created, error: insertError } = await admin

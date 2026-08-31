@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 import { resolveRecommendablePackage } from "@/lib/carePlanServer";
 import { validateCarePlanInput, type CarePlanOfferKind } from "@/lib/carePlans";
+import { guardCommunication } from "@/lib/communicationFlags";
 
 const DEFAULT_EXPIRY_DAYS = 30;
 const DEFAULT_MAX_FREQUENCY = 5;
@@ -136,6 +137,23 @@ export async function POST(request: NextRequest) {
   });
   if (!validation.ok) {
     return NextResponse.json({ error: validation.error }, { status: 400 });
+  }
+
+  // Both free-text fields are read by the patient -- they are the offer, not
+  // clinician-to-clinician notes -- so they are the one place in a care plan
+  // where a payment handle could be smuggled past the fact that the
+  // therapist cannot set a price. Scanned before anything is written, so a
+  // refused message leaves no half-made version behind.
+  const leak = await guardCommunication(
+    admin,
+    [
+      { surface: "care_plan_rationale", text: input.clinicalRationale },
+      { surface: "care_plan_instructions", text: input.instructions },
+    ],
+    { authorId: user.id, authorRole: "therapist", patientId }
+  );
+  if (leak.blockedMessage) {
+    return NextResponse.json({ error: leak.blockedMessage }, { status: 400 });
   }
 
   // The note, when there is one. Optional because a therapist may write the
