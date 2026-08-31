@@ -74,7 +74,10 @@ session count or a discount, none of which exist as columns — plus four
 clinical fields. It needs a completed session they ran, writes live with no
 review, and a purchased plan is never re-versioned: a later recommendation
 opens a new thread. The same rows render on the therapist's chart and the
-patient's Health Profile.
+patient's Health Profile. The patient answers on **Suggested Sessions**,
+which also carries the therapist-proposed times that used to live on
+Overview alone; accepting re-derives the price server-side, refuses on a
+catalog mismatch, and grants exactly the recommended sessions.
 
 Payments are recorded in `payments` (one row per Razorpay order, unique on
 both the order id and the payment id) and confirmed by whichever of the

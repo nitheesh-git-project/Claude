@@ -1,6 +1,8 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadActiveCarePlan, loadCarePlanHistory } from "@/lib/carePlanServer";
+import { summariseVersion } from "@/lib/carePlans";
 import {
   applyLedgerSessionBalances,
   applyLedgerVisitBalances,
@@ -84,7 +86,8 @@ export type PatientScreen =
   | "sessions"
   | "home-visits"
   | "packages"
-  | "receipts";
+  | "receipts"
+  | "suggested";
 
 export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const needHub = screen === "book";
@@ -333,6 +336,16 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     { authoritative: ledgerAuthoritative }
   );
 
+  // The live recommendation and its history. Only for the screens that
+  // render them -- a tab is a server round trip, so Payments must not pay
+  // for a care-plan read it never shows. Both helpers swallow their own
+  // errors, so a database without the tables loses the recommendation
+  // rather than the dashboard.
+  const needCarePlan = screen === "suggested" || screen === "overview";
+  const activeCarePlan = needCarePlan ? await loadActiveCarePlan(admin, user.id) : null;
+  const carePlanHistory =
+    screen === "suggested" ? await loadCarePlanHistory(admin, user.id) : [];
+
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
@@ -414,7 +427,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // table, the cards are absent and the rest of the dashboard is unaffected.
   // Nothing is scheduled and no session is spent until one is accepted, so
   // these are deliberately not folded into the package counts below.
-  const { data: suggestionRows } = needFeed
+  // Needed by the feed and by Suggested Sessions, which is where these
+  // cards now live -- they used to render on Overview only, which meant a
+  // proposed time was invisible from every other screen.
+  const { data: suggestionRows } = needFeed || screen === "suggested"
     ? await supabase
         .from("session_suggestions")
         .select("id, purchase_id, therapist_id, slot_time, note")
@@ -584,6 +600,17 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       created_at: r.created_at,
       admin_notes: r.admin_notes,
     })),
+    carePlan:
+      activeCarePlan?.version
+        ? {
+            id: activeCarePlan.id,
+            authoredAt: activeCarePlan.version.authoredAt,
+            title: summariseVersion({
+              offer_snapshot: activeCarePlan.version.offerSnapshot,
+              frequency_per_week: activeCarePlan.version.frequencyPerWeek,
+            }),
+          }
+        : null,
   });
 
   const overviewCells: StatCell[] = [
@@ -646,6 +673,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     hasOnlineSessions: onlineAppointments.length > 0,
     hasHomeVisits: homeVisitAppointments.length > 0,
     hasOwnedHomeVisitPackages,
+    hasSuggestions: !!activeCarePlan || pendingSuggestions.length > 0,
   });
 
   // What the Book a Session hub offers. Both master switches are honoured
@@ -670,6 +698,8 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // The substituted rows, not the raw ones -- the Packages screen and the
     // widgets read these directly, and handing them the counter here would
     // undo the flip for exactly the two screens a patient looks at.
+    activeCarePlan,
+    carePlanHistory,
     ownedPackages: ownedPackagesForDisplay,
     ownedHomeVisitPackages: ownedHomeVisitPackagesForDisplay,
     homeVisitPackages,

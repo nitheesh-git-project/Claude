@@ -6291,3 +6291,30 @@ alter table site_settings add column if not exists care_plan_default_expiry_days
   check (care_plan_default_expiry_days > 0);
 alter table site_settings add column if not exists care_plan_max_frequency_per_week integer not null default 5
   check (care_plan_max_frequency_per_week between 1 and 7);
+
+-- Which recommendation a purchase came out of. Nullable, because a purchase
+-- made before care plans existed came from nowhere in particular -- and
+-- because the direct-purchase path is still live until it is switched off.
+--
+-- This is what makes "the patient got exactly what was recommended"
+-- checkable rather than asserted: the purchase names the version, the
+-- version names the package, and the entitlement's own snapshot names what
+-- was actually granted.
+alter table patient_package_purchases
+  add column if not exists care_plan_version_id uuid references care_plan_versions(id) on delete set null;
+alter table home_visit_package_purchases
+  add column if not exists care_plan_version_id uuid references care_plan_versions(id) on delete set null;
+
+create index if not exists patient_package_purchases_care_plan_idx
+  on patient_package_purchases (care_plan_version_id) where care_plan_version_id is not null;
+create index if not exists home_visit_package_purchases_care_plan_idx
+  on home_visit_package_purchases (care_plan_version_id) where care_plan_version_id is not null;
+
+-- One purchase per recommendation. A double-tapped Accept, two open tabs or
+-- an impatient retry must not buy the same plan twice -- and unlike a
+-- SELECT-then-INSERT check in the route, two concurrent requests both lose
+-- against this.
+create unique index if not exists patient_package_purchases_one_per_care_plan
+  on patient_package_purchases (care_plan_version_id) where care_plan_version_id is not null;
+create unique index if not exists home_visit_package_purchases_one_per_care_plan
+  on home_visit_package_purchases (care_plan_version_id) where care_plan_version_id is not null;

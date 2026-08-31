@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
-import PatientSuggestionCard from "@/components/packages/PatientSuggestionCard";
 import OnboardingTour from "@/components/patient/OnboardingTour";
 import { StripProgress } from "@/components/dashboard/StatStrip";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
@@ -70,20 +69,27 @@ export default async function PatientDashboardPage() {
         </Link>
       )}
 
-      {/* Above the overview: a therapist has proposed a time and it is
-          waiting on an answer. Nothing is scheduled and no session is
-          spent until the patient accepts, so this is the one thing on
-          this screen that is genuinely blocked on them. */}
-      {d.pendingSuggestions.length > 0 && (
-        <div id="suggested-sessions" className="mb-6 space-y-3">
-          {d.pendingSuggestions.map((suggestion) => (
-            <PatientSuggestionCard
-              key={suggestion.id}
-              suggestion={suggestion}
-              leadTimeHours={d.adminSettings.onlineBookingLeadTimeHours}
-            />
-          ))}
-        </div>
+      {/* Above the overview: something is waiting on the patient's answer.
+          The cards themselves live on Suggested Sessions -- rendering them
+          here too would be two copies of the same decision, and the one on
+          Overview had no history and was invisible from every other screen.
+          This is the pointer; that is the place. */}
+      {(d.activeCarePlan?.version || d.pendingSuggestions.length > 0) && (
+        <Link
+          href="/patient/dashboard/suggested"
+          className="mb-6 block rounded-2xl border border-teal-200 bg-teal-50/60 p-4 transition hover:bg-teal-50"
+        >
+          <p className="text-sm font-bold text-slate-900">
+            {d.activeCarePlan?.version
+              ? "Your therapist has recommended a programme"
+              : "Your therapist has proposed a time"}
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            {d.activeCarePlan?.version
+              ? "Read what they suggested and decide whether to go ahead."
+              : "Accept it to book the session, or let them know another time suits you better."}
+          </p>
+        </Link>
       )}
 
       <DashboardOverview

@@ -115,7 +115,26 @@ export default async function PatientProfilePage() {
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
   const adminSettings = parseAdminSettings(settingsRow);
 
+  // The sidebar must have the same shape on every screen, so these two
+  // stand-alone pages resolve the Suggested Sessions entry the same way the
+  // loader does. Counted rather than loaded -- the entry only needs to know
+  // whether anything is waiting. Isolated and failure-tolerant: without the
+  // care_plans table the entry is simply absent.
+  const [{ count: activePlanCount }, { count: pendingSuggestionCount }] = await Promise.all([
+    supabase
+      .from("care_plans")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", user.id)
+      .eq("status", "active"),
+    supabase
+      .from("session_suggestions")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", user.id)
+      .eq("status", "pending"),
+  ]);
+
   const navItems = buildPatientNavItems({
+    hasSuggestions: (activePlanCount ?? 0) > 0 || (pendingSuggestionCount ?? 0) > 0,
     hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
     hasAvailablePackages:
       adminSettings.sessionPackagesVisible && !!availablePackagesCount && availablePackagesCount > 0,

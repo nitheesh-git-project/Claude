@@ -10,9 +10,14 @@ export function buildPatientNavItems({
   hasOnlineSessions,
   hasHomeVisits,
   hasOwnedHomeVisitPackages,
+  hasSuggestions,
 }: {
   hasOwnedPackages: boolean;
   hasAvailablePackages: boolean;
+  /** A live recommendation, or a therapist-proposed time. Same rule as the
+   *  entries below: a screen that can only ever be empty is not in the
+   *  sidebar. Booking stays the deliberate exception. */
+  hasSuggestions: boolean;
   // Two different rules, deliberately kept apart. Booking is always open --
   // "Book a Session" is unconditional, because a patient who has only ever
   // had video calls must still be able to find home visits. History is
@@ -37,6 +42,18 @@ export function buildPatientNavItems({
     // These were three entries over the same rows, which made "what's
     // next?" a three-screen question. The calendar is a view switch on the
     // Sessions screen now, not a destination of its own.
+    // Above Sessions on purpose: something waiting on the patient's answer
+    // outranks a list of what is already settled.
+    ...(hasSuggestions
+      ? [
+          {
+            id: "suggested",
+            label: "Suggested Sessions",
+            icon: "fa-lightbulb",
+            href: "/patient/dashboard/suggested",
+          },
+        ]
+      : []),
     ...(hasOnlineSessions || hasHomeVisits
       ? [
           {

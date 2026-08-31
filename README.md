@@ -395,6 +395,36 @@ purchased plan would change the description of something already paid for.
 At most one recommendation is live at a time, so a patient is never looking
 at two competing proposals.
 
+A patient answers on **Patient Dashboard → Suggested Sessions**, a screen
+that appears in the sidebar only once something is actually waiting on them.
+It holds two things that are deliberately not merged: a **recommendation**
+is a programme to buy, and a **proposed time** is a slot on a programme they
+already own. One costs money and the other does not, so they are separate
+sections with separate wording. (Proposed times used to render on Overview
+alone, which meant a therapist's proposal was invisible from every other
+screen and had no history.)
+
+Accepting opens Razorpay. The request body carries one thing — which
+recommendation is being accepted — and the price, session count and validity
+are all re-derived server-side from the catalog row the version names, so
+there is nothing in the payload worth tampering with. If the package has
+been re-priced or re-sized since the therapist wrote the plan, checkout
+refuses rather than quietly charging a different amount, and the
+recommendation goes back to the clinician to confirm. A unique index on
+`care_plan_version_id` means a double-tapped Accept buys the plan once.
+
+The purchase is an ordinary package-purchase row with the version linked, so
+every existing mechanism — entitlements, booking, the therapist lock,
+expiry, refunds, the ledger mirror — keeps working unchanged. On capture the
+patient receives exactly the recommended number of sessions, locked to the
+therapist who recommended them, and the plan is marked accepted, which
+closes the thread.
+
+Declining is a real answer with an optional note, and it closes the thread
+too so the therapist can recommend something else. A therapist can withdraw
+a recommendation they got wrong, but never one already paid for — that is a
+refund, and an admin's job.
+
 The same records render on the therapist's patient chart and on the
 patient's own Health Profile — one authoritative history with two readers,
 in each one's own voice. `care_plan_default_expiry_days` and

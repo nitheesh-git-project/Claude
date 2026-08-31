@@ -93,11 +93,29 @@ const money = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
 export function buildPatientFeed({
   appointments,
   conditionRequests,
+  carePlan,
 }: {
   appointments: FeedAppointment[];
   conditionRequests: FeedRequest[];
+  /** The live recommendation, when there is one. */
+  carePlan?: { id: string; authoredAt: string; title: string } | null;
 }): FeedItem[] {
   const items: FeedItem[] = [];
+
+  // Pinned by needsYou: a recommendation is the one thing on a patient's
+  // dashboard that is genuinely blocked on them and costs money to answer.
+  if (carePlan) {
+    items.push({
+      id: `care-plan-${carePlan.id}`,
+      at: carePlan.authoredAt,
+      icon: "fa-lightbulb",
+      tone: "info",
+      title: "Your therapist recommended a programme",
+      detail: carePlan.title,
+      href: "/patient/dashboard/suggested",
+      needsYou: true,
+    });
+  }
 
   for (const a of appointments) {
     const when = a.slot_time ?? a.created_at ?? "";
