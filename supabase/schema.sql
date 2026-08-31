@@ -6451,3 +6451,200 @@ create trigger contact_reveal_log_no_change
 alter table site_settings add column if not exists contact_scan_mode text not null default 'flag_and_block'
   check (contact_scan_mode in ('off','flag_only','flag_and_block'));
 alter table site_settings add column if not exists contact_masking_enabled boolean not null default true;
+
+-- ============================================================
+-- Risk signals
+-- ============================================================
+--
+-- A detector's output, not a verdict. Every table here is built around one
+-- rule: **a flag is never an accusation and never triggers an automatic
+-- penalty.** Nothing in this app suspends an account, holds a payout or
+-- hides a therapist because a threshold was crossed. A signal is a reason
+-- for a person to go and look, and the only thing that ever changes as a
+-- result is what an admin deliberately does through the ordinary routes.
+--
+-- That is why `evidence` holds row ids rather than a score: a review screen
+-- that restates a number teaches an admin nothing, and one that links to
+-- the appointments, ledger entries and communication_flags behind a signal
+-- lets them reach their own conclusion.
+
+-- Thresholds live in a table so tuning a detector is an admin edit rather
+-- than a deploy. Several of these have no defensible default until this
+-- clinic has a baseline -- a conversion rate below which a therapist looks
+-- suspicious is meaningless in the first month -- so a rule with
+-- `enabled = false` simply does not run, and that is the honest starting
+-- state for most of them.
+create table if not exists risk_rules (
+  rule_key text primary key,
+  label text not null,
+  description text not null,
+  enabled boolean not null default false,
+  -- Free-form because each detector needs a different shape (a ratio, a
+  -- count, a window in days). Read by the one detector that owns the key,
+  -- never generically.
+  config jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table risk_rules enable row level security;
+
+drop policy if exists risk_rules_select_admin on risk_rules;
+create policy risk_rules_select_admin on risk_rules
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+create table if not exists risk_signals (
+  id uuid primary key default gen_random_uuid(),
+  rule_key text not null references risk_rules(rule_key) on delete cascade,
+  -- What the signal is about. A therapist, a patient, one appointment or
+  -- one payment -- kept as a pair rather than four nullable FKs so a new
+  -- detector does not need a schema change to point at something new.
+  subject_kind text not null check (subject_kind in
+    ('therapist','patient','appointment','payment','entitlement','admin')),
+  subject_id uuid not null,
+  severity text not null default 'medium' check (severity in ('low','medium','high')),
+  -- One sentence an admin can act on, written by the detector at the time
+  -- it fired. Frozen deliberately: recomputing the wording later would make
+  -- a signal describe today's data rather than what was seen.
+  summary text not null,
+  -- The primary sources: ids of the rows that made this fire.
+  evidence jsonb not null default '{}'::jsonb,
+  status text not null default 'open' check (status in ('open','reviewing','dismissed','actioned')),
+  detected_at timestamptz not null default now()
+);
+
+-- At most one open signal per subject per rule. Without this the sweep
+-- would raise the same finding on every admin page render, which is how a
+-- queue becomes something nobody opens.
+create unique index if not exists risk_signals_one_open
+  on risk_signals (rule_key, subject_kind, subject_id)
+  where status in ('open','reviewing');
+
+create index if not exists risk_signals_status_idx
+  on risk_signals (status, detected_at desc);
+
+alter table risk_signals enable row level security;
+
+drop policy if exists risk_signals_select_admin on risk_signals;
+create policy risk_signals_select_admin on risk_signals
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+-- What an admin concluded. Append-only, so a signal's history reads as a
+-- conversation rather than a field someone overwrote: a dismissal that was
+-- later reopened and actioned is exactly the sequence worth keeping.
+create table if not exists risk_reviews (
+  id uuid primary key default gen_random_uuid(),
+  signal_id uuid not null references risk_signals(id) on delete cascade,
+  reviewer_id uuid not null references profiles(id) on delete set null,
+  outcome text not null check (outcome in ('reviewing','dismissed','actioned')),
+  -- Mandatory, and long enough to be a sentence. "Dismissed" with no
+  -- reason is indistinguishable from "not read".
+  note text not null check (char_length(btrim(note)) >= 10),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists risk_reviews_signal_idx
+  on risk_reviews (signal_id, created_at);
+
+alter table risk_reviews enable row level security;
+
+drop policy if exists risk_reviews_select_admin on risk_reviews;
+create policy risk_reviews_select_admin on risk_reviews
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+drop trigger if exists risk_reviews_no_change on risk_reviews;
+create trigger risk_reviews_no_change
+  before update or delete on risk_reviews
+  for each row execute function communication_evidence_is_append_only();
+
+-- The detectors, seeded once and never re-seeded, so an admin's tuning is
+-- not undone by the next schema apply. Most start disabled: a threshold
+-- invented before there is a baseline fires on everyone or no one, and
+-- either way teaches the admin to ignore the queue.
+insert into risk_rules (rule_key, label, description, enabled, config)
+select * from (values
+  (
+    'contact_leak',
+    'Payment details in a message',
+    'A therapist''s message to a patient contained a payment handle or link, or repeatedly contained contact details.',
+    true,
+    '{"flagWindowDays": 30, "flagThreshold": 3}'::jsonb
+  ),
+  (
+    'completion_without_payment',
+    'Session completed with nothing behind it',
+    'A completed session with no captured payment, no programme and no cash recorded. Usually an admin backfill; occasionally a session the clinic was never paid for.',
+    true,
+    '{"lookbackDays": 30}'::jsonb
+  ),
+  (
+    'early_completion',
+    'Session marked done before it started',
+    'A session completed materially before its slot. The therapist''s own route refuses this, so a hit here came through an admin path.',
+    true,
+    '{"lookbackDays": 30, "minutesBefore": 30}'::jsonb
+  ),
+  (
+    'cash_variance',
+    'Cash collected differs from the expected amount',
+    'What was recorded as collected at the door is not what the visit was priced at.',
+    true,
+    '{"lookbackDays": 60, "tolerancePaise": 100}'::jsonb
+  ),
+  (
+    'contact_reveal_volume',
+    'Unusual number of contact reveals',
+    'A therapist unmasked many patients'' numbers in a short window. Reveals are legitimate; the pattern is what is worth a look.',
+    true,
+    '{"windowDays": 7, "threshold": 15}'::jsonb
+  ),
+  (
+    'manual_adjustment_volume',
+    'Unusual volume of manual credit adjustments',
+    'An admin made many free-form credit adjustments in a window. Included so the override lane is visible to the people who hold it.',
+    true,
+    '{"windowDays": 30, "threshold": 20}'::jsonb
+  ),
+  (
+    'plan_conversion_low',
+    'Low recommendation conversion',
+    'A therapist''s recommendations are rarely purchased. Disabled until there is a clinic baseline to compare against — a threshold invented now fires on everyone.',
+    false,
+    '{"windowDays": 30, "minPlans": 5, "minConversion": 0.2}'::jsonb
+  ),
+  (
+    'post_consultation_dropout',
+    'Patients seen once and never again',
+    'Patients who complete one consultation with this therapist and never return. Disabled for the same reason as the rule above.',
+    false,
+    '{"windowDays": 90, "minPatients": 5, "maxDropoutRate": 0.7}'::jsonb
+  )
+) as seed(rule_key, label, description, enabled, config)
+where not exists (select 1 from risk_rules);
+
+alter table site_settings add column if not exists risk_signals_enabled boolean not null default true;
+
+do $$
+begin
+  alter publication supabase_realtime add table risk_signals;
+exception when duplicate_object then null;
+end $$;
+
+-- When a session was actually marked complete.
+--
+-- There was no such timestamp: `status` moved to 'completed' and nothing
+-- recorded when. That is fine for a status and useless for a question like
+-- "was this closed before it started", which is the difference between a
+-- therapist writing up a session they ran and one claiming a session that
+-- had not happened. Nullable, because every row completed before this
+-- column existed genuinely does not know -- a detector reading it must skip
+-- those rather than treat a null as an answer.
+alter table appointments add column if not exists completed_at timestamptz;
+
+create index if not exists appointments_completed_at_idx
+  on appointments (completed_at desc) where completed_at is not null;

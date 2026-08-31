@@ -590,6 +590,22 @@ Both records — `communication_flags` and `contact_reveal_log` — are readable
 by admins only and cannot be edited or deleted by anyone, including the
 service role.
 
+**Risk signals.** A handful of detectors run when a full-access admin opens
+the dashboard and put what they notice on **Today → Risk**: payment details
+in a message, a session completed with nothing behind it, a session closed
+before it started, cash that differs from what the visit was priced at, an
+unusual number of contact reveals, an unusual number of manual credit
+adjustments. Two more — low recommendation conversion and patients seen once
+and never again — ship switched off, because a threshold invented before the
+clinic has a baseline fires on everyone or on nobody.
+
+Nothing on that screen changes anything. No account is suspended, no payout
+held and no therapist hidden because a rule fired; a signal shows the rows it
+is based on and an admin decides, then acts through the ordinary screens. A
+review needs a real note, cannot be edited afterwards, and closing a signal
+lets a fresh one be raised if the behaviour continues. Thresholds are edited
+on the same screen.
+
 There's no cron or background worker in this deployment, so a purchase's
 `status` moves from `active` to `expired` lazily: `src/lib/expirePackagePurchases.ts`
 sweeps any purchase past its `expires_at` at the top of the admin and

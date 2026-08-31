@@ -93,6 +93,14 @@ window or on a home visit's own day, and every reveal is logged.
 append-only by trigger. See the "platform keeps its own conversations" rule
 in `AGENTS.md`.
 
+Suspicious patterns surface on Today → Risk as `risk_signals`, written by a
+bounded lazy sweep after the admin render. A flag is never an accusation and
+never carries a penalty — nothing is suspended, held or hidden because a rule
+fired; a signal links to the rows behind it and an admin acts, if at all,
+through the ordinary screens. Thresholds are `risk_rules` and the two that
+need a clinic baseline ship disabled. Reviews are append-only and need a real
+note.
+
 Payments are recorded in `payments` (one row per Razorpay order, unique on
 both the order id and the payment id) and confirmed by whichever of the
 browser callback or `/api/razorpay/webhook` arrives first — both go through

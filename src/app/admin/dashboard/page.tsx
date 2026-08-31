@@ -78,6 +78,11 @@ import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import { retryDueMeetSyncs, MAX_MEET_SYNC_AUTO_ATTEMPTS } from "@/lib/retryDueMeetSyncs";
+import { runRiskSweep } from "@/lib/riskDetectors";
+import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
+import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
+import type { RiskSignalRow, RiskReviewRow } from "@/components/admin/RiskSignalsTab";
+import type { RiskSeverity, RiskStatus, RiskSubjectKind } from "@/lib/riskSignals";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
@@ -133,6 +138,12 @@ export default async function AdminDashboardPage({
   // felt on every single admin request.
   after(async () => {
     await retryDueMeetSyncs(admin);
+    // The detector sweep, after the response for the same reason: it makes
+    // no outbound calls but it does run several aggregate queries, and a
+    // finding that appears one render later costs nothing -- the queue
+    // exists for patterns that have been building for days. Its own
+    // interval guard means most renders skip it entirely.
+    await runRiskSweep(admin);
   });
 
   // All of these are independent reads -- none needs another query's data,
@@ -2110,6 +2121,143 @@ export default async function AdminDashboardPage({
     createdAt: r.created_at,
   }));
 
+  // Read on its own rather than inside the ~40-query batch above, per the
+  // migration-dependent rule: a database that has not applied the risk
+  // tables yet renders an empty queue instead of blanking every screen on
+  // this page.
+  // The whole queue, not merely the ability to close a row, is full-access
+  // only: a signal names a colleague and quotes what they wrote. A scoped
+  // admin's render does not even fetch it.
+  type RiskSignalQueryRow = {
+    id: string;
+    rule_key: string;
+    subject_kind: string;
+    subject_id: string;
+    severity: string;
+    summary: string;
+    evidence: unknown;
+    status: string;
+    detected_at: string;
+  };
+  type RiskRuleQueryRow = {
+    rule_key: string;
+    label: string;
+    description: string;
+    enabled: boolean;
+    config: unknown;
+  };
+  const viewerCanSeeRisk = viewerScope === "full";
+  const { data: riskSignalRows } = viewerCanSeeRisk
+    ? await admin
+    .from("risk_signals")
+    .select("id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at")
+    .order("detected_at", { ascending: false })
+    .limit(200)
+    : { data: [] as RiskSignalQueryRow[] };
+  const { data: riskRuleRows } = viewerCanSeeRisk
+    ? await admin
+        .from("risk_rules")
+        .select("rule_key, label, description, enabled, config")
+        .order("rule_key")
+    : { data: [] as RiskRuleQueryRow[] };
+
+  const riskSignalIds = (riskSignalRows ?? []).map((r) => r.id);
+  const { data: riskReviewRows } = riskSignalIds.length
+    ? await admin
+        .from("risk_reviews")
+        .select("id, signal_id, reviewer_id, outcome, note, created_at")
+        .in("signal_id", riskSignalIds)
+        .order("created_at", { ascending: true })
+    : { data: [] as { id: string; signal_id: string; reviewer_id: string; outcome: string; note: string; created_at: string }[] };
+
+  // A signal names a subject by id and kind. Resolving that to something an
+  // admin recognises needs the admin client, since a therapist's or a
+  // patient's name is not readable through the caller's own RLS -- the same
+  // one lookup every other cross-role surface makes.
+  const riskRuleLabels = new Map((riskRuleRows ?? []).map((r) => [r.rule_key, r.label]));
+  const riskPersonIds = [
+    ...new Set(
+      (riskSignalRows ?? [])
+        .filter((r) => r.subject_kind !== "appointment")
+        .map((r) => r.subject_id)
+    ),
+  ];
+  const riskAppointmentIds = [
+    ...new Set(
+      (riskSignalRows ?? [])
+        .filter((r) => r.subject_kind === "appointment")
+        .map((r) => r.subject_id)
+    ),
+  ];
+  const [{ data: riskPeople }, { data: riskAppointments }] = await Promise.all([
+    riskPersonIds.length
+      ? admin.from("profiles").select("id, full_name").in("id", riskPersonIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    riskAppointmentIds.length
+      ? admin.from("appointments").select("id, session_code").in("id", riskAppointmentIds)
+      : Promise.resolve({ data: [] as { id: string; session_code: string | null }[] }),
+  ]);
+  const riskSubjectNames = new Map<string, string>();
+  for (const p of riskPeople ?? []) riskSubjectNames.set(p.id, p.full_name ?? "Unknown");
+  for (const a of riskAppointments ?? [])
+    riskSubjectNames.set(a.id, a.session_code ?? `Session ${a.id.slice(0, 8)}`);
+
+  const riskSignals: RiskSignalRow[] = (riskSignalRows ?? []).map((r) => ({
+    id: r.id,
+    ruleKey: r.rule_key,
+    subjectKind: r.subject_kind as RiskSubjectKind,
+    subjectId: r.subject_id,
+    severity: r.severity as RiskSeverity,
+    summary: r.summary,
+    evidence: (r.evidence ?? {}) as Record<string, unknown>,
+    status: r.status as RiskStatus,
+    detectedAt: r.detected_at,
+    ruleLabel: riskRuleLabels.get(r.rule_key) ?? r.rule_key,
+    subjectName: riskSubjectNames.get(r.subject_id) ?? "Unknown",
+  }));
+  const riskReviews: RiskReviewRow[] = (riskReviewRows ?? []).map((r) => ({
+    id: r.id,
+    signalId: r.signal_id,
+    reviewerName: profileMap.get(r.reviewer_id)?.full_name ?? "An admin",
+    outcome: r.outcome,
+    note: r.note,
+    createdAt: r.created_at,
+  }));
+
+  // The whole queue is `full` scope only, not merely the deciding. A signal
+  // names a colleague and quotes what they wrote; an operations admin who
+  // needs the bookings screen has no business reading that. The routes
+  // enforce it and the screen matches, rather than handing a scoped admin a
+  // 403 with nothing to explain it.
+  const canSeeRisk = viewerCanSeeRisk;
+  const openRiskCount = canSeeRisk
+    ? riskSignals.filter((r) => r.status === "open").length
+    : 0;
+
+  const todayRiskTab = !canSeeRisk ? (
+    <SurfaceCard title="Risk signals" icon="fa-triangle-exclamation">
+      <EmptyState
+        icon="fa-lock"
+        title="Full access only"
+        body="These findings name individual therapists and quote what they wrote, so they are limited to full-access admins."
+      />
+    </SurfaceCard>
+  ) : (
+    <RiskSignalsTab
+      signals={riskSignals}
+      reviews={riskReviews}
+      rules={(riskRuleRows ?? []).map((r) => ({
+        ruleKey: r.rule_key,
+        label: r.label,
+        description: r.description,
+        enabled: r.enabled,
+        config: (r.config ?? {}) as Record<string, unknown>,
+      }))}
+      detectorsEnabled={adminSettings.riskSignalsEnabled}
+      canReview
+    />
+  );
+
   const settingsActivityTab = (
     <AdminActivityLogTab
       rows={activityRows}
@@ -2161,6 +2309,22 @@ export default async function AdminDashboardPage({
           section: "today",
           tab: "approvals",
           hint: "Someone wants a detail on their profile changed.",
+        },
+      ],
+    },
+    {
+      title: "Risk",
+      icon: "fa-triangle-exclamation",
+      items: [
+        {
+          label: "Signals nobody has looked at",
+          count: openRiskCount,
+          section: "today",
+          tab: "risk",
+          hint: "Patterns worth a person's attention. Nothing acts on them by itself.",
+          urgent:
+            canSeeRisk &&
+            riskSignals.some((r) => r.status === "open" && r.severity === "high"),
         },
       ],
     },
@@ -2428,6 +2592,7 @@ export default async function AdminDashboardPage({
   const screens: AdminScreens = {
     "today:overview": adminOverviewTab,
     "today:approvals": approvalsTab,
+    "today:risk": todayRiskTab,
     "sessions:schedule": calendarTab,
     "sessions:all": allSessionsTab,
     "sessions:roster": rosterTab,
@@ -2529,6 +2694,7 @@ export default async function AdminDashboardPage({
     "today:overview": inboxTotal,
     "sessions:all": unassignedTotal,
     "today:approvals": (pendingAccounts?.length ?? 0) + (pendingProfileChanges?.length ?? 0),
+    "today:risk": openRiskCount,
     "people:patients": conditionsBadgeCount,
     "people:partners": b2bBadgeCount,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,

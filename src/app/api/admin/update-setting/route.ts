@@ -17,6 +17,7 @@ const ALLOWED_COLUMNS = new Set([
   "entitlement_ledger_authoritative",
   "contact_scan_mode",
   "contact_masking_enabled",
+  "risk_signals_enabled",
   "care_plan_default_expiry_days",
   "care_plan_max_frequency_per_week",
   "session_packages_visible",
@@ -134,6 +135,7 @@ export async function POST(request: NextRequest) {
       key === "therapist_suggestions_enabled" ||
       key === "entitlement_ledger_authoritative" ||
       key === "contact_masking_enabled" ||
+      key === "risk_signals_enabled" ||
       key === "splash_enabled") &&
     typeof value !== "boolean"
   ) {

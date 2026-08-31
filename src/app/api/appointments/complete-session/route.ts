@@ -128,7 +128,10 @@ export async function POST(request: NextRequest) {
   // Requiring status still be 'confirmed' at write time closes both cases.
   const { data: updated, error } = await admin
     .from("appointments")
-    .update({ status: "completed", no_show: !!noShow })
+    // completed_at is stamped here and nowhere else, so "when was this
+    // closed" has an answer that does not depend on nothing else having
+    // touched the row since.
+    .update({ status: "completed", no_show: !!noShow, completed_at: new Date().toISOString() })
     .eq("id", appointmentId)
     .eq("status", "confirmed")
     .select("id")

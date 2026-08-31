@@ -56,6 +56,7 @@ const ADMIN_REALTIME_TABLES = [
   "patient_addresses",
   "admin_activity_log",
   "hospital_admin_notes",
+  "risk_signals",
 ];
 
 // Catalog and site configuration: edited by an admin on purpose, not

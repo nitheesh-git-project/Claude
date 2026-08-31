@@ -454,6 +454,34 @@ client is the only writer and the log is append-only from any session.
   completed — identical rule to `sessions_used`, see the counter-semantics
   comment beside `home_visit_package_purchases` in `schema.sql`. See the
   "Home Visit" section in README.md for the full flow.
+- **A flag is never an accusation, and never carries a penalty.** The
+  detectors (`src/lib/riskDetectors.ts`, vocabulary in
+  `src/lib/riskSignals.ts`) run as a bounded lazy sweep after the admin
+  Today render — `after()`, a wall-clock budget checked between rules, and a
+  five-minute minimum interval, because realtime refreshes that page on
+  every booking. Nothing they produce suspends an account, holds a payout or
+  hides a therapist: acting on a finding means going to the screen that owns
+  that action and doing it deliberately, with its own audit row. That
+  separation is what makes a heuristic over clinical data safe to run at
+  all, and the Risk tab deliberately carries no action buttons.
+  `risk_signals.evidence` stores the ids of the rows that fired a rule
+  rather than a score, because an admin who can only see a verdict cannot
+  disagree with it. A partial unique index gives at most one **open or
+  reviewing** signal per `(rule, subject)` — closing one frees the slot, so
+  a repeat after a dismissal is raised fresh, which is correct: it is new
+  information. `risk_reviews` is append-only by trigger with a ten-character
+  minimum note, since "dismissed" with no reason reads the same as "not
+  read". Thresholds live in `risk_rules` and are edited on the tab itself,
+  and the two rules that need a clinic baseline (`plan_conversion_low`,
+  `post_consultation_dropout`) ship **disabled** — a threshold invented
+  before anyone knows the normal rate fires on everyone or on nobody, and
+  the first of those is how a queue stops being read. The whole queue is
+  `full` scope only, not merely the deciding: a signal names a colleague and
+  quotes what they wrote, so a scoped admin's render does not fetch it.
+  `appointments.completed_at` was added for the `early_completion` detector
+  and is stamped only by `complete-session`; a row closed before that column
+  existed carries null and is skipped rather than guessed at.
+
 - **A therapist asserts that money changed hands; the system owns the
   number.** `/api/therapist/record-cash-collection` used to accept
   `amountPaise` from the request body, which meant the person holding the
@@ -1357,7 +1385,8 @@ client is the only writer and the log is append-only from any session.
   and the minutes a tab must be away to earn a second greeting, where 0
   means "first load only" — and the two contact controls,
   `contact_scan_mode` and `contact_masking_enabled`, on Settings → Team &
-  Access — and `enabled_intake_specialties`, which
+  Access, and `risk_signals_enabled` with the per-detector thresholds in
+  `risk_rules`, on Today → Risk — and `enabled_intake_specialties`, which
   condition types triage offers) is read
   through `src/lib/adminSettings.ts` with defaults — don't hardcode these.
   Every dashboard page must select `SITE_SETTINGS_SELECT` from that module
