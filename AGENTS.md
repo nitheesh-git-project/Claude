@@ -454,6 +454,34 @@ client is the only writer and the log is append-only from any session.
   completed — identical rule to `sessions_used`, see the counter-semantics
   comment beside `home_visit_package_purchases` in `schema.sql`. See the
   "Home Visit" section in README.md for the full flow.
+- **A therapist asserts that money changed hands; the system owns the
+  number.** `/api/therapist/record-cash-collection` used to accept
+  `amountPaise` from the request body, which meant the person holding the
+  cash also decided how much of it the clinic knew about — and that figure
+  nets straight off what `therapistCashLedger` says they owe, so
+  under-reporting was a one-field withdrawal. The body now carries an
+  appointment id and nothing else; the total is reconstructed from the
+  purchase with the same per-visit maths `bookHomeVisitSession` used. The
+  honest exception is real (a patient short of cash, an adjustment agreed at
+  the door) and it belongs to whoever is *not* holding the money:
+  `/api/admin/correct-cash-amount`, `requireAdminScope("money")`, a
+  mandatory reason, a CAS on the figure being replaced, and a
+  `cash.correct_amount` audit row. It refuses a visit whose cash has already
+  been remitted — that transfer has gone out, so the fix is an adjustment
+  against the next payout rather than a silent edit of a settled one.
+
+- **Completing a session is a financial write with a clinical name.**
+  `status = 'completed' && payment_status = 'paid'` is the exact and only
+  condition making a therapist's revenue share payable, so
+  `/api/appointments/complete-session` gates the therapist's own path two
+  ways (and an admin's neither, since a backfill or a correction is exactly
+  what the override lane is for): nothing may be completed with no payment,
+  no programme behind it and no cash recorded — a cash home visit collects
+  first, which is the right order anyway — and nothing may be completed
+  before the join window in which it could have been started. The route
+  previously refused neither, and a therapist could mark a session done
+  before its slot and be owed for it.
+
 - **A therapist suggests; the patient books.** A therapist can propose the
   next session on a programme locked to them
   (`/api/therapist/suggest-session`), and the patient accepts or declines

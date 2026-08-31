@@ -547,6 +547,17 @@ Routes: `/api/therapist/suggest-session`,
 
 ## Keeping payments on the platform
 
+Two therapist-side financial writes were closed at the same time. A
+therapist confirms they took cash at the door, but no longer says how much:
+`/api/therapist/record-cash-collection` derives the figure from the
+purchase, since that number nets straight off what the therapist owes the
+clinic. Genuine differences are corrected by an admin through
+`/api/admin/correct-cash-amount`, with a reason, and never once the cash has
+been settled against a payout. And a therapist can no longer mark a session
+complete before it could have started, or complete one that has no payment,
+no programme and no cash behind it — completion is what makes their revenue
+share payable. An admin keeps both unrestricted paths for backfills.
+
 Treatment is paid for through this app, so a patient should never be asked
 to pay another way. Two controls make that hard to do by accident and
 visible when it isn't, and both are admin switches on

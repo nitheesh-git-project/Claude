@@ -5,12 +5,30 @@ import { getAdminUser } from "@/lib/supabase/requireAdmin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 import { mirrorConsume } from "@/lib/sessionCreditMirror";
+import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 
 // Marks a confirmed session as completed. Callable by the therapist who ran
-// the session, or an admin correcting the record — nobody else. There's no
-// time gate: the therapist typically does this right after the call ends,
-// which is naturally after slot_time, but an admin may also need to
-// backfill an older session, so this doesn't try to guess "is it over yet".
+// the session, or an admin correcting the record — nobody else.
+//
+// Two gates apply to the therapist's own path and to neither of the
+// admin's, because `status = 'completed' && payment_status = 'paid'` is the
+// exact and only condition that makes a therapist's revenue share payable
+// (therapistEarnings, therapistPayouts, moneyByBucketFor and
+// settle-therapist-payout all read that one pair). Completion is therefore
+// a financial write with a clinical name, and it was previously
+// unrestricted in both directions:
+//
+//   1. **Nothing may be completed unpaid.** A session with no payment, no
+//      programme behind it and no cash collected is a session the clinic
+//      has no record of being sold. A cash home visit must have its
+//      collection recorded first, which is the correct order anyway.
+//   2. **Nothing may be completed before it could have started.** The floor
+//      is the same join window a therapist could have opened the call in,
+//      so "I marked it done before it began" is not expressible.
+//
+// An admin keeps the unrestricted path for backfills and corrections —
+// which is what the `early_completion` and `completion_without_entitlement`
+// signals watch, rather than a rule that would block a legitimate fix.
 export async function POST(request: NextRequest) {
   const { data: body, error: parseError } = await parseJsonBody<{
     appointmentId?: string;
@@ -33,7 +51,9 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: appointment } = await admin
     .from("appointments")
-    .select("id, status, therapist_id, package_purchase_id, home_visit_purchase_id")
+    .select(
+      "id, status, therapist_id, package_purchase_id, home_visit_purchase_id, payment_status, cash_collected_at, slot_time"
+    )
     .eq("id", appointmentId)
     .single();
   if (!appointment) {
@@ -56,6 +76,46 @@ export async function POST(request: NextRequest) {
       { error: "Only confirmed sessions can be marked completed." },
       { status: 400 }
     );
+  }
+
+  if (!adminUser) {
+    const coveredByProgramme =
+      !!appointment.package_purchase_id || !!appointment.home_visit_purchase_id;
+    const paid = appointment.payment_status === "paid";
+    const cashInHand = !!appointment.cash_collected_at;
+    if (!paid && !coveredByProgramme && !cashInHand) {
+      return NextResponse.json(
+        {
+          error:
+            "This session hasn't been paid for. If you collected cash at the door, record that first; otherwise ask an admin to sort the payment before closing it.",
+        },
+        { status: 409 }
+      );
+    }
+
+    // Read in its own call, per the migration-dependent-column rule, and
+    // defaulting to the same value adminSettings does so a database without
+    // the column behaves as the settings page says it should.
+    const { data: windowRow } = await admin
+      .from("site_settings")
+      .select("join_window_minutes")
+      .maybeSingle();
+    const joinWindowMinutes =
+      typeof windowRow?.join_window_minutes === "number"
+        ? windowRow.join_window_minutes
+        : DEFAULT_ADMIN_SETTINGS.joinWindowMinutes;
+
+    const opensAt =
+      new Date(appointment.slot_time).getTime() - joinWindowMinutes * 60_000;
+    if (Date.now() < opensAt) {
+      return NextResponse.json(
+        {
+          error:
+            "This session hasn't started yet. You can mark it done once it's under way.",
+        },
+        { status: 409 }
+      );
+    }
   }
 
   // Atomic claim, same pattern as cancelAppointmentAndRefund's — the plain

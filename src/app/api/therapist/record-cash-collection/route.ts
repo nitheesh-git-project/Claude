@@ -12,28 +12,24 @@ import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
 // flow into the same completed+paid pipeline every earnings and payout
 // calculation already reads.
 export async function POST(request: NextRequest) {
+  // The body carries an appointment id and nothing else.
+  //
+  // It used to accept `amountPaise` as an override, which meant the person
+  // holding the cash also decided how much of it the clinic knew about --
+  // and that figure nets directly off what therapistCashLedger says they
+  // owe, so under-reporting was a one-field withdrawal. The therapist
+  // asserts that money changed hands; the system owns the number. An amount
+  // that genuinely differs from the quoted price is a correction, and a
+  // correction is an admin's to make, with a reason, through
+  // /api/admin/correct-cash-amount.
   const { data: body, error: parseError } = await parseJsonBody<{
     appointmentId?: string;
-    // Optional override of the expected total, for the rare case where what
-    // actually changed hands differs from the quoted price (a partial
-    // payment, a therapist-negotiated adjustment). Defaults to the full
-    // per-visit fee plus travel when omitted.
-    amountPaise?: number;
   }>(request);
   if (parseError) return parseError;
 
   const { appointmentId } = body;
   if (!appointmentId) {
     return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
-  }
-  if (
-    body.amountPaise !== undefined &&
-    (typeof body.amountPaise !== "number" || !Number.isInteger(body.amountPaise) || body.amountPaise < 0)
-  ) {
-    return NextResponse.json(
-      { error: "amountPaise must be a non-negative whole number." },
-      { status: 400 }
-    );
   }
 
   const supabase = await createClient();
@@ -84,23 +80,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let amountPaise = body.amountPaise;
-  if (amountPaise === undefined) {
-    // Reconstruct the quoted total from the purchase, the same per-visit
-    // math bookHomeVisitSession used when the appointment was created.
-    let perVisitFeePaise = 0;
-    if (appointment.home_visit_purchase_id) {
-      const { data: purchase } = await admin
-        .from("home_visit_package_purchases")
-        .select("amount_paid_paise, visit_count")
-        .eq("id", appointment.home_visit_purchase_id)
-        .maybeSingle();
-      if (purchase) {
-        perVisitFeePaise = computePerVisitFeePaise(purchase.amount_paid_paise, purchase.visit_count);
-      }
+  // Reconstructed from the purchase, the same per-visit math
+  // bookHomeVisitSession used when the appointment was created. This is the
+  // only place the figure comes from.
+  let perVisitFeePaise = 0;
+  if (appointment.home_visit_purchase_id) {
+    const { data: purchase } = await admin
+      .from("home_visit_package_purchases")
+      .select("amount_paid_paise, visit_count")
+      .eq("id", appointment.home_visit_purchase_id)
+      .maybeSingle();
+    if (purchase) {
+      perVisitFeePaise = computePerVisitFeePaise(purchase.amount_paid_paise, purchase.visit_count);
     }
-    amountPaise = perVisitFeePaise + Math.max(0, appointment.travel_fee_paise ?? 0);
   }
+  const amountPaise = perVisitFeePaise + Math.max(0, appointment.travel_fee_paise ?? 0);
 
   // Atomic claim: only the first collection sticks. Without this, a
   // therapist double-tapping the button (or the request retrying after a

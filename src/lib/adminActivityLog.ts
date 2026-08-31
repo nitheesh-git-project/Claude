@@ -44,6 +44,11 @@ export type AdminActivityAction =
   | "payout_request.complete"
   | "refund.issue"
   | "refund.partial"
+  // The therapist's own route no longer accepts an amount, so this is the
+  // only way a collected figure ever changes after the fact -- and it is a
+  // money move in its own right, since what a therapist owes the clinic is
+  // computed from it.
+  | "cash.correct_amount"
   | "cash.mark_remitted"
   | "cash.mark_refund_returned"
   | "expense.create"
@@ -130,6 +135,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "payout_request.complete": "Completed payout request",
   "refund.issue": "Issued refund",
   "refund.partial": "Issued partial refund",
+  "cash.correct_amount": "Corrected cash collected",
   "cash.mark_remitted": "Marked cash remitted",
   "cash.mark_refund_returned": "Marked cash refund returned",
   "expense.create": "Recorded a cost",
