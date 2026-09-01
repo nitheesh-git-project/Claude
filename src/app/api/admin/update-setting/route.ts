@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import {
@@ -10,10 +10,18 @@ import {
   MAX_SPLASH_REVISIT_MINUTES,
   MIN_SPLASH_HOLD_SECONDS,
 } from "@/lib/splashScreen";
+import { isContactScanMode } from "@/lib/adminSettings";
 
 const ALLOWED_COLUMNS = new Set([
   "therapist_suggestions_enabled",
+  "entitlement_ledger_authoritative",
+  "contact_scan_mode",
+  "contact_masking_enabled",
+  "risk_signals_enabled",
+  "care_plan_default_expiry_days",
+  "care_plan_max_frequency_per_week",
   "session_packages_visible",
+  "show_programme_prices",
   "session_timeout_minutes",
   "google_meet_enabled",
   "join_window_minutes",
@@ -110,7 +118,7 @@ const MAX_HOME_VISIT_SUBHEADING_LENGTH = 300;
 // generalized to any of this feature's columns instead of one dedicated
 // route per toggle.
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("settings");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -121,15 +129,27 @@ export async function POST(request: NextRequest) {
   }
   if (
     (key === "session_packages_visible" ||
+      key === "show_programme_prices" ||
       key === "google_meet_enabled" ||
       key === "package_therapist_lock_enabled" ||
       key === "home_visit_enabled" ||
       key === "home_visit_cash_enabled" ||
       key === "therapist_suggestions_enabled" ||
+      key === "entitlement_ledger_authoritative" ||
+      key === "contact_masking_enabled" ||
+      key === "risk_signals_enabled" ||
       key === "splash_enabled") &&
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
+  }
+  // Matches the column's own check constraint, so a value the database
+  // would reject is refused here with a sentence rather than a 500.
+  if (key === "contact_scan_mode" && !isContactScanMode(value)) {
+    return NextResponse.json(
+      { error: "Unknown checking mode." },
+      { status: 400 }
+    );
   }
   if (key === "payment_gateway_fee_percent" && !isValidGatewayFeePercent(value)) {
     return NextResponse.json(
@@ -242,10 +262,25 @@ export async function POST(request: NextRequest) {
       // that has already started, with no chance of a therapist reaching
       // the address -- the whole point of this setting being separate from
       // the online lead time is that travel takes real hours.
-      key === "home_visit_lead_time_hours") &&
+      key === "home_visit_lead_time_hours" ||
+      // A zero-day expiry would lapse a recommendation the moment it was
+      // written, so the patient would never see one.
+      key === "care_plan_default_expiry_days") &&
     (typeof value !== "number" || !Number.isInteger(value) || value < 1)
   ) {
     return NextResponse.json({ error: "value must be a positive whole number" }, { status: 400 });
+  }
+
+  // A week has seven days, so a frequency cap outside 1-7 is not a
+  // stricter rule, it is a typo.
+  if (
+    key === "care_plan_max_frequency_per_week" &&
+    (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 7)
+  ) {
+    return NextResponse.json(
+      { error: "value must be a whole number between 1 and 7" },
+      { status: 400 }
+    );
   }
 
   // Normalized here rather than trusted from the client: this list is

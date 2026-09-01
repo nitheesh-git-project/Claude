@@ -21,9 +21,7 @@ export default async function Page() {
       >
         <PatientBookingHub
           categories={d.bookableCategories ?? []}
-          onlinePackages={d.hubOnlinePackages}
           homeVisitPackages={d.hubHomeVisitPackages}
-          categoryPriceById={d.categoryPriceMapForHub}
         />
       </SurfaceCard>
     </PatientDashboardShell>

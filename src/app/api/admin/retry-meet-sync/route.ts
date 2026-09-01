@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
@@ -14,7 +14,7 @@ import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatA
 // admin explicitly clicking Retry is an explicit override of the
 // site-wide default, not a new automatic creation.
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("settings");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

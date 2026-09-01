@@ -4,6 +4,7 @@ import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
 import { formatAddressOneLine, type VisitAddress } from "@/lib/formatAddress";
+import { mirrorReserve } from "@/lib/sessionCreditMirror";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -293,6 +294,18 @@ export async function bookHomeVisitSession(
         : null,
     });
   }
+
+  // Dual-write: the counter claim above is still what the app reads, and
+  // this records the same claim in the ledger that will replace it. Never
+  // fails the booking -- see sessionCreditMirror.ts. Placed after the
+  // appointment insert so the reserve is keyed on a real appointment id,
+  // which is also why the rollback path above has nothing to undo.
+  await mirrorReserve(admin, {
+    appointmentId: appointment.id,
+    homeVisitPurchaseId: purchase.id,
+    actorId,
+    actorRole: actorId === purchase.patient_id ? "patient" : "admin",
+  });
 
   // Best-effort audit trail -- a logging failure must never fail a booking
   // that already succeeded.

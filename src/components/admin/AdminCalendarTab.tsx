@@ -37,6 +37,7 @@ export default function AdminCalendarTab({
   therapists,
   reassignmentLogs,
   homeVisits,
+  canSeeMoney,
 }: {
   appointments: SessionDetailAppointment[];
   people: Person[];
@@ -48,6 +49,10 @@ export default function AdminCalendarTab({
   // opened from All Sessions -- one session, one detail view, whichever
   // screen you arrived from.
   homeVisits: HomeVisitRow[];
+  // Passed to SessionDetailDrawer, whose discretionary-refund form calls a
+  // route guarded by requireAdminScope("money") -- a clinical admin can open
+  // Sessions but not Money, so the form must not render for them.
+  canSeeMoney: boolean;
 }) {
   const peopleMap = useMemo(
     () => new Map(people.map((p) => [p.id, p.full_name ?? "Unknown"])),
@@ -266,6 +271,7 @@ export default function AdminCalendarTab({
 
       {selectedAppointment && (
         <SessionDetailDrawer
+          canSeeMoney={canSeeMoney}
           appointment={selectedAppointment}
           peopleMap={peopleMap}
           categoryMap={categoryMap}

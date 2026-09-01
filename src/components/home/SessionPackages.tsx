@@ -16,6 +16,7 @@ import {
   type StatTile,
 } from "@/components/catalog/CatalogVisuals";
 import { computePackageSavings } from "@/lib/packageProgress";
+import { PROGRAMME_CARD_NOTE } from "@/lib/consultationFirst";
 
 export type PublicPackage = {
   id: string;
@@ -175,13 +176,20 @@ export default function SessionPackages({ packages }: { packages: PublicPackage[
                   </button>
 
                   <div className="flex flex-col gap-2 px-6 pb-6">
+                    {/* Not a Buy button any more. A programme is arranged by
+                        a therapist after they have seen someone, so the card
+                        shows what one looks like and the CTA starts the only
+                        step a visitor can take themselves. */}
                     <Link
-                      href={`/book?package=${pkg.id}`}
+                      href="/book"
                       className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
                     >
                       <i aria-hidden="true" className="fa-solid fa-calendar-check" />
-                      Book package
+                      Book a first session
                     </Link>
+                    <p className="text-center text-[11px] text-slate-400">
+                      {PROGRAMME_CARD_NOTE}
+                    </p>
                     <button
                       type="button"
                       onClick={() => setOpenId(pkg.id)}
@@ -352,16 +360,14 @@ function PackageDetail({
             <ProseSection title="Terms" body={pkg.terms} />
 
             <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-slate-500">
-                Sessions are scheduled after purchase, at times you pick.
-              </p>
+              <p className="text-xs text-slate-500">{PROGRAMME_CARD_NOTE}</p>
               <Link
-                href={`/book?package=${pkg.id}`}
+                href="/book"
                 onClick={onClose}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-teal-900/15 transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
               >
                 <i aria-hidden="true" className="fa-solid fa-calendar-check" />
-                Book package
+                Book a first session
               </Link>
             </div>
           </div>

@@ -21,7 +21,12 @@ Calendar/Meet (`googleapis`) · `motion` for animation · Font Awesome ·
 patient's health profile and the admin's table exports).
 
 Commands: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
-`npm run check:realtime`, `npm run test:e2e`. `npm run lint` runs
+`npm run test`, `npm run check:realtime`, `npm run test:e2e`, and
+`npm run verify` (lint + test + build, the one to run before pushing).
+`npm run test` is Vitest over `src/**/*.test.ts` — the dependency-free
+modules in `src/lib`, which is why the business maths lives there rather
+than inside components. It needs no database and no browser; anything that
+does belongs in `e2e/`. `npm run lint` runs
 `check:realtime` first: `scripts/check-realtime-coverage.mjs` fails the lint
 when a table the UI subscribes to was never added to the `supabase_realtime`
 publication in `schema.sql`. That mismatch has no runtime symptom — the
@@ -42,7 +47,12 @@ going through with no email-confirmation step
 (`patient-registration.spec.ts`), the Session Completed cutoff on every
 surface that lists a session (`session-completed-cutoff.spec.ts`), and the
 brand splash's cold-open, reload and long-absence rules together with its
-admin settings (`splash-screen.spec.ts`). It needs a
+admin settings (`splash-screen.spec.ts`), and the clinic's reach over a
+recommendation -- who may write one on a therapist's behalf, the split
+attribution the successful write produces, and the panel that offers it
+(`admin-care-plans.spec.ts`, whose fixtures are found-or-created rather than
+deleted, since an append-only version pointing at one makes it undeletable).
+It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
@@ -165,16 +175,34 @@ role, an id, or an amount sent from the client — re-derive it server-side.
 
 Admins additionally carry a scope (`profiles.admin_scope`: `full`,
 `operations`, `finance`, `clinical` — see `src/lib/adminScope.ts`), which
-decides which dashboard sections they can open. A route that belongs to one
-section guards with `requireAdminScope(section)` rather than
-`getAdminUser()`; the sidebar hiding a section is presentation only, since a
-session cookie can call any route directly. Only a `full` admin can change
+decides which dashboard sections they can open. **Every** admin route guards
+with `requireAdminScope(section)`, not `getAdminUser()`; the sidebar hiding a
+section is presentation only, since a session cookie can call any route
+directly. The section is chosen by the capability, not by where the button
+happens to sit — a refund is `money` even though its button lives on a
+Catalog screen. And a guarded route needs the UI to match: a control an
+admin's scope cannot call must not render, or they get a 403 with nothing
+to explain it. `ProfileSessionList`, `SessionDetailDrawer` and the two
+purchase detail modals take `canSeeMoney` / `canManageSessions` for exactly
+that reason.
+
+`getAdminUser()` and the proxy's admin branch both refuse a suspended admin
+(`profiles.active`). They deliberately do **not** check `approved`: an admin
+is promoted by hand rather than through the signup queue, so gating on it
+would lock out the people it protects. Only a `full` admin can change
 scopes or mint another admin, nobody can change their own, and the last
 `full` admin cannot be narrowed — otherwise a single mis-click locks
 everyone out permanently.
 
-Every mutating admin route should record what happened via
-`recordAdminActivity()` (`src/lib/adminActivityLog.ts`). It is best-effort
+Every mutating admin route records what happened via
+`recordAdminActivity()` (`src/lib/adminActivityLog.ts`), and every action in
+the `AdminActivityAction` union has a caller — that used to be true of only
+16 of them, which left the largest money move in the app (`payout.settle`)
+unattributed. Adding an action without a caller, or a mutating route without
+a call, puts the log back where it was. A generated password never goes in
+`details`: the log is readable by every admin, so who reset what and when is
+the part with audit value. The call goes **after** the route's CAS claim,
+so the log cannot record a settlement or cancellation that lost its race. It is best-effort
 and never throws: an audit write failing must not block the action it
 describes, same posture as the Meet-sync rule below. `admin_activity_log`
 has a select policy and deliberately no insert policy, so the service-role
@@ -208,6 +236,97 @@ client is the only writer and the log is append-only from any session.
   every field of a shared query.
 - Money is integer paise. Times are `timestamptz`. Percentages
   (`revenue_share_percent`) are 0–100.
+- **Session credits are a ledger, not a counter.** `session_entitlements`
+  is what a patient bought; `session_credit_ledger` is every movement of it,
+  append-only. The counts on the entitlement are a *cache* the ledger
+  maintains by trigger, and the CHECK on that cache is what makes an
+  impossible balance impossible rather than merely unwritten — a ledger row
+  that would overdraw fails the constraint and takes its transaction with
+  it. Six rules hold this together:
+  1. **Every movement goes through an RPC** (`reserve_session_credit`,
+     `consume_session_credit`, `release_session_credit`,
+     `void_session_credits`, `adjust_session_credits`), called from
+     `src/lib/sessionCredits.ts`. They open with `select … for update`,
+     which is a real lock — verified with 12 concurrent reserves against one
+     credit, of which exactly one won. Never write the ledger directly.
+  2. **Idempotency keys are derived from the thing that happened**, never
+     random: `reserve:<appointment_id>`, `consume:<appointment_id>`. A
+     random key makes every retry look like a new event, which is the bug
+     the key exists to prevent. Idempotency is checked *before* availability
+     in `reserve_session_credit`, deliberately — checking availability first
+     answers "no credits available" for a booking that in fact succeeded.
+  3. **The ledger is append-only, enforced by a trigger, not by RLS.** The
+     revoke covers a browser session; every route in this app writes with the
+     service-role client, which bypasses RLS entirely. For a table whose
+     whole value is that it cannot be rewritten, "no route updates it" is
+     not the same guarantee as "an update raises".
+  4. **`sessions_granted` and `package_snapshot` are frozen by trigger.**
+     A purchase's definition never moves; its balance moves through the
+     ledger. Never resolve a purchased entitlement by joining the live
+     catalog row — read the snapshot, or an admin re-pricing a package
+     silently rewrites what someone already owns.
+  5. **A refund voids what is available, never what is consumed.** A
+     delivered session stays delivered.
+  6. **`admin_adjust` is the only entry type with free-form deltas, and the
+     only one requiring a reason** — ten characters minimum, enforced by a
+     CHECK so it holds for any caller. It is the override lane behind
+     `/api/admin/grant-session-credits`, `reverse-session-credit` and
+     `revive-entitlement`: an admin can change any balance, and cannot
+     change any history.
+
+  **Which number the app believes is a switch, not a deploy.**
+  `site_settings.entitlement_ledger_authoritative` (Settings → Booking
+  Rules, off by default) decides whether a balance shown and offered comes
+  from the ledger or from `sessions_used` / `visits_used`. Flipping it is
+  reversible in a second, because both are still written either way.
+
+  The flip needed no screen to change. Every surface that shows a balance —
+  the patient's widget, the therapist's programme list, both detail modals,
+  the admin Purchases table, the bulk scheduler — reads the same
+  `session_count` / `sessions_used` shape, so `src/lib/ledgerBalances.ts`
+  substitutes `sessions_used` on the row **once, where the row is loaded**
+  (`sessions_granted - available`), and every consumer follows. Add a new
+  balance surface by loading its rows through that helper, not by reading
+  the ledger yourself. It leaves `session_count` alone on purpose, so a
+  refunded package still reads "6 sessions" with none pending rather than
+  becoming a 1-session package, and it never touches a purchase with no
+  entitlement — a database without the backfill behaves exactly as before.
+
+  The flip deliberately does **not** change how a session is *claimed*. The
+  counter's compare-and-swap still wins the booking race, with the ledger's
+  row lock beside it. Making the ledger the claiming mechanism means
+  deleting the counter writes, which is its own change with its own risk.
+
+  **The ledger is written alongside the old counters, and does not yet
+  replace them.** All eight statements in `src/` that mutate
+  `sessions_used` / `visits_used` now have a mirror call beside them
+  (`src/lib/sessionCreditMirror.ts`), and a mirror failure never fails the
+  operation it mirrors — the counter is still authoritative, so a logged
+  disagreement that reconciliation surfaces beats refusing a booking
+  because a shadow ledger was unhappy. Two of the mirrors have no counter
+  write to mirror at all, and both are the ledger saying something the
+  counters could not: a **refund** never touched the counters (it cancels
+  the remaining appointments in place and leaves the counter inflated), and
+  an **expiry** left the balance implicit. A **late cancellation** mirrors
+  a `consume` rather than nothing — the balance is the same either way, but
+  leaving the reserve outstanding would claim a cancelled session is still
+  pending. New purchases get their entitlement from
+  `ensure_entitlement_for_purchase`, called by both verify routes and by
+  cash-on-visit booking, which never becomes `paid` and so reaches neither.
+
+  `verify_entitlement_balances()` reports where the cache, the ledger and
+  the legacy counter disagree, on Settings → System Health. It reports and
+  never repairs — a silent auto-fix on a money record is how a discrepancy
+  becomes permanent. It has already earned itself twice, catching two
+  distinct bugs in the backfill it checks.
+
+- **An invariant the app enforces belongs in the database too.**
+  `sessions_used` / `visits_used` were guarded only by application-level
+  compare-and-swap — correct, and true only for as long as every writer
+  remembers the `.eq()` predicate, and not true at all for a hand-run
+  UPDATE in the table editor. Both now carry CHECK constraints. If one
+  fails against a live database, that failure is the finding: reconcile the
+  rows, don't weaken the check.
 - Any new table needs RLS policies written alongside it in the same file.
 - A change to `schema.sql` only reaches the live database once it's applied
   — either by hand with `node scripts/run-schema.mjs`, or automatically via
@@ -227,6 +346,38 @@ client is the only writer and the log is append-only from any session.
   `src/lib/checkTherapistConflict.ts`).
 - **Payments** must be verified server-side: `/api/razorpay/verify` checks the
   signature before anything is confirmed. Never confirm on a client callback.
+  **A capture is applied in exactly one place**: `record_payment_capture` in
+  `schema.sql`, called through `src/lib/recordPaymentCapture.ts` by the three
+  verify routes and by `/api/razorpay/webhook`. It is a database function
+  rather than TypeScript because supabase-js cannot express a transaction,
+  and a capture has to move a `payments` row and the row it paid for
+  together under a real `select ... for update`. It is idempotent by
+  construction — the second caller for an order finds it captured and
+  changes nothing — which is what makes duplicate webhooks, Razorpay's
+  at-least-once retries, a webhook racing the browser callback and a
+  double-clicked Pay button all safe without any of them knowing about the
+  others. It deliberately does **not** confirm an appointment or create a
+  Meet event (those need an outbound Google call, so they stay in the
+  route), and it never revives a cancelled booking. Add a new payment
+  purpose by extending its `purpose` check, not by writing a second
+  fulfilment path.
+  **The webhook's signature is checked against the raw body.** `await
+  request.text()`, never a re-serialised parse: `JSON.parse` then
+  `JSON.stringify` does not round-trip byte-for-byte, so verifying a
+  re-serialised body rejects legitimate webhooks and tempts someone to
+  "fix" it by skipping the check. The webhook inserts its
+  `payment_webhook_events` row **before** doing any work, because that
+  insert colliding on `razorpay_event_id` is the deduplication; processing
+  first and recording after would let a retry arriving mid-flight do the
+  work twice.
+  **`payments` has unique indexes on `razorpay_order_id` and
+  `razorpay_payment_id`, and they are the point of the table.** Nothing in
+  this database previously stopped one payment id being recorded against
+  two rows. The per-table payment columns on `appointments` and the two
+  purchase tables are unchanged and still answer "is this paid for";
+  `payments` is the record of money. Don't drop those indexes to make an
+  import succeed — a collision means a duplicate already exists and wants
+  investigating.
   For a single online session, `/api/razorpay/create-order` flips the paying
   patient's `profiles.approved` to `true` the moment they genuinely attempt
   checkout (`approvePatientForGenuinePaymentAttempt` in
@@ -313,6 +464,62 @@ client is the only writer and the log is append-only from any session.
   completed — identical rule to `sessions_used`, see the counter-semantics
   comment beside `home_visit_package_purchases` in `schema.sql`. See the
   "Home Visit" section in README.md for the full flow.
+- **A flag is never an accusation, and never carries a penalty.** The
+  detectors (`src/lib/riskDetectors.ts`, vocabulary in
+  `src/lib/riskSignals.ts`) run as a bounded lazy sweep after the admin
+  Today render — `after()`, a wall-clock budget checked between rules, and a
+  five-minute minimum interval, because realtime refreshes that page on
+  every booking. Nothing they produce suspends an account, holds a payout or
+  hides a therapist: acting on a finding means going to the screen that owns
+  that action and doing it deliberately, with its own audit row. That
+  separation is what makes a heuristic over clinical data safe to run at
+  all, and the Risk tab deliberately carries no action buttons.
+  `risk_signals.evidence` stores the ids of the rows that fired a rule
+  rather than a score, because an admin who can only see a verdict cannot
+  disagree with it. A partial unique index gives at most one **open or
+  reviewing** signal per `(rule, subject)` — closing one frees the slot, so
+  a repeat after a dismissal is raised fresh, which is correct: it is new
+  information. `risk_reviews` is append-only by trigger with a ten-character
+  minimum note, since "dismissed" with no reason reads the same as "not
+  read". Thresholds live in `risk_rules` and are edited on the tab itself,
+  and the two rules that need a clinic baseline (`plan_conversion_low`,
+  `post_consultation_dropout`) ship **disabled** — a threshold invented
+  before anyone knows the normal rate fires on everyone or on nobody, and
+  the first of those is how a queue stops being read. The whole queue is
+  `full` scope only, not merely the deciding: a signal names a colleague and
+  quotes what they wrote, so a scoped admin's render does not fetch it.
+  `appointments.completed_at` was added for the `early_completion` detector
+  and is stamped only by `complete-session`; a row closed before that column
+  existed carries null and is skipped rather than guessed at.
+
+- **A therapist asserts that money changed hands; the system owns the
+  number.** `/api/therapist/record-cash-collection` used to accept
+  `amountPaise` from the request body, which meant the person holding the
+  cash also decided how much of it the clinic knew about — and that figure
+  nets straight off what `therapistCashLedger` says they owe, so
+  under-reporting was a one-field withdrawal. The body now carries an
+  appointment id and nothing else; the total is reconstructed from the
+  purchase with the same per-visit maths `bookHomeVisitSession` used. The
+  honest exception is real (a patient short of cash, an adjustment agreed at
+  the door) and it belongs to whoever is *not* holding the money:
+  `/api/admin/correct-cash-amount`, `requireAdminScope("money")`, a
+  mandatory reason, a CAS on the figure being replaced, and a
+  `cash.correct_amount` audit row. It refuses a visit whose cash has already
+  been remitted — that transfer has gone out, so the fix is an adjustment
+  against the next payout rather than a silent edit of a settled one.
+
+- **Completing a session is a financial write with a clinical name.**
+  `status = 'completed' && payment_status = 'paid'` is the exact and only
+  condition making a therapist's revenue share payable, so
+  `/api/appointments/complete-session` gates the therapist's own path two
+  ways (and an admin's neither, since a backfill or a correction is exactly
+  what the override lane is for): nothing may be completed with no payment,
+  no programme behind it and no cash recorded — a cash home visit collects
+  first, which is the right order anyway — and nothing may be completed
+  before the join window in which it could have been started. The route
+  previously refused neither, and a therapist could mark a session done
+  before its slot and be owed for it.
+
 - **A therapist suggests; the patient books.** A therapist can propose the
   next session on a programme locked to them
   (`/api/therapist/suggest-session`), and the patient accepts or declines
@@ -338,6 +545,50 @@ client is the only writer and the log is append-only from any session.
   clear optimistically, so a request that dies on a bad connection leaves the
   person exactly where they were. Gated by
   `site_settings.therapist_suggestions_enabled`, off by default.
+
+- **The platform keeps its own conversations, and leaves evidence when it
+  doesn't.** Treatment is paid for through this app, so a patient must never
+  be asked to pay another way — and a therapist and a patient who have met
+  can agree to carry on privately at a lower price, costing the clinic the
+  patient, the revenue and any record that the care happened. Two controls,
+  both admin switches, neither of them a policy nobody can check:
+  1. **Every cross-role free-text write is scanned**
+     (`src/lib/contactLeakScan.ts`, applied through
+     `src/lib/communicationFlags.ts`): the suggestion note, a care plan's
+     `clinical_rationale` and `instructions`, Pain Map exam answers (which
+     reach the patient through the export PDF even though the dashboard
+     does not render them), and the patient's own booking notes. Two tiers,
+     because this text is **clinical** and a scanner that treats digits as
+     suspicious fires on every dose and every exercise prescription: a
+     `block` hit (UPI handle, payment link, payment app) refuses the write,
+     a `flag` hit (phone, email, social handle, bare URL) is delivered and
+     recorded. Phone matching is the Indian mobile shape specifically — ten
+     digits starting 6-9, optional `0`/`91` — not a loose digit run, which
+     flagged order references. The patient direction is `record_only`: a
+     patient is not who this exists to catch, and a 400 at the last step of
+     checkout costs a real booking. `site_settings.contact_scan_mode`
+     (`off` / `flag_only` / `flag_and_block`) is read in its own call and
+     fails **open**.
+  2. **A patient's phone is masked on therapist surfaces and their email is
+     not loaded at all** (`src/lib/contactMasking.ts`, masked once in
+     `therapistDashboardData.ts` where the rows are loaded, so the
+     plaintext number is never in the page). The full number comes one
+     session at a time from `/api/therapist/reveal-contact`, allowed inside
+     a video session's join window or any time on a home visit's own day,
+     never for a cancelled session, and every reveal writes
+     `contact_reveal_log`. That log write is **not** best-effort: a reveal
+     that could not be recorded is refused, unlike the audit log's posture,
+     because a reveal with no trace is the one outcome this route must not
+     produce. `site_settings.contact_masking_enabled` is read in its own
+     call and fails **closed** — the safe answer to "I don't know" is
+     opposite for the two settings, and deliberately so.
+  `communication_flags` and `contact_reveal_log` are admin-select-only and
+  append-only **by trigger**, not only by RLS: every route here writes with
+  the service-role client, which bypasses RLS entirely, so an evidence
+  record the evidenced party could edit is not evidence. Adding a new
+  free-text field that one role writes and another reads means adding a
+  `surface` value and a `guardCommunication` call — the CHECK on that column
+  is what stops a new field quietly skipping the scan.
 
 - **Session packages lock to one therapist by default.** The first therapist
   assigned to any session on a `patient_package_purchases` row sets
@@ -505,6 +756,126 @@ client is the only writer and the log is append-only from any session.
   specialty from **triage only**: an existing profile carrying it must
   keep rendering, and a therapist re-triaging such a patient is still
   offered it. Ortho can never be switched off.
+- **One authoring implementation, two doors.** A therapist writes their own
+  recommendation from the session note dialog; an admin writes one on their
+  behalf from Sessions → Recommendations when that therapist cannot reach the
+  dashboard (on leave, off sick, gone, with a patient still waiting to hear).
+  Both call `authorCarePlanVersion()` in `src/lib/carePlanAuthoring.ts`, which
+  is what stops the second door growing weaker rules than the first: the
+  package still comes from the admin whitelist, the source still has to be a
+  **completed session that therapist ran**, the text is still scanned, and
+  there is still no price, session-count or discount field for anyone.
+  Attribution is split rather than fudged — `authored_by` stays the clinician
+  whose judgement it is, `entered_by` records the admin who typed it. Naming
+  only the therapist would be a quiet lie about who was at the keyboard;
+  naming only the admin a louder one about whose judgement it is.
+  `/api/admin/author-care-plan` takes `requireAdminScope("sessions")`, a
+  mandatory reason, and writes a `care_plan.author_on_behalf` audit row.
+  The admin's panel matches the therapist's dialog on the two things that
+  decide what gets picked. The programmes on offer are narrowed to the
+  chosen session's own condition, through `narrowToCategory()` in
+  `CarePlanFields.tsx` — both doors load the whole recommendable catalog in
+  one go (a therapist's dashboard covers all their patients, an admin's
+  screen covers all of them), so neither can narrow at load time and both
+  narrow per session at the point of use; the admin's draft is dropped when
+  the chosen session changes, so a package for someone else's condition
+  cannot be carried across. And whose name it goes out in is stated at the
+  button rather than in a subtitle two screens up. It renders even with no session
+  to write against or no recommendable package, saying which of the two is
+  missing -- an admin opens this screen because a patient is waiting, and a
+  panel that is simply absent reads as a feature that does not exist.
+
+- **The clinic can see every recommendation, and stop one.** A care plan is
+  now the only route by which a patient buys a programme, so Sessions →
+  Recommendations lists them all and `/api/admin/withdraw-care-plan`
+  (`requireAdminScope("sessions")`, mandatory reason, CAS on
+  `status = 'active'`, `care_plan.withdraw` audit row) closes one whose
+  author cannot — on leave, gone, or the reason it is wrong. Withdrawing is
+  deliberately the **whole** of that power: versions are append-only, and a
+  recommendation that changed is a new one written by a clinician who has
+  seen the patient, never an edit made from the back office. A **purchased**
+  plan cannot be withdrawn at all — the patient has paid and the sessions
+  exist, so the honest lane is a refund or a credit adjustment, both of
+  which have their own screens.
+
+- **Treatment volume is never sold before an assessment.** The rule lives in
+  `src/lib/consultationFirst.ts` and is a property of the thing being sold,
+  not a feature flag: a catalog row may be bought directly only when it is a
+  **single** session or visit. One session is a consultation — there is
+  nothing to assess before selling somebody one appointment — and two or
+  more is a programme, which comes from a care plan a therapist wrote after
+  a session they ran.
+  Direct session-package purchase is **gone**: `/api/packages/create-order`,
+  `/api/packages/verify`, `packagePayment.ts` and `BuyPackageButton` are
+  deleted, and `/book` sells one consultation against a treatment category.
+  The home-visit exception is load-bearing rather than a compromise: every
+  home visit in this app is a `home_visit_packages` purchase and
+  `/api/appointments/create` books `visit_mode: 'online'` only, so applying
+  "no direct package purchase" literally to both catalogs would leave a
+  patient who needs to be seen at home with **no entry point at all**. A
+  one-visit home package is that patient's consultation and stays
+  purchasable; `visit_count > 1` is refused by both
+  `/api/home-visit/create-order` and `/api/home-visit/book-cash` (paying at
+  the door is a payment method, not a different product).
+  Both wizards **answer** a stale `?package=` link rather than ignoring it —
+  taking a different amount of money than somebody came for is the one
+  outcome a removed checkout must not produce. Existing purchases are
+  untouched and keep booking to exhaustion.
+  A recommended home visit collects an address at checkout
+  (`src/lib/homeVisitAddress.ts`, shared with the direct route) and sets
+  `default_address_id` and `travel_fee_paise`. The offer card quotes the fee
+  for that address through `/api/home-visit/check-area` and shows
+  programme + travel + total, because travel is charged **per visit** and the
+  card previously printed the programme price on a button that charged more
+  — a four-visit programme in a ₹150 area was ₹600 out. Quoting a different
+  figure than you charge is the one thing a payment screen must never do.
+  `/api/care-plan/create-order` also re-checks `home_visit_enabled`: an admin
+  who switches home visits off has stopped the service, and a recommendation
+  written before that must not stay purchasable. Without them
+  `/api/home-visit/book-visits` refuses outright and the therapist funds
+  their own transport — both were missing while a programme could still be
+  bought the old way, and neither is optional now that it cannot.
+
+- **A therapist recommends; the clinic prices.** A care plan
+  (`care_plans` + `care_plan_versions`) is what a therapist proposes after a
+  session, and it is the only route by which a patient buys a programme once
+  the consultation-first flow is on. Five rules hold it together:
+  1. **A therapist picks a package, never a price.** Session count, price,
+     validity, duration and the gap rules all come from an
+     admin-configured `treatment_category_packages` / `home_visit_packages`
+     row, re-read server-side in
+     `/api/therapist/care-plan/submit`. There is no price column, no session
+     count column and no discount column on a version, so "the therapist set
+     their own price" is not a policy anyone enforces — it is a thing the
+     schema cannot express. The four fields they *do* choose
+     (`hands_on_required`, `frequency_per_week`, `clinical_rationale`,
+     `instructions`) are clinical judgement.
+  2. **A version needs a completed session that therapist ran.**
+     `source_appointment_id` is NOT NULL, and the route re-derives the
+     appointment rather than trusting the body. That is what makes
+     "recommend to everyone and see who bites" impossible rather than
+     discouraged.
+  3. **It writes live, with no review.** Same reasoning as
+     `condition-profile/onboard`: a queue in front of a clinician's own
+     judgement means the patient hears nothing for hours after a session
+     that just ended. Live is not unrecorded — versions are append-only,
+     attributed and dated.
+  4. **Versions are append-only, by trigger.** Only `is_current` may
+     change; every other column raises on update, and delete raises
+     outright. A recommendation that changed is a new version.
+  5. **A purchased plan is never re-versioned.** Once `status = 'accepted'`
+     the thread is closed and a later recommendation opens a new one with
+     `supersedes_id` set, because editing a purchased plan would change the
+     description of something already paid for. `care_plans_one_active_per_patient`
+     keeps at most one live plan, so a patient never sees two competing
+     recommendations.
+
+  One record, two readers: `CarePlanHistory` renders the same
+  `care_plan_versions` rows on the therapist's chart and the patient's
+  Health Profile, branching on `voice` rather than keeping a copy per
+  surface. Read them through `src/lib/carePlanServer.ts`, never with your
+  own query.
+
 - **One word for the record, one for the condition type, one for the
   reviewer.** The clinical counterpart of the money-word rules below, added
   after an audit found **ten** user-facing names for the health profile and
@@ -1102,7 +1473,10 @@ client is the only writer and the log is append-only from any session.
   rotate" — and the opening splash's five settings — on/off, the name above
   the line (blank follows the site name), its one line, the hold in seconds,
   and the minutes a tab must be away to earn a second greeting, where 0
-  means "first load only" — and `enabled_intake_specialties`, which
+  means "first load only" — and the two contact controls,
+  `contact_scan_mode` and `contact_masking_enabled`, on Settings → Team &
+  Access, and `risk_signals_enabled` with the per-detector thresholds in
+  `risk_rules`, on Today → Risk — and `enabled_intake_specialties`, which
   condition types triage offers) is read
   through `src/lib/adminSettings.ts` with defaults — don't hardcode these.
   Every dashboard page must select `SITE_SETTINGS_SELECT` from that module

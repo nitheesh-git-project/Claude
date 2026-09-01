@@ -79,7 +79,10 @@ test.describe("Only a patient account can book", () => {
     const address = { line1: "1 Test Street", pincode: "600017", city: "Chennai" };
     const cases: { path: string; data: Record<string, unknown> }[] = [
       { path: "/api/razorpay/create-order", data: { appointmentId: FAKE_ID } },
-      { path: "/api/packages/create-order", data: { packageId: FAKE_ID } },
+      // /api/packages/create-order is gone with the consultation-first
+      // cutover; the care-plan route is what buys a programme now and
+      // carries the same role gate.
+      { path: "/api/care-plan/create-order", data: { carePlanVersionId: FAKE_ID } },
       { path: "/api/home-visit/create-order", data: { packageId: FAKE_ID, address } },
       {
         path: "/api/home-visit/book-cash",

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -14,7 +15,7 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 // every other home-visit scheduling decision, since a therapist finishing
 // one visit cannot be at another minutes later.
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("catalog");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -165,6 +166,17 @@ export async function POST(request: NextRequest) {
       console.error("Failed to log therapist_reassigned event for home visit purchase", purchaseId, eventError);
     }
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "package.reassign_therapist",
+    targetId: purchaseId,
+    details: {
+      oldTherapistId: purchase.locked_therapist_id,
+      newTherapistId: therapistId,
+      reassignedCount: reassigned.length,
+      skippedCount: skipped.length,
+    },
+  });
 
   return NextResponse.json({ success: true, reassigned, skipped });
 }

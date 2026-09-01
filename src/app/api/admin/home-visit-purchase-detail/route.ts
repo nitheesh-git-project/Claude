@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { applyLedgerVisitBalance, readLedgerAuthoritative } from "@/lib/ledgerBalances";
 
 // The home-visit twin of /api/admin/package-purchase-detail -- backs the
 // admin Programmes table's tap-to-open detail popup.
 export async function GET(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("catalog");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { data: purchase } = await admin
+  const { data: purchaseRow } = await admin
     .from("home_visit_package_purchases")
     .select(
       "id, purchase_code, patient_id, package_id, visit_count, visits_used, amount_paid_paise, travel_fee_paise, payment_mode, payment_status, status, locked_therapist_id, expires_at, notes, paid_at, created_at, razorpay_payment_id"
@@ -24,9 +25,16 @@ export async function GET(request: NextRequest) {
     .eq("id", purchaseId)
     .single();
 
-  if (!purchase) {
+  if (!purchaseRow) {
     return NextResponse.json({ error: "Home visit package purchase not found" }, { status: 404 });
   }
+
+  // The balance this screen shows comes from the ledger once it is
+  // authoritative. Substituted on the row rather than at each figure below,
+  // so pendingCount and the progress bar move together and cannot disagree.
+  const purchase = await applyLedgerVisitBalance(admin, purchaseRow, {
+    authoritative: await readLedgerAuthoritative(admin),
+  });
 
   const [
     { data: appointments },

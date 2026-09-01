@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
+import { mirrorEnsureEntitlement } from "@/lib/sessionCreditMirror";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
@@ -148,6 +150,26 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  // Record the money itself, in the one place that holds every payment
+  // regardless of what it bought. Idempotent: if the webhook already
+  // handled this capture, this finds it captured and changes nothing.
+  // Best-effort and after the write above -- the patient has already been
+  // charged by this point, so a failure here is a server-log problem, not
+  // something to report back as a failed payment.
+  //
+  // amount_paid_paise deliberately excludes the travel fee (a pass-through
+  // reimbursement, never revenue), so the amount actually captured by
+  // Razorpay is larger. Passing null lets the database keep whatever the
+  // order was minted for rather than writing the smaller figure over it.
+  await recordPaymentCapture(admin, {
+    orderId: razorpay_order_id,
+    paymentId: razorpay_payment_id,
+  });
+
+  // Same as the online twin: the entitlement has to exist before visit 1 is
+  // booked below, or its reserve has nothing to hold it.
+  await mirrorEnsureEntitlement(admin, { homeVisitPurchaseId });
 
   try {
     await admin.from("home_visit_purchase_events").insert({

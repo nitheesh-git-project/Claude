@@ -44,6 +44,10 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // Approvals used to sit on the patients directory, which made one
       // screen do three jobs -- a queue is not a person.
       { key: "approvals", label: "Approvals" },
+      // What the detectors noticed. Under Today rather than in a section of
+      // its own because a signal is a piece of work waiting on somebody,
+      // and that is what this section is for.
+      { key: "risk", label: "Risk" },
     ],
   },
   {
@@ -60,6 +64,11 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // financial screen answered an operational question -- a no-show rate
       // is about how the clinic runs, not about its books.
       { key: "delivery", label: "Delivery" },
+      // Every programme a patient can buy now comes from one of these, so
+      // the clinic needs to be able to see them and stop a wrong one --
+      // under Sessions because a recommendation is about what is being
+      // delivered, not about the books.
+      { key: "recommendations", label: "Recommendations" },
       { key: "new", label: "New Booking" },
     ],
   },

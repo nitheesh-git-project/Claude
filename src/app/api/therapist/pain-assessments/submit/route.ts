@@ -12,6 +12,7 @@ import {
   mergeQuestionOverrides,
   type PainMapSide,
 } from "@/lib/painMap";
+import { guardCommunication } from "@/lib/communicationFlags";
 
 type AnswerInput = { key: string; value: string };
 
@@ -123,6 +124,22 @@ export async function POST(request: NextRequest) {
   const unknownKeys = answers.filter((a) => !questionByKey.has(a.key));
   if (unknownKeys.length > 0) {
     return NextResponse.json({ error: "Submission contains unknown fields." }, { status: 400 });
+  }
+
+  // Exam answers reach the patient through the health-profile export PDF
+  // even though the dashboard does not render them -- an inconsistency that
+  // makes this a real cross-role channel, so it is scanned at write time.
+  // Cleaning the record is better than filtering it at every reader: there
+  // is one writer and there are already two readers.
+  const leak = await guardCommunication(
+    admin,
+    snapshot
+      .filter((a) => a.answer.trim().length > 0)
+      .map((a) => ({ surface: "pain_assessment_answer" as const, text: a.answer })),
+    { authorId: user.id, authorRole: "therapist", patientId }
+  );
+  if (leak.blockedMessage) {
+    return NextResponse.json({ error: leak.blockedMessage }, { status: 400 });
   }
 
   const { error: insertError } = await admin.from("pain_assessments").insert({

@@ -39,10 +39,14 @@ export default function HomeVisitPurchasesTable({
   purchases,
   packages,
   therapists,
+  canSeeMoney,
 }: {
   purchases: HomeVisitPurchaseRow[];
   packages: { id: string; title: string }[];
   therapists: { id: string; full_name: string }[];
+  // Passed straight through to the detail modal, which hides its Refund
+  // button when the viewer's scope cannot open Money. See that component.
+  canSeeMoney: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [packageId, setPackageId] = useState("");
@@ -187,6 +191,7 @@ export default function HomeVisitPurchasesTable({
 
       {openPurchaseId && (
         <HomeVisitPurchaseDetailModal
+          canSeeMoney={canSeeMoney}
           key={openPurchaseId}
           purchaseId={openPurchaseId}
           therapists={therapists}

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import {
   findTherapistConflict,
   findConflictingAppointmentOnly,
@@ -11,7 +12,7 @@ import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("people");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -161,6 +162,12 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "referral.assign",
+    targetId: referralId,
+    details: { therapistId },
+  });
 
   return NextResponse.json({ inviteToken });
 }

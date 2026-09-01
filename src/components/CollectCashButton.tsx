@@ -26,7 +26,9 @@ export default function CollectCashButton({
     const res = await fetch("/api/therapist/record-cash-collection", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId, amountPaise }),
+      // The amount is not sent: the server derives it from the purchase.
+      // The prop below is what to show on the button, not what to record.
+      body: JSON.stringify({ appointmentId }),
     });
     setLoading(false);
     setConfirming(false);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // Reverts a mistakenly (or prematurely) completed session back to
@@ -11,7 +12,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 // reopened, that premise no longer holds and both sides should be asked
 // again once it's genuinely done.
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("sessions");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: appointment } = await admin
     .from("appointments")
-    .select("id, status, therapist_payout_paid_at")
+    .select("id, status, session_code, therapist_payout_paid_at")
     .eq("id", appointmentId)
     .single();
 
@@ -83,6 +84,16 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Reopening undoes a completion, which is what makes a session
+  // payout-eligible -- and it destroys whatever ratings had been submitted.
+  // Both are worth attributing to a person.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "session.reopen",
+    targetId: appointmentId,
+    targetLabel: appointment.session_code ?? null,
+    details: { previousStatus: appointment.status },
+  });
 
   return NextResponse.json({ success: true });
 }

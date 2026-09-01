@@ -11,6 +11,8 @@ import SpecialtyExamPanel from "@/components/profile/SpecialtyExamPanel";
 import PatientOnboardingCard from "@/components/therapist/PatientOnboardingCard";
 import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import SessionNoteHistory from "@/components/therapist/SessionNoteHistory";
+import CarePlanHistory from "@/components/therapist/CarePlanHistory";
+import { loadCarePlanHistory } from "@/lib/carePlanServer";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
 import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
 import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
@@ -94,7 +96,16 @@ export default async function TherapistPatientHealthProfilePage({
     supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
     isTherapistAssignedToPatient(admin, user.id, patientId),
-    admin.from("profiles").select("id, full_name, email").eq("id", patientId).eq("role", "patient").maybeSingle(),
+    // The patient code rather than the email address. A code identifies a
+    // patient across every screen in this app and is what an admin will ask
+    // for; an email address identifies them to an inbox, which is the
+    // off-platform channel this whole section is about.
+    admin
+      .from("profiles")
+      .select("id, full_name, patient_code")
+      .eq("id", patientId)
+      .eq("role", "patient")
+      .maybeSingle(),
     supabase
       .from("patient_condition_profiles")
       .select("data, draft_data, status")
@@ -189,6 +200,19 @@ export default async function TherapistPatientHealthProfilePage({
 
   const showDebugNav = isDebugNavVisible();
 
+  const carePlanVersions = await loadCarePlanHistory(admin, patientId);
+  const carePlanAuthorNames = new Map<string, string>();
+  if (carePlanVersions.length > 0) {
+    // Author names are not readable through RLS from a therapist's session
+    // (profiles_select_own), so they come from the admin client -- the same
+    // lookup this page already makes for the patient's own name.
+    const { data: authors } = await admin
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", [...new Set(carePlanVersions.map((v) => v.authoredBy))]);
+    for (const a of authors ?? []) carePlanAuthorNames.set(a.id, a.full_name);
+  }
+
   return (
     <DashboardShell
       brandLabel="Therapist Panel"
@@ -208,7 +232,7 @@ export default async function TherapistPatientHealthProfilePage({
         "intake_question_templates",
       ]}
       headerTitle={patient.full_name}
-      headerSubtitle={patient.email}
+      headerSubtitle={patient.patient_code ?? "Patient"}
     >
       <div className="max-w-2xl mx-auto space-y-6">
         <Link href="/therapist/dashboard/health-profile" className="text-xs text-teal-700 font-semibold">
@@ -244,6 +268,15 @@ export default async function TherapistPatientHealthProfilePage({
             emptyBody="After your first session with this patient, what you record appears here and becomes the prep for the next one."
           />
         </SurfaceCard>
+
+        {/* Recommendations sit beside the notes rather than on a screen of
+            their own: "what I did" and "what I think should happen next"
+            are read together, and the plan was written from the note. */}
+        <CarePlanHistory
+          versions={carePlanVersions}
+          authorNames={carePlanAuthorNames}
+          voice="clinician"
+        />
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-1">

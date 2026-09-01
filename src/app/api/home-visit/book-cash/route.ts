@@ -7,6 +7,11 @@ import { isProfileActive, isPatientProfile } from "@/lib/supabase/requireActiveP
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
+import { mirrorEnsureEntitlement } from "@/lib/sessionCreditMirror";
+import {
+  isDirectlyPurchasable,
+  PROGRAMME_NEEDS_RECOMMENDATION,
+} from "@/lib/consultationFirst";
 
 const MAX_LINE_LENGTH = 300;
 const MAX_NOTES_LENGTH = 1000;
@@ -124,6 +129,16 @@ export async function POST(request: NextRequest) {
       { status: 403 }
     );
   }
+  // Same rule as the prepaid route: one visit is a consultation, more than
+  // one is a programme, and a programme is recommended rather than chosen
+  // off a list. Enforced on both paths because paying at the door is a
+  // payment method, not a different product.
+  if (pkg && !isDirectlyPurchasable(pkg.visit_count)) {
+    return NextResponse.json(
+      { error: PROGRAMME_NEEDS_RECOMMENDATION },
+      { status: 403 }
+    );
+  }
   if (!pkg || !pkg.active) {
     return NextResponse.json({ error: "That package isn't available." }, { status: 400 });
   }
@@ -195,6 +210,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  // A cash-on-visit purchase never becomes payment_status 'paid' -- it sits
+  // unpaid for its whole life with real confirmed visits hanging off it --
+  // so it would never reach either verify route. Its entitlement is created
+  // here instead, before the first visit is booked below.
+  await mirrorEnsureEntitlement(admin, { homeVisitPurchaseId: purchase.id });
 
   try {
     await admin.from("home_visit_purchase_events").insert({

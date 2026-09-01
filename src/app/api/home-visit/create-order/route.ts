@@ -6,6 +6,10 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { computeHomeVisitTotal } from "@/lib/homeVisitPricing";
 import { isProfileActive, isPatientProfile } from "@/lib/supabase/requireActiveProfile";
+import {
+  isDirectlyPurchasable,
+  PROGRAMME_NEEDS_RECOMMENDATION,
+} from "@/lib/consultationFirst";
 
 export type HomeVisitAddressPayload = {
   label?: string | null;
@@ -124,6 +128,18 @@ export async function POST(request: NextRequest) {
   }
   if (!pkg || !pkg.active) {
     return NextResponse.json({ error: "That package isn't available." }, { status: 400 });
+  }
+
+  // Direct purchase is limited to a single visit -- that visit IS the
+  // home-visit consultation, and it is the only thing a patient decides for
+  // themselves. A course of visits is a clinical judgement about how much
+  // treatment someone needs, so it comes from a care plan a therapist wrote
+  // after seeing them. See src/lib/consultationFirst.ts.
+  if (!isDirectlyPurchasable(pkg.visit_count)) {
+    return NextResponse.json(
+      { error: PROGRAMME_NEEDS_RECOMMENDATION },
+      { status: 403 }
+    );
   }
 
   // Re-checked here rather than trusted from the wizard's earlier

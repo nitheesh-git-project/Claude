@@ -16,6 +16,7 @@ import {
   rupees,
   type StatTile,
 } from "@/components/catalog/CatalogVisuals";
+import { PROGRAMME_CARD_NOTE } from "@/lib/consultationFirst";
 
 export type PublicProgram = {
   id: string;
@@ -262,11 +263,10 @@ function ProgramDetail({
             {related.length > 0 && (
               <section className="mt-6">
                 <h4 className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700">
-                  Buy it as a package
+                  Where this usually leads
                 </h4>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                  The same programme, several sessions bought upfront at a lower price per
-                  session.
+                  {PROGRAMME_CARD_NOTE} These are what the courses of treatment cost.
                 </p>
                 <ul className="mt-3 space-y-2">
                   {related.map((pkg) => (
@@ -283,14 +283,11 @@ function ProgramDetail({
                           {rupees(Math.round(pkg.price_paise / pkg.session_count))} per session
                         </span>
                       </span>
-                      <Link
-                        href={`/book?package=${pkg.id}`}
-                        onClick={onClose}
-                        className="inline-flex items-center gap-2 rounded-lg border border-teal-200 bg-white px-3.5 py-2 text-xs font-bold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                      >
+                      {/* The price, not a checkout link: a programme is
+                          arranged by a therapist after a first session. */}
+                      <span className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700">
                         {rupees(pkg.price_paise)}
-                        <i aria-hidden="true" className="fa-solid fa-arrow-right text-[10px]" />
-                      </Link>
+                      </span>
                     </li>
                   ))}
                 </ul>

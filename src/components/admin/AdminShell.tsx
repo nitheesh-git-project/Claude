@@ -56,6 +56,11 @@ const ADMIN_REALTIME_TABLES = [
   "patient_addresses",
   "admin_activity_log",
   "hospital_admin_notes",
+  "risk_signals",
+  // A therapist writing a recommendation is operational traffic: the
+  // clinic's Recommendations screen should show it without a reload.
+  "care_plans",
+  "care_plan_versions",
 ];
 
 // Catalog and site configuration: edited by an admin on purpose, not
@@ -72,6 +77,16 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   // sees their own change via router.refresh(), so the long cooldown is
   // right and the short operational one would be wasted rebuilds.
   "business_expenses",
+  // Detector thresholds, edited on the Risk tab itself.
+  "risk_rules",
+  // The three records the Risk tab reads. Deliberately on the long cooldown
+  // rather than the operational one: a reveal happens every time any
+  // therapist taps "Show number", and a full ~40-query dashboard rebuild per
+  // tap would be real cost for an append-only log nobody watches live. An
+  // admin reading the queue deliberately is well served by 30s.
+  "risk_reviews",
+  "communication_flags",
+  "contact_reveal_log",
 ];
 
 // Cooldowns, not delays: RealtimeRefresh fires on the leading edge, so

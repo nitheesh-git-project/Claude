@@ -6,6 +6,7 @@ import { isPatientProfile, isProfileActive } from "@/lib/supabase/requireActiveP
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
+import { guardCommunication } from "@/lib/communicationFlags";
 
 // Creates the pre-payment appointment row for a single online session --
 // the row /api/razorpay/create-order then mints a Razorpay order against.
@@ -181,6 +182,18 @@ export async function POST(request: NextRequest) {
       ? requestedLanguage
       : null;
 
+  // The patient's own note reaches the therapist, so it is scanned in the
+  // same way the therapist's text is -- but recorded rather than refused.
+  // A patient is not the party this control exists to catch, and a 400 at
+  // the last step of checkout costs a real booking.
+  const notes = body.notes?.trim() || null;
+  await guardCommunication(admin, [{ surface: "appointment_notes", text: notes }], {
+    authorId: user.id,
+    authorRole: "patient",
+    patientId: user.id,
+    enforcement: "record_only",
+  });
+
   const { data: created, error } = await admin
     .from("appointments")
     .insert({
@@ -190,7 +203,7 @@ export async function POST(request: NextRequest) {
       concern,
       category_id: categoryId,
       duration_minutes: durationMinutes,
-      notes: body.notes?.trim() || null,
+      notes,
       preferred_therapist_id: preferredTherapistId,
       preferred_language: preferredLanguage,
       status: "requested",

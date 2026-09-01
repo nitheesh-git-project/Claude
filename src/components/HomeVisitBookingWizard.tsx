@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import {
+  isDirectlyPurchasable,
+  PROGRAMME_NEEDS_RECOMMENDATION,
+} from "@/lib/consultationFirst";
 import BookingCalendar from "@/components/booking/BookingCalendar";
 import SelectableChipGroup, { type ChipOption } from "@/components/booking/SelectableChipGroup";
 import AddressForm from "@/components/booking/AddressForm";
@@ -97,9 +101,33 @@ export default function HomeVisitBookingWizard({
   const [bookHour, setBookHour] = useState<number | "">("");
   const [autoPicked, setAutoPicked] = useState({ date: true, hour: true });
 
+  // What can actually be bought here: a single visit, which is the
+  // home-visit consultation. A course of visits is a therapist's
+  // recommendation after they have seen someone, so it is never on this
+  // list -- see src/lib/consultationFirst.ts, and both home-visit purchase
+  // routes, which refuse one regardless of what the browser sends.
+  const sellablePackages = useMemo(
+    () => packages.filter((p) => isDirectlyPurchasable(p.visit_count)),
+    [packages]
+  );
+
+  // A link to a programme that is no longer sold this way. Answered rather
+  // than quietly swapped for a different package: charging someone for one
+  // visit when they followed a link expecting six is the failure a removed
+  // checkout must not produce.
+  const requestedPackageId = searchParams.get("package");
+  const requestedIsProgramme =
+    !!requestedPackageId &&
+    packages.some(
+      (p) => p.id === requestedPackageId && !isDirectlyPurchasable(p.visit_count)
+    );
+
   // Step 3 -- who.
   const [packageId, setPackageId] = useState(
-    () => searchParams.get("package") ?? packages[0]?.id ?? ""
+    () =>
+      (requestedPackageId && !requestedIsProgramme ? requestedPackageId : null) ??
+      sellablePackages[0]?.id ??
+      ""
   );
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -118,7 +146,8 @@ export default function HomeVisitBookingWizard({
   // anyone indifferent between the two.
   const [paymentMode, setPaymentMode] = useState<"prepaid" | "cash">("prepaid");
 
-  const selectedPackage = packages.find((p) => p.id === packageId) ?? packages[0] ?? null;
+  const selectedPackage =
+    sellablePackages.find((p) => p.id === packageId) ?? sellablePackages[0] ?? null;
 
   useEffect(() => {
     // The browser's detected timezone is only knowable once mounted on the
@@ -417,7 +446,27 @@ export default function HomeVisitBookingWizard({
     );
   }
 
-  if (packages.length === 0) {
+  if (requestedIsProgramme) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <i className="fa-solid fa-user-doctor mb-4 text-4xl text-teal-600"></i>
+        <h2 className="text-xl font-bold text-slate-900">
+          Courses of visits come from your therapist now
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-slate-500">
+          {PROGRAMME_NEEDS_RECOMMENDATION}
+        </p>
+        <Link
+          href="/book-home-visit"
+          className="mt-6 inline-block rounded-xl bg-teal-700 px-6 py-3 text-sm font-bold text-white transition hover:bg-teal-800"
+        >
+          Book a first visit
+        </Link>
+      </div>
+    );
+  }
+
+  if (sellablePackages.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <p className="text-sm text-slate-600">
@@ -651,7 +700,7 @@ export default function HomeVisitBookingWizard({
             <h2 className="font-display text-lg font-bold text-slate-900">About you</h2>
           </div>
 
-          {packages.length > 1 && (
+          {sellablePackages.length > 1 && (
             <label className="block">
               <span className="text-xs font-semibold text-slate-700">Package</span>
               <select
@@ -659,7 +708,7 @@ export default function HomeVisitBookingWizard({
                 onChange={(e) => setPackageId(e.target.value)}
                 className={inputCls()}
               >
-                {packages.map((p) => (
+                {sellablePackages.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.title} — {p.visit_count === 1 ? "1 visit" : `${p.visit_count} visits`}
                   </option>

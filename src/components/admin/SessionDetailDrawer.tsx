@@ -94,6 +94,8 @@ export default function SessionDetailDrawer({
   categories,
   reassignmentLogs,
   homeVisit,
+  canSeeMoney = true,
+  canManageSessions = true,
   onClose,
 }: {
   appointment: SessionDetailAppointment;
@@ -107,6 +109,14 @@ export default function SessionDetailDrawer({
   // the cash that may have changed hands there -- rather than a second
   // drawer for the same entity. See the home-visit panel below.
   homeVisit?: HomeVisitRow | null;
+  // What the viewing admin's scope actually lets them do. The routes behind
+  // these controls guard with requireAdminScope, so rendering one to an
+  // admin whose scope can't call it produces a 403 they have no way to
+  // interpret. Default true because the drawer's own sections (Schedule,
+  // All Sessions) are only reachable by a scope that can open them; the
+  // person pages, which every scope can open, pass the real values.
+  canSeeMoney?: boolean;
+  canManageSessions?: boolean;
   onClose: () => void;
 }) {
   const [reopening, setReopening] = useState(false);
@@ -467,7 +477,7 @@ export default function SessionDetailDrawer({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-slate-400">Patient</p>
-                {a.patient_rating !== null && (
+                {canManageSessions && a.patient_rating !== null && (
                   <>
                     <button
                       onClick={() => handleToggleExcluded("patient", !optimisticExcluded.patient)}
@@ -511,7 +521,7 @@ export default function SessionDetailDrawer({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-slate-400">Therapist</p>
-                {a.therapist_rating !== null && (
+                {canManageSessions && a.therapist_rating !== null && (
                   <>
                     <button
                       onClick={() =>
@@ -608,7 +618,7 @@ export default function SessionDetailDrawer({
             </div>
           )}
 
-          {canReassign && (
+          {canManageSessions && canReassign && (
             <div className="pt-3 border-t border-slate-100">
               <p className="font-bold text-slate-800 mb-2">Reassign Session</p>
               {therapists.length === 0 ? (
@@ -719,7 +729,7 @@ export default function SessionDetailDrawer({
               {/* A visit still open enough to send someone to. Assignment
                   runs the same route as an online session -- the padding
                   for travel time is applied server-side, not here. */}
-              {homeVisit.status !== "cancelled" && homeVisit.status !== "completed" && (
+              {canManageSessions && homeVisit.status !== "cancelled" && homeVisit.status !== "completed" && (
                 <HomeVisitAssignForm
                   visit={homeVisit}
                   therapists={therapists.filter((t) => t.active !== false)}
@@ -728,7 +738,7 @@ export default function SessionDetailDrawer({
             </div>
           )}
 
-          {a.status === "completed" && (
+          {canManageSessions && a.status === "completed" && (
             <div className="pt-3 border-t border-slate-100">
               <button
                 onClick={handleReopen}
@@ -747,7 +757,7 @@ export default function SessionDetailDrawer({
               cancelling frees the slot and applies the automatic all-or-
               nothing rule, while this returns money on a session that may
               well still be going ahead. */}
-          {a.payment_status === "paid" && (
+          {canSeeMoney && a.payment_status === "paid" && (
             <div className="pt-3 border-t border-slate-100">
               <p className="font-bold text-slate-700 mb-1">Refund</p>
               <PartialRefundForm
@@ -758,7 +768,7 @@ export default function SessionDetailDrawer({
             </div>
           )}
 
-          {canReassign && (
+          {canManageSessions && canReassign && (
             <div className="pt-3 border-t border-slate-100">
               <button
                 onClick={handleCancel}

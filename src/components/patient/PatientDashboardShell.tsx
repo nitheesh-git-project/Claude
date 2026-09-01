@@ -54,6 +54,10 @@ export default function PatientDashboardShell({
         "treatment_category_packages",
         "patient_condition_profiles",
         "session_suggestions",
+        // A recommendation should appear without the patient reloading --
+        // a therapist often writes one while they are still on the call.
+        "care_plans",
+        "care_plan_versions",
       ]}
       headerTitle={title}
       headerSubtitle={subtitle}

@@ -144,6 +144,10 @@ test.describe("brand splash", () => {
     expect(await splashState(offPage)).toBeNull();
     await expect(offPage.locator(".splash-screen")).toHaveCount(0);
     await fresh.close();
+    // Switched back on here rather than in afterAll, which runs once at the
+    // end of the file: every test below this one loads a page expecting a
+    // greeting, and SP-006 was failing on a splash this test had turned off.
+    await setSplash({ splash_enabled: true });
   });
 
   test("SP-006 names the site by default and the override when set", async ({ page }) => {

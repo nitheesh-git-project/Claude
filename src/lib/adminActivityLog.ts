@@ -27,18 +27,42 @@ export type AdminActivityAction =
   | "session.update"
   | "session.cancel"
   | "session.reopen"
+  // A recommendation is the only route to a programme, so withdrawing one
+  // stops a purchase from happening -- worth the same trail as cancelling
+  // a session.
+  | "care_plan.withdraw"
+  // Typed by an admin, attributed to the clinician whose judgement it is.
+  | "care_plan.author_on_behalf"
   | "session.restore"
   | "session.mark_paid_cash"
+  // purchases (a programme, not one session)
+  // The admin override lane -- putting credits into an account, taking a
+  // wrongly-spent one back, reopening a lapsed package. Each one moves what
+  // a patient can book, so isMoneyAction counts all three.
+  | "credits.grant"
+  | "credits.reverse"
+  | "credits.revive"
+  | "package.extend_expiry"
+  | "package.reassign_therapist"
   // money
   | "payout.settle"
   | "payout_request.start_review"
   | "payout_request.complete"
   | "refund.issue"
   | "refund.partial"
+  // The therapist's own route no longer accepts an amount, so this is the
+  // only way a collected figure ever changes after the fact -- and it is a
+  // money move in its own right, since what a therapist owes the clinic is
+  // computed from it.
+  | "cash.correct_amount"
   | "cash.mark_remitted"
   | "cash.mark_refund_returned"
   | "expense.create"
   | "expense.delete"
+  // Every future payout for this therapist is computed from this
+  // percentage, so changing it moves more money than most single refunds
+  // do -- see isMoneyAction, which counts it as one.
+  | "therapist.set_revenue_share"
   // partners
   | "hospital.onboard"
   | "hospital.set_active"
@@ -104,18 +128,27 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "session.assign": "Assigned therapist",
   "session.update": "Edited session",
   "session.cancel": "Cancelled session",
+  "care_plan.withdraw": "Withdrew a recommendation",
+  "care_plan.author_on_behalf": "Wrote a recommendation on a therapist's behalf",
   "session.reopen": "Reopened session",
   "session.restore": "Restored session",
   "session.mark_paid_cash": "Marked paid by cash",
+  "credits.grant": "Granted sessions",
+  "credits.reverse": "Returned a spent session",
+  "credits.revive": "Reopened a lapsed package",
+  "package.extend_expiry": "Extended programme expiry",
+  "package.reassign_therapist": "Reassigned programme therapist",
   "payout.settle": "Settled payout",
   "payout_request.start_review": "Started payout review",
   "payout_request.complete": "Completed payout request",
   "refund.issue": "Issued refund",
   "refund.partial": "Issued partial refund",
+  "cash.correct_amount": "Corrected cash collected",
   "cash.mark_remitted": "Marked cash remitted",
   "cash.mark_refund_returned": "Marked cash refund returned",
   "expense.create": "Recorded a cost",
   "expense.delete": "Removed a cost",
+  "therapist.set_revenue_share": "Changed therapist revenue share",
   "hospital.onboard": "Onboarded hospital",
   "hospital.set_active": "Changed hospital status",
   "hospital.set_revenue_share": "Changed hospital revenue share",
@@ -137,6 +170,12 @@ export function isMoneyAction(action: string): boolean {
     action.startsWith("cash.") ||
     action.startsWith("expense.") ||
     action === "session.mark_paid_cash" ||
-    action === "hospital.set_revenue_share"
+    action === "hospital.set_revenue_share" ||
+    action === "therapist.set_revenue_share" ||
+    // Handing a forfeited session back is money: the patient keeps value
+    // they had otherwise lost, and the clinic's recognised revenue moves
+    // with it.
+    action === "session.restore" ||
+    action.startsWith("credits.")
   );
 }

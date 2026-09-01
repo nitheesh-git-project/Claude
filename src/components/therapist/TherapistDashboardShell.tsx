@@ -48,6 +48,9 @@ export default function TherapistDashboardShell({
           "site_settings",
           "session_notes",
           "session_suggestions",
+          // The therapist needs the patient's answer to a recommendation
+          // without reloading, same as they do for a proposed time.
+          "care_plans",
         ]}
         headerTitle={title}
         headerSubtitle={subtitle}

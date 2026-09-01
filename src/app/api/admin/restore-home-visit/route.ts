@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { mirrorAdminRestore } from "@/lib/sessionCreditMirror";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
 const MAX_REASON_LENGTH = 500;
@@ -11,7 +13,7 @@ const MAX_REASON_LENGTH = 500;
 // untouched, same counter semantics as sessions_used). Admin override only;
 // never happens automatically.
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("catalog");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -114,6 +116,28 @@ export async function POST(request: NextRequest) {
   if (eventError) {
     console.error("Failed to log visit_restored event for home visit purchase", purchaseId, eventError);
   }
+
+  // The purchase event above is the programme's own timeline; this is the
+  // clinic-wide one. Restoring hands a forfeited session back, so the
+  // patient keeps value they had lost and recognised revenue moves with it
+  // -- isMoneyAction counts session.restore for exactly that reason.
+  // The ledger equivalent of the decrement above. Which movement that is
+  // depends on what the credit did: a late cancellation never spent its
+  // reserve and is released, while a no-show consumed it and takes an
+  // adjustment instead -- handing back a spent credit is a decision, and
+  // belongs in the ledger with a name and a reason on it.
+  await mirrorAdminRestore(admin, {
+    appointmentId,
+    actorId: adminUser.id,
+    reason: reason?.trim() || null,
+  });
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "session.restore",
+    targetId: appointmentId,
+    targetLabel: purchaseId,
+    details: { purchaseId, reason: reason?.trim() || null },
+  });
 
   return NextResponse.json({ success: true });
 }

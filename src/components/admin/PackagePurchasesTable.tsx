@@ -40,11 +40,15 @@ export default function PackagePurchasesTable({
   packages,
   categories,
   therapists,
+  canSeeMoney,
 }: {
   purchases: PurchaseRow[];
   packages: { id: string; title: string }[];
   categories: { id: string; title: string }[];
   therapists: { id: string; full_name: string }[];
+  // Passed straight through to the detail modal, which hides its Refund
+  // button when the viewer's scope cannot open Money. See that component.
+  canSeeMoney: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [packageId, setPackageId] = useState("");
@@ -192,6 +196,7 @@ export default function PackagePurchasesTable({
 
       {openPurchaseId && (
         <PackagePurchaseDetailModal
+          canSeeMoney={canSeeMoney}
           key={openPurchaseId}
           purchaseId={openPurchaseId}
           therapists={therapists}

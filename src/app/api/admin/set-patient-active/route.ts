@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("people");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -31,6 +32,12 @@ export async function POST(request: NextRequest) {
   if (!updated) {
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
+
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "account.set_active",
+    targetId: patientId,
+    details: { role: "patient", active },
+  });
 
   return NextResponse.json({ success: true, active });
 }

@@ -1,6 +1,12 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadActiveCarePlan, loadCarePlanHistory } from "@/lib/carePlanServer";
+import { summariseVersion } from "@/lib/carePlans";
+import {
+  applyLedgerSessionBalances,
+  applyLedgerVisitBalances,
+} from "@/lib/ledgerBalances";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
@@ -11,6 +17,7 @@ import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { expireDueHomeVisitPurchases } from "@/lib/expireHomeVisitPurchases";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import type { StatCell } from "@/components/dashboard/StatStrip";
+import { isDirectlyPurchasable } from "@/lib/consultationFirst";
 
 // Everything the patient dashboard's screens read, loaded once per
 // request.
@@ -80,7 +87,8 @@ export type PatientScreen =
   | "sessions"
   | "home-visits"
   | "packages"
-  | "receipts";
+  | "receipts"
+  | "suggested";
 
 export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const needHub = screen === "book";
@@ -128,7 +136,6 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     { data: allPackagePurchases },
     { data: paymentFailures },
     { data: activeCategories },
-    { data: availablePackages },
     { data: ownedPackages },
     { data: onboardingRow },
     { data: conditionProfile },
@@ -211,15 +218,6 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
         }>(),
 
     supabase.from("treatment_categories").select("id, title").eq("active", true),
-
-    supabase
-      .from("treatment_category_packages")
-      .select(
-        "id, category_id, title, subtitle, image_url, promises, badge_label, session_count, price_paise, compare_at_paise, validity_days, therapist_locked"
-      )
-      .eq("active", true)
-      .eq("visible_in_dashboard", true)
-      .order("display_order", { ascending: true }),
 
     supabase
       .from("patient_package_purchases")
@@ -312,6 +310,33 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
 
   const adminSettings = parseAdminSettings(settingsRow);
 
+  // Balances the patient sees come from the ledger once it is
+  // authoritative. Substituted on the rows here, so the package widget, the
+  // Packages screen and the suggestion cards all move together -- they read
+  // the same `session_count` / `sessions_used` shape. A no-op while the
+  // flag is off.
+  const ledgerAuthoritative = adminSettings.entitlementLedgerAuthoritative;
+  const ownedPackagesForDisplay = await applyLedgerSessionBalances(
+    admin,
+    ownedPackages ?? [],
+    { authoritative: ledgerAuthoritative }
+  );
+  const ownedHomeVisitPackagesForDisplay = await applyLedgerVisitBalances(
+    admin,
+    ownedHomeVisitPackages ?? [],
+    { authoritative: ledgerAuthoritative }
+  );
+
+  // The live recommendation and its history. Only for the screens that
+  // render them -- a tab is a server round trip, so Payments must not pay
+  // for a care-plan read it never shows. Both helpers swallow their own
+  // errors, so a database without the tables loses the recommendation
+  // rather than the dashboard.
+  const needCarePlan = screen === "suggested" || screen === "overview";
+  const activeCarePlan = needCarePlan ? await loadActiveCarePlan(admin, user.id) : null;
+  const carePlanHistory =
+    screen === "suggested" ? await loadCarePlanHistory(admin, user.id) : [];
+
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
@@ -342,20 +367,19 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ...new Set(
       [
         ...(appointments ?? []).map((a) => a.therapist_id),
-        ...(ownedPackages ?? []).map((p) => p.locked_therapist_id),
-        ...(ownedHomeVisitPackages ?? []).map((p) => p.locked_therapist_id),
+        ...ownedPackagesForDisplay.map((p) => p.locked_therapist_id),
+        ...ownedHomeVisitPackagesForDisplay.map((p) => p.locked_therapist_id),
       ].filter(Boolean)
     ),
   ];
   // Owned packages can reference a package that's since been deactivated
-  // or hidden (visible_in_dashboard flipped off) -- availablePackages'
-  // active/visible-only policy wouldn't cover that, so this is its own
+  // or hidden (visible_in_dashboard flipped off), so this is its own
   // admin-client lookup, same reasoning as categoryPrices below.
   const ownedPackageIds = [
-    ...new Set((ownedPackages ?? []).map((p) => p.package_id).filter(Boolean)),
+    ...new Set(ownedPackagesForDisplay.map((p) => p.package_id).filter(Boolean)),
   ];
   const ownedHomeVisitPackageIds = [
-    ...new Set((ownedHomeVisitPackages ?? []).map((p) => p.package_id).filter(Boolean)),
+    ...new Set(ownedHomeVisitPackagesForDisplay.map((p) => p.package_id).filter(Boolean)),
   ];
   const [{ data: categoryPrices }, { data: therapists }, { data: ownedPackageInfo }, { data: ownedHomeVisitPackageInfo }] =
     await Promise.all([
@@ -386,14 +410,17 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const activeCategoryMap = new Map((activeCategories ?? []).map((c) => [c.id, c.title]));
   const ownedPackageInfoMap = new Map((ownedPackageInfo ?? []).map((p) => [p.id, p]));
   const ownedHomeVisitPackageInfoMap = new Map((ownedHomeVisitPackageInfo ?? []).map((p) => [p.id, p]));
-  const purchaseCodeById = new Map((ownedPackages ?? []).map((p) => [p.id, p.purchase_code]));
+  const purchaseCodeById = new Map(ownedPackagesForDisplay.map((p) => [p.id, p.purchase_code]));
 
   // Times this patient's therapist has suggested and they haven't answered.
   // Read in its own call for the usual migration tolerance: without the
   // table, the cards are absent and the rest of the dashboard is unaffected.
   // Nothing is scheduled and no session is spent until one is accepted, so
   // these are deliberately not folded into the package counts below.
-  const { data: suggestionRows } = needFeed
+  // Needed by the feed and by Suggested Sessions, which is where these
+  // cards now live -- they used to render on Overview only, which meant a
+  // proposed time was invisible from every other screen.
+  const { data: suggestionRows } = needFeed || screen === "suggested"
     ? await supabase
         .from("session_suggestions")
         .select("id, purchase_id, therapist_id, slot_time, note")
@@ -409,7 +436,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       }>();
 
   const pendingSuggestions = (suggestionRows ?? []).flatMap((row) => {
-    const purchase = (ownedPackages ?? []).find((p) => p.id === row.purchase_id);
+    const purchase = ownedPackagesForDisplay.find((p) => p.id === row.purchase_id);
     if (!purchase) return [];
     return [
       {
@@ -454,9 +481,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     }
   }
 
-  const hasOwnedPackages = !!ownedPackages && ownedPackages.length > 0;
-  const hasAvailablePackages =
-    adminSettings.sessionPackagesVisible && !!availablePackages && availablePackages.length > 0;
+  const hasOwnedPackages = ownedPackagesForDisplay.length > 0;
 
   const visitDetailById = new Map((visitDetailRows ?? []).map((r) => [r.id, r]));
   const onlineAppointments = appointments.filter(
@@ -494,7 +519,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   }
 
   const hasOwnedHomeVisitPackages =
-    !!ownedHomeVisitPackages && ownedHomeVisitPackages.length > 0;
+    ownedHomeVisitPackagesForDisplay.length > 0;
 
   // The reminder banner counts what's actually filled in -- an
   // autosaved draft included -- rather than only saying "not done":
@@ -543,7 +568,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     .sort((a, b) => new Date(a.slot_time!).getTime() - new Date(b.slot_time!).getTime());
   const nextSession = upcoming[0] ?? null;
   const completedCount = appointments.filter((a) => a.status === "completed").length;
-  const sessionsLeftInPackages = (ownedPackages ?? []).reduce(
+  const sessionsLeftInPackages = ownedPackagesForDisplay.reduce(
     (sum, p) => sum + Math.max(0, (p.session_count ?? 0) - (p.sessions_used ?? 0)),
     0
   );
@@ -563,6 +588,17 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       created_at: r.created_at,
       admin_notes: r.admin_notes,
     })),
+    carePlan:
+      activeCarePlan?.version
+        ? {
+            id: activeCarePlan.id,
+            authoredAt: activeCarePlan.version.authoredAt,
+            title: summariseVersion({
+              offer_snapshot: activeCarePlan.version.offerSnapshot,
+              frequency_per_week: activeCarePlan.version.frequencyPerWeek,
+            }),
+          }
+        : null,
   });
 
   const overviewCells: StatCell[] = [
@@ -621,18 +657,28 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
         },
   ];  const navItems = buildPatientNavItems({
     hasOwnedPackages,
-    hasAvailablePackages,
     hasOnlineSessions: onlineAppointments.length > 0,
     hasHomeVisits: homeVisitAppointments.length > 0,
     hasOwnedHomeVisitPackages,
+    hasSuggestions: !!activeCarePlan || pendingSuggestions.length > 0,
   });
 
   // What the Book a Session hub offers. Both master switches are honoured
   // here rather than inside the hub, so that component stays a pure
   // display of whatever it is handed.
-  const hubOnlinePackages = adminSettings.sessionPackagesVisible ? availablePackages ?? [] : [];
-  const hubHomeVisitPackages = adminSettings.homeVisitEnabled ? homeVisitPackages ?? [] : [];
-  const categoryPriceById = new Map((bookableCategories ?? []).map((c) => [c.id, c.price_paise]));
+  // Nothing multi-session is offered here any more. A course of treatment
+  // comes from a therapist's recommendation after a session they ran, so
+  // the booking hub offers what a patient can decide for themselves: one
+  // online consultation, or one visit at home.
+  //
+  // The single home visit is deliberately still here. Every home visit in
+  // this app is a package purchase and /api/appointments/create books
+  // online only, so a one-visit package IS the home-visit consultation --
+  // dropping it would leave a patient who needs to be seen at home with no
+  // way in at all.
+  const hubHomeVisitPackages = adminSettings.homeVisitEnabled
+    ? (homeVisitPackages ?? []).filter((p) => isDirectlyPurchasable(p.visit_count))
+    : [];
 
   return {
     user,
@@ -645,9 +691,13 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     visitDetailById,
     allPackagePurchases,
     paymentFailures,
-    availablePackages,
-    ownedPackages,
-    ownedHomeVisitPackages,
+    // The substituted rows, not the raw ones -- the Packages screen and the
+    // widgets read these directly, and handing them the counter here would
+    // undo the flip for exactly the two screens a patient looks at.
+    activeCarePlan,
+    carePlanHistory,
+    ownedPackages: ownedPackagesForDisplay,
+    ownedHomeVisitPackages: ownedHomeVisitPackagesForDisplay,
     homeVisitPackages,
     bookableCategories,
     onboardingRow,
@@ -664,11 +714,8 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     scheduledCountByPurchase,
     completedCountByHomeVisitPurchase,
     scheduledCountByHomeVisitPurchase,
-    categoryPriceMapForHub: categoryPriceById,
-    hubOnlinePackages,
     hubHomeVisitPackages,
     hasOwnedPackages,
-    hasAvailablePackages,
     hasOwnedHomeVisitPackages,
     navItems,
     intakeAnswered,

@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  await recordAdminActivity(admin, admin_ctx.userId, {
+  await recordAdminActivity(admin, admin_ctx.id, {
     action: "session.create",
     targetId: created.id,
     targetLabel: `${patient.full_name ?? "Patient"} · ${category.title}`,

@@ -107,6 +107,7 @@ export default function AdminAllSessionsTab({
   categories,
   therapists,
   reassignmentLogs,
+  canSeeMoney,
 }: {
   appointments: SessionDetailAppointment[];
   // Keyed by appointment id on the way in. Only home-visit rows appear here,
@@ -116,6 +117,10 @@ export default function AdminAllSessionsTab({
   categories: Category[];
   therapists: { id: string; full_name: string; active?: boolean }[];
   reassignmentLogs: ReassignmentLogEntry[];
+  // Passed to SessionDetailDrawer, whose discretionary-refund form calls a
+  // route guarded by requireAdminScope("money") -- a clinical admin can
+  // open Sessions but not Money, so the form must not render for them.
+  canSeeMoney: boolean;
 }) {
   const peopleMap = useMemo(
     () => new Map(people.map((p) => [p.id, p.full_name ?? "Unknown"])),
@@ -667,6 +672,7 @@ export default function AdminAllSessionsTab({
 
       {selected && (
         <SessionDetailDrawer
+          canSeeMoney={canSeeMoney}
           appointment={selected}
           peopleMap={peopleMap}
           categoryMap={categoryMap}

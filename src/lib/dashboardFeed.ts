@@ -93,11 +93,29 @@ const money = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
 export function buildPatientFeed({
   appointments,
   conditionRequests,
+  carePlan,
 }: {
   appointments: FeedAppointment[];
   conditionRequests: FeedRequest[];
+  /** The live recommendation, when there is one. */
+  carePlan?: { id: string; authoredAt: string; title: string } | null;
 }): FeedItem[] {
   const items: FeedItem[] = [];
+
+  // Pinned by needsYou: a recommendation is the one thing on a patient's
+  // dashboard that is genuinely blocked on them and costs money to answer.
+  if (carePlan) {
+    items.push({
+      id: `care-plan-${carePlan.id}`,
+      at: carePlan.authoredAt,
+      icon: "fa-lightbulb",
+      tone: "info",
+      title: "Your therapist recommended a programme",
+      detail: carePlan.title,
+      href: "/patient/dashboard/suggested",
+      needsYou: true,
+    });
+  }
 
   for (const a of appointments) {
     const when = a.slot_time ?? a.created_at ?? "";
@@ -213,10 +231,23 @@ export function buildTherapistFeed({
   payouts,
   accessGrants,
   onboardingPatients = [],
+  carePlanAnswers = [],
 }: {
   appointments: FeedAppointment[];
   payouts: FeedPayout[];
   accessGrants: FeedRequest[];
+  /** Recommendations this therapist wrote that the patient has answered.
+   *  Neither outcome is `needsYou` -- there is nothing to do about either,
+   *  and marking them so would train the therapist to ignore the badge --
+   *  but a clinician who recommended a course of treatment and never
+   *  learned the answer has to go hunting through a chart for it. */
+  carePlanAnswers?: {
+    id: string;
+    patientName: string;
+    title: string;
+    status: "accepted" | "declined";
+    answeredAt: string;
+  }[];
   /** Patients assigned to this therapist whose condition record nobody
    *  has written yet. Their own health profile is locked until it is
    *  done, which is why this is a needsYou item rather than a nicety. */
@@ -224,6 +255,23 @@ export function buildTherapistFeed({
 }): FeedItem[] {
   const items: FeedItem[] = [];
   const now = Date.now();
+
+  for (const plan of carePlanAnswers) {
+    const accepted = plan.status === "accepted";
+    items.push({
+      id: `care-plan-answer-${plan.id}`,
+      at: plan.answeredAt,
+      icon: accepted ? "fa-circle-check" : "fa-circle-minus",
+      tone: accepted ? "good" : "neutral",
+      title: accepted
+        ? `${plan.patientName} accepted your recommendation`
+        : `${plan.patientName} declined your recommendation`,
+      detail: accepted
+        ? `${plan.title} — their sessions are ready to book.`
+        : `${plan.title} — you can recommend again after their next session.`,
+      href: "/therapist/dashboard/patients",
+    });
+  }
 
   for (const p of onboardingPatients) {
     items.push({

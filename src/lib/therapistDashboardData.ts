@@ -13,6 +13,9 @@ import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { sessionsAwaitingNote, type SessionNoteRow } from "@/lib/sessionNotes";
 import type { StatCell } from "@/components/dashboard/StatStrip";
+import { loadRecommendablePackages } from "@/lib/carePlanServer";
+import { maskPhone } from "@/lib/contactMasking";
+import { parseOfferSnapshot } from "@/lib/carePlans";
 
 // Everything the therapist dashboard's screens read, loaded once per
 // request -- the same split as the patient's loader, and for the same
@@ -276,10 +279,16 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       .select("date, hour, available, note")
       .eq("therapist_id", user.id)
       .gte("date", todayKey),
+    // Deliberately no `email`, and the phone is masked before it leaves
+    // this function (see below). A therapist's dashboard used to hand over
+    // every one of their patients' full contact details on every render --
+    // a caseload copyable in an afternoon, with nothing anywhere recording
+    // that it had been. The real number now comes one session at a time
+    // through /api/therapist/reveal-contact, which logs the ask.
     patientIds.length > 0
-      ? admin.from("profiles").select("id, full_name, phone, email, patient_code").in("id", patientIds)
+      ? admin.from("profiles").select("id, full_name, phone, patient_code").in("id", patientIds)
       : Promise.resolve({
-          data: [] as { id: string; full_name: string; phone: string | null; email: string; patient_code: string | null }[],
+          data: [] as { id: string; full_name: string; phone: string | null; patient_code: string | null }[],
         }),
     homeVisitPurchaseIds.length > 0
       ? admin
@@ -288,7 +297,23 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
           .in("id", homeVisitPurchaseIds)
       : Promise.resolve({ data: [] as { id: string; amount_paid_paise: number | null; visit_count: number }[] }),
   ]);
-  const patientMap = new Map((patients ?? []).map((p) => [p.id, p]));
+  // Masking is applied here, at the one place the rows are loaded, rather
+  // than in each card -- the same reasoning ledgerBalances.ts documents for
+  // substituting a balance. A surface that renders `phone` gets the masked
+  // string whether or not its author remembered the rule, and the plaintext
+  // number is never in the page at all, so "masked" is not something a
+  // reader can defeat with dev tools.
+  const maskContacts = await readContactMaskingEnabled(admin);
+  const patientMap = new Map(
+    (patients ?? []).map((p) => [
+      p.id,
+      {
+        ...p,
+        phone: maskContacts ? maskPhone(p.phone).masked : p.phone,
+        phoneMasked: maskContacts && maskPhone(p.phone).present,
+      },
+    ])
+  );
   const patientNameById = new Map(
     (patients ?? []).map((p) => [p.id, p.full_name ?? "Unknown patient"])
   );
@@ -398,7 +423,57 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     nowMsForOverview
   );
 
+  // Recommendations this therapist wrote that the patient has now answered.
+  // Overview only, and in its own call: it is one feed item, and every
+  // other screen would pay for a query it never renders.
+  const { data: answeredPlans } =
+    screen === "overview"
+      ? await admin
+          .from("care_plans")
+          .select("id, patient_id, status, accepted_at, declined_at, current_version_id")
+          .eq("therapist_id", user.id)
+          .in("status", ["accepted", "declined"])
+          .order("updated_at", { ascending: false })
+          .limit(10)
+      : {
+          data: [] as {
+            id: string;
+            patient_id: string;
+            status: string;
+            accepted_at: string | null;
+            declined_at: string | null;
+            current_version_id: string | null;
+          }[],
+        };
+
+  const answeredVersionIds = (answeredPlans ?? [])
+    .map((p) => p.current_version_id)
+    .filter((id): id is string => !!id);
+  const { data: answeredVersions } = answeredVersionIds.length
+    ? await admin
+        .from("care_plan_versions")
+        .select("id, offer_snapshot")
+        .in("id", answeredVersionIds)
+    : { data: [] as { id: string; offer_snapshot: unknown }[] };
+  const answeredTitleByVersion = new Map(
+    (answeredVersions ?? []).map((v) => [
+      v.id,
+      parseOfferSnapshot(v.offer_snapshot)?.title ?? "Treatment programme",
+    ])
+  );
+
   const therapistFeed = buildTherapistFeed({
+    carePlanAnswers: (answeredPlans ?? [])
+      .filter((p) => p.accepted_at || p.declined_at)
+      .map((p) => ({
+        id: p.id,
+        patientName: patientNameById.get(p.patient_id) ?? "A patient",
+        title: p.current_version_id
+          ? answeredTitleByVersion.get(p.current_version_id) ?? "Treatment programme"
+          : "Treatment programme",
+        status: p.status === "accepted" ? ("accepted" as const) : ("declined" as const),
+        answeredAt: (p.accepted_at ?? p.declined_at) as string,
+      })),
     appointments: (appointments ?? []).map((a) => ({
       id: a.id,
       slot_time: a.slot_time,
@@ -495,6 +570,12 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // Shared between "Assigned Patient Sessions" and the Calendar tab's
   // tap-a-date detail list -- one true card style for a session, not two
   // copies that can drift apart.
+  // Programmes a therapist may recommend, resolved once for the whole
+  // dashboard rather than per session card. Its own call and failure
+  // tolerant: `recommendable` is a new column, and losing it must cost the
+  // recommend control rather than the dashboard.
+  const recommendablePackages = await loadRecommendablePackages(admin);
+
   return {
     user,
     sessionCodeByAppointmentId,
@@ -520,6 +601,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     navItems,
     sessionNotes,
     noteByAppointmentId,
+    recommendablePackages,
     notesOwed,
     therapistFeed,
     overviewCells,
@@ -530,3 +612,27 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
 }
 
 export type TherapistDashboardData = Awaited<ReturnType<typeof loadTherapistDashboard>>;
+
+/**
+ * Whether contact masking is on, read on its own.
+ *
+ * Isolated from SITE_SETTINGS_SELECT for the migration-dependent-column
+ * reason, and failing *closed* -- a database without the column masks. This
+ * is the opposite direction to the scanner's mode, deliberately: an
+ * unscanned day costs a record nobody reads, whereas an unmasked dashboard
+ * hands out every patient's number, and the safe answer to "I do not know"
+ * is different in each case.
+ */
+async function readContactMaskingEnabled(
+  admin: ReturnType<typeof createAdminClient>
+): Promise<boolean> {
+  try {
+    const { data } = await admin
+      .from("site_settings")
+      .select("contact_masking_enabled")
+      .maybeSingle();
+    return data?.contact_masking_enabled !== false;
+  } catch {
+    return true;
+  }
+}

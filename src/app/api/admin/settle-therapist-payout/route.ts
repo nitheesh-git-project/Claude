@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeNetPayout } from "@/lib/therapistCashLedger";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // "online" here means the admin already sent the money themselves (UPI,
 // bank transfer) outside the platform and is logging it after the fact --
@@ -12,7 +13,7 @@ import { computeNetPayout } from "@/lib/therapistCashLedger";
 const IMPLEMENTED_METHODS = ["cash", "online"];
 
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("money");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
 
   const { data: therapist } = await admin
     .from("profiles")
-    .select("id, revenue_share_percent, home_visit_revenue_share_percent")
+    .select("id, full_name, revenue_share_percent, home_visit_revenue_share_percent")
     .eq("id", therapistId)
     .eq("role", "therapist")
     .single();
@@ -245,6 +246,27 @@ export async function POST(request: NextRequest) {
       );
     }
   }
+
+  // The single largest money-moving action in the app, and until now the
+  // only one that left no trace of who ran it beyond
+  // therapist_payout_batches.settled_by -- which says nothing about how much
+  // moved or what it absorbed. Best-effort, like every other call to this:
+  // the payout has already been claimed by this point, so a logging failure
+  // must not be reported back as a failed settlement.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "payout.settle",
+    targetId: therapistId,
+    targetLabel: therapist.full_name,
+    amountPaise: net.netPayablePaise,
+    details: {
+      batchId: batch.id,
+      method,
+      settledCount: actuallySettled.length,
+      grossOwedPaise: grossSettledPaise,
+      cashHeldPaise: net.cashHeldPaise,
+      stillOwedToBusinessPaise: net.stillOwedToBusinessPaise,
+    },
+  });
 
   // The client's confirm dialog shows the balance as of page load, which
   // can be stale by the time this actually runs (e.g. a new payment landed,

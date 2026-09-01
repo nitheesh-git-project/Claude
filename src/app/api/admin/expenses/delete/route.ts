@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  await recordAdminActivity(admin, context.userId, {
+  await recordAdminActivity(admin, context.id, {
     action: "expense.delete",
     targetId: existing.id,
     targetLabel: `${existing.category}${existing.description ? ` — ${existing.description}` : ""}`,

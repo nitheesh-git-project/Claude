@@ -3,6 +3,7 @@
 import { useState } from "react";
 import SessionNoteDialog from "@/components/therapist/SessionNoteDialog";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
+import type { RecommendableOption } from "@/components/therapist/CarePlanFields";
 
 /**
  * The entry point to a session note, rendered on the session card itself.
@@ -19,6 +20,9 @@ export default function SessionNoteButton({
   note,
   editable,
   hoursLeft,
+  patientId,
+  sessionCompleted,
+  recommendable = [],
 }: {
   appointmentId: string;
   patientName: string;
@@ -31,6 +35,14 @@ export default function SessionNoteButton({
   editable: boolean;
   /** Hours left in that window, for the dialog's own warning line. */
   hoursLeft: number | null;
+  patientId: string;
+  /** Whether the session has been marked complete. Gates the optional
+   *  recommend section inside the dialog -- a plan is written after seeing
+   *  someone, and the submit route re-checks. */
+  sessionCompleted: boolean;
+  /** Programmes admin has cleared for recommendation, resolved server-side.
+   *  Empty hides the section rather than showing an empty picker. */
+  recommendable?: RecommendableOption[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -57,6 +69,9 @@ export default function SessionNoteButton({
           existing={note}
           locked={!!note && !editable}
           hoursLeft={hoursLeft}
+          patientId={patientId}
+          sessionCompleted={sessionCompleted}
+          recommendable={recommendable}
           onClose={() => setOpen(false)}
         />
       )}

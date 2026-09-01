@@ -57,7 +57,76 @@ The patient's own record leaves the app as a PDF named
 Before writing code: read the relevant guide in `node_modules/next/dist/docs/`
 — this Next.js version differs from training data.
 
-Quick commands: `npm run dev`, `npm run build`, `npm run lint` (which also
+Session credits live in an append-only ledger (`session_credit_ledger`)
+over `session_entitlements`, not in a mutable counter. Every movement goes
+through a database function holding a real row lock, keyed for idempotency
+on the appointment or payment that caused it, and
+`verify_entitlement_balances()` reports any disagreement on Settings →
+System Health. Whether balances are read from the ledger or from the older
+counters is one admin switch (`entitlement_ledger_authoritative`), off by
+default and reversible without a release. Admins can change any balance — grant, reverse, revive, all
+with a mandatory reason — and cannot change any history.
+
+An admin can write a recommendation on a therapist's behalf when that
+therapist cannot reach their dashboard — same rules, same package whitelist,
+programmes narrowed to that session's own condition, attribution stated at
+the button, attributed to the clinician (`authored_by`) and recorded as typed
+by the admin (`entered_by`) — and can withdraw one, but never edit or
+re-price it. Both doors call `authorCarePlanVersion()`.
+
+A therapist recommends treatment after a session as a **care plan**
+(`care_plans` + append-only `care_plan_versions`), written from the session
+note dialog. They pick an admin-configured package — never a price, a
+session count or a discount, none of which exist as columns — plus four
+clinical fields. It needs a completed session they ran, writes live with no
+review, and a purchased plan is never re-versioned: a later recommendation
+opens a new thread. The same rows render on the therapist's chart and the
+patient's Health Profile. The patient answers on **Suggested Sessions**,
+which also carries the therapist-proposed times that used to live on
+Overview alone; accepting re-derives the price server-side, refuses on a
+catalog mismatch, and grants exactly the recommended sessions.
+
+A patient's first purchase is **one session**. A multi-session programme is a
+clinical judgement, so it comes from a care plan and never from a price list:
+`src/lib/consultationFirst.ts` allows direct purchase only of a single
+session or visit, and the old `/book?package=` checkout is deleted. A
+one-visit home package is the home-visit consultation and stays purchasable —
+without it, a patient who needs to be seen at home would have no entry point,
+since ordinary consultations are always video.
+
+Treatment is paid for through this platform, and two admin-switchable
+controls keep it that way. Every string one role writes and another reads is
+scanned (`src/lib/contactLeakScan.ts` via `src/lib/communicationFlags.ts`):
+a payment handle or payment link is refused, a phone number or email is
+delivered and recorded, and clinical text full of numbers is left alone —
+the two tiers exist because a check that cries wolf is a check nobody
+reads. A patient's phone is masked on the therapist's screens and their
+email is not loaded there at all; the real number comes one session at a
+time from `/api/therapist/reveal-contact`, inside a video session's join
+window or on a home visit's own day, and every reveal is logged.
+`communication_flags` and `contact_reveal_log` are admin-read-only and
+append-only by trigger. See the "platform keeps its own conversations" rule
+in `AGENTS.md`.
+
+Suspicious patterns surface on Today → Risk as `risk_signals`, written by a
+bounded lazy sweep after the admin render. A flag is never an accusation and
+never carries a penalty — nothing is suspended, held or hidden because a rule
+fired; a signal links to the rows behind it and an admin acts, if at all,
+through the ordinary screens. Thresholds are `risk_rules` and the two that
+need a clinic baseline ship disabled. Reviews are append-only and need a real
+note.
+
+Payments are recorded in `payments` (one row per Razorpay order, unique on
+both the order id and the payment id) and confirmed by whichever of the
+browser callback or `/api/razorpay/webhook` arrives first — both go through
+the one idempotent `record_payment_capture` function. Setting
+`RAZORPAY_WEBHOOK_SECRET` is what makes the webhook half work; without it
+a patient who pays and closes the tab leaves a paid order against an unpaid
+booking.
+
+Quick commands: `npm run dev`, `npm run build`, `npm run test` (Vitest over
+the dependency-free `src/lib` modules), `npm run verify` (lint + test +
+build), `npm run lint` (which also
 runs `npm run check:realtime`, the Supabase Realtime publication coverage
 check). A Playwright
 e2e suite covers the money-critical paths, the public pages' section

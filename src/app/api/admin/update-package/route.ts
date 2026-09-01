@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { validatePackagePayload, type PackagePayload } from "@/lib/validatePackagePayload";
 
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("catalog");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -39,6 +40,15 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Catalog rows decide what is sold and at what price, so every
+  // create/update/delete belongs in the same log every other admin
+  // action is read from.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "catalog.update",
+    targetId: id,
+    targetLabel: "Session package",
+  });
 
   return NextResponse.json({ success: true });
 }

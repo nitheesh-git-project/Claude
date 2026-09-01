@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isPainMapRegion, getDefaultQuestionsForRegion } from "@/lib/painMap";
@@ -11,7 +11,7 @@ import { isPainMapRegion, getDefaultQuestionsForRegion } from "@/lib/painMap";
 // at the time, so this never rewrites what a historical answer was
 // actually responding to.
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("settings");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

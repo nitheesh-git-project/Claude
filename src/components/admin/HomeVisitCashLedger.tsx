@@ -2,7 +2,7 @@
 
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { useConfirm } from "@/lib/useConfirm";
@@ -92,6 +92,111 @@ function MarkRefundReturnedButton({ appointmentId, amountPaise }: { appointmentI
   );
 }
 
+/**
+ * Correcting what a therapist is recorded as having collected.
+ *
+ * The therapist's own route no longer accepts an amount -- the person
+ * holding the cash does not get to decide how much of it the clinic knows
+ * about -- so this is the only way the figure ever changes, and it is the
+ * reason that closure did not simply break the honest exception: a patient
+ * short of cash, or an adjustment agreed at the door.
+ *
+ * The reason is mandatory here as well as server-side, since this figure
+ * nets straight off what the therapist owes and a correction with no
+ * explanation is indistinguishable from a favour.
+ */
+function CorrectCashButton({
+  appointmentId,
+  amountPaise,
+}: {
+  appointmentId: string;
+  amountPaise: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [rupees, setRupees] = useState(String(Math.round(amountPaise / 100)));
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  function submit() {
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch("/api/admin/correct-cash-amount", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appointmentId,
+          amountPaise: Math.round(Number(rupees) * 100),
+          reason,
+        }),
+      });
+      if (res.ok) {
+        setOpen(false);
+        router.refresh();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Could not save. Please try again.");
+    });
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-[11px] font-semibold text-slate-500 transition hover:text-slate-800"
+      >
+        Correct
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-full rounded-lg border border-slate-200 bg-white p-2.5">
+      <label className="block text-[11px] font-semibold text-slate-700">
+        Amount actually collected (₹)
+      </label>
+      <input
+        type="number"
+        min={0}
+        value={rupees}
+        onChange={(e) => setRupees(e.target.value)}
+        className="mt-1 w-32 rounded-lg border border-slate-300 p-1.5 text-xs"
+      />
+      <label className="mt-2 block text-[11px] font-semibold text-slate-700">
+        Why is this being corrected?
+      </label>
+      <textarea
+        rows={2}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="e.g. patient paid ₹200 short, agreed at the door"
+        className="mt-1 w-full rounded-lg border border-slate-300 p-1.5 text-xs"
+      />
+      {error && <p className="mt-1.5 text-[11px] font-semibold text-red-600">{error}</p>}
+      <div className="mt-2 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={isPending}
+          className="rounded-lg bg-slate-800 px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-60"
+        >
+          {isPending ? "Saving…" : "Save correction"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="text-[11px] font-semibold text-slate-500 hover:text-slate-800"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function TherapistCashCard({
   therapistName,
   visits,
@@ -159,7 +264,13 @@ function TherapistCashCard({
                   {formatInr(v.cash_collected_amount_paise ?? 0)}
                 </span>
               </span>
-              <MarkRemittedButton appointmentId={v.id} amountPaise={v.cash_collected_amount_paise ?? 0} />
+              <span className="flex items-center gap-3">
+                <CorrectCashButton
+                  appointmentId={v.id}
+                  amountPaise={v.cash_collected_amount_paise ?? 0}
+                />
+                <MarkRemittedButton appointmentId={v.id} amountPaise={v.cash_collected_amount_paise ?? 0} />
+              </span>
             </li>
           ))}
         </ul>

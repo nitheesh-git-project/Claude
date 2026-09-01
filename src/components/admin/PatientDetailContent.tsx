@@ -38,6 +38,11 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   // prop.
   const viewer = await getAdminContext();
   const canSeeMoney = viewer !== null && scopeCanOpen(viewer.scope, "money");
+  // Same rule for the session controls in the list below: Reassign,
+  // Cancel, Reopen and the rating actions all call routes guarded by
+  // requireAdminScope("sessions"), which a finance admin does not have
+  // even though they can open this page.
+  const canManageSessions = viewer !== null && scopeCanOpen(viewer.scope, "sessions");
 
   const admin = createAdminClient();
 
@@ -421,6 +426,8 @@ export default async function PatientDetailContent({ id }: { id: string }) {
           Click a session to see its full detail, including rating &amp; feedback.
         </p>
         <ProfileSessionList
+          canSeeMoney={canSeeMoney}
+          canManageSessions={canManageSessions}
           variant="patient"
           appointments={appointments ?? []}
           peopleMap={peopleMap}

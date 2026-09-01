@@ -37,6 +37,8 @@ export default function ProfileSessionList({
   categories,
   reassignmentLogs,
   emptyMessage,
+  canSeeMoney,
+  canManageSessions,
 }: {
   variant: "therapist" | "patient";
   appointments: SessionDetailAppointment[];
@@ -46,6 +48,13 @@ export default function ProfileSessionList({
   categories: Category[];
   reassignmentLogs: ReassignmentLogEntry[];
   emptyMessage: string;
+  // This list renders on the Patient and Therapist pages, which every admin
+  // scope can open -- unlike the Sessions and Money sections the controls
+  // below actually belong to. Their routes guard with requireAdminScope, so
+  // without these a finance admin would see Reassign and a clinical admin
+  // would see Mark Paid, both answering 403.
+  canSeeMoney: boolean;
+  canManageSessions: boolean;
 }) {
   const [selectedAppointment, setSelectedAppointment] = useState<SessionDetailAppointment | null>(
     null
@@ -134,7 +143,7 @@ export default function ProfileSessionList({
                   <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
                 </p>
               )}
-              {isUpcoming && (
+              {canManageSessions && isUpcoming && (
                 <div onClick={(e) => e.stopPropagation()}>
                   <EditBookingForm
                     appointmentId={a.id}
@@ -158,7 +167,8 @@ export default function ProfileSessionList({
                     <MarkNoShowButton appointmentId={a.id} />
                   </>
                 )}
-                {a.payment_status !== "paid" &&
+                {canSeeMoney &&
+                  a.payment_status !== "paid" &&
                   (a.status === "requested" || a.status === "confirmed") && (
                     <MarkPaidByCashButton appointmentId={a.id} />
                   )}
@@ -176,6 +186,8 @@ export default function ProfileSessionList({
           therapists={therapists}
           categories={categories}
           reassignmentLogs={reassignmentLogs}
+          canSeeMoney={canSeeMoney}
+          canManageSessions={canManageSessions}
           onClose={() => setSelectedAppointment(null)}
         />
       )}

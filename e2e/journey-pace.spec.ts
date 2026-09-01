@@ -36,6 +36,16 @@ function save(ctx: APIRequestContext, value: unknown) {
   });
 }
 
+async function settleScroll(page: Page) {
+  let last = -1;
+  for (let i = 0; i < 40; i++) {
+    const y = await page.evaluate(() => Math.round(window.scrollY));
+    if (y === last) return;
+    last = y;
+    await page.waitForTimeout(100);
+  }
+}
+
 const activeTab = (page: Page) =>
   page.locator('[role="tablist"][aria-label="How the process works"] [role="tab"][aria-selected="true"]');
 
@@ -152,6 +162,25 @@ test.describe("Home walkthrough pace", () => {
     await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
     const tablist = page.locator('[role="tablist"][aria-label="How the process works"]');
     await tablist.waitFor();
+    // Settle the scroll before parking the pointer. hover() scrolls the
+    // widget into view and the page keeps easing afterwards, so a pointer
+    // placed immediately is left behind as the element slides out from under
+    // it -- the browser then reports it as genuinely outside, and what looks
+    // like a broken pause is really a moving target. A visitor hovers
+    // something that has stopped moving.
+    // Let the page stop moving before parking the pointer.
+    //
+    // globals.css sets `scroll-behavior: smooth`, and hover() scrolls the
+    // element into view before placing the cursor -- so the easing carries on
+    // after the pointer has been put down, and the widget slides out from
+    // under it. The browser then correctly reports the pointer as outside,
+    // and a working pause looks broken. A visitor hovers something that has
+    // stopped moving; this waits for the same thing, on window.scrollY
+    // rather than the element's own box, which plateaus mid-ease.
+    await tablist.scrollIntoViewIfNeeded();
+    await settleScroll(page);
+    await tablist.hover();
+    await settleScroll(page);
     await tablist.hover();
     const before = await activeStep(page);
     await page.waitForTimeout(6000);

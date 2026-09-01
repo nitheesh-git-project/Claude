@@ -20,7 +20,19 @@ npm run dev
 Open http://localhost:3000.
 
 Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
-`npm run check:realtime`, `npm run test:e2e`.
+`npm run test`, `npm run check:realtime`, `npm run test:e2e`, and
+`npm run verify` (lint, then unit tests, then build — the one to run before
+pushing).
+
+### Unit tests
+
+`npm run test` runs Vitest over `src/**/*.test.ts`. It covers the
+dependency-free modules in `src/lib` — the pricing and payout arithmetic,
+the care-plan state machine and snapshot parsing, the contact scanner and
+its clinical false-positive corpus, contact masking and the reveal window,
+the risk-rule thresholds, and the consultation-first rule. No database and no
+browser, so it runs anywhere in about a second; anything needing either
+belongs in `e2e/`.
 
 `npm run check:realtime` (also run first by `npm run lint`) checks that every
 table the dashboards subscribe to for live updates is present in the
@@ -78,6 +90,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only key that bypasses RLS. Never prefix with `NEXT_PUBLIC_`, never commit |
 | `NEXT_PUBLIC_RAZORPAY_KEY_ID` | Razorpay Key ID, sent to the browser to open checkout |
 | `RAZORPAY_KEY_SECRET` | Razorpay secret, server-only (order creation, signature verification, refunds) |
+| `RAZORPAY_WEBHOOK_SECRET` | Razorpay **webhook** signing secret, server-only — a different secret from the one above. Without it `/api/razorpay/webhook` answers 503 and payment confirmation falls back to the browser callback alone |
 | `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` | OAuth2 Web application credentials from Google Cloud Console |
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer |
@@ -295,10 +308,11 @@ default, admin-editable at **Settings → Booking Rules**
 `BOOKING_LEAD_TIME_HOURS` in `src/lib/bookingSlots.ts` as the fallback) — the therapist's weekly availability template
 plus per-date overrides (`therapist_availability_template`,
 `therapist_availability_override`), leave flags, and conflict checks
-(`src/lib/checkTherapistConflict.ts`). `/book?package=<id>` switches the same
-wizard into package-purchase mode instead: the category step is replaced by
-a read-only package summary, Step 1's date/time becomes session 1's slot,
-and the review step pays for the whole bundle. `/book?therapist=<id>`
+(`src/lib/checkTherapistConflict.ts`). `/book` sells exactly one
+consultation. It used to sell multi-session programmes too, via
+`?package=<id>`; that is gone, and a link still carrying the parameter is
+answered with an explanation rather than quietly selling a single session to
+someone who came to buy six. `/book?therapist=<id>`
 carries a specialist across from their profile dialog on `/team` ("Book with
 Dr. X"): the id is resolved client-side against `public_therapist_profiles`
 and lands in `appointments.preferred_therapist_id`, which preselects that
@@ -329,7 +343,144 @@ browser has no insert access to `appointments` at all). Then Razorpay
 checkout: `/api/razorpay/create-order` creates the
 order, the browser opens the widget, and `/api/razorpay/verify` verifies the
 signature server-side before the appointment is confirmed. Failures are
-recorded in `payment_failure_log`. Session packages are bought the same way
+recorded in `payment_failure_log`.
+
+A browser callback is not the only way a payment is confirmed.
+`/api/razorpay/webhook` receives Razorpay's own server-to-server
+notification, verifies the HMAC over the **raw** request body with
+`RAZORPAY_WEBHOOK_SECRET`, and applies the capture. Whichever arrives first
+— the patient's browser or the webhook — does the work; the second changes
+nothing. That is what covers the patient who pays and closes the tab, or
+whose phone loses signal on the way back from their UPI app: before this
+existed, that left a paid Razorpay order sitting against an unpaid booking,
+recoverable only if they returned and pressed Pay again.
+
+Both paths go through one database function, `record_payment_capture`,
+which takes a real row lock and either applies the capture or reports it as
+already captured. Duplicate webhooks, Razorpay's at-least-once retries, a
+delayed webhook racing the browser, and a double-clicked Pay button are all
+the same case to it. It never revives a cancelled booking — money arriving
+for something already called off is recorded for reconciliation, not used
+to resurrect the session.
+
+Session credits are an append-only ledger rather than a counter.
+**`session_entitlements`** is what a patient bought — including a
+`package_snapshot` of the catalog row as it stood at purchase, which is what
+makes a purchase immutable when an admin later re-prices the package — and
+**`session_credit_ledger`** is every movement of it: the grant, each booking
+that reserved a credit, each session that consumed one, each cancellation
+that released one, refunds, expiries and admin adjustments. The counts on
+the entitlement are a cache the ledger maintains, and the CHECK constraint
+on that cache is what rejects a movement that would overdraw.
+
+Every movement goes through a database function holding a real row lock
+(`select … for update`), so two simultaneous bookings against one remaining
+credit cannot both succeed. Each is idempotent on a key derived from the
+appointment or payment that caused it, so a retried request moves the
+balance once. `verify_entitlement_balances()` reports where the cache, the
+ledger and the older `sessions_used` counter disagree; it is shown on
+**Settings → System Health** alongside captured payments nothing is attached
+to and delivered sessions with no payment, package or cash behind them.
+Nothing there is repaired automatically — each finding is either a data
+problem or someone working outside the normal flow, and both want a person.
+
+### Care plans
+
+A therapist recommends treatment **after** seeing a patient, from the same
+dialog they write the session note in. They pick a programme the admin has
+marked recommendable and add four clinical fields — whether hands-on
+treatment is needed, how often per week, why this for this patient, and
+anything the patient should do or know. Session count, price, validity and
+duration all come with the programme: there is no price field, no
+session-count field and no discount field on a recommendation, so a
+therapist cannot set their own terms.
+
+A recommendation needs a **completed session that therapist ran**, writes
+live with no review step (the same reasoning as the first health-profile
+fill), and is versioned rather than edited — `care_plan_versions` is
+append-only by trigger, and only `is_current` may move. Revising a
+recommendation adds a version; the old one stays readable with what changed
+shown beside it.
+
+Once a patient has **bought** a plan, that thread is closed. A later
+recommendation opens a new one marked as superseding it, because editing a
+purchased plan would change the description of something already paid for.
+At most one recommendation is live at a time, so a patient is never looking
+at two competing proposals.
+
+A patient answers on **Patient Dashboard → Suggested Sessions**, a screen
+that appears in the sidebar only once something is actually waiting on them.
+It holds two things that are deliberately not merged: a **recommendation**
+is a programme to buy, and a **proposed time** is a slot on a programme they
+already own. One costs money and the other does not, so they are separate
+sections with separate wording. (Proposed times used to render on Overview
+alone, which meant a therapist's proposal was invisible from every other
+screen and had no history.)
+
+Accepting opens Razorpay. The request body carries one thing — which
+recommendation is being accepted — and the price, session count and validity
+are all re-derived server-side from the catalog row the version names, so
+there is nothing in the payload worth tampering with. If the package has
+been re-priced or re-sized since the therapist wrote the plan, checkout
+refuses rather than quietly charging a different amount, and the
+recommendation goes back to the clinician to confirm. A unique index on
+`care_plan_version_id` means a double-tapped Accept buys the plan once.
+
+The purchase is an ordinary package-purchase row with the version linked, so
+every existing mechanism — entitlements, booking, the therapist lock,
+expiry, refunds, the ledger mirror — keeps working unchanged. On capture the
+patient receives exactly the recommended number of sessions, locked to the
+therapist who recommended them, and the plan is marked accepted, which
+closes the thread.
+
+Declining is a real answer with an optional note, and it closes the thread
+too so the therapist can recommend something else. A therapist can withdraw
+a recommendation they got wrong, but never one already paid for — that is a
+refund, and an admin's job.
+
+The same records render on the therapist's patient chart and on the
+patient's own Health Profile — one authoritative history with two readers,
+in each one's own voice. `care_plan_default_expiry_days` and
+`care_plan_max_frequency_per_week` are admin-editable.
+
+Which of the two the app believes is an admin switch — **Settings → Booking
+Rules → Session Balances From The Ledger**, off by default. While it is off,
+every balance comes from the older `sessions_used` / `visits_used` counters
+and the ledger is written beside them as a shadow, so the two can be
+reconciled before anything depends on the ledger. Turned on, the balance
+shown and offered comes from the ledger instead. Both keep being written
+either way, so the switch is reversible in a second rather than needing a
+release.
+
+Turning it on is also a correctness fix, not only an architecture change: a
+refund never decremented the old counters — it cancels the remaining
+appointments in place — so a refunded package still reads as having sessions
+pending. The ledger voids what was unspent, keeps what was actually
+delivered, and reads zero. Completing a session now also
+emits the `session_completed` / `visit_completed` purchase events, which had
+been declared since packages were built and never written — a programme's
+timeline used to show sessions being scheduled and then simply stopping.
+
+An admin can put that right without touching the database:
+`/api/admin/grant-session-credits` adds sessions (service recovery,
+goodwill, or cash genuinely paid offline — only the last counts as revenue),
+`/api/admin/reverse-session-credit` returns a credit spent on a session that
+did not really happen, and `/api/admin/revive-entitlement` reopens a lapsed
+package and restores the credits its expiry voided. All three require a
+stated reason, write a ledger row and an audit row, and are scoped to Money.
+An admin can change any balance; nobody can change history.
+
+Every capture also lands in **`payments`**, one row per Razorpay order
+whatever it bought, with unique indexes on `razorpay_order_id` and
+`razorpay_payment_id`. Those two indexes are what make a duplicate credit
+impossible rather than merely unlikely; before them nothing in the database
+stopped one payment id being recorded against two rows. The per-table
+payment columns on `appointments` and the two purchase tables are unchanged
+and still authoritative for "is this thing paid for" — `payments` sits
+alongside as the record of money. Every webhook Razorpay sends is stored in
+`payment_webhook_events`, deduplicated on its event id, which is what makes
+"process each event once" a database guarantee rather than something the
+route has to remember. Session packages are bought the same way
 via `/api/packages/create-order` and `/api/packages/verify` — the latter
 also books session 1 when the wizard supplied a slot, via
 `src/lib/bookPackageSession.ts` — then any later sessions are redeemed with
@@ -356,10 +507,14 @@ cards on `/` and `/conditions` (each gated by its own `visible_on_home` /
 `visible_on_conditions` flag, plus the site-wide visibility switch). Tapping
 a card opens a detail dialog carrying everything the card has no room for —
 the long description, terms, scheduling rules, a per-session price
-comparison — while **Book package** on the card and again in the dialog goes
-straight to `/book?package=<id>`. Programme cards and the home-visit package
-cards on `/home-visit` behave identically (`/book?category=<id>` and
-`/book-home-visit?package=<id>` respectively). A purchase's `expires_at` is set the moment payment
+comparison — while the card's button now
+starts a first session (`/book`) and says that a programme is arranged by a
+therapist afterwards. The prices are still shown — a visitor should be able
+to see what a course of treatment costs — they are simply no longer a
+checkout link. Programme cards go to `/book?category=<id>`, and on
+`/home-visit` a **single**-visit package still books directly
+(`/book-home-visit?package=<id>`), because that visit is the home-visit
+consultation; multi-visit cards explain instead. A purchase's `expires_at` is set the moment payment
 clears — an abandoned checkout never eats into a validity window — using the
 package's own `validity_days` or the site default. When a package has
 `therapist_locked` on (the default) and the site-wide switch
@@ -406,6 +561,111 @@ stops being acceptable once its slot falls inside the booking lead time. At
 most one can be waiting per purchase; the therapist can withdraw it.
 Routes: `/api/therapist/suggest-session`,
 `/api/therapist/withdraw-suggestion`, `/api/patient/respond-suggestion`.
+
+## How a course of treatment is bought
+
+The first purchase is **one session**. A programme of six is a clinical
+judgement about how much treatment someone needs, so it is recommended by a
+therapist after a session they ran, and appears in the patient's dashboard
+under **Suggested Sessions** to accept and pay for. There is no longer a
+route by which a patient can buy a multi-session programme before anyone has
+seen them.
+
+The rule is written once, in `src/lib/consultationFirst.ts`, as a property of
+the thing being sold rather than as a switch: a package can be bought
+directly only when it is a single session or visit.
+
+Home visits are the exception that proves it. Every home visit in this app is
+a home-visit package purchase, and an ordinary consultation is always a video
+call — so a patient who needs to be seen at home has exactly one way in, and
+that is a **one-visit** package. It stays directly purchasable for the same
+reason a video consultation does. A course of home visits is refused by both
+purchase routes and comes from a recommendation, which collects the address
+at checkout and adds travel for that area on top of the programme price.
+
+Nothing already bought is affected: an existing programme keeps its sessions
+and books them to exhaustion exactly as before.
+
+The clinic can see every recommendation on **Sessions → Recommendations**. An
+admin can also write one there on a therapist's behalf — the therapist saw the
+patient and said what they wanted recommended, then went on leave or left —
+with the same fields, the same package whitelist and the same requirement of a
+completed session that therapist ran. The programmes on offer are narrowed to
+the chosen session's own condition, and the screen states whose name it goes
+out in right at the button. It is recommended in their name and recorded as
+typed by the admin. And an admin can withdraw a recommendation
+whose author cannot — a therapist on leave, or gone. That is
+the whole of what an admin may do to a plan: versions are append-only, and a
+recommendation that changed is a new one written by a clinician who has seen
+the patient. A plan already paid for cannot be withdrawn at all; a refund or
+a credit adjustment is the honest lane for that, and both have their own
+screens.
+
+For a recommended course of home visits the offer card asks where the visits
+should come, checks the pincode is serviceable, and shows programme, travel
+and total before the patient pays — travel is charged per visit, so a
+four-visit programme carries four trips.
+
+## Keeping payments on the platform
+
+Two therapist-side financial writes were closed at the same time. A
+therapist confirms they took cash at the door, but no longer says how much:
+`/api/therapist/record-cash-collection` derives the figure from the
+purchase, since that number nets straight off what the therapist owes the
+clinic. Genuine differences are corrected by an admin through
+`/api/admin/correct-cash-amount`, with a reason, and never once the cash has
+been settled against a payout. And a therapist can no longer mark a session
+complete before it could have started, or complete one that has no payment,
+no programme and no cash behind it — completion is what makes their revenue
+share payable. An admin keeps both unrestricted paths for backfills.
+
+Treatment is paid for through this app, so a patient should never be asked
+to pay another way. Two controls make that hard to do by accident and
+visible when it isn't, and both are admin switches on
+**Settings → Team & Access**.
+
+**Message checking.** Everything one role writes and another reads goes
+through `src/lib/contactLeakScan.ts` before it is stored: a therapist's
+proposed-time note, a care plan's rationale and instructions, Pain Map exam
+answers, and the patient's own booking notes. There are two tiers, because
+this text is clinical and a check that treats digits as suspicious would
+fire on every dose and every exercise prescription. A **block** hit — a UPI
+handle, a payment link, a payment app — is refused with a message saying
+what was found. A **flag** hit — a phone number, an email address, a social
+handle, a link — is delivered and recorded for an admin to look at, since a
+clinic's own landline in an instruction is a normal thing to write. The
+patient's own notes are recorded but never refused. `contact_scan_mode`
+switches this between `flag_and_block` (the default), `flag_only` and `off`.
+
+**Contact masking.** A therapist's session cards show the last three digits
+of a patient's number and no email address at all. The full number is one
+tap away — `/api/therapist/reveal-contact` returns it around the time of a
+video session, or any time on the day of a home visit — and every reveal is
+written to `contact_reveal_log`. The point is not to withhold the number
+from a clinician who needs it, but to make asking for it visible: a
+caseload copied for an off-platform practice looks nothing like a therapist
+ringing the patient they are with. `contact_masking_enabled` turns this off
+for a clinic that would rather have the numbers on the card.
+
+Both records — `communication_flags` and `contact_reveal_log` — are readable
+by admins only and cannot be edited or deleted by anyone, including the
+service role.
+
+**Risk signals.** A handful of detectors run when a full-access admin opens
+the dashboard and put what they notice on **Today → Risk**: payment details
+in a message, a session completed with nothing behind it, a session closed
+before it started, cash that differs from what the visit was priced at, an
+unusual number of contact reveals, an unusual number of manual credit
+adjustments. Two more — low recommendation conversion and patients seen once
+and never again — ship switched off, because a threshold invented before the
+clinic has a baseline fires on everyone or on nobody.
+
+Nothing on that screen changes anything. No account is suspended, no payout
+held and no therapist hidden because a rule fired; a signal shows the rows it
+is based on and an admin decides, then acts through the ordinary screens. A
+review needs a real note, cannot be edited afterwards, and closing a signal
+lets a fresh one be raised if the behaviour continues. Thresholds are edited
+on the same screen.
 
 There's no cron or background worker in this deployment, so a purchase's
 `status` moves from `active` to `expired` lazily: `src/lib/expirePackagePurchases.ts`

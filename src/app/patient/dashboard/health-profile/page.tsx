@@ -9,6 +9,9 @@ import IntakeTrendChart from "@/components/profile/IntakeTrendChart";
 import HealthProfileSteps from "@/components/profile/HealthProfileSteps";
 import HealthProfileActions from "@/components/profile/HealthProfileActions";
 import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
+import CarePlanHistory from "@/components/therapist/CarePlanHistory";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { loadCarePlanHistory } from "@/lib/carePlanServer";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
@@ -119,7 +122,6 @@ export default async function PatientHealthProfilePage() {
     { data: intakeHistory },
     { data: medicalDocuments },
     { count: ownedPackagesCount },
-    { count: availablePackagesCount },
     { data: settingsRow },
     { data: intakeOverrideRows },
     { count: onlineSessionCount },
@@ -168,10 +170,6 @@ export default async function PatientHealthProfilePage() {
       .select("id", { count: "exact", head: true })
       .eq("patient_id", user.id)
       .eq("payment_status", "paid"),
-    supabase
-      .from("treatment_category_packages")
-      .select("id", { count: "exact", head: true })
-      .eq("active", true),
     supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
     supabase
       .from("intake_question_templates")
@@ -204,10 +202,27 @@ export default async function PatientHealthProfilePage() {
     specialty
   );
   const adminSettings = parseAdminSettings(settingsRow);
+  // The sidebar must have the same shape on every screen, so these two
+  // stand-alone pages resolve the Suggested Sessions entry the same way the
+  // loader does. Counted rather than loaded -- the entry only needs to know
+  // whether anything is waiting. Isolated and failure-tolerant: without the
+  // care_plans table the entry is simply absent.
+  const [{ count: activePlanCount }, { count: pendingSuggestionCount }] = await Promise.all([
+    supabase
+      .from("care_plans")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", user.id)
+      .eq("status", "active"),
+    supabase
+      .from("session_suggestions")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", user.id)
+      .eq("status", "pending"),
+  ]);
+
   const navItems = buildPatientNavItems({
+    hasSuggestions: (activePlanCount ?? 0) > 0 || (pendingSuggestionCount ?? 0) > 0,
     hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
-    hasAvailablePackages:
-      adminSettings.sessionPackagesVisible && !!availablePackagesCount && availablePackagesCount > 0,
     hasOnlineSessions: (onlineSessionCount ?? 0) > 0,
     hasHomeVisits: (homeVisitCount ?? 0) > 0,
     hasOwnedHomeVisitPackages: (ownedHomeVisitCount ?? 0) > 0,
@@ -243,6 +258,21 @@ export default async function PatientHealthProfilePage() {
     questions.find((q) => q.key === "peds_milestones")?.options?.length ?? 0;
 
   const showDebugNav = isDebugNavVisible();
+
+  // Read with the admin client: a patient can select their own care_plans
+  // through RLS, but not the therapist names attached to them
+  // (profiles_select_own), which is the same lookup every dashboard makes
+  // for a therapist's name.
+  const carePlanAdmin = createAdminClient();
+  const carePlanVersions = await loadCarePlanHistory(carePlanAdmin, user.id);
+  const carePlanAuthorNames = new Map<string, string>();
+  if (carePlanVersions.length > 0) {
+    const { data: authors } = await carePlanAdmin
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", [...new Set(carePlanVersions.map((v) => v.authoredBy))]);
+    for (const a of authors ?? []) carePlanAuthorNames.set(a.id, a.full_name);
+  }
 
   return (
     <DashboardShell
@@ -455,6 +485,16 @@ export default async function PatientHealthProfilePage() {
             emptyMessage="Nothing uploaded yet. If a doctor has given you a scan or a test result, add it here."
           />
         </section>
+
+        {/* The same care_plan_versions rows the therapist's chart renders --
+            one authoritative record, two readers, in the patient's own
+            voice. Their live recommendation and its Accept button live on
+            Suggested Sessions; this is the history behind it. */}
+        <CarePlanHistory
+          versions={carePlanVersions}
+          authorNames={carePlanAuthorNames}
+          voice="patient"
+        />
       </div>
     </DashboardShell>
   );

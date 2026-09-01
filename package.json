@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "npm run check:realtime && eslint",
     "check:realtime": "node scripts/check-realtime-coverage.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run lint && npm run test && npm run build"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.3.1",
@@ -32,6 +35,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

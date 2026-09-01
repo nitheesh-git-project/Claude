@@ -101,6 +101,50 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const totalRefunded = alreadyRefunded + amountPaise;
+
+  // Claim the amount BEFORE calling Razorpay, guarded on refund_amount_paise
+  // still being what was read above. Without this, two concurrent requests
+  // (a double-click, two open tabs, an impatient retry on a slow
+  // connection) both read the same alreadyRefunded, both pass the
+  // `remaining` check, and both issue a real refund -- Razorpay accepts
+  // both, because each is individually within the captured amount, so the
+  // patient is refunded twice for one decision. Every other refund path in
+  // this codebase already claims first; this one did not.
+  //
+  // `.is("refund_amount_paise", null)` and `.eq(...)` cannot be expressed as
+  // one filter, so the null case (nothing refunded yet) is claimed by its
+  // own predicate.
+  const claim = admin
+    .from("appointments")
+    .update({
+      refund_status: "processed",
+      refund_amount_paise: totalRefunded,
+      refund_is_manual: true,
+      refund_reason: reason,
+    })
+    .eq("id", appointmentId);
+  const { data: claimed, error: claimError } = await (
+    appointment.refund_amount_paise === null
+      ? claim.is("refund_amount_paise", null)
+      : claim.eq("refund_amount_paise", alreadyRefunded)
+  )
+    .select("id")
+    .maybeSingle();
+
+  if (claimError) {
+    return NextResponse.json({ error: claimError.message }, { status: 500 });
+  }
+  if (!claimed) {
+    return NextResponse.json(
+      {
+        error:
+          "Another refund on this session landed first — nothing was refunded. Refresh and check what is still refundable.",
+      },
+      { status: 409 }
+    );
+  }
+
   let refundId: string | null = null;
   try {
     const razorpay = new Razorpay({
@@ -113,28 +157,42 @@ export async function POST(request: NextRequest) {
     refundId = refund.id;
   } catch (err) {
     console.error("Partial refund failed for appointment", appointmentId, err);
+    // Put the claim back exactly as it was, so the session is refundable
+    // again on retry -- same posture as refund-package, and for the same
+    // reason: a refund's whole point is "did the money actually go back",
+    // so a Razorpay failure must leave no trace claiming it did. Guarded on
+    // our own claim so a concurrent write that landed in between is not
+    // clobbered.
+    const { error: revertError } = await admin
+      .from("appointments")
+      .update({
+        refund_status: appointment.refund_status,
+        refund_amount_paise: appointment.refund_amount_paise,
+        refund_is_manual: alreadyRefunded > 0,
+        refund_reason: null,
+      })
+      .eq("id", appointmentId)
+      .eq("refund_amount_paise", totalRefunded);
+    if (revertError) {
+      console.error(
+        "Failed to revert the partial-refund claim after Razorpay refused",
+        appointmentId,
+        revertError
+      );
+    }
     return NextResponse.json(
       { error: "Razorpay refused the refund. Nothing was refunded — check Razorpay and retry." },
       { status: 502 }
     );
   }
 
-  const totalRefunded = alreadyRefunded + amountPaise;
-
-  // Written only after Razorpay confirms, so a failure above can never leave
-  // the app claiming money went back when it didn't. refund_status becomes
-  // 'processed' either way -- partial or full -- and refund_amount_paise is
-  // the running total, which is what every downstream money calculation
-  // already subtracts.
+  // The amount, status and reason were already written by the claim above;
+  // this only fills in the refund id Razorpay just returned. Same split as
+  // refund-package. refund_amount_paise is the running total, which is what
+  // every downstream money calculation already subtracts.
   const { error: writeError } = await admin
     .from("appointments")
-    .update({
-      refund_id: refundId,
-      refund_status: "processed",
-      refund_amount_paise: totalRefunded,
-      refund_is_manual: true,
-      refund_reason: reason,
-    })
+    .update({ refund_id: refundId })
     .eq("id", appointmentId);
 
   if (writeError) {
@@ -156,7 +214,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await recordAdminActivity(admin, context.userId, {
+  await recordAdminActivity(admin, context.id, {
     action: totalRefunded >= paid ? "refund.issue" : "refund.partial",
     targetId: appointmentId,
     targetLabel: appointment.session_code,

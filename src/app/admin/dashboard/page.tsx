@@ -26,9 +26,16 @@ import HomeVisitPurchasesTable from "@/components/admin/HomeVisitPurchasesTable"
 import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
+import AccountingHealthPanel from "@/components/admin/AccountingHealthPanel";
+import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
+import {
+  applyLedgerSessionBalances,
+  applyLedgerVisitBalances,
+} from "@/lib/ledgerBalances";
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
+import ContactControlsForm from "@/components/admin/ContactControlsForm";
 import { adminScreenHref, type InboxGroup } from "@/lib/adminNav";
-import { parseAdminScope, sectionsForScope } from "@/lib/adminScope";
+import { parseAdminScope, scopeCanOpen, sectionsForScope } from "@/lib/adminScope";
 import type { SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
 import AdminPayoutRequestsTab, { type PayoutRequestRow } from "@/components/admin/AdminPayoutRequestsTab";
@@ -71,6 +78,22 @@ import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import { retryDueMeetSyncs, MAX_MEET_SYNC_AUTO_ATTEMPTS } from "@/lib/retryDueMeetSyncs";
+import { runRiskSweep } from "@/lib/riskDetectors";
+import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
+import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
+import AdminCarePlansTab from "@/components/admin/AdminCarePlansTab";
+import type { AdminCarePlanRow, AuthorableSession } from "@/components/admin/AdminCarePlansTab";
+import type { RecommendableOption } from "@/components/therapist/CarePlanFields";
+import { loadRecommendablePackages } from "@/lib/carePlanServer";
+import { carePlanState, parseOfferSnapshot, type CarePlanStatus } from "@/lib/carePlans";
+import type {
+  RiskSignalRow,
+  RiskReviewRow,
+  CommunicationFlagRow,
+  ContactRevealRow,
+} from "@/components/admin/RiskSignalsTab";
+import { summariseFindings, type LeakFinding } from "@/lib/contactLeakScan";
+import type { RiskSeverity, RiskStatus, RiskSubjectKind } from "@/lib/riskSignals";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
@@ -126,6 +149,12 @@ export default async function AdminDashboardPage({
   // felt on every single admin request.
   after(async () => {
     await retryDueMeetSyncs(admin);
+    // The detector sweep, after the response for the same reason: it makes
+    // no outbound calls but it does run several aggregate queries, and a
+    // finding that appears one render later costs nothing -- the queue
+    // exists for patterns that have been building for days. Its own
+    // interval guard means most renders skip it entirely.
+    await runRiskSweep(admin);
   });
 
   // All of these are independent reads -- none needs another query's data,
@@ -489,6 +518,28 @@ export default async function AdminDashboardPage({
       .limit(500),
   ]);
 
+  // Resolved here rather than beside the admin-team list further down,
+  // because the screens built below gate their own money controls on it. A
+  // control a viewer's scope can't call must not render: the routes now
+  // enforce scope (requireAdminScope), so an ungated button would be a 403
+  // the admin can see but never explain. The session controls need no
+  // equivalent flag here -- they only ever render inside the Sessions
+  // section, which a viewer reaching them can open by definition. The
+  // person pages are the exception, and compute their own (see
+  // PatientDetailContent).
+  const adminScopeById = new Map((adminScopeRows ?? []).map((r) => [r.id, r.admin_scope]));
+  const viewerScope = parseAdminScope(adminScopeById.get(user.id));
+  const canSeeMoney = scopeCanOpen(viewerScope, "money");
+
+  // Read after the main Promise.all rather than inside it: every query in
+  // there is against a table that has existed for a while, and these are
+  // against three that are brand new. loadAccountingHealth swallows its own
+  // errors and reports `available: false`, so a database that has not
+  // re-run schema.sql shows one panel saying so instead of blanking the
+  // whole dashboard -- the failure mode the migration-tolerance rule exists
+  // to prevent.
+  const accountingHealth = await loadAccountingHealth(admin);
+
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
     (t) => t.active !== false
   );
@@ -501,6 +552,24 @@ export default async function AdminDashboardPage({
   );
 
   const adminSettings = parseAdminSettings(settingsRow);
+
+  // When the ledger is authoritative, every balance on this page comes from
+  // it instead of from sessions_used / visits_used. Applied to the rows
+  // once, here, rather than to the ~8 components that read them -- they all
+  // consume the same `session_count` / `sessions_used` shape, so replacing
+  // the number on the row flips all of them at once. A no-op while the flag
+  // is off.
+  const ledgerAuthoritative = adminSettings.entitlementLedgerAuthoritative;
+  const packagePurchasesForDisplay = await applyLedgerSessionBalances(
+    admin,
+    packagePurchaseSummaries ?? [],
+    { authoritative: ledgerAuthoritative }
+  );
+  const homeVisitPurchasesForDisplay = await applyLedgerVisitBalances(
+    admin,
+    homeVisitPurchases ?? [],
+    { authoritative: ledgerAuthoritative }
+  );
 
   // Its own call, not part of SITE_SETTINGS_SELECT: this column is newer
   // than the rest, and a database that hasn't run the latest schema.sql
@@ -1343,6 +1412,7 @@ export default async function AdminDashboardPage({
 
   const calendarTab = (
     <AdminCalendarTab
+      canSeeMoney={canSeeMoney}
       appointments={appointmentsWithSessionCode}
       people={allPeople}
       categories={categoriesForReassign}
@@ -1354,6 +1424,7 @@ export default async function AdminDashboardPage({
 
   const allSessionsTab = (
     <AdminAllSessionsTab
+      canSeeMoney={canSeeMoney}
       appointments={appointmentsWithSessionCode}
       homeVisits={homeVisitRows}
       people={allPeople}
@@ -1688,7 +1759,7 @@ export default async function AdminDashboardPage({
 
   const packageTitleMap = new Map((packages ?? []).map((p) => [p.id, p.title]));
   const categoryTitleMap = new Map((treatmentCategories ?? []).map((c) => [c.id, c.title]));
-  const packagePurchaseRows = (packagePurchaseSummaries ?? []).map((p) => ({
+  const packagePurchaseRows = packagePurchasesForDisplay.map((p) => ({
     id: p.id,
     purchaseCode: p.purchase_code,
     patientId: p.patient_id,
@@ -1783,7 +1854,7 @@ export default async function AdminDashboardPage({
       );
     }
   }
-  const homeVisitPurchaseRows = (homeVisitPurchases ?? []).map((p) => {
+  const homeVisitPurchaseRows = homeVisitPurchasesForDisplay.map((p) => {
     const completedCount = homeVisitCompletedByPurchase.get(p.id) ?? 0;
     const scheduledCount = homeVisitScheduledByPurchase.get(p.id) ?? 0;
     return {
@@ -1820,6 +1891,7 @@ export default async function AdminDashboardPage({
           Every online programme bought, and how much of it has been used.
         </p>
         <PackagePurchasesTable
+          canSeeMoney={canSeeMoney}
           purchases={packagePurchaseRows}
           packages={(packages ?? []).map((p) => ({ id: p.id, title: p.title }))}
           categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
@@ -1835,6 +1907,7 @@ export default async function AdminDashboardPage({
           reading that as money owed.
         </p>
         <HomeVisitPurchasesTable
+          canSeeMoney={canSeeMoney}
           purchases={homeVisitPurchaseRows}
           packages={(homeVisitPackages ?? []).map((p) => ({ id: p.id, title: p.title }))}
           therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
@@ -1882,10 +1955,15 @@ export default async function AdminDashboardPage({
             accent: "bg-teal-500",
           },
           {
-            label: "Session packages",
+            label: "Programmes",
             value: String(visiblePackageCount),
-            note: adminSettings.sessionPackagesVisible ? "Bundles patients can buy" : "Packages are switched off",
-            accent: adminSettings.sessionPackagesVisible && visiblePackageCount > 0 ? "bg-blue-500" : "bg-slate-400",
+            note: adminSettings.showProgrammePrices
+              ? "Therapists can recommend these"
+              : "Prices hidden on the public pages",
+            accent:
+              adminSettings.showProgrammePrices && visiblePackageCount > 0
+                ? "bg-blue-500"
+                : "bg-slate-400",
           },
           {
             label: "Service areas",
@@ -2010,12 +2088,15 @@ export default async function AdminDashboardPage({
   );
 
   const settingsHealthTab = (
-    <AdminFeatureControlTab
-      settings={adminSettings}
-      syncIssues={googleMeetSyncIssues}
-      adminEmail={adminProfile?.email ?? user.email ?? ""}
-      view="health"
-    />
+    <div className="space-y-8">
+      <AdminFeatureControlTab
+        settings={adminSettings}
+        syncIssues={googleMeetSyncIssues}
+        adminEmail={adminProfile?.email ?? user.email ?? ""}
+        view="health"
+      />
+      <AccountingHealthPanel health={accountingHealth} />
+    </div>
   );
 
   const settingsSecurityTab = (
@@ -2027,8 +2108,6 @@ export default async function AdminDashboardPage({
     />
   );
 
-  const adminScopeById = new Map((adminScopeRows ?? []).map((r) => [r.id, r.admin_scope]));
-  const viewerScope = parseAdminScope(adminScopeById.get(user.id));
   const adminRows: AdminRow[] = (allProfiles ?? [])
     .filter((p) => p.role === "admin")
     .map((p) => ({
@@ -2039,7 +2118,14 @@ export default async function AdminDashboardPage({
       isSelf: p.id === user.id,
     }));
 
-  const settingsTeamTab = <AdminTeamAccessTab admins={adminRows} viewerScope={viewerScope} />;
+  // Who can see what, in one place: which admins hold which scope, and how
+  // much of a patient's contact details a therapist is handed by default.
+  const settingsTeamTab = (
+    <div className="space-y-8">
+      <AdminTeamAccessTab admins={adminRows} viewerScope={viewerScope} />
+      <ContactControlsForm settings={adminSettings} />
+    </div>
+  );
 
   const activityRows: ActivityRow[] = (activityLogRows ?? []).map((r) => ({
     id: r.id,
@@ -2050,6 +2136,375 @@ export default async function AdminDashboardPage({
     details: (r.details ?? null) as Record<string, unknown> | null,
     createdAt: r.created_at,
   }));
+
+  // Read on its own rather than inside the ~40-query batch above, per the
+  // migration-dependent rule: a database that has not applied the risk
+  // tables yet renders an empty queue instead of blanking every screen on
+  // this page.
+  // The whole queue, not merely the ability to close a row, is full-access
+  // only: a signal names a colleague and quotes what they wrote. A scoped
+  // admin's render does not even fetch it.
+  type RiskSignalQueryRow = {
+    id: string;
+    rule_key: string;
+    subject_kind: string;
+    subject_id: string;
+    severity: string;
+    summary: string;
+    evidence: unknown;
+    status: string;
+    detected_at: string;
+  };
+  type AdminCarePlanQueryRow = {
+    id: string;
+    patient_id: string;
+    therapist_id: string;
+    status: string;
+    current_version_id: string | null;
+    created_at: string;
+  };
+  type CommunicationFlagQueryRow = {
+    id: string;
+    surface: string;
+    author_id: string | null;
+    patient_id: string | null;
+    tier: string;
+    findings: unknown;
+    blocked: boolean;
+    content: string | null;
+    created_at: string;
+  };
+  type ContactRevealQueryRow = {
+    id: string;
+    therapist_id: string;
+    patient_id: string;
+    field: string;
+    reason: string | null;
+    created_at: string;
+  };
+  type RiskRuleQueryRow = {
+    rule_key: string;
+    label: string;
+    description: string;
+    enabled: boolean;
+    config: unknown;
+  };
+  const viewerCanSeeRisk = viewerScope === "full";
+  const { data: riskSignalRows } = viewerCanSeeRisk
+    ? await admin
+    .from("risk_signals")
+    .select("id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at")
+    .order("detected_at", { ascending: false })
+    .limit(200)
+    : { data: [] as RiskSignalQueryRow[] };
+  const { data: riskRuleRows } = viewerCanSeeRisk
+    ? await admin
+        .from("risk_rules")
+        .select("rule_key, label, description, enabled, config")
+        .order("rule_key")
+    : { data: [] as RiskRuleQueryRow[] };
+
+  const riskSignalIds = (riskSignalRows ?? []).map((r) => r.id);
+  const { data: riskReviewRows } = riskSignalIds.length
+    ? await admin
+        .from("risk_reviews")
+        .select("id, signal_id, reviewer_id, outcome, note, created_at")
+        .in("signal_id", riskSignalIds)
+        .order("created_at", { ascending: true })
+    : { data: [] as { id: string; signal_id: string; reviewer_id: string; outcome: string; note: string; created_at: string }[] };
+
+  // A signal names a subject by id and kind. Resolving that to something an
+  // admin recognises needs the admin client, since a therapist's or a
+  // patient's name is not readable through the caller's own RLS -- the same
+  // one lookup every other cross-role surface makes.
+  const riskRuleLabels = new Map((riskRuleRows ?? []).map((r) => [r.rule_key, r.label]));
+  const riskPersonIds = [
+    ...new Set(
+      (riskSignalRows ?? [])
+        .filter((r) => r.subject_kind !== "appointment")
+        .map((r) => r.subject_id)
+    ),
+  ];
+  const riskAppointmentIds = [
+    ...new Set(
+      (riskSignalRows ?? [])
+        .filter((r) => r.subject_kind === "appointment")
+        .map((r) => r.subject_id)
+    ),
+  ];
+  const [{ data: riskPeople }, { data: riskAppointments }] = await Promise.all([
+    riskPersonIds.length
+      ? admin.from("profiles").select("id, full_name").in("id", riskPersonIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    riskAppointmentIds.length
+      ? admin.from("appointments").select("id, session_code").in("id", riskAppointmentIds)
+      : Promise.resolve({ data: [] as { id: string; session_code: string | null }[] }),
+  ]);
+  const riskSubjectNames = new Map<string, string>();
+  for (const p of riskPeople ?? []) riskSubjectNames.set(p.id, p.full_name ?? "Unknown");
+  for (const a of riskAppointments ?? [])
+    riskSubjectNames.set(a.id, a.session_code ?? `Session ${a.id.slice(0, 8)}`);
+
+  // The evidence itself, read only for a full admin, on its own so a
+  // database without the tables renders an empty panel rather than blanking
+  // the dashboard.
+  const { data: flagRows } = viewerCanSeeRisk
+    ? await admin
+        .from("communication_flags")
+        .select("id, surface, author_id, patient_id, tier, findings, blocked, content, created_at")
+        .order("created_at", { ascending: false })
+        .limit(200)
+    : { data: [] as CommunicationFlagQueryRow[] };
+  const { data: revealRows } = viewerCanSeeRisk
+    ? await admin
+        .from("contact_reveal_log")
+        .select("id, therapist_id, patient_id, field, reason, created_at")
+        .order("created_at", { ascending: false })
+        .limit(200)
+    : { data: [] as ContactRevealQueryRow[] };
+
+  // One name lookup for both, since RLS gives an admin no route to another
+  // person's name -- the same admin-client lookup every cross-role surface
+  // makes.
+  const evidencePersonIds = [
+    ...new Set(
+      [
+        ...(flagRows ?? []).flatMap((f) => [f.author_id, f.patient_id]),
+        ...(revealRows ?? []).flatMap((r) => [r.therapist_id, r.patient_id]),
+      ].filter((id): id is string => !!id)
+    ),
+  ];
+  const { data: evidencePeople } = evidencePersonIds.length
+    ? await admin.from("profiles").select("id, full_name").in("id", evidencePersonIds)
+    : { data: [] as { id: string; full_name: string }[] };
+  const evidenceNames = new Map(
+    (evidencePeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
+  );
+
+  const riskFlags: CommunicationFlagRow[] = (flagRows ?? []).map((f) => ({
+    id: f.id,
+    surface: f.surface,
+    authorName: f.author_id ? evidenceNames.get(f.author_id) ?? "Unknown" : "Unknown",
+    patientName: f.patient_id ? evidenceNames.get(f.patient_id) ?? null : null,
+    tier: f.tier,
+    blocked: f.blocked,
+    summary: summariseFindings(
+      Array.isArray(f.findings) ? (f.findings as LeakFinding[]) : []
+    ),
+    content: f.content,
+    createdAt: f.created_at,
+  }));
+  const riskReveals: ContactRevealRow[] = (revealRows ?? []).map((r) => ({
+    id: r.id,
+    therapistName: evidenceNames.get(r.therapist_id) ?? "Unknown",
+    patientName: evidenceNames.get(r.patient_id) ?? "Unknown",
+    field: r.field,
+    reason: r.reason,
+    createdAt: r.created_at,
+  }));
+
+  const riskSignals: RiskSignalRow[] = (riskSignalRows ?? []).map((r) => ({
+    id: r.id,
+    ruleKey: r.rule_key,
+    subjectKind: r.subject_kind as RiskSubjectKind,
+    subjectId: r.subject_id,
+    severity: r.severity as RiskSeverity,
+    summary: r.summary,
+    evidence: (r.evidence ?? {}) as Record<string, unknown>,
+    status: r.status as RiskStatus,
+    detectedAt: r.detected_at,
+    ruleLabel: riskRuleLabels.get(r.rule_key) ?? r.rule_key,
+    subjectName: riskSubjectNames.get(r.subject_id) ?? "Unknown",
+  }));
+  const riskReviews: RiskReviewRow[] = (riskReviewRows ?? []).map((r) => ({
+    id: r.id,
+    signalId: r.signal_id,
+    reviewerName: profileMap.get(r.reviewer_id)?.full_name ?? "An admin",
+    outcome: r.outcome,
+    note: r.note,
+    createdAt: r.created_at,
+  }));
+
+  // The whole queue is `full` scope only, not merely the deciding. A signal
+  // names a colleague and quotes what they wrote; an operations admin who
+  // needs the bookings screen has no business reading that. The routes
+  // enforce it and the screen matches, rather than handing a scoped admin a
+  // 403 with nothing to explain it.
+  const canSeeRisk = viewerCanSeeRisk;
+  const openRiskCount = canSeeRisk
+    ? riskSignals.filter((r) => r.status === "open").length
+    : 0;
+
+  const todayRiskTab = !canSeeRisk ? (
+    <SurfaceCard title="Risk signals" icon="fa-triangle-exclamation">
+      <EmptyState
+        icon="fa-lock"
+        title="Full access only"
+        body="These findings name individual therapists and quote what they wrote, so they are limited to full-access admins."
+      />
+    </SurfaceCard>
+  ) : (
+    <RiskSignalsTab
+      signals={riskSignals}
+      reviews={riskReviews}
+      rules={(riskRuleRows ?? []).map((r) => ({
+        ruleKey: r.rule_key,
+        label: r.label,
+        description: r.description,
+        enabled: r.enabled,
+        config: (r.config ?? {}) as Record<string, unknown>,
+      }))}
+      flags={riskFlags}
+      reveals={riskReveals}
+      detectorsEnabled={adminSettings.riskSignalsEnabled}
+      canReview
+    />
+  );
+
+  // Every recommendation, on its own call for the usual
+  // migration-tolerance reason. Sessions scope, matching the withdraw route
+  // and the section it sits in.
+  const canSeeCarePlans = scopeCanOpen(viewerScope, "sessions");
+  const { data: adminCarePlanRows } = canSeeCarePlans
+    ? await admin
+        .from("care_plans")
+        .select("id, patient_id, therapist_id, status, current_version_id, created_at")
+        .order("created_at", { ascending: false })
+        .limit(200)
+    : { data: [] as AdminCarePlanQueryRow[] };
+
+  const adminPlanVersionIds = (adminCarePlanRows ?? [])
+    .map((p) => p.current_version_id)
+    .filter((id): id is string => !!id);
+  const { data: adminPlanVersions } = adminPlanVersionIds.length
+    ? await admin
+        .from("care_plan_versions")
+        .select("id, offer_snapshot, offer_kind, clinical_rationale, expires_at, authored_at")
+        .in("id", adminPlanVersionIds)
+    : {
+        data: [] as {
+          id: string;
+          offer_snapshot: unknown;
+          offer_kind: string;
+          clinical_rationale: string | null;
+          expires_at: string | null;
+          authored_at: string;
+        }[],
+      };
+  const adminPlanVersionById = new Map((adminPlanVersions ?? []).map((v) => [v.id, v]));
+
+  const carePlanPersonIds = [
+    ...new Set(
+      (adminCarePlanRows ?? []).flatMap((p) => [p.patient_id, p.therapist_id])
+    ),
+  ];
+  const { data: carePlanPeople } = carePlanPersonIds.length
+    ? await admin.from("profiles").select("id, full_name").in("id", carePlanPersonIds)
+    : { data: [] as { id: string; full_name: string }[] };
+  const carePlanNames = new Map(
+    (carePlanPeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
+  );
+
+  const adminCarePlans: AdminCarePlanRow[] = (adminCarePlanRows ?? []).map((p) => {
+    const version = p.current_version_id
+      ? adminPlanVersionById.get(p.current_version_id)
+      : undefined;
+    const snapshot = parseOfferSnapshot(version?.offer_snapshot);
+    return {
+      id: p.id,
+      patientName: carePlanNames.get(p.patient_id) ?? "Unknown",
+      therapistName: carePlanNames.get(p.therapist_id) ?? "Unknown",
+      title: snapshot?.title ?? "Treatment programme",
+      sessionCount: snapshot?.sessionCount ?? 0,
+      pricePaise: snapshot?.pricePaise ?? 0,
+      isHomeVisit: version?.offer_kind === "home_visit_package",
+      state: carePlanState(
+        { status: p.status as CarePlanStatus },
+        { expires_at: version?.expires_at ?? null },
+        nowTimestamp()
+      ),
+      status: p.status,
+      authoredAt: version?.authored_at ?? p.created_at,
+      expiresAt: version?.expires_at ?? null,
+      rationale: version?.clinical_rationale ?? null,
+    };
+  });
+
+  // Completed sessions an admin could write a recommendation against:
+  // recent, and only where that patient has no live plan already, since a
+  // second one would lose the one-active-plan race anyway and offering it
+  // would be an invitation to a 409.
+  const patientsWithLivePlan = new Set(
+    (adminCarePlanRows ?? []).filter((p) => p.status === "active").map((p) => p.patient_id)
+  );
+  const { data: authorableRows } = canSeeCarePlans
+    ? await admin
+        .from("appointments")
+        .select("id, patient_id, therapist_id, session_code, slot_time, category_id")
+        .eq("status", "completed")
+        .not("therapist_id", "is", null)
+        .gte("slot_time", new Date(nowTimestamp() - 60 * 86_400_000).toISOString())
+        .order("slot_time", { ascending: false })
+        .limit(60)
+    : {
+        data: [] as {
+          id: string;
+          patient_id: string;
+          therapist_id: string | null;
+          session_code: string | null;
+          slot_time: string;
+          category_id: string | null;
+        }[],
+      };
+
+  const authorableIds = [
+    ...new Set(
+      (authorableRows ?? []).flatMap((a) => [a.patient_id, a.therapist_id]).filter(
+        (id): id is string => !!id
+      )
+    ),
+  ];
+  const { data: authorablePeople } = authorableIds.length
+    ? await admin.from("profiles").select("id, full_name").in("id", authorableIds)
+    : { data: [] as { id: string; full_name: string }[] };
+  const authorableNames = new Map(
+    (authorablePeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
+  );
+
+  const authorableSessions: AuthorableSession[] = (authorableRows ?? [])
+    .filter((a) => a.therapist_id && !patientsWithLivePlan.has(a.patient_id))
+    .map((a) => ({
+      appointmentId: a.id,
+      patientId: a.patient_id,
+      patientName: authorableNames.get(a.patient_id) ?? "Unknown",
+      therapistName: authorableNames.get(a.therapist_id!) ?? "Unknown",
+      sessionCode: a.session_code,
+      slotTime: a.slot_time,
+      categoryId: a.category_id ?? null,
+    }));
+
+  // Every recommendable package, not the ones for one category: the screen
+  // narrows them per selected session in the browser, because which session
+  // the admin picks decides which category applies and that choice is made
+  // after this render.
+  const adminPackageOptions: RecommendableOption[] = canSeeCarePlans
+    ? (await loadRecommendablePackages(admin)).map((p) => ({
+        id: p.id,
+        kind: p.kind,
+        title: p.title,
+        snapshot: p.snapshot,
+        categoryId: p.categoryId,
+      }))
+    : [];
+
+  const sessionsRecommendationsTab = (
+    <AdminCarePlansTab
+      plans={adminCarePlans}
+      authorable={authorableSessions}
+      packageOptions={adminPackageOptions}
+      canWithdraw={canSeeCarePlans}
+    />
+  );
 
   const settingsActivityTab = (
     <AdminActivityLogTab
@@ -2102,6 +2557,22 @@ export default async function AdminDashboardPage({
           section: "today",
           tab: "approvals",
           hint: "Someone wants a detail on their profile changed.",
+        },
+      ],
+    },
+    {
+      title: "Risk",
+      icon: "fa-triangle-exclamation",
+      items: [
+        {
+          label: "Signals nobody has looked at",
+          count: openRiskCount,
+          section: "today",
+          tab: "risk",
+          hint: "Patterns worth a person's attention. Nothing acts on them by itself.",
+          urgent:
+            canSeeRisk &&
+            riskSignals.some((r) => r.status === "open" && r.severity === "high"),
         },
       ],
     },
@@ -2204,6 +2675,17 @@ export default async function AdminDashboardPage({
           section: "settings",
           tab: "health",
           hint: "Confirmed sessions with no Meet link — the patient has no way in.",
+          urgent: true,
+        },
+        {
+          label: "Accounting checks needing a look",
+          count: accountingProblemCount(accountingHealth),
+          section: "settings",
+          tab: "health",
+          hint: "Balances that disagree, money nothing is attached to, or a delivered session with nothing behind it.",
+          // Money is either unaccounted for or a session was delivered
+          // without it, so this reads red for the same reason the cash
+          // refund queue does.
           urgent: true,
         },
       ],
@@ -2358,6 +2840,7 @@ export default async function AdminDashboardPage({
   const screens: AdminScreens = {
     "today:overview": adminOverviewTab,
     "today:approvals": approvalsTab,
+    "today:risk": todayRiskTab,
     "sessions:schedule": calendarTab,
     "sessions:all": allSessionsTab,
     "sessions:roster": rosterTab,
@@ -2418,6 +2901,7 @@ export default async function AdminDashboardPage({
         </div>
       </>
     ),
+    "sessions:recommendations": sessionsRecommendationsTab,
     "sessions:delivery": deliveryTab,
     "catalog:conditions": (
       <>
@@ -2459,11 +2943,12 @@ export default async function AdminDashboardPage({
     "today:overview": inboxTotal,
     "sessions:all": unassignedTotal,
     "today:approvals": (pendingAccounts?.length ?? 0) + (pendingProfileChanges?.length ?? 0),
+    "today:risk": openRiskCount,
     "people:patients": conditionsBadgeCount,
     "people:partners": b2bBadgeCount,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,
     "catalog:areas": homeVisitWaitlist?.filter((w) => w.status === "new").length ?? 0,
-    "settings:health": googleMeetSyncIssues.length,
+    "settings:health": googleMeetSyncIssues.length + accountingProblemCount(accountingHealth),
   };
 
   return (

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("money");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -34,6 +35,15 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+  // Read the outgoing value first: "changed the share" is only useful in
+  // the log if it says what it changed from.
+  const { data: before } = await admin
+    .from("profiles")
+    .select("full_name, revenue_share_percent")
+    .eq("id", therapistId)
+    .eq("role", "therapist")
+    .maybeSingle();
+
   const { error } = await admin
     .from("profiles")
     .update({ revenue_share_percent: sharePercent })
@@ -43,6 +53,16 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Counted as a money action (see isMoneyAction): this percentage decides
+  // every future payout for this counterparty, so it moves more money over
+  // time than most single refunds do.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "therapist.set_revenue_share",
+    targetId: therapistId,
+    targetLabel: before?.full_name ?? null,
+    details: { fromPercent: before?.revenue_share_percent ?? null, toPercent: sharePercent },
+  });
 
   return NextResponse.json({ success: true, revenueSharePercent: sharePercent });
 }

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 function generatePassword() {
   return crypto.randomBytes(9).toString("base64url");
@@ -12,7 +13,7 @@ function generateReferralCode() {
 }
 
 export async function POST(request: NextRequest) {
-  const adminUser = await getAdminUser();
+  const adminUser = await requireAdminScope("people");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -77,6 +78,15 @@ export async function POST(request: NextRequest) {
   if (leadId) {
     await admin.from("b2b_leads").update({ status: "onboarded" }).eq("id", leadId);
   }
+
+  // Same rule as the password-reset routes: the generated credential never
+  // reaches the log, only the fact that this admin provisioned the partner.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "hospital.onboard",
+    targetId: created.user.id,
+    targetLabel: organizationName,
+    details: { referralCode, leadId: leadId ?? null },
+  });
 
   return NextResponse.json({ email, password, referralCode });
 }

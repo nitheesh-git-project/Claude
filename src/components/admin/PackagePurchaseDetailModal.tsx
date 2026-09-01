@@ -54,10 +54,16 @@ type DetailResponse = {
 export default function PackagePurchaseDetailModal({
   purchaseId,
   therapists,
+  canSeeMoney,
   onClose,
 }: {
   purchaseId: string;
   therapists: { id: string; full_name: string }[];
+  // The Purchases screen lives under Catalog, which an operations admin can
+  // open -- but refunding moves money, and /api/admin/refund-*-package
+  // guards with requireAdminScope("money"). Rendering the button to a scope
+  // that cannot call it would be a 403 with no explanation.
+  canSeeMoney: boolean;
   onClose: () => void;
 }) {
   const [data, setData] = useState<DetailResponse | null>(null);
@@ -346,7 +352,7 @@ export default function PackagePurchaseDetailModal({
                 >
                   Extend expiry
                 </button>
-                {data.purchase.status === "active" && data.purchase.payment_status === "paid" && (
+                {canSeeMoney && data.purchase.status === "active" && data.purchase.payment_status === "paid" && (
                   <button
                     onClick={handleRefund}
                     disabled={actionPending}
