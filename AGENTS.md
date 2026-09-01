@@ -47,7 +47,12 @@ going through with no email-confirmation step
 (`patient-registration.spec.ts`), the Session Completed cutoff on every
 surface that lists a session (`session-completed-cutoff.spec.ts`), and the
 brand splash's cold-open, reload and long-absence rules together with its
-admin settings (`splash-screen.spec.ts`). It needs a
+admin settings (`splash-screen.spec.ts`), and the clinic's reach over a
+recommendation -- who may write one on a therapist's behalf, the split
+attribution the successful write produces, and the panel that offers it
+(`admin-care-plans.spec.ts`, whose fixtures are found-or-created rather than
+deleted, since an append-only version pointing at one makes it undeletable).
+It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
@@ -766,6 +771,19 @@ client is the only writer and the log is append-only from any session.
   naming only the admin a louder one about whose judgement it is.
   `/api/admin/author-care-plan` takes `requireAdminScope("sessions")`, a
   mandatory reason, and writes a `care_plan.author_on_behalf` audit row.
+  The admin's panel matches the therapist's dialog on the two things that
+  decide what gets picked. The programmes on offer are narrowed to the
+  chosen session's own condition, through `narrowToCategory()` in
+  `CarePlanFields.tsx` — both doors load the whole recommendable catalog in
+  one go (a therapist's dashboard covers all their patients, an admin's
+  screen covers all of them), so neither can narrow at load time and both
+  narrow per session at the point of use; the admin's draft is dropped when
+  the chosen session changes, so a package for someone else's condition
+  cannot be carried across. And whose name it goes out in is stated at the
+  button rather than in a subtitle two screens up. It renders even with no session
+  to write against or no recommendable package, saying which of the two is
+  missing -- an admin opens this screen because a patient is waiting, and a
+  panel that is simply absent reads as a feature that does not exist.
 
 - **The clinic can see every recommendation, and stop one.** A care plan is
   now the only route by which a patient buys a programme, so Sessions →

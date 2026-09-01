@@ -8,7 +8,31 @@ export type RecommendableOption = {
   kind: CarePlanOfferKind;
   title: string;
   snapshot: CarePlanOfferSnapshot;
+  /** The condition this package treats, or null for one an admin left
+   *  unattached. */
+  categoryId: string | null;
 };
+
+/**
+ * The programmes worth offering against one session.
+ *
+ * Both authoring doors load every recommendable package once -- a therapist's
+ * dashboard covers all their patients, an admin's screen covers all of them --
+ * so neither can narrow at load time, and both narrow here instead. Scanning
+ * the whole catalog is how the wrong programme gets picked, and it is a
+ * clinician-facing list, so the two doors must not differ.
+ *
+ * An unattached package is offered against every session rather than none: a
+ * package with no category is not a package for no one. A session with no
+ * category (recorded before the column existed) gets the lot.
+ */
+export function narrowToCategory<T extends { categoryId: string | null }>(
+  options: T[],
+  categoryId: string | null
+): T[] {
+  if (!categoryId) return options;
+  return options.filter((o) => o.categoryId === null || o.categoryId === categoryId);
+}
 
 export type CarePlanDraft = {
   offerKind: CarePlanOfferKind;
@@ -116,12 +140,18 @@ export default function CarePlanFields({
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-slate-700">Programme</label>
+        <label
+          htmlFor="care-plan-package"
+          className="block text-xs font-semibold text-slate-700"
+        >
+          Programme
+        </label>
         <p className="mb-1.5 mt-0.5 text-[11px] text-slate-500">
           Sessions, price and validity come with the programme — they are set by the clinic,
           not here.
         </p>
         <select
+          id="care-plan-package"
           value={value?.packageId ?? ""}
           onChange={(e) => {
             const option = options.find((o) => o.id === e.target.value);

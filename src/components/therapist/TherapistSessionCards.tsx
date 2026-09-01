@@ -12,6 +12,7 @@ import { isNoteEditable, noteEditHoursLeft } from "@/lib/sessionNotes";
 import type { TherapistDashboardData } from "@/lib/therapistDashboardData";
 import RevealContactButton from "@/components/therapist/RevealContactButton";
 import { maskPhone } from "@/lib/contactMasking";
+import { narrowToCategory } from "@/components/therapist/CarePlanFields";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -123,7 +124,12 @@ export function renderTherapistSessionCard(
                 }
                 patientId={a.patient_id}
                 sessionCompleted={a.status === "completed"}
-                recommendable={recommendablePackages}
+                // Narrowed to this session's own condition. The dashboard
+                // loads every recommendable package once because it covers
+                // all of this therapist's patients, so the narrowing has to
+                // happen per card -- and scanning the whole catalog is how
+                // the wrong programme gets picked.
+                recommendable={narrowToCategory(recommendablePackages, a.category_id ?? null)}
               />
             )}
         </div>

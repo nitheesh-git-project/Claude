@@ -69,9 +69,10 @@ with a mandatory reason — and cannot change any history.
 
 An admin can write a recommendation on a therapist's behalf when that
 therapist cannot reach their dashboard — same rules, same package whitelist,
-attributed to the clinician (`authored_by`) and recorded as typed by the
-admin (`entered_by`) — and can withdraw one, but never edit or re-price it.
-Both doors call `authorCarePlanVersion()`.
+programmes narrowed to that session's own condition, attribution stated at
+the button, attributed to the clinician (`authored_by`) and recorded as typed
+by the admin (`entered_by`) — and can withdraw one, but never edit or
+re-price it. Both doors call `authorCarePlanVersion()`.
 
 A therapist recommends treatment after a session as a **care plan**
 (`care_plans` + append-only `care_plan_versions`), written from the session

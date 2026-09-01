@@ -2440,7 +2440,7 @@ export default async function AdminDashboardPage({
   const { data: authorableRows } = canSeeCarePlans
     ? await admin
         .from("appointments")
-        .select("id, patient_id, therapist_id, session_code, slot_time")
+        .select("id, patient_id, therapist_id, session_code, slot_time, category_id")
         .eq("status", "completed")
         .not("therapist_id", "is", null)
         .gte("slot_time", new Date(nowTimestamp() - 60 * 86_400_000).toISOString())
@@ -2453,6 +2453,7 @@ export default async function AdminDashboardPage({
           therapist_id: string | null;
           session_code: string | null;
           slot_time: string;
+          category_id: string | null;
         }[],
       };
 
@@ -2479,14 +2480,20 @@ export default async function AdminDashboardPage({
       therapistName: authorableNames.get(a.therapist_id!) ?? "Unknown",
       sessionCode: a.session_code,
       slotTime: a.slot_time,
+      categoryId: a.category_id ?? null,
     }));
 
+  // Every recommendable package, not the ones for one category: the screen
+  // narrows them per selected session in the browser, because which session
+  // the admin picks decides which category applies and that choice is made
+  // after this render.
   const adminPackageOptions: RecommendableOption[] = canSeeCarePlans
     ? (await loadRecommendablePackages(admin)).map((p) => ({
         id: p.id,
         kind: p.kind,
         title: p.title,
         snapshot: p.snapshot,
+        categoryId: p.categoryId,
       }))
     : [];
 
