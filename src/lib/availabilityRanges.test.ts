@@ -15,6 +15,7 @@ import {
   formatShortDate,
   hoursToRanges,
   listExceptions,
+  nextFreePeriod,
   nextWorkingPeriod,
   normalizeRanges,
   rangesToHours,
@@ -28,6 +29,7 @@ import {
   weeklyToTemplate,
   zonedDayAndHour,
 } from "@/lib/availabilityRanges";
+import type { TimeRange } from "@/lib/availabilityRanges";
 import { AVAILABILITY_HOURS, computeDayAvailability } from "@/lib/therapistAvailability";
 
 describe("hours <-> ranges", () => {
@@ -145,6 +147,60 @@ describe("weekly schedule", () => {
     const copy = cloneWeekly(a);
     copy[1][0].endHour = 18;
     expect(a[1][0].endHour).toBe(13);
+  });
+});
+
+describe("nextFreePeriod", () => {
+  it("opens an empty day at 9 AM", () => {
+    expect(nextFreePeriod([])).toEqual({ startHour: 9, endHour: 13 });
+  });
+
+  it("leaves an hour's break after the last period -- the shape people want", () => {
+    expect(nextFreePeriod([{ startHour: 9, endHour: 13 }])).toEqual({
+      startHour: 14,
+      endHour: 18,
+    });
+  });
+
+  it("never overlaps what is already there", () => {
+    // The old fixed window put this at 11 PM, inside the period above it.
+    expect(nextFreePeriod([{ startHour: 14, endHour: 24 }])).toEqual({
+      startHour: 6,
+      endHour: 10,
+    });
+    // Clipped to the gap rather than running into the next period.
+    expect(
+      nextFreePeriod([
+        { startHour: 6, endHour: 9 },
+        { startHour: 11, endHour: 24 },
+      ])
+    ).toEqual({ startHour: 9, endHour: 11 });
+  });
+
+  it("answers null when the day is full, so the button can be disabled", () => {
+    expect(nextFreePeriod([{ startHour: 6, endHour: 24 }])).toBeNull();
+  });
+
+  it("what it returns is always valid beside what it was given", () => {
+    const cases: TimeRange[][] = [
+      [],
+      [{ startHour: 9, endHour: 13 }],
+      [{ startHour: 14, endHour: 24 }],
+      [{ startHour: 6, endHour: 7 }],
+      [
+        { startHour: 6, endHour: 9 },
+        { startHour: 11, endHour: 24 },
+      ],
+      [
+        { startHour: 9, endHour: 13 },
+        { startHour: 14, endHour: 18 },
+      ],
+    ];
+    for (const ranges of cases) {
+      const next = nextFreePeriod(ranges);
+      if (!next) continue;
+      expect(validateRanges([...ranges, next])).toBeNull();
+    }
   });
 });
 

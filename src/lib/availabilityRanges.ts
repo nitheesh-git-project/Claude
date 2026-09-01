@@ -181,6 +181,44 @@ export function totalWeeklyHours(weekly: WeeklySchedule): number {
   return DAY_ORDER.reduce((sum, day) => sum + rangesToHours(weekly[day] ?? []).length, 0);
 }
 
+/**
+ * Where an "Add hours" button should put the next period, or null when the
+ * day is already full.
+ *
+ * Both editors used to append a fixed window -- last period's end plus an
+ * hour, or a hard-coded 3 PM -- which produces an immediately invalid day
+ * as soon as there is no room: a therapist working 2 PM to midnight got a
+ * new 11 PM to midnight period overlapping the one above it, and a second
+ * tap on the exceptions form added the same window twice. Adding hours
+ * should never be the thing that breaks the form, so the window is chosen
+ * from what is actually free.
+ *
+ * The first candidate is an hour after the last period ends, because that
+ * is the shape people are usually reaching for (a morning, a break, an
+ * afternoon). Anything else falls back to the earliest free hour.
+ */
+export function nextFreePeriod(
+  ranges: TimeRange[],
+  options: { preferredLength?: number } = {}
+): TimeRange | null {
+  if (ranges.length === 0) return { startHour: 9, endHour: 13 };
+
+  const taken = new Set(rangesToHours(ranges));
+  const length = Math.max(1, options.preferredLength ?? 4);
+  const lastEnd = Math.max(...ranges.map((r) => r.endHour));
+  const candidates = [lastEnd + 1];
+  for (let hour = DAY_START_HOUR; hour < DAY_END_HOUR; hour++) candidates.push(hour);
+
+  for (const start of candidates) {
+    if (start < DAY_START_HOUR || start >= DAY_END_HOUR) continue;
+    if (taken.has(start)) continue;
+    let end = start;
+    while (end < DAY_END_HOUR && !taken.has(end) && end - start < length) end++;
+    if (end > start) return { startHour: start, endHour: end };
+  }
+  return null;
+}
+
 export type WeekSummaryLine = { days: string; hours: string; working: boolean };
 
 /**

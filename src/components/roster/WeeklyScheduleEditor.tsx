@@ -12,6 +12,7 @@ import {
   formatRanges,
   formatShortDate,
   formatTimeLabel,
+  nextFreePeriod,
   normalizeRanges,
   totalWeeklyHours,
   validateRanges,
@@ -161,9 +162,11 @@ export default function WeeklyScheduleEditor({
 
   function addPeriod(day: number) {
     const existing = draft[day] ?? [];
-    const last = [...existing].sort((a, b) => a.endHour - b.endHour).pop();
-    const start = Math.min(last ? last.endHour + 1 : 9, DAY_END_HOUR - 1);
-    mutate(day, [...existing, { startHour: start, endHour: Math.min(start + 4, DAY_END_HOUR) }]);
+    const next = nextFreePeriod(existing);
+    // Null means the day has no free hour left. The button is disabled in
+    // that state, so this is belt and braces rather than a live path.
+    if (!next) return;
+    mutate(day, [...existing, next]);
   }
 
   function updatePeriod(day: number, index: number, patch: Partial<TimeRange>) {
@@ -412,7 +415,13 @@ export default function WeeklyScheduleEditor({
                     <button
                       type="button"
                       onClick={() => addPeriod(day)}
-                      className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200"
+                      disabled={nextFreePeriod(ranges) === null}
+                      title={
+                        nextFreePeriod(ranges) === null
+                          ? `${DAY_LABELS[day]} has no free hours left.`
+                          : undefined
+                      }
+                      className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200 disabled:opacity-40"
                     >
                       Add hours
                     </button>

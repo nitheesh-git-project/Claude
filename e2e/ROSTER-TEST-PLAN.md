@@ -139,6 +139,10 @@ is not part of this change.
 - A 409 explains itself and offers to reload rather than overwriting.
 - Overlapping periods are refused inline and disable Save; dragging a start
   past its end nudges the end instead of erroring.
+- "Add hours" picks a window that is actually free, so it can never be the
+  thing that makes a day invalid: on a day running to midnight it fills the
+  morning, on a day with a lunch break it goes after the last period, and on
+  a full day it is disabled. Spamming it leaves the day valid throughout.
 - Twenty rapid toggles of one day land back where they started with nothing
   unsaved.
 - Neither screen scrolls horizontally at 360px.

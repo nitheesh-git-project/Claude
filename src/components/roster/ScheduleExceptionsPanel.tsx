@@ -10,6 +10,7 @@ import {
   formatExceptionDate,
   formatTimeLabel,
   listExceptions,
+  nextFreePeriod,
   type ScheduleException,
   type TimeRange,
 } from "@/lib/availabilityRanges";
@@ -238,9 +239,13 @@ export default function ScheduleExceptionsPanel({
               <button
                 type="button"
                 onClick={() =>
-                  setRanges((current) => [...current, { startHour: 15, endHour: 18 }])
+                  setRanges((current) => {
+                    const next = nextFreePeriod(current);
+                    return next ? [...current, next] : current;
+                  })
                 }
-                className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100"
+                disabled={nextFreePeriod(ranges) === null}
+                className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40"
               >
                 Add hours
               </button>
