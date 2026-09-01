@@ -6905,16 +6905,29 @@ begin
   where therapist_id = p_therapist_id and date = p_date;
 
   if jsonb_array_length(coalesce(p_rows, '[]'::jsonb)) > 0 then
+    -- One row per hour, last mention winning. Postgres refuses an
+    -- ON CONFLICT DO UPDATE whose own batch names the same key twice
+    -- ("cannot affect row a second time"), so a payload carrying an hour
+    -- twice would fail the whole write with a raw database error in front
+    -- of whoever pressed Save. The app's own caller cannot produce one --
+    -- exceptionRowsForRanges emits each hour once -- but a function that
+    -- guards a table should not depend on its only caller staying correct.
     insert into therapist_availability_override
       (therapist_id, date, hour, available, note, created_by)
     select
       p_therapist_id,
       p_date,
-      (e->>'hour')::smallint,
-      (e->>'available')::boolean,
+      r.hour,
+      r.available,
       nullif(btrim(coalesce(p_note, '')), ''),
       p_actor
-    from jsonb_array_elements(p_rows) e
+    from (
+      select distinct on (((e.value)->>'hour')::smallint)
+             ((e.value)->>'hour')::smallint as hour,
+             ((e.value)->>'available')::boolean as available
+      from jsonb_array_elements(p_rows) with ordinality as e(value, ord)
+      order by ((e.value)->>'hour')::smallint, e.ord desc
+    ) r
     on conflict (therapist_id, date, hour) do update
       set available = excluded.available,
           note = excluded.note,

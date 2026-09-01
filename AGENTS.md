@@ -90,6 +90,14 @@ Three environment notes for the browser specs:
   then `NEXT_PUBLIC_SUPABASE_URL=http://localhost:8099 npx next dev -p 3100`,
   then `E2E_BASE_URL=http://localhost:3100 npx playwright test e2e/admin-login.spec.ts`.
 
+`scripts/roster-sql-checks.sql` is the roster's storage-layer check: the
+malformed and out-of-range payloads the API routes cannot produce, asserted
+against a scratch Postgres with `schema.sql` applied
+(`psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/roster-sql-checks.sql`).
+It raises on the first failure and cleans up after itself. Two real bugs came
+out of it, both in this file's own comments. `e2e/ROSTER-TEST-PLAN.md` says
+what is covered at which layer and what is deliberately not.
+
 `e2e/admin-degraded-schema.spec.ts` drops columns and tables and restores
 them by re-applying `schema.sql` in a `finally`. Point it at a throwaway
 project, never one whose data matters.

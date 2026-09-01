@@ -442,6 +442,12 @@ change rather than an error. Date exceptions replace a whole day inside
 `set_therapist_date_exception`, so two admins answering the same date end
 with one coherent day rather than half of each.
 
+**Tested at four layers**, described in `e2e/ROSTER-TEST-PLAN.md`: the range
+maths in Vitest, the write functions against a scratch Postgres
+(`scripts/roster-sql-checks.sql`), authorization/concurrency/booking
+regression in `e2e/therapist-roster.spec.ts`, and accessibility and
+save-spam in the browser.
+
 **Routes.** `/api/therapist/save-availability` (own week),
 `/api/admin/save-therapist-availability` (any therapist,
 `requireAdminScope("sessions")`), `/api/admin/set-availability-exception`
