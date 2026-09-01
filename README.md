@@ -47,7 +47,10 @@ running `npm run dev` (started automatically if one isn't already up). It
 is not a full UI test suite — it covers the paths where a silent regression
 would cost real money or trust: the CAS-guarded concurrency races (refund
 double-fire, therapist reassignment, referral double-assignment), home-visit
-area gating, and bulk-scheduling limits. Every spec talks to the app's HTTP
+area gating, bulk-scheduling limits, and the therapist roster
+(`therapist-roster.spec.ts` — weekly hours, exceptions, leave, admin and
+therapist authorization, stale and double-clicked saves, and the check that
+none of it moved a booking or the patient's time picker). Every spec talks to the app's HTTP
 API and Supabase directly (no browser), so it needs real credentials for a
 **test/staging** Supabase project and Razorpay **test-mode** keys in the
 environment or `.env.local` — never point it at production, since it creates
@@ -209,7 +212,8 @@ link points here so no client bundle has to know the four paths; see
 `/patient/dashboard/profile`, `/patient/dashboard/health-profile`.
 
 **Therapist:** `/therapist/login`, `/therapist/dashboard`,
-`/therapist/dashboard/profile`, `/therapist/dashboard/health-profile`,
+`/therapist/dashboard/availability`, `/therapist/dashboard/profile`,
+`/therapist/dashboard/health-profile`,
 `/therapist/dashboard/health-profile/[patientId]`.
 
 **Hospital:** `/hospital/login`, `/hospital/dashboard`,
@@ -302,13 +306,16 @@ machine a banner that never goes away means the next person reads the last
 person's goodbye.
 
 **Booking.** The `/book` wizard picks a treatment category, language, date,
-and time slot. Slots respect the online booking lead time — 12 hours by
-default, admin-editable at **Settings → Booking Rules**
+and time slot. The times it offers come from the online booking lead time —
+12 hours by default, admin-editable at **Settings → Booking Rules**
 (`site_settings.online_booking_lead_time_hours`, with
-`BOOKING_LEAD_TIME_HOURS` in `src/lib/bookingSlots.ts` as the fallback) — the therapist's weekly availability template
-plus per-date overrides (`therapist_availability_template`,
-`therapist_availability_override`), leave flags, and conflict checks
-(`src/lib/checkTherapistConflict.ts`). `/book` sells exactly one
+`BOOKING_LEAD_TIME_HOURS` in `src/lib/bookingSlots.ts` as the fallback). A
+patient books a *time*, not a therapist: the roster
+(`therapist_availability_template`, `therapist_availability_override`,
+`profiles.on_leave`) is what the admin assigns against afterwards, together
+with the conflict check in `src/lib/checkTherapistConflict.ts`, and it
+deliberately does not filter the patient's picker — see "Therapist roster
+and availability" below. `/book` sells exactly one
 consultation. It used to sell multi-session programmes too, via
 `?package=<id>`; that is gone, and a link still carrying the parameter is
 answered with an explanation rather than quietly selling a single session to
@@ -383,6 +390,67 @@ ledger and the older `sessions_used` counter disagree; it is shown on
 to and delivered sessions with no payment, package or cash behind them.
 Nothing there is repaired automatically — each finding is either a data
 problem or someone working outside the normal flow, and both want a person.
+
+### Therapist roster and availability
+
+A therapist's availability is three separate things, and the screens say so.
+
+- **The weekly schedule** — what they normally work. Working periods per
+  weekday, in the therapist's own local time (`profiles.timezone`).
+- **Exceptions** — dates that differ from it. Unavailable all day, or
+  available for set hours only.
+- **Time off** — a therapist off the roster entirely, whatever the schedule
+  says (`profiles.on_leave`, with optional dates and a reason beside it).
+
+Two screens, one editor: the therapist edits their own week at
+`/therapist/dashboard/availability`, and an admin edits anyone's at
+**Sessions → Roster**. Both render `WeeklyScheduleEditor`, so the rules
+about what a valid week looks like cannot differ by who is looking. The
+roster opens on a *list of therapists* — name, timezone, week summary,
+today's hours, upcoming exceptions, next working period — not on a calendar
+date and an eighteen-column grid of hourly cells, which was the storage
+model drawn on screen.
+
+Nobody clicks an hour. The editor works in ranges ("Monday 9 AM – 1 PM and
+2 PM – 6 PM") with per-day presets, copy-to-days and apply-to-weekdays;
+`src/lib/availabilityRanges.ts` converts between those ranges and the hour
+rows the tables have always stored, in both directions. The storage model is
+unchanged, so every existing schedule reads back as exactly the same hours —
+including exceptions written one cell at a time by the old screen.
+
+**What the roster does and does not decide.** It is the clinic's planning
+record: who can be offered, and when. It is what an admin assigns against,
+alongside `checkTherapistConflict`. It does **not** filter the patient's
+booking picker, which is driven by the lead-time rule alone — wiring the two
+together would change who is bookable on a deploy rather than on somebody's
+decision, and `e2e/therapist-roster.spec.ts` (R-B02) is the guard on that.
+
+**Availability and appointments are separate systems, and bookings win.**
+Nothing on these screens ever touches an appointment. Removing hours a
+session is already booked into shows who is affected, by name and time, and
+says plainly that saving will not cancel them; the session stays exactly as
+booked. Time off never clears the weekly schedule — coming back restores
+nothing, because nothing was removed.
+
+**Concurrency.** A weekly save is one database function
+(`save_therapist_weekly_schedule`) holding a row lock on
+`therapist_schedule_state`, with compare-and-swap on the version the editor
+loaded. A save carrying a stale version whose hours differ from what is
+stored is refused with 409 and the editor offers to reload; a double-clicked
+Save — two identical requests carrying the same stale version — lands as one
+change rather than an error. Date exceptions replace a whole day inside
+`set_therapist_date_exception`, so two admins answering the same date end
+with one coherent day rather than half of each.
+
+**Routes.** `/api/therapist/save-availability` (own week),
+`/api/admin/save-therapist-availability` (any therapist,
+`requireAdminScope("sessions")`), `/api/admin/set-availability-exception`
+(one date: unavailable / custom hours / clear, `sessions`),
+`/api/admin/set-therapist-on-leave` (`people`) and
+`/api/therapist/set-on-leave` (own). Every admin one writes an
+`admin_activity_log` row naming the therapist and what changed. Writing a
+date exception is still an admin action only: a therapist sees theirs and
+cannot create one, exactly as before.
 
 ### Care plans
 

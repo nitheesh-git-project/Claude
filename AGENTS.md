@@ -47,7 +47,12 @@ going through with no email-confirmation step
 (`patient-registration.spec.ts`), the Session Completed cutoff on every
 surface that lists a session (`session-completed-cutoff.spec.ts`), and the
 brand splash's cold-open, reload and long-absence rules together with its
-admin settings (`splash-screen.spec.ts`), and the clinic's reach over a
+admin settings (`splash-screen.spec.ts`), and the therapist roster end to end
+(`therapist-roster.spec.ts`: ranges saving as the same hour rows, exceptions
+owning only their own date, leave leaving the schedule intact, role and
+scope authorization on every roster route, stale/double-clicked saves, and
+the regression that no roster change moved a booking or the patient's time
+picker), and the clinic's reach over a
 recommendation -- who may write one on a therapist's behalf, the split
 attribution the successful write produces, and the panel that offers it
 (`admin-care-plans.spec.ts`, whose fixtures are found-or-created rather than
@@ -134,6 +139,8 @@ src/lib/mission.ts       the mission, vision, promises and stated limits
 src/lib/marketingPhotos.ts every photograph the public pages use
 src/lib/careAreas.ts     the six areas of practice, shared by / and /conditions
 src/lib/adminScope.ts    admin scopes and which sections each one may open
+src/lib/availabilityRanges.ts the roster's range layer over its hour rows
+src/lib/availabilityRequest.ts server-side validation both save doors share
 src/lib/conditionSpecialty.ts the three condition specialties, the triage
                          questions and the suggestion rule
 src/lib/intakeOrtho.ts   the orthopaedic intake question set
@@ -341,9 +348,41 @@ client is the only writer and the log is append-only from any session.
 
 - **Booking lead time** is 12 hours, defined once in `src/lib/bookingSlots.ts`
   and shared by the picker and the validator so they cannot drift apart.
-- **Availability** = weekly template + per-date overrides + leave flag, then a
-  conflict check (`src/lib/therapistAvailability.ts`,
-  `src/lib/checkTherapistConflict.ts`).
+- **Availability** = weekly template + per-date exceptions + leave flag, then
+  a conflict check (`src/lib/therapistAvailability.ts`,
+  `src/lib/checkTherapistConflict.ts`). It is the clinic's planning record —
+  who can be *offered* — and it deliberately does **not** filter the
+  patient's `/book` picker, which is the lead-time rule alone. Connecting
+  the two is a product decision with a deploy-sized blast radius, not a
+  refactor; `e2e/therapist-roster.spec.ts` R-B02 is the guard.
+- **Nobody edits an hour.** The roster is managed as working *periods*
+  ("Monday 9 AM – 1 PM and 2 PM – 6 PM") on one shared editor
+  (`WeeklyScheduleEditor`, used by the therapist's own screen and the
+  admin's Roster), and `src/lib/availabilityRanges.ts` converts between those
+  periods and the hour rows the tables store. The storage model is
+  unchanged and must stay that way: every existing schedule, including a
+  sparse exception written one cell at a time by the old grid, reads back as
+  exactly the same hours. Three rules hold this together:
+  1. **The three concepts stay separate.** A weekly schedule is what
+     somebody normally works; an exception is one date that differs; leave
+     takes them off entirely. Leave never clears the schedule -- there is
+     nothing to restore on the way back because nothing was removed -- and
+     an exception never edits the weekly template.
+  2. **Availability never touches an appointment.** Removing hours a session
+     is booked into names who is affected and says the session stays as
+     booked. Nothing here cancels, moves or flags one; the two systems are
+     separate and the booking wins.
+  3. **A weekly save is a compare-and-swap under a real row lock**
+     (`save_therapist_weekly_schedule`, versioned by
+     `therapist_schedule_state`), and a date exception replaces its whole
+     day in one function (`set_therapist_date_exception`). A stale save
+     asking for different hours is refused with 409; a double-clicked Save
+     -- two identical requests carrying the same stale version -- is a
+     no-op success, because it is one logical change. Never go back to the
+     unlocked delete-then-insert this replaced.
+  Writing a date exception is an admin capability and stays one: a therapist
+  reads theirs. Widening that is its own decision, not a side effect of a
+  screen.
 - **Payments** must be verified server-side: `/api/razorpay/verify` checks the
   signature before anything is confirmed. Never confirm on a client callback.
   **A capture is applied in exactly one place**: `record_payment_capture` in

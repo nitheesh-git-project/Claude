@@ -181,7 +181,9 @@ export default async function AdminDashboardPage({
     { data: syncAttemptRows },
     { data: availabilityTemplateRows },
     { data: availabilityOverrideRows },
+    { data: scheduleStateRows },
     { data: onLeaveRows },
+    { data: leaveDetailRows },
     { data: reassignmentLogs },
     { data: b2bLeads },
     { data: referrals },
@@ -317,12 +319,24 @@ export default async function AdminDashboardPage({
       .from("therapist_availability_override")
       .select("therapist_id, date, hour, available, note"),
 
+    // The version each therapist's schedule is at, so an editor opened on
+    // this screen can be rejected rather than silently overwrite an edit
+    // made in another tab. Newest table in the file, so it gets the same
+    // isolated treatment as the two above: without it, the roster editor
+    // just sends no version and behaves as it did before.
+    admin.from("therapist_schedule_state").select("therapist_id, version"),
+
     // Deliberately its own query rather than folded into the allProfiles
     // select below -- on_leave is new and migration-dependent same as the two
     // tables above, and allProfiles feeds nearly every other tab on this page.
     // An unknown-column error on one shared query would take all of them down;
     // keeping it isolated means only the roster tab's on_leave badges degrade.
     admin.from("profiles").select("id, on_leave"),
+
+    // Leave dates and reason -- newer than on_leave itself and isolated for
+    // the same reason. They annotate the flag; nothing computes
+    // availability from them.
+    admin.from("profiles").select("id, on_leave_from, on_leave_to, on_leave_reason"),
 
     admin
       .from("appointment_reassignment_log")
@@ -1740,6 +1754,17 @@ export default async function AdminDashboardPage({
     />
   );
 
+  const leaveDetailById = new Map(
+    (leaveDetailRows ?? []).map((r) => [
+      r.id,
+      {
+        from: (r.on_leave_from as string | null) ?? null,
+        to: (r.on_leave_to as string | null) ?? null,
+        reason: (r.on_leave_reason as string | null) ?? null,
+      },
+    ])
+  );
+
   const rosterTab = (
     <AdminRosterTab
       therapists={allTherapists.map((t) => ({
@@ -1747,9 +1772,34 @@ export default async function AdminDashboardPage({
         full_name: t.full_name,
         timezone: t.timezone,
         on_leave: onLeaveMap.get(t.id) ?? false,
+        on_leave_from: leaveDetailById.get(t.id)?.from ?? null,
+        on_leave_to: leaveDetailById.get(t.id)?.to ?? null,
+        on_leave_reason: leaveDetailById.get(t.id)?.reason ?? null,
+        approved: t.approved ?? null,
+        active: t.active ?? null,
       }))}
       templateRows={availabilityTemplateRows ?? []}
       overrideRows={availabilityOverrideRows ?? []}
+      scheduleVersions={Object.fromEntries(
+        (scheduleStateRows ?? []).map((r) => [r.therapist_id as string, r.version as number])
+      )}
+      // Only what the roster needs to warn about hours being removed from
+      // under a booking -- the same array every other session screen on this
+      // page already has, not a second fetch.
+      appointments={appointmentsWithPayoutBatch.map((a) => ({
+        id: a.id,
+        therapist_id: a.therapist_id ?? null,
+        slot_time: a.slot_time ?? null,
+        status: a.status ?? null,
+        patientName: profileMap.get(a.patient_id)?.full_name ?? "Unknown patient",
+      }))}
+      todayKey={istDateKey(new Date(nowTimestamp()).toISOString())}
+      // The schedule and exception routes are `sessions`; leave is `people`.
+      // Every scope that can open this section holds both today, but the
+      // flags are computed rather than assumed -- a scope table change must
+      // hide the control, not produce a 403 with nothing explaining it.
+      canManageSchedule={scopeCanOpen(viewerScope, "sessions")}
+      canManageLeave={scopeCanOpen(viewerScope, "people")}
     />
   );
 

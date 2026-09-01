@@ -4928,6 +4928,7 @@ begin
     profile_change_requests,
     therapist_availability_override,
     therapist_availability_template,
+    therapist_schedule_state,
     patient_referrals,
     b2b_leads,
     home_visit_waitlist,
@@ -6710,3 +6711,232 @@ alter table care_plan_versions
 
 create index if not exists care_plan_versions_entered_by_idx
   on care_plan_versions (entered_by) where entered_by is not null;
+
+-- Therapist Roster: schedule versioning, atomic writes, leave dates -------
+--
+-- The roster's data model is unchanged: a weekly template
+-- (therapist_availability_template), date-specific exceptions
+-- (therapist_availability_override) and a leave flag (profiles.on_leave).
+-- What was missing was a way to write the template safely. The save path
+-- was delete-all-then-insert with no lock and no version, so two people
+-- editing one therapist (an admin and the therapist themselves, or two
+-- admin tabs) silently overwrote each other, and a save that died between
+-- the delete and the insert left the therapist with no schedule at all.
+--
+-- This row is the concurrency anchor for one therapist's schedule: the
+-- version an editor loaded with, and the row the write functions below take
+-- `for update` on. Nothing reads availability through it -- effective
+-- availability is still template + exceptions + leave, exactly as before.
+create table if not exists therapist_schedule_state (
+  therapist_id uuid primary key references profiles(id) on delete cascade,
+  version bigint not null default 1,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references profiles(id)
+);
+
+alter table therapist_schedule_state enable row level security;
+
+-- A therapist can read their own version so their editor can send it back
+-- on save. Writes only ever happen inside the two functions below, called
+-- with the service-role client from the roster routes -- same posture as
+-- the two availability tables themselves.
+drop policy if exists "schedule_state_select_own" on therapist_schedule_state;
+create policy "schedule_state_select_own" on therapist_schedule_state
+  for select using (auth.uid() = therapist_id);
+
+-- The exceptions list for one therapist is now read per date range (the
+-- roster's "upcoming exceptions" panel) rather than as a whole-table scan.
+create index if not exists therapist_availability_override_therapist_date_idx
+  on therapist_availability_override (therapist_id, date);
+
+-- Leave dates and a reason. profiles.on_leave stays the *only* thing that
+-- makes a therapist unavailable -- these three columns are annotation, so
+-- the roster can say "on leave Sep 10-14, annual leave" instead of a bare
+-- amber pill, and so a returning therapist's dates can be cleared with the
+-- flag. Deliberately NOT a gate: nothing in this app has ever computed
+-- availability from a date range, and making these columns start doing so
+-- would change who is bookable on a deploy rather than on a person's click.
+alter table profiles add column if not exists on_leave_from date;
+alter table profiles add column if not exists on_leave_to date;
+alter table profiles add column if not exists on_leave_reason text;
+
+-- Take the schedule lock for one therapist, creating their state row if
+-- this is the first write, and return the version now held.
+--
+-- The loop is the point. `insert ... on conflict do nothing` followed by a
+-- `select ... for update` looks equivalent and is not: two first-ever saves
+-- racing each other leave the loser's insert skipped and its select finding
+-- nothing (the winner has not committed yet), so it would fall through with
+-- a null version, write the schedule and never bump the counter. Retrying
+-- the select after a failed insert is the standard upsert-then-lock shape,
+-- and it is what makes the compare-and-swap below true from the very first
+-- save rather than from the second.
+create or replace function public.lock_therapist_schedule_state(
+  p_therapist_id uuid,
+  p_actor uuid
+) returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_version bigint;
+begin
+  loop
+    select version into v_version
+    from therapist_schedule_state
+    where therapist_id = p_therapist_id
+    for update;
+    exit when found;
+
+    begin
+      insert into therapist_schedule_state (therapist_id, updated_by)
+      values (p_therapist_id, p_actor);
+    exception when unique_violation then
+      -- Somebody else created it between our select and our insert; go
+      -- round again and lock theirs.
+      null;
+    end;
+  end loop;
+  return v_version;
+end;
+$$;
+
+-- Replace a therapist's whole weekly template under a real row lock, with
+-- compare-and-swap on the version the editor loaded.
+--
+-- Returns one of:
+--   {"status":"ok","version":n}       -- written, version bumped
+--   {"status":"noop","version":n}     -- the caller's version was stale but
+--                                        the schedule it wants is already
+--                                        exactly what is stored, so there
+--                                        is nothing to do. This is what
+--                                        makes a double-clicked Save (two
+--                                        identical requests carrying the
+--                                        same expected version) land as one
+--                                        logical change instead of an error
+--                                        on the second one.
+--   {"status":"conflict","version":n} -- somebody else changed it first and
+--                                        wants different hours; the caller
+--                                        must reload rather than overwrite.
+--
+-- p_slots is [{"day_of_week":1,"hour":9}, ...] -- the same "presence means
+-- enabled" representation the table has always used. The range-based editor
+-- expands its ranges into these before calling.
+create or replace function public.save_therapist_weekly_schedule(
+  p_therapist_id uuid,
+  p_slots jsonb,
+  p_expected_version bigint,
+  p_actor uuid
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_version bigint;
+  v_current jsonb;
+  v_incoming jsonb;
+begin
+  v_version := lock_therapist_schedule_state(p_therapist_id, p_actor);
+
+  select coalesce(jsonb_agg(k order by k), '[]'::jsonb) into v_current
+  from (
+    select day_of_week::text || '-' || hour::text as k
+    from therapist_availability_template
+    where therapist_id = p_therapist_id
+  ) c;
+
+  select coalesce(jsonb_agg(distinct k order by k), '[]'::jsonb) into v_incoming
+  from (
+    select (e->>'day_of_week') || '-' || (e->>'hour') as k
+    from jsonb_array_elements(coalesce(p_slots, '[]'::jsonb)) e
+  ) i;
+
+  if p_expected_version is not null and p_expected_version <> v_version then
+    if v_current = v_incoming then
+      return jsonb_build_object('status', 'noop', 'version', v_version);
+    end if;
+    return jsonb_build_object('status', 'conflict', 'version', v_version);
+  end if;
+
+  delete from therapist_availability_template where therapist_id = p_therapist_id;
+
+  insert into therapist_availability_template (therapist_id, day_of_week, hour)
+  select p_therapist_id, (e->>'day_of_week')::smallint, (e->>'hour')::smallint
+  from jsonb_array_elements(coalesce(p_slots, '[]'::jsonb)) e
+  on conflict (therapist_id, day_of_week, hour) do nothing;
+
+  update therapist_schedule_state
+     set version = v_version + 1, updated_at = now(), updated_by = p_actor
+   where therapist_id = p_therapist_id;
+
+  return jsonb_build_object('status', 'ok', 'version', v_version + 1);
+end;
+$$;
+
+-- Write (or clear) one date's exception in a single transaction.
+--
+-- p_rows is [{"hour":9,"available":true}, ...]; an empty array clears the
+-- date and hands it back to the weekly schedule. The whole date is replaced
+-- rather than merged, so "unavailable all day" and "available 10am-2pm
+-- only" are both expressible without a second concept, and two admins
+-- saving the same date at once end with one coherent day rather than a
+-- half of each. The unique index on (therapist_id, date, hour) is what
+-- makes a duplicate exception impossible; this function makes a torn one
+-- impossible too.
+create or replace function public.set_therapist_date_exception(
+  p_therapist_id uuid,
+  p_date date,
+  p_rows jsonb,
+  p_note text,
+  p_actor uuid
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- Same row lock the weekly save takes, so an exception write and a
+  -- schedule write on one therapist serialise against each other.
+  perform lock_therapist_schedule_state(p_therapist_id, p_actor);
+
+  delete from therapist_availability_override
+  where therapist_id = p_therapist_id and date = p_date;
+
+  if jsonb_array_length(coalesce(p_rows, '[]'::jsonb)) > 0 then
+    insert into therapist_availability_override
+      (therapist_id, date, hour, available, note, created_by)
+    select
+      p_therapist_id,
+      p_date,
+      (e->>'hour')::smallint,
+      (e->>'available')::boolean,
+      nullif(btrim(coalesce(p_note, '')), ''),
+      p_actor
+    from jsonb_array_elements(p_rows) e
+    on conflict (therapist_id, date, hour) do update
+      set available = excluded.available,
+          note = excluded.note,
+          created_by = excluded.created_by;
+  end if;
+
+  update therapist_schedule_state
+     set updated_at = now(), updated_by = p_actor
+   where therapist_id = p_therapist_id;
+
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
+-- Both are service-role only, same rule as record_payment_capture: every
+-- caller is an API route that has already checked who is asking.
+revoke all on function public.lock_therapist_schedule_state(uuid, uuid) from public;
+revoke all on function public.lock_therapist_schedule_state(uuid, uuid) from anon;
+revoke all on function public.lock_therapist_schedule_state(uuid, uuid) from authenticated;
+revoke all on function public.save_therapist_weekly_schedule(uuid, jsonb, bigint, uuid) from public;
+revoke all on function public.save_therapist_weekly_schedule(uuid, jsonb, bigint, uuid) from anon;
+revoke all on function public.save_therapist_weekly_schedule(uuid, jsonb, bigint, uuid) from authenticated;
+revoke all on function public.set_therapist_date_exception(uuid, date, jsonb, text, uuid) from public;
+revoke all on function public.set_therapist_date_exception(uuid, date, jsonb, text, uuid) from anon;
+revoke all on function public.set_therapist_date_exception(uuid, date, jsonb, text, uuid) from authenticated;
