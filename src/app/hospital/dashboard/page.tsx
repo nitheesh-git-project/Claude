@@ -32,7 +32,11 @@ export default async function HospitalDashboardPage() {
             { label: "Refer a patient", hint: "Video consultation or home visit", icon: "fa-user-plus", href: "/hospital/dashboard/refer", primary: true },
             { label: "Your referrals", hint: "Status of everyone you've sent", icon: "fa-list-check", href: "/hospital/dashboard/referrals" },
             { label: "Revenue and payouts", hint: "Sessions delivered and your share", icon: "fa-chart-line", href: "/hospital/dashboard/revenue" },
-            { label: "Account security", hint: "Password and sign-in", icon: "fa-lock", href: "/hospital/dashboard/profile" },
+            // Named for the page it opens, matching the sidebar. It said
+            // "Account security", which is one section of that page -- a
+            // partner correcting their organisation's name had no reason
+            // to open something with that name.
+            { label: "Edit profile", hint: "Organisation details, contact and password", icon: "fa-user-pen", href: "/hospital/dashboard/profile" },
           ]}
         />
     </HospitalDashboardShell>

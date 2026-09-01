@@ -21,7 +21,8 @@ Calendar/Meet (`googleapis`) · `motion` for animation · Font Awesome ·
 patient's health profile and the admin's table exports).
 
 Commands: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
-`npm run test`, `npm run check:realtime`, `npm run test:e2e`, and
+`npm run test`, `npm run check:realtime`, `npm run check:nav`,
+`npm run test:e2e`, and
 `npm run verify` (lint + test + build, the one to run before pushing).
 `npm run test` is Vitest over `src/**/*.test.ts` — the dependency-free
 modules in `src/lib`, which is why the business maths lives there rather
@@ -31,7 +32,15 @@ does belongs in `e2e/`. `npm run lint` runs
 when a table the UI subscribes to was never added to the `supabase_realtime`
 publication in `schema.sql`. That mismatch has no runtime symptom — the
 subscription succeeds and simply never fires — so the check is the only
-thing that catches it. The e2e suite (Playwright, `e2e/`) covers the
+thing that catches it. `check:nav` runs next:
+`scripts/check-nav-links.mjs` resolves every internal link literal in `src/`
+against the routes under `src/app/`, and fails on three things — a link to a
+route that does not exist, a dashboard link carrying a fragment (every
+dashboard section is its own route, so a fragment lands on the dashboard
+root), and a hand-written `/admin/dashboard?section=&tab=` string instead of
+`adminScreenHref()`. The last is the subtle one: `findTab` falls back to the
+section's first screen, so a stale admin link keeps rendering something and
+looks like it works. Three links had already rotted this way. The e2e suite (Playwright, `e2e/`) covers the
 money-critical paths and the admin back office — booking + payment,
 concurrency/CAS guards, bulk limits, admin route authorization for every
 role, input validation, payout/refund maths, the dashboard's own

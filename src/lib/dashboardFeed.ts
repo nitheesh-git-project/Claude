@@ -269,7 +269,10 @@ export function buildTherapistFeed({
       detail: accepted
         ? `${plan.title} — their sessions are ready to book.`
         : `${plan.title} — you can recommend again after their next session.`,
-      href: "/therapist/dashboard/patients",
+      // My Patients. There is no /therapist/dashboard/patients route --
+      // the screen has always been health-profile, and this feed item
+      // 404'd every therapist whose recommendation was answered.
+      href: "/therapist/dashboard/health-profile",
     });
   }
 

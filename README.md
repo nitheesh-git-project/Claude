@@ -20,7 +20,8 @@ npm run dev
 Open http://localhost:3000.
 
 Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
-`npm run test`, `npm run check:realtime`, `npm run test:e2e`, and
+`npm run test`, `npm run check:realtime`, `npm run check:nav`,
+`npm run test:e2e`, and
 `npm run verify` (lint, then unit tests, then build — the one to run before
 pushing).
 
@@ -39,6 +40,16 @@ table the dashboards subscribe to for live updates is present in the
 `supabase_realtime` publication in `supabase/schema.sql`. A missing entry has
 no visible symptom — the subscription succeeds and the events never arrive —
 so this is the only place it gets caught.
+
+`npm run check:nav` (also run by `npm run lint`) resolves every internal link
+literal in `src/` against the routes that actually exist under `src/app/`. A
+renamed route leaves its old links behind and nothing complains: Next has no
+compile-time check on a string href, and these links sit on dashboards nobody
+browses for fun. It enforces two further rules — a dashboard link may not
+carry a fragment, since every dashboard section is a real route now, and an
+admin screen link must come from `adminScreenHref()` rather than a
+hand-written `?section=&tab=` string, because `findTab` falls back to the
+section's first screen and makes a stale admin link look like it works.
 
 ### End-to-end regression suite
 

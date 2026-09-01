@@ -34,7 +34,7 @@ import {
 } from "@/lib/ledgerBalances";
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
 import ContactControlsForm from "@/components/admin/ContactControlsForm";
-import { adminScreenHref, type InboxGroup } from "@/lib/adminNav";
+import { adminScreenHref, type AdminSectionKey, type InboxGroup } from "@/lib/adminNav";
 import { parseAdminScope, scopeCanOpen, sectionsForScope } from "@/lib/adminScope";
 import type { SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
@@ -2796,6 +2796,36 @@ export default async function AdminDashboardPage({
     },
   ];
 
+  // Built through adminScreenHref rather than hand-written query strings,
+  // so a renamed tab is a type error instead of a link that silently lands
+  // on that section's first screen (findTab's fallback makes a stale link
+  // look like it works).
+  //
+  // Filtered by scope for the same reason the sidebar and the inbox are:
+  // an action that opens a section this admin cannot reach doesn't 403, it
+  // quietly redirects to whatever they can see, which reads as the button
+  // being broken. The first one that survives the filter is the primary.
+  const adminQuickActionDefs: {
+    section: AdminSectionKey;
+    tab: string;
+    label: string;
+    hint: string;
+    icon: string;
+  }[] = [
+    { section: "today", tab: "approvals", label: "Approvals", hint: "Signups and profile change requests", icon: "fa-user-check" },
+    { section: "sessions", tab: "all", label: "All sessions", hint: "Assign, reschedule, refund", icon: "fa-calendar-check" },
+    { section: "money", tab: "summary", label: "Money summary", hint: "Revenue, payouts and cash", icon: "fa-indian-rupee-sign" },
+  ];
+  const adminQuickActions = adminQuickActionDefs
+    .filter((a) => allowedSections.includes(a.section))
+    .map((a, i) => ({
+      label: a.label,
+      hint: a.hint,
+      icon: a.icon,
+      href: adminScreenHref(a.section, a.tab),
+      primary: i === 0,
+    }));
+
   const adminOverviewTab = (
     <DashboardOverview
       greeting="The clinic today"
@@ -2813,11 +2843,7 @@ export default async function AdminDashboardPage({
       feedTitle="Activity"
       feedEmptyBody="Admin actions and anything waiting on a person appear here."
       aside={<AdminInboxQueues groups={inboxGroups} allowedSections={allowedSections} />}
-      actions={[
-        { label: "Approvals", hint: "Signups and profile change requests", icon: "fa-user-check", href: "/admin/dashboard?section=today&tab=approvals", primary: true },
-        { label: "All sessions", hint: "Assign, reschedule, refund", icon: "fa-calendar-check", href: "/admin/dashboard?section=sessions&tab=all" },
-        { label: "Money summary", hint: "Revenue, payouts and cash", icon: "fa-indian-rupee-sign", href: "/admin/dashboard?section=money&tab=summary" },
-      ]}
+      actions={adminQuickActions}
     />
   );
 
