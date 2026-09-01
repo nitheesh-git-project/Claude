@@ -6673,3 +6673,40 @@ begin
   alter publication supabase_realtime add table contact_reveal_log;
 exception when duplicate_object then null;
 end $$;
+
+-- What `session_packages_visible` now means.
+--
+-- It used to gate whether a patient could buy a programme. Since the
+-- consultation-first cutover nobody can buy one directly at all -- a
+-- programme comes from a therapist's recommendation -- so the flag only ever
+-- decided whether the public pages show what the courses of treatment cost.
+-- Left under its old name it reads as a purchase switch that no longer
+-- exists, which is exactly the kind of setting somebody flips expecting
+-- something else to happen.
+--
+-- Added rather than renamed: a rename would break every deployment mid-roll
+-- and lose the admin's current choice. The old column stays as the source of
+-- truth for one release; this one is seeded from it and becomes the name the
+-- code reads.
+alter table site_settings
+  add column if not exists show_programme_prices boolean not null default true;
+
+update site_settings
+  set show_programme_prices = session_packages_visible
+  where show_programme_prices is distinct from session_packages_visible;
+
+-- Who typed a recommendation, when that is not who made it.
+--
+-- A care plan is a clinician's judgement and `authored_by` names that
+-- clinician. An admin can now write one on their behalf -- the therapist saw
+-- the patient, said what they wanted recommended, and is on leave, or has
+-- left, or simply cannot reach the dashboard. Recording it as the therapist
+-- alone would be a quiet lie about who was at the keyboard; recording it as
+-- the admin would be a louder one about whose clinical judgement it is.
+--
+-- Null is the ordinary case: the therapist wrote it themselves.
+alter table care_plan_versions
+  add column if not exists entered_by uuid references profiles(id) on delete set null;
+
+create index if not exists care_plan_versions_entered_by_idx
+  on care_plan_versions (entered_by) where entered_by is not null;

@@ -45,10 +45,10 @@ export default async function ConditionsPage() {
   // as the home page's own package section.
   const { data: settingsRow } = await supabase
     .from("site_settings")
-    .select("session_packages_visible")
+    .select("show_programme_prices, session_packages_visible")
     .maybeSingle();
 
-  const { data: rawPackages } = settingsRow?.session_packages_visible
+  const { data: rawPackages } = (settingsRow?.show_programme_prices ?? settingsRow?.session_packages_visible)
     ? await supabase
         .from("treatment_category_packages")
         .select(

@@ -5,6 +5,20 @@ import { useRouter } from "next/navigation";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import PagedList from "@/components/dashboard/PagedList";
 import { CARE_PLAN_STATE_LABELS, type CarePlanState } from "@/lib/carePlans";
+import CarePlanFields, {
+  type CarePlanDraft,
+  type RecommendableOption,
+} from "@/components/therapist/CarePlanFields";
+
+/** A completed session with nobody's recommendation against it yet. */
+export type AuthorableSession = {
+  appointmentId: string;
+  patientId: string;
+  patientName: string;
+  therapistName: string;
+  sessionCode: string | null;
+  slotTime: string;
+};
 
 export type AdminCarePlanRow = {
   id: string;
@@ -50,9 +64,14 @@ function formatInr(paise: number) {
  */
 export default function AdminCarePlansTab({
   plans,
+  authorable,
+  packageOptions,
   canWithdraw,
 }: {
   plans: AdminCarePlanRow[];
+  /** Completed sessions an admin could write a recommendation against. */
+  authorable: AuthorableSession[];
+  packageOptions: RecommendableOption[];
   canWithdraw: boolean;
 }) {
   const live = plans.filter((p) => p.state === "awaiting_patient");
@@ -82,6 +101,10 @@ export default function AdminCarePlansTab({
           />
         )}
       </SurfaceCard>
+
+      {canWithdraw && authorable.length > 0 && packageOptions.length > 0 && (
+        <AuthorOnBehalf sessions={authorable} options={packageOptions} />
+      )}
 
       {rest.length > 0 && (
         <SurfaceCard
@@ -204,5 +227,129 @@ function PlanCard({ plan, canWithdraw }: { plan: AdminCarePlanRow; canWithdraw: 
           </button>
         ))}
     </div>
+  );
+}
+
+
+/**
+ * Writing a recommendation on a therapist's behalf.
+ *
+ * For the case the therapist's own dialog cannot cover: they saw the patient,
+ * said what they wanted recommended, and then went on leave, off sick, or
+ * left the clinic with somebody still waiting to hear. Without this the
+ * patient waits for a recommendation nobody can write, and the only other
+ * answer is to ask them to be seen again.
+ *
+ * The same fields the therapist gets, and no more -- there is no price,
+ * session count or discount here because those columns do not exist on a
+ * version. What is added is a reason, because this puts words in a
+ * clinician's mouth and "why" is the part worth having a month later. The
+ * plan is attributed to the therapist who ran the session; the admin is
+ * recorded as having typed it.
+ */
+function AuthorOnBehalf({
+  sessions,
+  options,
+}: {
+  sessions: AuthorableSession[];
+  options: RecommendableOption[];
+}) {
+  const [appointmentId, setAppointmentId] = useState(sessions[0]?.appointmentId ?? "");
+  const [draft, setDraft] = useState<CarePlanDraft | null>(null);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  const session = sessions.find((s) => s.appointmentId === appointmentId) ?? null;
+
+  function submit() {
+    if (!session || !draft) {
+      setError("Pick a session and a programme first.");
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch("/api/admin/author-care-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: session.patientId,
+          appointmentId: session.appointmentId,
+          reason,
+          ...draft,
+        }),
+      });
+      if (res.ok) {
+        setDraft(null);
+        setReason("");
+        setDone(true);
+        router.refresh();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Could not save it. Please try again.");
+    });
+  }
+
+  return (
+    <SurfaceCard
+      title="Write one on a therapist's behalf"
+      icon="fa-pen-to-square"
+      subtitle="For when the therapist who ran the session cannot reach their dashboard. It is recommended in their name, and recorded as typed by you."
+    >
+      <label className="block text-xs font-semibold text-slate-700">
+        Which session does this follow?
+      </label>
+      <select
+        value={appointmentId}
+        onChange={(e) => setAppointmentId(e.target.value)}
+        className="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"
+      >
+        {sessions.map((s) => (
+          <option key={s.appointmentId} value={s.appointmentId}>
+            {s.patientName} with {s.therapistName} —{" "}
+            {new Date(s.slotTime).toLocaleDateString()}
+            {s.sessionCode ? ` (${s.sessionCode})` : ""}
+          </option>
+        ))}
+      </select>
+
+      <div className="mt-4">
+        <CarePlanFields options={options} value={draft} onChange={setDraft} />
+      </div>
+
+      {draft && (
+        <>
+          <label className="mt-4 block text-xs font-semibold text-slate-700">
+            Why is the clinic writing this instead of the therapist?
+          </label>
+          <textarea
+            rows={2}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Dr Rao is on leave until the 14th and asked us to send this"
+            className="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-xs"
+          />
+          {error && <p className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
+          <button
+            type="button"
+            onClick={submit}
+            disabled={isPending}
+            className="mt-3 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+          >
+            {isPending ? "Sending…" : "Send it to the patient"}
+          </button>
+        </>
+      )}
+
+      {!draft && error && <p className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
+      {done && !draft && (
+        <p className="mt-3 text-xs font-semibold text-teal-700">
+          Sent. It is waiting on the patient now, in the therapist&apos;s name.
+        </p>
+      )}
+    </SurfaceCard>
   );
 }

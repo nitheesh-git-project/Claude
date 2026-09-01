@@ -21,6 +21,7 @@ const ALLOWED_COLUMNS = new Set([
   "care_plan_default_expiry_days",
   "care_plan_max_frequency_per_week",
   "session_packages_visible",
+  "show_programme_prices",
   "session_timeout_minutes",
   "google_meet_enabled",
   "join_window_minutes",
@@ -128,6 +129,7 @@ export async function POST(request: NextRequest) {
   }
   if (
     (key === "session_packages_visible" ||
+      key === "show_programme_prices" ||
       key === "google_meet_enabled" ||
       key === "package_therapist_lock_enabled" ||
       key === "home_visit_enabled" ||

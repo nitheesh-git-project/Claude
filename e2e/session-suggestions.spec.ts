@@ -539,7 +539,12 @@ test.describe("Therapist-suggested sessions", () => {
     });
 
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientA));
-    await page.goto(`${BASE}/patient/dashboard`);
+    // Suggested Sessions, not Overview. A therapist's proposed time used to
+    // render on the Overview alone, which made it invisible from every other
+    // screen and gave it no history; it now lives on its own screen beside
+    // the recommendations, which is where a patient looking for "what needs
+    // me" finds both.
+    await page.goto(`${BASE}/patient/dashboard/suggested`);
     // Scoped to this test's own card by its note, never .first(): the
     // dashboard can legitimately show more than one suggestion, and
     // "Booked" appears elsewhere on the page as a session status.
@@ -578,7 +583,12 @@ test.describe("Therapist-suggested sessions", () => {
     });
 
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientA));
-    await page.goto(`${BASE}/patient/dashboard`);
+    // Suggested Sessions, not Overview. A therapist's proposed time used to
+    // render on the Overview alone, which made it invisible from every other
+    // screen and gave it no history; it now lives on its own screen beside
+    // the recommendations, which is where a patient looking for "what needs
+    // me" finds both.
+    await page.goto(`${BASE}/patient/dashboard/suggested`);
     const card = cardFor(page, note);
     const accept = card.getByRole("button", { name: /Accept this time/i });
     await expect(accept).toBeVisible({ timeout: 60_000 });
@@ -624,7 +634,12 @@ test.describe("Therapist-suggested sessions", () => {
     });
 
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientA));
-    await page.goto(`${BASE}/patient/dashboard`);
+    // Suggested Sessions, not Overview. A therapist's proposed time used to
+    // render on the Overview alone, which made it invisible from every other
+    // screen and gave it no history; it now lives on its own screen beside
+    // the recommendations, which is where a patient looking for "what needs
+    // me" finds both.
+    await page.goto(`${BASE}/patient/dashboard/suggested`);
     const card = cardFor(page, note);
 
     // Held long enough that a person would tap again, and counted at the
@@ -671,7 +686,12 @@ test.describe("Therapist-suggested sessions", () => {
     });
 
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.therapistA));
-    await page.goto(`${BASE}/therapist/dashboard`);
+    // My Patients, then its Programmes view. A therapist's programme list
+    // used to be its own sidebar entry and is now a Patients/Programmes
+    // toggle on the same screen -- the same rows arranged differently earns
+    // a view switch, not a nav entry.
+    await page.goto(`${BASE}/therapist/dashboard/health-profile`);
+    await page.getByRole("button", { name: /^Programmes/ }).first().click();
     await expect(page.getByText("Waiting on the patient").first()).toBeVisible({
       timeout: 60_000,
     });

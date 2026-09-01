@@ -586,8 +586,13 @@ at checkout and adds travel for that area on top of the programme price.
 Nothing already bought is affected: an existing programme keeps its sessions
 and books them to exhaustion exactly as before.
 
-The clinic can see every recommendation on **Sessions → Recommendations**,
-and withdraw one whose author cannot — a therapist on leave, or gone. That is
+The clinic can see every recommendation on **Sessions → Recommendations**. An
+admin can also write one there on a therapist's behalf — the therapist saw the
+patient and said what they wanted recommended, then went on leave or left —
+with the same fields, the same package whitelist and the same requirement of a
+completed session that therapist ran. It is recommended in their name and
+recorded as typed by the admin. And an admin can withdraw a recommendation
+whose author cannot — a therapist on leave, or gone. That is
 the whole of what an admin may do to a plan: versions are append-only, and a
 recommendation that changed is a new one written by a clinician who has seen
 the patient. A plan already paid for cannot be withdrawn at all; a refund or

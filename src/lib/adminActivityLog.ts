@@ -31,6 +31,8 @@ export type AdminActivityAction =
   // stops a purchase from happening -- worth the same trail as cancelling
   // a session.
   | "care_plan.withdraw"
+  // Typed by an admin, attributed to the clinician whose judgement it is.
+  | "care_plan.author_on_behalf"
   | "session.restore"
   | "session.mark_paid_cash"
   // purchases (a programme, not one session)
@@ -127,6 +129,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "session.update": "Edited session",
   "session.cancel": "Cancelled session",
   "care_plan.withdraw": "Withdrew a recommendation",
+  "care_plan.author_on_behalf": "Wrote a recommendation on a therapist's behalf",
   "session.reopen": "Reopened session",
   "session.restore": "Restored session",
   "session.mark_paid_cash": "Marked paid by cash",

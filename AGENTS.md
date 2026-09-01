@@ -751,6 +751,22 @@ client is the only writer and the log is append-only from any session.
   specialty from **triage only**: an existing profile carrying it must
   keep rendering, and a therapist re-triaging such a patient is still
   offered it. Ortho can never be switched off.
+- **One authoring implementation, two doors.** A therapist writes their own
+  recommendation from the session note dialog; an admin writes one on their
+  behalf from Sessions → Recommendations when that therapist cannot reach the
+  dashboard (on leave, off sick, gone, with a patient still waiting to hear).
+  Both call `authorCarePlanVersion()` in `src/lib/carePlanAuthoring.ts`, which
+  is what stops the second door growing weaker rules than the first: the
+  package still comes from the admin whitelist, the source still has to be a
+  **completed session that therapist ran**, the text is still scanned, and
+  there is still no price, session-count or discount field for anyone.
+  Attribution is split rather than fudged — `authored_by` stays the clinician
+  whose judgement it is, `entered_by` records the admin who typed it. Naming
+  only the therapist would be a quiet lie about who was at the keyboard;
+  naming only the admin a louder one about whose judgement it is.
+  `/api/admin/author-care-plan` takes `requireAdminScope("sessions")`, a
+  mandatory reason, and writes a `care_plan.author_on_behalf` audit row.
+
 - **The clinic can see every recommendation, and stop one.** A care plan is
   now the only route by which a patient buys a programme, so Sessions →
   Recommendations lists them all and `/api/admin/withdraw-care-plan`

@@ -47,13 +47,13 @@ export default async function Home() {
       ? Math.min(...categories.map((c) => c.price_paise))
       : SESSION_FEE_PAISE;
 
-  // Isolated from the categories query above -- session_packages_visible
+  // Isolated from the categories query above -- show_programme_prices
   // and the package-specific columns are all migration-dependent, and a
   // missing migration should only hide this section, never blank the
   // categories that already render fine without it.
   const { data: settingsRow } = await supabase
     .from("site_settings")
-    .select("session_packages_visible")
+    .select("show_programme_prices, session_packages_visible")
     .maybeSingle();
 
   // Its own call for the same reason the one above is separate: this column
@@ -78,7 +78,7 @@ export default async function Home() {
     .maybeSingle();
   const homeVisitEnabled = homeVisitRow?.home_visit_enabled === true;
 
-  const { data: rawPackages } = settingsRow?.session_packages_visible
+  const { data: rawPackages } = (settingsRow?.show_programme_prices ?? settingsRow?.session_packages_visible)
     ? await supabase
         .from("treatment_category_packages")
         .select(

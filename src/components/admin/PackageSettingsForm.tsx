@@ -42,7 +42,7 @@ export default function PackageSettingsForm({
   const [isSuggestionsPending, startSuggestionsTransition] = useTransition();
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
-  const [optimisticVisible, setOptimisticVisible] = useOptimistic(settings.sessionPackagesVisible);
+  const [optimisticVisible, setOptimisticVisible] = useOptimistic(settings.showProgrammePrices);
   const [isVisiblePending, startVisibleTransition] = useTransition();
   const [visibleError, setVisibleError] = useState<string | null>(null);
 
@@ -73,7 +73,7 @@ export default function PackageSettingsForm({
     startVisibleTransition(async () => {
       setOptimisticVisible(next);
       try {
-        await saveSetting("session_packages_visible", next);
+        await saveSetting("show_programme_prices", next);
         router.refresh();
       } catch (e) {
         setVisibleError(e instanceof Error ? e.message : "Could not save. Please try again.");
@@ -176,10 +176,12 @@ export default function PackageSettingsForm({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h3 className="font-bold text-sm text-slate-800">Session Packages Visible</h3>
+            <h3 className="font-bold text-sm text-slate-800">Show programme prices publicly</h3>
             <p className="text-xs text-slate-500 mt-1 max-w-md">
-              When off, patients can&apos;t buy or see session packages anywhere on the site —
-              existing purchases and their remaining sessions are unaffected.
+              Whether the public pages print what a course of treatment costs. Nobody buys a
+              programme from those pages — a therapist recommends one after a first session —
+              so this only decides whether a visitor sees the price in advance. Existing
+              purchases and what therapists may recommend are unaffected either way.
             </p>
           </div>
           <button
@@ -189,7 +191,7 @@ export default function PackageSettingsForm({
               optimisticVisible ? "bg-teal-700 hover:bg-teal-800 text-white" : "bg-slate-200 hover:bg-slate-300 text-slate-800"
             }`}
           >
-            {optimisticVisible ? "Visible" : "Hidden"}
+            {optimisticVisible ? "Shown" : "Hidden"}
           </button>
         </div>
         {visibleError && <p className="text-[11px] text-red-600 mt-2">{visibleError}</p>}

@@ -82,7 +82,9 @@ import { runRiskSweep } from "@/lib/riskDetectors";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import AdminCarePlansTab from "@/components/admin/AdminCarePlansTab";
-import type { AdminCarePlanRow } from "@/components/admin/AdminCarePlansTab";
+import type { AdminCarePlanRow, AuthorableSession } from "@/components/admin/AdminCarePlansTab";
+import type { RecommendableOption } from "@/components/therapist/CarePlanFields";
+import { loadRecommendablePackages } from "@/lib/carePlanServer";
 import { carePlanState, parseOfferSnapshot, type CarePlanStatus } from "@/lib/carePlans";
 import type {
   RiskSignalRow,
@@ -1953,10 +1955,15 @@ export default async function AdminDashboardPage({
             accent: "bg-teal-500",
           },
           {
-            label: "Session packages",
+            label: "Programmes",
             value: String(visiblePackageCount),
-            note: adminSettings.sessionPackagesVisible ? "Bundles patients can buy" : "Packages are switched off",
-            accent: adminSettings.sessionPackagesVisible && visiblePackageCount > 0 ? "bg-blue-500" : "bg-slate-400",
+            note: adminSettings.showProgrammePrices
+              ? "Therapists can recommend these"
+              : "Prices hidden on the public pages",
+            accent:
+              adminSettings.showProgrammePrices && visiblePackageCount > 0
+                ? "bg-blue-500"
+                : "bg-slate-400",
           },
           {
             label: "Service areas",
@@ -2423,8 +2430,73 @@ export default async function AdminDashboardPage({
     };
   });
 
+  // Completed sessions an admin could write a recommendation against:
+  // recent, and only where that patient has no live plan already, since a
+  // second one would lose the one-active-plan race anyway and offering it
+  // would be an invitation to a 409.
+  const patientsWithLivePlan = new Set(
+    (adminCarePlanRows ?? []).filter((p) => p.status === "active").map((p) => p.patient_id)
+  );
+  const { data: authorableRows } = canSeeCarePlans
+    ? await admin
+        .from("appointments")
+        .select("id, patient_id, therapist_id, session_code, slot_time")
+        .eq("status", "completed")
+        .not("therapist_id", "is", null)
+        .gte("slot_time", new Date(nowTimestamp() - 60 * 86_400_000).toISOString())
+        .order("slot_time", { ascending: false })
+        .limit(60)
+    : {
+        data: [] as {
+          id: string;
+          patient_id: string;
+          therapist_id: string | null;
+          session_code: string | null;
+          slot_time: string;
+        }[],
+      };
+
+  const authorableIds = [
+    ...new Set(
+      (authorableRows ?? []).flatMap((a) => [a.patient_id, a.therapist_id]).filter(
+        (id): id is string => !!id
+      )
+    ),
+  ];
+  const { data: authorablePeople } = authorableIds.length
+    ? await admin.from("profiles").select("id, full_name").in("id", authorableIds)
+    : { data: [] as { id: string; full_name: string }[] };
+  const authorableNames = new Map(
+    (authorablePeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
+  );
+
+  const authorableSessions: AuthorableSession[] = (authorableRows ?? [])
+    .filter((a) => a.therapist_id && !patientsWithLivePlan.has(a.patient_id))
+    .map((a) => ({
+      appointmentId: a.id,
+      patientId: a.patient_id,
+      patientName: authorableNames.get(a.patient_id) ?? "Unknown",
+      therapistName: authorableNames.get(a.therapist_id!) ?? "Unknown",
+      sessionCode: a.session_code,
+      slotTime: a.slot_time,
+    }));
+
+  const adminPackageOptions: RecommendableOption[] = canSeeCarePlans
+    ? (await loadRecommendablePackages(admin)).map((p) => ({
+        id: p.id,
+        kind: p.kind,
+        title: p.title,
+        snapshot: p.snapshot,
+      }))
+    : [];
+
   const sessionsRecommendationsTab = (
-    <AdminCarePlansTab plans={adminCarePlans} canWithdraw={canSeeCarePlans} />
+    <AdminCarePlansTab
+      plans={adminCarePlans}
+      authorable={authorableSessions}
+      packageOptions={adminPackageOptions}
+      canWithdraw={canSeeCarePlans}
+    />
   );
 
   const settingsActivityTab = (

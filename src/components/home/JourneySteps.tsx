@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import CareIllustration, { type CareIllustrationId } from "@/components/visuals/CareIllustration";
 
@@ -101,10 +101,38 @@ export default function JourneySteps({
   stepSeconds?: number;
 } = {}) {
   const [active, setActive] = useState(0);
-  const [paused, setPaused] = useState(false);
+  // Two independent reasons to hold the rotation, deliberately not one
+  // shared boolean.
+  //
+  // They used to share `paused`, and whichever condition ended last won: the
+  // panel beside the tabs is animated, so a focusable node inside it is
+  // removed on every step change, which fires a blur that bubbled to the
+  // capture handler and cleared the flag -- un-pausing a widget the pointer
+  // was still resting on, about a second after it paused. Keeping them apart
+  // means neither can answer for the other.
+  const [pointerInside, setPointerInside] = useState(false);
+  const [focusInside, setFocusInside] = useState(false);
+  const paused = pointerInside || focusInside;
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const step = STEPS[active];
   const compact = variant === "compact";
   const reduceMotion = useReducedMotion();
+
+  // Catches a pointer that was already inside when this hydrated.
+  //
+  // The pause below is a React synthetic handler, so it only ever hears a
+  // mouseenter that happens *after* hydration. This band is server-rendered
+  // near the top of the home page, so a visitor whose cursor is already
+  // resting on it -- or who moved there while the JavaScript was still
+  // loading -- got no enter event at all, and the widget then started
+  // rotating under a stationary cursor: the one thing the pause exists to
+  // prevent. :hover is the browser's own answer to "is the pointer in here
+  // right now", and it is true regardless of when the pointer arrived.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    if (el.matches(":hover")) setPointerInside(true);
+  }, []);
 
   useEffect(() => {
     // 0 is the admin's way of switching the rotation off entirely, so it is
@@ -122,10 +150,27 @@ export default function JourneySteps({
 
   return (
     <div
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocusCapture={() => setPaused(true)}
-      onBlurCapture={() => setPaused(false)}
+      ref={rootRef}
+      onMouseEnter={() => setPointerInside(true)}
+      // Only when the pointer genuinely left. The panel beside the tabs is
+      // animated, so nodes inside it are removed on every step change, and a
+      // removal under (or near) the cursor synthesizes a mouseleave on this
+      // element even though nobody moved the mouse -- which un-paused the
+      // widget a beat after it paused, under a stationary pointer. The
+      // browser's own :hover is the authority on where the pointer is; the
+      // synthesized event is not.
+      onMouseLeave={(e) => {
+        if (!e.currentTarget.matches(":hover")) setPointerInside(false);
+      }}
+      onFocusCapture={() => setFocusInside(true)}
+      // Only when focus actually left this widget. A node removed by the
+      // panel's own animation blurs with no relatedTarget, which is not
+      // somebody looking away.
+      onBlurCapture={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setFocusInside(false);
+        }
+      }}
       className={
         compact
           ? "flex flex-col gap-4"
