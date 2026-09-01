@@ -34,6 +34,14 @@ test.describe("Suite H: two admins", () => {
     // package_purchase_summary is a view; postgres_changes only streams base
     // tables, and its underlying table is covered instead.
     queried.delete("package_purchase_summary");
+    // therapist_schedule_state holds one version number per therapist -- the
+    // roster's compare-and-swap counter, not anything the dashboard renders.
+    // It is never written without a write to therapist_availability_template
+    // or therapist_availability_override beside it, and both of those are
+    // subscribed, so the refresh that re-reads the version already happens.
+    // Subscribing to it as well would mean a second rebuild per schedule
+    // save carrying no information the first one lacked.
+    queried.delete("therapist_schedule_state");
 
     const missing = [...queried].filter((t) => !subscribed.has(t));
     expect(
