@@ -10,7 +10,9 @@ import {
   emptyWeeklySchedule,
   exceptionRowsForRanges,
   findAppointmentsInRemovedHours,
+  formatExceptionDate,
   formatRanges,
+  formatShortDate,
   hoursToRanges,
   listExceptions,
   nextWorkingPeriod,
@@ -375,6 +377,17 @@ describe("findAppointmentsInRemovedHours", () => {
 });
 
 describe("date helpers", () => {
+  it("spells dates the same way in every runtime", () => {
+    expect(formatExceptionDate("2026-09-08")).toBe("Tuesday 8 September");
+    expect(formatShortDate("2026-09-08")).toBe("8 Sep");
+    expect(formatShortDate("2026-12-01")).toBe("1 Dec");
+    // A date key is timezone-free, so the label must not move with one.
+    const original = process.env.TZ;
+    process.env.TZ = "Pacific/Kiritimati";
+    expect(formatExceptionDate("2026-09-08")).toBe("Tuesday 8 September");
+    process.env.TZ = original;
+  });
+
   it("shifts a date key across a month boundary without a local clock", () => {
     expect(shiftDateKey("2026-08-31", 1)).toBe("2026-09-01");
     expect(shiftDateKey("2026-09-01", -1)).toBe("2026-08-31");
@@ -383,9 +396,11 @@ describe("date helpers", () => {
   it("describes leave with dates and a reason", () => {
     expect(
       describeLeave({ onLeave: true, from: "2026-09-10", to: "2026-09-17", reason: "Annual leave" })
-      // The month's short name comes from the runtime's ICU data ("Sep" or
-      // "Sept" depending on the build), so match the shape, not the locale.
-    ).toMatch(/^10 Sept? – 17 Sept? · Annual leave$/);
+      // Exact, not a tolerant pattern. These strings are server-rendered and
+      // hydrated in a browser, so "whatever this runtime's ICU says" is the
+      // bug, not an acceptable variation -- a tolerant assertion here is
+      // what let a real hydration mismatch through the first time.
+    ).toBe("10 Sep – 17 Sep · Annual leave");
     expect(describeLeave({ onLeave: true, from: null, to: null, reason: null })).toBe(
       "No end date set"
     );

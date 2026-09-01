@@ -10,6 +10,7 @@ import {
   describeDay,
   findAppointmentsInRemovedHours,
   formatRanges,
+  formatShortDate,
   formatTimeLabel,
   normalizeRanges,
   totalWeeklyHours,
@@ -466,14 +467,14 @@ export default function WeeklyScheduleEditor({
         >
           <p className="text-xs font-bold text-amber-900">
             {conflict.affected.length} existing{" "}
-            {conflict.affected.length === 1 ? "session is" : "sessions are"} inside the hours
-            you&apos;re removing.
+            {conflict.affected.length === 1 ? "session is" : "sessions are"}{" "}
+            inside the hours you&apos;re removing.
           </p>
           <ul className="mt-2 space-y-1 text-[11px] text-amber-900">
             {conflict.affected.map((item) => (
               <li key={item.id}>
-                {DAY_LABELS_SHORT[item.dayOfWeek]} {item.dateKey} · {formatTimeLabel(item.hour)} ·{" "}
-                {item.label}
+                {DAY_LABELS_SHORT[item.dayOfWeek]} {formatShortDate(item.dateKey)} ·{" "}
+                {formatTimeLabel(item.hour)} · {item.label}
               </li>
             ))}
           </ul>

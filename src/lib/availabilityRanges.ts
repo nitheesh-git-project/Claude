@@ -477,23 +477,52 @@ export function nextWorkingPeriod(
   return null;
 }
 
-/** Long, locale-stable date label for the exceptions list and leave dates.
- *  Pinned to Asia/Kolkata for the same hydration reason as todayKey above. */
+// Written out rather than asked of Intl, deliberately.
+//
+// These labels render on the server and hydrate in a browser, and the two
+// runtimes do not ship the same locale data: `toLocaleDateString("en-IN")`
+// gives "Tuesday 8 September" under Node's ICU and "Tuesday, 8 September"
+// in Chromium, and "Sep" in one where the other says "Sept". Pinning the
+// timeZone -- which the first version of this did -- fixes the date but not
+// the wording, so every exception row hydration-mismatched. A calendar date
+// has no timezone to convert anyway (the same reasoning schema.sql gives
+// for storing it as `date`), so it is read in UTC and spelled here.
+const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/** "Tuesday 8 September" -- the exceptions list's own line. */
 export function formatExceptionDate(dateKey: string): string {
-  return new Date(`${dateKey}T00:00:00+05:30`).toLocaleDateString("en-IN", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone: "Asia/Kolkata",
-  });
+  const at = new Date(`${dateKey}T00:00:00Z`);
+  if (Number.isNaN(at.getTime())) return dateKey;
+  return `${WEEKDAY_NAMES[at.getUTCDay()]} ${at.getUTCDate()} ${MONTH_NAMES[at.getUTCMonth()]}`;
 }
 
+/** "8 Sep" -- for the roster list, where the whole line has to fit. */
 export function formatShortDate(dateKey: string): string {
-  return new Date(`${dateKey}T00:00:00+05:30`).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    timeZone: "Asia/Kolkata",
-  });
+  const at = new Date(`${dateKey}T00:00:00Z`);
+  if (Number.isNaN(at.getTime())) return dateKey;
+  return `${at.getUTCDate()} ${MONTH_NAMES[at.getUTCMonth()].slice(0, 3)}`;
 }
 
 /** The one-line leave summary: dates when they were given, the reason when

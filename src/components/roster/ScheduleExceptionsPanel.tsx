@@ -99,7 +99,9 @@ export default function ScheduleExceptionsPanel({
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-500">
-          Dates that differ from the weekly schedule. Everything else follows the schedule above.
+          {readOnly
+            ? "Dates the clinic has set differently from your weekly hours. Everything else follows your schedule above."
+            : "Dates that differ from the weekly schedule. Everything else follows the schedule above."}
         </p>
         {!readOnly && (
           <button

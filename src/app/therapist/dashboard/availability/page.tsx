@@ -40,7 +40,6 @@ export default async function Page() {
         <SurfaceCard
           title="Exceptions"
           icon="fa-calendar-day"
-          subtitle="Dates the clinic has set differently from your weekly hours."
         >
           {/* Read-only on purpose: writing a date exception has always been
               an admin action, and a redesign is not the place to widen who
