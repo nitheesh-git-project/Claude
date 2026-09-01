@@ -4,9 +4,12 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import PagedList from "@/components/dashboard/PagedList";
-import { CARE_PLAN_STATE_LABELS, type CarePlanState } from "@/lib/carePlans";
-import CarePlanFields, {
+import {
+  CARE_PLAN_STATE_LABELS,
   narrowToCategory,
+  type CarePlanState,
+} from "@/lib/carePlans";
+import CarePlanFields, {
   type CarePlanDraft,
   type RecommendableOption,
 } from "@/components/therapist/CarePlanFields";

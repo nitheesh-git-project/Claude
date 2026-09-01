@@ -5,6 +5,7 @@ import {
   carePlanState,
   isCarePlanPurchasable,
   validateCarePlanInput,
+  narrowToCategory,
   type CarePlanStatus,
   type CarePlanState,
 } from "@/lib/carePlans";
@@ -140,5 +141,26 @@ describe("validateCarePlanInput", () => {
     expect(
       validateCarePlanInput({ ...base, frequencyPerWeek: null }, snapshot, { maxFrequencyPerWeek: 5 }).ok
     ).toBe(true);
+  });
+});
+
+describe("narrowToCategory", () => {
+  const ortho = { id: "a", categoryId: "cat-ortho" };
+  const neuro = { id: "b", categoryId: "cat-neuro" };
+  const unattached = { id: "c", categoryId: null };
+  const all = [ortho, neuro, unattached];
+
+  it("keeps the matching category and drops the others", () => {
+    expect(narrowToCategory(all, "cat-ortho").map((o) => o.id)).toEqual(["a", "c"]);
+  });
+
+  it("offers an unattached package everywhere rather than nowhere", () => {
+    expect(narrowToCategory(all, "cat-neuro")).toContain(unattached);
+  });
+
+  it("returns everything for a session with no category", () => {
+    // A session recorded before appointments carried category_id. Narrowing
+    // it to nothing would hide the whole feature on old rows.
+    expect(narrowToCategory(all, null)).toEqual(all);
   });
 });

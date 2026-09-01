@@ -13,27 +13,6 @@ export type RecommendableOption = {
   categoryId: string | null;
 };
 
-/**
- * The programmes worth offering against one session.
- *
- * Both authoring doors load every recommendable package once -- a therapist's
- * dashboard covers all their patients, an admin's screen covers all of them --
- * so neither can narrow at load time, and both narrow here instead. Scanning
- * the whole catalog is how the wrong programme gets picked, and it is a
- * clinician-facing list, so the two doors must not differ.
- *
- * An unattached package is offered against every session rather than none: a
- * package with no category is not a package for no one. A session with no
- * category (recorded before the column existed) gets the lot.
- */
-export function narrowToCategory<T extends { categoryId: string | null }>(
-  options: T[],
-  categoryId: string | null
-): T[] {
-  if (!categoryId) return options;
-  return options.filter((o) => o.categoryId === null || o.categoryId === categoryId);
-}
-
 export type CarePlanDraft = {
   offerKind: CarePlanOfferKind;
   packageId: string;

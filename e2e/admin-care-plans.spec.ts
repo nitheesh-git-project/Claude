@@ -455,6 +455,7 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
     await expect(picker).toBeVisible({ timeout: 30_000 });
     await expect(picker).toContainText("QA Patient B with QA Therapist A");
     await picker.selectOption(appointmentId);
+    await expect(picker).toHaveValue(appointmentId);
 
     await page.getByRole("button", { name: "Add a recommendation" }).click();
     // Narrowed to the session's own condition: the package seeded for another
@@ -489,6 +490,11 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
     const picker = page.getByLabel("Which session does this follow?");
     await expect(picker).toBeVisible({ timeout: 30_000 });
     await picker.selectOption(appointmentId);
+    // The programmes on offer are narrowed by the selected session, so the
+    // click below must not race the state update behind it -- otherwise the
+    // panel is still offering the previous session's category and this reads
+    // as a missing package.
+    await expect(picker).toHaveValue(appointmentId);
     await page.getByRole("button", { name: "Add a recommendation" }).click();
     await page.getByLabel("Programme", { exact: true }).selectOption(packageId);
     await page
