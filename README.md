@@ -1508,7 +1508,10 @@ src/lib/supabase/        client / server / admin / public clients, proxy
                          session refresh, and the auth guards
 src/proxy.ts             Auth proxy; matches the four dashboard route trees
 supabase/schema.sql      Full database schema, RLS policies, views, triggers
-scripts/                 One-off tooling (Google refresh-token helper)
+scripts/                 One-off tooling (Google refresh-token helper, and
+                         build-test-plan.py, which builds the manual QA plan)
+docs/qa/                 The manual E2E test plan: Markdown sources under
+                         src/, plus the generated PDF and DOCX
 public/                  Static assets
 public/photos/           The public pages' photography (licence-free stock)
 ```
