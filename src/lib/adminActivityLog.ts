@@ -63,6 +63,14 @@ export type AdminActivityAction =
   // percentage, so changing it moves more money than most single refunds
   // do -- see isMoneyAction, which counts it as one.
   | "therapist.set_revenue_share"
+  // Roster. A weekly schedule decides who the clinic can offer and when, and
+  // leave takes somebody off the board entirely -- both were unattributable
+  // before the roster redesign, on a screen every admin with the sessions
+  // scope can reach.
+  | "therapist.set_weekly_schedule"
+  | "therapist.set_schedule_exception"
+  | "therapist.clear_schedule_exception"
+  | "therapist.set_leave"
   // partners
   | "hospital.onboard"
   | "hospital.set_active"
@@ -149,6 +157,10 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "expense.create": "Recorded a cost",
   "expense.delete": "Removed a cost",
   "therapist.set_revenue_share": "Changed therapist revenue share",
+  "therapist.set_weekly_schedule": "Changed therapist working hours",
+  "therapist.set_schedule_exception": "Set a schedule exception",
+  "therapist.clear_schedule_exception": "Removed a schedule exception",
+  "therapist.set_leave": "Changed therapist leave",
   "hospital.onboard": "Onboarded hospital",
   "hospital.set_active": "Changed hospital status",
   "hospital.set_revenue_share": "Changed hospital revenue share",

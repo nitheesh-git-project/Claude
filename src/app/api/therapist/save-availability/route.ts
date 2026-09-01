@@ -2,42 +2,42 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { AVAILABILITY_HOURS } from "@/lib/therapistAvailability";
+import {
+  SCHEDULE_CONFLICT_MESSAGE,
+  parseExpectedVersion,
+  parseWeeklyScheduleBody,
+} from "@/lib/availabilityRequest";
+import { saveWeeklySchedule } from "@/lib/saveWeeklySchedule";
 
-type SlotInput = { day_of_week: number; hour: number };
-
+/**
+ * A therapist replaces their own weekly working hours.
+ *
+ * The body is working periods per day, not individual hour cells -- the
+ * editor thinks in ranges and the table still thinks in slots, and
+ * parseWeeklyScheduleBody is the one place that translation happens for
+ * both this route and the admin's.
+ *
+ * `expectedVersion` is the version the editor loaded with. Sending it is
+ * what stops a therapist's save from silently overwriting an admin's edit
+ * made while their tab sat open; sending nothing is still accepted, and
+ * means "I have not read a version, write mine" -- the pre-redesign
+ * behaviour, kept so a stale client cannot be locked out of its own
+ * schedule.
+ */
 export async function POST(request: NextRequest) {
-  const { data: body, error: parseError } = await parseJsonBody<{ slots?: unknown }>(request);
+  const { data: body, error: parseError } = await parseJsonBody<{
+    days?: unknown;
+    expectedVersion?: unknown;
+  }>(request);
   if (parseError) return parseError;
 
-  if (!Array.isArray(body.slots)) {
-    return NextResponse.json({ error: "Missing slots array" }, { status: 400 });
+  const parsed = parseWeeklyScheduleBody(body.days);
+  if ("error" in parsed) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-
-  const validHours = new Set(AVAILABILITY_HOURS);
-  const slots: SlotInput[] = [];
-  const seen = new Set<string>();
-  for (const raw of body.slots) {
-    if (
-      typeof raw !== "object" ||
-      raw === null ||
-      typeof (raw as Record<string, unknown>).day_of_week !== "number" ||
-      typeof (raw as Record<string, unknown>).hour !== "number"
-    ) {
-      return NextResponse.json({ error: "Malformed slot entry" }, { status: 400 });
-    }
-    const day_of_week = (raw as Record<string, unknown>).day_of_week as number;
-    const hour = (raw as Record<string, unknown>).hour as number;
-    if (!Number.isInteger(day_of_week) || day_of_week < 0 || day_of_week > 6) {
-      return NextResponse.json({ error: "Invalid day_of_week" }, { status: 400 });
-    }
-    if (!validHours.has(hour)) {
-      return NextResponse.json({ error: "Invalid hour" }, { status: 400 });
-    }
-    const key = `${day_of_week}-${hour}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    slots.push({ day_of_week, hour });
+  const version = parseExpectedVersion(body.expectedVersion);
+  if ("error" in version) {
+    return NextResponse.json({ error: version.error }, { status: 400 });
   }
 
   const supabase = await createClient();
@@ -61,25 +61,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
 
-  // Whole-set replace, scoped to this therapist's own id only (never a
-  // client-supplied one) -- matches the "presence = enabled" model, no
-  // partial-update reconciliation needed.
-  const { error: deleteError } = await admin
-    .from("therapist_availability_template")
-    .delete()
-    .eq("therapist_id", user.id);
-  if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 });
-  }
+  // Scoped to this therapist's own id only, never a client-supplied one --
+  // the request body has no therapist field at all, so there is nothing to
+  // forge.
+  const result = await saveWeeklySchedule(admin, {
+    therapistId: user.id,
+    slots: parsed.slots,
+    expectedVersion: version.version,
+    actorId: user.id,
+  });
 
-  if (slots.length > 0) {
-    const { error: insertError } = await admin.from("therapist_availability_template").insert(
-      slots.map((s) => ({ therapist_id: user.id, day_of_week: s.day_of_week, hour: s.hour }))
+  if (result.status === "error") {
+    return NextResponse.json({ error: result.message }, { status: 500 });
+  }
+  if (result.status === "conflict") {
+    return NextResponse.json(
+      { error: SCHEDULE_CONFLICT_MESSAGE, version: result.version },
+      { status: 409 }
     );
-    if (insertError) {
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
-    }
   }
 
-  return NextResponse.json({ success: true, count: slots.length });
+  return NextResponse.json({
+    success: true,
+    count: parsed.slots.length,
+    version: result.version,
+  });
 }

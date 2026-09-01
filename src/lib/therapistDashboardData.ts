@@ -75,6 +75,8 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     { data: therapistCodeRow },
     { data: homeVisitShareRow },
     { data: onLeaveProfile },
+    { data: leaveDetailRow },
+    { data: scheduleStateRow },
     { data: availabilitySlots },
     { data: rawAppointments },
     { data: visitDetailRows },
@@ -120,6 +122,23 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     // the On Leave toggle degrades (defaults to "available") until the
     // migration runs.
     supabase.from("profiles").select("on_leave").eq("id", user.id).single(),
+
+    // Leave dates and reason, and the schedule's version -- all three are
+    // newer than the columns beside them, so they get their own calls for
+    // the same reason on_leave does. A database missing them costs the
+    // dates on the leave card and the concurrency check on Save, not the
+    // page.
+    supabase
+      .from("profiles")
+      .select("on_leave_from, on_leave_to, on_leave_reason")
+      .eq("id", user.id)
+      .maybeSingle(),
+
+    supabase
+      .from("therapist_schedule_state")
+      .select("version")
+      .eq("therapist_id", user.id)
+      .maybeSingle(),
 
     needAvailability
       ? supabase.from("therapist_availability_template").select("day_of_week, hour").eq("therapist_id", user.id)
@@ -592,6 +611,27 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     availabilitySlots,
     upcomingOverrides,
     onLeaveProfile,
+    scheduleVersion:
+      typeof scheduleStateRow?.version === "number" ? scheduleStateRow.version : 0,
+    leaveDates: {
+      from: (leaveDetailRow?.on_leave_from as string | null) ?? null,
+      to: (leaveDetailRow?.on_leave_to as string | null) ?? null,
+      reason: (leaveDetailRow?.on_leave_reason as string | null) ?? null,
+    },
+    // The therapist's own local "today", already computed above for the
+    // exceptions cutoff -- the availability screen needs the same one, and
+    // deriving a second from a different clock is how the two would come to
+    // disagree about which exceptions are upcoming.
+    therapistTodayKey: todayKey,
+    // Only what the schedule editor needs to warn that hours are being
+    // removed from under a booked session. Derived from the appointments
+    // this loader already has; it never writes to them.
+    rosterAppointments: (appointments ?? []).map((a) => ({
+      id: a.id as string,
+      slotTime: (a.slot_time as string | null) ?? null,
+      status: (a.status as string | null) ?? null,
+      label: patientNameById.get(a.patient_id as string) ?? "A patient",
+    })),
     earningRows,
     pendingOwedPaise,
     requestStatus,

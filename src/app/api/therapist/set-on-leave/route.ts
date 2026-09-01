@@ -2,13 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { parseLeaveDates, updateTherapistLeave } from "@/lib/leaveRequest";
 
 export async function POST(request: NextRequest) {
-  const { data: body, error: parseError } = await parseJsonBody<{ onLeave?: unknown }>(request);
+  const { data: body, error: parseError } = await parseJsonBody<{
+    onLeave?: unknown;
+    from?: unknown;
+    to?: unknown;
+    reason?: unknown;
+  }>(request);
   if (parseError) return parseError;
 
   if (typeof body.onLeave !== "boolean") {
     return NextResponse.json({ error: "Missing onLeave" }, { status: 400 });
+  }
+
+  // Same optional dates the admin's route takes, validated by the same
+  // helper. The flag is still what makes somebody unavailable; the dates
+  // are what let the roster say when they are back.
+  const dates = parseLeaveDates({
+    onLeave: body.onLeave,
+    from: body.from,
+    to: body.to,
+    reason: body.reason,
+  });
+  if ("error" in dates) {
+    return NextResponse.json({ error: dates.error }, { status: 400 });
   }
 
   const supabase = await createClient();
@@ -32,12 +51,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
 
-  const { error } = await admin
-    .from("profiles")
-    .update({ on_leave: body.onLeave })
-    .eq("id", user.id);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const result = await updateTherapistLeave(admin, {
+    therapistId: user.id,
+    onLeave: body.onLeave,
+    dates,
+  });
+  if (result && "error" in result) {
+    return NextResponse.json({ error: result.error }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, onLeave: body.onLeave });

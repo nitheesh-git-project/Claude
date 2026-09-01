@@ -1,398 +1,380 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import ListPager from "@/components/dashboard/ListPager";
+import FilterChips from "@/components/dashboard/FilterChips";
+import SurfaceCard, { EmptyState, StatusPill } from "@/components/dashboard/SurfaceCard";
+import WeekScheduleSummary from "@/components/roster/WeekScheduleSummary";
+import WeeklyScheduleEditor from "@/components/roster/WeeklyScheduleEditor";
+import ScheduleExceptionsPanel from "@/components/roster/ScheduleExceptionsPanel";
+import LeavePanel from "@/components/roster/LeavePanel";
 import { usePagedList } from "@/lib/usePagedList";
-import { useMemo, useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
-  AVAILABILITY_HOURS,
-  computeDayAvailability,
-  formatHourRange,
-  type TemplateRow,
-  type OverrideRow,
-  type SlotState,
-} from "@/lib/therapistAvailability";
-import { istDateKey } from "@/lib/formatSlotRange";
-import { useConfirm } from "@/lib/useConfirm";
+  ROSTER_STATUS_LABELS,
+  describeLeave,
+  effectiveRangesForDate,
+  formatRanges,
+  formatShortDate,
+  listExceptions,
+  nextWorkingPeriod,
+  rosterStatusFor,
+  templateToWeekly,
+  type RosterStatus,
+  type ScheduledAppointment,
+} from "@/lib/availabilityRanges";
+import type { OverrideRow, TemplateRow } from "@/lib/therapistAvailability";
+
+// The roster, rebuilt around the therapist rather than around a date.
+//
+// It used to open on a calendar: pick a day, then read an eighteen-column
+// grid of every therapist's hours, then click individual cells to pin one.
+// That is the storage model drawn on screen -- correct, and unusable for the
+// thing admins actually do, which is "what does she normally work?" So the
+// primary object here is a therapist, the primary view is their weekly
+// schedule, and dates that differ from it are a separate list called
+// exceptions. Leave is its own thing again, and none of the three touches
+// the others' data.
+//
+// Nothing about effective availability changed: the schedule is still the
+// weekly template, exceptions still win for their own date, and leave still
+// overrides both. Booking reads exactly what it read before.
 
 type Therapist = {
   id: string;
   full_name: string | null;
   timezone: string | null;
   on_leave: boolean;
+  on_leave_from: string | null;
+  on_leave_to: string | null;
+  on_leave_reason: string | null;
+  approved: boolean | null;
+  active: boolean | null;
 };
 
-// Pinned to Asia/Kolkata via the same istDateKey helper AdminCalendarTab
-// uses for its own "today" -- a runtime-local `new Date()` here would give
-// a different day server-side (SSR, likely UTC) than client-side
-// (hydration, the admin's own browser timezone) for roughly a third of
-// each day, the same hydration-mismatch class of bug already fixed
-// elsewhere in this codebase.
-function todayKey() {
-  return istDateKey(new Date().toISOString());
-}
-
-const STATE_STYLES: Record<SlotState, string> = {
-  available: "bg-teal-700 border-teal-700 text-white",
-  unavailable: "bg-slate-50 border-slate-200 text-slate-400",
-  override_available: "bg-green-100 border-green-500 text-green-800",
-  override_unavailable: "bg-red-100 border-red-400 text-red-700",
-};
-
-const STATE_TITLES: Record<SlotState, string> = {
-  available: "Available (weekly) — click to mark unavailable for this date",
-  unavailable: "Not available (weekly) — click to make available for this date",
-  override_available: "Made available for this date by admin — click to clear override",
-  override_unavailable: "Made unavailable for this date by admin — click to clear override",
-};
+type RosterFilter = "all" | RosterStatus | "inactive";
 
 export default function AdminRosterTab({
   therapists,
   templateRows,
   overrideRows,
+  scheduleVersions,
+  appointments,
+  todayKey,
+  canManageSchedule,
+  canManageLeave,
 }: {
   therapists: Therapist[];
   templateRows: (TemplateRow & { therapist_id: string })[];
-  overrideRows: (OverrideRow & { therapist_id: string })[];
+  overrideRows: (OverrideRow & { therapist_id: string; note?: string | null })[];
+  /** Version each therapist's schedule is at, so an editor opened here can
+   *  be rejected rather than overwrite an edit made somewhere else. */
+  scheduleVersions: Record<string, number>;
+  appointments: {
+    id: string;
+    therapist_id: string | null;
+    slot_time: string | null;
+    status: string | null;
+    patientName: string;
+  }[];
+  /** IST-pinned on the server -- see the identical note in
+   *  ScheduleExceptionsPanel for why this is not computed here. */
+  todayKey: string;
+  /** The two capabilities this screen needs sit in different admin scopes
+   *  (schedule under sessions, leave under people). A control a scope cannot
+   *  call must not render, or the admin gets a 403 with nothing explaining
+   *  it. */
+  canManageSchedule: boolean;
+  canManageLeave: boolean;
 }) {
-  const initial = todayKey();
-  const [year, monthStr] = initial.split("-");
-  const [viewYear, setViewYear] = useState(Number(year));
-  const [viewMonth, setViewMonth] = useState(Number(monthStr) - 1);
-  const [selectedDate, setSelectedDate] = useState(initial);
-  const [pendingCellKey, setPendingCellKey] = useState<string | null>(null);
-  const [pendingLeaveId, setPendingLeaveId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-  const { confirm, dialog } = useConfirm();
+  const [selectedId, setSelectedId] = useState<string | null>(therapists[0]?.id ?? null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<RosterFilter>("all");
 
-  // Prop-derived base: each cell's next state (available/unavailable/
-  // override) is fully known client-side the moment it's clicked, so the
-  // grid updates instantly instead of waiting on the fetch + router.refresh()
-  // round trip. Reverts to the real prop on failure (no refresh happens);
-  // matches the new prop on success once router.refresh() lands.
-  const [optimisticOverrideRows, setOverrideOverlay] = useOptimistic(
-    overrideRows,
-    (
-      state,
-      action:
-        | { type: "set"; row: OverrideRow & { therapist_id: string } }
-        | { type: "clear"; therapistId: string; date: string; hour: number }
-    ) => {
-      if (action.type === "set") {
-        const filtered = state.filter(
-          (r) =>
-            !(
-              r.therapist_id === action.row.therapist_id &&
-              r.date === action.row.date &&
-              r.hour === action.row.hour
-            )
-        );
-        return [...filtered, action.row];
-      }
-      return state.filter(
-        (r) =>
-          !(
-            r.therapist_id === action.therapistId &&
-            r.date === action.date &&
-            r.hour === action.hour
-          )
-      );
-    }
-  );
-  const [isCellPending, startCellTransition] = useTransition();
+  const templateByTherapist = useMemo(() => groupBy(templateRows), [templateRows]);
+  const overrideByTherapist = useMemo(() => groupBy(overrideRows), [overrideRows]);
 
-  // Same prop-derived-base pattern, merging just the on_leave flag for the
-  // one therapist that was toggled.
-  const [optimisticTherapists, setOnLeaveOverlay] = useOptimistic(
-    therapists,
-    (state, overlay: { therapistId: string; onLeave: boolean }) =>
-      state.map((t) => (t.id === overlay.therapistId ? { ...t, on_leave: overlay.onLeave } : t))
-  );
-  const [isLeavePending, startLeaveTransition] = useTransition();
-  const { rows: pageTherapists, pager } = usePagedList(optimisticTherapists, {
-    storageKey: "admin-roster",
-  });
-
-  const templateByTherapist = useMemo(() => {
-    const map = new Map<string, TemplateRow[]>();
-    for (const r of templateRows) {
-      const list = map.get(r.therapist_id) ?? [];
-      list.push(r);
-      map.set(r.therapist_id, list);
+  const appointmentsByTherapist = useMemo(() => {
+    const map = new Map<string, ScheduledAppointment[]>();
+    for (const appointment of appointments) {
+      if (!appointment.therapist_id) continue;
+      const list = map.get(appointment.therapist_id) ?? [];
+      list.push({
+        id: appointment.id,
+        slotTime: appointment.slot_time,
+        status: appointment.status,
+        label: appointment.patientName,
+      });
+      map.set(appointment.therapist_id, list);
     }
     return map;
-  }, [templateRows]);
+  }, [appointments]);
 
-  const overrideByTherapist = useMemo(() => {
-    const map = new Map<string, OverrideRow[]>();
-    for (const r of optimisticOverrideRows) {
-      const list = map.get(r.therapist_id) ?? [];
-      list.push(r);
-      map.set(r.therapist_id, list);
+  const rows = useMemo(
+    () =>
+      therapists.map((therapist) => {
+        const template = templateByTherapist.get(therapist.id) ?? [];
+        const overrides = overrideByTherapist.get(therapist.id) ?? [];
+        const weekly = templateToWeekly(template);
+        const todayRanges = therapist.on_leave
+          ? []
+          : effectiveRangesForDate(todayKey, template, overrides);
+        return {
+          therapist,
+          template,
+          overrides,
+          weekly,
+          todayRanges,
+          status: rosterStatusFor({ onLeave: therapist.on_leave, weekly, todayRanges }),
+          upcomingExceptions: listExceptions(template, overrides, { fromDateKey: todayKey }),
+          next: nextWorkingPeriod(todayKey, template, overrides, {
+            onLeave: therapist.on_leave,
+          }),
+        };
+      }),
+    [therapists, templateByTherapist, overrideByTherapist, todayKey]
+  );
+
+  const counts = useMemo(() => {
+    const tally: Record<RosterFilter, number> = {
+      all: rows.length,
+      available_today: 0,
+      on_leave: 0,
+      off_today: 0,
+      no_schedule: 0,
+      inactive: 0,
+    };
+    for (const row of rows) {
+      tally[row.status] += 1;
+      if (row.therapist.active === false) tally.inactive += 1;
     }
-    return map;
-  }, [optimisticOverrideRows]);
+    return tally;
+  }, [rows]);
 
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  // Pinned to a fixed timeZone (not left to the runtime's local zone) --
-  // without it, this can render a different string on the server (SSR) vs
-  // the admin's browser (hydration), the same hydration-mismatch class of
-  // bug already root-caused and fixed on AdminCalendarTab.
-  const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString("en-IN", {
-    month: "long",
-    year: "numeric",
-    timeZone: "Asia/Kolkata",
-  });
-  const selectedDateLabel = new Date(`${selectedDate}T00:00:00+05:30`).toLocaleDateString("en-IN", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "Asia/Kolkata",
-  });
-
-  function goToMonth(offset: number) {
-    const d = new Date(viewYear, viewMonth + offset, 1);
-    setViewYear(d.getFullYear());
-    setViewMonth(d.getMonth());
-  }
-
-  function dateKeyFor(day: number) {
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${viewYear}-${pad(viewMonth + 1)}-${pad(day)}`;
-  }
-
-  function handleDatePickerChange(value: string) {
-    if (!value) return;
-    setSelectedDate(value);
-    const [y, m] = value.split("-");
-    setViewYear(Number(y));
-    setViewMonth(Number(m) - 1);
-  }
-
-  async function handleToggleOnLeave(therapistId: string, currentOnLeave: boolean) {
-    const next = !currentOnLeave;
-    if (next) {
-      const confirmed = await confirm(
-        "Mark this therapist as not available? They'll show as unavailable for every slot until this is turned back off. Their saved weekly schedule stays intact underneath."
-      );
-      if (!confirmed) return;
-    }
-    setError(null);
-    startLeaveTransition(async () => {
-      setPendingLeaveId(therapistId);
-      setOnLeaveOverlay({ therapistId, onLeave: next });
-      const res = await fetch("/api/admin/set-therapist-on-leave", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ therapistId, onLeave: next }),
-      });
-      setPendingLeaveId(null);
-      if (res.ok) {
-        router.refresh();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Could not update that therapist's status. Please try again.");
-      }
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (needle && !(row.therapist.full_name ?? "").toLowerCase().includes(needle)) return false;
+      if (filter === "all") return true;
+      if (filter === "inactive") return row.therapist.active === false;
+      return row.status === filter;
     });
-  }
+  }, [rows, query, filter]);
 
-  function handleCellClick(therapistId: string, hour: number, state: SlotState) {
-    const key = `${therapistId}-${hour}`;
-    setError(null);
+  const { rows: pageRows, pager } = usePagedList(filtered, { storageKey: "admin-roster" });
+  const selected = rows.find((row) => row.therapist.id === selectedId) ?? null;
 
-    let body: Record<string, unknown>;
-    let overlay:
-      | { type: "set"; row: OverrideRow & { therapist_id: string } }
-      | { type: "clear"; therapistId: string; date: string; hour: number };
-    if (state === "available") {
-      body = { therapistId, date: selectedDate, hour, action: "set", available: false };
-      overlay = {
-        type: "set",
-        row: { therapist_id: therapistId, date: selectedDate, hour, available: false },
-      };
-    } else if (state === "unavailable") {
-      body = { therapistId, date: selectedDate, hour, action: "set", available: true };
-      overlay = {
-        type: "set",
-        row: { therapist_id: therapistId, date: selectedDate, hour, available: true },
-      };
-    } else {
-      body = { therapistId, date: selectedDate, hour, action: "clear" };
-      overlay = { type: "clear", therapistId, date: selectedDate, hour };
-    }
-
-    startCellTransition(async () => {
-      setPendingCellKey(key);
-      setOverrideOverlay(overlay);
-      const res = await fetch("/api/admin/set-availability-override", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      setPendingCellKey(null);
-      if (res.ok) {
-        router.refresh();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Could not update that slot. Please try again.");
-      }
-    });
+  if (therapists.length === 0) {
+    return (
+      <SurfaceCard title="Therapist roster" icon="fa-calendar-week">
+        <EmptyState
+          icon="fa-user-doctor"
+          title="No therapists yet"
+          body="Approved therapists appear here with their working hours, exceptions and time off."
+        />
+      </SurfaceCard>
+    );
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <div className="flex items-center justify-between mb-1 flex-wrap gap-3">
-        <div>
-          <h2 className="font-display font-bold text-lg text-slate-800">Manage Roster</h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Each therapist&apos;s declared weekly availability, in their own local time. Click a
-            slot to override it for this specific date.
-          </p>
+    <div className="space-y-4">
+      <SurfaceCard
+        title="Therapist roster"
+        icon="fa-calendar-week"
+        subtitle="What each therapist normally works, what is different on a date, and who is away."
+      >
+        <div className="mb-4 flex flex-wrap gap-3 text-xs">
+          <Tally label="Therapists" value={counts.all} />
+          <Tally label="Available today" value={counts.available_today} />
+          <Tally label="On leave" value={counts.on_leave} />
+          <Tally label="Not working today" value={counts.off_today} />
+          <Tally label="No schedule set" value={counts.no_schedule} />
         </div>
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => handleDatePickerChange(e.target.value)}
-          className="p-2 rounded-lg border border-slate-300 text-xs"
+
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <label htmlFor="roster-search" className="sr-only">
+            Search therapists
+          </label>
+          <input
+            id="roster-search"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search therapists…"
+            className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-xs"
+          />
+        </div>
+
+        <FilterChips
+          label="Filter therapists"
+          value={filter}
+          onChange={setFilter}
+          choices={[
+            { key: "all", label: "All", count: counts.all },
+            { key: "available_today", label: "Available today", count: counts.available_today },
+            { key: "on_leave", label: "On leave", count: counts.on_leave },
+            { key: "off_today", label: "Not working today", count: counts.off_today },
+            { key: "no_schedule", label: "No schedule", count: counts.no_schedule },
+            { key: "inactive", label: "Inactive", count: counts.inactive },
+          ]}
         />
-      </div>
 
-      <div className="flex items-center justify-between mt-4 mb-3">
-        <button
-          onClick={() => goToMonth(-1)}
-          className="text-slate-500 hover:text-slate-800 px-2 py-1 text-xs font-semibold"
-        >
-          <i className="fa-solid fa-chevron-left"></i>
-        </button>
-        <p className="font-bold text-slate-800 text-sm">{monthLabel}</p>
-        <button
-          onClick={() => goToMonth(1)}
-          className="text-slate-500 hover:text-slate-800 px-2 py-1 text-xs font-semibold"
-        >
-          <i className="fa-solid fa-chevron-right"></i>
-        </button>
-      </div>
-
-      <div className="grid grid-cols-7 gap-2">
-        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-          const key = dateKeyFor(day);
-          const isSelected = key === selectedDate;
-          const isToday = key === todayKey();
-          return (
-            <button
-              key={day}
-              onClick={() => setSelectedDate(key)}
-              className={`p-2.5 rounded-lg border text-xs font-semibold transition ${
-                isSelected
-                  ? "bg-teal-700 text-white border-teal-700"
-                  : isToday
-                  ? "border-teal-400 text-slate-800"
-                  : "border-slate-200 text-slate-700 hover:border-teal-300"
-              }`}
-            >
-              {day}
-            </button>
-          );
-        })}
-      </div>
-
-      <p className="text-xs font-semibold text-slate-600 mt-6 mb-3" suppressHydrationWarning>
-        {`Availability for ${selectedDateLabel}`}
-      </p>
-
-      {error && (
-        <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
-          {error}
-        </div>
-      )}
-
-      <div className="flex items-center gap-4 text-[10px] text-slate-500 mb-3 flex-wrap">
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-teal-700 inline-block"></span> Available (weekly)
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-slate-100 border border-slate-300 inline-block"></span> Not available
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-green-100 border border-green-500 inline-block"></span> Made available (this date)
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-red-100 border border-red-400 inline-block"></span> Made unavailable (this date)
-        </span>
-      </div>
-
-      {optimisticTherapists.length === 0 ? (
-        <p className="text-xs text-slate-500 py-6 text-center">No therapists yet.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="text-xs border-collapse">
-            <tbody>
-              {pageTherapists.map((t) => {
-                const dayState = computeDayAvailability(
-                  selectedDate,
-                  templateByTherapist.get(t.id) ?? [],
-                  overrideByTherapist.get(t.id) ?? []
-                );
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon="fa-magnifying-glass"
+            title="No therapists match"
+            body="Try a different search, or clear the filter."
+          />
+        ) : (
+          <>
+            <ul className="grid gap-2 lg:grid-cols-2">
+              {pageRows.map((row) => {
+                const isSelected = row.therapist.id === selectedId;
                 return (
-                  <tr key={t.id}>
-                    <td className="pr-3 py-1.5 align-top font-bold text-slate-900 whitespace-nowrap sticky left-0 bg-white">
-                      {t.full_name ?? "Unknown"}
-                      {t.timezone && (
-                        <span className="block font-normal text-[10px] text-slate-400">
-                          {t.timezone}
+                  <li key={row.therapist.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(row.therapist.id)}
+                      aria-pressed={isSelected}
+                      className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                        isSelected
+                          ? "border-teal-600 bg-teal-50/50"
+                          : "border-slate-200 bg-white hover:border-teal-300"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-display text-sm font-bold text-slate-900">
+                          {row.therapist.full_name ?? "Unknown therapist"}
                         </span>
+                        <StatusPill tone={STATUS_TONE[row.status]}>
+                          {ROSTER_STATUS_LABELS[row.status]}
+                        </StatusPill>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-slate-500">
+                        {row.therapist.timezone || "Asia/Kolkata"}
+                        {row.therapist.active === false && " · Suspended"}
+                        {row.therapist.approved === false && " · Awaiting approval"}
+                      </p>
+                      <WeekScheduleSummary
+                        weekly={row.weekly}
+                        includeOffDays={false}
+                        className="mt-2"
+                      />
+                      <p className="mt-2 text-[11px] text-slate-600">
+                        {row.therapist.on_leave
+                          ? describeLeave({
+                              onLeave: true,
+                              from: row.therapist.on_leave_from,
+                              to: row.therapist.on_leave_to,
+                              reason: row.therapist.on_leave_reason,
+                            })
+                          : row.todayRanges.length > 0
+                            ? `Today · ${formatRanges(row.todayRanges)}`
+                            : row.next
+                              ? `Next: ${formatShortDate(row.next.dateKey)} · ${formatRanges([
+                                  row.next.range,
+                                ])}`
+                              : "No upcoming hours"}
+                      </p>
+                      {row.upcomingExceptions.length > 0 && (
+                        <p className="mt-1 text-[11px] font-semibold text-amber-700">
+                          {row.upcomingExceptions.length} upcoming{" "}
+                          {row.upcomingExceptions.length === 1 ? "exception" : "exceptions"}
+                        </p>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => handleToggleOnLeave(t.id, t.on_leave)}
-                        disabled={isLeavePending && pendingLeaveId === t.id}
-                        className={`mt-1 block font-semibold px-2 py-0.5 rounded-full text-[10px] disabled:opacity-50 ${
-                          t.on_leave
-                            ? "text-amber-800 bg-amber-100 hover:bg-amber-200"
-                            : "text-slate-400 bg-slate-100 hover:bg-slate-200"
-                        }`}
-                      >
-                        {t.on_leave ? "On Leave — click to restore" : "Mark Not Available"}
-                      </button>
-                    </td>
-                    {t.on_leave ? (
-                      <td
-                        colSpan={AVAILABILITY_HOURS.length}
-                        className="p-2 text-[10px] font-semibold text-amber-700 bg-amber-50 rounded-lg"
-                      >
-                        Marked not available by {t.full_name ?? "this therapist"} or admin — every
-                        slot is unavailable until this is turned off.
-                      </td>
-                    ) : (
-                      AVAILABILITY_HOURS.map((hour) => {
-                        const state = dayState[hour];
-                        const key = `${t.id}-${hour}`;
-                        return (
-                          <td key={hour} className="p-0.5">
-                            <button
-                              type="button"
-                              disabled={isCellPending && pendingCellKey === key}
-                              onClick={() => handleCellClick(t.id, hour, state)}
-                              title={STATE_TITLES[state]}
-                              className={`w-24 py-2 rounded-md text-[10px] font-semibold border transition whitespace-nowrap disabled:opacity-50 ${STATE_STYLES[state]}`}
-                            >
-                              {formatHourRange(hour)}
-                            </button>
-                          </td>
-                        );
-                      })
-                    )}
-                  </tr>
+                    </button>
+                  </li>
                 );
               })}
-            </tbody>
-          </table>
-          <ListPager pager={pager} noun="therapist" />
-        </div>
+            </ul>
+            <ListPager pager={pager} noun="therapist" />
+          </>
+        )}
+      </SurfaceCard>
+
+      {selected && (
+        <>
+          <SurfaceCard
+            title={`${selected.therapist.full_name ?? "Therapist"} · Weekly schedule`}
+            icon="fa-clock"
+            subtitle="What this therapist normally works. Every date follows this unless an exception below says otherwise."
+          >
+            {canManageSchedule ? (
+              <WeeklyScheduleEditor
+                key={selected.therapist.id}
+                initialWeekly={selected.weekly}
+                initialVersion={scheduleVersions[selected.therapist.id] ?? 0}
+                timezone={selected.therapist.timezone}
+                endpoint="/api/admin/save-therapist-availability"
+                therapistId={selected.therapist.id}
+                appointments={appointmentsByTherapist.get(selected.therapist.id) ?? []}
+                voice="clinician"
+                therapistName={selected.therapist.full_name}
+              />
+            ) : (
+              <WeekScheduleSummary weekly={selected.weekly} />
+            )}
+          </SurfaceCard>
+
+          <SurfaceCard title="Exceptions" icon="fa-calendar-day">
+            <ScheduleExceptionsPanel
+              key={selected.therapist.id}
+              therapistId={selected.therapist.id}
+              therapistName={selected.therapist.full_name ?? "This therapist"}
+              templateRows={selected.template}
+              overrideRows={selected.overrides}
+              todayKey={todayKey}
+              readOnly={!canManageSchedule}
+            />
+          </SurfaceCard>
+
+          <SurfaceCard title="Time off" icon="fa-plane-departure">
+            {canManageLeave ? (
+              <LeavePanel
+                key={selected.therapist.id}
+                endpoint="/api/admin/set-therapist-on-leave"
+                therapistId={selected.therapist.id}
+                onLeave={selected.therapist.on_leave}
+                from={selected.therapist.on_leave_from}
+                to={selected.therapist.on_leave_to}
+                reason={selected.therapist.on_leave_reason}
+                voice="clinician"
+                therapistName={selected.therapist.full_name}
+              />
+            ) : (
+              <p className="text-xs text-slate-500">
+                {selected.therapist.on_leave
+                  ? "On leave. Managing time off needs the people section."
+                  : "Available for bookings."}
+              </p>
+            )}
+          </SurfaceCard>
+        </>
       )}
-      {dialog}
     </div>
   );
+}
+
+const STATUS_TONE: Record<RosterStatus, string> = {
+  available_today: "good",
+  on_leave: "warn",
+  off_today: "neutral",
+  no_schedule: "bad",
+};
+
+function Tally({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="rounded-lg bg-slate-100 px-3 py-1.5 font-semibold text-slate-700">
+      {value} <span className="font-normal text-slate-500">{label.toLowerCase()}</span>
+    </span>
+  );
+}
+
+function groupBy<T extends { therapist_id: string }>(rows: T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const row of rows) {
+    const list = map.get(row.therapist_id) ?? [];
+    list.push(row);
+    map.set(row.therapist_id, list);
+  }
+  return map;
 }

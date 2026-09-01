@@ -57,6 +57,18 @@ The patient's own record leaves the app as a PDF named
 Before writing code: read the relevant guide in `node_modules/next/dist/docs/`
 — this Next.js version differs from training data.
 
+Therapist availability is three things and reads as three things: a
+**weekly schedule** (what someone normally works, as working periods rather
+than hourly cells), **exceptions** (a date that differs), and **time off**
+(off the roster entirely, `profiles.on_leave`). One editor serves the
+therapist's own screen and the admin's Roster, which opens on a list of
+therapists rather than a calendar date and an eighteen-column grid. The
+storage model behind it is unchanged -- `src/lib/availabilityRanges.ts`
+converts between periods and the hour rows the tables have always held. The
+roster is the clinic's planning record; it does not filter the patient's
+booking picker, and availability never touches an appointment. See the
+"Nobody edits an hour" rule in `AGENTS.md`.
+
 Session credits live in an append-only ledger (`session_credit_ledger`)
 over `session_entitlements`, not in a mutable counter. Every movement goes
 through a database function holding a real row lock, keyed for idempotency
@@ -134,7 +146,9 @@ navigation, the catalog detail dialogs, the specialist booking handoff and
 the patient-only booking rule, therapist-suggested sessions, the Home
 page walkthrough's admin-configured rotation pace, and self-signup without
 an email-confirmation step, the brand splash's cold-open and
-long-absence rules and its admin settings, and the Session Completed cutoff
+long-absence rules and its admin settings, and the Session Completed cutoff,
+and the therapist roster end to end -- ranges, exceptions, leave,
+authorization, stale and double-clicked saves, and the booking regression
 (`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys — verify a change
 with a build and a lint.
