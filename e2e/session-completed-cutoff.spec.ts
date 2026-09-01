@@ -79,6 +79,16 @@ async function openPatientDashboard(page: Page, sessionCode: string) {
 async function showAllSessions(page: Page) {
   const all = page.getByRole("button", { name: /^All/ });
   if (await all.count()) await all.first().click();
+  // The list pages at ten by default, and this patient carries rows every
+  // other spec in the suite has left on it -- so the seeded session sits on
+  // page two as soon as the total crosses that line, and a card that is
+  // simply not in the DOM reads exactly like a broken join control. Asking
+  // for a page big enough to hold everything is what the pager is for.
+  const perPage = page.getByLabel(/How many .* to show per page/);
+  if (await perPage.count()) {
+    await perPage.first().fill("200");
+    await perPage.first().blur();
+  }
 }
 
 test.describe("Session Completed cutoff", () => {
