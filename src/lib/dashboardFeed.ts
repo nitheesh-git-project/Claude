@@ -32,10 +32,24 @@ export type FeedItem = {
   needsYou?: boolean;
 };
 
+/**
+ * Newest first, with anything still waiting on the viewer pinned above it.
+ *
+ * The pinning is the point and it was missing: `needsYou` was counted but
+ * not ordered on, so an item sorted purely by date could fall off the end
+ * of a busy feed at exactly the moment it mattered most. A programme paid
+ * for a month ago with sessions still unbooked is the case that made it
+ * obvious -- it dates from the payment, so the longer it went unanswered
+ * the further down it sank, which is precisely backwards.
+ */
 export function sortFeed(items: FeedItem[], limit = 12): FeedItem[] {
   return [...items]
     .filter((i) => !!i.at)
-    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .sort((a, b) => {
+      const needs = Number(!!b.needsYou) - Number(!!a.needsYou);
+      if (needs !== 0) return needs;
+      return new Date(b.at).getTime() - new Date(a.at).getTime();
+    })
     .slice(0, limit);
 }
 

@@ -1278,8 +1278,12 @@ client is the only writer and the log is append-only from any session.
   stored: `src/lib/dashboardFeed.ts` turns rows each page already queries
   into `FeedItem`s, so there is no notifications table to keep in sync and
   no cron to write it (see the no-cron rule above). `needsYou` replaces
-  read/unread — it marks what is still waiting on the viewer, and the feed
-  pins those to the top and counts them.
+  read/unread — it marks what is still waiting on the viewer, and `sortFeed`
+  pins those above everything else before sorting by date within each group.
+  The pinning is load-bearing rather than cosmetic: an item dated when it
+  arose sinks further the longer it goes unanswered, which is backwards for
+  the one class of item that is still owed something — a programme paid for
+  a month ago with sessions unbooked is the case that made it obvious.
 - **The admin dashboard's information architecture lives in
   `src/lib/adminNav.ts`** — six sections (Today, Sessions, People, Money,
   Catalog, Settings), each with its own screens. The sidebar, the URL
