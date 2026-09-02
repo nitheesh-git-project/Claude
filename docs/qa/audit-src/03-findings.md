@@ -14,6 +14,8 @@ Six findings. Severity is the impact on the product or on the ability to trust a
 | F-04 | Plan overstated the admin scope guard | P3 | **Fixed** — plan corrected |
 | F-05 | Plan asserted a removed row cap | P3 | **Fixed** — plan corrected |
 | F-06 | The revenue split had no unit test | P1 (risk) | **Fixed** — `adminMetrics.test.ts`, 24 tests |
+| F-07 | A table the dashboard reads was never subscribed or published | P2 | **Fixed** — found by the repo's own test during the live run |
+| F-08 | 11 routes validated the body before checking authentication | P3 | **Fixed** — auth hoisted above validation |
 
 ---
 
@@ -140,6 +142,43 @@ This is not a defect — the current implementation reads correctly, and the ide
 The operational rates beside it (`computeNoShowRate`, `computeCancellationRate`, `computeRepeatBookingRate`) are covered too — including that they return **percentages, not fractions**, and `null` rather than zero when there is nothing to divide.
 
 **Original recommendation, for the record.** Add `adminMetrics.test.ts` covering the §16.1 reference dataset: a completed paid session, a paid-but-not-completed one, a refunded one, a hospital-referred one, one with an unset therapist share, and a home visit with a travel fee — asserting both identities plus the excluded count. That dataset is already written and hand-computed in the plan; it converts directly into a test table. The manual finance tests then become a check on the *screens*, not on the arithmetic.
+
+---
+
+### F-07 — `therapist_schedule_state` was read by the dashboard but never subscribed or published · **P2** · **Fixed**
+
+**Area.** Plan §14.0 (realtime), `ADM-TODAY-002`. **Class.** EXECUTED — this one was caught by the repository's own test suite during the live run, not by reading code.
+
+**What failed.** `e2e/admin-multi-admin.spec.ts` H-006 asserts that every base table the admin dashboard queries appears in `ADMIN_REALTIME_TABLES`, and that everything in that list is added to the `supabase_realtime` publication. It failed with one name: `therapist_schedule_state`.
+
+**Why the lint check did not catch it.** `scripts/check-realtime-coverage.mjs` and H-006 ask different questions. The script checks that every table the UI **subscribes to** is **published** — it passed, because this table was in neither list. H-006 checks that every table the dashboard **reads** is subscribed to, which is the stricter direction. Two checks, one gap between them.
+
+**Origin.** The table arrived with the roster rebuild (`1aef991`), which added it, queried it from the dashboard at `page.tsx:327`, and updated the reset function's TRUNCATE list for it — but not the realtime arrays. It predates the changes in this branch.
+
+**Consequence, stated honestly.** Benign but real. The dashboard reads `therapist_schedule_state` to hand the roster editor the version its next save must match. Without a subscription, one admin saving a roster leaves a second admin's open dashboard holding a stale version — the compare-and-swap catches it, so nothing is corrupted, but the second admin gets a 409 telling them to reload where a live refresh would simply have happened. It is a papercut, not a correctness hole; it is a finding because the codebase's own stated rule is that a new table goes into one of the two arrays **and** gets its `alter publication` line in the same change.
+
+**FIXED.** Added to `ADMIN_REALTIME_TABLES` (the operational channel — a roster change is operational) and given the guarded `alter publication` block every other publication line in `schema.sql` uses. H-006 re-run: **passes**. `check:realtime` now reports 39 subscribed tables, all published.
+
+---
+
+### F-08 — Eleven routes validated the request body before checking who was asking · **P3** · **Fixed**
+
+**Area.** Plan §18.2, `SEC-ROUTE-002`. **Class.** EXECUTED.
+
+**What was found.** Calling 25 routes with no cookie and an empty body, 11 answered **400 with a field-validation message** rather than 401/403:
+
+```
+/api/appointments/cancel               400 {"error":"Missing appointmentId"}
+/api/patient/condition-profile/submit  400 {"error":"Missing data"}
+/api/razorpay/create-order             400 {"error":"Missing appointmentId"}
+…and eight more
+```
+
+**How serious, established rather than assumed.** The obvious question is whether authentication was enforced *at all*, so the same 11 were re-called with well-formed bodies. Nine then returned 401/403. The two home-visit order routes validated more deeply first — `{"error":"A street address is required."}` — and only refused once a complete address was supplied. So **authentication was always enforced; nothing could be done anonymously.** No data leaked, no action was possible, and no response contained internals.
+
+That makes this an **ordering** defect, not a hole — which is why it is P3 and not higher. It is still worth fixing on two grounds: an unauthenticated caller should not drive a route's parsing at all, and the other ninety-odd routes in this application already check auth first, so these eleven were the inconsistent ones.
+
+**FIXED.** The `createClient` / `getUser` / `if (!user)` block was hoisted above body validation in all eleven, with a comment at each explaining why the order matters. `npm run verify` is green, and the five spec files covering those routes were re-run afterwards: **61/61 passed**, no regression. Re-running the probe: **11/11 refuse an anonymous caller**, and all 25 routes now refuse with nothing leaked.
 
 ---
 

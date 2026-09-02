@@ -46,6 +46,13 @@ const ADMIN_REALTIME_TABLES = [
   "therapist_payout_batches",
   "therapist_availability_template",
   "therapist_availability_override",
+  // The roster's version counter, read by the dashboard to hand the editor
+  // the version its next save has to match. Without it here, one admin
+  // saving a roster leaves another's open dashboard holding a stale
+  // version -- the compare-and-swap catches it, so nothing is corrupted,
+  // but the second admin gets a 409 telling them to reload where a refresh
+  // would simply have happened.
+  "therapist_schedule_state",
   "appointment_reassignment_log",
   "patient_condition_profiles",
   "condition_change_requests",

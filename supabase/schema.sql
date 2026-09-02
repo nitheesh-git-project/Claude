@@ -7185,3 +7185,15 @@ alter table site_settings
 -- want it still has one click.
 alter table site_settings
   alter column therapist_suggestions_enabled set default true;
+
+-- therapist_schedule_state was added with the roster rebuild and queried by
+-- the admin dashboard, but never published or subscribed to -- caught by
+-- e2e/admin-multi-admin.spec.ts's H-006, which checks the whole list rather
+-- than (like scripts/check-realtime-coverage.mjs) only the tables already
+-- subscribed. Publishing it is what makes the subscription added alongside
+-- this actually fire.
+do $$
+begin
+  alter publication supabase_realtime add table therapist_schedule_state;
+exception when duplicate_object then null;
+end $$;

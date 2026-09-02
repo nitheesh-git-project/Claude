@@ -4,15 +4,15 @@
 | --- | --- |
 | **Report type** | Senior QA audit against the manual E2E test plan v1.0 |
 | **Subject** | Dr. Pooja's Physio — branch `claude/complete-e2e-testing-plan-910y5z` |
-| **Method** | Static source verification plus every check that is executable without a live environment |
+| **Method** | Static source verification, then a **live run** against a disposable Supabase project with Razorpay test keys |
 | **Date** | 2 September 2026 |
-| **Verdict** | **Pass, after remediation.** All six findings fixed and seven of nine product recommendations shipped in the same pass. `npm run verify` green: lint, **187 unit tests in 11 files** (up from 153 in 9), and a full production build. |
+| **Verdict** | **Pass, after remediation.** **Eight** findings, all fixed — two of them found only by running the suite. `npm run verify` green (187 unit tests in 11 files, up from 153 in 9), **230 e2e cases executed**, and F-01 confirmed by measurement rather than inference. |
 
 ---
 
 ## 1. Scope — read this before anything else
 
-**This report is not a record of the test plan having been executed.** It could not be. Executing the plan requires a running application, a throwaway Supabase project, Razorpay test keys and a browser driving real screens. None of those exist in this environment. Any document claiming pass/fail results for `PAT-BOOK-003` or `FIN-SUM-001` without them would be fabricated, and for a product that moves money and holds clinical records that is worse than no report at all.
+**This report began as a static audit, and became a partial live run.** The first pass had no running application and said so. The owner then confirmed a Supabase project as disposable, and §2A records what happened when the plan was actually executed against it: Step 0, 230 automated cases, the webhook suite and the anonymous-API sweep. **It is still not a complete execution of the plan** — the sections needing a browser with outbound network, a human at a payment widget, or a schema-apply token remain unrun, and §5 says which. Nothing here is reported as passing on the strength of reading code: every claim is either an EXECUTED result with its output, or a VERIFIED-SOURCE trace, or is marked NOT-VERIFIABLE.
 
 What this report **is**: an audit of the same surface area by the two means that *are* available.
 

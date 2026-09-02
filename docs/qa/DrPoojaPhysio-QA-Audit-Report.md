@@ -4,15 +4,15 @@
 | --- | --- |
 | **Report type** | Senior QA audit against the manual E2E test plan v1.0 |
 | **Subject** | Dr. Pooja's Physio — branch `claude/complete-e2e-testing-plan-910y5z` |
-| **Method** | Static source verification plus every check that is executable without a live environment |
+| **Method** | Static source verification, then a **live run** against a disposable Supabase project with Razorpay test keys |
 | **Date** | 2 September 2026 |
-| **Verdict** | **Pass, after remediation.** All six findings fixed and seven of nine product recommendations shipped in the same pass. `npm run verify` green: lint, **187 unit tests in 11 files** (up from 153 in 9), and a full production build. |
+| **Verdict** | **Pass, after remediation.** **Eight** findings, all fixed — two of them found only by running the suite. `npm run verify` green (187 unit tests in 11 files, up from 153 in 9), **230 e2e cases executed**, and F-01 confirmed by measurement rather than inference. |
 
 ---
 
 ## 1. Scope — read this before anything else
 
-**This report is not a record of the test plan having been executed.** It could not be. Executing the plan requires a running application, a throwaway Supabase project, Razorpay test keys and a browser driving real screens. None of those exist in this environment. Any document claiming pass/fail results for `PAT-BOOK-003` or `FIN-SUM-001` without them would be fabricated, and for a product that moves money and holds clinical records that is worse than no report at all.
+**This report began as a static audit, and became a partial live run.** The first pass had no running application and said so. The owner then confirmed a Supabase project as disposable, and §2A records what happened when the plan was actually executed against it: Step 0, 230 automated cases, the webhook suite and the anonymous-API sweep. **It is still not a complete execution of the plan** — the sections needing a browser with outbound network, a human at a payment widget, or a schema-apply token remain unrun, and §5 says which. Nothing here is reported as passing on the strength of reading code: every claim is either an EXECUTED result with its output, or a VERIFIED-SOURCE trace, or is marked NOT-VERIFIABLE.
 
 What this report **is**: an audit of the same surface area by the two means that *are* available.
 
@@ -224,6 +224,100 @@ Each row names the plan section, the rule under audit, the evidence class, and w
 
 ---
 
+## 2A. Live run against a real environment
+
+The audit above was written without a running application. It has since been **executed** against a disposable Supabase project the owner confirmed as throwaway, with a `next dev` server, Razorpay test-mode keys and a locally-signed webhook secret. This section records what actually happened.
+
+### 2A.1 What the environment turned out to have
+
+| | |
+| --- | --- |
+| Supabase | Reachable; service-role key valid. **18 profiles, 30 appointments, 21 payments, 43 care plans** before Step 0 |
+| Razorpay | `NEXT_PUBLIC_RAZORPAY_KEY_ID` = `rzp_test_…` — **test mode confirmed**. Both the browser and `create-order` read that same key |
+| Webhook | `RAZORPAY_WEBHOOK_SECRET` was unset. Set locally to a known value so webhook deliveries could be signed and replayed |
+| Google Calendar | Credentials present but not exercised |
+| **`SUPABASE_ACCESS_TOKEN`** | **Absent — and this is the one consequential gap.** `scripts/run-schema.mjs` applies the schema over the Management API and needs a Personal Access Token, which is neither the service-role key nor the database password |
+
+**So the schema fixes in this branch are not in that database.** `site_settings.auto_assign_therapist_enabled` does not exist there, which means the auto-assign feature reads its setting, fails closed, and stays off — the designed behaviour for an unmigrated database, and confirmation that the fail-closed default is the right one. It also means the database still holds the **old** `debug_reset_all_data`, which turned out to be useful.
+
+### 2A.2 F-01, confirmed by running it
+
+The reset was executed through the real route, with the old function still in the database. Row counts either side:
+
+| Table | Before | After | Outcome |
+| --- | --- | --- | --- |
+| `care_plans` | 43 | 0 | Cleared, by CASCADE — as the static analysis predicted |
+| `care_plan_versions` | 45 | 0 | Cleared, by CASCADE |
+| `appointments` | 30 | 0 | Cleared |
+| `payments` | 21 | 0 | Cleared |
+| `pain_assessments` | 12 | 0 | Cleared |
+| `treatment_categories` | 7 | 0 | Cleared |
+| **`risk_signals`** | **1** | **1** | **SURVIVED A "DELETE EVERYTHING" RESET** |
+
+`communication_flags`, `contact_reveal_log` and `risk_reviews` were already empty, so they are inconclusive by measurement — but `risk_signals` is decisive, and the CASCADE reasoning that explains why the other three behave as they do was confirmed correct by `care_plans` and `care_plan_versions` clearing exactly as predicted.
+
+**F-01 is no longer an inference. It is a measurement.** The fix in this branch is what stops it, and it takes effect when the schema is applied.
+
+The four gates were exercised at the same time:
+
+| Gate | Result |
+| --- | --- |
+| No session at all | **403 Forbidden** |
+| Wrong confirmation phrase (`reset all data`) | **400** `Type RESET ALL DATA exactly to confirm.` |
+| Correct phrase, full admin, armed | **200** `{"success":true,"adminsKept":4,"accountsDeleted":14}` |
+| Admins survive | **4 admins**, confirmed by query afterwards |
+
+### 2A.3 The automated suite
+
+Every spec file was run except two, in batches. **230 distinct test cases executed.**
+
+| Batch | Specs | Result |
+| --- | --- | --- |
+| 1 | concurrency, booking-rules, admin-money, session-completed-cutoff | **26/26 passed** |
+| 2 | admin-authz, admin-validation, admin-exposure, admin-multi-admin, admin-care-plans | 34 passed, **1 failed (real — see F-07)**, 1 skipped |
+| 3 | booking-account-role, health-profile, session-suggestions, patient-registration, catalog-detail | 62 passed, 5 failed (**all environment**), 1 skipped |
+| 4 | therapist-roster, admin-debug-reset, admin-network, section-nav, splash-screen, journey-pace, therapist-request, admin-dashboard-ui | 71 passed, 3 failed (2 environment, 1 contention) |
+| Regression after the F-08 fix | booking-rules, admin-money, health-profile, session-suggestions, consultation-first | **61/61 passed** |
+
+**Not run, and why:**
+
+* `admin-degraded-schema.spec.ts` — it drops columns and tables and restores them by re-applying `schema.sql` in a `finally`. Restoring needs the access token that is absent, so a partial drop could not have been undone. **Deliberately skipped rather than risked.**
+* `admin-login.spec.ts` — skips itself unless a second app instance is running against the local Supabase relay.
+
+### 2A.4 The eight failures, classified
+
+Only one was a product defect.
+
+| Test | Classification | Evidence |
+| --- | --- | --- |
+| `H-006` realtime publication coverage | **REAL — now fixed (F-07)** | See below |
+| `BR-001/2/3/5`, `BH-002` (booking-account-role) | **Environment** | The wizards resolve the signed-in role with the *browser's* Supabase client |
+| `TR-002` (therapist-request) | **Environment** | Named in `AGENTS.md` as unpassable without browser egress |
+| `R-B02` (therapist-roster) | **Environment** | Same cause: Step 1 never renders, so the picker has zero time radios to count |
+| `B-003` (admin dashboard Back) | **Contention, not a defect** | Timed out at 2 minutes inside a 15-minute serial run; **passes in 10.9 s when run alone** |
+
+The environment classification was **verified, not assumed**. From inside a page on `/book`, `fetch(SUPABASE_URL + "/rest/v1/")` returns `THREW: Failed to fetch`; the identical call from Node returns HTTP 401 (i.e. reachable). That is exactly the check `AGENTS.md` prescribes, and exactly the documented sandbox limitation.
+
+### 2A.5 Payment integrity, executed
+
+The webhook half of §16.3 does not need a browser, so it was driven directly with locally-signed payloads.
+
+| Test | Result |
+| --- | --- |
+| `PAY-WH-001a` no signature header | **400** |
+| `PAY-WH-001b` wrong signature | **400** |
+| `PAY-WH-001c` correct signature over a **re-serialised** body | **400** — the raw-body check works, and is the reason a legitimate webhook must never be "fixed" by relaxing it |
+| `PAY-WH-003` a `payment.failed` event | Recorded, `processed_at` stamped, no capture applied |
+| `PAY-DUP-004` the same delivery twice, with Razorpay's own `x-razorpay-event-id` | First: `{"processed":true,"applied":true}`. Second: `{"duplicate":true}`. **Exactly one row** in `payment_webhook_events`. Both answered **200**, which is required — an error would have Razorpay retry forever |
+
+The dedup key falls back to `<event type>:<payment id>` when the header is absent, which was also confirmed: two header-less deliveries produced one row keyed `payment.captured:pay_qa_evt_qa_001`.
+
+### 2A.6 Anonymous API refusal, executed
+
+25 routes across every audience were called with no cookie. All refuse, and **no response body leaks a table name, a column name, a row id or a stack trace**. Getting there took a fix — see F-08.
+
+---
+
 ## 4. Findings
 
 Six findings. Severity is the impact on the product or on the ability to trust a test run, not on how hard it is to fix.
@@ -238,6 +332,8 @@ Six findings. Severity is the impact on the product or on the ability to trust a
 | F-04 | Plan overstated the admin scope guard | P3 | **Fixed** — plan corrected |
 | F-05 | Plan asserted a removed row cap | P3 | **Fixed** — plan corrected |
 | F-06 | The revenue split had no unit test | P1 (risk) | **Fixed** — `adminMetrics.test.ts`, 24 tests |
+| F-07 | A table the dashboard reads was never subscribed or published | P2 | **Fixed** — found by the repo's own test during the live run |
+| F-08 | 11 routes validated the body before checking authentication | P3 | **Fixed** — auth hoisted above validation |
 
 ---
 
@@ -364,6 +460,43 @@ This is not a defect — the current implementation reads correctly, and the ide
 The operational rates beside it (`computeNoShowRate`, `computeCancellationRate`, `computeRepeatBookingRate`) are covered too — including that they return **percentages, not fractions**, and `null` rather than zero when there is nothing to divide.
 
 **Original recommendation, for the record.** Add `adminMetrics.test.ts` covering the §16.1 reference dataset: a completed paid session, a paid-but-not-completed one, a refunded one, a hospital-referred one, one with an unset therapist share, and a home visit with a travel fee — asserting both identities plus the excluded count. That dataset is already written and hand-computed in the plan; it converts directly into a test table. The manual finance tests then become a check on the *screens*, not on the arithmetic.
+
+---
+
+### F-07 — `therapist_schedule_state` was read by the dashboard but never subscribed or published · **P2** · **Fixed**
+
+**Area.** Plan §14.0 (realtime), `ADM-TODAY-002`. **Class.** EXECUTED — this one was caught by the repository's own test suite during the live run, not by reading code.
+
+**What failed.** `e2e/admin-multi-admin.spec.ts` H-006 asserts that every base table the admin dashboard queries appears in `ADMIN_REALTIME_TABLES`, and that everything in that list is added to the `supabase_realtime` publication. It failed with one name: `therapist_schedule_state`.
+
+**Why the lint check did not catch it.** `scripts/check-realtime-coverage.mjs` and H-006 ask different questions. The script checks that every table the UI **subscribes to** is **published** — it passed, because this table was in neither list. H-006 checks that every table the dashboard **reads** is subscribed to, which is the stricter direction. Two checks, one gap between them.
+
+**Origin.** The table arrived with the roster rebuild (`1aef991`), which added it, queried it from the dashboard at `page.tsx:327`, and updated the reset function's TRUNCATE list for it — but not the realtime arrays. It predates the changes in this branch.
+
+**Consequence, stated honestly.** Benign but real. The dashboard reads `therapist_schedule_state` to hand the roster editor the version its next save must match. Without a subscription, one admin saving a roster leaves a second admin's open dashboard holding a stale version — the compare-and-swap catches it, so nothing is corrupted, but the second admin gets a 409 telling them to reload where a live refresh would simply have happened. It is a papercut, not a correctness hole; it is a finding because the codebase's own stated rule is that a new table goes into one of the two arrays **and** gets its `alter publication` line in the same change.
+
+**FIXED.** Added to `ADMIN_REALTIME_TABLES` (the operational channel — a roster change is operational) and given the guarded `alter publication` block every other publication line in `schema.sql` uses. H-006 re-run: **passes**. `check:realtime` now reports 39 subscribed tables, all published.
+
+---
+
+### F-08 — Eleven routes validated the request body before checking who was asking · **P3** · **Fixed**
+
+**Area.** Plan §18.2, `SEC-ROUTE-002`. **Class.** EXECUTED.
+
+**What was found.** Calling 25 routes with no cookie and an empty body, 11 answered **400 with a field-validation message** rather than 401/403:
+
+```
+/api/appointments/cancel               400 {"error":"Missing appointmentId"}
+/api/patient/condition-profile/submit  400 {"error":"Missing data"}
+/api/razorpay/create-order             400 {"error":"Missing appointmentId"}
+…and eight more
+```
+
+**How serious, established rather than assumed.** The obvious question is whether authentication was enforced *at all*, so the same 11 were re-called with well-formed bodies. Nine then returned 401/403. The two home-visit order routes validated more deeply first — `{"error":"A street address is required."}` — and only refused once a complete address was supplied. So **authentication was always enforced; nothing could be done anonymously.** No data leaked, no action was possible, and no response contained internals.
+
+That makes this an **ordering** defect, not a hole — which is why it is P3 and not higher. It is still worth fixing on two grounds: an unauthenticated caller should not drive a route's parsing at all, and the other ninety-odd routes in this application already check auth first, so these eleven were the inconsistent ones.
+
+**FIXED.** The `createClient` / `getUser` / `if (!user)` block was hoisted above body validation in all eleven, with a comment at each explaining why the order matters. `npm run verify` is green, and the five spec files covering those routes were re-run afterwards: **61/61 passed**, no regression. Re-running the probe: **11/11 refuse an anonymous caller**, and all 25 routes now refuse with nothing leaked.
 
 ---
 
