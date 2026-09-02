@@ -234,16 +234,28 @@ export type CarePlanHistoryVersion = {
  * keeping their own copy. That is the point of versioning it -- a second
  * copy is a second thing to keep in sync, and clinical history that can
  * drift is not history.
+ *
+ * `includeUnapproved` is the one thing the two readers disagree about, and
+ * it defaults to the patient's answer. A thread still sitting in the
+ * clinic's queue must not appear on the patient's own screens: they would
+ * be reading a recommendation nobody has stood behind yet, and a rejected
+ * one is a proposal the clinic declined to make. The therapist who wrote it
+ * and the admin deciding on it both need to see exactly those.
  */
 export async function loadCarePlanHistory(
   admin: AdminClient,
-  patientId: string
+  patientId: string,
+  { includeUnapproved = false }: { includeUnapproved?: boolean } = {}
 ): Promise<CarePlanHistoryVersion[]> {
   try {
-    const { data: plans } = await admin
+    let plansQuery = admin
       .from("care_plans")
       .select("id, status")
       .eq("patient_id", patientId);
+    if (!includeUnapproved) {
+      plansQuery = plansQuery.not("status", "in", "(pending_review,rejected)");
+    }
+    const { data: plans } = await plansQuery;
     if (!plans || plans.length === 0) return [];
 
     const statusById = new Map(plans.map((p) => [p.id, p.status]));
@@ -274,5 +286,120 @@ export async function loadCarePlanHistory(
     }));
   } catch {
     return [];
+  }
+}
+
+export type CarePlanReviewRecord = {
+  id: string;
+  decision: "approved" | "rejected" | "edited_and_approved";
+  reason: string;
+  reviewerId: string | null;
+  createdAt: string;
+};
+
+/**
+ * The clinic's decisions on a patient's threads, newest first.
+ *
+ * Read for the clinician's own screens and the admin's queue. A therapist
+ * whose recommendation was turned down is the one person who has to act on
+ * it -- they rewrite -- so the reason has to reach them, not sit in an audit
+ * log only admins read.
+ */
+export async function loadCarePlanReviews(
+  admin: AdminClient,
+  carePlanIds: string[]
+): Promise<Map<string, CarePlanReviewRecord[]>> {
+  const byPlan = new Map<string, CarePlanReviewRecord[]>();
+  if (carePlanIds.length === 0) return byPlan;
+  try {
+    const { data } = await admin
+      .from("care_plan_reviews")
+      .select("id, care_plan_id, decision, reason, reviewer_id, created_at")
+      .in("care_plan_id", carePlanIds)
+      .order("created_at", { ascending: false });
+    for (const row of data ?? []) {
+      const list = byPlan.get(row.care_plan_id) ?? [];
+      list.push({
+        id: row.id,
+        decision: row.decision as CarePlanReviewRecord["decision"],
+        reason: row.reason,
+        reviewerId: row.reviewer_id ?? null,
+        createdAt: row.created_at,
+      });
+      byPlan.set(row.care_plan_id, list);
+    }
+  } catch {
+    // New table. Losing the decisions must cost the note explaining a
+    // rejection, never the screen it appears on.
+  }
+  return byPlan;
+}
+
+/**
+ * The patient's most recent thread whatever state it is in, for the people
+ * who need to see one that has not been published.
+ *
+ * `loadActiveCarePlan` deliberately stays scoped to 'active' -- it feeds the
+ * patient's own screens, and a plan waiting on the clinic is not something
+ * the patient should be offered or even told about, since it may never be
+ * approved. This is its clinician-side twin: the therapist needs to know
+ * their submission is queued rather than lost, and needs the reason if it
+ * was turned down.
+ */
+export async function loadLatestCarePlanForClinician(
+  admin: AdminClient,
+  patientId: string
+): Promise<{ plan: CarePlanWithVersion; reviews: CarePlanReviewRecord[] } | null> {
+  try {
+    const { data: plan } = await admin
+      .from("care_plans")
+      .select("id, patient_id, therapist_id, status, accepted_at, created_at, current_version_id")
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!plan) return null;
+
+    const { data: version } = plan.current_version_id
+      ? await admin
+          .from("care_plan_versions")
+          .select(
+            "id, version_no, authored_by, authored_at, offer_kind, session_package_id, home_visit_package_id, offer_snapshot, hands_on_required, frequency_per_week, clinical_rationale, instructions, expires_at"
+          )
+          .eq("id", plan.current_version_id)
+          .maybeSingle()
+      : { data: null };
+
+    const reviews = (await loadCarePlanReviews(admin, [plan.id])).get(plan.id) ?? [];
+
+    return {
+      plan: {
+        id: plan.id,
+        patientId: plan.patient_id,
+        therapistId: plan.therapist_id,
+        status: plan.status,
+        acceptedAt: plan.accepted_at,
+        createdAt: plan.created_at,
+        version: version
+          ? {
+              id: version.id,
+              versionNo: version.version_no,
+              authoredBy: version.authored_by,
+              authoredAt: version.authored_at,
+              offerKind: version.offer_kind as CarePlanOfferKind,
+              packageId: version.session_package_id ?? version.home_visit_package_id,
+              offerSnapshot: version.offer_snapshot,
+              handsOnRequired: version.hands_on_required,
+              frequencyPerWeek: version.frequency_per_week,
+              clinicalRationale: version.clinical_rationale,
+              instructions: version.instructions,
+              expiresAt: version.expires_at,
+            }
+          : null,
+      },
+      reviews,
+    };
+  } catch {
+    return null;
   }
 }

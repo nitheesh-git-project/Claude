@@ -11,10 +11,12 @@
 // clinician chooses are the four below, and none of them is money.
 
 export const CARE_PLAN_STATUSES = [
+  "pending_review",
   "active",
   "accepted",
   "declined",
   "withdrawn",
+  "rejected",
   "expired",
   "superseded",
 ] as const;
@@ -161,11 +163,13 @@ export function validateCarePlanInput(
  * `suggestionState` already follows for proposed times.
  */
 export type CarePlanState =
+  | "pending_review"
   | "awaiting_patient"
   | "lapsed"
   | "accepted"
   | "declined"
   | "withdrawn"
+  | "rejected"
   | "superseded";
 
 export function carePlanState(
@@ -173,6 +177,13 @@ export function carePlanState(
   version: { expires_at: string | null } | null,
   nowMs: number
 ): CarePlanState {
+  // Checked before everything else, and never allowed to fall through to
+  // the default. A recommendation waiting on the clinic must not read as
+  // one waiting on the patient: `isCarePlanPurchasable` is what the
+  // checkout route asks, and the honest answer for an unreviewed plan is
+  // no.
+  if (plan.status === "pending_review") return "pending_review";
+  if (plan.status === "rejected") return "rejected";
   if (plan.status === "accepted") return "accepted";
   if (plan.status === "declined") return "declined";
   if (plan.status === "withdrawn") return "withdrawn";
@@ -185,6 +196,8 @@ export function carePlanState(
 }
 
 export const CARE_PLAN_STATE_LABELS: Record<CarePlanState, string> = {
+  pending_review: "Waiting for the clinic to approve",
+  rejected: "Not approved by the clinic",
   awaiting_patient: "Waiting for your answer",
   lapsed: "This recommendation has expired",
   accepted: "Purchased",

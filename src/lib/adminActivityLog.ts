@@ -30,6 +30,9 @@ export type AdminActivityAction =
   // A recommendation is the only route to a programme, so withdrawing one
   // stops a purchase from happening -- worth the same trail as cancelling
   // a session.
+  | "care_plan.approve"
+  | "care_plan.reject"
+  | "care_plan.edit_and_approve"
   | "care_plan.withdraw"
   // Typed by an admin, attributed to the clinician whose judgement it is.
   | "care_plan.author_on_behalf"
@@ -136,6 +139,9 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "session.assign": "Assigned therapist",
   "session.update": "Edited session",
   "session.cancel": "Cancelled session",
+  "care_plan.approve": "Approved a recommendation",
+  "care_plan.reject": "Turned down a recommendation",
+  "care_plan.edit_and_approve": "Approved a recommendation with different numbers",
   "care_plan.withdraw": "Withdrew a recommendation",
   "care_plan.author_on_behalf": "Wrote a recommendation on a therapist's behalf",
   "session.reopen": "Reopened session",

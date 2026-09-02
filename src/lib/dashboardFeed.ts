@@ -232,6 +232,7 @@ export function buildTherapistFeed({
   accessGrants,
   onboardingPatients = [],
   carePlanAnswers = [],
+  carePlanDecisions = [],
   awaitingRecommendation = [],
 }: {
   appointments: FeedAppointment[];
@@ -248,6 +249,22 @@ export function buildTherapistFeed({
     title: string;
     status: "accepted" | "declined";
     answeredAt: string;
+  }[];
+  /** What the clinic decided about recommendations this therapist
+   *  submitted. A rejection IS `needsYou`, and it is the only care-plan feed
+   *  item that is: the thread is closed, the patient has been told nothing,
+   *  and the only person who can put that right is the clinician who wrote
+   *  it. A recommendation turned down silently is one that never happened.
+   *  An approval is not `needsYou` -- it is the outcome they expected -- but
+   *  it still appears, because a submission that vanishes into a queue and
+   *  never reports back teaches a therapist to stop trusting the queue. */
+  carePlanDecisions?: {
+    id: string;
+    patientName: string;
+    title: string;
+    decision: "approved" | "rejected" | "edited_and_approved";
+    reason: string;
+    decidedAt: string;
   }[];
   /** Patients assigned to this therapist whose condition record nobody
    *  has written yet. Their own health profile is locked until it is
@@ -269,6 +286,25 @@ export function buildTherapistFeed({
 }): FeedItem[] {
   const items: FeedItem[] = [];
   const now = Date.now();
+
+  for (const decision of carePlanDecisions) {
+    const rejected = decision.decision === "rejected";
+    const changed = decision.decision === "edited_and_approved";
+    items.push({
+      id: `care-plan-decision-${decision.id}`,
+      at: decision.decidedAt,
+      icon: rejected ? "fa-circle-xmark" : changed ? "fa-pen-to-square" : "fa-circle-check",
+      tone: rejected ? "warn" : changed ? "neutral" : "good",
+      needsYou: rejected,
+      title: rejected
+        ? `The clinic turned down your recommendation for ${decision.patientName}`
+        : changed
+          ? `The clinic approved your recommendation for ${decision.patientName}, with changes`
+          : `The clinic approved your recommendation for ${decision.patientName}`,
+      detail: `${decision.title} — ${decision.reason}`,
+      href: "/therapist/dashboard/patients",
+    });
+  }
 
   for (const plan of carePlanAnswers) {
     const accepted = plan.status === "accepted";

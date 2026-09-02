@@ -48,7 +48,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
   }
 
-  // Only the author may withdraw, and only while it is still open. Both
+  // Only the author may withdraw, and only while it is still open -- which
+  // now means either waiting on the clinic or waiting on the patient. Both
   // conditions live in the write itself, so a patient paying in the same
   // moment wins and the therapist is told what happened rather than the
   // purchase being pulled out from under them.
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     .update({ status: "withdrawn", updated_at: new Date().toISOString() })
     .eq("id", carePlanId)
     .eq("therapist_id", user.id)
-    .eq("status", "active")
+    .in("status", ["active", "pending_review"])
     .select("id")
     .maybeSingle();
 

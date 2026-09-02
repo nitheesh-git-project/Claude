@@ -200,7 +200,13 @@ export default async function TherapistPatientHealthProfilePage({
 
   const showDebugNav = isDebugNavVisible();
 
-  const carePlanVersions = await loadCarePlanHistory(admin, patientId);
+  // Unapproved threads included: this is the clinician's own chart, and a
+  // recommendation of theirs sitting in the clinic's queue -- or turned down
+  // -- is exactly what they need to see. The patient's copy of this band
+  // gets the default, which drops both.
+  const carePlanVersions = await loadCarePlanHistory(admin, patientId, {
+    includeUnapproved: true,
+  });
   const carePlanAuthorNames = new Map<string, string>();
   if (carePlanVersions.length > 0) {
     // Author names are not readable through RLS from a therapist's session

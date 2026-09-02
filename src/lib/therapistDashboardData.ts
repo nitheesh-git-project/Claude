@@ -13,7 +13,7 @@ import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { sessionsAwaitingNote, type SessionNoteRow } from "@/lib/sessionNotes";
 import type { StatCell } from "@/components/dashboard/StatStrip";
-import { loadRecommendablePackages } from "@/lib/carePlanServer";
+import { loadCarePlanReviews, loadRecommendablePackages } from "@/lib/carePlanServer";
 import { maskPhone } from "@/lib/contactMasking";
 import { parseOfferSnapshot } from "@/lib/carePlans";
 
@@ -480,12 +480,22 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
           .eq("therapist_id", user.id)
       : { data: [] as { patient_id: string; status: string }[] };
 
-  // A patient with a live or already-purchased recommendation is not
-  // waiting to hear; a declined or withdrawn one means the thread is open
-  // again, which is exactly when a fresh recommendation is wanted.
+  // A patient with a live, queued or already-purchased recommendation is not
+  // waiting to hear; a declined, withdrawn or rejected one means the thread
+  // is open again, which is exactly when a fresh recommendation is wanted.
+  //
+  // `pending_review` belongs on the first list, not the second: the
+  // therapist has already written one and it is the clinic that owes an
+  // answer. Nudging them to write another would be asking for the 409 the
+  // one-open-plan index exists to produce.
   const patientsWithLivePlan = new Set(
     (openPlanRows ?? [])
-      .filter((p) => p.status === "active" || p.status === "accepted")
+      .filter(
+        (p) =>
+          p.status === "active" ||
+          p.status === "accepted" ||
+          p.status === "pending_review"
+      )
       .map((p) => p.patient_id)
   );
 
@@ -514,14 +524,44 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
         ).slice(0, 4)
       : [];
 
+  // What the clinic decided about this therapist's own submissions. Its own
+  // call, Overview only, and failure-tolerant: the review tables are new, so
+  // a database one apply behind must lose the notice rather than the
+  // dashboard it appears on.
+  const { data: decidedPlans } =
+    screen === "overview"
+      ? await admin
+          .from("care_plans")
+          .select("id, patient_id, status, reviewed_at, current_version_id")
+          .eq("therapist_id", user.id)
+          .not("reviewed_at", "is", null)
+          .order("reviewed_at", { ascending: false })
+          .limit(10)
+      : {
+          data: [] as {
+            id: string;
+            patient_id: string;
+            status: string;
+            reviewed_at: string | null;
+            current_version_id: string | null;
+          }[],
+        };
+
+  const decidedPlanIds = (decidedPlans ?? []).map((p) => p.id);
+  const reviewsByPlan = await loadCarePlanReviews(admin, decidedPlanIds);
+
   const answeredVersionIds = (answeredPlans ?? [])
     .map((p) => p.current_version_id)
     .filter((id): id is string => !!id);
-  const { data: answeredVersions } = answeredVersionIds.length
+  const decidedVersionIds = (decidedPlans ?? [])
+    .map((p) => p.current_version_id)
+    .filter((id): id is string => !!id);
+  const planVersionIds = [...new Set([...answeredVersionIds, ...decidedVersionIds])];
+  const { data: answeredVersions } = planVersionIds.length
     ? await admin
         .from("care_plan_versions")
         .select("id, offer_snapshot")
-        .in("id", answeredVersionIds)
+        .in("id", planVersionIds)
     : { data: [] as { id: string; offer_snapshot: unknown }[] };
   const answeredTitleByVersion = new Map(
     (answeredVersions ?? []).map((v) => [
@@ -532,6 +572,22 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
 
   const therapistFeed = buildTherapistFeed({
     awaitingRecommendation,
+    carePlanDecisions: (decidedPlans ?? []).flatMap((p) => {
+      const latest = reviewsByPlan.get(p.id)?.[0];
+      if (!latest || !p.reviewed_at) return [];
+      return [
+        {
+          id: p.id,
+          patientName: patientNameById.get(p.patient_id) ?? "A patient",
+          title: p.current_version_id
+            ? answeredTitleByVersion.get(p.current_version_id) ?? "Treatment programme"
+            : "Treatment programme",
+          decision: latest.decision,
+          reason: latest.reason,
+          decidedAt: p.reviewed_at,
+        },
+      ];
+    }),
     carePlanAnswers: (answeredPlans ?? [])
       .filter((p) => p.accepted_at || p.declined_at)
       .map((p) => ({

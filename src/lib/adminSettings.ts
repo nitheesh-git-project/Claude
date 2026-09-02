@@ -16,7 +16,12 @@ export function isContactScanMode(value: unknown): value is ContactScanMode {
 export type AdminSettings = {
   /** Read session balances from the credit ledger rather than the legacy counters. */
   entitlementLedgerAuthoritative: boolean;
-  /** How long a therapist's recommendation stays purchasable. */
+  /** Whether a therapist's recommendation waits for the clinic before the
+   *  patient sees it. Default on. Off restores the previous behaviour, where
+   *  a submission published on save. */
+  carePlanRequiresApproval: boolean;
+  /** How long a therapist's recommendation stays purchasable, counted from
+   *  the moment it is approved rather than written. */
   carePlanDefaultExpiryDays: number;
   /** Cap on the frequency a clinician may recommend, over the package's own rule. */
   carePlanMaxFrequencyPerWeek: number;
@@ -128,6 +133,7 @@ export const DEFAULT_HOME_VISIT_PAGE_SUBHEADING =
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   // Off until reconciliation has been clean over real traffic.
   entitlementLedgerAuthoritative: false,
+  carePlanRequiresApproval: true,
   carePlanDefaultExpiryDays: 30,
   carePlanMaxFrequencyPerWeek: 5,
   // Blocking by default. A UPI handle or a payment link in a message to a
@@ -206,10 +212,11 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
 // .select(SITE_SETTINGS_SELECT) call fall back to an unusable
 // GenericStringError result type instead of a real row shape.
 export const SITE_SETTINGS_SELECT =
-  "session_timeout_minutes, google_meet_enabled, meet_open_access_enabled, join_window_minutes, join_window_after_minutes, session_completed_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, payment_gateway_fee_percent, farewell_banner_seconds, journey_step_seconds, splash_enabled, splash_brand_line, splash_phrase, splash_hold_seconds, splash_revisit_minutes, enabled_intake_specialties, entitlement_ledger_authoritative, care_plan_default_expiry_days, care_plan_max_frequency_per_week, contact_scan_mode, contact_masking_enabled, risk_signals_enabled, auto_assign_therapist_enabled";
+  "session_timeout_minutes, google_meet_enabled, meet_open_access_enabled, join_window_minutes, join_window_after_minutes, session_completed_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, payment_gateway_fee_percent, farewell_banner_seconds, journey_step_seconds, splash_enabled, splash_brand_line, splash_phrase, splash_hold_seconds, splash_revisit_minutes, enabled_intake_specialties, entitlement_ledger_authoritative, care_plan_requires_approval, care_plan_default_expiry_days, care_plan_max_frequency_per_week, contact_scan_mode, contact_masking_enabled, risk_signals_enabled, auto_assign_therapist_enabled";
 
 type SiteSettingsRow = {
   entitlement_ledger_authoritative?: boolean | null;
+  care_plan_requires_approval?: boolean | null;
   care_plan_default_expiry_days?: number | null;
   care_plan_max_frequency_per_week?: number | null;
   contact_scan_mode?: string | null;
@@ -312,6 +319,11 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
       typeof row?.entitlement_ledger_authoritative === "boolean"
         ? row.entitlement_ledger_authoritative
         : DEFAULT_ADMIN_SETTINGS.entitlementLedgerAuthoritative,
+    // Fails closed: an unreadable column means require approval, never
+    // publish unreviewed. The opposite direction from contactScanMode, and
+    // deliberately so -- a recommendation is the only route by which a
+    // patient buys a programme.
+    carePlanRequiresApproval: row?.care_plan_requires_approval !== false,
     carePlanDefaultExpiryDays:
       typeof row?.care_plan_default_expiry_days === "number"
         ? row.care_plan_default_expiry_days

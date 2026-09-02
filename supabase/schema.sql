@@ -7243,3 +7243,365 @@ alter table appointments add column if not exists meet_access_attempts integer n
 -- the attempt (and its recorded error) stops.
 alter table site_settings
   add column if not exists meet_open_access_enabled boolean not null default true;
+
+-- ---------------------------------------------------------------------------
+-- The clinic approves a recommendation before the patient sees it
+-- ---------------------------------------------------------------------------
+-- Care plans previously went live the moment a therapist saved one, on the
+-- same reasoning as condition-profile onboarding: a queue in front of a
+-- clinician's own judgement means the patient hears nothing for hours after
+-- a session that has just ended.
+--
+-- That reasoning held while a recommendation was one clinical record among
+-- several. It stopped holding once a care plan became the ONLY route by
+-- which a patient buys a programme: the thing being written is now a bill,
+-- and the clinic that carries it has to see one before the patient is asked
+-- to pay it. So a recommendation is now submitted, reviewed and then
+-- published, and the delay that costs is the price of that.
+--
+-- The review state lives here on care_plans, which is mutable, and never on
+-- care_plan_versions, which is append-only by trigger. A version records
+-- what a clinician proposed; whether the clinic published it is a fact
+-- about the thread, not about the proposal.
+
+-- 'pending_review' is where a therapist's own submission lands while the
+-- approval switch is on; 'rejected' is where it goes if an admin turns it
+-- down. Named by dropping and re-adding the check, since the constraint has
+-- no `if not exists` form -- re-runnable because both statements are
+-- unconditional and the second restates the whole rule.
+alter table care_plans drop constraint if exists care_plans_status_check;
+alter table care_plans add constraint care_plans_status_check check (status in (
+  'pending_review', 'active', 'accepted', 'declined', 'withdrawn', 'rejected',
+  'expired', 'superseded'
+));
+
+alter table care_plans add column if not exists submitted_at timestamptz;
+alter table care_plans add column if not exists reviewed_by uuid references profiles(id) on delete set null;
+alter table care_plans add column if not exists reviewed_at timestamptz;
+
+-- One open recommendation per patient, where "open" now means either
+-- waiting on the clinic or waiting on the patient.
+--
+-- The old index covered 'active' alone, which was correct while that was
+-- the only live state. With a review step in front of it, that index would
+-- let a patient hold one published plan and one pending one at the same
+-- time -- and the pending one would go live on approval, putting two
+-- competing recommendations in front of someone who cannot tell which their
+-- therapist meant. That is the exact failure the index exists to make
+-- impossible rather than merely unlikely.
+drop index if exists care_plans_one_active_per_patient;
+create unique index if not exists care_plans_one_open_per_patient
+  on care_plans (patient_id) where status in ('active', 'pending_review');
+
+-- Every decision the clinic made about a recommendation, append-only.
+--
+-- Separate from the plan row for the reason risk_reviews is separate from
+-- risk_signals: the row carries the current state, and the state alone
+-- cannot answer "who approved this, when, and what did they say". A
+-- rejection with no reason reads the same as one nobody got round to.
+create table if not exists care_plan_reviews (
+  id uuid primary key default gen_random_uuid(),
+  care_plan_id uuid not null references care_plans(id) on delete cascade,
+  -- The version being decided on. Kept even though the plan points at its
+  -- own current version, because an edit-and-approve writes a new one and
+  -- the record has to say which was on the table at the time.
+  version_id uuid references care_plan_versions(id) on delete set null,
+  reviewer_id uuid not null references profiles(id) on delete set null,
+  decision text not null check (decision in ('approved', 'rejected', 'edited_and_approved')),
+  -- Mandatory and long enough to be a sentence, same rule as risk_reviews
+  -- and the admin override lanes on the credit ledger.
+  reason text not null check (char_length(btrim(reason)) >= 10),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists care_plan_reviews_plan_idx
+  on care_plan_reviews (care_plan_id, created_at desc);
+
+alter table care_plan_reviews enable row level security;
+
+drop policy if exists care_plan_reviews_select_admin on care_plan_reviews;
+create policy care_plan_reviews_select_admin on care_plan_reviews
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+-- The therapist whose recommendation it was reads the decisions on their own
+-- threads. A rejection they cannot see is a recommendation that silently
+-- never happened, and they are the one person who has to act on it.
+drop policy if exists care_plan_reviews_select_author on care_plan_reviews;
+create policy care_plan_reviews_select_author on care_plan_reviews
+  for select using (
+    exists (
+      select 1 from care_plans p
+      where p.id = care_plan_reviews.care_plan_id and p.therapist_id = auth.uid()
+    )
+  );
+
+-- Append-only by trigger, not by RLS. Every route here writes with the
+-- service-role client, which bypasses RLS entirely, so "no route updates it"
+-- is not the guarantee "an update raises" is -- the same reasoning as
+-- communication_flags, contact_reveal_log and the credit ledger.
+drop trigger if exists care_plan_reviews_no_change on care_plan_reviews;
+create trigger care_plan_reviews_no_change
+  before update or delete on care_plan_reviews
+  for each row execute function communication_evidence_is_append_only();
+
+revoke insert, update, delete on care_plan_reviews from authenticated;
+
+-- Deliberately NOT added to the realtime publication. Every screen that
+-- shows a decision also shows the plan it was made about, and `care_plans`
+-- is already published -- the status change that accompanies every review
+-- row is what wakes those screens. Publishing this too would be a second
+-- event for one change, and the coverage check would then be reporting a
+-- subscription nobody wrote.
+
+-- The switch. Default true: the whole point of the change is that the clinic
+-- sees a bill before the patient is asked to pay it, so a fresh database
+-- gets that. Off restores the previous behaviour exactly -- a therapist's
+-- submission goes live on save -- for a clinic small enough that the
+-- clinician and the person carrying the money are the same person.
+--
+-- Read in its own call and failing CLOSED (unknown means require approval),
+-- the opposite direction from contact_scan_mode: the safe answer to "I don't
+-- know" is to hold a recommendation, never to publish one unreviewed.
+alter table site_settings
+  add column if not exists care_plan_requires_approval boolean not null default true;
+
+-- ---------------------------------------------------------------------------
+-- A condition type on a treatment category
+-- ---------------------------------------------------------------------------
+-- The three specialties (ortho, neuro, pediatrics) already decide a
+-- patient's health profile. They did not reach the catalogue at all: a
+-- package hangs off a treatment_category -- knee, back, and so on -- and a
+-- therapist recommending one picked from a list of programme titles.
+--
+-- Tagging the categories lets the therapist's picker ask the two questions
+-- they actually think in ("which kind of patient, how many sessions") while
+-- the price stays per category, which is finer than per specialty and is
+-- what every existing package row is already attached to. Nullable, because
+-- a category an admin has not tagged yet must keep working exactly as it
+-- did rather than disappearing from a picker.
+alter table treatment_categories
+  add column if not exists specialty text
+  check (specialty is null or specialty in ('ortho', 'neuro', 'pediatrics'));
+
+-- ---------------------------------------------------------------------------
+-- Retired: the public programme price switch
+-- ---------------------------------------------------------------------------
+-- `session_packages_visible` and the `show_programme_prices` it was renamed
+-- to are no longer read by anything. The public pages do not print programme
+-- prices at all now -- a course of treatment is a clinical recommendation,
+-- and a price list of them is what this change exists to remove. The columns
+-- are left in place rather than dropped: nothing reads them, dropping a
+-- column from a live database is the one edit in this file that cannot be
+-- undone by re-running it, and their defaults are harmless.
+
+-- ---------------------------------------------------------------------------
+-- The reset, with the review step in it
+-- ---------------------------------------------------------------------------
+-- Re-declared rather than edited in place, the way the previous two
+-- revisions of this function were. Two additions: care_plan_reviews joins
+-- the TRUNCATE list (a reset that left the clinic's decisions behind would
+-- leave approvals attached to recommendations that no longer exist), and
+-- care_plan_requires_approval joins the settings restored to their defaults.
+create or replace function public.debug_reset_all_data()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  deleted_accounts integer;
+  admin_count integer;
+begin
+  select count(*) into admin_count from profiles where role = 'admin';
+  if admin_count = 0 then
+    raise exception 'refusing to reset: no admin account would be left behind';
+  end if;
+
+  truncate table
+    session_credit_ledger,
+    session_entitlements,
+    payment_webhook_events,
+    payments,
+    business_expenses,
+    admin_activity_log,
+    session_suggestions,
+    appointment_reassignment_log,
+    payment_failure_log,
+    package_purchase_events,
+    home_visit_purchase_events,
+    appointments,
+    patient_package_purchases,
+    home_visit_package_purchases,
+    therapist_payout_requests,
+    therapist_payout_batches,
+    session_note_revisions,
+    session_notes,
+    patient_medical_documents,
+    pain_assessments,
+    condition_change_requests,
+    condition_access_grants,
+    patient_condition_profiles,
+    patient_addresses,
+    patient_admin_notes,
+    therapist_admin_notes,
+    hospital_admin_notes,
+    profile_change_requests,
+    therapist_availability_override,
+    therapist_availability_template,
+    therapist_schedule_state,
+    patient_referrals,
+    b2b_leads,
+    home_visit_waitlist,
+    home_visit_areas,
+    home_visit_packages,
+    treatment_category_packages,
+    treatment_categories,
+    testimonials,
+    faqs,
+    intake_question_templates,
+    pain_map_question_templates,
+    -- The four the previous definition missed. care_plans and
+    -- care_plan_versions were already reached by CASCADE; naming them is
+    -- belt and braces, and means a future change to their foreign keys
+    -- cannot quietly take them back out of the reset.
+    care_plan_versions,
+    care_plans,
+    communication_flags,
+    contact_reveal_log,
+    risk_reviews,
+    risk_signals,
+    -- Added with the review step. A reset that left the clinic's decisions
+    -- behind would leave a record of approvals for recommendations that no
+    -- longer exist.
+    care_plan_reviews
+  cascade;
+
+  with removed as (
+    delete from auth.users
+    where id not in (select id from profiles where role = 'admin')
+    returning 1
+  )
+  select count(*) into deleted_accounts from removed;
+
+  -- Detector thresholds back to what the seed set. Not truncated, because
+  -- an empty risk_rules would silently disable every detector rather than
+  -- restoring it -- risk_signals.rule_key references this table.
+  update risk_rules set
+    enabled = default,
+    config = default,
+    updated_at = now();
+
+  update site_settings set
+    site_name = default,
+    site_tagline = default,
+    site_description = default,
+    contact_email = default,
+    whatsapp_number = default,
+    contact_phone = default,
+    footer_copyright_text = default,
+    home_visit_page_heading = null,
+    home_visit_page_subheading = null,
+    ratings_visible_publicly = default,
+    session_packages_visible = default,
+    session_timeout_minutes = default,
+    google_meet_enabled = default,
+    join_window_minutes = default,
+    join_window_after_minutes = default,
+    session_completed_after_minutes = default,
+    booking_languages = default,
+    package_default_validity_days = default,
+    package_therapist_lock_enabled = default,
+    package_bulk_schedule_max = default,
+    package_expiry_reminder_days = default,
+    home_visit_enabled = default,
+    home_visit_cash_enabled = default,
+    home_visit_lead_time_hours = default,
+    home_visit_cancellation_refund_hours = default,
+    home_visit_default_validity_days = default,
+    home_visit_bulk_schedule_max = default,
+    home_visit_travel_buffer_minutes = default,
+    online_booking_lead_time_hours = default,
+    online_cancellation_refund_hours = default,
+    payment_gateway_fee_percent = default,
+    farewell_banner_seconds = default,
+    journey_step_seconds = default,
+    splash_enabled = default,
+    splash_brand_line = default,
+    splash_phrase = default,
+    splash_hold_seconds = default,
+    splash_revisit_minutes = default,
+    enabled_intake_specialties = default,
+    entitlement_ledger_authoritative = default,
+    care_plan_default_expiry_days = default,
+    care_plan_max_frequency_per_week = default,
+    contact_scan_mode = default,
+    contact_masking_enabled = default,
+    risk_signals_enabled = default,
+    therapist_suggestions_enabled = default,
+    auto_assign_therapist_enabled = default,
+    care_plan_requires_approval = default
+  where id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'deleted_accounts', deleted_accounts
+  );
+end;
+$$;
+
+revoke all on function public.debug_reset_all_data() from public;
+revoke all on function public.debug_reset_all_data() from anon;
+revoke all on function public.debug_reset_all_data() from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Stamping the offer window at publication
+-- ---------------------------------------------------------------------------
+-- `expires_at` used to be set when the therapist saved, which was right
+-- while a save WAS publication. With a review step in front of it, a plan
+-- that sits in the queue for two days would reach the patient with two days
+-- of its window already gone -- silently, and worst on exactly the plans the
+-- clinic took longest over.
+--
+-- So the version is written with a null `expires_at` and the approval stamps
+-- it. That needs the append-only trigger to permit one more transition, and
+-- it is deliberately a one-way one: null to a value, never a value to
+-- another value. An offer window that can be moved after the patient has
+-- seen it is a different promise from the one they read.
+create or replace function public.care_plan_versions_is_append_only()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'care_plan_versions is append-only: a recommendation that changed is a new version, never an edited one';
+  end if;
+  -- Two legitimate transitions now: retiring a version (is_current), and
+  -- stamping the offer window on a version that has never had one.
+  if new.is_current = old.is_current
+     and not (old.expires_at is null and new.expires_at is not null) then
+    raise exception 'care_plan_versions is append-only: supersede this version with a new one rather than editing it';
+  end if;
+  if old.expires_at is not null and new.expires_at is distinct from old.expires_at then
+    raise exception 'care_plan_versions is append-only: an offer window is stamped once, at approval, and never moved afterwards';
+  end if;
+  if row(new.*) is distinct from row(old.*) and (
+       new.care_plan_id is distinct from old.care_plan_id
+    or new.version_no is distinct from old.version_no
+    or new.authored_by is distinct from old.authored_by
+    or new.source_appointment_id is distinct from old.source_appointment_id
+    or new.offer_kind is distinct from old.offer_kind
+    or new.session_package_id is distinct from old.session_package_id
+    or new.home_visit_package_id is distinct from old.home_visit_package_id
+    or new.offer_snapshot is distinct from old.offer_snapshot
+    or new.hands_on_required is distinct from old.hands_on_required
+    or new.frequency_per_week is distinct from old.frequency_per_week
+    or new.clinical_rationale is distinct from old.clinical_rationale
+    or new.instructions is distinct from old.instructions
+  ) then
+    raise exception 'care_plan_versions is append-only: only is_current and a first expires_at may change';
+  end if;
+  return new;
+end;
+$$;

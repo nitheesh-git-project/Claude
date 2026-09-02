@@ -38,6 +38,20 @@ export type CarePlanAuthorRequest = {
   enteredBy?: string | null;
   /** Who the scanner should record as the writer. */
   actorRole: "therapist" | "admin";
+  /**
+   * Whether this version is published on the spot or queued for the clinic.
+   *
+   * Decided by the caller rather than read here, because the two doors have
+   * genuinely different answers: a therapist's submission waits when
+   * `care_plan_requires_approval` is on, while an admin authoring on a
+   * therapist's behalf IS the approver, and sending their own typing to
+   * their own queue would be a step that means nothing.
+   */
+  landsApproved: boolean;
+  /** How long the patient has to answer, once it reaches them. Stamped at
+   *  publication, so a plan that waited in the queue does not reach the
+   *  patient with its window already spent. */
+  expiresAt?: string | null;
 };
 
 export type CarePlanAuthorResult =
@@ -56,6 +70,7 @@ export async function authorCarePlanVersion(
     authoredBy,
     enteredBy = null,
     actorRole,
+    landsApproved,
   } = request;
 
   // The session this comes out of. Re-derived, never taken from the body: it
@@ -131,13 +146,24 @@ export async function authorCarePlanVersion(
     .eq("appointment_id", appointmentId)
     .maybeSingle();
 
-  const expiresAt = new Date(Date.now() + settings.expiryDays * 86_400_000).toISOString();
+  // Null while the plan is queued. The approval stamps it, so the patient's
+  // window starts when they can actually see the offer rather than when the
+  // therapist typed it -- otherwise the plans the clinic took longest over
+  // are the ones that reach the patient with the least time on them.
+  const expiresAt = landsApproved
+    ? request.expiresAt ??
+      new Date(Date.now() + settings.expiryDays * 86_400_000).toISOString()
+    : null;
 
+  // Either open state counts as "this patient already has a thread": one
+  // waiting on the clinic and one waiting on the patient are both live, and
+  // a new version belongs on the existing thread rather than opening a
+  // second one the unique index would refuse anyway.
   const { data: existing } = await admin
     .from("care_plans")
     .select("id, status, therapist_id")
+    .in("status", ["active", "pending_review"])
     .eq("patient_id", patientId)
-    .eq("status", "active")
     .maybeSingle();
 
   let planId: string;
@@ -178,7 +204,8 @@ export async function authorCarePlanVersion(
         patient_id: patientId,
         therapist_id: authoredBy,
         category_id: appointment.category_id ?? resolved.categoryId,
-        status: "active",
+        status: landsApproved ? "active" : "pending_review",
+        submitted_at: new Date().toISOString(),
         supersedes_id: previous?.id ?? null,
       })
       .select("id")
@@ -233,9 +260,19 @@ export async function authorCarePlanVersion(
     };
   }
 
+  // The pointer, and the thread's own state. A new version on an existing
+  // thread carries that thread with it: a therapist revising a plan the
+  // clinic already published sends the whole thread back for review, which
+  // does take a live offer off the patient's screen -- deliberately, since
+  // the offer they can now see is one nobody has approved.
   const { error: pointerError } = await admin
     .from("care_plans")
-    .update({ current_version_id: version.id, updated_at: new Date().toISOString() })
+    .update({
+      current_version_id: version.id,
+      status: landsApproved ? "active" : "pending_review",
+      submitted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", planId);
   if (pointerError) {
     console.error("Care plan version saved but the pointer failed", planId, pointerError);
@@ -272,5 +309,27 @@ export async function readCarePlanSettings(
       expiryDays: DEFAULT_CARE_PLAN_EXPIRY_DAYS,
       maxFrequencyPerWeek: DEFAULT_CARE_PLAN_MAX_FREQUENCY,
     };
+  }
+}
+
+/**
+ * Whether a therapist's own submission waits for the clinic.
+ *
+ * Read in its own call, per the migration-dependent-column rule, and failing
+ * **closed** -- the opposite direction from `contact_scan_mode`, and
+ * deliberately so. A recommendation is now the only route by which a patient
+ * buys a programme, so the safe answer to "I could not read the setting" is
+ * to hold one for review, never to publish one nobody has seen.
+ */
+export async function readCarePlanRequiresApproval(admin: AdminClient): Promise<boolean> {
+  try {
+    const { data, error } = await admin
+      .from("site_settings")
+      .select("care_plan_requires_approval")
+      .maybeSingle();
+    if (error) return true;
+    return data?.care_plan_requires_approval !== false;
+  } catch {
+    return true;
   }
 }

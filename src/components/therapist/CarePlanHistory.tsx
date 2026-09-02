@@ -5,7 +5,13 @@ function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
 }
 
+// Clinician-facing wording. The patient never reads a `pending_review` or
+// `rejected` thread at all -- `loadCarePlanHistory` drops those unless the
+// caller asks for them -- so these two labels exist for the therapist and
+// the admin only, and say plainly who is being waited on.
 const PLAN_STATUS_LABELS: Record<string, string> = {
+  pending_review: "Waiting for the clinic to approve",
+  rejected: "Not approved",
   active: "Waiting on the patient",
   accepted: "Purchased",
   declined: "Declined",

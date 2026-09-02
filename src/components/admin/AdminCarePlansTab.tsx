@@ -7,6 +7,7 @@ import PagedList from "@/components/dashboard/PagedList";
 import {
   CARE_PLAN_STATE_LABELS,
   narrowToCategory,
+  type CarePlanOfferKind,
   type CarePlanState,
 } from "@/lib/carePlans";
 import CarePlanFields, {
@@ -41,9 +42,20 @@ export type AdminCarePlanRow = {
   authoredAt: string;
   expiresAt: string | null;
   rationale: string | null;
+  /** The rest is what the review queue needs, and only it: an
+   *  edit-and-approve starts from what the therapist actually wrote rather
+   *  than from an empty form. */
+  instructions: string | null;
+  handsOnRequired: boolean;
+  frequencyPerWeek: number | null;
+  offerKind: CarePlanOfferKind;
+  packageId: string | null;
+  categoryId: string | null;
 };
 
 const STATE_STYLE: Record<CarePlanState, string> = {
+  pending_review: "bg-indigo-50 text-indigo-700",
+  rejected: "bg-rose-50 text-rose-700",
   awaiting_patient: "bg-amber-50 text-amber-700",
   lapsed: "bg-slate-100 text-slate-500",
   accepted: "bg-teal-50 text-teal-700",
@@ -87,11 +99,48 @@ export default function AdminCarePlansTab({
   packageOptions: RecommendableOption[];
   canWithdraw: boolean;
 }) {
+  const queued = plans.filter((p) => p.state === "pending_review");
   const live = plans.filter((p) => p.state === "awaiting_patient");
-  const rest = plans.filter((p) => p.state !== "awaiting_patient");
+  const rest = plans.filter(
+    (p) => p.state !== "awaiting_patient" && p.state !== "pending_review"
+  );
 
   return (
     <div className="space-y-8">
+      {/* First on the screen, always rendered, and counted in its own
+          subtitle. This is the only queue in the app standing between a
+          clinician's recommendation and the patient hearing about it, so a
+          section that quietly disappears when empty would give an admin no
+          way to tell "nothing waiting" from "I am on the wrong screen". */}
+      <SurfaceCard
+        title="Waiting for your decision"
+        icon="fa-inbox"
+        subtitle={
+          queued.length === 0
+            ? "Recommendations a therapist has submitted. The patient sees nothing until one is approved."
+            : `${queued.length} recommendation${queued.length === 1 ? "" : "s"} the patient cannot see yet.`
+        }
+      >
+        {queued.length === 0 ? (
+          <EmptyState
+            icon="fa-inbox"
+            title="Nothing waiting"
+            body="Every recommendation a therapist has written has been decided on."
+          />
+        ) : (
+          <PagedList
+            items={queued.map((p) => ({
+              id: p.id,
+              node: (
+                <ReviewCard plan={p} options={packageOptions} canDecide={canWithdraw} />
+              ),
+            }))}
+            noun="recommendation"
+            storageKey="admin-care-plans-queue"
+          />
+        )}
+      </SurfaceCard>
+
       <SurfaceCard
         title="Waiting on a patient"
         icon="fa-file-medical"
@@ -240,6 +289,249 @@ function PlanCard({ plan, canWithdraw }: { plan: AdminCarePlanRow; canWithdraw: 
             Withdraw this recommendation
           </button>
         ))}
+    </div>
+  );
+}
+
+
+/** Matches MIN_REVIEW_REASON_LENGTH in src/lib/carePlanReview.ts. */
+const MIN_REVIEW_REASON = 10;
+
+/**
+ * One recommendation waiting for the clinic, and the three things that can
+ * happen to it.
+ *
+ * The patient sees nothing at all until this card is answered, which is what
+ * makes the wording matter: an admin here is not filing paperwork, they are
+ * the reason somebody is still waiting after a session that has ended.
+ *
+ * **Approve** publishes exactly what the therapist wrote. **Turn down** ends
+ * the thread and hands the reason back to them to rewrite -- deliberately not
+ * an edit, because a recommendation is their clinical judgement and the
+ * reason is what tells them what to change. **Approve with changes** is the
+ * middle case, and its honesty is in the plumbing rather than the button: it
+ * does not edit the therapist's version (those are append-only, and
+ * rewriting one under a clinician's name would be a lie about who decided
+ * what) but writes a new one on the same thread, authored by the therapist,
+ * entered by the admin, with the original left in the history beside it.
+ *
+ * Every one of the three needs a reason. A decision with none reads the same
+ * as one nobody got round to, and this is the record the therapist reads.
+ */
+function ReviewCard({
+  plan,
+  options,
+  canDecide,
+}: {
+  plan: AdminCarePlanRow;
+  options: RecommendableOption[];
+  canDecide: boolean;
+}) {
+  const [mode, setMode] = useState<"idle" | "approve" | "reject" | "edit">("idle");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  // Narrowed to the session's own condition by the same helper both
+  // authoring doors use, so an admin changing a recommendation cannot reach
+  // a programme for somebody else's condition.
+  const narrowed = narrowToCategory(options, plan.categoryId);
+
+  // Seeded from what the therapist actually wrote. An empty form would make
+  // "approve with a small change" mean retyping their reasoning, which is
+  // how the reasoning ends up being the admin's.
+  const [draft, setDraft] = useState<CarePlanDraft | null>(() =>
+    plan.packageId
+      ? {
+          offerKind: plan.offerKind,
+          packageId: plan.packageId,
+          handsOnRequired: plan.handsOnRequired,
+          frequencyPerWeek: plan.frequencyPerWeek,
+          clinicalRationale: plan.rationale ?? "",
+          instructions: plan.instructions ?? "",
+        }
+      : null
+  );
+
+  function decide(decision: "approved" | "rejected") {
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch("/api/admin/review-care-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ carePlanId: plan.id, decision, reason }),
+      });
+      if (res.ok) {
+        setMode("idle");
+        setReason("");
+        router.refresh();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Could not save that decision. Please try again.");
+    });
+  }
+
+  function approveWithChanges() {
+    if (!draft) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch("/api/admin/edit-and-approve-care-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ carePlanId: plan.id, ...draft, reason }),
+      });
+      if (res.ok) {
+        setMode("idle");
+        setReason("");
+        router.refresh();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Could not save that decision. Please try again.");
+    });
+  }
+
+  const reasonTooShort = reason.trim().length < MIN_REVIEW_REASON;
+
+  return (
+    <div className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-4 text-xs">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-bold text-slate-900">{plan.patientName}</p>
+          <p className="text-[11px] text-slate-500">
+            Recommended by {plan.therapistName} ·{" "}
+            {new Date(plan.authoredAt).toLocaleDateString()}
+          </p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATE_STYLE.pending_review}`}>
+          {CARE_PLAN_STATE_LABELS.pending_review}
+        </span>
+      </div>
+
+      <p className="mt-2 font-semibold text-slate-800">{plan.title}</p>
+      <p className="mt-0.5 text-slate-500">
+        {plan.sessionCount} {plan.isHomeVisit ? "visits" : "sessions"} ·{" "}
+        {formatInr(plan.pricePaise)}
+        {plan.isHomeVisit && " + travel per visit"}
+        {plan.frequencyPerWeek && ` · ${plan.frequencyPerWeek} a week`}
+        {plan.handsOnRequired && " · hands-on"}
+      </p>
+
+      {plan.rationale && (
+        <blockquote className="mt-2 border-l-2 border-indigo-200 pl-2.5 italic text-slate-600">
+          {plan.rationale}
+        </blockquote>
+      )}
+      {plan.instructions && (
+        <p className="mt-2 text-slate-600">
+          <span className="font-semibold text-slate-700">For the patient: </span>
+          {plan.instructions}
+        </p>
+      )}
+
+      {!canDecide ? (
+        <p className="mt-3 text-[11px] text-slate-500">
+          Deciding on a recommendation needs the Sessions scope.
+        </p>
+      ) : mode === "idle" ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("approve")}
+            className="rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-teal-800"
+          >
+            Approve
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("edit")}
+            disabled={narrowed.length === 0}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+          >
+            Approve with changes
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("reject")}
+            className="text-[11px] font-semibold text-slate-500 transition hover:text-rose-700"
+          >
+            Turn it down
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+          {mode === "edit" && (
+            <div className="mb-3">
+              <p className="mb-2 text-[11px] font-semibold text-slate-700">
+                What the clinic is approving instead
+              </p>
+              <CarePlanFields options={narrowed} value={draft} onChange={setDraft} />
+              <p className="mt-2 text-[11px] text-slate-500">
+                This is saved as a new version on the same thread, in{" "}
+                {plan.therapistName}&apos;s name with you recorded as having entered it.
+                Their original stays in the history.
+              </p>
+            </div>
+          )}
+
+          <label className="block text-[11px] font-semibold text-slate-700">
+            {mode === "approve"
+              ? "Why is the clinic approving this?"
+              : mode === "reject"
+                ? `Why is this being turned down? ${plan.therapistName} reads this.`
+                : "Why is the clinic changing it?"}
+          </label>
+          <textarea
+            rows={2}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={
+              mode === "reject"
+                ? "e.g. this patient still has 4 unused sessions on their current programme"
+                : "e.g. matches the assessment findings and the patient's stated goal"
+            }
+            className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-xs"
+          />
+          {error && <p className="mt-1.5 text-[11px] font-semibold text-red-600">{error}</p>}
+          <p className="mt-1.5 text-[11px] text-slate-500">
+            {mode === "reject"
+              ? "The thread closes and the therapist can write a fresh recommendation after seeing this."
+              : "The patient sees it from this moment, and their answering window starts now."}
+          </p>
+          <div className="mt-2 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                mode === "edit" ? approveWithChanges() : decide(mode === "approve" ? "approved" : "rejected")
+              }
+              disabled={isPending || reasonTooShort || (mode === "edit" && !draft)}
+              className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold text-white transition disabled:opacity-50 ${
+                mode === "reject" ? "bg-rose-700 hover:bg-rose-800" : "bg-teal-700 hover:bg-teal-800"
+              }`}
+            >
+              {isPending
+                ? "Saving…"
+                : mode === "approve"
+                  ? "Approve and publish"
+                  : mode === "reject"
+                    ? "Turn it down"
+                    : "Approve with changes"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("idle");
+                setError(null);
+              }}
+              className="text-[11px] font-semibold text-slate-500 hover:text-slate-800"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

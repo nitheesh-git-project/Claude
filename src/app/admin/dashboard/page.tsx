@@ -22,6 +22,7 @@ import HospitalActiveToggle from "@/components/admin/HospitalActiveToggle";
 import PackageCatalogManager from "@/components/admin/PackageCatalogManager";
 import PackagePurchasesTable from "@/components/admin/PackagePurchasesTable";
 import PackageSettingsForm from "@/components/admin/PackageSettingsForm";
+import RecommendationSettingsForm from "@/components/admin/RecommendationSettingsForm";
 import HomeVisitPurchasesTable from "@/components/admin/HomeVisitPurchasesTable";
 import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
@@ -2164,6 +2165,7 @@ export default async function AdminDashboardPage({
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         view="booking"
       />
+      <RecommendationSettingsForm settings={adminSettings} />
       <PackageSettingsForm
         settings={adminSettings}
         therapistSuggestionsEnabled={therapistSuggestionsEnabled}
@@ -2267,6 +2269,7 @@ export default async function AdminDashboardPage({
     patient_id: string;
     therapist_id: string;
     status: string;
+    category_id: string | null;
     current_version_id: string | null;
     created_at: string;
   };
@@ -2475,7 +2478,9 @@ export default async function AdminDashboardPage({
   const { data: adminCarePlanRows } = canSeeCarePlans
     ? await admin
         .from("care_plans")
-        .select("id, patient_id, therapist_id, status, current_version_id, created_at")
+        .select(
+          "id, patient_id, therapist_id, status, category_id, current_version_id, created_at"
+        )
         .order("created_at", { ascending: false })
         .limit(200)
     : { data: [] as AdminCarePlanQueryRow[] };
@@ -2486,14 +2491,21 @@ export default async function AdminDashboardPage({
   const { data: adminPlanVersions } = adminPlanVersionIds.length
     ? await admin
         .from("care_plan_versions")
-        .select("id, offer_snapshot, offer_kind, clinical_rationale, expires_at, authored_at")
+        .select(
+          "id, offer_snapshot, offer_kind, session_package_id, home_visit_package_id, clinical_rationale, instructions, hands_on_required, frequency_per_week, expires_at, authored_at"
+        )
         .in("id", adminPlanVersionIds)
     : {
         data: [] as {
           id: string;
           offer_snapshot: unknown;
           offer_kind: string;
+          session_package_id: string | null;
+          home_visit_package_id: string | null;
           clinical_rationale: string | null;
+          instructions: string | null;
+          hands_on_required: boolean;
+          frequency_per_week: number | null;
           expires_at: string | null;
           authored_at: string;
         }[],
@@ -2534,6 +2546,19 @@ export default async function AdminDashboardPage({
       authoredAt: version?.authored_at ?? p.created_at,
       expiresAt: version?.expires_at ?? null,
       rationale: version?.clinical_rationale ?? null,
+      // Only the queue uses these. They are what an edit-and-approve starts
+      // from: an admin changing a recommendation begins from what the
+      // therapist wrote, not from an empty form.
+      instructions: version?.instructions ?? null,
+      handsOnRequired: version?.hands_on_required === true,
+      frequencyPerWeek: version?.frequency_per_week ?? null,
+      offerKind:
+        version?.offer_kind === "home_visit_package"
+          ? "home_visit_package"
+          : "session_package",
+      packageId:
+        version?.session_package_id ?? version?.home_visit_package_id ?? null,
+      categoryId: p.category_id ?? null,
     };
   });
 
@@ -2541,8 +2566,13 @@ export default async function AdminDashboardPage({
   // recent, and only where that patient has no live plan already, since a
   // second one would lose the one-active-plan race anyway and offering it
   // would be an invitation to a 409.
+  // Either open state counts. A patient with a recommendation still in the
+  // clinic's own queue cannot take a second one either -- the unique index
+  // covers both, so offering it would be an invitation to a 409.
   const patientsWithLivePlan = new Set(
-    (adminCarePlanRows ?? []).filter((p) => p.status === "active").map((p) => p.patient_id)
+    (adminCarePlanRows ?? [])
+      .filter((p) => p.status === "active" || p.status === "pending_review")
+      .map((p) => p.patient_id)
   );
   const { data: authorableRows } = canSeeCarePlans
     ? await admin
@@ -2623,6 +2653,13 @@ export default async function AdminDashboardPage({
   // This page hides the shared Navbar entirely, so it needs the debug
   // bar's own top offset for its fixed sidebar. See AdminShell's offsetTop prop.
   const showDebugNav = isDebugNavVisible();
+
+  // Derived from the rows the Recommendations screen already loaded, rather
+  // than a count query of its own: the figure and the list it links to have
+  // to agree, and a second query is a second chance for them not to.
+  const carePlansPendingCount = adminCarePlans.filter(
+    (p) => p.state === "pending_review"
+  ).length;
 
   // ---- Today's action inbox -------------------------------------------
   // Every count here already existed somewhere on this page; what didn't
@@ -2711,6 +2748,19 @@ export default async function AdminDashboardPage({
       title: "Clinical",
       icon: "fa-notes-medical",
       items: [
+        {
+          // First in the clinical group and marked urgent, because it is the
+          // only queue in the app with a patient on the other side of it who
+          // has been told nothing at all. Everything else here is waiting on
+          // a decision; this is waiting on a decision after a session that
+          // has already ended.
+          label: "Recommendations waiting for approval",
+          count: carePlansPendingCount,
+          section: "sessions",
+          tab: "recommendations",
+          hint: "A therapist recommended a programme. The patient cannot see it yet.",
+          urgent: carePlansPendingCount > 0,
+        },
         {
           label: "Care intake submissions to review",
           count: conditionRequestsPendingCount ?? 0,
