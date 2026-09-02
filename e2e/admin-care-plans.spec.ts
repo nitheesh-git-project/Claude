@@ -461,10 +461,15 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
     await expect(picker).toHaveValue(appointmentId);
 
     await page.getByRole("button", { name: "Add a recommendation" }).click();
-    // Narrowed to the session's own condition: the package seeded for another
-    // category must not be on offer here.
-    const programme = page.getByLabel("Programme", { exact: true });
-    await expect(programme).toContainText(AUTHOR_PACKAGE_TITLE);
+    // The picker asks for a condition and a number of sessions, never a
+    // programme by name -- so what is asserted is that the seeded
+    // condition is on offer and that a session-count chip carrying the
+    // seeded package's price appears once it is chosen.
+    const condition = page.getByLabel("Condition", { exact: true });
+    await expect(condition).toContainText(AUTHOR_CATEGORY_TITLE);
+    await expect(
+      page.getByRole("button", { name: /6 sessions/ }).first()
+    ).toBeVisible();
 
     // Attribution stated at the button, not two screens up.
     await expect(
@@ -499,7 +504,11 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
     // as a missing package.
     await expect(picker).toHaveValue(appointmentId);
     await page.getByRole("button", { name: "Add a recommendation" }).click();
-    await page.getByLabel("Programme", { exact: true }).selectOption(packageId);
+    // Condition first, then how many. The panel seeds itself with the first
+    // programme for that condition, so the chip click is what pins it to the
+    // seeded six-session one rather than whatever happened to be first.
+    await page.getByLabel("Condition", { exact: true }).selectOption(categoryId);
+    await page.getByRole("button", { name: /6 sessions/ }).first().click();
     await page
       .getByLabel("Why is the clinic writing this instead of the therapist?")
       .fill("Dr A is off sick and asked us to send this on");
