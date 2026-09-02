@@ -5,6 +5,8 @@ import {
   carePlanState,
   isCarePlanPurchasable,
   CARE_PLAN_STATE_LABELS,
+  formatWaitingFor,
+  isQueueStale,
   validateCarePlanInput,
   narrowToCategory,
   type CarePlanStatus,
@@ -219,5 +221,35 @@ describe("carePlanState with a review step", () => {
     ] as CarePlanState[]) {
       expect(CARE_PLAN_STATE_LABELS[state]).toBeTruthy();
     }
+  });
+});
+
+describe("formatWaitingFor", () => {
+  const now = Date.parse("2026-09-02T12:00:00Z");
+  const ago = (ms: number) => new Date(now - ms).toISOString();
+
+  it("says how long, coarsely", () => {
+    expect(formatWaitingFor(ago(30_000), now)).toBe("just now");
+    expect(formatWaitingFor(ago(9 * 60_000), now)).toBe("9 minutes");
+    expect(formatWaitingFor(ago(3 * 3_600_000), now)).toBe("3 hours");
+    expect(formatWaitingFor(ago(26 * 3_600_000), now)).toBe("1 day");
+    expect(formatWaitingFor(ago(50 * 3_600_000), now)).toBe("2 days");
+  });
+
+  it("handles a row with nothing to age from", () => {
+    // submitted_at is a new column, so a plan written before it existed
+    // must render without an age rather than "NaN minutes".
+    expect(formatWaitingFor(null, now)).toBeNull();
+    expect(formatWaitingFor("not a date", now)).toBeNull();
+  });
+
+  it("does not go negative on a clock skew", () => {
+    expect(formatWaitingFor(new Date(now + 60_000).toISOString(), now)).toBe("just now");
+  });
+
+  it("marks a queue row stale only past the threshold", () => {
+    expect(isQueueStale(ago(3 * 3_600_000), now)).toBe(false);
+    expect(isQueueStale(ago(5 * 3_600_000), now)).toBe(true);
+    expect(isQueueStale(null, now)).toBe(false);
   });
 });

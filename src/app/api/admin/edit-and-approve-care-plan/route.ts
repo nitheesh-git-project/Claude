@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
   if (offerKind !== "session_package" && offerKind !== "home_visit_package") {
     return NextResponse.json({ error: "Unknown programme type." }, { status: 400 });
   }
-  const reasonCheck = validateReviewReason(reason);
+  const reasonCheck = validateReviewReason(reason, "edited_and_approved");
   if (!reasonCheck.ok) {
     return NextResponse.json({ error: reasonCheck.error }, { status: 400 });
   }

@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   if (decision !== "approved" && decision !== "rejected") {
     return NextResponse.json({ error: "Unknown decision." }, { status: 400 });
   }
-  const reasonCheck = validateReviewReason(reason);
+  const reasonCheck = validateReviewReason(reason, decision);
   if (!reasonCheck.ok) {
     return NextResponse.json({ error: reasonCheck.error }, { status: 400 });
   }
@@ -77,7 +77,9 @@ export async function POST(request: NextRequest) {
     action: decision === "approved" ? "care_plan.approve" : "care_plan.reject",
     targetId: carePlanId,
     targetLabel: `Recommendation for ${patient?.full_name ?? "a patient"}`,
-    details: { reason },
+    // An approval may legitimately carry no reason, so the audit row says
+    // so rather than recording an empty string as if one were typed.
+    details: reason ? { reason } : {},
   });
 
   return NextResponse.json({ success: true });

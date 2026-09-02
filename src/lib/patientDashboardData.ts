@@ -592,7 +592,11 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       activeCarePlan?.version
         ? {
             id: activeCarePlan.id,
-            authoredAt: activeCarePlan.version.authoredAt,
+            // When the patient could first see it, not when the therapist
+            // typed it. A plan that spent two days in the clinic's queue
+            // would otherwise arrive on their dashboard dated two days ago,
+            // reading as something they had been ignoring.
+            authoredAt: activeCarePlan.reviewedAt ?? activeCarePlan.version.authoredAt,
             title: summariseVersion({
               offer_snapshot: activeCarePlan.version.offerSnapshot,
               frequency_per_week: activeCarePlan.version.frequencyPerWeek,

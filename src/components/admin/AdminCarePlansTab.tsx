@@ -6,6 +6,8 @@ import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import PagedList from "@/components/dashboard/PagedList";
 import {
   CARE_PLAN_STATE_LABELS,
+  formatWaitingFor,
+  isQueueStale,
   narrowToCategory,
   type CarePlanOfferKind,
   type CarePlanState,
@@ -51,6 +53,12 @@ export type AdminCarePlanRow = {
   offerKind: CarePlanOfferKind;
   packageId: string | null;
   categoryId: string | null;
+  /** When the therapist sent it. What the queue is ordered and aged by. */
+  submittedAt: string | null;
+  /** Sessions this patient has paid for and not yet used, across their live
+   *  programmes. The commonest reason to turn a recommendation down, and
+   *  invisible from this card until it was put on it. */
+  unusedSessions: number;
 };
 
 const STATE_STYLE: Record<CarePlanState, string> = {
@@ -92,14 +100,24 @@ export default function AdminCarePlansTab({
   authorable,
   packageOptions,
   canWithdraw,
+  nowMs,
 }: {
   plans: AdminCarePlanRow[];
   /** Completed sessions an admin could write a recommendation against. */
   authorable: AuthorableSession[];
   packageOptions: RecommendableOption[];
   canWithdraw: boolean;
+  /** Resolved on the server, like every other clock reading on this
+   *  dashboard. Reading `Date.now()` inside a client component that the
+   *  server also rendered is a hydration mismatch on every card. */
+  nowMs: number;
 }) {
-  const queued = plans.filter((p) => p.state === "pending_review");
+  // Oldest first, and only here. Every other list on this screen is a
+  // record and reads newest-first; a queue is work, and the person who has
+  // been waiting longest is the one to serve next.
+  const queued = plans
+    .filter((p) => p.state === "pending_review")
+    .sort((a, b) => (a.submittedAt ?? "").localeCompare(b.submittedAt ?? ""));
   const live = plans.filter((p) => p.state === "awaiting_patient");
   const rest = plans.filter(
     (p) => p.state !== "awaiting_patient" && p.state !== "pending_review"
@@ -132,7 +150,12 @@ export default function AdminCarePlansTab({
             items={queued.map((p) => ({
               id: p.id,
               node: (
-                <ReviewCard plan={p} options={packageOptions} canDecide={canWithdraw} />
+                <ReviewCard
+                  plan={p}
+                  options={packageOptions}
+                  canDecide={canWithdraw}
+                  nowMs={nowMs}
+                />
               ),
             }))}
             noun="recommendation"
@@ -322,12 +345,14 @@ function ReviewCard({
   plan,
   options,
   canDecide,
+  nowMs,
 }: {
   plan: AdminCarePlanRow;
   options: RecommendableOption[];
   canDecide: boolean;
+  nowMs: number;
 }) {
-  const [mode, setMode] = useState<"idle" | "approve" | "reject" | "edit">("idle");
+  const [mode, setMode] = useState<"idle" | "reject" | "edit">("idle");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -394,6 +419,8 @@ function ReviewCard({
   }
 
   const reasonTooShort = reason.trim().length < MIN_REVIEW_REASON;
+  const waiting = formatWaitingFor(plan.submittedAt, nowMs);
+  const stale = isQueueStale(plan.submittedAt, nowMs);
 
   return (
     <div className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-4 text-xs">
@@ -401,12 +428,18 @@ function ReviewCard({
         <div className="min-w-0">
           <p className="font-bold text-slate-900">{plan.patientName}</p>
           <p className="text-[11px] text-slate-500">
-            Recommended by {plan.therapistName} ·{" "}
-            {new Date(plan.authoredAt).toLocaleDateString()}
+            Recommended by {plan.therapistName}
           </p>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATE_STYLE.pending_review}`}>
-          {CARE_PLAN_STATE_LABELS.pending_review}
+        {/* How long, not when. A card that reads "2 September" when the
+            thing arrived nine minutes ago tells an admin nothing they can
+            act on, and there is a patient on the other side of the wait. */}
+        <span
+          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+            stale ? "bg-rose-100 text-rose-700" : STATE_STYLE.pending_review
+          }`}
+        >
+          {waiting ? `Waiting ${waiting}` : CARE_PLAN_STATE_LABELS.pending_review}
         </span>
       </div>
 
@@ -431,18 +464,38 @@ function ReviewCard({
         </p>
       )}
 
+      {/* Stated, never acted on. This is the commonest reason to turn a
+          recommendation down, and an admin could not see it from here
+          without leaving the queue and losing their place. It is not a
+          verdict: a patient with sessions left may well need a different
+          programme, and the clinician has seen them. */}
+      {plan.unusedSessions > 0 && (
+        <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] font-semibold text-amber-800">
+          <i aria-hidden="true" className="fa-solid fa-circle-info mr-1.5" />
+          {plan.patientName} still has {plan.unusedSessions} unused session
+          {plan.unusedSessions === 1 ? "" : "s"} on a current programme.
+        </p>
+      )}
+
       {!canDecide ? (
         <p className="mt-3 text-[11px] text-slate-500">
           Deciding on a recommendation needs the Sessions scope.
         </p>
       ) : mode === "idle" ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          {/* One tap. Approving is the outcome this queue exists to reach,
+              and making an admin justify every yes is how a reason column
+              fills up with "ok" -- and how a patient waits longer for a
+              recommendation nobody objected to. Turning one down and
+              changing one still ask why, because those are the decisions
+              somebody else has to act on. Withdrawal is the undo. */}
           <button
             type="button"
-            onClick={() => setMode("approve")}
-            className="rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-teal-800"
+            onClick={() => decide("approved")}
+            disabled={isPending}
+            className="rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
           >
-            Approve
+            {isPending ? "Approving…" : "Approve"}
           </button>
           <button
             type="button"
@@ -485,11 +538,9 @@ function ReviewCard({
           )}
 
           <label className="block text-[11px] font-semibold text-slate-700">
-            {mode === "approve"
-              ? "Why is the clinic approving this?"
-              : mode === "reject"
-                ? `Why is this being turned down? ${plan.therapistName} reads this.`
-                : "Why is the clinic changing it?"}
+            {mode === "reject"
+              ? `Why is this being turned down? ${plan.therapistName} reads this and rewrites from it.`
+              : "What is the clinic changing, and why?"}
           </label>
           <textarea
             rows={2}
@@ -511,21 +562,13 @@ function ReviewCard({
           <div className="mt-2 flex items-center gap-3">
             <button
               type="button"
-              onClick={() =>
-                mode === "edit" ? approveWithChanges() : decide(mode === "approve" ? "approved" : "rejected")
-              }
+              onClick={() => (mode === "edit" ? approveWithChanges() : decide("rejected"))}
               disabled={isPending || reasonTooShort || (mode === "edit" && !draft)}
               className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold text-white transition disabled:opacity-50 ${
                 mode === "reject" ? "bg-rose-700 hover:bg-rose-800" : "bg-teal-700 hover:bg-teal-800"
               }`}
             >
-              {isPending
-                ? "Saving…"
-                : mode === "approve"
-                  ? "Approve and publish"
-                  : mode === "reject"
-                    ? "Turn it down"
-                    : "Approve with changes"}
+              {isPending ? "Saving…" : mode === "reject" ? "Turn it down" : "Approve with changes"}
             </button>
             <button
               type="button"

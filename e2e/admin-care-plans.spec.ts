@@ -760,17 +760,18 @@ test.describe("The clinic approves a recommendation", () => {
     await ctx.dispose();
   });
 
-  test("ACP-015: a decision needs a real reason, and an unknown decision is refused", async () => {
+  test("ACP-015: a reason is asked for where it is owed, and nowhere else", async () => {
     await clearOpenPlans();
     const planId = await submitAsTherapist();
     const ctx = await playwrightRequest.newContext({
       extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.admin) },
     });
 
-    const short = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
-      data: { carePlanId: planId, decision: "approved", reason: "ok" },
+    // A rejection is acted on by the therapist, so it owes them a reason.
+    const shortReject = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
+      data: { carePlanId: planId, decision: "rejected", reason: "ok" },
     });
-    expect(short.status()).toBe(400);
+    expect(shortReject.status()).toBe(400);
 
     const unknown = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
       data: { carePlanId: planId, decision: "maybe", reason: "a long enough reason" },
@@ -784,6 +785,70 @@ test.describe("The clinic approves a recommendation", () => {
       .eq("id", planId)
       .single();
     expect(plan?.status).toBe("pending_review");
+
+    // Saying plain yes needs nothing typed. This is the path the queue
+    // exists to let through, and taxing it is how a reason column fills up
+    // with "ok" and stops being worth reading.
+    const bareApproval = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
+      data: { carePlanId: planId, decision: "approved" },
+    });
+    expect(bareApproval.status(), await bareApproval.text()).toBe(200);
+    await ctx.dispose();
+  });
+
+  test("ACP-021: an offer the catalogue no longer supports is not published", async () => {
+    // Checkout re-reads the package and refuses on a mismatch, which is
+    // right -- but approving a stale recommendation would mean the patient
+    // discovers the clinic's stale data by having their payment refused.
+    // The admin is the one who can fix it, and they are the one looking.
+    await clearOpenPlans();
+    const planId = await submitAsTherapist();
+
+    const { data: before } = await admin
+      .from("treatment_category_packages")
+      .select("price_paise")
+      .eq("id", packageId)
+      .single();
+
+    await admin
+      .from("treatment_category_packages")
+      .update({ price_paise: (before?.price_paise ?? 900000) + 50000 })
+      .eq("id", packageId);
+
+    const ctx = await playwrightRequest.newContext({
+      extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.admin) },
+    });
+    const res = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
+      data: { carePlanId: planId, decision: "approved" },
+    });
+    expect(res.status(), await res.text()).toBe(409);
+    expect(await res.text()).toContain("charge another");
+
+    // Refused, not half-applied: still queued, and still nobody's decision.
+    const { data: plan } = await admin
+      .from("care_plans")
+      .select("status, reviewed_by")
+      .eq("id", planId)
+      .single();
+    expect(plan?.status).toBe("pending_review");
+    expect(plan?.reviewed_by).toBeNull();
+
+    // Turning it down is still allowed -- refusing to let an admin close a
+    // thread because its package moved would trap exactly the one that
+    // most needs closing.
+    const rejected = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
+      data: {
+        carePlanId: planId,
+        decision: "rejected",
+        reason: "The programme has been re-priced since this was written.",
+      },
+    });
+    expect(rejected.status(), await rejected.text()).toBe(200);
+
+    await admin
+      .from("treatment_category_packages")
+      .update({ price_paise: before?.price_paise ?? 900000 })
+      .eq("id", packageId);
     await ctx.dispose();
   });
 
@@ -963,6 +1028,9 @@ test.describe("The clinic approves a recommendation", () => {
     await expect(page.getByText("Waiting for your decision")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Approve", exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /Turn it down/i }).first()).toBeVisible();
+    // The card is aged, not dated: an admin has to be able to tell nine
+    // minutes from nine hours, because a patient is on the other side of it.
+    await expect(page.getByText(/^Waiting /).first()).toBeVisible();
     await ctx.close();
   });
 });

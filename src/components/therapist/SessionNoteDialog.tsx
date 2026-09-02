@@ -38,6 +38,7 @@ export default function SessionNoteDialog({
   sessionCompleted,
   recommendable,
   recommendationNeedsApproval,
+  recommendationAwaitingClinic,
   onClose,
 }: {
   appointmentId: string;
@@ -52,6 +53,7 @@ export default function SessionNoteDialog({
    *  section stays hidden rather than showing an empty picker. */
   recommendable: RecommendableOption[];
   recommendationNeedsApproval: boolean;
+  recommendationAwaitingClinic: boolean;
   /** When the session was, for the dialog's own subtitle. */
   sessionLabel: string;
   existing: SessionNoteRow | null;
@@ -301,6 +303,7 @@ export default function SessionNoteDialog({
               <CarePlanFields
                 options={recommendable}
                 needsApproval={recommendationNeedsApproval}
+                awaitingClinic={recommendationAwaitingClinic}
                 value={plan}
                 onChange={(next) => {
                   setPlan(next);

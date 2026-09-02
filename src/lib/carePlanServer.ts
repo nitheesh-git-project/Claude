@@ -188,6 +188,9 @@ export type CarePlanWithVersion = {
   therapistId: string;
   status: string;
   acceptedAt: string | null;
+  /** When the clinic published it. Null on a plan written before the review
+   *  step, or while the switch was off. */
+  reviewedAt: string | null;
   createdAt: string;
   version: {
     id: string;
@@ -220,7 +223,9 @@ export async function loadActiveCarePlan(
   try {
     const { data: plan } = await admin
       .from("care_plans")
-      .select("id, patient_id, therapist_id, status, accepted_at, created_at, current_version_id")
+      .select(
+        "id, patient_id, therapist_id, status, accepted_at, reviewed_at, created_at, current_version_id"
+      )
       .eq("patient_id", patientId)
       .eq("status", "active")
       .maybeSingle();
@@ -240,6 +245,7 @@ export async function loadActiveCarePlan(
       therapistId: plan.therapist_id,
       status: plan.status,
       acceptedAt: plan.accepted_at,
+      reviewedAt: plan.reviewed_at ?? null,
       createdAt: plan.created_at,
       version: version
         ? {
@@ -406,7 +412,9 @@ export async function loadLatestCarePlanForClinician(
   try {
     const { data: plan } = await admin
       .from("care_plans")
-      .select("id, patient_id, therapist_id, status, accepted_at, created_at, current_version_id")
+      .select(
+        "id, patient_id, therapist_id, status, accepted_at, reviewed_at, created_at, current_version_id"
+      )
       .eq("patient_id", patientId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -432,6 +440,7 @@ export async function loadLatestCarePlanForClinician(
         therapistId: plan.therapist_id,
         status: plan.status,
         acceptedAt: plan.accepted_at,
+        reviewedAt: plan.reviewed_at ?? null,
         createdAt: plan.created_at,
         version: version
           ? {

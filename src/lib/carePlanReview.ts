@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readCarePlanSettings } from "@/lib/carePlanAuthoring";
+import { resolveRecommendablePackage } from "@/lib/carePlanServer";
+import { parseOfferSnapshot, type CarePlanOfferKind } from "@/lib/carePlans";
 
 type AdminClient = SupabaseClient;
 
@@ -22,16 +24,32 @@ export type CarePlanReviewResult =
   | { ok: true }
   | { ok: false; status: number; error: string };
 
-/** Matches the CHECK on `care_plan_reviews.reason`. Refused here too so an
- *  admin is told before they have retyped anything, rather than by a raw
- *  constraint violation. */
+export type CarePlanDecision = "approved" | "rejected" | "edited_and_approved";
+
+/**
+ * Matches the CHECK on `care_plan_reviews`, and refuses here too so an admin
+ * is told before they have retyped anything rather than by a raw constraint
+ * violation.
+ *
+ * A reason is required for the two decisions that take something away from
+ * somebody: a rejection the therapist has to act on, and an approval whose
+ * numbers are not the ones they wrote. Saying plain yes needs none. Taxing
+ * the only path this queue exists to let through is how a reason column
+ * fills up with "ok" and stops being worth reading — and a plain approval's
+ * evidence is who and when, which is already on the row.
+ */
 export function validateReviewReason(
-  reason: string
+  reason: string,
+  decision: CarePlanDecision
 ): { ok: true } | { ok: false; error: string } {
+  if (decision === "approved") return { ok: true };
   if (reason.trim().length < MIN_REVIEW_REASON_LENGTH) {
     return {
       ok: false,
-      error: `Say why, in at least ${MIN_REVIEW_REASON_LENGTH} characters. A decision with no reason reads the same as one nobody got round to.`,
+      error:
+        decision === "rejected"
+          ? `Say why, in at least ${MIN_REVIEW_REASON_LENGTH} characters. Your therapist reads this and rewrites from it — a rejection with no reason reads the same as one nobody got round to.`
+          : `Say what you changed and why, in at least ${MIN_REVIEW_REASON_LENGTH} characters. This goes out under the clinician's name.`,
     };
   }
   return { ok: true };
@@ -63,7 +81,7 @@ export async function approveCarePlan(
     carePlanId,
     reviewerId,
     reason,
-  }: { carePlanId: string; reviewerId: string; reason: string }
+  }: { carePlanId: string; reviewerId: string; reason?: string }
 ): Promise<CarePlanReviewResult> {
   const { data: plan } = await admin
     .from("care_plans")
@@ -80,6 +98,21 @@ export async function approveCarePlan(
       status: 409,
       error: "That recommendation isn't waiting for a decision any more.",
     };
+  }
+
+  // The offer is re-checked against the live catalogue BEFORE it is
+  // published, not after.
+  //
+  // Checkout re-reads the package and refuses on a mismatch rather than
+  // charging a different amount, which is right — but it means an admin
+  // approving a recommendation whose package has since been re-priced,
+  // deactivated or made unrecommendable publishes an offer that will fail
+  // at the last step of the patient's checkout. The patient discovers the
+  // clinic's stale data by having their payment refused. Better to catch it
+  // here, where the person who can fix it is looking at it.
+  if (plan.current_version_id) {
+    const drift = await describeOfferDrift(admin, plan.current_version_id);
+    if (drift) return { ok: false, status: 409, error: drift };
   }
 
   const { data: claimed, error: claimError } = await admin
@@ -130,7 +163,7 @@ export async function approveCarePlan(
     versionId: plan.current_version_id,
     reviewerId,
     decision: "approved",
-    reason,
+    reason: reason?.trim() ? reason : null,
   });
   if (!recorded) {
     await admin
@@ -183,6 +216,10 @@ export async function rejectCarePlan(
     };
   }
 
+  // No catalogue re-check here, deliberately. A recommendation being turned
+  // down does not have to be sellable -- and refusing to let an admin close
+  // a thread because its package has since been withdrawn would trap the
+  // one recommendation most likely to need closing.
   const { data: claimed, error: claimError } = await admin
     .from("care_plans")
     .update({
@@ -245,8 +282,8 @@ export async function recordReview(
     carePlanId: string;
     versionId: string | null;
     reviewerId: string;
-    decision: "approved" | "rejected" | "edited_and_approved";
-    reason: string;
+    decision: CarePlanDecision;
+    reason: string | null;
   }
 ): Promise<boolean> {
   try {
@@ -255,7 +292,7 @@ export async function recordReview(
       version_id: versionId,
       reviewer_id: reviewerId,
       decision,
-      reason: reason.trim(),
+      reason: reason?.trim() || null,
     });
     if (error) {
       console.error("Could not record a care-plan review", carePlanId, error);
@@ -265,5 +302,60 @@ export async function recordReview(
   } catch (e) {
     console.error("Could not record a care-plan review", carePlanId, e);
     return false;
+  }
+}
+
+/**
+ * Whether the catalogue still says what the recommendation says it says.
+ *
+ * Returns a sentence for an admin when it does not, and null when the offer
+ * is still good. Only the two numbers a patient reads and pays are compared
+ * — the session count and the price — because those are what checkout
+ * refuses on, and flagging a changed `terms` string would stop an approval
+ * for something nobody would notice.
+ *
+ * Failure-tolerant in the safe direction: if the package cannot be resolved
+ * at all, that IS the finding (it has been deactivated or taken off the
+ * recommendable list), and an unreadable snapshot is treated as fine rather
+ * than blocking a queue on a parsing problem.
+ */
+export async function describeOfferDrift(
+  admin: AdminClient,
+  versionId: string
+): Promise<string | null> {
+  try {
+    const { data: version } = await admin
+      .from("care_plan_versions")
+      .select("offer_kind, session_package_id, home_visit_package_id, offer_snapshot")
+      .eq("id", versionId)
+      .maybeSingle();
+    if (!version) return null;
+
+    const packageId = version.session_package_id ?? version.home_visit_package_id;
+    if (!packageId) return null;
+
+    const resolved = await resolveRecommendablePackage(
+      admin,
+      version.offer_kind as CarePlanOfferKind,
+      packageId
+    );
+    if (!resolved) {
+      return "The programme behind this recommendation is no longer active or recommendable, so the patient could not buy it. Put it back on the catalogue, or turn this down and ask for a fresh recommendation.";
+    }
+
+    const was = parseOfferSnapshot(version.offer_snapshot);
+    if (!was) return null;
+
+    if (was.sessionCount !== resolved.snapshot.sessionCount) {
+      return `This was written for ${was.sessionCount} sessions and the programme now has ${resolved.snapshot.sessionCount}. Approving it would offer the patient a plan checkout then refuses. Turn it down and ask for a fresh recommendation.`;
+    }
+    if (was.pricePaise !== resolved.snapshot.pricePaise) {
+      const inr = (p: number) => `₹${(p / 100).toLocaleString("en-IN")}`;
+      return `This was written at ${inr(was.pricePaise)} and the programme now costs ${inr(resolved.snapshot.pricePaise)}. Approving it would quote one figure and charge another. Turn it down and ask for a fresh recommendation.`;
+    }
+    return null;
+  } catch {
+    // A read that fails must not hold up a queue with a patient behind it.
+    return null;
   }
 }

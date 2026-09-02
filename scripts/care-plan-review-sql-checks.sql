@@ -82,15 +82,32 @@ exception when raise_exception then
   raise notice 'PASS: a version is still append-only';
 end $$;
 
--- 3. A review needs a real reason, and cannot be rewritten.
+-- 3. A reason is required where a decision takes something away from
+--    somebody, and optional where it does not.
 do $$
 begin
   insert into care_plan_reviews (care_plan_id, version_id, reviewer_id, decision, reason)
-  values ('66666666-6666-4666-8666-666666666666','77777777-7777-4777-8777-777777777777','11111111-1111-4111-8111-111111111111','approved','   ok   ');
-  raise exception 'FAIL: a whitespace reason was accepted';
+  values ('66666666-6666-4666-8666-666666666666','77777777-7777-4777-8777-777777777777','11111111-1111-4111-8111-111111111111','rejected','   ok   ');
+  raise exception 'FAIL: a whitespace reason was accepted on a rejection';
 exception when check_violation then
-  raise notice 'PASS: a review reason must be a real sentence';
+  raise notice 'PASS: a rejection reason must survive btrim';
 end $$;
+
+do $$
+begin
+  insert into care_plan_reviews (care_plan_id, version_id, reviewer_id, decision, reason)
+  values ('66666666-6666-4666-8666-666666666666','77777777-7777-4777-8777-777777777777','11111111-1111-4111-8111-111111111111','edited_and_approved',null);
+  raise exception 'FAIL: changing the numbers was allowed with no reason';
+exception when check_violation then
+  raise notice 'PASS: changing a clinician''s numbers needs a reason';
+end $$;
+
+-- Saying plain yes needs none: the evidence is who and when, both already
+-- on the row, and taxing the only path this queue exists to let through is
+-- how a reason column fills up with 'ok'.
+insert into care_plan_reviews (care_plan_id, version_id, reviewer_id, decision, reason)
+values ('66666666-6666-4666-8666-666666666666','77777777-7777-4777-8777-777777777777','11111111-1111-4111-8111-111111111111','approved',null);
+do $$ begin raise notice 'PASS: a plain approval needs no essay'; end $$;
 
 insert into care_plan_reviews (id, care_plan_id, version_id, reviewer_id, decision, reason)
 values ('88888888-8888-4888-8888-888888888888','66666666-6666-4666-8666-666666666666','77777777-7777-4777-8777-777777777777','11111111-1111-4111-8111-111111111111','approved','Matches the assessment findings.');

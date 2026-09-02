@@ -7308,9 +7308,21 @@ create table if not exists care_plan_reviews (
   version_id uuid references care_plan_versions(id) on delete set null,
   reviewer_id uuid not null references profiles(id) on delete set null,
   decision text not null check (decision in ('approved', 'rejected', 'edited_and_approved')),
-  -- Mandatory and long enough to be a sentence, same rule as risk_reviews
-  -- and the admin override lanes on the credit ledger.
-  reason text not null check (char_length(btrim(reason)) >= 10),
+  -- Required for the two decisions that take something away from somebody,
+  -- and optional for the one that does not.
+  --
+  -- A rejection with no reason reads the same as one nobody got round to,
+  -- and the therapist is the person who has to act on it -- same rule as
+  -- risk_reviews and the admin override lanes on the credit ledger. But
+  -- demanding a sentence to say yes taxes the only path this queue exists
+  -- to let through, and an admin clearing twenty a day writes twenty
+  -- sentences meaning "fine", which is how a reason column fills up with
+  -- "ok ok ok" and stops being worth reading. A plain approval's evidence
+  -- is who and when, and both are already on the row.
+  reason text check (reason is null or char_length(btrim(reason)) >= 10),
+  constraint care_plan_reviews_reason_when_needed check (
+    decision = 'approved' or char_length(btrim(coalesce(reason, ''))) >= 10
+  ),
   created_at timestamptz not null default now()
 );
 

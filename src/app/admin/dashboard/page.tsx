@@ -2287,6 +2287,7 @@ export default async function AdminDashboardPage({
     status: string;
     category_id: string | null;
     current_version_id: string | null;
+    submitted_at: string | null;
     created_at: string;
   };
   type CommunicationFlagQueryRow = {
@@ -2495,7 +2496,7 @@ export default async function AdminDashboardPage({
     ? await admin
         .from("care_plans")
         .select(
-          "id, patient_id, therapist_id, status, category_id, current_version_id, created_at"
+          "id, patient_id, therapist_id, status, category_id, current_version_id, submitted_at, created_at"
         )
         .order("created_at", { ascending: false })
         .limit(200)
@@ -2540,6 +2541,46 @@ export default async function AdminDashboardPage({
     (carePlanPeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
   );
 
+  // What the patient already owns, for the patients in the queue only.
+  //
+  // The single commonest reason to turn a recommendation down is that this
+  // patient still has sessions they have not used, and an admin could not
+  // see that from the card -- they would have had to leave the queue, find
+  // the patient, come back, and by then have lost their place. Its own
+  // query, scoped to the queued patients, so a screen with an empty queue
+  // pays nothing for it.
+  const queuedPatientIds = [
+    ...new Set(
+      (adminCarePlanRows ?? [])
+        .filter((p) => p.status === "pending_review")
+        .map((p) => p.patient_id)
+    ),
+  ];
+  const unusedSessionsByPatient = new Map<string, number>();
+  if (queuedPatientIds.length > 0) {
+    try {
+      const { data: openPurchases } = await admin
+        .from("patient_package_purchases")
+        .select("patient_id, session_count, sessions_used, status, payment_status")
+        .in("patient_id", queuedPatientIds)
+        .eq("payment_status", "paid")
+        .eq("status", "active");
+      for (const purchase of openPurchases ?? []) {
+        const left = Math.max(
+          0,
+          (purchase.session_count ?? 0) - (purchase.sessions_used ?? 0)
+        );
+        if (left === 0) continue;
+        unusedSessionsByPatient.set(
+          purchase.patient_id,
+          (unusedSessionsByPatient.get(purchase.patient_id) ?? 0) + left
+        );
+      }
+    } catch {
+      // Losing this costs the card a warning line, never the queue.
+    }
+  }
+
   const adminCarePlans: AdminCarePlanRow[] = (adminCarePlanRows ?? []).map((p) => {
     const version = p.current_version_id
       ? adminPlanVersionById.get(p.current_version_id)
@@ -2575,6 +2616,11 @@ export default async function AdminDashboardPage({
       packageId:
         version?.session_package_id ?? version?.home_visit_package_id ?? null,
       categoryId: p.category_id ?? null,
+      // What the queue is ordered and aged by. Falls back to the row's own
+      // creation time for a plan written before the column existed, so an
+      // old row sorts sensibly rather than to one end.
+      submittedAt: p.submitted_at ?? p.created_at,
+      unusedSessions: unusedSessionsByPatient.get(p.patient_id) ?? 0,
     };
   });
 
@@ -2654,6 +2700,7 @@ export default async function AdminDashboardPage({
 
   const sessionsRecommendationsTab = (
     <AdminCarePlansTab
+      nowMs={nowTimestamp()}
       plans={adminCarePlans}
       authorable={authorableSessions}
       packageOptions={adminPackageOptions}

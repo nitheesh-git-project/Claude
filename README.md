@@ -496,8 +496,25 @@ so hiding it is not the only thing standing in the way. An admin can:
   clinician with the admin recorded as having entered it, leaving the
   original in the history beside it.
 
-All three need a reason of at least ten characters and are recorded in
-append-only `care_plan_reviews`. The switch is **Settings → Booking Rules →
+A reason of at least ten characters is required for the two decisions that
+take something away from somebody — a rejection the therapist has to act on,
+and an approval whose numbers are not the ones they wrote. Saying plain yes
+is one tap: approving is the outcome the queue exists to reach, and a
+sentence meaning "fine" typed twenty times a day is a reason column nobody
+reads. All three are recorded in append-only `care_plan_reviews`.
+
+Approving also **re-checks the live catalogue first**. If the package has
+been re-priced, deactivated or taken off the recommendable list since the
+therapist wrote the plan, the approval is refused with a sentence naming the
+drift — otherwise the patient would discover the clinic's stale data by
+having their payment refused at the last step of checkout. Turning one down
+is deliberately not checked, so a thread whose package has gone can still be
+closed.
+
+The queue is ordered **oldest first** and each card says how long it has been
+waiting rather than the date it arrived, plus how many sessions that patient
+already has unused — the commonest reason to turn a recommendation down, and
+one an admin previously had to leave the queue to find out. The switch is **Settings → Booking Rules →
 Approve recommendations before the patient sees them**, on by default; with
 it off a submission publishes on save, as it did before. An admin writing a
 recommendation on a therapist's behalf publishes directly — they are the

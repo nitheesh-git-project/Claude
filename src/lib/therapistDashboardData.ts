@@ -472,13 +472,10 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // was carried only by an aggregate figure, which reads as a score rather
   // than as a list of people waiting to hear. One item per patient, most
   // recently seen first, capped like the note nudge beside it.
-  const { data: openPlanRows } =
-    screen === "overview"
-      ? await admin
-          .from("care_plans")
-          .select("patient_id, status")
-          .eq("therapist_id", user.id)
-      : { data: [] as { patient_id: string; status: string }[] };
+  const { data: openPlanRows } = await admin
+    .from("care_plans")
+    .select("patient_id, status")
+    .eq("therapist_id", user.id);
 
   // A patient with a live, queued or already-purchased recommendation is not
   // waiting to hear; a declined, withdrawn or rejected one means the thread
@@ -496,6 +493,21 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
           p.status === "accepted" ||
           p.status === "pending_review"
       )
+      .map((p) => p.patient_id)
+  );
+
+  // Patients whose recommendation is sitting in the clinic's queue.
+  //
+  // Loaded on every screen, not just Overview, because it is what stops the
+  // session note dialog offering "Add a recommendation" to a therapist who
+  // has already written one. Submitting again is not refused -- it lands as
+  // a new version on the same thread, which is legitimate when they have
+  // genuinely changed their mind -- but doing it without being told is how
+  // a clinician ends up submitting the same plan twice and wondering which
+  // one the clinic saw.
+  const patientsAwaitingClinic = new Set(
+    (openPlanRows ?? [])
+      .filter((p) => p.status === "pending_review")
       .map((p) => p.patient_id)
   );
 
@@ -748,6 +760,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     sessionNotes,
     noteByAppointmentId,
     recommendablePackages,
+    patientsAwaitingClinic,
     notesOwed,
     therapistFeed,
     overviewCells,

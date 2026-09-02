@@ -288,6 +288,13 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Steps.** Complete a session for Patient A and write no recommendation. Open `/therapist/dashboard`.
 **Expected Result.** The activity feed carries a **named** item — *"QA Patient A is waiting to hear what next"* — pinned by `needsYou` and linking to that patient's chart. It disappears once a recommendation is written, or once the patient's plan is accepted. A patient who **already has** a live or purchased recommendation must **not** appear; a patient whose plan was declined or withdrawn **should**, because that thread is open again. At most four are shown, most recently seen first, alongside the note nudge.
 
+#### `THR-CARE-008` — Writing a second one while the first is still queued · P1
+
+**Feature.** Submitting again is allowed — it lands as a new version on the same thread, which is right when a clinician has genuinely changed their mind. Doing it *without being told* is how the same plan gets submitted twice by someone who assumed the first had failed.
+
+**Steps.** With a recommendation already waiting for the clinic, open another completed session's note dialog for the same patient.
+**Expected Result.** The panel says *"You have already recommended a programme for this patient and the clinic has not decided yet — nothing has gone wrong, and your patient has not been asked for anything. Writing another replaces it."* The button reads **Replace it**, not **Add a recommendation**.
+
 #### `THR-CARE-002` — A recommendation needs a completed session this therapist ran · P0
 **Steps.** Attempt to submit a care plan (a) for a patient this therapist is not assigned to, (b) against a session run by Therapist B, (c) against a session that is not completed.
 **Expected Result.** (a) `That isn't your patient.` (403). (b) and (c) refused by the route's own re-derivation. This is what makes "recommend to everyone and see who bites" **impossible rather than discouraged**.
@@ -316,7 +323,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Expected Result.**
 * The activity feed carries a **needsYou** item: *"The clinic turned down your recommendation for QA Patient A"*, with the admin's reason as its detail. It is the **only** care-plan feed item marked `needsYou` — an approval is the expected outcome and marking it so would train the therapist to ignore the badge.
 * An **approval** and an **approve-with-changes** also appear, not marked `needsYou`: a submission that vanishes into a queue and never reports back teaches a clinician to stop trusting the queue.
-* On the chart, the thread reads **Not approved**; a queued one reads **Waiting for the clinic to approve**. Both are visible to the clinician and **neither is visible to the patient**.
+* On the chart, the thread reads **Not approved** **with the clinic's reason printed beneath it**, in red. The reason is the actionable half — "Not approved" says the recommendation is gone, and only the reason says what to write instead — and the feed item scrolls away while the chart is where a clinician goes to rewrite. A queued thread reads **Waiting for the clinic to approve**. Both are visible to the clinician and **neither is visible to the patient**.
 * The thread being closed frees the one-open-plan slot, so a fresh recommendation can be written straight away.
 
 #### `THR-SUGG-001` — Suggest a session · P0

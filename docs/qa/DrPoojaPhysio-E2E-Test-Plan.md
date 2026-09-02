@@ -1944,6 +1944,13 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Steps.** Complete a session for Patient A and write no recommendation. Open `/therapist/dashboard`.
 **Expected Result.** The activity feed carries a **named** item — *"QA Patient A is waiting to hear what next"* — pinned by `needsYou` and linking to that patient's chart. It disappears once a recommendation is written, or once the patient's plan is accepted. A patient who **already has** a live or purchased recommendation must **not** appear; a patient whose plan was declined or withdrawn **should**, because that thread is open again. At most four are shown, most recently seen first, alongside the note nudge.
 
+#### `THR-CARE-008` — Writing a second one while the first is still queued · P1
+
+**Feature.** Submitting again is allowed — it lands as a new version on the same thread, which is right when a clinician has genuinely changed their mind. Doing it *without being told* is how the same plan gets submitted twice by someone who assumed the first had failed.
+
+**Steps.** With a recommendation already waiting for the clinic, open another completed session's note dialog for the same patient.
+**Expected Result.** The panel says *"You have already recommended a programme for this patient and the clinic has not decided yet — nothing has gone wrong, and your patient has not been asked for anything. Writing another replaces it."* The button reads **Replace it**, not **Add a recommendation**.
+
 #### `THR-CARE-002` — A recommendation needs a completed session this therapist ran · P0
 **Steps.** Attempt to submit a care plan (a) for a patient this therapist is not assigned to, (b) against a session run by Therapist B, (c) against a session that is not completed.
 **Expected Result.** (a) `That isn't your patient.` (403). (b) and (c) refused by the route's own re-derivation. This is what makes "recommend to everyone and see who bites" **impossible rather than discouraged**.
@@ -1972,7 +1979,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Expected Result.**
 * The activity feed carries a **needsYou** item: *"The clinic turned down your recommendation for QA Patient A"*, with the admin's reason as its detail. It is the **only** care-plan feed item marked `needsYou` — an approval is the expected outcome and marking it so would train the therapist to ignore the badge.
 * An **approval** and an **approve-with-changes** also appear, not marked `needsYou`: a submission that vanishes into a queue and never reports back teaches a clinician to stop trusting the queue.
-* On the chart, the thread reads **Not approved**; a queued one reads **Waiting for the clinic to approve**. Both are visible to the clinician and **neither is visible to the patient**.
+* On the chart, the thread reads **Not approved** **with the clinic's reason printed beneath it**, in red. The reason is the actionable half — "Not approved" says the recommendation is gone, and only the reason says what to write instead — and the feed item scrolls away while the chart is where a clinician goes to rewrite. A queued thread reads **Waiting for the clinic to approve**. Both are visible to the clinician and **neither is visible to the patient**.
 * The thread being closed frees the one-open-plan slot, so a fresh recommendation can be written straight away.
 
 #### `THR-SUGG-001` — Suggest a session · P0
@@ -2433,22 +2440,31 @@ The first band **renders even when empty**, saying so. A section that disappears
 1. Open **Today → Overview** and read the Clinical group of the action inbox.
 2. Follow **Recommendations waiting for approval** to the queue.
 3. Read the card: patient, therapist, programme, sessions, price, frequency, the clinician's reasoning and their instructions to the patient.
-4. Tap **Approve**. Submit with the reason `ok` (two characters).
-5. Replace it with `Matches the assessment findings and the patient's stated goal.` and submit.
+4. Note the order of the cards and what the badge on each one says.
+5. Tap **Approve**.
 6. Check the patient's Suggested Sessions screen.
 7. Attempt the same decision a second time.
 
 **Expected Result**
 * Step 1: the count is there and marked **urgent** while anything is queued. It is the only queue in the app with a patient on the other side of it who has been told nothing at all.
 * Step 2: the link lands on `?section=sessions&tab=recommendations` — the figure and the list it opens must agree.
-* Step 4: **refused.** A reason of fewer than ten characters is rejected, by the route and by a CHECK on `care_plan_reviews.reason`. A decision with no reason reads the same as one nobody got round to.
-* Step 5: the plan becomes `active`; `reviewed_by` and `reviewed_at` are stamped; a `care_plan_reviews` row records the decision, the reason and the reviewer; a `care_plan.approve` audit row is written. **`care_plan_versions.expires_at` is stamped now** — the patient's answering window starts at approval, not at authoring, so a plan that waited in the queue does not arrive with its time already spent.
+* Step 4: the queue is **oldest first** — every other list on this screen is a record and reads newest-first, but this is work, and the person waiting longest is served next. Each badge reads **how long** it has waited (`Waiting 3 hours`), not the date it arrived; past four hours it turns red. A card that reads `2 September` when the thing arrived nine minutes ago tells an admin nothing they can act on.
+* Step 4: where the patient still has unused sessions on a live programme, the card says so in amber. It is **stated, never acted on** — a patient with sessions left may well need a different programme, and the clinician has seen them. This is the commonest reason to turn one down, and an admin previously had to leave the queue to find it out.
+* Step 5: **one tap, no reason asked.** Approving is the outcome this queue exists to reach, and demanding a sentence meaning "fine" twenty times a day is how a reason column fills with `ok` and stops being worth reading; a plain approval's evidence is who and when, both already on the row. The plan becomes `active`; `reviewed_by` and `reviewed_at` are stamped; a `care_plan_reviews` row records the decision and the reviewer with a null reason; a `care_plan.approve` audit row is written. **`care_plan_versions.expires_at` is stamped now** — the patient's answering window starts at approval, not at authoring, so a plan that waited in the queue does not arrive with its time already spent.
 * Step 6: the recommendation is now visible and purchasable.
 * Step 7: **409** — `Someone else decided this one first.` The decision is a compare-and-swap on `pending_review`, so two admins in the queue together cannot both decide.
 
+#### `ADM-CARE-008` — A stale offer is caught before the patient meets it · P0
+
+**Feature.** Checkout re-reads the package and refuses on a mismatch rather than charging a different amount. On its own that means the *patient* discovers the clinic's stale data, by having their payment refused at the last step.
+
+**Steps.** With a recommendation queued, go to **Catalog → Packages** and change that package's price. Come back and tap **Approve**. Then tap **Turn it down**.
+**Expected Result.** The approval is **refused** with a sentence naming the drift — *"This was written at ₹9,000 and the programme now costs ₹9,500. Approving it would quote one figure and charge another."* The plan is still queued and `reviewed_by` is still null: refused, not half-applied. Deactivating the package or clearing its **recommendable** flag refuses the same way.
+**Turning it down still works.** Refusing to let an admin close a thread because its package moved would trap exactly the recommendation that most needs closing.
+
 #### `ADM-CARE-005` — Turn a recommendation down · P0
-**Steps.** On a queued recommendation, tap **Turn it down** and submit the reason `This patient still has four unused sessions on their current plan.`
-**Expected Result.** The plan becomes `rejected`; a `care_plan_reviews` row and a `care_plan.reject` audit row are written; the patient never sees it. The therapist sees it as something needing them, with the reason (`THR-CARE-007`) — **they rewrite; an admin does not edit their judgement**. The closed thread frees the one-open-plan slot immediately.
+**Steps.** On a queued recommendation, tap **Turn it down**. Submit with the reason `ok` (two characters), then with `This patient still has four unused sessions on their current plan.`
+**Expected Result.** The two-character reason is **refused**, by the route and by a CHECK on `care_plan_reviews` — a rejection is what the therapist acts on, so it owes them a sentence, and one with none reads the same as one nobody got round to. With a real reason the plan becomes `rejected`; a `care_plan_reviews` row and a `care_plan.reject` audit row are written; the patient never sees it. The therapist sees it as something needing them, with the reason (`THR-CARE-007`) — **they rewrite; an admin does not edit their judgement**. The closed thread frees the one-open-plan slot immediately.
 
 #### `ADM-CARE-006` — Approve with different numbers · P0
 
@@ -3656,7 +3672,7 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | 6 | **Booking** | `PAT-BOOK-001..017`, `PAT-HV-001..007` | Time-simulation scenarios TIME-A…D. |
 | 7 | **Payment** | `PAT-PAY-001..005`, §16.3 | Needs Razorpay test keys **and** the webhook secret. |
 | 8 | **Therapist session** | `ADM-SESS-002..004`, `THR-SESS-001..008` | |
-| 9 | **Care plan** | `THR-CARE-001..007`, `ADM-CARE-001..007` | |
+| 9 | **Care plan** | `THR-CARE-001..008`, `ADM-CARE-001..008` | |
 | 10 | **Purchase** | `PAT-CARE-001..004` | |
 | 11 | **Credits** | `PAT-PKG-001..004`, `THR-SUGG-*`, `PAT-SUGG-*` | |
 | 12 | **Clinical** | `THR-HP-*`, `PAT-HP-*`, `PAT-DOC-*`, `THR-LEAK-*` | |
@@ -3702,7 +3718,7 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | Availability / roster | — | `THR-AVAIL-001..008` | — | `ADM-ROST-001..005` | — | `THR-SEC-001`, `ADM-ROST-005` | — |
 | Health profile | `PAT-HP-001..005` | `THR-HP-001..006` | `HOS-SEC-002` | `ADM-PEOP-004`, `ADM-SET-020` | — | `SEC-DATA-001` | `UX-MOB-004` |
 | Documents | `PAT-DOC-001..003` | (read) | `HOS-SEC-002` | (read) | — | `SEC-DATA-004` | `UX-MOB-003` |
-| Care plans | `PAT-CARE-001..004` | `THR-CARE-001..007` | — | `ADM-CARE-001..007` | `PAY-AMT-002` | `THR-CARE-002` | — |
+| Care plans | `PAT-CARE-001..004` | `THR-CARE-001..008` | — | `ADM-CARE-001..008` | `PAY-AMT-002` | `THR-CARE-002` | — |
 | Suggested sessions | `PAT-SUGG-001..005` | `THR-SUGG-001..002` | — | `ADM-SET-018` | — | `PAT-SUGG-004` | — |
 | Session credits | `PAT-PKG-001..004` | (view) | — | `ADM-CAT-014/015`, `ADM-SET-019` | `FIN-REF-004` | `SEC-TAMPER-003`, `PAY-CONC-001` | — |
 | Referrals | `HOS-REF-006` | — | `HOS-REF-001..007` | `ADM-PEOP-008` | `HOS-MONEY-001..003` | `HOS-SEC-001` | — |

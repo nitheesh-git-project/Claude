@@ -124,13 +124,16 @@ rows render on the therapist's chart and the patient's Health Profile.
 
 **The clinic approves it before the patient sees it.** A submission lands
 `pending_review` and shows on Sessions → Recommendations, counted in Today's
-inbox; an admin approves it, turns it down with a reason the therapist
-reads, or approves it with different numbers — which writes a *new* version
-attributed to the clinician and entered by the admin rather than editing
-theirs, since versions are append-only. Decisions are recorded in
-append-only `care_plan_reviews`, all three need a ten-character reason, and
-the offer window is stamped at approval rather than at authoring so a plan
-that waited does not reach the patient with its time already spent. One
+inbox; an admin approves it in one tap, turns it down with a reason the
+therapist reads, or approves it with different numbers — which writes a
+*new* version attributed to the clinician and entered by the admin rather
+than editing theirs, since versions are append-only. Decisions are recorded
+in append-only `care_plan_reviews`; a reason is required only for the two
+that take something away. Approval re-checks the live catalogue first, so a
+stale offer is caught by the admin rather than by the patient's refused
+payment, and the offer window is stamped at approval rather than at
+authoring so a plan that waited does not reach the patient with its time
+already spent. The queue is oldest-first and aged in words. One
 switch, `care_plan_requires_approval`, on by default and failing closed.
 
 The patient answers on **Suggested Sessions**, which also carries the

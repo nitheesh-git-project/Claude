@@ -67,6 +67,7 @@ export default function CarePlanFields({
   value,
   onChange,
   needsApproval = true,
+  awaitingClinic = false,
 }: {
   options: RecommendableOption[];
   value: CarePlanDraft | null;
@@ -81,6 +82,16 @@ export default function CarePlanFields({
    * sentence, which is the one that promises less.
    */
   needsApproval?: boolean;
+  /**
+   * This patient already has a recommendation sitting in the clinic's
+   * queue.
+   *
+   * Writing another is allowed — it lands as a new version on the same
+   * thread, which is right when a clinician has genuinely changed their
+   * mind — but doing it without being told is how the same plan gets
+   * submitted twice by someone who assumed the first one had failed.
+   */
+  awaitingClinic?: boolean;
 }) {
   const [open, setOpen] = useState(value !== null);
 
@@ -116,20 +127,28 @@ export default function CarePlanFields({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-slate-800">Recommend treatment</p>
-            <p className="mt-1 max-w-md text-xs text-slate-500">
-              Optional. Propose a programme for this patient.{" "}
-              {needsApproval
-                ? "The clinic checks it, then your patient decides whether to go ahead."
-                : "They see it on their dashboard and decide whether to go ahead."}{" "}
-              Nothing is booked or charged until they do.
-            </p>
+            {awaitingClinic ? (
+              <p className="mt-1 max-w-md text-xs text-slate-500">
+                You have already recommended a programme for this patient and the clinic
+                has not decided yet — nothing has gone wrong, and your patient has not
+                been asked for anything. Writing another replaces it.
+              </p>
+            ) : (
+              <p className="mt-1 max-w-md text-xs text-slate-500">
+                Optional. Propose a programme for this patient.{" "}
+                {needsApproval
+                  ? "The clinic checks it, then your patient decides whether to go ahead."
+                  : "They see it on their dashboard and decide whether to go ahead."}{" "}
+                Nothing is booked or charged until they do.
+              </p>
+            )}
           </div>
           <button
             type="button"
             onClick={start}
             className="rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 transition hover:bg-slate-300"
           >
-            Add a recommendation
+            {awaitingClinic ? "Replace it" : "Add a recommendation"}
           </button>
         </div>
       </div>

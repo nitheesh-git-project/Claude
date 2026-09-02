@@ -925,12 +925,20 @@ client is the only writer and the log is append-only from any session.
   absent from `loadActiveCarePlan`, `loadCarePlanHistory` drops it unless a
   caller passes `includeUnapproved`, and `/api/care-plan/create-order`
   refuses it, because hiding a card is presentation and refusing the order
-  is the rule. Six things hold it together:
+  is the rule. Seven things hold it together:
   1. **Three outcomes, one route each.** `/api/admin/review-care-plan`
      approves or turns one down; `/api/admin/edit-and-approve-care-plan`
      publishes different numbers. All take `requireAdminScope("sessions")`
-     and a ten-character reason, and write `care_plan.approve` /
-     `care_plan.reject` / `care_plan.edit_and_approve` audit rows.
+     and write `care_plan.approve` / `care_plan.reject` /
+     `care_plan.edit_and_approve` audit rows. A ten-character reason is
+     required for the two that take something away from somebody — a
+     rejection the therapist has to act on, and an approval whose numbers
+     are not the ones they wrote — and **not** for a plain approval, which
+     is one tap. Approving is the outcome this queue exists to reach;
+     taxing it with a sentence meaning "fine" is how a reason column fills
+     up with "ok" and stops being worth reading, and how a patient waits
+     longer for a recommendation nobody objected to. A plain approval's
+     evidence is who and when, both already on the row.
   2. **Approve-with-changes is not an edit.** It writes a new version
      through `authorCarePlanVersion()` with `authored_by` still the
      therapist and `entered_by` the admin, leaving the original in the
@@ -944,19 +952,41 @@ client is the only writer and the log is append-only from any session.
      Same posture as `/api/therapist/reveal-contact`, and the opposite of
      the audit log's: an approval nobody can trace to a person is the one
      outcome these routes must not produce.
-  4. **The offer window is stamped at approval, not at authoring.** A
+  4. **The offer is re-checked against the live catalogue before it is
+     published, never only at checkout.** Checkout re-reads the package and
+     refuses on a mismatch, which is right — but on its own it means an
+     admin approving a recommendation whose package has since been
+     re-priced, deactivated or made unrecommendable publishes an offer that
+     fails at the last step of the patient's checkout, and the patient
+     discovers the clinic's stale data by having their payment refused.
+     `describeOfferDrift()` compares the two figures a patient reads and
+     pays — session count and price — and blocks the approval with a
+     sentence naming the drift. A **rejection** is deliberately not checked:
+     refusing to let an admin close a thread because its package moved
+     would trap exactly the recommendation that most needs closing.
+  5. **The offer window is stamped at approval, not at authoring.** A
      version is written with a null `expires_at`; the approval sets it. The
      append-only trigger permits exactly that one transition, one-way, so a
      window can be stamped once and never moved after the patient has read
      it. Stamping at authoring meant the plans the clinic took longest over
      reached the patient with the least time on them.
-  5. **A new version on a published thread sends the whole thread back.**
+  6. **A new version on a published thread sends the whole thread back.**
      Deliberately, even though it takes a live offer off the patient's
      screen: what they can now see is a version nobody approved.
-  6. **The rejection reaches the therapist.** It is a `needsYou` feed item
-     carrying the reason, because they are the only person who can act on
-     it, and they rewrite — an admin editing a clinician's judgement from
+  7. **The rejection reaches the therapist, twice over.** It is a `needsYou`
+     feed item carrying the reason, and it is on the patient's chart beside
+     the thread — the feed scrolls away, and the chart is where a clinician
+     goes to rewrite. The reason is the actionable half: "Not approved"
+     says the recommendation is gone, and only the reason says what to
+     write instead. They rewrite — an admin editing a clinician's judgement from
      the back office is what door three is deliberately narrow about.
+  The queue itself reads as work rather than as a record: **oldest first**,
+  aged in words rather than dated (`formatWaitingFor`, with
+  `isQueueStale` colouring anything past four hours), and each card states
+  how many sessions that patient already has unused — the commonest reason
+  to turn one down, and previously invisible without leaving the queue.
+  Stated, never acted on: a patient with sessions left may well need a
+  different programme, and the clinician has seen them.
   One switch, `site_settings.care_plan_requires_approval`, on by default,
   read in its own call and failing **closed** — the opposite direction from
   `contact_scan_mode`, because the safe answer to "I could not read the
