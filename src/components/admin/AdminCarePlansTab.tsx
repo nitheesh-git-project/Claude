@@ -467,7 +467,15 @@ function ReviewCard({
               <p className="mb-2 text-[11px] font-semibold text-slate-700">
                 What the clinic is approving instead
               </p>
-              <CarePlanFields options={narrowed} value={draft} onChange={setDraft} />
+              {/* An admin's own write publishes on the spot -- they are the
+                  approver -- so the panel must not tell them it is going to
+                  a queue. */}
+              <CarePlanFields
+                options={narrowed}
+                value={draft}
+                onChange={setDraft}
+                needsApproval={false}
+              />
               <p className="mt-2 text-[11px] text-slate-500">
                 This is saved as a new version on the same thread, in{" "}
                 {plan.therapistName}&apos;s name with you recorded as having entered it.
@@ -690,7 +698,12 @@ function AuthorOnBehalf({
       {body ?? (
         <>
           <div className="mt-4">
-            <CarePlanFields options={offered} value={draft} onChange={setDraft} />
+            <CarePlanFields
+              options={offered}
+              value={draft}
+              onChange={setDraft}
+              needsApproval={false}
+            />
           </div>
 
           {draft && session && (

@@ -4,6 +4,7 @@ import {
   parseOfferSnapshot,
   carePlanState,
   isCarePlanPurchasable,
+  CARE_PLAN_STATE_LABELS,
   validateCarePlanInput,
   narrowToCategory,
   type CarePlanStatus,
@@ -162,5 +163,61 @@ describe("narrowToCategory", () => {
     // A session recorded before appointments carried category_id. Narrowing
     // it to nothing would hide the whole feature on old rows.
     expect(narrowToCategory(all, null)).toEqual(all);
+  });
+});
+
+describe("carePlanState with a review step", () => {
+  it("never reports a queued plan as waiting on the patient", () => {
+    // The whole point of the review step. `isCarePlanPurchasable` is what
+    // /api/care-plan/create-order asks, so a pending plan falling through
+    // to the default would sell a programme nobody at the clinic approved.
+    const state = carePlanState(
+      { status: "pending_review" as CarePlanStatus },
+      { expires_at: null },
+      NOW
+    );
+    expect(state).toBe<CarePlanState>("pending_review");
+    expect(isCarePlanPurchasable(state)).toBe(false);
+  });
+
+  it("never reports a rejected plan as purchasable", () => {
+    const state = carePlanState(
+      { status: "rejected" as CarePlanStatus },
+      { expires_at: future },
+      NOW
+    );
+    expect(state).toBe<CarePlanState>("rejected");
+    expect(isCarePlanPurchasable(state)).toBe(false);
+  });
+
+  it("does not lapse a queued plan that has no window yet", () => {
+    // A version is written with a null expires_at and stamped at approval,
+    // so "no window" means "not published", never "expired".
+    expect(
+      carePlanState({ status: "pending_review" as CarePlanStatus }, null, NOW)
+    ).toBe<CarePlanState>("pending_review");
+  });
+
+  it("still lapses an approved plan past its window", () => {
+    expect(
+      carePlanState({ status: "active" as CarePlanStatus }, { expires_at: past }, NOW)
+    ).toBe<CarePlanState>("lapsed");
+  });
+
+  it("labels every state, including the two the review step added", () => {
+    // A state with no label renders as its raw column value on an admin
+    // screen, which is how "pending_review" ends up in front of a person.
+    for (const state of [
+      "pending_review",
+      "rejected",
+      "awaiting_patient",
+      "lapsed",
+      "accepted",
+      "declined",
+      "withdrawn",
+      "superseded",
+    ] as CarePlanState[]) {
+      expect(CARE_PLAN_STATE_LABELS[state]).toBeTruthy();
+    }
   });
 });

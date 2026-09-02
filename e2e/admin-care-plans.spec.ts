@@ -176,7 +176,10 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
       .from("care_plans")
       .update({ status: "withdrawn" })
       .eq("patient_id", patientId)
-      .eq("status", "active");
+      // Both open states: the one-open-plan index covers a queued plan too,
+      // so a submission an aborted run left waiting blocks the next write
+      // exactly the way a published one does.
+      .in("status", ["active", "pending_review"]);
     expect(error, "clearing the QA patient's live plan").toBeNull();
   }
 
@@ -531,6 +534,435 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
     } else {
       await expect(page.getByText("No session to write against")).toBeVisible();
     }
+    await ctx.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The review step.
+//
+// A therapist's recommendation now lands in the clinic's queue rather than
+// on the patient's dashboard. What matters is the gap between those two: a
+// queued plan must be invisible and unbuyable until an admin decides, and
+// the decision has to be traceable to a person. These tests walk one
+// recommendation through the whole of that.
+// ---------------------------------------------------------------------------
+
+const REVIEW_CATEGORY_TITLE = "QA Review Condition";
+const REVIEW_PACKAGE_TITLE = "QA Review Programme";
+
+test.describe("The clinic approves a recommendation", () => {
+  let admin: SupabaseClient;
+  let therapistId = "";
+  let patientId = "";
+  let categoryId = "";
+  let packageId = "";
+  let appointmentId = "";
+
+  const slotMinute = new Date().getMinutes();
+  let slotCursor = 0;
+
+  function pastSlot(daysAgo: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    slotCursor += 1;
+    d.setHours(8 + slotCursor, slotMinute, 0, 0);
+    return d.toISOString();
+  }
+
+  /** Frees the one-open-plan slot. Withdraws rather than deletes, because
+   *  `care_plan_versions` is append-only and a delete raises. */
+  async function clearOpenPlans() {
+    await admin
+      .from("care_plans")
+      .update({ status: "withdrawn" })
+      .eq("patient_id", patientId)
+      .in("status", ["active", "pending_review"]);
+  }
+
+  /** The therapist's own door. Returns the plan id it opened. */
+  async function submitAsTherapist(): Promise<string> {
+    const ctx = await playwrightRequest.newContext({
+      extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.therapistA) },
+    });
+    const res = await ctx.post(`${BASE}/api/therapist/care-plan/submit`, {
+      data: {
+        patientId,
+        appointmentId,
+        offerKind: "session_package",
+        packageId,
+        handsOnRequired: false,
+        frequencyPerWeek: 2,
+        clinicalRationale: "Your range is better but the pain returns after a desk day.",
+        instructions: "Keep the daily mobility drill going between sessions.",
+      },
+    });
+    expect(res.status(), await res.text()).toBe(200);
+    const body = await res.json();
+    await ctx.dispose();
+    return body.carePlanId as string;
+  }
+
+  test.beforeAll(async () => {
+    admin = adminClient();
+    therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
+    patientId = await profileIdFor(admin, QA_EMAILS.patientB);
+
+    // Approval on, explicitly. The default is on, but a previous run or a
+    // hand-flipped setting would otherwise make every test here fail on a
+    // feature that works.
+    await admin
+      .from("site_settings")
+      .update({ care_plan_requires_approval: true })
+      .not("id", "is", null);
+
+    // Found-or-created, never deleted: an append-only version pointing at
+    // any of these makes it undeletable, so a cleanup would fail quietly
+    // and the next run would collide with its own leftovers.
+    const { data: category } = await admin
+      .from("treatment_categories")
+      .select("id")
+      .eq("title", REVIEW_CATEGORY_TITLE)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    categoryId =
+      category?.id ??
+      (
+        await admin
+          .from("treatment_categories")
+          .insert({
+            title: REVIEW_CATEGORY_TITLE,
+            points: [],
+            price_paise: 140000,
+            duration_minutes: 45,
+            active: true,
+          })
+          .select("id")
+          .single()
+      ).data?.id ??
+      "";
+
+    const { data: pkg } = await admin
+      .from("treatment_category_packages")
+      .select("id")
+      .eq("title", REVIEW_PACKAGE_TITLE)
+      .eq("category_id", categoryId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    packageId =
+      pkg?.id ??
+      (
+        await admin
+          .from("treatment_category_packages")
+          .insert({
+            category_id: categoryId,
+            title: REVIEW_PACKAGE_TITLE,
+            session_count: 8,
+            price_paise: 900000,
+            active: true,
+            recommendable: true,
+            therapist_locked: true,
+          })
+          .select("id")
+          .single()
+      ).data?.id ??
+      "";
+
+    const { data: existing } = await admin
+      .from("appointments")
+      .select("id")
+      .eq("patient_id", patientId)
+      .eq("therapist_id", therapistId)
+      .eq("concern", REVIEW_CATEGORY_TITLE)
+      .eq("status", "completed")
+      .eq("category_id", categoryId)
+      .order("slot_time", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    appointmentId =
+      existing?.id ??
+      (
+        await admin
+          .from("appointments")
+          .insert({
+            patient_id: patientId,
+            therapist_id: therapistId,
+            category_id: categoryId,
+            concern: REVIEW_CATEGORY_TITLE,
+            slot_time: pastSlot(5),
+            duration_minutes: 45,
+            status: "completed",
+            payment_status: "paid",
+            amount_paid_paise: 140000,
+            visit_mode: "online",
+          })
+          .select("id")
+          .single()
+      ).data?.id ??
+      "";
+
+    expect(categoryId, "seeded category").not.toBe("");
+    expect(packageId, "seeded package").not.toBe("");
+    expect(appointmentId, "seeded completed session").not.toBe("");
+
+    await clearOpenPlans();
+  });
+
+  test.afterAll(async () => {
+    if (admin) await clearOpenPlans();
+  });
+
+  test("ACP-013: a therapist's submission lands in the queue, not on the patient", async () => {
+    await clearOpenPlans();
+    const planId = await submitAsTherapist();
+
+    const { data: plan } = await admin
+      .from("care_plans")
+      .select("status, submitted_at, reviewed_at, current_version_id")
+      .eq("id", planId)
+      .single();
+    expect(plan?.status).toBe("pending_review");
+    expect(plan?.submitted_at, "submitted_at is stamped").not.toBeNull();
+    expect(plan?.reviewed_at, "nobody has decided yet").toBeNull();
+
+    // The offer window is stamped at approval, not at authoring -- a plan
+    // that waits two days in the queue must not reach the patient with two
+    // days already gone.
+    const { data: version } = await admin
+      .from("care_plan_versions")
+      .select("expires_at")
+      .eq("id", plan?.current_version_id ?? "")
+      .single();
+    expect(version?.expires_at, "no window until it is published").toBeNull();
+  });
+
+  test("ACP-014: a queued recommendation cannot be bought", async () => {
+    await clearOpenPlans();
+    const planId = await submitAsTherapist();
+    const { data: plan } = await admin
+      .from("care_plans")
+      .select("current_version_id")
+      .eq("id", planId)
+      .single();
+
+    // Straight at the API with the patient's own session, around any UI
+    // that is simply not rendering the card. This is the assertion that
+    // matters: hiding it is presentation, refusing it is the rule.
+    const ctx = await playwrightRequest.newContext({
+      extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.patientB) },
+    });
+    const res = await ctx.post(`${BASE}/api/care-plan/create-order`, {
+      data: { carePlanVersionId: plan?.current_version_id },
+    });
+    expect(res.status(), await res.text()).toBe(409);
+    await ctx.dispose();
+  });
+
+  test("ACP-015: a decision needs a real reason, and an unknown decision is refused", async () => {
+    await clearOpenPlans();
+    const planId = await submitAsTherapist();
+    const ctx = await playwrightRequest.newContext({
+      extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.admin) },
+    });
+
+    const short = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
+      data: { carePlanId: planId, decision: "approved", reason: "ok" },
+    });
+    expect(short.status()).toBe(400);
+
+    const unknown = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
+      data: { carePlanId: planId, decision: "maybe", reason: "a long enough reason" },
+    });
+    expect(unknown.status()).toBe(400);
+
+    // Still queued after both refusals.
+    const { data: plan } = await admin
+      .from("care_plans")
+      .select("status")
+      .eq("id", planId)
+      .single();
+    expect(plan?.status).toBe("pending_review");
+    await ctx.dispose();
+  });
+
+  test("ACP-016: approving publishes it, stamps its window and records who decided", async () => {
+    await clearOpenPlans();
+    const planId = await submitAsTherapist();
+    const ctx = await playwrightRequest.newContext({
+      extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.admin) },
+    });
+    const reason = "Matches the assessment findings and what the patient asked for";
+    const res = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
+      data: { carePlanId: planId, decision: "approved", reason },
+    });
+    expect(res.status(), await res.text()).toBe(200);
+
+    const { data: plan } = await admin
+      .from("care_plans")
+      .select("status, reviewed_by, reviewed_at, current_version_id")
+      .eq("id", planId)
+      .single();
+    expect(plan?.status).toBe("active");
+    expect(plan?.reviewed_by, "the decision names a person").not.toBeNull();
+    expect(plan?.reviewed_at).not.toBeNull();
+
+    const { data: version } = await admin
+      .from("care_plan_versions")
+      .select("expires_at")
+      .eq("id", plan?.current_version_id ?? "")
+      .single();
+    expect(version?.expires_at, "the window starts at approval").not.toBeNull();
+
+    const { data: review } = await admin
+      .from("care_plan_reviews")
+      .select("decision, reason")
+      .eq("care_plan_id", planId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    expect(review?.decision).toBe("approved");
+    expect(review?.reason).toBe(reason);
+
+    // Deciding twice is refused rather than silently applied again.
+    const again = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
+      data: { carePlanId: planId, decision: "rejected", reason: "changed my mind entirely" },
+    });
+    expect(again.status()).toBe(409);
+    await ctx.dispose();
+  });
+
+  test("ACP-017: turning one down closes the thread and keeps the reason", async () => {
+    await clearOpenPlans();
+    const planId = await submitAsTherapist();
+    const ctx = await playwrightRequest.newContext({
+      extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.admin) },
+    });
+    const reason = "This patient still has four unused sessions on their current plan";
+    const res = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
+      data: { carePlanId: planId, decision: "rejected", reason },
+    });
+    expect(res.status(), await res.text()).toBe(200);
+
+    const { data: plan } = await admin
+      .from("care_plans")
+      .select("status")
+      .eq("id", planId)
+      .single();
+    expect(plan?.status).toBe("rejected");
+
+    const { data: review } = await admin
+      .from("care_plan_reviews")
+      .select("decision, reason")
+      .eq("care_plan_id", planId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    expect(review?.decision).toBe("rejected");
+    expect(review?.reason).toBe(reason);
+
+    // A rejected thread frees the slot, so the therapist can rewrite.
+    const nextPlanId = await submitAsTherapist();
+    expect(nextPlanId).not.toBe(planId);
+    await ctx.dispose();
+  });
+
+  test("ACP-018: approving with changes writes a new version, not an edit", async () => {
+    await clearOpenPlans();
+    const planId = await submitAsTherapist();
+    const { data: before } = await admin
+      .from("care_plan_versions")
+      .select("id, version_no")
+      .eq("care_plan_id", planId)
+      .order("version_no", { ascending: false })
+      .limit(1)
+      .single();
+
+    const ctx = await playwrightRequest.newContext({
+      extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.admin) },
+    });
+    const res = await ctx.post(`${BASE}/api/admin/edit-and-approve-care-plan`, {
+      data: {
+        carePlanId: planId,
+        offerKind: "session_package",
+        packageId,
+        handsOnRequired: true,
+        frequencyPerWeek: 1,
+        clinicalRationale: "Approved at a lower weekly frequency to suit the patient.",
+        instructions: "Same home programme, one session a week.",
+        reason: "Frequency reduced to match what this patient can attend",
+      },
+    });
+    expect(res.status(), await res.text()).toBe(200);
+
+    const { data: versions } = await admin
+      .from("care_plan_versions")
+      .select("id, version_no, authored_by, entered_by, is_current")
+      .eq("care_plan_id", planId)
+      .order("version_no", { ascending: true });
+
+    // The therapist's original is still there, untouched, and superseded.
+    const original = (versions ?? []).find((v) => v.id === before?.id);
+    expect(original, "the original version survives").toBeTruthy();
+    expect(original?.is_current).toBe(false);
+
+    // The new one is the clinician's judgement, typed by the admin.
+    const current = (versions ?? []).find((v) => v.is_current);
+    expect(current?.version_no).toBe((before?.version_no ?? 0) + 1);
+    expect(current?.authored_by, "still the clinician's recommendation").toBe(therapistId);
+    expect(current?.entered_by, "recorded as typed by the admin").not.toBeNull();
+
+    const { data: plan } = await admin
+      .from("care_plans")
+      .select("status")
+      .eq("id", planId)
+      .single();
+    expect(plan?.status).toBe("active");
+
+    const { data: review } = await admin
+      .from("care_plan_reviews")
+      .select("decision")
+      .eq("care_plan_id", planId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    expect(review?.decision).toBe("edited_and_approved");
+    await ctx.dispose();
+  });
+
+  test("ACP-019: the review routes refuse everyone but an admin", async ({ request }) => {
+    for (const path of [
+      "/api/admin/review-care-plan",
+      "/api/admin/edit-and-approve-care-plan",
+    ]) {
+      const anon = await request.post(`${BASE}${path}`, {
+        headers: { "content-type": "application/json" },
+        data: { carePlanId: FAKE_ID, decision: "approved", reason: "a long enough reason" },
+      });
+      expect(anon.status(), `${path} anonymous`).toBe(403);
+
+      for (const who of [QA_EMAILS.patientA, QA_EMAILS.therapistA]) {
+        const res = await request.post(`${BASE}${path}`, {
+          headers: { cookie: await cookieHeaderFor(who), "content-type": "application/json" },
+          data: { carePlanId: FAKE_ID, decision: "approved", reason: "a long enough reason" },
+        });
+        expect(res.status(), `${path} for ${who}`).toBe(403);
+      }
+    }
+  });
+
+  test("ACP-020: the queue renders on the Recommendations screen", async ({ browser }) => {
+    await clearOpenPlans();
+    await submitAsTherapist();
+
+    const ctx = await browser.newContext();
+    await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=recommendations`);
+    await expect(page.getByText("Waiting for your decision")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: "Approve", exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Turn it down/i }).first()).toBeVisible();
     await ctx.close();
   });
 });

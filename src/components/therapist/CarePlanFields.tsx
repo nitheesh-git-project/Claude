@@ -66,10 +66,21 @@ export default function CarePlanFields({
   options,
   value,
   onChange,
+  needsApproval = true,
 }: {
   options: RecommendableOption[];
   value: CarePlanDraft | null;
   onChange: (next: CarePlanDraft | null) => void;
+  /**
+   * Whether the clinic reviews this before the patient sees it.
+   *
+   * Only copy depends on it, and that is the whole reason it is here:
+   * telling a clinician "they see it on their dashboard" while it in fact
+   * goes to a queue is the same class of mistake as telling a patient they
+   * left a draft half-finished when a therapist did. Defaults to the safer
+   * sentence, which is the one that promises less.
+   */
+  needsApproval?: boolean;
 }) {
   const [open, setOpen] = useState(value !== null);
 
@@ -106,8 +117,11 @@ export default function CarePlanFields({
           <div>
             <p className="text-sm font-semibold text-slate-800">Recommend treatment</p>
             <p className="mt-1 max-w-md text-xs text-slate-500">
-              Optional. Propose a programme for this patient — they see it on their dashboard
-              and decide whether to go ahead. Nothing is booked or charged until they do.
+              Optional. Propose a programme for this patient.{" "}
+              {needsApproval
+                ? "The clinic checks it, then your patient decides whether to go ahead."
+                : "They see it on their dashboard and decide whether to go ahead."}{" "}
+              Nothing is booked or charged until they do.
             </p>
           </div>
           <button
@@ -190,7 +204,14 @@ export default function CarePlanFields({
   return (
     <div className="space-y-4 rounded-xl border border-teal-200 bg-teal-50/40 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-slate-800">Recommend treatment</p>
+        <div>
+          <p className="text-sm font-semibold text-slate-800">Recommend treatment</p>
+          {needsApproval && (
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Goes to the clinic first. Your patient sees it once it is approved.
+            </p>
+          )}
+        </div>
         <button
           type="button"
           onClick={cancel}
