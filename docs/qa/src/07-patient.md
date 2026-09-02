@@ -490,7 +490,7 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 
 #### `PAT-CARE-001` — Read a therapist's recommendation · P0
 
-**Preconditions.** `THR-CARE-001` has written a care plan recommending Package P1.
+**Preconditions.** `THR-CARE-001` has written a care plan recommending Package P1, **and `ADM-CARE-004` has approved it.** Until the clinic approves, the patient must see nothing — check that first: an unapproved recommendation absent from this screen is the feature working, not a missing fixture.
 **Steps.** Open `/patient/dashboard/suggested` (and `/patient/dashboard/health-profile`).
 **Expected Result.** An offer card showing the programme name, **session count**, **price**, validity, the therapist's *"Why this, for this patient"* text written **to** the patient, and their instructions. The same rows render on the therapist's chart and on the patient's Health Profile — one record, two readers. **There is no price field the therapist could have set**: the price comes from the admin's catalog row.
 

@@ -61,7 +61,7 @@ Dr. Pooja's Physio is a production web application for a physiotherapy practice.
 
 ### The business model in one paragraph
 
-A patient's **first purchase is always one session** — a video consultation, or (if the clinic's home-visit switch is on and their pincode is serviceable) a single home visit. Multi-session programmes cannot be bought from a price list at all: a therapist must run a session, then write a **care plan** recommending an admin-configured package. The patient accepts and pays from their own dashboard. That purchase creates **session credits**, which are spent one at a time as sessions are booked and delivered. Money is split between the therapist (a revenue share, earned only on delivered sessions), the referring hospital (a commission on net revenue), and the clinic.
+A patient's **first purchase is always one session** — a video consultation, or (if the clinic's home-visit switch is on and their pincode is serviceable) a single home visit. Multi-session programmes cannot be bought from a price list at all: a therapist must run a session, then write a **care plan** recommending an admin-configured package, and an admin must approve it before the patient sees anything. The patient then accepts and pays from their own dashboard. That purchase creates **session credits**, which are spent one at a time as sessions are booked and delivered. Money is split between the therapist (a revenue share, earned only on delivered sessions), the referring hospital (a commission on net revenue), and the clinic.
 
 ### Integrations
 

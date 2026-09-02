@@ -467,20 +467,41 @@ cannot create one, exactly as before.
 ### Care plans
 
 A therapist recommends treatment **after** seeing a patient, from the same
-dialog they write the session note in. They pick a programme the admin has
-marked recommendable and add four clinical fields — whether hands-on
-treatment is needed, how often per week, why this for this patient, and
-anything the patient should do or know. Session count, price, validity and
-duration all come with the programme: there is no price field, no
+dialog they write the session note in. They answer two questions — which
+condition, and how many sessions — and those two pick exactly one programme
+the admin has marked recommendable. Then four clinical fields: whether
+hands-on treatment is needed, how often per week, why this for this patient,
+and anything the patient should do or know. Session count, price, validity
+and duration all come with the programme: there is no price field, no
 session-count field and no discount field on a recommendation, so a
 therapist cannot set their own terms.
 
-A recommendation needs a **completed session that therapist ran**, writes
-live with no review step (the same reasoning as the first health-profile
-fill), and is versioned rather than edited — `care_plan_versions` is
-append-only by trigger, and only `is_current` may move. Revising a
+A recommendation needs a **completed session that therapist ran**, and is
+versioned rather than edited — `care_plan_versions` is append-only by
+trigger, and only `is_current` and a first `expires_at` may move. Revising a
 recommendation adds a version; the old one stays readable with what changed
 shown beside it.
+
+**The clinic approves it before the patient sees it.** A submission lands in
+Sessions → Recommendations with the patient shown nothing at all — the plan
+is absent from their dashboard and `/api/care-plan/create-order` refuses it,
+so hiding it is not the only thing standing in the way. An admin can:
+
+- **Approve** it, which publishes it and starts the patient's answering
+  window from that moment rather than from when the therapist typed it.
+- **Turn it down** with a reason, which closes the thread and reaches the
+  therapist as something needing them, so they can write a fresh one.
+- **Approve it with changes**, which does *not* edit the therapist's
+  version. It writes a new one on the same thread, still attributed to the
+  clinician with the admin recorded as having entered it, leaving the
+  original in the history beside it.
+
+All three need a reason of at least ten characters and are recorded in
+append-only `care_plan_reviews`. The switch is **Settings → Booking Rules →
+Approve recommendations before the patient sees them**, on by default; with
+it off a submission publishes on save, as it did before. An admin writing a
+recommendation on a therapist's behalf publishes directly — they are the
+approver, so their own queue would decide nothing.
 
 Once a patient has **bought** a plan, that thread is closed. A later
 recommendation opens a new one marked as superseding it, because editing a
@@ -520,8 +541,12 @@ refund, and an admin's job.
 
 The same records render on the therapist's patient chart and on the
 patient's own Health Profile — one authoritative history with two readers,
-in each one's own voice. `care_plan_default_expiry_days` and
-`care_plan_max_frequency_per_week` are admin-editable.
+in each one's own voice. The patient's copy drops any thread still waiting
+on the clinic or turned down by it; the clinician's shows both, because a
+recommendation of theirs sitting in a queue is exactly what they need to
+see. `care_plan_requires_approval`, `care_plan_default_expiry_days` and
+`care_plan_max_frequency_per_week` are all editable on Settings → Booking
+Rules.
 
 Which of the two the app believes is an admin switch — **Settings → Booking
 Rules → Session Balances From The Ledger**, off by default. While it is off,
@@ -561,11 +586,10 @@ alongside as the record of money. Every webhook Razorpay sends is stored in
 `payment_webhook_events`, deduplicated on its event id, which is what makes
 "process each event once" a database guarantee rather than something the
 route has to remember. Session packages are bought the same way
-via `/api/packages/create-order` and `/api/packages/verify` — the latter
-also books session 1 when the wizard supplied a slot, via
-`src/lib/bookPackageSession.ts` — then any later sessions are redeemed with
-`/api/appointments/book-with-package`. Both package routes enforce the
-package visibility switch server-side, not just in the UI. The standard
+through the recommendation the therapist wrote, via
+`/api/care-plan/create-order` and `/api/care-plan/verify`; later sessions on
+it are redeemed with `/api/appointments/book-with-package` and
+`src/lib/bookPackageSession.ts`. The standard
 session fee lives in `src/lib/pricing.ts`. The online full-refund
 cancellation window is 24 hours by default and admin-editable at **Settings
 → Booking Rules** (`site_settings.online_cancellation_refund_hours`, with
@@ -582,19 +606,21 @@ price, an optional struck-through compare-at price (derived from the
 category's per-session price when left blank), promises, validity, and
 per-programme rules (minimum gap between sessions, max sessions/week, max
 purchases/patient) — configured field-by-field in the admin **Session
-Manager** tab, not Site Content or Feature Control. Active packages appear as
-cards on `/` and `/conditions` (each gated by its own `visible_on_home` /
-`visible_on_conditions` flag, plus the site-wide visibility switch). Tapping
-a card opens a detail dialog carrying everything the card has no room for —
-the long description, terms, scheduling rules, a per-session price
-comparison — while the card's button now
-starts a first session (`/book`) and says that a programme is arranged by a
-therapist afterwards. The prices are still shown — a visitor should be able
-to see what a course of treatment costs — they are simply no longer a
-checkout link. Programme cards go to `/book?category=<id>`, and on
-`/home-visit` a **single**-visit package still books directly
-(`/book-home-visit?package=<id>`), because that visit is the home-visit
-consultation; multi-visit cards explain instead. A purchase's `expires_at` is set the moment payment
+Manager** tab, not Site Content or Feature Control.
+
+**They are not advertised anywhere public.** A course of treatment is a
+clinical recommendation, so `/` and `/conditions` carry no programme
+catalogue at all: they show treatment categories with their consultation
+price, and a programme's detail dialog no longer lists the courses it leads
+to. Programme cards go to `/book?category=<id>`. `/home-visit` shows
+**single**-visit packages only, which still book directly
+(`/book-home-visit?package=<id>`) because that visit is the home-visit
+consultation and the only way in for a patient who needs to be seen at home.
+Multi-visit home programmes are recommended, not sold. The
+`show_programme_prices` switch that used to gate this is retired: the
+columns remain in `schema.sql` and nothing reads them.
+
+A purchase's `expires_at` is set the moment payment
 clears — an abandoned checkout never eats into a validity window — using the
 package's own `validity_days` or the site default. When a package has
 `therapist_locked` on (the default) and the site-wide switch
@@ -702,13 +728,17 @@ with the same fields, the same package whitelist and the same requirement of a
 completed session that therapist ran. The programmes on offer are narrowed to
 the chosen session's own condition, and the screen states whose name it goes
 out in right at the button. It is recommended in their name and recorded as
-typed by the admin. And an admin can withdraw a recommendation
-whose author cannot — a therapist on leave, or gone. That is
-the whole of what an admin may do to a plan: versions are append-only, and a
-recommendation that changed is a new one written by a clinician who has seen
-the patient. A plan already paid for cannot be withdrawn at all; a refund or
-a credit adjustment is the honest lane for that, and both have their own
-screens.
+typed by the admin. The same screen carries the review queue — approve, turn
+down, or approve with different numbers — described above, and an admin can
+withdraw a recommendation whose author cannot, including one still waiting
+in that queue.
+
+What an admin may **not** do is edit a clinician's version. Versions are
+append-only, so every route that changes what is being recommended writes a
+new one attributed to the therapist with the admin recorded as having
+entered it; the original stays readable beside it. A plan already paid for
+cannot be withdrawn at all; a refund or a credit adjustment is the honest
+lane for that, and both have their own screens.
 
 For a recommended course of home visits the offer card asks where the visits
 should come, checks the pincode is serviceable, and shows programme, travel

@@ -107,20 +107,36 @@ An admin can write a recommendation on a therapist's behalf when that
 therapist cannot reach their dashboard — same rules, same package whitelist,
 programmes narrowed to that session's own condition, attribution stated at
 the button, attributed to the clinician (`authored_by`) and recorded as typed
-by the admin (`entered_by`) — and can withdraw one, but never edit or
-re-price it. Both doors call `authorCarePlanVersion()`.
+by the admin (`entered_by`) — and can withdraw one. They can also approve a
+queued one with different numbers, which is the same thing again: a new
+version through the same function, never an edit of the clinician's. All
+three doors call `authorCarePlanVersion()`, and none of them can set a
+price.
 
 A therapist recommends treatment after a session as a **care plan**
 (`care_plans` + append-only `care_plan_versions`), written from the session
-note dialog. They pick an admin-configured package — never a price, a
-session count or a discount, none of which exist as columns — plus four
-clinical fields. It needs a completed session they ran, writes live with no
-review, and a purchased plan is never re-versioned: a later recommendation
-opens a new thread. The same rows render on the therapist's chart and the
-patient's Health Profile. The patient answers on **Suggested Sessions**,
-which also carries the therapist-proposed times that used to live on
-Overview alone; accepting re-derives the price server-side, refuses on a
-catalog mismatch, and grants exactly the recommended sessions.
+note dialog. They answer two questions — which condition, and how many
+sessions — and those two select exactly one admin-configured package. There
+is no price, session count or discount column for anyone to set. Plus four
+clinical fields. It needs a completed session they ran, and a purchased plan
+is never re-versioned: a later recommendation opens a new thread. The same
+rows render on the therapist's chart and the patient's Health Profile.
+
+**The clinic approves it before the patient sees it.** A submission lands
+`pending_review` and shows on Sessions → Recommendations, counted in Today's
+inbox; an admin approves it, turns it down with a reason the therapist
+reads, or approves it with different numbers — which writes a *new* version
+attributed to the clinician and entered by the admin rather than editing
+theirs, since versions are append-only. Decisions are recorded in
+append-only `care_plan_reviews`, all three need a ten-character reason, and
+the offer window is stamped at approval rather than at authoring so a plan
+that waited does not reach the patient with its time already spent. One
+switch, `care_plan_requires_approval`, on by default and failing closed.
+
+The patient answers on **Suggested Sessions**, which also carries the
+therapist-proposed times that used to live on Overview alone; accepting
+re-derives the price server-side, refuses on a catalog mismatch, and grants
+exactly the recommended sessions.
 
 A patient's first purchase is **one session**. A multi-session programme is a
 clinical judgement, so it comes from a care plan and never from a price list:
@@ -129,6 +145,14 @@ session or visit, and the old `/book?package=` checkout is deleted. A
 one-visit home package is the home-visit consultation and stays purchasable —
 without it, a patient who needs to be seen at home would have no entry point,
 since ordinary consultations are always video.
+
+**Nor is a programme advertised.** The public pages carry no programme
+catalogue at all: `/` and `/conditions` show treatment categories and their
+consultation price, `/home-visit` shows single visits only, and the
+`show_programme_prices` switch is retired rather than defaulted off — a
+toggle somebody can flip back on is not the rule being gone. The patient
+dashboard's booking hub is the same: one video consultation, or one visit
+at home.
 
 Treatment is paid for through this platform, and two admin-switchable
 controls keep it that way. Every string one role writes and another reads is

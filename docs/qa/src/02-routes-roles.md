@@ -77,7 +77,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Sessions | `all` | All Sessions | `ADM-SESS-001` |
 | Sessions | `roster` | Roster | `ADM-ROST-001` |
 | Sessions | `delivery` | Delivery (operational rates) | `ADM-DELIV-001` |
-| Sessions | `recommendations` | Recommendations | `ADM-CARE-001` |
+| Sessions | `recommendations` | Recommendations — the clinic's review queue, plus every plan | `ADM-CARE-001`, `ADM-CARE-004` |
 | Sessions | `new` | New Booking | `ADM-NEWB-001` |
 | People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001` |
 | People | `therapists` | Therapists | `ADM-PEOP-005` |

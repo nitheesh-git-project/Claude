@@ -260,9 +260,9 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 **Steps**
 1. Open the completed session's note dialog.
-2. In the **Recommend treatment** panel, tap the **Programme** dropdown.
-3. Read the list of programmes offered.
-4. Select `QA Spine Recovery 6 Sessions`.
+2. In the **Recommend treatment** panel, tap the **Condition** dropdown.
+3. Read the list of conditions offered, and how they are grouped.
+4. Select the session's own condition, then tap the session-count chip for `6 sessions`.
 5. Read the four read-only figures shown beneath.
 6. Tap **How often, per week** and select `2 a week`.
 7. Tick **Needs hands-on treatment**.
@@ -272,12 +272,14 @@ A second attempt returns `This visit's payment has already been recorded.`
 11. Submit.
 
 **Expected Result**
-* Step 3: **only programmes for this session's own condition are offered.** `QA Neuro Rehab 8 Sessions` must not be in the list for a `QA Back & Spine Care` session.
+* Step 3: **conditions are grouped by condition type** — Orthopaedic, Neurological, Paediatric — from `treatment_categories.specialty`. A category an admin has not tagged appears under **Other** and still works. The panel **never shows a programme by name**: a clinician answers "which condition" and "how many sessions", and those two pick the catalogue row.
+* Step 3: **only programmes for this session's own condition are offered.** `QA Neuro Rehab 8 Sessions` must not be reachable for a `QA Back & Spine Care` session.
+* Step 4: a **Delivered as** toggle (Video sessions / Home visits) appears **only** where the clinic sells both against that condition. A toggle with one option is not a decision the clinician has.
 * Step 5: **Sessions `6`**, **Price `₹9,999`**, **Valid for `90 days`**, **Each session `60 min`** — all read-only, all from the admin's catalog row. **There is no price field, no session-count field and no discount field anywhere in this panel.** If one exists, that is a P0 defect: "the therapist set their own price" must be a thing the schema cannot express.
 * Step 6: the frequency dropdown is capped by `care_plan_max_frequency_per_week` (default 5) and offers `Leave open`.
-* Step 10: *"This goes to the patient as it is written. They accept and pay from their own dashboard — you are not booking or charging anything here."*
-* Step 11: the plan is written **live, with no review**, append-only and attributed. `care_plan_versions.source_appointment_id` is NOT NULL and is **re-derived from the appointment, not trusted from the body**.
-* The patient sees it immediately on Suggested Sessions and on their Health Profile.
+* Step 10: with `care_plan_requires_approval` **on** (the default), the panel says *"Goes to the clinic first. Your patient sees it once it is approved."* With it off, it says the patient sees it on their dashboard. **The copy must match the setting** — telling a clinician their patient can already see something sitting in a queue is a P0 defect.
+* Step 11: the plan lands `status = 'pending_review'`, append-only and attributed. `care_plan_versions.source_appointment_id` is NOT NULL and is **re-derived from the appointment, not trusted from the body**. `care_plan_versions.expires_at` is **null** — the offer window is stamped at approval, not now.
+* **The patient sees nothing.** Not a greyed-out card: the recommendation is absent from Suggested Sessions and from their Health Profile until an admin approves it (`ADM-CARE-004`).
 
 #### `THR-CARE-006` — The Overview names who is waiting to hear · P1
 
@@ -294,15 +296,28 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Preconditions.** Patient A has **bought** the recommendation (`PAT-CARE-002`).
 **Steps.** Attempt to write a new recommendation for the same patient.
 **Expected Result.** The purchased thread is **closed**. A new recommendation opens a **new plan** with `supersedes_id` set — it does not add a version to the purchased one. Editing a purchased plan would change the description of something already paid for.
-`care_plans_one_active_per_patient` means the patient never sees two competing live recommendations.
+`care_plans_one_open_per_patient` means the patient never sees two competing live recommendations — and covers a **queued** plan too, so a submission waiting on the clinic blocks a second one exactly as a published one does.
 
 #### `THR-CARE-004` — Versions are append-only by trigger · P1 **[SQL]**
 **Steps.** In the Supabase SQL editor, attempt `update care_plan_versions set clinical_rationale='changed' where id='<id>';` and `delete from care_plan_versions where id='<id>';`
-**Expected Result.** Both **raise**. Only `is_current` may change. This is enforced by trigger, not by RLS — every route writes with the service role, which bypasses RLS entirely.
+**Expected Result.** Both **raise**. Only `is_current` and a **first** `expires_at` may change — the offer window is stamped once, at approval, and moving one already set raises too. This is enforced by trigger, not by RLS — every route writes with the service role, which bypasses RLS entirely.
 
 #### `THR-CARE-005` — Withdraw one's own recommendation · P2
-**Steps.** Tap the withdraw control on an unpurchased recommendation.
-**Expected Result.** The plan closes; the patient's offer disappears. **A purchased plan cannot be withdrawn at all.**
+**Steps.** Tap the withdraw control on an unpurchased recommendation, then on one still **waiting for the clinic's approval**.
+**Expected Result.** Both close; the patient's offer disappears where there was one. **A purchased plan cannot be withdrawn at all.**
+
+#### `THR-CARE-007` — The clinic's decision reaches the therapist · P0
+
+**Feature.** A recommendation turned down silently is one that never happened, and the therapist is the only person who can put it right — they rewrite.
+
+**Preconditions.** `ADM-CARE-005` has turned down this therapist's recommendation with the reason `This patient still has four unused sessions on their current plan.`
+
+**Steps.** Open `/therapist/dashboard`. Then open that patient's chart.
+**Expected Result.**
+* The activity feed carries a **needsYou** item: *"The clinic turned down your recommendation for QA Patient A"*, with the admin's reason as its detail. It is the **only** care-plan feed item marked `needsYou` — an approval is the expected outcome and marking it so would train the therapist to ignore the badge.
+* An **approval** and an **approve-with-changes** also appear, not marked `needsYou`: a submission that vanishes into a queue and never reports back teaches a clinician to stop trusting the queue.
+* On the chart, the thread reads **Not approved**; a queued one reads **Waiting for the clinic to approve**. Both are visible to the clinician and **neither is visible to the patient**.
+* The thread being closed frees the one-open-plan slot, so a fresh recommendation can be written straight away.
 
 #### `THR-SUGG-001` — Suggest a session · P0
 

@@ -56,7 +56,11 @@ picker), and the clinic's reach over a
 recommendation -- who may write one on a therapist's behalf, the split
 attribution the successful write produces, and the panel that offers it
 (`admin-care-plans.spec.ts`, whose fixtures are found-or-created rather than
-deleted, since an append-only version pointing at one makes it undeletable).
+deleted, since an append-only version pointing at one makes it undeletable),
+and that same file's walk through the review step -- a submission queued and
+invisible, refused at checkout with the patient's own session, approved with
+its window stamped and its decision recorded, turned down and rewritten, and
+approved with changes leaving the therapist's original in place.
 It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
@@ -154,6 +158,8 @@ src/lib/marketingNav.ts  the eight public pages + their one-line purposes
 src/lib/mission.ts       the mission, vision, promises and stated limits
 src/lib/marketingPhotos.ts every photograph the public pages use
 src/lib/careAreas.ts     the six areas of practice, shared by / and /conditions
+src/lib/carePlanAuthoring.ts the one writer of a care plan version, three doors
+src/lib/carePlanReview.ts the clinic's decision on a queued recommendation
 src/lib/adminScope.ts    admin scopes and which sections each one may open
 src/lib/availabilityRanges.ts the roster's range layer over its hour rows
 src/lib/availabilityRequest.ts server-side validation both save doors share
@@ -873,12 +879,14 @@ client is the only writer and the log is append-only from any session.
   specialty from **triage only**: an existing profile carrying it must
   keep rendering, and a therapist re-triaging such a patient is still
   offered it. Ortho can never be switched off.
-- **One authoring implementation, two doors.** A therapist writes their own
+- **One authoring implementation, three doors.** A therapist writes their own
   recommendation from the session note dialog; an admin writes one on their
   behalf from Sessions → Recommendations when that therapist cannot reach the
-  dashboard (on leave, off sick, gone, with a patient still waiting to hear).
-  Both call `authorCarePlanVersion()` in `src/lib/carePlanAuthoring.ts`, which
-  is what stops the second door growing weaker rules than the first: the
+  dashboard (on leave, off sick, gone, with a patient still waiting to hear);
+  and an admin approving a queued one with different numbers writes a third,
+  which is the same act again rather than an edit. All three call
+  `authorCarePlanVersion()` in `src/lib/carePlanAuthoring.ts`, which
+  is what stops the later doors growing weaker rules than the first: the
   package still comes from the admin whitelist, the source still has to be a
   **completed session that therapist ran**, the text is still scanned, and
   there is still no price, session-count or discount field for anyone.
@@ -902,15 +910,57 @@ client is the only writer and the log is append-only from any session.
   missing -- an admin opens this screen because a patient is waiting, and a
   panel that is simply absent reads as a feature that does not exist.
 
-- **The clinic can see every recommendation, and stop one.** A care plan is
-  now the only route by which a patient buys a programme, so Sessions →
+- **A recommendation is reviewed before it is published, and the review is
+  evidence.** A therapist's submission lands `status = 'pending_review'` and
+  the patient is shown nothing — not a greyed-out card, nothing: the plan is
+  absent from `loadActiveCarePlan`, `loadCarePlanHistory` drops it unless a
+  caller passes `includeUnapproved`, and `/api/care-plan/create-order`
+  refuses it, because hiding a card is presentation and refusing the order
+  is the rule. Six things hold it together:
+  1. **Three outcomes, one route each.** `/api/admin/review-care-plan`
+     approves or turns one down; `/api/admin/edit-and-approve-care-plan`
+     publishes different numbers. All take `requireAdminScope("sessions")`
+     and a ten-character reason, and write `care_plan.approve` /
+     `care_plan.reject` / `care_plan.edit_and_approve` audit rows.
+  2. **Approve-with-changes is not an edit.** It writes a new version
+     through `authorCarePlanVersion()` with `authored_by` still the
+     therapist and `entered_by` the admin, leaving the original in the
+     thread as superseded. Rewriting a version under a clinician's name
+     would be a lie about who decided what, and the append-only trigger
+     refuses it anyway.
+  3. **Every decision is recorded, and a failure to record it un-publishes
+     the plan.** `care_plan_reviews` is append-only by trigger — the routes
+     write with the service-role client, so RLS is not the guarantee — and
+     both decisions revert their own status change when the insert fails.
+     Same posture as `/api/therapist/reveal-contact`, and the opposite of
+     the audit log's: an approval nobody can trace to a person is the one
+     outcome these routes must not produce.
+  4. **The offer window is stamped at approval, not at authoring.** A
+     version is written with a null `expires_at`; the approval sets it. The
+     append-only trigger permits exactly that one transition, one-way, so a
+     window can be stamped once and never moved after the patient has read
+     it. Stamping at authoring meant the plans the clinic took longest over
+     reached the patient with the least time on them.
+  5. **A new version on a published thread sends the whole thread back.**
+     Deliberately, even though it takes a live offer off the patient's
+     screen: what they can now see is a version nobody approved.
+  6. **The rejection reaches the therapist.** It is a `needsYou` feed item
+     carrying the reason, because they are the only person who can act on
+     it, and they rewrite — an admin editing a clinician's judgement from
+     the back office is what door three is deliberately narrow about.
+  One switch, `site_settings.care_plan_requires_approval`, on by default,
+  read in its own call and failing **closed** — the opposite direction from
+  `contact_scan_mode`, because the safe answer to "I could not read the
+  setting" is to hold a recommendation, never to publish one unreviewed.
+  With it off, a therapist's submission publishes on save exactly as before.
+
+- **The clinic can also see every recommendation, and stop one.** Sessions →
   Recommendations lists them all and `/api/admin/withdraw-care-plan`
-  (`requireAdminScope("sessions")`, mandatory reason, CAS on
-  `status = 'active'`, `care_plan.withdraw` audit row) closes one whose
-  author cannot — on leave, gone, or the reason it is wrong. Withdrawing is
-  deliberately the **whole** of that power: versions are append-only, and a
-  recommendation that changed is a new one written by a clinician who has
-  seen the patient, never an edit made from the back office. A **purchased**
+  (`requireAdminScope("sessions")`, mandatory reason, CAS on either open
+  status, `care_plan.withdraw` audit row) closes one whose author cannot —
+  on leave, gone, or the reason it is wrong. It covers a **queued** plan
+  too: refusing would leave the queue holding a thread nobody intends to
+  approve while the patient's one-plan slot stayed taken. A **purchased**
   plan cannot be withdrawn at all — the patient has paid and the sessions
   exist, so the honest lane is a refund or a credit adjustment, both of
   which have their own screens.
@@ -925,6 +975,14 @@ client is the only writer and the log is append-only from any session.
   Direct session-package purchase is **gone**: `/api/packages/create-order`,
   `/api/packages/verify`, `packagePayment.ts` and `BuyPackageButton` are
   deleted, and `/book` sells one consultation against a treatment category.
+  So is the **advertising** of one. `/` and `/conditions` no longer query or
+  render session packages at all, the programme dialog's price list of
+  courses is gone, `/home-visit` filters to single visits, and
+  `home/SessionPackages.tsx` is deleted. `show_programme_prices` /
+  `session_packages_visible` are retired rather than defaulted off — a
+  toggle somebody can flip back on is not the rule being gone, and a price
+  list of programmes is exactly what a patient must not shop from. The two
+  columns stay in `schema.sql`, read by nothing.
   The home-visit exception is load-bearing rather than a compromise: every
   home visit in this app is a `home_visit_packages` purchase and
   `/api/appointments/create` books `visit_mode: 'online'` only, so applying
@@ -972,20 +1030,26 @@ client is the only writer and the log is append-only from any session.
      appointment rather than trusting the body. That is what makes
      "recommend to everyone and see who bites" impossible rather than
      discouraged.
-  3. **It writes live, with no review.** Same reasoning as
-     `condition-profile/onboard`: a queue in front of a clinician's own
-     judgement means the patient hears nothing for hours after a session
-     that just ended. Live is not unrecorded — versions are append-only,
-     attributed and dated.
+  3. **The clinic approves it before the patient sees it.** This used to
+     write live, on the same reasoning as `condition-profile/onboard`: a
+     queue in front of a clinician's own judgement means the patient hears
+     nothing for hours after a session that just ended. That reasoning held
+     while a recommendation was one clinical record among several, and
+     stopped holding once a care plan became the only route by which a
+     patient buys a programme — what is written is now a bill, and the
+     clinic that carries it sees one before the patient is asked to pay it.
+     See the review rule below for the whole of it.
   4. **Versions are append-only, by trigger.** Only `is_current` may
      change; every other column raises on update, and delete raises
      outright. A recommendation that changed is a new version.
   5. **A purchased plan is never re-versioned.** Once `status = 'accepted'`
      the thread is closed and a later recommendation opens a new one with
      `supersedes_id` set, because editing a purchased plan would change the
-     description of something already paid for. `care_plans_one_active_per_patient`
-     keeps at most one live plan, so a patient never sees two competing
-     recommendations.
+     description of something already paid for. `care_plans_one_open_per_patient`
+     keeps at most one **open** plan — `active` or `pending_review` — so a
+     patient never sees two competing recommendations, and a queued one
+     cannot go live beside a published one. Scoping that index to `active`
+     alone, as it was before the review step, is exactly how that happens.
 
   One record, two readers: `CarePlanHistory` renders the same
   `care_plan_versions` rows on the therapist's chart and the patient's
@@ -1335,8 +1399,10 @@ client is the only writer and the log is append-only from any session.
   those collections deliberately stay open on the Cash Ledger for a person
   to chase.
 - **Admin-configurable behavior** (Meet on/off, join without approval, join
-  window, idle timeout,
-  the sign-out banner's duration,
+  window, idle timeout, the sign-out banner's duration, whether a
+  recommendation is approved before the patient sees it) is read through
+  `src/lib/adminSettings.ts` with defaults — don't hardcode these.
+
 - **Only a patient account can book; one account carries one role.**
   `profiles.id` *is* the auth user's id and `role` is a single column, so a
   therapist/hospital/admin session can never also be the patient a booking is
@@ -1610,9 +1676,12 @@ client is the only writer and the log is append-only from any session.
   session an hour past its start reads the same way on every screen it
   appears on — idle timeout,
   booking languages, the online booking lead time and cancellation refund
-  window, the package-wide settings — visibility, default
+  window, the package-wide settings — default
   validity, therapist-lock switch, bulk-scheduler limit, expiry reminder
-  window — the nine `home_visit_*` settings — master switch, cash on/off,
+  window — the three recommendation settings on Settings → Booking Rules —
+  whether the clinic approves one before the patient sees it
+  (`care_plan_requires_approval`, on by default), how long an approved one
+  holds, and the ceiling on sessions a week a clinician may ask for — the nine `home_visit_*` settings — master switch, cash on/off,
   lead time, cancellation refund window, default validity, bulk-scheduler
   limit, travel buffer minutes, and the public page's heading/subheading —
   and Brand & Contact Details — site name, tagline, description, contact

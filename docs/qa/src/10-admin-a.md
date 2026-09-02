@@ -175,17 +175,64 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 
 #### `ADM-CARE-001` — Recommendations: see every care plan · P0
 **Steps.** Open **Sessions → Recommendations**.
-**Expected Result.** Every care plan in the clinic is listed with its patient, therapist, package, status and date. A care plan is now the **only** route by which a patient buys a programme, so the clinic must be able to see them all.
+**Expected Result.** Three bands, in this order: **Waiting for your decision**, **Waiting on a patient**, **Answered and closed**. Every care plan in the clinic is listed with its patient, therapist, package, status and date. A care plan is now the **only** route by which a patient buys a programme, so the clinic must be able to see them all.
+The first band **renders even when empty**, saying so. A section that disappears when there is nothing in it gives an admin no way to tell "nothing waiting" from "I am on the wrong screen".
+
+#### `ADM-CARE-004` — Approve a recommendation · P0
+
+**Feature.** A therapist's recommendation is a bill as well as a clinical note, and the clinic that carries it sees one before the patient is asked to pay it.
+
+**Preconditions.** `care_plan_requires_approval` is **on** (default, at Settings → Booking Rules). `THR-CARE-001` has been submitted.
+
+**Steps**
+1. Open **Today → Overview** and read the Clinical group of the action inbox.
+2. Follow **Recommendations waiting for approval** to the queue.
+3. Read the card: patient, therapist, programme, sessions, price, frequency, the clinician's reasoning and their instructions to the patient.
+4. Tap **Approve**. Submit with the reason `ok` (two characters).
+5. Replace it with `Matches the assessment findings and the patient's stated goal.` and submit.
+6. Check the patient's Suggested Sessions screen.
+7. Attempt the same decision a second time.
+
+**Expected Result**
+* Step 1: the count is there and marked **urgent** while anything is queued. It is the only queue in the app with a patient on the other side of it who has been told nothing at all.
+* Step 2: the link lands on `?section=sessions&tab=recommendations` — the figure and the list it opens must agree.
+* Step 4: **refused.** A reason of fewer than ten characters is rejected, by the route and by a CHECK on `care_plan_reviews.reason`. A decision with no reason reads the same as one nobody got round to.
+* Step 5: the plan becomes `active`; `reviewed_by` and `reviewed_at` are stamped; a `care_plan_reviews` row records the decision, the reason and the reviewer; a `care_plan.approve` audit row is written. **`care_plan_versions.expires_at` is stamped now** — the patient's answering window starts at approval, not at authoring, so a plan that waited in the queue does not arrive with its time already spent.
+* Step 6: the recommendation is now visible and purchasable.
+* Step 7: **409** — `Someone else decided this one first.` The decision is a compare-and-swap on `pending_review`, so two admins in the queue together cannot both decide.
+
+#### `ADM-CARE-005` — Turn a recommendation down · P0
+**Steps.** On a queued recommendation, tap **Turn it down** and submit the reason `This patient still has four unused sessions on their current plan.`
+**Expected Result.** The plan becomes `rejected`; a `care_plan_reviews` row and a `care_plan.reject` audit row are written; the patient never sees it. The therapist sees it as something needing them, with the reason (`THR-CARE-007`) — **they rewrite; an admin does not edit their judgement**. The closed thread frees the one-open-plan slot immediately.
+
+#### `ADM-CARE-006` — Approve with different numbers · P0
+
+**Feature.** The middle case, and the one whose honesty is in the plumbing rather than the button.
+
+**Steps.** On a queued recommendation, tap **Approve with changes**. Change the session count chip and the frequency. Submit with the reason `Frequency reduced to match what this patient can attend.`
+
+**Expected Result**
+* The plan becomes `active` and the patient is offered the **new** numbers.
+* **The therapist's original version is untouched** and still readable in the thread, marked superseded. A version is append-only; rewriting one under a clinician's name would be a lie about who decided what, and the trigger refuses it regardless.
+* The new version carries `authored_by` = the **therapist** and `entered_by` = the **admin**. Check both in the database — this is the assertion the whole feature turns on.
+* The `care_plan_reviews` row records `edited_and_approved`, and a `care_plan.edit_and_approve` audit row is written.
+* The programmes offered in the change panel are **narrowed to that session's own condition**, exactly as on the therapist's own dialog.
+
+#### `ADM-CARE-007` — The switch · P1
+**Steps.** At **Settings → Booking Rules**, turn **Approve recommendations before the patient sees them** off. Have a therapist submit a recommendation.
+**Expected Result.** It publishes on save and the patient sees it immediately, exactly as before the review step existed. The therapist's panel copy changes to match. Turn it back on afterwards — the rest of the suite assumes the default.
+The setting **fails closed**: with the column unreadable, a submission is held rather than published. That is the opposite direction from `contact_scan_mode`, and deliberately so.
 
 #### `ADM-CARE-002` — Withdraw a recommendation · P0
 **Steps.** Withdraw an **active, unpurchased** plan with the reason `Therapist on extended leave; will re-review.` Then attempt to withdraw an **accepted (purchased)** plan.
 **Expected Result.** The active one closes; the patient's offer disappears; a `care_plan.withdraw` audit row is written; the route required `sessions` scope, a **mandatory reason**, and a compare-and-swap on `status='active'` (a stale attempt returns `Someone else closed this recommendation. Refresh to see it.`).
 **The purchased plan cannot be withdrawn at all** — the patient has paid and the sessions exist, so the honest lane is a refund or a credit adjustment, each of which has its own screen.
-**Withdrawing is deliberately the whole of that power.** There is no admin path to *edit* or *re-price* a recommendation. A recommendation that changed is a **new one written by a clinician who has seen the patient**.
+Withdrawal also covers a plan **still waiting for approval** — refusing would leave the queue holding a thread nobody intends to approve while the patient's one-plan slot stayed taken.
+**There is no admin path to *edit* a version.** Approving with different numbers (`ADM-CARE-006`) writes a **new** one attributed to the clinician; it does not change theirs, and no route anywhere can set a price.
 
 #### `ADM-CARE-003` — Write a recommendation on a therapist's behalf · P0
 
-**Feature.** One authoring implementation, two doors. This exists for when a therapist cannot reach their dashboard — on leave, off sick, gone — and a patient is still waiting to hear.
+**Feature.** One authoring implementation, three doors. This one exists for when a therapist cannot reach their dashboard — on leave, off sick, gone — and a patient is still waiting to hear.
 
 **Steps**
 1. On **Sessions → Recommendations**, open the authoring panel.
@@ -199,7 +246,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Expected Result**
 * Step 3: programmes are **narrowed to that session's own condition**, exactly as on the therapist's dialog.
 * Step 5: **whose name it goes out in is stated at the button**, not in a subtitle two screens up.
-* Step 6: the write succeeds with **split attribution** — `authored_by` is the clinician whose judgement it is, `entered_by` is the admin who typed it. Naming only the therapist would be a quiet lie about who was at the keyboard; naming only the admin a louder one about whose judgement it is. A `care_plan.author_on_behalf` audit row is written. The route required `sessions` scope and a mandatory reason.
+* Step 6: the write **publishes directly**, without passing through the review queue — the admin writing it is the approver, so their own queue would decide nothing. It succeeds with **split attribution** — `authored_by` is the clinician whose judgement it is, `entered_by` is the admin who typed it. Naming only the therapist would be a quiet lie about who was at the keyboard; naming only the admin a louder one about whose judgement it is. A `care_plan.author_on_behalf` audit row is written. The route required `sessions` scope and a mandatory reason.
 * Step 7: **the draft is dropped** when the session changes, so a package for someone else's condition cannot be carried across.
 * With **no** eligible session or **no** recommendable package, the panel **still renders** and says which of the two is missing. An admin opens this screen because a patient is waiting; a panel that is simply absent reads as a feature that does not exist.
 * The rules are **not weaker than the therapist's door**: the package still comes from the admin whitelist, the source must still be a completed session that therapist ran, and the text is still scanned.
