@@ -11,7 +11,26 @@ export type RecommendableOption = {
   /** The condition this package treats, or null for one an admin left
    *  unattached. */
   categoryId: string | null;
+  /** The condition's own name, and which of the three condition types it
+   *  belongs to. Both may be null in a database where an admin has not
+   *  tagged the category; the picker then falls back to one ungrouped list,
+   *  which is exactly how it read before. */
+  categoryTitle: string | null;
+  specialty: "ortho" | "neuro" | "pediatrics" | null;
 };
+
+/** Clinician-facing names for the three condition types. Kept here rather
+ *  than imported from conditionSpecialty.ts because that module is the
+ *  health-profile vocabulary and this is a catalogue picker -- they happen
+ *  to agree today, and coupling them would make a change to one a change to
+ *  the other. */
+const SPECIALTY_LABELS: Record<string, string> = {
+  ortho: "Orthopaedic",
+  neuro: "Neurological",
+  pediatrics: "Paediatric",
+};
+
+const UNATTACHED = "__unattached__";
 
 export type CarePlanDraft = {
   offerKind: CarePlanOfferKind;
@@ -103,6 +122,69 @@ export default function CarePlanFields({
     );
   }
 
+  // Everything below is derived from `options` and the current selection --
+  // no second piece of state, so the condition, the delivery mode and the
+  // count cannot disagree about which programme is selected.
+  const conditionKey = selected?.categoryId ?? UNATTACHED;
+
+  const conditionMeta = new Map<
+    string,
+    { key: string; label: string; specialty: string | null }
+  >();
+  for (const o of options) {
+    const key = o.categoryId ?? UNATTACHED;
+    if (conditionMeta.has(key)) continue;
+    conditionMeta.set(key, {
+      key,
+      label: o.categoryTitle ?? (o.categoryId ? o.title : "Any condition"),
+      specialty: o.specialty,
+    });
+  }
+
+  // Grouped by condition type where an admin has tagged them, and under one
+  // unnamed heading where they have not -- a database mid-migration reads as
+  // one flat list rather than as an empty picker.
+  const groupedConditions = (() => {
+    const order = ["ortho", "neuro", "pediatrics", null];
+    const groups: { label: string; conditions: { key: string; label: string }[] }[] = [];
+    for (const specialty of order) {
+      const conditions = [...conditionMeta.values()]
+        .filter((c) => c.specialty === specialty)
+        .sort((a, b) => a.label.localeCompare(b.label));
+      if (conditions.length === 0) continue;
+      groups.push({
+        label: specialty ? SPECIALTY_LABELS[specialty] : "Other",
+        conditions,
+      });
+    }
+    return groups;
+  })();
+
+  const forCondition = options.filter(
+    (o) => (o.categoryId ?? UNATTACHED) === conditionKey
+  );
+  const kindsForCondition = [...new Set(forCondition.map((o) => o.kind))];
+  const countChoices = forCondition
+    .filter((o) => o.kind === (value?.offerKind ?? kindsForCondition[0]))
+    .sort((a, b) => a.snapshot.sessionCount - b.snapshot.sessionCount);
+
+  /** Moving condition or delivery mode lands on a real programme rather than
+   *  on nothing: a picker that can sit in a state with no package selected
+   *  is a Save button that fails for a reason nobody can see. */
+  function selectCondition(key: string) {
+    const first = options.find((o) => (o.categoryId ?? UNATTACHED) === key);
+    if (!first) return;
+    patch({ packageId: first.id, offerKind: first.kind, frequencyPerWeek: null });
+  }
+
+  function selectKind(kind: CarePlanOfferKind) {
+    const first = forCondition
+      .filter((o) => o.kind === kind)
+      .sort((a, b) => a.snapshot.sessionCount - b.snapshot.sessionCount)[0];
+    if (!first) return;
+    patch({ packageId: first.id, offerKind: first.kind, frequencyPerWeek: null });
+  }
+
   const cap = Math.min(7, selected?.snapshot.maxPerWeek ?? 7);
 
   return (
@@ -118,35 +200,111 @@ export default function CarePlanFields({
         </button>
       </div>
 
+      {/* Two questions, in the order a clinician thinks in: what kind of
+          patient is this, and how much treatment do they need. The
+          programme's name never appears, because it is not a decision --
+          the condition and the number of sessions pick exactly one
+          admin-configured row, and every number on it comes from that row.
+          A single list of programme titles asked the clinician to translate
+          their judgement into somebody's product name first, which is how
+          the wrong one gets picked. */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="care-plan-condition" className="block text-xs font-semibold text-slate-700">
+            Condition
+          </label>
+          <select
+            id="care-plan-condition"
+            value={conditionKey}
+            onChange={(e) => selectCondition(e.target.value)}
+            className="mt-1.5 w-full rounded-xl border border-slate-300 p-2.5 text-sm focus:border-teal-500 focus:outline-none"
+          >
+            {groupedConditions.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.conditions.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+
+        {/* Only where the clinic sells both against this condition. A toggle
+            with one option is a decision the clinician does not have. */}
+        {kindsForCondition.length > 1 && (
+          <div>
+            <span className="block text-xs font-semibold text-slate-700">Delivered as</span>
+            <div className="mt-1.5 flex gap-2">
+              {kindsForCondition.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => selectKind(k)}
+                  className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                    value?.offerKind === k
+                      ? "border-teal-600 bg-teal-700 text-white"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {k === "home_visit_package" ? "Home visits" : "Video sessions"}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div>
-        <label
-          htmlFor="care-plan-package"
-          className="block text-xs font-semibold text-slate-700"
-        >
-          Programme
-        </label>
+        <span className="block text-xs font-semibold text-slate-700">
+          How many {value?.offerKind === "home_visit_package" ? "visits" : "sessions"}
+        </span>
         <p className="mb-1.5 mt-0.5 text-[11px] text-slate-500">
-          Sessions, price and validity come with the programme — they are set by the clinic,
-          not here.
+          Price, validity and the scheduling rules come with the number — they are set by
+          the clinic, not here.
         </p>
-        <select
-          id="care-plan-package"
-          value={value?.packageId ?? ""}
-          onChange={(e) => {
-            const option = options.find((o) => o.id === e.target.value);
-            if (!option) return;
-            patch({ packageId: option.id, offerKind: option.kind, frequencyPerWeek: null });
-          }}
-          className="w-full rounded-xl border border-slate-300 p-2.5 text-sm focus:border-teal-500 focus:outline-none"
-        >
-          {options.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.title} — {o.snapshot.sessionCount} session
-              {o.snapshot.sessionCount === 1 ? "" : "s"}, {formatInr(o.snapshot.pricePaise)}
-              {o.kind === "home_visit_package" ? " (home visits)" : ""}
-            </option>
-          ))}
-        </select>
+        {countChoices.length === 0 ? (
+          <p className="rounded-lg bg-white p-3 text-[11px] text-slate-500">
+            The clinic has nothing configured for this condition yet. An admin adds the
+            programmes on Catalog → Packages.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {countChoices.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() =>
+                  patch({ packageId: o.id, offerKind: o.kind, frequencyPerWeek: null })
+                }
+                className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
+                  value?.packageId === o.id
+                    ? "border-teal-600 bg-teal-700 text-white"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <span className="block font-bold">
+                  {o.snapshot.sessionCount}{" "}
+                  {o.kind === "home_visit_package"
+                    ? o.snapshot.sessionCount === 1
+                      ? "visit"
+                      : "visits"
+                    : o.snapshot.sessionCount === 1
+                      ? "session"
+                      : "sessions"}
+                </span>
+                <span
+                  className={
+                    value?.packageId === o.id ? "text-teal-100" : "text-slate-500"
+                  }
+                >
+                  {formatInr(o.snapshot.pricePaise)}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {selected && (

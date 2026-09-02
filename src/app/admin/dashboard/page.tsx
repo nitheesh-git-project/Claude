@@ -625,6 +625,21 @@ export default async function AdminDashboardPage({
     (categoryImageRows ?? []).map((row) => [row.id, row.image_url as string | null])
   );
 
+  // And the condition type, newer still, in its own call for the same
+  // reason -- losing it costs the therapist's picker its grouping, never the
+  // dashboard.
+  let categorySpecialtyById = new Map<string, string | null>();
+  try {
+    const { data: rows } = await admin
+      .from("treatment_categories")
+      .select("id, specialty");
+    categorySpecialtyById = new Map(
+      (rows ?? []).map((row) => [row.id, (row as { specialty: string | null }).specialty ?? null])
+    );
+  } catch {
+    // Untagged database. Every condition reads as "Not set".
+  }
+
   // testimonials.avatar_url is migration-dependent too, so it stays out of
   // the ~40-query Promise.all above for the reason the category covers do.
   const { data: testimonialAvatarRows } = await admin
@@ -2094,6 +2109,7 @@ export default async function AdminDashboardPage({
         categories={(treatmentCategories ?? []).map((c) => ({
           ...c,
           image_url: categoryImageById.get(c.id) ?? null,
+          specialty: categorySpecialtyById.get(c.id) ?? null,
           points: Array.isArray(c.points) ? (c.points as string[]) : [],
         }))}
       />
@@ -2631,6 +2647,8 @@ export default async function AdminDashboardPage({
         title: p.title,
         snapshot: p.snapshot,
         categoryId: p.categoryId,
+        categoryTitle: p.categoryTitle,
+        specialty: p.specialty,
       }))
     : [];
 

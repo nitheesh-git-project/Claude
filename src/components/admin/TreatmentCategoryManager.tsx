@@ -16,6 +16,8 @@ type Category = {
   cta_label: string;
   display_order: number;
   active: boolean;
+  /** Migration-dependent, read in its own call by the caller. */
+  specialty?: string | null;
 };
 
 function DeleteButton({ id }: { id: string }) {
@@ -261,6 +263,7 @@ export default function TreatmentCategoryManager({
                   duration_minutes: duplicateFrom.duration_minutes,
                   cta_label: duplicateFrom.cta_label,
                   display_order: duplicateFrom.display_order,
+                  specialty: duplicateFrom.specialty ?? null,
                   active: false,
                 }
               : undefined

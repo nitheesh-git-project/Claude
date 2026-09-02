@@ -16,6 +16,15 @@ export type RecommendablePackage = {
   kind: CarePlanOfferKind;
   title: string;
   categoryId: string | null;
+  /** The condition this treats, and which of the three condition types it
+   *  belongs to. Both resolved here rather than in a component, because the
+   *  therapist's picker asks for a condition and a number of sessions --
+   *  never for a programme by name -- and the price has to come back from
+   *  that pair. Null where an admin has not attached or tagged the
+   *  category yet; such a programme is offered under "Any condition" rather
+   *  than disappearing. */
+  categoryTitle: string | null;
+  specialty: "ortho" | "neuro" | "pediatrics" | null;
   snapshot: CarePlanOfferSnapshot;
 };
 
@@ -59,6 +68,8 @@ export async function loadRecommendablePackages(
         kind: "session_package",
         title: row.title,
         categoryId: row.category_id ?? null,
+        categoryTitle: null,
+        specialty: null,
         snapshot: buildOfferSnapshot("session_package", row as Record<string, unknown>),
       });
     }
@@ -87,12 +98,54 @@ export async function loadRecommendablePackages(
           kind: "home_visit_package",
           title: row.title,
           categoryId: row.category_id ?? null,
+          categoryTitle: null,
+          specialty: null,
           snapshot: buildOfferSnapshot("home_visit_package", row as Record<string, unknown>),
         });
       }
     }
   } catch {
     // Same tolerance as above.
+  }
+
+  // The category names and condition types, in their own call. `specialty`
+  // is a new column, so an unknown-column error must cost the picker its
+  // grouping rather than every programme in it -- the same reason the
+  // package reads above are each wrapped.
+  const categoryIds = [...new Set(out.map((p) => p.categoryId).filter((id): id is string => !!id))];
+  if (categoryIds.length > 0) {
+    let titleById = new Map<string, string>();
+    let specialtyById = new Map<string, string | null>();
+    try {
+      const { data } = await admin
+        .from("treatment_categories")
+        .select("id, title")
+        .in("id", categoryIds);
+      titleById = new Map((data ?? []).map((c) => [c.id, c.title as string]));
+    } catch {
+      // Names lost; the picker falls back to the programme's own title.
+    }
+    try {
+      const { data } = await admin
+        .from("treatment_categories")
+        .select("id, specialty")
+        .in("id", categoryIds);
+      specialtyById = new Map(
+        (data ?? []).map((c) => [c.id, (c as { specialty: string | null }).specialty ?? null])
+      );
+    } catch {
+      // Untagged database: every condition sits under one heading, which is
+      // exactly how it read before the column existed.
+    }
+    for (const p of out) {
+      if (!p.categoryId) continue;
+      p.categoryTitle = titleById.get(p.categoryId) ?? null;
+      const specialty = specialtyById.get(p.categoryId) ?? null;
+      p.specialty =
+        specialty === "ortho" || specialty === "neuro" || specialty === "pediatrics"
+          ? specialty
+          : null;
+    }
   }
 
   return out;
