@@ -21,10 +21,39 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "docs" / "qa" / "src"
 OUT = ROOT / "docs" / "qa"
-TITLE = "Dr. Pooja's Physio — Complete Manual E2E Test Plan & Feature Guide"
-BASENAME = "DrPoojaPhysio-E2E-Test-Plan"
+
+# The two documents this script builds. Same parser, same CSS, same DOCX
+# writer -- the only thing that differs is which source directory feeds it
+# and what the cover says, so the plan and the audit of the plan can never
+# drift into two different house styles.
+DOCS = {
+    "plan": {
+        "src": OUT / "src",
+        "basename": "DrPoojaPhysio-E2E-Test-Plan",
+        "title": "Dr. Pooja's Physio — Complete Manual E2E Test Plan & Feature Guide",
+        "subtitle": "Feature guide and click-by-click regression suite",
+        "meta": [
+            ("Application", "Dr. Pooja's Physio — Next.js 16 · React 19 · Supabase · Razorpay"),
+            ("Document version", "1.0"),
+            ("Audience", "A tester who has never used this application before"),
+            ("Environment", "Throwaway Supabase project · Razorpay test mode · npm run dev"),
+            ("Start here", "Section 6 — STEP 0, Reset the test environment"),
+        ],
+    },
+    "audit": {
+        "src": OUT / "audit-src",
+        "basename": "DrPoojaPhysio-QA-Audit-Report",
+        "title": "Dr. Pooja's Physio — QA Audit Report",
+        "subtitle": "Static verification against the manual E2E test plan, plus a product review",
+        "meta": [
+            ("Subject", "Branch claude/complete-e2e-testing-plan-910y5z"),
+            ("Method", "Executed checks plus source verification — the plan was NOT executed"),
+            ("Verdict", "Conditional pass — 6 findings, 1 to fix before the first test run"),
+            ("Read first", "Section 1 — Scope, and what this report is not"),
+        ],
+    },
+}
 
 CHROME_CANDIDATES = [
     "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
@@ -38,10 +67,10 @@ CHROME_CANDIDATES = [
 # Parsing: Markdown -> a flat list of blocks
 # --------------------------------------------------------------------------
 
-def read_source() -> str:
-    parts = sorted(p for p in SRC.glob("*.md"))
+def read_source(src: Path) -> str:
+    parts = sorted(p for p in src.glob("*.md"))
     if not parts:
-        sys.exit(f"no markdown sources found in {SRC}")
+        sys.exit(f"no markdown sources found in {src}")
     return "\n\n".join(p.read_text(encoding="utf-8").rstrip() for p in parts) + "\n"
 
 
@@ -271,7 +300,7 @@ strong { color: #0f172a; }
 """
 
 
-def to_html(blocks) -> str:
+def to_html(blocks, doc) -> str:
     body = []
     for kind, payload in blocks:
         if kind.startswith("h") and len(kind) == 2 and kind[1].isdigit():
@@ -306,18 +335,15 @@ def to_html(blocks) -> str:
     sections = [p for k, p in blocks if k == "h2"]
     toc_items = "".join(f"<li>{inline_html(s)}</li>" for s in sections)
 
+    meta = "".join(
+        f"<dt>{html.escape(k)}</dt><dd>{html.escape(v)}</dd>" for k, v in doc["meta"]
+    )
     cover = f"""
 <div class="cover">
   <div class="rule"></div>
-  <h1>{html.escape(TITLE)}</h1>
-  <p class="sub">Feature guide and click-by-click regression suite</p>
-  <dl>
-    <dt>Application</dt><dd>Dr. Pooja's Physio — Next.js 16 · React 19 · Supabase · Razorpay</dd>
-    <dt>Document version</dt><dd>1.0</dd>
-    <dt>Audience</dt><dd>A tester who has never used this application before</dd>
-    <dt>Environment</dt><dd>Throwaway Supabase project · Razorpay <strong>test mode</strong> · <code>npm run dev</code></dd>
-    <dt>Start here</dt><dd>Section 6 — STEP 0, Reset the test environment</dd>
-  </dl>
+  <h1>{html.escape(doc["title"])}</h1>
+  <p class="sub">{html.escape(doc["subtitle"])}</p>
+  <dl>{meta}</dl>
 </div>
 <div class="toc">
   <h2>Contents</h2>
@@ -327,7 +353,7 @@ def to_html(blocks) -> str:
 
     return (
         "<!doctype html><html><head><meta charset='utf-8'>"
-        f"<title>{html.escape(TITLE)}</title><style>{CSS}</style></head><body>"
+        f"<title>{html.escape(doc['title'])}</title><style>{CSS}</style></head><body>"
         + cover
         + "\n".join(body)
         + "</body></html>"
@@ -358,13 +384,13 @@ def write_pdf(html_path: Path, pdf_path: Path) -> None:
 # DOCX
 # --------------------------------------------------------------------------
 
-def write_docx(blocks, path: Path) -> None:
+def write_docx(blocks, path: Path, doc) -> None:
     from docx import Document
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.shared import Pt, RGBColor
 
-    doc = Document()
-    normal = doc.styles["Normal"]
+    docx = Document()
+    normal = docx.styles["Normal"]
     normal.font.name = "Calibri"
     normal.font.size = Pt(10)
 
@@ -385,40 +411,34 @@ def write_docx(blocks, path: Path) -> None:
                     run.font.size = Pt(9)
 
     # Cover
-    title = doc.add_paragraph()
+    title = docx.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = title.add_run(TITLE)
+    run = title.add_run(doc["title"])
     run.bold = True
     run.font.size = Pt(22)
-    sub = doc.add_paragraph()
+    sub = docx.add_paragraph()
     sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    sub.add_run("Feature guide and click-by-click regression suite").italic = True
-    for label, value in [
-        ("Application", "Dr. Pooja's Physio — Next.js 16 · React 19 · Supabase · Razorpay"),
-        ("Document version", "1.0"),
-        ("Audience", "A tester who has never used this application before"),
-        ("Environment", "Throwaway Supabase project · Razorpay test mode · npm run dev"),
-        ("Start here", "Section 6 — STEP 0, Reset the test environment"),
-    ]:
-        p = doc.add_paragraph()
+    sub.add_run(doc["subtitle"]).italic = True
+    for label, value in doc["meta"]:
+        p = docx.add_paragraph()
         p.add_run(f"{label}: ").bold = True
         p.add_run(value)
-    doc.add_page_break()
+    docx.add_page_break()
 
     for kind, payload in blocks:
         if kind in ("h1", "h2", "h3", "h4", "h5", "h6"):
             level = min(int(kind[1]), 4)
-            heading = doc.add_heading(level=level)
+            heading = docx.add_heading(level=level)
             add_runs(heading, payload)
         elif kind == "p":
-            add_runs(doc.add_paragraph(), payload)
+            add_runs(docx.add_paragraph(), payload)
         elif kind == "quote":
-            p = doc.add_paragraph(style="Intense Quote")
+            p = docx.add_paragraph(style="Intense Quote")
             add_runs(p, payload)
         elif kind == "hr":
-            doc.add_paragraph("_" * 60)
+            docx.add_paragraph("_" * 60)
         elif kind == "code":
-            p = doc.add_paragraph()
+            p = docx.add_paragraph()
             run = p.add_run(payload)
             run.font.name = "Consolas"
             run.font.size = Pt(8.5)
@@ -427,13 +447,13 @@ def write_docx(blocks, path: Path) -> None:
             for depth, text in payload:
                 name = style if depth == 0 else f"{style} {min(depth + 1, 3)}"
                 try:
-                    p = doc.add_paragraph(style=name)
+                    p = docx.add_paragraph(style=name)
                 except KeyError:
-                    p = doc.add_paragraph(style=style)
+                    p = docx.add_paragraph(style=style)
                 add_runs(p, text)
         elif kind == "table":
             header, rows = payload
-            table = doc.add_table(rows=1, cols=len(header))
+            table = docx.add_table(rows=1, cols=len(header))
             table.style = "Light Grid Accent 1"
             for cell, text in zip(table.rows[0].cells, header):
                 cell.text = ""
@@ -446,29 +466,39 @@ def write_docx(blocks, path: Path) -> None:
                 for cell, text in zip(row.cells, cells):
                     cell.text = ""
                     add_runs(cell.paragraphs[0], text)
-            doc.add_paragraph()
+            docx.add_paragraph()
 
-    doc.save(path)
+    docx.save(path)
 
 
-def main() -> None:
-    md = read_source()
+def build(doc) -> None:
+    md = read_source(doc["src"])
     blocks = parse(md)
 
     OUT.mkdir(parents=True, exist_ok=True)
-    md_path = OUT / f"{BASENAME}.md"
-    html_path = OUT / f"{BASENAME}.html"
-    pdf_path = OUT / f"{BASENAME}.pdf"
-    docx_path = OUT / f"{BASENAME}.docx"
+    base = doc["basename"]
+    md_path = OUT / f"{base}.md"
+    html_path = OUT / f"{base}.html"
+    pdf_path = OUT / f"{base}.pdf"
+    docx_path = OUT / f"{base}.docx"
 
     md_path.write_text(md, encoding="utf-8")
-    html_path.write_text(to_html(blocks), encoding="utf-8")
+    html_path.write_text(to_html(blocks, doc), encoding="utf-8")
     write_pdf(html_path, pdf_path)
-    write_docx(blocks, docx_path)
+    write_docx(blocks, docx_path, doc)
 
     for p in (md_path, html_path, pdf_path, docx_path):
         if p.exists():
             print(f"{p.relative_to(ROOT)}  {p.stat().st_size / 1024:.0f} KB")
+
+
+def main() -> None:
+    # No argument builds both; a name builds one.
+    wanted = sys.argv[1:] or list(DOCS)
+    for name in wanted:
+        if name not in DOCS:
+            sys.exit(f"unknown document {name!r}; choose from {', '.join(DOCS)}")
+        build(DOCS[name])
 
 
 if __name__ == "__main__":

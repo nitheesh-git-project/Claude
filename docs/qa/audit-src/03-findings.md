@@ -1,0 +1,144 @@
+---
+
+## 4. Findings
+
+Six findings. Severity is the impact on the product or on the ability to trust a test run, not on how hard it is to fix.
+
+---
+
+### F-01 — The data reset does not clear four tables, and one of them silently suppresses future test results · **P1**
+
+**Area.** Plan §6 (STEP 0), `SETUP-RESET-001`. **Class.** VERIFIED-SOURCE, with schema line numbers.
+
+**What the product promises.** The reset button's own copy reads: *"Deletes **everything** — people, sessions, purchases, catalog, settings. Admin logins survive. No undo."* `AGENTS.md` states the rule explicitly: *"Adding a table means adding it to that TRUNCATE list, or a reset silently leaves its rows behind."*
+
+**What actually happens.** The last definition of `debug_reset_all_data` is at `schema.sql:4876`. These tables were added **after** it and were never added to its `TRUNCATE` list:
+
+| Table | Created at | Cleared by the reset? | Why |
+| --- | --- | --- | --- |
+| `care_plans` | 6092 | **Yes** — by CASCADE | References `session_entitlements` and `treatment_categories`, both truncated |
+| `care_plan_versions` | 6136 | **Yes** — by CASCADE | References `appointments`, `session_notes`, both truncated |
+| `contact_reveal_log` | 6395 | **Yes** — by CASCADE | References `appointments` |
+| **`communication_flags`** | 6344 | **NO** | Its only FKs are to `profiles`, and they are `on delete set null` — so neither the TRUNCATE nor the `delete from auth.users` reaches it |
+| **`risk_rules`** | 6478 | **NO** | No foreign keys at all |
+| **`risk_signals`** | 6498 | **NO** | Only FK is to `risk_rules`, which is not truncated. `subject_id` is a plain `uuid` with no FK |
+| **`risk_reviews`** | 6539 | **NO** | FKs to `profiles` and `risk_signals`, neither truncated |
+
+Note that `therapist_schedule_state` **is** in the list despite also being added later, so the list has been maintained for the roster work — the care-plan, evidence and risk tables were simply missed.
+
+**Why this is P1 rather than cosmetic.** Three consequences, in increasing order of seriousness:
+
+1. **The button lies.** "Deletes everything" is false for four tables.
+2. **Orphaned evidence.** `communication_flags` rows survive with `author_id` and `patient_id` set to null by the cascade, so the flag remains but the people it names are gone. The table has a `BEFORE UPDATE OR DELETE` trigger that raises, so **there is no way to clear these rows short of adding the table to the TRUNCATE list** — a row delete is refused by design.
+3. **The next test run is silently corrupted.** `risk_signals` carries a partial unique index giving at most one **open or reviewing** signal per `(rule, subject)`. A leftover open signal from a previous run holds that slot, so the same rule firing again on the same subject **writes nothing**. A tester executing `ADM-RISK-001` on a "clean" database sees an empty queue and reports a broken detector. This is exactly the leftover-state trap the plan warns about in §6.1 — except the plan tells the tester the reset protects them from it.
+
+**Fix.** Add `communication_flags`, `risk_signals` and `risk_reviews` to the `TRUNCATE` list in a new `create or replace` of the function at the end of `schema.sql` (the file's own append-only convention). Decide `risk_rules` deliberately: it is configuration, so either truncate it and let the seed re-insert the eight rules, or reset it to defaults the way `site_settings` is — but do not leave it in its current state, where an edited threshold survives a wipe with nothing telling anyone.
+
+**Retest.** `SETUP-RESET-001`, plus a new assertion: after a reset, `select count(*) from communication_flags` and `from risk_signals` both return `0`.
+
+---
+
+### F-02 — `risk_reviews.reviewer_id` is `NOT NULL` with `ON DELETE SET NULL` · **P2**
+
+**Area.** Plan §14.1, `ADM-RISK-002`. **Class.** VERIFIED-SOURCE.
+
+**Evidence.** `schema.sql:6542`:
+
+```
+reviewer_id uuid not null references profiles(id) on delete set null,
+```
+
+These two clauses contradict each other. When the referenced profile is deleted, Postgres attempts to set `reviewer_id` to null, which the `NOT NULL` constraint refuses — so **the delete raises** rather than the reference being cleared. A scan of the whole schema found this is the **only** occurrence of the pattern; every other `on delete set null` column is nullable.
+
+**Reachability.** Reviews are written by admins, and the reset preserves admins, so the standard reset path does not hit it. It becomes reachable when an admin account is deleted at all, and specifically when an admin who has reviewed a risk signal is demoted to another role and a reset then runs: the `delete from auth.users` cascades to `profiles`, the SET NULL fires, the constraint refuses, and **the entire reset transaction aborts** — leaving a half-tested database and an error a tester will not be able to interpret.
+
+**Fix.** Pick the intent and state it. Either `reviewer_id` is nullable (a review outlives its reviewer, which matches how the other evidence tables treat authorship), or the reference is `ON DELETE RESTRICT` and a reviewer cannot be deleted while reviews exist. The current pair is neither, and produces a failure mode nobody chose.
+
+---
+
+### F-03 — `pain_assessments` is append-only by RLS alone, unlike its five siblings · **P3**
+
+**Area.** Plan §12.4, `THR-HP-005`. **Class.** VERIFIED-SOURCE.
+
+**Evidence.** `pain_assessments` is protected by `revoke update, delete on pain_assessments from authenticated` (`schema.sql:2212`). Five comparable tables use a **trigger** instead: `session_credit_ledger`, `care_plan_versions`, `communication_flags`, `contact_reveal_log`, `risk_reviews`.
+
+**Why the difference matters.** The codebase already articulates the reason, in its own comment beside the ledger: *"The revoke covers a browser session; every route in this app writes with the service-role client, which bypasses RLS entirely. For a table whose whole value is that it cannot be rewritten, 'no route updates it' is not the same guarantee as 'an update raises'."* Pain Map data is clinical exam history whose value is precisely that a re-assessment is a new row, so a trend can be shown against the previous visit. It is protected one grade below the tables that share that property.
+
+**Severity is P3, not higher,** because no route today updates it, and the gap is a consistency and defence-in-depth issue rather than a live hole.
+
+**Fix.** Reuse the existing `communication_evidence_is_append_only()` trigger function — it already raises with the table's own name — and attach it to `pain_assessments`.
+
+---
+
+### F-04 — The plan overstates the admin scope guard (documentation defect) · **P3**
+
+**Area.** Plan §4.4, §15.3, `ADM-SET-027`. **Class.** VERIFIED-SOURCE.
+
+**What the plan says.** *"**Every** admin route guards with `requireAdminScope(section)`, not `getAdminUser()`."*
+
+**What is true.** **92 of 95** admin routes call `requireAdminScope`. Three do not, and all three are deliberate and **stricter**:
+
+| Route | Guard | Why stricter |
+| --- | --- | --- |
+| `admin/set-admin-scope` | `getAdminContext` + `scope !== "full"` → 403 | A section check would let a `finance` admin widen its own access |
+| `admin/debug-reset` | `getAdminContext` + `scope !== "full"` → 403 | Gate 3 of the reset |
+| `admin/create-account` | `getAdminContext` + full-only for minting an admin, full-or-operations otherwise | A scoped admin creating a full admin would hand itself the keys |
+
+**Impact.** No security impact — the exceptions are tighter than the rule. The defect is in the test plan: a tester reading §4.4 literally would file these three as violations. Correct the plan to state the rule as "every admin route guards on scope; three guard on `full` explicitly, because a section check would be too weak."
+
+**Fix applied in this session:** the wording is corrected in the plan sources.
+
+---
+
+### F-05 — The plan asserted a row cap on All Sessions that no longer exists (documentation defect) · **P3** · **Fixed**
+
+**Area.** Plan §14.2, `ADM-SESS-001`. **Class.** VERIFIED-SOURCE.
+
+The plan asserted *"at most 200 rows are painted before a 'Show all' affordance appears"*. That was the **previous** design. The screen now uses the shared pager: `usePagedList(rows, { storageKey: "admin-sessions" })` with `DEFAULT_PAGE_SIZE = 10`. `AGENTS.md` records the change explicitly — *"Don't cap a list at an arbitrary number with a 'Show all' escape hatch: that was what All Sessions did, and 'Show all' then painted every row anyway."*
+
+A tester would have reported a working screen as a defect. **Corrected in this session**; the test now asserts the pager, the per-browser page-size memory, and that exports and totals still run over the whole filtered set.
+
+---
+
+### F-06 — The revenue split has no unit test · **P1 (risk, not a defect)**
+
+**Area.** Plan §16. **Class.** EXECUTED (by absence) + VERIFIED-SOURCE.
+
+`moneyByBucketFor` in `src/lib/adminMetrics.ts` is the only place the clinic's money is divided, and the plan's two identities live inside it. It feeds the Money summary strip, the tiles and the breakdown chart, so a defect there is wrong on three screens at once and wrong in the same direction, which makes it invisible to cross-checking between them.
+
+**There is no `adminMetrics.test.ts`.** The nine test files cover the roster, home-visit pricing, the scanner, masking, settings, risk vocabulary, care plans and the consultation rule — every dependency-free module in `src/lib` **except** the one that computes the split. Its own comments record **four** distinct historical misstatements it has already been corrected for: counting uncompleted sessions in the therapist cut, dropping the travel fee into the clinic's share, subtracting refunds from a margin that had already had a cut taken, and collapsing "no hospital" with "hospital share unconfigured". Every one of those is exactly the kind of arithmetic a table-driven unit test pins down permanently.
+
+This is not a defect — the current implementation reads correctly, and the identities hold by construction because the clinic share is computed as the difference rather than accumulated independently. It is the **largest untested risk surface in the application**, and it is the one the finance section of the test plan spends the most manual effort re-deriving by hand.
+
+**Fix.** Add `adminMetrics.test.ts` covering the §16.1 reference dataset: a completed paid session, a paid-but-not-completed one, a refunded one, a hospital-referred one, one with an unset therapist share, and a home visit with a travel fee — asserting both identities plus the excluded count. That dataset is already written and hand-computed in the plan; it converts directly into a test table. The manual finance tests then become a check on the *screens*, not on the arithmetic.
+
+---
+
+## 5. What only a live run can establish
+
+The following are **NOT-VERIFIABLE** here and carry real residual risk. They are the areas to run first when an environment exists.
+
+| Area | Why source inspection is insufficient |
+| --- | --- |
+| **The whole payment funnel end to end** | Signature verification, checkout rendering, callback timing and the webhook race are runtime behaviours. The mechanism is right; whether it fires correctly is untested |
+| **Concurrency** (`PAY-CONC-001`, `THR-AVAIL-004`, `FIN-PAY-002`) | Row locks and CAS predicates are present in the SQL. Whether they actually serialise 12 concurrent reserves needs 12 concurrent reserves |
+| **Google Calendar / Meet** | Neither the success path nor the capped-retry path can be exercised without credentials |
+| **Every screen rendering at all** | A build proves it compiles, not that it paints. No page was loaded in this audit |
+| **Mobile at 390 × 844, keyboard nav, focus traps, reduced motion** | Entirely runtime |
+| **Copy fidelity** | The plan quotes route-handler strings verbatim; where a component re-words one before display, only a browser will show which the user sees |
+| **RLS behaving as written** | Policies exist in the file. Whether the live project has them applied is a different question — and the schema-apply workflow is the only thing that closes it |
+| **The reset actually running** | F-01 was found by reading the function. It should be confirmed by running it and counting rows |
+
+---
+
+## 6. Verdict and recommended sequence
+
+**Conditional pass.** Nothing found blocks a test run, and the invariants the plan cares most about — the capture path, the ledger constraints, the append-only triggers, the split identities, the scope guards, the audit-log coverage — are all genuinely implemented where the plan says they are. Two documentation defects in the plan itself were found and fixed.
+
+**Do these three before the first execution:**
+
+1. **Fix F-01.** A tester cannot trust Step 0 until the reset clears what it claims to. It is a four-line change to the TRUNCATE list.
+2. **Add the `adminMetrics` unit test (F-06).** It is an afternoon, it uses a dataset that is already written, and it retires the largest untested risk in the product.
+3. **Decide F-02.** One line, but pick the intent rather than leaving a contradiction in the schema.
+
+**Then run, in this order:** the §16.3 payment-integrity sweep (highest value per hour, and entirely unverifiable statically), the §21 cross-role checks (they catch disagreements no single-role test can), then the §18 security sweep at the route level, then everything else in the plan's own recommended order.

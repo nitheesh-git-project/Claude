@@ -155,7 +155,7 @@ It does **not** apply to:
 
 ### 4.4 Admin scopes
 
-`profiles.admin_scope` is one of four values. It decides which **sections** an admin may open. Every admin route guards with `requireAdminScope(section)` — the sidebar hiding a section is presentation only.
+`profiles.admin_scope` is one of four values. It decides which **sections** an admin may open. **Every** admin route guards on scope — 92 of the 95 with `requireAdminScope(section)`, and three (`set-admin-scope`, `debug-reset`, `create-account`) with an explicit **full-only** check instead, because a section check would be too weak: a `finance` admin passing a section gate could otherwise widen its own access or mint a full admin. The sidebar hiding a section is presentation only.
 
 | Scope | Sections it can open | Cannot |
 | --- | --- | --- |

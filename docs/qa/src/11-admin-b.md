@@ -211,6 +211,7 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 | All three | `?section=today&tab=risk` | — | The Risk tab is not rendered and its data is not fetched |
 
 **Expected Result.** **Every** one returns 403 at the route. The sidebar hiding a section is presentation only — a session cookie can call any route directly.
+**Do not report the three full-only routes as violations.** `set-admin-scope`, `debug-reset` and `create-account` guard with an explicit `scope !== "full"` check rather than `requireAdminScope`, deliberately: a section gate would let a scoped admin widen its own access or mint a full admin. They are stricter than the rule, not exceptions to it.
 
 #### `ADM-SET-028` — The section is chosen by the capability, not the button's location · P1
 **Purpose.** A refund is `money` scope **even though its button lives on a Catalog screen**.

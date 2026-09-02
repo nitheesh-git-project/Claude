@@ -1,20 +1,24 @@
-# Manual E2E test plan
+# Manual E2E test plan, and the audit of it
 
-`DrPoojaPhysio-E2E-Test-Plan.pdf` is the deliverable a tester executes.
-`DrPoojaPhysio-E2E-Test-Plan.docx` is the editable copy. Both are generated —
-**do not hand-edit them.**
+Two generated documents live here. **Do not hand-edit either** — or their
+`.md`/`.html` companions, which are build products too.
 
-## Source of truth
+| Document | Sources | What it is |
+| --- | --- | --- |
+| `DrPoojaPhysio-E2E-Test-Plan.{pdf,docx}` | `src/*.md` | The plan a tester executes: feature guide plus click-by-click suite |
+| `DrPoojaPhysio-QA-Audit-Report.{pdf,docx}` | `audit-src/*.md` | A static audit of the product against that plan, plus a product review. It records what was **executed** here and what could only be **verified in source** — it is not a record of the plan having been run |
 
-`src/*.md`, concatenated in filename order. Edit those, then rebuild:
+## Rebuilding
 
 ```
-python3 scripts/build-test-plan.py
+python3 scripts/build-test-plan.py          # both documents
+python3 scripts/build-test-plan.py plan     # just the test plan
+python3 scripts/build-test-plan.py audit    # just the audit report
 ```
 
-That writes four files into this directory: the concatenated `.md`, an `.html`
-(the PDF's intermediate, useful for reviewing in a browser), the `.pdf`, and
-the `.docx`.
+Each build writes four files per document: the concatenated `.md`, an `.html`
+(the PDF's intermediate, and the quickest way to review a change in a
+browser), the `.pdf`, and the `.docx`.
 
 ## What the build needs
 

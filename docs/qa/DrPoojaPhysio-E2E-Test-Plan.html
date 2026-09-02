@@ -64,13 +64,7 @@ strong { color: #0f172a; }
   <div class="rule"></div>
   <h1>Dr. Pooja&#x27;s Physio — Complete Manual E2E Test Plan &amp; Feature Guide</h1>
   <p class="sub">Feature guide and click-by-click regression suite</p>
-  <dl>
-    <dt>Application</dt><dd>Dr. Pooja's Physio — Next.js 16 · React 19 · Supabase · Razorpay</dd>
-    <dt>Document version</dt><dd>1.0</dd>
-    <dt>Audience</dt><dd>A tester who has never used this application before</dd>
-    <dt>Environment</dt><dd>Throwaway Supabase project · Razorpay <strong>test mode</strong> · <code>npm run dev</code></dd>
-    <dt>Start here</dt><dd>Section 6 — STEP 0, Reset the test environment</dd>
-  </dl>
+  <dl><dt>Application</dt><dd>Dr. Pooja&#x27;s Physio — Next.js 16 · React 19 · Supabase · Razorpay</dd><dt>Document version</dt><dd>1.0</dd><dt>Audience</dt><dd>A tester who has never used this application before</dd><dt>Environment</dt><dd>Throwaway Supabase project · Razorpay test mode · npm run dev</dd><dt>Start here</dt><dd>Section 6 — STEP 0, Reset the test environment</dd></dl>
 </div>
 <div class="toc">
   <h2>Contents</h2>
@@ -135,7 +129,7 @@ strong { color: #0f172a; }
 <p>It does <strong>not</strong> apply to:</p>
 <ul><li>home-visit purchases (<code>/api/home-visit/create-order</code> — a <em>completed</em> payment vets you), or</li><li>standalone registration at <code>/patient/register</code> (always waits for a human admin).</li></ul>
 <h3>4.4 Admin scopes</h3>
-<p><code>profiles.admin_scope</code> is one of four values. It decides which <strong>sections</strong> an admin may open. Every admin route guards with <code>requireAdminScope(section)</code> — the sidebar hiding a section is presentation only.</p>
+<p><code>profiles.admin_scope</code> is one of four values. It decides which <strong>sections</strong> an admin may open. <strong>Every</strong> admin route guards on scope — 92 of the 95 with <code>requireAdminScope(section)</code>, and three (<code>set-admin-scope</code>, <code>debug-reset</code>, <code>create-account</code>) with an explicit <strong>full-only</strong> check instead, because a section check would be too weak: a <code>finance</code> admin passing a section gate could otherwise widen its own access or mint a full admin. The sidebar hiding a section is presentation only.</p>
 <table><thead><tr><th>Scope</th><th>Sections it can open</th><th>Cannot</th></tr></thead><tbody><tr><td><code>full</code></td><td>Today, Sessions, People, Money, Catalog, Settings</td><td>—</td></tr><tr><td><code>operations</code></td><td>Today, Sessions, People, Catalog</td><td>Money, Settings</td></tr><tr><td><code>finance</code></td><td>Today, People, Money</td><td>Sessions, Catalog, Settings</td></tr><tr><td><code>clinical</code></td><td>Today, Sessions, People</td><td>Money, Catalog, Settings</td></tr></tbody></table>
 <p>Rules that must hold (tested in <code>ADM-SET-025</code>–<code>ADM-SET-029</code>):</p>
 <ul><li>Only a <code>full</code> admin can change scopes or create another admin.</li><li><strong>Nobody can change their own scope.</strong></li><li><strong>The last `full` admin cannot be narrowed.</strong></li><li>An unknown/null scope reads as <code>full</code> (so a migration can never lock everyone out).</li><li>The <strong>Risk</strong> queue is <code>full</code>-only — a scoped admin&#x27;s page does not even fetch it.</li></ul>
@@ -979,7 +973,7 @@ strong { color: #0f172a; }
 <h4><code>ADM-SET-027</code> — Scope is enforced at the route, not the sidebar · P0</h4>
 <p>For each scoped admin, do <strong>both</strong>: navigate to a forbidden section by URL, <strong>and</strong> call a route in that section directly.</p>
 <table><thead><tr><th>Admin</th><th>Forbidden URL</th><th>Forbidden route</th><th>Expected</th></tr></thead><tbody><tr><td>Operations</td><td><code>?section=money&amp;tab=payouts</code></td><td><code>POST /api/admin/settle-therapist-payout</code></td><td>Page falls back to an allowed screen; route <strong>403</strong></td></tr><tr><td>Operations</td><td><code>?section=settings&amp;tab=booking</code></td><td><code>POST /api/admin/update-setting</code></td><td>Same</td></tr><tr><td>Finance</td><td><code>?section=sessions&amp;tab=all</code></td><td><code>POST /api/admin/assign-appointment</code></td><td>Same</td></tr><tr><td>Finance</td><td><code>?section=catalog&amp;tab=packages</code></td><td><code>POST /api/admin/create-package</code></td><td>Same</td></tr><tr><td>Clinical</td><td><code>?section=money&amp;tab=summary</code></td><td><code>POST /api/admin/refund-package</code></td><td>Same</td></tr><tr><td>Clinical</td><td><code>?section=settings&amp;tab=team</code></td><td><code>POST /api/admin/set-admin-scope</code></td><td>Same</td></tr><tr><td>All three</td><td><code>?section=today&amp;tab=risk</code></td><td>—</td><td>The Risk tab is not rendered and its data is not fetched</td></tr></tbody></table>
-<p><strong>Expected Result.</strong> <strong>Every</strong> one returns 403 at the route. The sidebar hiding a section is presentation only — a session cookie can call any route directly.</p>
+<p><strong>Expected Result.</strong> <strong>Every</strong> one returns 403 at the route. The sidebar hiding a section is presentation only — a session cookie can call any route directly. <strong>Do not report the three full-only routes as violations.</strong> <code>set-admin-scope</code>, <code>debug-reset</code> and <code>create-account</code> guard with an explicit <code>scope !== &quot;full&quot;</code> check rather than <code>requireAdminScope</code>, deliberately: a section gate would let a scoped admin widen its own access or mint a full admin. They are stricter than the rule, not exceptions to it.</p>
 <h4><code>ADM-SET-028</code> — The section is chosen by the capability, not the button&#x27;s location · P1</h4>
 <p><strong>Purpose.</strong> A refund is <code>money</code> scope <strong>even though its button lives on a Catalog screen</strong>. <strong>Steps.</strong> As <strong>Admin Ops</strong> (who <em>can</em> open Catalog), open <strong>Catalog → Purchases</strong> and look for the refund control. Then call <code>POST /api/admin/refund-package</code> directly. <strong>Expected Result.</strong> <strong>The refund control does not render</strong> — a control an admin&#x27;s scope cannot call must not be shown, or they get a 403 with nothing to explain it. The route returns <strong>403</strong>.</p>
 <h4><code>ADM-SET-029</code> — Contact controls · P1</h4>
