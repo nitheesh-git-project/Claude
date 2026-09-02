@@ -85,8 +85,8 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Expected Result**
 * One list containing every session, video and home visit alike. Home-visit specifics (address, travel fee, cash) are a **panel inside the drawer**, not a parallel screen.
 * Filters are **remembered per browser** — but **the date range is not**, because it goes stale.
-* At most **200 rows** are painted before a "Show all" affordance appears. The page server-renders every screen at once, so an unbounded table would be HTML every admin downloads whether they open the screen or not.
-* Filtering, sorting, totals and **both exports** always run over the **whole filtered set** — only what is painted is paged.
+* The list ends in the standard pager: a **Show N per page** field (default **10**, remembered per browser under this list's own key), Previous/Next that grey out at the ends, and an "x–y of n" count. There is **no arbitrary row cap with a "Show all" escape hatch** — that was the old behaviour, and "Show all" then painted every row anyway, which is the thing the pager replaced.
+* Filtering, sorting, totals and **both exports** always run over the **whole filtered set** — only what is painted is paged. Otherwise a range total would start describing a page.
 
 #### `ADM-SESS-002` — Assign a therapist · P0
 

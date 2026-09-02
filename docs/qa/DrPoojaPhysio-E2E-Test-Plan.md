@@ -2290,8 +2290,8 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Expected Result**
 * One list containing every session, video and home visit alike. Home-visit specifics (address, travel fee, cash) are a **panel inside the drawer**, not a parallel screen.
 * Filters are **remembered per browser** — but **the date range is not**, because it goes stale.
-* At most **200 rows** are painted before a "Show all" affordance appears. The page server-renders every screen at once, so an unbounded table would be HTML every admin downloads whether they open the screen or not.
-* Filtering, sorting, totals and **both exports** always run over the **whole filtered set** — only what is painted is paged.
+* The list ends in the standard pager: a **Show N per page** field (default **10**, remembered per browser under this list's own key), Previous/Next that grey out at the ends, and an "x–y of n" count. There is **no arbitrary row cap with a "Show all" escape hatch** — that was the old behaviour, and "Show all" then painted every row anyway, which is the thing the pager replaced.
+* Filtering, sorting, totals and **both exports** always run over the **whole filtered set** — only what is painted is paged. Otherwise a range total would start describing a page.
 
 #### `ADM-SESS-002` — Assign a therapist · P0
 
@@ -3601,27 +3601,23 @@ Every protected action has both an authorized case and an unauthorized one. The 
 
 ## 25. Questions and clarifications before execution
 
-These are things the source establishes only partly, or where the intended behaviour could not be determined from the code alone. **Confirm each with the product owner before executing the affected tests.** Nothing here is invented behaviour; each item states what is known and what is not.
+These are **product decisions**, not gaps in the inspection. In each case the code's current behaviour is established and stated, and the test asserts exactly that behaviour — but whether it is the *intended* behaviour is a call only the product owner can make. Confirm each before executing the affected tests; if a decision changes the answer, the named test changes with it. **Nothing here is invented behaviour.**
 
-1. **Duplicate referral prevention (affects `HOS-REF-003`).** The referral insert has no uniqueness constraint on patient name + hospital, so a hospital re-typing the same referral creates a second row. The double-tap case is defended by the form's own submit guard. **Question:** is a genuine re-submission meant to be blocked, de-duplicated, or simply visible in the admin queue for a human to decline? The test currently asserts the last of these.
+1. **Duplicate referral prevention (affects `HOS-REF-003`).** Established from the schema: `patient_referrals` carries **no uniqueness constraint** on hospital + patient name, so a hospital that genuinely re-types the same referral creates a **second row**. Only the double-tap case is defended, by the form's own submit guard. **Decision needed:** is a genuine re-submission meant to be blocked at the database, de-duplicated on the admin's side, or simply left visible in the queue for a human to decline? The test currently asserts the last of these, because that is what the code does today.
 
-2. **Emergency contact fields (affects §8.3).** The test data library lists an emergency contact because the request asked for one. **Question:** confirm whether the patient profile actually carries emergency-contact fields on the Edit Profile screen; if not, drop those rows from the library rather than testing a field that does not exist.
+2. **Therapist timezone (affects `THR-AVAIL-001`).** Established from the code: the roster editor reads **`profiles.timezone`** and prints it as a label, falling back to `Asia/Kolkata`; there is **no field anywhere in the therapist's Edit Profile that sets it**, and the admin's Roster only displays it. So today it is per-therapist in the schema and un-editable in the product. **Decision needed:** should a therapist (or an admin) be able to set it, or is the fallback the intended behaviour for a clinic operating in one timezone? Until that is decided, `THR-AVAIL-001` asserts only that the header states a timezone.
 
-3. **Therapist timezone (affects `THR-AVAIL-001`).** The roster editor states the schedule's timezone in its header, but whether a therapist can *choose* a timezone distinct from their browser's could not be established. **Question:** is the roster timezone per-therapist configurable, or always the viewer's?
+3. **Tablet support (affects §19).** The plan tests 820 × 1180 as a courtesy. **Question:** is tablet a supported breakpoint with its own expectations, or simply "desktop layout, narrower"?
 
-4. **Tablet support (affects §19).** The plan tests 820 × 1180 as a courtesy. **Question:** is tablet a supported breakpoint with its own expectations, or simply "desktop layout, narrower"?
+4. **Paediatric fixture depth (affects §8.6).** Patient D's paediatric data is supplied so the third specialty can be exercised, but no journey in this plan requires a paediatric patient end to end. **Question:** should paediatrics get its own full journey, or is `ADM-SET-020`'s enable/disable coverage sufficient for this release?
 
-5. **Paediatric fixture depth (affects §8.6).** Patient D's paediatric data is supplied so the third specialty can be exercised, but no journey in this plan requires a paediatric patient end to end. **Question:** should paediatrics get its own full journey, or is `ADM-SET-020`'s enable/disable coverage sufficient for this release?
+5. **`plan_conversion_low` and `post_consultation_dropout` (affects `ADM-RISK-001`).** Both ship **disabled** because a threshold invented before the clinic has a baseline fires on everyone or on nobody. **Question:** should this release enable them with a provisional threshold, or leave them off? The tests currently assert they are off.
 
-6. **`plan_conversion_low` and `post_consultation_dropout` (affects `ADM-RISK-001`).** Both ship **disabled** because a threshold invented before the clinic has a baseline fires on everyone or on nobody. **Question:** should this release enable them with a provisional threshold, or leave them off? The tests currently assert they are off.
+6. **Refund of a partially delivered home-visit package (affects `FIN-REF-004`).** The session-package rule ("void what is available, never what is consumed") is explicit. The equivalent for a **cash** home-visit package, where no online payment exists to reverse, resolves to `manual_pending`. **Question:** confirm the intended split when a cash home-visit package is partly delivered — how much is expected back at the door?
 
-7. **Refund of a partially delivered home-visit package (affects `FIN-REF-004`).** The session-package rule ("void what is available, never what is consumed") is explicit. The equivalent for a **cash** home-visit package, where no online payment exists to reverse, resolves to `manual_pending`. **Question:** confirm the intended split when a cash home-visit package is partly delivered — how much is expected back at the door?
+7. **Reassigning a programme's therapist mid-course (affects `ADM-CAT-014`).** Reassignment touches **future** sessions only. **Question:** should the patient be notified, and if so through which surface? The plan currently asserts only the data outcome.
 
-8. **Reassigning a programme's therapist mid-course (affects `ADM-CAT-014`).** Reassignment touches **future** sessions only. **Question:** should the patient be notified, and if so through which surface? The plan currently asserts only the data outcome.
-
-9. **The 200-row paint cap on All Sessions (affects `ADM-SESS-001`).** Confirm the exact figure and the exact wording of the "Show all" affordance, so the test can assert the text rather than the behaviour alone.
-
-10. **Expected UI copy for a handful of validation messages.** The API messages quoted throughout this document are taken verbatim from the route handlers. Where a component *re-words* a route's error before showing it, the test asserts the API string. **Question:** for any case where the on-screen wording differs from the quoted API string, confirm which is authoritative so the test can assert the right one.
+8. **Expected UI copy for a handful of validation messages.** The API messages quoted throughout this document are taken verbatim from the route handlers. Where a component *re-words* a route's error before showing it, the test asserts the API string. **Question:** for any case where the on-screen wording differs from the quoted API string, confirm which is authoritative so the test can assert the right one.
 
 ---
 
