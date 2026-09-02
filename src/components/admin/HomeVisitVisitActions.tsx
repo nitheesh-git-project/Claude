@@ -195,7 +195,7 @@ export function HomeVisitAssignForm({
           disabled={isPending || !therapistId}
           className="rounded-lg bg-slate-800 px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-slate-900 disabled:opacity-60"
         >
-          {visit.therapist_id ? "Reassign" : "Assign"}
+          {visit.therapist_id ? "Reassign" : "Assign & Confirm"}
         </button>
       </div>
       {error && <p className="text-[11px] text-red-600">{error}</p>}

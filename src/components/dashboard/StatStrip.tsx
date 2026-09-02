@@ -16,6 +16,14 @@ export type StatCell = {
   accent?: string;
   valueClass?: string;
   href?: string;
+  /** Makes the cell a button rather than a link -- for a figure whose
+   *  answer is on the screen already (a list this cell counts a slice of),
+   *  where sending the reader through a navigation to re-render the same
+   *  screen would be pure cost. A cell passes one or the other, never both. */
+  onSelect?: () => void;
+  /** Marks a cell whose filter is currently applied, so a strip that
+   *  doubles as a filter says which slice is showing. */
+  selected?: boolean;
 };
 
 function Cell({ cell }: { cell: StatCell }) {
@@ -40,6 +48,20 @@ function Cell({ cell }: { cell: StatCell }) {
       <a href={cell.href} className="block px-4 py-3 transition hover:bg-slate-50 sm:px-5">
         {body}
       </a>
+    );
+  }
+  if (cell.onSelect) {
+    return (
+      <button
+        type="button"
+        onClick={cell.onSelect}
+        aria-pressed={cell.selected ?? false}
+        className={`block w-full px-4 py-3 text-left transition hover:bg-slate-50 sm:px-5 ${
+          cell.selected ? "bg-teal-50/70" : ""
+        }`}
+      >
+        {body}
+      </button>
     );
   }
   return <div className="px-4 py-3 sm:px-5">{body}</div>;

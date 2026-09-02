@@ -4,6 +4,7 @@ import FilterChips from "@/components/dashboard/FilterChips";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import { Fragment, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -138,6 +139,19 @@ export default function AdminPayoutsTab({
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [payoutFilter, setPayoutFilter] = useState<"all" | "owed" | "settled">("all");
+
+  // Same one-shot preset the other screens honour (adminScreenHref's ?view=)
+  // -- Today's "Cash to remit" figure links here, and it means the
+  // therapists who still owe or are owed, not the whole roster. Applied in
+  // render rather than an effect: every admin screen is mounted at once, so
+  // there is no mount to hang this on when an admin taps the figure.
+  const viewParam = useSearchParams().get("view");
+  const [appliedView, setAppliedView] = useState<string | null>(null);
+  if (viewParam !== appliedView) {
+    setAppliedView(viewParam);
+    if (viewParam === "owed" || viewParam === "settled") setPayoutFilter(viewParam);
+    else if (viewParam) setPayoutFilter("all");
+  }
 
   const rows = therapists
     .map((t) => {

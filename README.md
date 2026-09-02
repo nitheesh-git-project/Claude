@@ -283,6 +283,12 @@ Component making ~40 queries, so moving between two already-rendered screens
 must not re-run them. A screen is therefore linkable, survives a reload, and
 is restored after `router.refresh()`.
 
+A link built by `adminScreenHref` may also carry `?view=` — a filter preset
+the target screen applies on arrival, so tapping "Unassigned sessions" on
+Today opens All Sessions showing exactly those sessions rather than every
+session on record. It applies once: the shell drops it from the URL at the
+next tab change.
+
 Plus per-person detail pages at `/admin/dashboard/patients/[id]`,
 `/admin/dashboard/therapists/[id]`, and `/admin/dashboard/conditions/[id]`.
 Those detail pages use a parallel `@modal` route with intercepting routes, so

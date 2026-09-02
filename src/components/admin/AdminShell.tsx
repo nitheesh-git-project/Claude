@@ -188,6 +188,12 @@ export default function AdminShell({
     const params = new URLSearchParams(window.location.search);
     params.set("section", nextSection);
     params.set("tab", nextTab);
+    // `view` is a one-shot filter preset a Today row or a stat tile arrived
+    // with (adminScreenHref). Carrying it onto the next screen would make it
+    // sticky -- an admin who filtered to unassigned sessions once would keep
+    // re-applying that filter every time they came back to the tab -- and
+    // would also stop a repeat tap on the same row from re-applying it.
+    params.delete("view");
     window.history.pushState(null, "", `${window.location.pathname}?${params.toString()}`);
   }
 

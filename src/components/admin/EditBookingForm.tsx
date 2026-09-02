@@ -95,7 +95,11 @@ export default function EditBookingForm({
         onClick={() => setOpen(true)}
         className="text-teal-700 font-semibold hover:underline"
       >
-        Reschedule / Reassign
+        {/* A session nobody has been assigned to has not been "reassigned"
+            or "rescheduled" -- naming it that way made the one action an
+            admin most often needs read like an edit of something that
+            already happened. */}
+        {currentTherapistId ? "Reschedule / Reassign" : "Tap to assign & set the time"}
       </button>
     );
   }
