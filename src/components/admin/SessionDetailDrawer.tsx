@@ -9,6 +9,7 @@ import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import PartialRefundForm from "@/components/admin/PartialRefundForm";
+import GoodwillDiscountForm from "@/components/admin/GoodwillDiscountForm";
 import { useConfirm } from "@/lib/useConfirm";
 import { usePrompt } from "@/lib/usePrompt";
 import {
@@ -30,6 +31,13 @@ export type SessionDetailAppointment = {
   status: string;
   payment_status: string;
   amount_paid_paise: number | null;
+  /** What the session lists at, and anything an admin already took off it.
+   *  Migration-dependent, so a database without the columns hands through
+   *  undefined and the control simply does not render. */
+  list_price_paise?: number | null;
+  discount_paise?: number | null;
+  discount_source?: string | null;
+  discount_reason?: string | null;
   duration_minutes: number | null;
   category_id: string | null;
   patient_id: string;
@@ -802,6 +810,25 @@ export default function SessionDetailDrawer({
                 appointmentId={a.id}
                 paidPaise={a.amount_paid_paise ?? 0}
                 alreadyRefundedPaise={a.refund_amount_paise ?? 0}
+              />
+            </div>
+          )}
+
+          {/* The other side of the payment from the refund above. A session
+              nobody has paid for yet cannot be refunded, and this is the
+              lane for the cases that would otherwise be settled off the
+              books entirely — a session cut short, a therapist who ran
+              late, a patient in real hardship. */}
+          {canSeeMoney && a.payment_status !== "paid" && a.status !== "cancelled" && (
+            <div className="pt-3 border-t border-slate-100">
+              <p className="font-bold text-slate-700 mb-1">Goodwill</p>
+              <GoodwillDiscountForm
+                appointmentId={a.id}
+                listPricePaise={a.list_price_paise ?? feePaise}
+                existingDiscountPaise={
+                  a.discount_source === "goodwill" ? a.discount_paise ?? 0 : 0
+                }
+                existingReason={a.discount_reason ?? null}
               />
             </div>
           )}

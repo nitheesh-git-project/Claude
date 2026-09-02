@@ -170,6 +170,7 @@ src/lib/careAreas.ts     the six areas of practice, shared by / and /conditions
 src/lib/carePlanAuthoring.ts the one writer of a care plan version, three doors
 src/lib/carePlanReview.ts the clinic's decision on a queued recommendation
 src/lib/sessionRhythm.ts the proposed run of dates a paid programme opens on
+src/lib/discounts.ts     the two acquisition discounts and what they record
 src/lib/adminScope.ts    admin scopes and which sections each one may open
 src/lib/availabilityRanges.ts the roster's range layer over its hour rows
 src/lib/availabilityRequest.ts server-side validation both save doors share
@@ -760,6 +761,55 @@ client is the only writer and the log is append-only from any session.
   closed: a patient whose third pick clashed used to start the whole flow
   again from a screen that had forgotten why.
 
+- **A discount is a rule an admin configured, never a number a browser
+  sent.** The same reasoning that keeps a therapist picking a package rather
+  than a price: an amount that can be posted is an amount that can be posted
+  wrong. There are exactly two, both in `src/lib/discounts.ts`, and a promo
+  code engine deliberately is not one of them — a coupon system built before
+  there is a campaign to run is machinery nobody uses.
+  1. **The first-session offer** is standing configuration
+     (`first_session_offer_enabled` / `_type` / `_value`, Settings → Booking
+     Rules, off by default). Eligibility is `has this patient ever paid for
+     a session`, asked of the database in `/api/razorpay/create-order` —
+     so it cannot be claimed twice, asked for, or sent from a browser, and a
+     patient is only new once. It fails **closed**: an unreadable answer
+     means list price, because charging somebody who was owed an offer is a
+     complaint while discounting everybody forever is a hole in the revenue
+     nobody notices for a month. Video consultations only; a programme comes
+     from a recommendation and a home visit carries travel.
+  2. **The goodwill adjustment** is one admin, one session, one reason —
+     `/api/admin/apply-goodwill-discount`, `requireAdminScope("money")`, a
+     ten-character reason enforced by the route *and* a CHECK, and a
+     `payment.goodwill_discount` audit row. Only **before** payment: a
+     discount on something already paid for is a refund, and refunds have
+     their own route, their own Razorpay call and their own audit.
+  The two never stack (`resolveDiscount`), and where both apply the patient
+  pays the lower of the two — the clinic agreed to both prices, so charging
+  the higher one because an admin tried to help would be perverse.
+  Three rules are load-bearing:
+  - **Travel is never discounted.** It is a pass-through reimbursement paid
+    to the therapist in full, so discounting it makes them fund their own
+    transport to subsidise the clinic's marketing. Discounts apply to the
+    service line; every caller adds travel back afterwards.
+  - **All four facts are recorded** — `list_price_paise`, `discount_paise`,
+    `discount_source`, `discount_reason` — because a discount implemented by
+    simply charging less leaves the books unable to tell "we sold this
+    cheap" from "we discounted it", and that difference is the one number
+    that decides whether an offer continues. `amount_paid_paise` keeps its
+    existing meaning: what was collected.
+  - **`sumDiscountsGiven` is reported, never deducted.** A discount means
+    less was collected, so it is already inside gross revenue as a smaller
+    number; subtracting it from operating profit would count it twice and
+    understate profit by exactly the amount given away. It sits on Money →
+    Costs as a stated figure answering the question no revenue line can —
+    what buying those patients cost.
+  A configured offer is **floored** at `MINIMUM_CHARGE_PAISE` (Razorpay
+  refuses a zero-amount order, so an unguarded 100%-off is a 500 at the last
+  step of checkout). A goodwill amount at or above the session price is
+  **refused** instead — that one is a number a person typed with the price
+  on screen beside it, so more than the price is a typo, and quietly
+  charging ₹1 because of it is far worse than saying no.
+
 - **Session packages lock to one therapist by default.** The first therapist
   assigned to any session on a `patient_package_purchases` row sets
   `locked_therapist_id`; every later session on that purchase auto-assigns,
@@ -1279,7 +1329,12 @@ client is the only writer and the log is append-only from any session.
   into `FeedItem`s, so there is no notifications table to keep in sync and
   no cron to write it (see the no-cron rule above). `needsYou` replaces
   read/unread — it marks what is still waiting on the viewer, and `sortFeed`
-  pins those above everything else before sorting by date within each group.
+  pins those above everything else before sorting by date within each group,
+  then caps repeats of one title at `MAX_PER_TITLE`. The cap is the other
+  half of the pin: pinning alone let one noisy kind fill all twelve slots —
+  a patient with a dozen abandoned checkouts saw "Payment not completed"
+  twelve times and never saw that they had sessions already paid for and
+  never booked. The twelfth identical line was never information.
   The pinning is load-bearing rather than cosmetic: an item dated when it
   arose sinks further the longer it goes unanswered, which is backwards for
   the one class of item that is still owed something — a programme paid for

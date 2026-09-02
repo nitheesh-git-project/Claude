@@ -7553,7 +7553,10 @@ begin
     risk_signals_enabled = default,
     therapist_suggestions_enabled = default,
     auto_assign_therapist_enabled = default,
-    care_plan_requires_approval = default
+    care_plan_requires_approval = default,
+    first_session_offer_enabled = default,
+    first_session_offer_type = default,
+    first_session_offer_value = default
   where id;
 
   return jsonb_build_object(
@@ -7617,3 +7620,59 @@ begin
   return new;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Acquisition discounting
+-- ---------------------------------------------------------------------------
+-- Two discounts, and deliberately only two: a standing first-session offer
+-- that buys a stranger's first appointment, and a per-booking adjustment an
+-- admin makes for one patient with a reason. Bundle pricing already exists
+-- as `compare_at_paise` on a package, and promo codes deliberately do not --
+-- a coupon engine built before there is a campaign to run is machinery
+-- nobody uses.
+--
+-- What is recorded matters as much as what is charged. A discount
+-- implemented by simply charging less leaves the books unable to tell "we
+-- sold this cheap" from "we discounted it", and that difference is the one
+-- number that decides whether an offer continues. So a discounted booking
+-- carries all four facts: what it would have cost, what came off, which rule
+-- did it, and (for the admin lane) why.
+--
+-- `amount_paid_paise` keeps its existing meaning throughout -- what was
+-- actually collected. Revenue, payouts and refunds all read it, and none of
+-- them needed changing.
+alter table appointments add column if not exists list_price_paise integer
+  check (list_price_paise is null or list_price_paise >= 0);
+alter table appointments add column if not exists discount_paise integer not null default 0
+  check (discount_paise >= 0);
+alter table appointments add column if not exists discount_source text
+  check (discount_source is null or discount_source in ('first_session', 'goodwill'));
+alter table appointments add column if not exists discount_reason text;
+
+-- A goodwill adjustment always names a person and a reason; the standing
+-- offer never does, because "they were new" is already recorded by the
+-- source. Enforced here rather than only in the route: this is the column an
+-- admin's own discretion is written into, and a discretionary discount
+-- nobody can explain later is indistinguishable from an error.
+alter table appointments drop constraint if exists appointments_goodwill_needs_reason;
+alter table appointments add constraint appointments_goodwill_needs_reason check (
+  discount_source is distinct from 'goodwill'
+  or char_length(btrim(coalesce(discount_reason, ''))) >= 10
+);
+
+create index if not exists appointments_discount_idx
+  on appointments (discount_source, created_at desc) where discount_paise > 0;
+
+-- The offer itself. Off by default: a clinic that has not decided its
+-- acquisition price should not be discounting by accident on the first
+-- deploy.
+--
+-- `fixed` is paise and sets the price outright ("first session ₹499"), which
+-- is what a clinic advertises; `percent` is whole percent and adapts across
+-- categories priced differently. One or the other, never both, so there is
+-- no question about which applied.
+alter table site_settings add column if not exists first_session_offer_enabled boolean not null default false;
+alter table site_settings add column if not exists first_session_offer_type text not null default 'fixed'
+  check (first_session_offer_type in ('fixed', 'percent'));
+alter table site_settings add column if not exists first_session_offer_value integer not null default 0
+  check (first_session_offer_value >= 0);

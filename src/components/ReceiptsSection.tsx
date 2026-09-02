@@ -175,8 +175,31 @@ export default function ReceiptsSection({
                   </span>
                 </div>
               )}
+              {/* Shown as its own line rather than folded into the amount.
+                  A receipt that silently prints a lower number tells the
+                  patient nothing about having been given something, and the
+                  whole value of an offer is that the person knows they
+                  received it. */}
+              {selected.discountPaise > 0 && selected.listPricePaise !== null && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Session price</span>
+                    <span className="text-slate-600 line-through">
+                      {formatInr(selected.listPricePaise)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-teal-700">{selected.discountLabel}</span>
+                    <span className="font-semibold text-teal-700">
+                      −{formatInr(selected.discountPaise)}
+                    </span>
+                  </div>
+                </>
+              )}
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Amount</span>
+                <span className="text-slate-500">
+                  {selected.discountPaise > 0 ? "You paid" : "Amount"}
+                </span>
                 <span className="font-semibold text-slate-800">
                   {selected.isPackageCovered ? "Covered by package" : formatInr(selected.amountPaise)}
                 </span>

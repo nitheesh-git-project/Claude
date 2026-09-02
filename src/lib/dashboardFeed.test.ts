@@ -50,3 +50,29 @@ describe("sortFeed", () => {
     ).toBe(1);
   });
 });
+
+describe("sortFeed crowding", () => {
+  it("does not let one kind of item fill the whole feed", () => {
+    // The case that exposed it: a patient with a dozen abandoned checkouts
+    // saw twelve "Payment not completed" lines and never saw that they had
+    // sessions they had paid for and never booked.
+    const noisy = Array.from({ length: 12 }, (_, i) =>
+      item(`noise-${i}`, `2026-09-0${(i % 9) + 1}T10:00:00Z`, true)
+    ).map((i) => ({ ...i, title: "Payment not completed" }));
+    const buried = { ...item("important", "2026-08-01T10:00:00Z", true), title: "4 sessions still to book" };
+
+    const sorted = sortFeed([...noisy, buried]);
+    expect(sorted.filter((i) => i.title === "Payment not completed")).toHaveLength(3);
+    expect(sorted.some((i) => i.title === "4 sessions still to book")).toBe(true);
+  });
+
+  it("keeps the newest of a repeated kind, not an arbitrary three", () => {
+    const rows = ["2026-09-03", "2026-09-01", "2026-09-02"].map((d, i) => ({
+      ...item(`r${i}`, `${d}T10:00:00Z`),
+      title: "Same thing",
+    }));
+    const sorted = sortFeed([...rows, { ...item("extra", "2026-08-01T10:00:00Z"), title: "Same thing" }]);
+    expect(sorted).toHaveLength(3);
+    expect(sorted[0].at.startsWith("2026-09-03")).toBe(true);
+  });
+});

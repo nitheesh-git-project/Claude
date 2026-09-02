@@ -338,10 +338,55 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const carePlanHistory =
     screen === "suggested" ? await loadCarePlanHistory(admin, user.id) : [];
 
+  // What came off a session, for the Receipts screen only.
+  //
+  // Its own call, per the migration-dependent-column rule: these are the
+  // newest columns on `appointments`, and losing them must cost a receipt
+  // its "you were given this" line rather than costing the patient their
+  // whole payment history.
+  const discountByAppointment = new Map<
+    string,
+    { listPricePaise: number | null; discountPaise: number; source: string | null }
+  >();
+  if (needReceipts) {
+    try {
+      const { data: discountRows } = await admin
+        .from("appointments")
+        .select("id, list_price_paise, discount_paise, discount_source")
+        .eq("patient_id", user.id)
+        .gt("discount_paise", 0);
+      for (const row of discountRows ?? []) {
+        const r = row as {
+          id: string;
+          list_price_paise: number | null;
+          discount_paise: number | null;
+          discount_source: string | null;
+        };
+        discountByAppointment.set(r.id, {
+          listPricePaise: r.list_price_paise,
+          discountPaise: r.discount_paise ?? 0,
+          source: r.discount_source,
+        });
+      }
+    } catch {
+      // The receipt still renders, showing what was charged.
+    }
+  }
+
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
-  );
+  ).map((a) => {
+    const discount = discountByAppointment.get(a.id);
+    return discount
+      ? {
+          ...a,
+          list_price_paise: discount.listPricePaise,
+          discount_paise: discount.discountPaise,
+          discount_source: discount.source,
+        }
+      : a;
+  });
 
   // Unpaid bookings won't have amount_paid_paise set yet (that's only
   // recorded once a payment order is created), so fall back to the linked

@@ -42,15 +42,38 @@ export type FeedItem = {
  * obvious -- it dates from the payment, so the longer it went unanswered
  * the further down it sank, which is precisely backwards.
  */
+/** At most this many items saying the same thing. Beyond it, a feed stops
+ *  being a list of what happened and becomes one sentence repeated. */
+export const MAX_PER_TITLE = 3;
+
 export function sortFeed(items: FeedItem[], limit = 12): FeedItem[] {
-  return [...items]
+  const ordered = [...items]
     .filter((i) => !!i.at)
     .sort((a, b) => {
       const needs = Number(!!b.needsYou) - Number(!!a.needsYou);
       if (needs !== 0) return needs;
       return new Date(b.at).getTime() - new Date(a.at).getTime();
-    })
-    .slice(0, limit);
+    });
+
+  // One kind of item may not crowd out every other kind.
+  //
+  // Pinning `needsYou` above everything else fixed items sinking as they
+  // aged, and introduced this: a patient with a dozen abandoned checkouts
+  // filled all twelve slots with "Payment not completed" and never saw that
+  // they had sessions they had already paid for and never booked -- the
+  // single most valuable thing the feed can tell them. Repeats past the
+  // third are dropped rather than paged, because the twelfth identical line
+  // was never information; the first one already said it.
+  const seen = new Map<string, number>();
+  const out: FeedItem[] = [];
+  for (const item of ordered) {
+    const count = seen.get(item.title) ?? 0;
+    if (count >= MAX_PER_TITLE) continue;
+    seen.set(item.title, count + 1);
+    out.push(item);
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 export function countNeedsYou(items: FeedItem[]): number {

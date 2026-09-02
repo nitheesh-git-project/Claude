@@ -30,6 +30,7 @@ export type AdminActivityAction =
   // A recommendation is the only route to a programme, so withdrawing one
   // stops a purchase from happening -- worth the same trail as cancelling
   // a session.
+  | "payment.goodwill_discount"
   | "care_plan.approve"
   | "care_plan.reject"
   | "care_plan.edit_and_approve"
@@ -139,6 +140,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "session.assign": "Assigned therapist",
   "session.update": "Edited session",
   "session.cancel": "Cancelled session",
+  "payment.goodwill_discount": "Took an amount off a session as goodwill",
   "care_plan.approve": "Approved a recommendation",
   "care_plan.reject": "Turned down a recommendation",
   "care_plan.edit_and_approve": "Approved a recommendation with different numbers",

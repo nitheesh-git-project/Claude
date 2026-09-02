@@ -38,10 +38,22 @@ function formatDate(value: string) {
 export default function AdminCostsTab({
   expenses,
   gatewayFeePercent,
+  discountsGiven,
   todayIso,
 }: {
   expenses: ExpenseRow[];
   gatewayFeePercent: number;
+  /**
+   * What acquisition discounting has cost, all time.
+   *
+   * Reported here and deliberately **not** deducted from operating profit:
+   * a discount means less was collected, so it is already inside gross
+   * revenue as a smaller number, and subtracting it again would understate
+   * profit by exactly the amount given away. It sits on this screen because
+   * it answers a question no revenue line can — what buying those patients
+   * cost — which is what decides whether an offer continues.
+   */
+  discountsGiven: { totalPaise: number; count: number; firstSessionPaise: number; goodwillPaise: number };
   /** Today in IST, from the server — a fresh Date here would disagree with
    *  the server's HTML at hydration. */
   todayIso: string;
@@ -188,6 +200,15 @@ export default function AdminCostsTab({
             accent: "bg-blue-500",
           },
           {
+            label: "Discounts given",
+            value: formatInr(discountsGiven.totalPaise),
+            note:
+              discountsGiven.count === 0
+                ? "No discount has been applied yet"
+                : `${discountsGiven.count} session${discountsGiven.count === 1 ? "" : "s"} — already reflected in revenue, not a cost on top`,
+            accent: discountsGiven.totalPaise > 0 ? "bg-purple-500" : "bg-slate-400",
+          },
+          {
             label: "Biggest category",
             value: byCategory[0]?.category ?? "—",
             note: byCategory[0] ? formatInr(byCategory[0].amountPaise) : "Nothing recorded yet",
@@ -195,6 +216,39 @@ export default function AdminCostsTab({
           },
         ]}
       />
+
+      {discountsGiven.totalPaise > 0 && (
+        <SurfaceCard
+          title="What discounting cost"
+          icon="fa-tags"
+          subtitle="Money not collected because an offer or an adjustment applied. Already reflected in revenue — this is not a second cost."
+        >
+          <dl className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 p-4">
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                First session offer
+              </dt>
+              <dd className="mt-1 text-lg font-bold text-slate-900">
+                {formatInr(discountsGiven.firstSessionPaise)}
+              </dd>
+              <p className="mt-1 text-[11px] text-slate-500">
+                What it cost to bring new patients through the door.
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-4">
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Goodwill adjustments
+              </dt>
+              <dd className="mt-1 text-lg font-bold text-slate-900">
+                {formatInr(discountsGiven.goodwillPaise)}
+              </dd>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Taken off case by case, each with a stated reason on the session.
+              </p>
+            </div>
+          </dl>
+        </SurfaceCard>
+      )}
 
       {/* The fee lives here rather than in Settings on purpose: the person
           reconciling costs is the person who knows what the processor

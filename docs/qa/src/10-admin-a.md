@@ -173,6 +173,37 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** Open **Sessions → Delivery**.
 **Expected Result.** No-show rate, cancellation rate, repeat-booking rate and sessions-per-therapist. **These live under Sessions, not Money** — a no-show rate is about how the clinic runs, not about its books. All three metric slices (summary, breakdown, delivery) are computed from **one pass** of the same maths, so a figure here can never contradict the same figure on Money.
 
+#### `ADM-MONEY-GW-001` — Goodwill: take an amount off one session · P0
+
+**Feature.** The lane for a session cut short, a therapist who ran late, or a patient in genuine hardship. Without it these are settled outside the system, where nobody can see them and the books never learn they happened.
+
+**Preconditions.** An **unpaid** session on a ₹1,200 category. Signed in as an admin with **Money** scope.
+
+**Steps**
+1. Open the session from **Sessions → All Sessions** and find **Goodwill** in the drawer.
+2. Enter `200` and a two-character reason. Submit.
+3. Replace the reason with `Their last session was cut short by a connection problem.` Submit.
+4. Re-open the drawer.
+5. Separately, try `2400` (more than the session costs) on another unpaid session.
+6. Separately, try it on a **paid** session.
+
+**Expected Result**
+* Step 1: the panel states the session price and says plainly that this reduces what the patient is asked for, and refunds nothing, because nothing has been paid.
+* Step 2: **refused.** Under ten characters is rejected by the route and by a CHECK on the column — a discount nobody can explain a month later is indistinguishable from a mistake.
+* Step 3: applied. The row records **all four facts**: list price `120000`, discount `20000`, source `goodwill`, and the reason. A `payment.goodwill_discount` audit row is written.
+* Step 4: the drawer shows the amount, what they now pay, and the reason. It is **not** re-editable — the patient has been quoted it.
+* Step 5: **refused**, not applied at ₹1. This is a number typed with the price on screen beside it, so more than the price is a typo (2400 for 240), and quietly charging ₹1 is worse than saying no. *(A configured offer behaves differently and is floored — see `ADM-SET-023`.)*
+* Step 6: **409** — *"Refund it instead."* Money that has moved comes back through the refund route, with its own Razorpay call and its own audit.
+* A **Clinical** or **Operations** admin gets 403: this changes what somebody is charged, which is a money capability whatever the reason for it.
+
+#### `ADM-MONEY-GW-002` — What discounting cost · P1
+**Steps.** Apply a goodwill discount and let a first-session offer run, then open **Money → Costs**.
+**Expected Result.** A **Discounts given** figure, split between the offer and goodwill. It is **stated, not deducted** — the note says so — because a discount means less was collected and is already inside gross revenue as a smaller number; subtracting it from profit would count it twice. If Operating profit drops by the discount amount, that is a P0 defect.
+
+#### `PAT-PAY-DSC-001` — The patient sees what they were given · P1
+**Steps.** As a patient who received a discount, open **Payments** and tap the receipt.
+**Expected Result.** Three lines: the session price struck through, the discount named and negative, and **You paid**. A receipt that silently printed the lower number would tell the patient nothing about having been given something, which is the entire value of an offer.
+
 #### `ADM-CARE-001` — Recommendations: see every care plan · P0
 **Steps.** Open **Sessions → Recommendations**.
 **Expected Result.** Three bands, in this order: **Waiting for your decision**, **Waiting on a patient**, **Answered and closed**. Every care plan in the clinic is listed with its patient, therapist, package, status and date. A care plan is now the **only** route by which a patient buys a programme, so the clinic must be able to see them all.

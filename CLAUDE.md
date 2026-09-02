@@ -165,6 +165,18 @@ toggle somebody can flip back on is not the rule being gone. The patient
 dashboard's booking hub is the same: one video consultation, or one visit
 at home.
 
+Two acquisition discounts exist and no more (`src/lib/discounts.ts`): a
+standing **first-session offer**, whose eligibility is "has this patient ever
+paid for a session" asked of the database and so cannot be claimed twice or
+posted from a browser, and a **goodwill adjustment** an admin applies to one
+unpaid session with a mandatory reason and an audit row. They never stack,
+travel is never discounted, and all four facts are recorded — list price,
+amount off, which rule, and why — so the books can tell "sold cheap" from
+"discounted". What discounting cost is **reported** on Money → Costs and
+never deducted from profit: it is already inside gross revenue as a smaller
+number. Bundle pricing stays `compare_at_paise` on a package; promo codes
+deliberately do not exist.
+
 Treatment is paid for through this platform, and two admin-switchable
 controls keep it that way. Every string one role writes and another reads is
 scanned (`src/lib/contactLeakScan.ts` via `src/lib/communicationFlags.ts`):

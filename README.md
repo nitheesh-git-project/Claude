@@ -639,6 +639,43 @@ record (`/api/admin/refund-session-partial`) — it requires a stated reason,
 caps at what is still refundable, sets `refund_is_manual`, and is recorded
 in the activity log.
 
+## Discounts
+
+Two, and deliberately no more.
+
+**The first session offer** is how a stranger is bought through the door.
+Configured at **Settings → Booking Rules** — off by default, either a set
+price ("first session ₹499") or a percentage off — and it applies to a video
+consultation only. Eligibility is decided by the server asking *has this
+patient ever paid for a session*, so it cannot be claimed twice, cannot be
+asked for, and cannot be sent from a browser. A patient is only new once.
+Programmes and home visits are never discounted by it: a programme comes
+from a therapist's recommendation, and a visit's travel fee is money that
+goes straight to the therapist.
+
+**A goodwill adjustment** is one admin taking an amount off one session for
+one patient — a session cut short, a therapist who ran late, real hardship.
+It lives on the session's own drawer under Money scope, needs a reason of at
+least ten characters, and writes an audit row. It works only **before**
+payment: taking money off something already paid for is a refund, and
+refunds have their own screen.
+
+The two never stack, and where both would apply the patient pays the lower
+of the two. Travel is never discounted. A discounted booking records all
+four facts — what it would have cost, what came off, which rule did it and
+why — so the books can tell "we sold this cheap" from "we discounted it".
+
+**What discounting cost** appears on **Money → Costs**, split between the
+offer and goodwill. It is stated, never deducted from profit: a discount
+means less was collected, so it is already inside gross revenue as a smaller
+number, and subtracting it again would understate profit by exactly the
+amount given away.
+
+Bundle pricing is separate and already existed — a package priced below its
+per-session rate, with `therapist_rate_basis` deciding whether the clinic or
+the therapist absorbs it. There are no promo codes; a coupon engine built
+before there is a campaign to run is machinery nobody uses.
+
 **Session packages.** A package is a programme, not just a discount: bundle
 price, an optional struck-through compare-at price (derived from the
 category's per-session price when left blank), promises, validity, and

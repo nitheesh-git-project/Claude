@@ -18,11 +18,13 @@ import AdminActivityLogTab, { type ActivityRow } from "@/components/admin/AdminA
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
 import AdminCostsTab from "@/components/admin/AdminCostsTab";
 import { istDateKey } from "@/lib/formatSlotRange";
+import { sumDiscountsGiven } from "@/lib/discounts";
 import HospitalActiveToggle from "@/components/admin/HospitalActiveToggle";
 import PackageCatalogManager from "@/components/admin/PackageCatalogManager";
 import PackagePurchasesTable from "@/components/admin/PackagePurchasesTable";
 import PackageSettingsForm from "@/components/admin/PackageSettingsForm";
 import RecommendationSettingsForm from "@/components/admin/RecommendationSettingsForm";
+import FirstSessionOfferForm from "@/components/admin/FirstSessionOfferForm";
 import HomeVisitPurchasesTable from "@/components/admin/HomeVisitPurchasesTable";
 import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
@@ -625,6 +627,75 @@ export default async function AdminDashboardPage({
   // so the screen and the rule cannot disagree about what the switch says.
   const carePlanRequiresApproval = await readCarePlanRequiresApproval(admin);
 
+  // The discount columns, in their own call for the same reason: they are
+  // the newest columns on `appointments`, and an unknown-column error must
+  // cost the goodwill control rather than every session on the screen.
+  const discountByAppointment = new Map<
+    string,
+    { listPricePaise: number | null; discountPaise: number; source: string | null; reason: string | null }
+  >();
+  try {
+    const { data: discountRows } = await admin
+      .from("appointments")
+      .select("id, list_price_paise, discount_paise, discount_source, discount_reason")
+      .gt("discount_paise", 0);
+    for (const row of discountRows ?? []) {
+      const r = row as {
+        id: string;
+        list_price_paise: number | null;
+        discount_paise: number | null;
+        discount_source: string | null;
+        discount_reason: string | null;
+      };
+      discountByAppointment.set(r.id, {
+        listPricePaise: r.list_price_paise,
+        discountPaise: r.discount_paise ?? 0,
+        source: r.discount_source,
+        reason: r.discount_reason,
+      });
+    }
+  } catch {
+    // The control still renders; it simply cannot show an existing one.
+  }
+
+  // What discounting has cost, summed from the same isolated read the
+  // drawer uses. Reported, never deducted -- see sumDiscountsGiven.
+  const discountsGivenTotals = sumDiscountsGiven(
+    [...discountByAppointment.values()].map((d) => ({
+      discount_paise: d.discountPaise,
+      discount_source: d.source,
+    }))
+  );
+
+  // The acquisition offer, in its own call for the same reason -- the newest
+  // columns on site_settings, and losing them must cost this one control
+  // rather than every setting on the page.
+  let firstSessionOffer: { enabled: boolean; type: "fixed" | "percent"; value: number } = {
+    enabled: false,
+    type: "fixed",
+    value: 0,
+  };
+  try {
+    const { data: offerRow } = await admin
+      .from("site_settings")
+      .select(
+        "first_session_offer_enabled, first_session_offer_type, first_session_offer_value"
+      )
+      .maybeSingle();
+    if (offerRow) {
+      firstSessionOffer = {
+        enabled: offerRow.first_session_offer_enabled === true,
+        type: offerRow.first_session_offer_type === "percent" ? "percent" : "fixed",
+        value:
+          typeof offerRow.first_session_offer_value === "number"
+            ? offerRow.first_session_offer_value
+            : 0,
+      };
+    }
+  } catch {
+    // Off, which is the safe direction: no accidental discounting.
+  }
+
   // Same reasoning as the toggle above: treatment_categories.image_url is the
   // newest column on that table, and the batch it would otherwise join is one
   // Promise.all of ~40 queries -- an unknown-column error there would blank
@@ -666,7 +737,21 @@ export default async function AdminDashboardPage({
       appointmentExtras.map((a) => ({ id: a.id, session_code: a.session_code }))
     ),
     appointmentExtras.map((a) => ({ id: a.id, meet_link: a.meet_link }))
-  );
+  ).map((a) => {
+    // Merged in from the isolated read above rather than selected with the
+    // row, so a database missing these columns loses the goodwill note and
+    // nothing else.
+    const discount = discountByAppointment.get(a.id);
+    return discount
+      ? {
+          ...a,
+          list_price_paise: discount.listPricePaise,
+          discount_paise: discount.discountPaise,
+          discount_source: discount.source,
+          discount_reason: discount.reason,
+        }
+      : a;
+  });
 
   const appointmentsWithPayoutBatch = appointmentsWithSessionCode.map((a) => ({
     ...a,
@@ -2192,6 +2277,14 @@ export default async function AdminDashboardPage({
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         view="booking"
       />
+      <FirstSessionOfferForm
+        enabled={firstSessionOffer.enabled}
+        type={firstSessionOffer.type}
+        value={firstSessionOffer.value}
+        sampleListPricePaise={
+          (treatmentCategories ?? []).find((c) => c.active)?.price_paise ?? null
+        }
+      />
       <RecommendationSettingsForm
         settings={adminSettings}
         requiresApproval={carePlanRequiresApproval}
@@ -3196,6 +3289,12 @@ export default async function AdminDashboardPage({
     "money:costs": (
       <>
         <AdminCostsTab
+          discountsGiven={{
+            totalPaise: discountsGivenTotals.totalPaise,
+            count: discountsGivenTotals.count,
+            firstSessionPaise: discountsGivenTotals.bySource.first_session,
+            goodwillPaise: discountsGivenTotals.bySource.goodwill,
+          }}
           expenses={businessExpenseRows ?? []}
           gatewayFeePercent={adminSettings.paymentGatewayFeePercent}
           todayIso={istDateKey(new Date(nowTimestamp()).toISOString())}
