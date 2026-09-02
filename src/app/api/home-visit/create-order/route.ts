@@ -36,6 +36,18 @@ const MAX_NOTES_LENGTH = 1000;
 // makes sense already-paid, so there is no meaningful client-owned "unpaid
 // draft" state for one.
 export async function POST(request: NextRequest) {
+
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
   const { data: body, error: parseError } = await parseJsonBody<{
     packageId?: string;
     address?: HomeVisitAddressPayload;
@@ -61,13 +73,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Enter a valid 6-digit pincode." }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
 
   // Deliberately isProfileActive, NOT isProfileActiveAndApproved.
   //

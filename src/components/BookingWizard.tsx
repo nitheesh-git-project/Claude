@@ -883,6 +883,20 @@ export default function BookingWizard({
                 : "Request Booking"}
             </button>
           </div>
+          {/* One failure is enough to want reassurance. A patient whose card
+              was declined has no way of knowing their booking survived, and
+              the most likely next action is to close the tab -- so the fact
+              that nothing was lost is said immediately, and the escape
+              hatch to the dashboard still waits until retrying here has
+              plainly stopped working. */}
+          {appointmentId &&
+            failedAttempts > 0 &&
+            failedAttempts < MAX_ATTEMPTS_BEFORE_ESCAPE && (
+              <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-600">
+                Nothing was lost — your booking is saved and still held as unpaid. You can try
+                again above, or pay later from your dashboard.
+              </p>
+            )}
           {appointmentId && failedAttempts >= MAX_ATTEMPTS_BEFORE_ESCAPE && (
             <div className="text-xs text-center bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 space-y-2">
               <p>

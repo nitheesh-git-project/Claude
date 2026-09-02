@@ -18,6 +18,18 @@ import { isActionable } from "@/lib/sessionSuggestions";
 // started it. This route is the authorization and idempotency layer around
 // that, not a second booking implementation.
 export async function POST(request: NextRequest) {
+
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
   const { data: body, error: parseError } = await parseJsonBody<{
     suggestionId?: string;
     answer?: string;
@@ -33,13 +45,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Answer must be accept or decline." }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
   if (!(await isProfileActiveAndApproved(user.id))) {
     return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
   }

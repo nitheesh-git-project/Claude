@@ -6953,3 +6953,255 @@ revoke all on function public.save_therapist_weekly_schedule(uuid, jsonb, bigint
 revoke all on function public.set_therapist_date_exception(uuid, date, jsonb, text, uuid) from public;
 revoke all on function public.set_therapist_date_exception(uuid, date, jsonb, text, uuid) from anon;
 revoke all on function public.set_therapist_date_exception(uuid, date, jsonb, text, uuid) from authenticated;
+
+-- --------------------------------------------------------------------------
+-- QA audit fixes: the reset's blind spot, and two guards that were a grade
+-- weaker than their siblings
+-- --------------------------------------------------------------------------
+--
+-- Three findings from an audit of this schema against the manual test plan
+-- in docs/qa/. All three are appended rather than edited in place, per this
+-- file's own convention: later definitions win because it runs top to
+-- bottom, and nothing earlier is rewritten.
+
+-- 1. debug_reset_all_data missed four tables.
+--
+-- The previous definition predates care_plans, communication_flags and the
+-- risk tables. Three of the newer ones are saved by CASCADE (care_plans and
+-- care_plan_versions reference truncated tables; contact_reveal_log
+-- references appointments), but three are not:
+--
+--   * communication_flags -- its only foreign keys are to profiles, and
+--     they are ON DELETE SET NULL, so neither the TRUNCATE nor the
+--     `delete from auth.users` below reaches it. It also carries an
+--     append-only trigger that refuses a row delete, so before this change
+--     there was no way to clear it at all.
+--   * risk_signals -- subject_id is a plain uuid with no foreign key, and
+--     its only reference is to risk_rules, which is not truncated.
+--   * risk_reviews -- references profiles and risk_signals, neither
+--     truncated.
+--
+-- The last of those is the one that actually bites a tester. risk_signals
+-- has a partial unique index allowing at most one *open or reviewing*
+-- signal per (rule, subject); a leftover open signal holds that slot, so
+-- the same rule firing again on the same subject writes nothing. Somebody
+-- running the risk tests on a database they had just "emptied" would see an
+-- empty queue and report a broken detector.
+--
+-- risk_rules is deliberately NOT truncated. It is configuration, like
+-- site_settings: an admin's tuned thresholds should survive a wipe for the
+-- same reason the site name does. It is reset to its seeded defaults below
+-- instead, so a reset still means "known state" rather than "whatever the
+-- last test run left".
+create or replace function public.debug_reset_all_data()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  deleted_accounts integer;
+  admin_count integer;
+begin
+  select count(*) into admin_count from profiles where role = 'admin';
+  if admin_count = 0 then
+    raise exception 'refusing to reset: no admin account would be left behind';
+  end if;
+
+  truncate table
+    session_credit_ledger,
+    session_entitlements,
+    payment_webhook_events,
+    payments,
+    business_expenses,
+    admin_activity_log,
+    session_suggestions,
+    appointment_reassignment_log,
+    payment_failure_log,
+    package_purchase_events,
+    home_visit_purchase_events,
+    appointments,
+    patient_package_purchases,
+    home_visit_package_purchases,
+    therapist_payout_requests,
+    therapist_payout_batches,
+    session_note_revisions,
+    session_notes,
+    patient_medical_documents,
+    pain_assessments,
+    condition_change_requests,
+    condition_access_grants,
+    patient_condition_profiles,
+    patient_addresses,
+    patient_admin_notes,
+    therapist_admin_notes,
+    hospital_admin_notes,
+    profile_change_requests,
+    therapist_availability_override,
+    therapist_availability_template,
+    therapist_schedule_state,
+    patient_referrals,
+    b2b_leads,
+    home_visit_waitlist,
+    home_visit_areas,
+    home_visit_packages,
+    treatment_category_packages,
+    treatment_categories,
+    testimonials,
+    faqs,
+    intake_question_templates,
+    pain_map_question_templates,
+    -- The four the previous definition missed. care_plans and
+    -- care_plan_versions were already reached by CASCADE; naming them is
+    -- belt and braces, and means a future change to their foreign keys
+    -- cannot quietly take them back out of the reset.
+    care_plan_versions,
+    care_plans,
+    communication_flags,
+    contact_reveal_log,
+    risk_reviews,
+    risk_signals
+  cascade;
+
+  with removed as (
+    delete from auth.users
+    where id not in (select id from profiles where role = 'admin')
+    returning 1
+  )
+  select count(*) into deleted_accounts from removed;
+
+  -- Detector thresholds back to what the seed set. Not truncated, because
+  -- an empty risk_rules would silently disable every detector rather than
+  -- restoring it -- risk_signals.rule_key references this table.
+  update risk_rules set
+    enabled = default,
+    config = default,
+    updated_at = now();
+
+  update site_settings set
+    site_name = default,
+    site_tagline = default,
+    site_description = default,
+    contact_email = default,
+    whatsapp_number = default,
+    contact_phone = default,
+    footer_copyright_text = default,
+    home_visit_page_heading = null,
+    home_visit_page_subheading = null,
+    ratings_visible_publicly = default,
+    session_packages_visible = default,
+    session_timeout_minutes = default,
+    google_meet_enabled = default,
+    join_window_minutes = default,
+    join_window_after_minutes = default,
+    session_completed_after_minutes = default,
+    booking_languages = default,
+    package_default_validity_days = default,
+    package_therapist_lock_enabled = default,
+    package_bulk_schedule_max = default,
+    package_expiry_reminder_days = default,
+    home_visit_enabled = default,
+    home_visit_cash_enabled = default,
+    home_visit_lead_time_hours = default,
+    home_visit_cancellation_refund_hours = default,
+    home_visit_default_validity_days = default,
+    home_visit_bulk_schedule_max = default,
+    home_visit_travel_buffer_minutes = default,
+    online_booking_lead_time_hours = default,
+    online_cancellation_refund_hours = default,
+    payment_gateway_fee_percent = default,
+    farewell_banner_seconds = default,
+    journey_step_seconds = default,
+    splash_enabled = default,
+    splash_brand_line = default,
+    splash_phrase = default,
+    splash_hold_seconds = default,
+    splash_revisit_minutes = default,
+    enabled_intake_specialties = default,
+    entitlement_ledger_authoritative = default,
+    care_plan_default_expiry_days = default,
+    care_plan_max_frequency_per_week = default,
+    contact_scan_mode = default,
+    contact_masking_enabled = default,
+    risk_signals_enabled = default,
+    therapist_suggestions_enabled = default,
+    auto_assign_therapist_enabled = default
+  where id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'deleted_accounts', deleted_accounts
+  );
+end;
+$$;
+
+revoke all on function public.debug_reset_all_data() from public;
+revoke all on function public.debug_reset_all_data() from anon;
+revoke all on function public.debug_reset_all_data() from authenticated;
+
+-- 2. risk_reviews.reviewer_id was NOT NULL *and* ON DELETE SET NULL.
+--
+-- The two clauses contradict each other: deleting the referenced profile
+-- makes Postgres try to write a null the column refuses, so the delete
+-- raises instead of the reference being cleared. It was the only such pair
+-- in this file. A review outliving its reviewer is the intended reading --
+-- the same posture communication_flags takes with author_id -- so the
+-- column becomes nullable and the reviewer's name is resolved at render
+-- time, exactly as it already is for a flag whose author has gone.
+alter table risk_reviews alter column reviewer_id drop not null;
+
+-- 3. pain_assessments was append-only by revoke alone.
+--
+-- Five comparable tables -- session_credit_ledger, care_plan_versions,
+-- communication_flags, contact_reveal_log, risk_reviews -- use a trigger.
+-- The reasoning is the one already written beside the ledger: the revoke
+-- covers a browser session, and every route in this app writes with the
+-- service-role client, which bypasses RLS entirely. For a table whose whole
+-- value is that a re-assessment is a new row rather than an edit, "no route
+-- updates it" is not the same guarantee as "an update raises".
+drop trigger if exists pain_assessments_no_change on pain_assessments;
+create trigger pain_assessments_no_change
+  before update or delete on pain_assessments
+  for each row execute function communication_evidence_is_append_only();
+
+-- --------------------------------------------------------------------------
+-- Auto-assign, and two flags that had outlived their defaults
+-- --------------------------------------------------------------------------
+
+-- Whether a freshly paid session is assigned automatically when exactly one
+-- therapist is unambiguously free for it (see src/lib/autoAssignTherapist.ts).
+-- Off by default for one release: it changes what happens to a booking after
+-- money has moved, and the honest way to introduce that is with the previous
+-- behaviour still one click away. The fallback when it is on is the previous
+-- behaviour anyway -- the admin's queue.
+alter table site_settings
+  add column if not exists auto_assign_therapist_enabled boolean not null default false;
+
+-- Therapist-suggested sessions shipped off while the flow was unproven. It
+-- is the clinic's main re-booking mechanism, it is covered end to end by
+-- e2e/session-suggestions.spec.ts, and a finished feature nobody can reach
+-- rots: it drifts out of test coverage and accrues maintenance for no
+-- return. Default is now on; the switch stays, so a clinic that does not
+-- want it still has one click.
+--
+-- Note what this does and does not do. SET DEFAULT applies to rows inserted
+-- from here on, and site_settings is a singleton that already exists -- so
+-- an established database keeps whatever value it currently holds until an
+-- admin toggles it on Settings -> Booking Rules, or until debug_reset_all_data
+-- restores defaults. That is deliberate: flipping a live clinic's feature on
+-- as a side effect of applying a schema file would be a behaviour change
+-- nobody asked for and nobody saw coming. A fresh database gets it on.
+alter table site_settings
+  alter column therapist_suggestions_enabled set default true;
+
+-- therapist_schedule_state was added with the roster rebuild and queried by
+-- the admin dashboard, but never published or subscribed to -- caught by
+-- e2e/admin-multi-admin.spec.ts's H-006, which checks the whole list rather
+-- than (like scripts/check-realtime-coverage.mjs) only the tables already
+-- subscribed. Publishing it is what makes the subscription added alongside
+-- this actually fire.
+do $$
+begin
+  alter publication supabase_realtime add table therapist_schedule_state;
+exception when duplicate_object then null;
+end $$;

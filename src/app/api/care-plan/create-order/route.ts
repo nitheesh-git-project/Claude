@@ -31,6 +31,18 @@ import { parseOfferSnapshot, carePlanState } from "@/lib/carePlans";
 // refunds, the ledger mirror -- keeps working unchanged, and the only new
 // thing is the link back to the recommendation it came from.
 export async function POST(request: NextRequest) {
+
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
   const { data: body, error: parseError } = await parseJsonBody<{
     carePlanVersionId?: string;
     // Only read for a home-visit recommendation. Either an address the
@@ -45,13 +57,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing carePlanVersionId" }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
   // Same gate as the other purchase-start routes: a completed,
   // signature-verified payment is itself the vetting `approved` provides,
   // and a patient who has just been seen by a therapist is by definition

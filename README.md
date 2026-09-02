@@ -636,6 +636,35 @@ most one can be waiting per purchase; the therapist can withdraw it.
 Routes: `/api/therapist/suggest-session`,
 `/api/therapist/withdraw-suggestion`, `/api/patient/respond-suggestion`.
 
+### Automatic therapist assignment
+
+A session used to sit `requested` with no therapist from the moment it was
+paid for until an admin opened the dashboard and assigned somebody — and only
+then was it confirmed, given a Meet link, and visible to the therapist.
+Overnight and at weekends that wait was hours, and what the patient saw
+immediately after paying was "Requested" with no clinician named.
+
+`src/lib/autoAssignTherapist.ts` closes that, conservatively. At payment
+confirmation — from the browser callback *and* from the webhook, so a patient
+who closes the tab gets the same outcome — it reads the roster (the weekly
+template, that date's exceptions, and `on_leave`) and the existing conflict
+check, and assigns a therapist only when the answer is unambiguous:
+
+* **exactly one** eligible therapist is free for that slot, or
+* the patient asked for a specific therapist (`preferred_therapist_id`, from
+  `/team` or the "same therapist again" dropdown) and that therapist is free.
+
+Zero candidates, or two or more, and it does nothing: the session stays
+`requested` and unassigned in the admin's queue, exactly as it did before.
+Assigning the wrong clinician is far worse than the wait this removes, so the
+tie-break is deliberately "don't". It never throws — a booking must not fail
+because an optional convenience could not be computed.
+
+It is one admin switch, **Settings → Booking Rules → Assign a Therapist
+Automatically** (`auto_assign_therapist_enabled`), off for its first release
+and read failing-closed. **It does not change what times a patient is
+offered:** the roster still deliberately does not filter the booking picker.
+
 ## How a course of treatment is bought
 
 The first purchase is **one session**. A programme of six is a clinical
@@ -1508,7 +1537,10 @@ src/lib/supabase/        client / server / admin / public clients, proxy
                          session refresh, and the auth guards
 src/proxy.ts             Auth proxy; matches the four dashboard route trees
 supabase/schema.sql      Full database schema, RLS policies, views, triggers
-scripts/                 One-off tooling (Google refresh-token helper)
+scripts/                 One-off tooling (Google refresh-token helper, and
+                         build-test-plan.py, which builds the manual QA plan)
+docs/qa/                 The manual E2E test plan: Markdown sources under
+                         src/, plus the generated PDF and DOCX
 public/                  Static assets
 public/photos/           The public pages' photography (licence-free stock)
 ```

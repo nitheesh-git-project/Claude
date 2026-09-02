@@ -127,6 +127,7 @@ export default async function PatientHealthProfilePage() {
     { count: onlineSessionCount },
     { count: homeVisitCount },
     { count: ownedHomeVisitCount },
+    { data: latestSession },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("patient_code").eq("id", user.id).maybeSingle(),
@@ -194,6 +195,20 @@ export default async function PatientHealthProfilePage() {
       .select("id", { count: "exact", head: true })
       .eq("patient_id", user.id)
       .eq("payment_status", "paid"),
+    // The next session this record is expected to be filled in at, or the
+    // last one it should already have been. Read so the waiting state can
+    // say *when*, rather than leaving a patient looking at a locked screen
+    // with no idea whether it is normal or stuck. One row, and only ever
+    // rendered while the record does not exist yet.
+    supabase
+      .from("appointments")
+      .select("slot_time, status")
+      .eq("patient_id", user.id)
+      .in("status", ["confirmed", "completed"])
+      .not("slot_time", "is", null)
+      .order("slot_time", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const questions = mergeIntakeQuestionOverrides(
@@ -330,11 +345,24 @@ export default async function PatientHealthProfilePage() {
                 </p>
               )}
             {gate.reason === "awaiting_therapist" && (
-              <p className="mt-1 text-xs font-normal">
-                They go through a short set of questions with you and write down your answers. It
-                appears here straight away, and you can add to it from then on. In the meantime you
-                can upload any scans or reports you already have — see below.
-              </p>
+              <>
+                <p className="mt-1 text-xs font-normal">
+                  They go through a short set of questions with you and write down your answers. It
+                  appears here straight away, and you can add to it from then on. In the meantime you
+                  can upload any scans or reports you already have — see below.
+                </p>
+                {/* Which session it is waiting on. Without it this screen is
+                    a locked door with no sign on it: a patient cannot tell
+                    whether the wait is normal or whether they have been
+                    forgotten, and the honest answer is a date. */}
+                {latestSession?.slot_time && (
+                  <p className="mt-1 text-xs font-normal">
+                    {latestSession.status === "completed"
+                      ? `Expected at your session on ${new Date(latestSession.slot_time).toLocaleDateString()}. If it still isn't here in a day or two, tell us and we'll chase it.`
+                      : `Your session on ${new Date(latestSession.slot_time).toLocaleDateString()} is when this gets filled in.`}
+                  </p>
+                )}
+              </>
             )}
             {isPending && lastRequest?.status === "pending" && (
               <p className="mt-1 text-xs font-normal">

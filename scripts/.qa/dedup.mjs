@@ -1,0 +1,12 @@
+import crypto from "node:crypto";
+const S = process.env.RAZORPAY_WEBHOOK_SECRET ?? "qa_webhook_secret_2026";
+const B = "http://localhost:3000";
+const body = JSON.stringify({ event:"payment.captured", payload:{ payment:{ entity:{ id:"pay_dedup_1", order_id:"order_dedup_1", amount:199900 }}}});
+const sig = crypto.createHmac("sha256",S).update(body).digest("hex");
+const send = (hdrs={}) => fetch(`${B}/api/razorpay/webhook`,{method:"POST",headers:{"Content-Type":"application/json","x-razorpay-signature":sig,...hdrs},body});
+const a = await send({"x-razorpay-event-id":"evt_real_001"});
+const b = await send({"x-razorpay-event-id":"evt_real_001"});
+console.log("header dedup: first", a.status, JSON.stringify(await a.json()), "| second", b.status, JSON.stringify(await b.json()));
+const url=process.env.NEXT_PUBLIC_SUPABASE_URL, k=process.env.SUPABASE_SERVICE_ROLE_KEY;
+const r = await fetch(`${url}/rest/v1/payment_webhook_events?select=razorpay_event_id&razorpay_event_id=eq.evt_real_001`,{headers:{apikey:k,Authorization:`Bearer ${k}`,Prefer:"count=exact",Range:"0-0"}});
+console.log("rows stored for evt_real_001:", r.headers.get("content-range"));

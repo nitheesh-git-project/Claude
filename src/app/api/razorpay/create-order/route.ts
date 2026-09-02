@@ -15,11 +15,11 @@ import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync
 // sent from the browser, or anyone could pay whatever they want.
 
 export async function POST(request: NextRequest) {
-  const { appointmentId } = await request.json();
-  if (!appointmentId) {
-    return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
-  }
 
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
   const supabase = await createClient();
   const {
     data: { user },
@@ -27,6 +27,11 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+  const { appointmentId } = await request.json();
+  if (!appointmentId) {
+    return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
+  }
+
   // Deliberately isProfileActive, not isProfileActiveAndApproved:
   // appointments_insert_own already lets an unapproved patient's
   // pre-payment appointment row through, and reaching this route at all

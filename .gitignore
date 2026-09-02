@@ -67,3 +67,7 @@ graphify-out/*
 
 # Local QA scratch (session-only; never committed)
 .qa-*
+
+# Local QA run artifacts (a dev-server log, Playwright's per-run output).
+devserver.log
+/test-results/
