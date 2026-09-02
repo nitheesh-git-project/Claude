@@ -25,6 +25,10 @@ const ALLOWED_COLUMNS = new Set([
   "show_programme_prices",
   "session_timeout_minutes",
   "google_meet_enabled",
+  // Whether a new session's Meet space is opened so neither party is held
+  // in the waiting room. Off is the escape hatch for a Google account that
+  // cannot grant the Meet scope, not a preference.
+  "meet_open_access_enabled",
   "join_window_minutes",
   "join_window_after_minutes",
   "session_completed_after_minutes",

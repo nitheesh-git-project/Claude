@@ -3,6 +3,7 @@ import {
   createSessionCalendarEvent,
   updateSessionMeetEvent,
   deleteSessionMeetEvent,
+  openMeetAccessForLink,
 } from "@/lib/googleCalendar";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -80,6 +81,21 @@ export async function createMeetEventForConfirmedAppointment(
       }
     }
 
+    // Read in its own isolated call for the usual migration-tolerance
+    // reason, and defaulting to ON: the waiting room is the failure this
+    // setting exists to remove, so a database that has not got the column
+    // yet should behave like one that has it switched on. Only a deliberate
+    // `false` turns it off -- which an owner does when their Google account
+    // cannot grant the Meet scope and the failed attempt is only noise.
+    let openAccess = true;
+    if (!isHomeVisit) {
+      const { data: accessRow } = await admin
+        .from("site_settings")
+        .select("meet_open_access_enabled")
+        .maybeSingle();
+      openAccess = accessRow?.meet_open_access_enabled !== false;
+    }
+
     const { data: people } = await admin
       .from("profiles")
       .select("id, email")
@@ -101,6 +117,7 @@ export async function createMeetEventForConfirmedAppointment(
       durationMinutes,
       timezone,
       withMeet: !isHomeVisit,
+      openAccess,
       summary: isHomeVisit ? "Home Physiotherapy Visit" : "Physiotherapy Session",
       location: isHomeVisit ? location : null,
       description: isHomeVisit ? description : null,
@@ -122,8 +139,54 @@ export async function createMeetEventForConfirmedAppointment(
         google_calendar_sync_error: null,
       })
       .eq("id", appointmentId);
+
+    // A second, isolated update rather than two more fields on the one
+    // above, and for two distinct reasons. Migration-tolerance is the usual
+    // one -- these columns are the newest in the file, and folding them in
+    // would make an unknown-column error lose the event id and Meet link
+    // this call just earned. The other is that these must never reach
+    // google_calendar_sync_error: that column is what the sync sweep
+    // retries on, and it retries by *creating an event*, which for a
+    // session that already has one would orphan a second calendar entry to
+    // fix a waiting room.
+    await admin
+      .from("appointments")
+      .update({
+        meet_access_open: result.meetAccessOpen,
+        meet_access_error: result.meetAccessError,
+      })
+      .eq("id", appointmentId);
   } catch (err) {
     console.error("Unexpected error creating Meet event for appointment", appointmentId, err);
+  }
+}
+
+/**
+ * Turns off the waiting room on a session whose event already exists --
+ * shared by the automatic sweep (retryDueMeetSyncs) and the admin's manual
+ * Fix button, so both record the outcome the same way. Never throws.
+ *
+ * Returns whether the space is now open, which the sweep uses only to decide
+ * what to log; the durable answer is the row it writes.
+ */
+export async function openMeetAccessForAppointment(
+  admin: AdminClient,
+  { appointmentId, meetLink }: { appointmentId: string; meetLink: string }
+): Promise<boolean> {
+  try {
+    const result = await openMeetAccessForLink(appointmentId, meetLink);
+    await admin
+      .from("appointments")
+      .update(
+        result === true
+          ? { meet_access_open: true, meet_access_error: null }
+          : { meet_access_open: false, meet_access_error: result.error }
+      )
+      .eq("id", appointmentId);
+    return result === true;
+  } catch (err) {
+    console.error("Unexpected error opening Meet access for appointment", appointmentId, err);
+    return false;
   }
 }
 
@@ -229,6 +292,17 @@ export async function deleteMeetEventForAppointment(
           : { google_calendar_sync_error: "Failed to delete Calendar event on cancellation" }
       )
       .eq("id", appointmentId);
+
+    // Isolated for the same migration-tolerance reason as the create path,
+    // and only on a real deletion: the space is gone with the event, so
+    // leaving a stale "waiting room still on" behind would keep a cancelled
+    // session sitting in the admin's Waiting Room panel forever.
+    if (deleted) {
+      await admin
+        .from("appointments")
+        .update({ meet_access_open: null, meet_access_error: null })
+        .eq("id", appointmentId);
+    }
   } catch (err) {
     console.error("Unexpected error deleting Meet event for appointment", appointmentId, err);
   }

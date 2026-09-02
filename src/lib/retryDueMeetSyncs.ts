@@ -1,5 +1,8 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
+import {
+  createMeetEventForConfirmedAppointment,
+  openMeetAccessForAppointment,
+} from "@/lib/googleCalendarSync";
 import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -207,5 +210,83 @@ export async function retryDueMeetSyncs(admin: AdminClient): Promise<void> {
         .eq("id", appointment.id)
         .eq("google_calendar_sync_claimed_at", claimedAt);
     }
+  }
+}
+
+// Per appointment, across all sweeps -- the waiting-room counterpart of
+// MAX_MEET_SYNC_AUTO_ATTEMPTS, and lower because the commonest failure here
+// is permanent until a person acts: a stored refresh token that predates the
+// meetings.space.settings scope returns 403 forever, and no number of
+// retries changes that. What retrying does buy is the transient case (a
+// Meet API blip on an otherwise correctly-scoped token), which two attempts
+// cover.
+export const MAX_MEET_ACCESS_AUTO_ATTEMPTS = 3;
+
+// Per sweep. Deliberately smaller than MAX_PER_SWEEP: this pass runs after
+// the event-creation pass on the same render, and a session with a waiting
+// room is still a session that works.
+const MAX_ACCESS_PER_SWEEP = 2;
+
+/**
+ * Second, separate pass over the sessions whose Calendar event exists but
+ * whose Meet space is still TRUSTED -- so the patient and therapist are held
+ * until somebody admits them (see src/lib/googleMeetSpace.ts).
+ *
+ * Deliberately not folded into retryDueMeetSyncs' loop above, and not
+ * driven by google_calendar_sync_error: that sweep retries by *creating* an
+ * event, and every row here already has one, so sharing the lane would
+ * orphan a calendar event to fix a waiting room. Patching an existing space
+ * is idempotent and cannot orphan anything, which is also why this pass
+ * needs no claim column -- the worst outcome of two renders overlapping is
+ * the same space set to OPEN twice.
+ */
+export async function retryDueMeetAccess(admin: AdminClient): Promise<void> {
+  // meet_access_attempts is migration-dependent and this query filters on
+  // it, so a database without the column fails the select outright -- the
+  // intended outcome, exactly as above: no column means no cap, and an
+  // uncapped outbound retry attached to every admin page render is worse
+  // than not retrying.
+  const { data: due, error } = await admin
+    .from("appointments")
+    .select("id, meet_link, meet_access_attempts")
+    .eq("status", "confirmed")
+    .eq("meet_access_open", false)
+    .not("meet_link", "is", null)
+    .lt("meet_access_attempts", MAX_MEET_ACCESS_AUTO_ATTEMPTS)
+    .order("slot_time", { ascending: true })
+    .limit(MAX_ACCESS_PER_SWEEP);
+
+  if (error || !due || due.length === 0) return;
+
+  const { data: settingsRow } = await admin
+    .from("site_settings")
+    .select("meet_open_access_enabled")
+    .maybeSingle();
+  if (settingsRow?.meet_open_access_enabled === false) return;
+
+  for (const appointment of due) {
+    if (!appointment.meet_link) continue;
+
+    // The attempt is counted before the call and by compare-and-swap on the
+    // value this iteration read, for both of the reasons the sync sweep
+    // gives: a call that hangs or a render that dies still has to cost an
+    // attempt, and two concurrent renders must not both take the same row.
+    const { data: claimed } = await admin
+      .from("appointments")
+      .update({ meet_access_attempts: (appointment.meet_access_attempts ?? 0) + 1 })
+      .eq("id", appointment.id)
+      .eq("meet_access_attempts", appointment.meet_access_attempts ?? 0)
+      .select("id")
+      .maybeSingle();
+
+    if (!claimed) continue;
+
+    await withTimeout(
+      openMeetAccessForAppointment(admin, {
+        appointmentId: appointment.id,
+        meetLink: appointment.meet_link,
+      }).then(() => undefined),
+      appointment.id
+    );
   }
 }

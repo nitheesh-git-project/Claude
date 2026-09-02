@@ -69,6 +69,20 @@ roster is the clinic's planning record; it does not filter the patient's
 booking picker, and availability never touches an appointment. See the
 "Nobody edits an hour" rule in `AGENTS.md`.
 
+Nobody is admitted to a session by hand. Meet's default access admits only
+signed-in Google users who are on the invite and makes everyone else knock,
+which for patients registering with whatever email they have meant both
+parties waiting for the clinic's own Gmail account to let them in. Each new
+session's meeting is switched to open access right after its Calendar event
+is created (`src/lib/googleMeetSpace.ts`, the Meet REST API's
+`meetings.space.settings` scope). A failure never invalidates the session --
+the link works, the meeting just keeps its waiting room -- and lands on
+Settings -> System Health -> Waiting Room with a Fix button and a bounded
+automatic retry. Open access removes the knock, not the sign-in: a meeting
+organised by a personal Gmail account still requires a Google account to
+join, and only moving the organiser to Workspace changes that. One switch,
+`meet_open_access_enabled`, on by default.
+
 A paid session is assigned automatically when **exactly one** therapist is
 unambiguously free for it -- rostered that hour, approved, not on leave and
 with no clashing session -- or when the patient's own requested therapist is

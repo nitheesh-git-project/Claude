@@ -7,7 +7,7 @@
 //
 // Setup, before running this script:
 //   1. https://console.cloud.google.com -> create/select a project.
-//   2. Enable the "Google Calendar API".
+//   2. Enable the "Google Calendar API" and the "Google Meet API".
 //   3. APIs & Services -> Credentials -> Create Credentials -> OAuth client ID
 //      -> Application type: Web application.
 //      -> Authorized redirect URIs: add http://localhost:53682/oauth2callback
@@ -32,7 +32,19 @@ import http from "node:http";
 import { readFileSync } from "node:fs";
 
 const REDIRECT_URI = "http://localhost:53682/oauth2callback";
-const SCOPE = "https://www.googleapis.com/auth/calendar.events";
+// Two scopes, not one. calendar.events creates the session's event and its
+// Meet link; meetings.space.settings is what lets the app switch that
+// meeting to open access so neither the patient nor the therapist is held in
+// a waiting room until somebody admits them (src/lib/googleMeetSpace.ts).
+//
+// A refresh token minted before the second scope existed keeps working for
+// calendar events and returns 403 on the access change -- the app degrades
+// to the old waiting-room behaviour and lists the affected sessions under
+// Settings -> System Health -> Waiting Room. Re-run this script to fix it.
+const SCOPES = [
+  "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/meetings.space.settings",
+];
 
 function loadEnvLocal() {
   try {
@@ -66,7 +78,7 @@ const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, REDIRECT_URI
 const authUrl = oauth2Client.generateAuthUrl({
   access_type: "offline",
   prompt: "consent", // forces a refresh token even if this account has authorized before
-  scope: [SCOPE],
+  scope: SCOPES,
 });
 
 console.log("\n1. Open this URL in a browser, signed in as the account that should organize sessions:\n");

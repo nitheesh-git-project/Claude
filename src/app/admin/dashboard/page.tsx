@@ -77,7 +77,12 @@ import { mergeMeetLinks } from "@/lib/meetLink";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
-import { retryDueMeetSyncs, MAX_MEET_SYNC_AUTO_ATTEMPTS } from "@/lib/retryDueMeetSyncs";
+import {
+  retryDueMeetSyncs,
+  retryDueMeetAccess,
+  MAX_MEET_SYNC_AUTO_ATTEMPTS,
+  MAX_MEET_ACCESS_AUTO_ATTEMPTS,
+} from "@/lib/retryDueMeetSyncs";
 import { runRiskSweep } from "@/lib/riskDetectors";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -149,6 +154,13 @@ export default async function AdminDashboardPage({
   // felt on every single admin request.
   after(async () => {
     await retryDueMeetSyncs(admin);
+    // The waiting-room pass, after the event pass and bounded the same way.
+    // A session whose Meet space is still TRUSTED works -- it just makes
+    // both parties wait to be admitted -- so it is the lower priority of the
+    // two, and it must run second for a plainer reason: a session the first
+    // pass has only just given an event to has already had its access set
+    // by the same call.
+    await retryDueMeetAccess(admin);
     // The detector sweep, after the response for the same reason: it makes
     // no outbound calls but it does run several aggregate queries, and a
     // finding that appears one render later costs nothing -- the queue
@@ -179,6 +191,7 @@ export default async function AdminDashboardPage({
     { data: appointmentExtraColumns },
     { data: settingsRow },
     { data: syncAttemptRows },
+    { data: meetAccessRows },
     { data: availabilityTemplateRows },
     { data: availabilityOverrideRows },
     { data: scheduleStateRows },
@@ -309,6 +322,11 @@ export default async function AdminDashboardPage({
     // query too and blank the whole Sync Health panel, instead of just
     // losing the "gave up" flag. Same convention as the settled columns above.
     admin.from("appointments").select("id, google_calendar_sync_attempts"),
+
+    // The Meet waiting-room columns, newest of all and isolated for the same
+    // reason: a database this migration has not reached loses the Waiting
+    // Room panel and nothing else.
+    admin.from("appointments").select("id, meet_access_open, meet_access_error, meet_access_attempts"),
 
     // Feeds the Manage Roster tab. Both queries can legitimately return
     // nothing (or error, if the migration hasn't been applied to this
@@ -656,6 +674,7 @@ export default async function AdminDashboardPage({
   const syncAttemptsById = new Map(
     (syncAttemptRows ?? []).map((r) => [r.id, r.google_calendar_sync_attempts])
   );
+  const meetAccessById = new Map((meetAccessRows ?? []).map((r) => [r.id, r]));
   const googleMeetSyncIssues = appointmentsWithSessionCode
     .filter((a) => a.status === "confirmed")
     .map((a) => ({
@@ -678,6 +697,30 @@ export default async function AdminDashboardPage({
       autoRetryExhausted:
         (a.google_calendar_sync_attempts ?? 0) >= MAX_MEET_SYNC_AUTO_ATTEMPTS,
       autoRetryAttempts: a.google_calendar_sync_attempts ?? 0,
+    }));
+
+  // Waiting Room panel (Settings -> System Health): confirmed sessions whose
+  // Meet space could not be switched to OPEN, so both the patient and the
+  // therapist will be held until somebody admits them. Deliberately a
+  // separate list from the sync issues above even though both render on the
+  // same screen: these sessions have a working link and a working invite,
+  // and the fix is a different call (see /api/admin/open-meet-access).
+  const meetWaitingRoomIssues = appointmentsWithSessionCode
+    .filter((a) => a.status === "confirmed")
+    .map((a) => ({ ...a, access: meetAccessById.get(a.id) }))
+    .filter((a) => a.meet_link && a.access?.meet_access_open === false)
+    .map((a) => ({
+      id: a.id,
+      sessionCode: a.session_code ?? null,
+      slotTime: a.slot_time,
+      patientName: profileMap.get(a.patient_id)?.full_name ?? "Unknown patient",
+      therapistName: a.therapist_id
+        ? profileMap.get(a.therapist_id)?.full_name ?? "Unknown therapist"
+        : null,
+      error: a.access?.meet_access_error ?? null,
+      autoRetryExhausted:
+        (a.access?.meet_access_attempts ?? 0) >= MAX_MEET_ACCESS_AUTO_ATTEMPTS,
+      autoRetryAttempts: a.access?.meet_access_attempts ?? 0,
     }));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
@@ -2122,6 +2165,7 @@ export default async function AdminDashboardPage({
       <AdminFeatureControlTab
         settings={adminSettings}
         syncIssues={googleMeetSyncIssues}
+        waitingRoomIssues={meetWaitingRoomIssues}
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         view="booking"
       />
@@ -2155,6 +2199,7 @@ export default async function AdminDashboardPage({
       <AdminFeatureControlTab
         settings={adminSettings}
         syncIssues={googleMeetSyncIssues}
+        waitingRoomIssues={meetWaitingRoomIssues}
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         view="health"
         // Read here rather than in the component: this is a server-only
@@ -2169,6 +2214,7 @@ export default async function AdminDashboardPage({
     <AdminFeatureControlTab
       settings={adminSettings}
       syncIssues={googleMeetSyncIssues}
+      waitingRoomIssues={meetWaitingRoomIssues}
       adminEmail={adminProfile?.email ?? user.email ?? ""}
       view="security"
     />

@@ -96,7 +96,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `RAZORPAY_WEBHOOK_SECRET` | Razorpay **webhook** signing secret, server-only — a different secret from the one above. Without it `/api/razorpay/webhook` answers 503 and payment confirmation falls back to the browser callback alone |
 | `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` | OAuth2 Web application credentials from Google Cloud Console |
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
-| `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer |
+| `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer, and the account whose Meet permission opens each meeting |
 | `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional kill switch for the pre-launch debug bar. The bar is on in every environment; set to exactly `false` to hide it |
 | `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which empties every table. Never set it on a deployment holding real data |
 | `SUPABASE_ACCESS_TOKEN` | Optional. A Supabase Personal Access Token (Account → Access Tokens on supabase.com, **not** the service role key or DB password), only needed to run `node scripts/run-schema.mjs` |
@@ -910,6 +910,43 @@ calendar events for one session; a Retry that lands while a sync is already
 running answers "already running, try again in a moment". The Join button
 only opens inside a configurable window around the slot time.
 
+*Nobody has to be let in.* Meet's default access type is TRUSTED: only a
+signed-in Google user who is *on the invite* joins straight through, and
+everyone else knocks. That default fired on the ordinary case here —
+patients register with whatever email address they have, so the invite
+rarely matches the Google account their browser is signed into — and left
+both the patient and the therapist in the waiting room until the one
+authorizing Gmail account admitted them, session by session. There is no
+Calendar API field for this, so right after the event is created the app
+makes a second call, to the Meet REST API, switching that meeting's space to
+OPEN access (`src/lib/googleMeetSpace.ts`). It needs the
+`meetings.space.settings` scope, which is why
+`scripts/get-google-refresh-token.mjs` now asks for two scopes and the Cloud
+project needs the **Google Meet API** enabled alongside the Calendar one.
+
+A failure here never invalidates anything: the event and the link are
+already created and usable, the meeting simply keeps its waiting room. The
+outcome is recorded per session on `appointments.meet_access_open` /
+`meet_access_error` — deliberately not on `google_calendar_sync_error`,
+which the sync sweep retries by *creating an event*, and creating a second
+one for a session that already has one would orphan a calendar entry to fix
+a waiting room. Affected sessions are listed on **Settings → System Health →
+Waiting Room**, retried a couple of times by a second pass of the same lazy
+sweep (bounded by `appointments.meet_access_attempts`), and fixable by hand
+with `/api/admin/open-meet-access`. The commonest failure is a 403 because
+the stored refresh token predates the Meet scope: re-run the token script
+once and click Open.
+
+The one thing no code can fix: a meeting organized by a **personal Gmail**
+account still requires every participant to be signed in to *some* Google
+account. OPEN removes the knock; it does not allow anonymous joining. Only
+moving the organizing account to Google Workspace does that, and it is the
+right move before launch if patients without Google accounts are expected.
+The whole behaviour is one admin switch — Settings → Booking Rules → **Join
+Without Approval** (`site_settings.meet_open_access_enabled`, on by default)
+— so an owner whose account cannot grant the Meet scope can stop the
+attempt and its recorded errors.
+
 **Feedback and ratings.** Patient and therapist each rate the session after
 it completes. Aggregates (`src/lib/ratingAggregate.ts`, the
 `public_rating_summary` view) feed the public team page; the admin can hide
@@ -928,7 +965,8 @@ public `/hospitals` page also captures anonymous B2B leads into `b2b_leads`,
 which only the admin can read back.
 
 **Admin-managed content.** Treatment categories (with ordering), FAQs,
-testimonials, feature toggles (Meet on/off, join window, idle-timeout
+testimonials, feature toggles (Meet on/off, join without
+approval, join window, idle-timeout
 minutes, the Session Completed cutoff, booking languages), and
 **Brand & Contact Details** (website name,
 tagline, description, contact email, WhatsApp number, contact phone, footer

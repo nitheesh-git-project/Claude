@@ -7205,3 +7205,41 @@ begin
   alter publication supabase_realtime add table therapist_schedule_state;
 exception when duplicate_object then null;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Google Meet waiting room
+-- ---------------------------------------------------------------------------
+-- Meet's default access type is TRUSTED: a signed-in Google user who is on
+-- the invite joins straight through, and everybody else knocks. For this
+-- clinic that default fired on the ordinary case -- patients register with
+-- whatever email they have, so the invite rarely matches the Google account
+-- their browser is signed into -- and left both the patient and the
+-- therapist waiting for the one authorizing Gmail account to admit them.
+-- src/lib/googleMeetSpace.ts now switches each session's space to OPEN right
+-- after the Calendar event is created.
+--
+-- These record the outcome per session, and are deliberately NOT folded into
+-- google_calendar_sync_error: that column is what the sync sweep retries on,
+-- and it retries by creating an event, which for a session that already has
+-- one would orphan a second calendar entry to fix a waiting room.
+--
+--   meet_access_open  null  = no Meet space involved, or never attempted
+--                     true  = OPEN, nobody has to be admitted
+--                     false = attempt failed, the waiting room is still on
+--   meet_access_attempts caps the automatic retry the same way
+--                     google_calendar_sync_attempts caps the sync one. The
+--                     commonest failure here is permanent until a person
+--                     acts (the stored refresh token predates the
+--                     meetings.space.settings scope), so an uncapped retry
+--                     would be an outbound Google call on every admin render
+--                     for the rest of time.
+alter table appointments add column if not exists meet_access_open boolean;
+alter table appointments add column if not exists meet_access_error text;
+alter table appointments add column if not exists meet_access_attempts integer not null default 0;
+
+-- The admin switch behind that second call. Default true: the waiting room
+-- is the failure this exists to remove, so a fresh database gets it. An
+-- owner whose Google account cannot grant the Meet scope turns it off, and
+-- the attempt (and its recorded error) stops.
+alter table site_settings
+  add column if not exists meet_open_access_enabled boolean not null default true;

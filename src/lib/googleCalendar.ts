@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { openMeetSpaceAccess } from "@/lib/googleMeetSpace";
 
 const DEFAULT_TIMEZONE = "Asia/Kolkata";
 
@@ -20,13 +21,17 @@ function normalizeTimezone(timezone: string | null | undefined): string {
  * -- never import this from a Client Component or expose it to the browser.
  * Mirrors createAdminClient()'s "fresh instance per call" shape.
  */
-function getCalendarClient() {
+function getOAuthClient() {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CALENDAR_CLIENT_ID,
     process.env.GOOGLE_CALENDAR_CLIENT_SECRET
   );
   oauth2Client.setCredentials({ refresh_token: process.env.GOOGLE_CALENDAR_REFRESH_TOKEN });
-  return google.calendar({ version: "v3", auth: oauth2Client });
+  return oauth2Client;
+}
+
+function getCalendarClient() {
+  return google.calendar({ version: "v3", auth: getOAuthClient() });
 }
 
 function logCalendarError(action: string, appointmentId: string, err: unknown) {
@@ -66,7 +71,24 @@ type CalendarEventInput = SessionEventInput & {
   // Whether to attach a Meet conference. False for home visits: there is
   // nothing to join, the therapist is coming to the address.
   withMeet: boolean;
+  // Whether to follow the event's creation by switching its Meet space to
+  // OPEN access, so neither party has to knock. Defaults to true; the admin
+  // switch that turns it off lives in googleCalendarSync, alongside the
+  // google_meet_enabled read, so this module stays free of database reads.
+  // Meaningless without withMeet.
+  openAccess?: boolean;
   summary?: string;
+};
+
+export type CreatedCalendarEvent = {
+  eventId: string;
+  meetLink: string | null;
+  // null when no Meet space was involved (a home visit, or open access
+  // switched off) -- deliberately three-valued rather than a boolean, since
+  // "we never tried" and "we tried and the waiting room is still on" need
+  // different words on the admin's screen.
+  meetAccessOpen: boolean | null;
+  meetAccessError: string | null;
 };
 
 /**
@@ -87,7 +109,7 @@ type CalendarEventInput = SessionEventInput & {
  */
 export async function createSessionCalendarEvent(
   input: CalendarEventInput
-): Promise<{ eventId: string; meetLink: string | null } | { error: string }> {
+): Promise<CreatedCalendarEvent | { error: string }> {
   const {
     appointmentId,
     patientEmail,
@@ -98,6 +120,7 @@ export async function createSessionCalendarEvent(
     location,
     description,
     withMeet,
+    openAccess = true,
     summary,
   } = input;
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
@@ -105,7 +128,8 @@ export async function createSessionCalendarEvent(
     return { error: "GOOGLE_CALENDAR_ID is not configured" };
   }
   try {
-    const calendar = getCalendarClient();
+    const auth = getOAuthClient();
+    const calendar = google.calendar({ version: "v3", auth });
     const tz = normalizeTimezone(timezone);
     const start = new Date(slotTime);
     const end = new Date(start.getTime() + (durationMinutes ?? BASE_DURATION_MINUTES) * 60_000);
@@ -149,9 +173,24 @@ export async function createSessionCalendarEvent(
       if (!meetLink) {
         return { error: "Calendar API did not return an event id / Meet link" };
       }
-      return { eventId, meetLink };
+      // Deliberately after the event exists and never able to undo it: the
+      // session is bookable and joinable at this point, and the only thing
+      // riding on this call is whether somebody has to be admitted. A
+      // failure is recorded and reported, never raised -- see
+      // googleMeetSpace.ts.
+      if (!openAccess) {
+        return { eventId, meetLink, meetAccessOpen: null, meetAccessError: null };
+      }
+      const access = await openMeetSpaceAccess(auth, meetLink);
+      if (access !== true) {
+        console.error(
+          `[googleCalendar] open access failed for appointment ${appointmentId}: ${access.error}`
+        );
+        return { eventId, meetLink, meetAccessOpen: false, meetAccessError: access.error };
+      }
+      return { eventId, meetLink, meetAccessOpen: true, meetAccessError: null };
     }
-    return { eventId, meetLink: null };
+    return { eventId, meetLink: null, meetAccessOpen: null, meetAccessError: null };
   } catch (err) {
     return { error: logCalendarError("create", appointmentId, err) };
   }
@@ -164,13 +203,40 @@ export async function createSessionCalendarEvent(
  */
 export async function createSessionMeetEvent(
   input: SessionEventInput
-): Promise<{ eventId: string; meetLink: string } | { error: string }> {
+): Promise<(CreatedCalendarEvent & { meetLink: string }) | { error: string }> {
   const result = await createSessionCalendarEvent({ ...input, withMeet: true });
   if ("error" in result) return result;
   if (!result.meetLink) {
     return { error: "Calendar API did not return an event id / Meet link" };
   }
-  return { eventId: result.eventId, meetLink: result.meetLink };
+  return { ...result, meetLink: result.meetLink };
+}
+
+/**
+ * Switches an already-created session's Meet space to OPEN access, for the
+ * rows whose original attempt failed -- the admin's manual Fix button and
+ * the automatic sweep behind it. Separate from event creation on purpose:
+ * the event and the link are fine, so re-creating them (the shape the Meet
+ * *sync* retry has) would orphan a calendar event to fix a waiting room.
+ *
+ * Idempotent by nature -- setting an already-OPEN space to OPEN changes
+ * nothing -- so a duplicate call is harmless.
+ */
+export async function openMeetAccessForLink(
+  appointmentId: string,
+  meetLink: string
+): Promise<true | { error: string }> {
+  try {
+    const result = await openMeetSpaceAccess(getOAuthClient(), meetLink);
+    if (result !== true) {
+      console.error(
+        `[googleCalendar] open access failed for appointment ${appointmentId}: ${result.error}`
+      );
+    }
+    return result;
+  } catch (err) {
+    return { error: logCalendarError("open access", appointmentId, err) };
+  }
 }
 
 type SessionEventUpdateInput = {

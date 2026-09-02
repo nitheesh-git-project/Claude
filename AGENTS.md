@@ -464,6 +464,41 @@ client is the only writer and the log is append-only from any session.
   `src/lib/pricing.ts`; inside it, none. Home visits use their own window
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) —
   see the Home Visit bullet below.
+- **Nobody is admitted to a session by hand.** Meet's default access type is
+  TRUSTED, which admits only signed-in Google users who are *on the invite*
+  and knocks for everyone else -- and a patient registers with whatever email
+  they have, so the invite rarely matches the account their browser is signed
+  into. Both parties ended up in the waiting room with only the authorizing
+  Gmail account able to let them in. `src/lib/googleMeetSpace.ts` switches
+  each new session's space to OPEN right after the Calendar event is created
+  (a second call, to the Meet REST API -- `conferenceData` has no access-type
+  field). Four rules hold it:
+  1. **It never fails a booking, and never touches
+     `google_calendar_sync_error`.** The event and the link already exist by
+     then; only the door is in question. That column is what the sync sweep
+     retries on, and it retries by *creating an event*, so recording a
+     waiting-room failure there would orphan a second calendar entry for a
+     session that already has one. The outcome goes on
+     `appointments.meet_access_open` / `meet_access_error` instead, written
+     in their own isolated update.
+  2. **Its retry is a separate pass with a separate cap.**
+     `retryDueMeetAccess()` patches an existing space, which is idempotent
+     and cannot orphan anything -- so it needs no claim column, unlike the
+     event sweep beside it. `meet_access_attempts` caps it low, because the
+     commonest failure (a refresh token predating the
+     `meetings.space.settings` scope) is permanent until a person re-runs
+     `scripts/get-google-refresh-token.mjs`.
+  3. **The scope is `meetings.space.settings`, not
+     `meetings.space.created`.** Calendar creates the space, not this app, so
+     "spaces this app created" does not cover it.
+  4. **OPEN removes the knock; it does not allow anonymous joining.** A
+     meeting organized by a personal Gmail account still requires every
+     participant to be signed in to some Google account. Only moving the
+     organizer to Google Workspace changes that -- do not describe this
+     feature to a patient as "no Google account needed".
+  One admin switch (`site_settings.meet_open_access_enabled`, on by
+  default), because an owner whose Google account cannot grant the scope
+  needs a way to stop the attempt and its recorded errors.
 - **Google Calendar/Meet sync must never block a booking.** Failures are
   recorded on the appointment (`google_calendar_sync_error`), re-attempted
   automatically by `src/lib/retryDueMeetSyncs.ts` (a lazy sweep at the top of
@@ -1269,7 +1304,8 @@ client is the only writer and the log is append-only from any session.
   floors at zero, the difference stays as `stillOwedToBusinessPaise`, and
   those collections deliberately stay open on the Cash Ledger for a person
   to chase.
-- **Admin-configurable behavior** (Meet on/off, join window, idle timeout,
+- **Admin-configurable behavior** (Meet on/off, join without approval, join
+  window, idle timeout,
   the sign-out banner's duration,
 - **Only a patient account can book; one account carries one role.**
   `profiles.id` *is* the auth user's id and `role` is a single column, so a

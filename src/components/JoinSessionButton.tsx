@@ -117,14 +117,43 @@ export default function JoinSessionButton({
   const label = cancelled ? "Session Cancelled" : completed ? "Session Completed" : "Tap to Join";
   const disabled = cancelled || completed || !isJoinable;
 
+  // The one line under the button, and the only place either of these two
+  // things is ever said. Both answer a question the button was leaving
+  // unanswered and that people were asking a human instead:
+  //
+  //   - greyed out, with no reason given, reads as broken rather than as
+  //     early. Saying when it opens turns "is my session cancelled?" into a
+  //     glance at the clock.
+  //   - live, it says the call opens straight away. Sessions used to sit in
+  //     Meet's waiting room until an admin admitted both parties, so people
+  //     learned to expect a wait; the meeting is opened at creation now (see
+  //     src/lib/googleMeetSpace.ts) and the caption is what tells them the
+  //     rule changed. The sign-in half is not decoration: a meeting
+  //     organized by a personal Google account still requires a signed-in
+  //     Google account to join, which is the one hurdle left and the one
+  //     people hit without knowing what it wants from them.
+  //
+  // Admin surfaces (alwaysActive) get neither: the window doesn't apply to
+  // them, so "opens N minutes before" would be false on their own screen.
+  const caption = alwaysActive || cancelled || completed
+    ? null
+    : isJoinable
+      ? "Opens straight into the call — sign in to Google if asked."
+      : beforeMinutes > 0
+        ? `Opens ${beforeMinutes} minutes before your session.`
+        : "Opens at your session time.";
+
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => window.open(meetLink, "_blank", "noopener,noreferrer")}
-      className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition"
-    >
-      {label}
-    </button>
+    <span className="inline-flex flex-col items-start gap-1">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => window.open(meetLink, "_blank", "noopener,noreferrer")}
+        className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition"
+      >
+        {label}
+      </button>
+      {caption && <span className="text-[10px] text-slate-500">{caption}</span>}
+    </span>
   );
 }

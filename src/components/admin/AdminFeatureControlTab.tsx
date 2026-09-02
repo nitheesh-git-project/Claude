@@ -32,12 +32,18 @@ export type GoogleMeetSyncIssue = {
 export default function AdminFeatureControlTab({
   settings,
   syncIssues,
+  waitingRoomIssues,
   webhookSecretConfigured = true,
   adminEmail,
   view,
 }: {
   settings: AdminSettings;
   syncIssues: GoogleMeetSyncIssue[];
+  /** Confirmed sessions whose Meet space is still holding both parties in a
+   *  waiting room. Same row shape as a sync issue -- deliberately, since the
+   *  two panels say the same things about a session -- but a different fix
+   *  (see /api/admin/open-meet-access). */
+  waitingRoomIssues: GoogleMeetSyncIssue[];
   /** Whether RAZORPAY_WEBHOOK_SECRET is set in the server environment. */
   webhookSecretConfigured?: boolean;
   adminEmail: string;
@@ -104,6 +110,55 @@ export default function AdminFeatureControlTab({
 
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
+
+  const [optimisticOpenAccess, setOptimisticOpenAccess] = useOptimistic(
+    settings.meetOpenAccessEnabled
+  );
+  const [isOpenAccessPending, startOpenAccessTransition] = useTransition();
+  const [openAccessError, setOpenAccessError] = useState<string | null>(null);
+
+  const [fixingId, setFixingId] = useState<string | null>(null);
+  const [fixErrors, setFixErrors] = useState<Record<string, string>>({});
+
+  function handleToggleOpenAccess() {
+    const next = !optimisticOpenAccess;
+    setOpenAccessError(null);
+    startOpenAccessTransition(async () => {
+      setOptimisticOpenAccess(next);
+      try {
+        await saveSetting("meet_open_access_enabled", next);
+        router.refresh();
+      } catch (e) {
+        setOpenAccessError(e instanceof Error ? e.message : "Could not save. Please try again.");
+      }
+    });
+  }
+
+  async function handleOpenAccess(appointmentId: string) {
+    setFixingId(appointmentId);
+    setFixErrors((prev) => {
+      const next = { ...prev };
+      delete next[appointmentId];
+      return next;
+    });
+    try {
+      const res = await fetch("/api/admin/open-meet-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Could not open the meeting.");
+      router.refresh();
+    } catch (e) {
+      setFixErrors((prev) => ({
+        ...prev,
+        [appointmentId]: e instanceof Error ? e.message : "Could not open the meeting.",
+      }));
+    } finally {
+      setFixingId(null);
+    }
+  }
 
   function handleSaveTimeout() {
     const minutes = Math.max(0, Math.floor(Number(timeoutInput) || 0));
@@ -463,6 +518,35 @@ export default function AdminFeatureControlTab({
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="font-bold text-sm text-slate-800">Join Without Approval</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-md">
+              Meet holds anyone it doesn&apos;t recognise in a waiting room until the meeting&apos;s
+              owner admits them — and patients sign in with whatever Google account they have,
+              so that is nearly everyone. On, each new session&apos;s meeting is opened so the
+              patient and the therapist walk straight in.{" "}
+              <span className="font-semibold">Only turn this off</span> if the Google account
+              behind the calendar can&apos;t grant Meet permission; the sessions it couldn&apos;t
+              open are listed under System Health.
+            </p>
+          </div>
+          <button
+            onClick={handleToggleOpenAccess}
+            disabled={isOpenAccessPending}
+            className={`text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-60 ${
+              optimisticOpenAccess
+                ? "bg-teal-700 hover:bg-teal-800 text-white"
+                : "bg-slate-200 hover:bg-slate-300 text-slate-800"
+            }`}
+          >
+            {optimisticOpenAccess ? "Enabled" : "Disabled"}
+          </button>
+        </div>
+        {openAccessError && <p className="text-[11px] text-red-600 mt-2">{openAccessError}</p>}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-sm text-slate-800">Join Button Window</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
           Controls when the &quot;Tap to Join&quot; button is active for patients and
@@ -652,6 +736,71 @@ export default function AdminFeatureControlTab({
                   className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition shrink-0"
                 >
                   {retryingId === issue.id ? "Retrying..." : "Retry"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h3 className="font-bold text-sm text-slate-800">Waiting Room</h3>
+        <p className="text-xs text-slate-500 mt-1 max-w-md">
+          Confirmed sessions whose meeting could not be opened, so the patient and the
+          therapist will have to be admitted by hand. The link and the invite are fine —
+          only the door is. These are retried automatically a couple of times; anything
+          marked <span className="font-semibold">Needs attention</span> has used those up.
+          The usual cause is the Google account&apos;s saved permission predating this
+          feature, fixed once by re-running{" "}
+          <code className="font-mono">scripts/get-google-refresh-token.mjs</code> and then
+          clicking Open here.
+        </p>
+        {waitingRoomIssues.length === 0 ? (
+          <p className="text-xs text-slate-400 mt-4">
+            No sessions are holding anyone in a waiting room.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-2">
+            {waitingRoomIssues.map((issue) => (
+              <div
+                key={issue.id}
+                className="flex items-center justify-between flex-wrap gap-2 border border-slate-200 rounded-xl px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-slate-800">
+                    {issue.patientName}
+                    {issue.therapistName ? ` → ${issue.therapistName}` : ""}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    <span className="font-mono text-slate-400">{issue.sessionCode ?? "—"}</span>
+                    {" · "}
+                    {issue.slotTime ? new Date(issue.slotTime).toLocaleString() : "Slot to be confirmed"}
+                  </p>
+                  {issue.error && (
+                    <p className="text-[11px] text-red-600 mt-1 break-words">{issue.error}</p>
+                  )}
+                  {issue.autoRetryExhausted ? (
+                    <p className="text-[11px] font-semibold text-amber-700 mt-1">
+                      Needs attention — {issue.autoRetryAttempts} automatic attempts used, no more
+                      will run
+                    </p>
+                  ) : issue.autoRetryAttempts > 0 ? (
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      {issue.autoRetryAttempts} automatic{" "}
+                      {issue.autoRetryAttempts === 1 ? "attempt" : "attempts"} so far — still
+                      retrying
+                    </p>
+                  ) : null}
+                  {fixErrors[issue.id] && (
+                    <p className="text-[11px] text-red-600 mt-1 break-words">{fixErrors[issue.id]}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleOpenAccess(issue.id)}
+                  disabled={fixingId === issue.id}
+                  className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition shrink-0"
+                >
+                  {fixingId === issue.id ? "Opening..." : "Open"}
                 </button>
               </div>
             ))}
