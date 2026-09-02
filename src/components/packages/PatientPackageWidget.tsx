@@ -17,6 +17,12 @@ export type PatientPackageCard = {
   status: string;
   expiresAt: string | null;
   therapistName: string | null;
+  /** What the clinician recommended, and the programme's own scheduling
+   *  rules. The scheduler proposes a run of dates from these rather than
+   *  opening on an empty calendar. */
+  frequencyPerWeek: number | null;
+  minGapHours: number | null;
+  maxPerWeek: number | null;
 };
 
 // The widget the user asked for: a card per package showing how many
@@ -53,7 +59,7 @@ export default function PatientPackageWidget({
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Your Packages</h2>
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Your programmes</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         {purchases.map((p) => {
           const counts = computePackageCounts({
@@ -136,6 +142,10 @@ export default function PatientPackageWidget({
           purchaseId={schedulingId}
           pendingCount={schedulingCounts.pending}
           bulkScheduleMax={bulkScheduleMax}
+          frequencyPerWeek={schedulingPurchase?.frequencyPerWeek ?? null}
+          minGapHours={schedulingPurchase?.minGapHours ?? null}
+          maxPerWeek={schedulingPurchase?.maxPerWeek ?? null}
+          expiresAt={schedulingPurchase?.expiresAt ?? null}
           onClose={() => setSchedulingId(null)}
         />
       )}

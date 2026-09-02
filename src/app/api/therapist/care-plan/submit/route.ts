@@ -4,7 +4,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 import { type CarePlanOfferKind } from "@/lib/carePlans";
-import { authorCarePlanVersion } from "@/lib/carePlanAuthoring";
+import {
+  authorCarePlanVersion,
+  readCarePlanRequiresApproval,
+} from "@/lib/carePlanAuthoring";
 
 // A therapist recommending treatment after a session they ran.
 //
@@ -14,13 +17,18 @@ import { authorCarePlanVersion } from "@/lib/carePlanAuthoring";
 // patient -- and nothing else, because the rules about what may be
 // recommended must not differ by door.
 //
-// **It writes live, with no review step.** Same reasoning as
-// /api/therapist/condition-profile/onboard: an approval queue in front of a
+// **It writes into the clinic's review queue, not straight to the patient.**
+// This route used to publish on save, on the same reasoning as
+// /api/therapist/condition-profile/onboard -- a queue in front of a
 // clinician's own judgement means the patient hears nothing for hours after
-// a session that has just ended, which is the exact failure the Pain Map
-// gate was changed to avoid. Live is not unrecorded -- every version is
-// append-only, attributed and dated, and shows in the Health Profile's
-// history like any other clinical record.
+// a session that has just ended. That reasoning held while a recommendation
+// was one clinical record among several. It stopped holding once a care plan
+// became the only route by which a patient buys a programme: what is being
+// written is now a bill, and the clinic that carries it sees one before the
+// patient is asked to pay it.
+//
+// `care_plan_requires_approval` is the switch, read here and failing closed.
+// With it off the behaviour is exactly what it was.
 export async function POST(request: NextRequest) {
   const { data: body, error: parseError } = await parseJsonBody<{
     patientId?: string;
@@ -90,6 +98,7 @@ export async function POST(request: NextRequest) {
     instructions: body.instructions ?? "",
     authoredBy: user.id,
     actorRole: "therapist",
+    landsApproved: !(await readCarePlanRequiresApproval(admin)),
   });
 
   if (!result.ok) {

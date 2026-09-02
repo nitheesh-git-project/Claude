@@ -11,6 +11,8 @@ import {
   isMonthEntirelyUnbookable,
 } from "@/lib/bookingSlots";
 import { formatHourRange } from "@/lib/therapistAvailability";
+import { BOOKING_LEAD_TIME_MS } from "@/lib/bookingSlots";
+import { proposeSessionRhythm } from "@/lib/sessionRhythm";
 import { bookingCellClass, BOOKING_DAY_CELL, BOOKING_OPTION_GRID, BOOKING_OPTION_CELL } from "@/lib/bookingCellStyles";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -35,11 +37,21 @@ export default function PackageBulkScheduler({
   purchaseId,
   pendingCount,
   bulkScheduleMax,
+  frequencyPerWeek = null,
+  minGapHours = null,
+  maxPerWeek = null,
+  expiresAt = null,
   onClose,
 }: {
   purchaseId: string;
   pendingCount: number;
   bulkScheduleMax: number;
+  /** What the clinician recommended, and the programme's own rules. Used to
+   *  propose the whole run rather than hand over an empty calendar. */
+  frequencyPerWeek?: number | null;
+  minGapHours?: number | null;
+  maxPerWeek?: number | null;
+  expiresAt?: string | null;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -49,7 +61,38 @@ export default function PackageBulkScheduler({
     return { year: now.getFullYear(), month: now.getMonth() };
   });
   const [activeDateKey, setActiveDateKey] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Slot[]>([]);
+  // The proposal, computed before the selection it seeds.
+  //
+  // Everything the therapist decided is already known -- how many, how
+  // often, the programme's gap rules, when the validity runs out -- so
+  // handing the patient a blank grid asks them to redo arithmetic somebody
+  // has already done, at the worst possible moment: immediately after
+  // paying.
+  //
+  // A proposal, not a booking. Every slot still goes through the booking
+  // route, which re-checks the lead time, the gap, the weekly cap and the
+  // therapist's diary on the server.
+  const proposal = useMemo(
+    () =>
+      proposeSessionRhythm({
+        count: Math.max(0, Math.min(pendingCount, bulkScheduleMax)),
+        frequencyPerWeek,
+        minGapHours,
+        maxPerWeek,
+        nowMs,
+        leadTimeMs: BOOKING_LEAD_TIME_MS,
+        expiresAtMs: expiresAt ? new Date(expiresAt).getTime() : null,
+      }),
+    [pendingCount, bulkScheduleMax, frequencyPerWeek, minGapHours, maxPerWeek, nowMs, expiresAt]
+  );
+
+  // Seeded at initialisation rather than in an effect: the dialog mounts
+  // when it opens, so the first render is the right moment, and an effect
+  // would paint an empty calendar for a frame and then fill it in. It is
+  // deliberately never re-applied -- once somebody has started editing,
+  // silently putting the suggestion back is the calendar overruling the
+  // person using it.
+  const [selected, setSelected] = useState<Slot[]>(() => proposal);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +102,11 @@ export default function PackageBulkScheduler({
 
   const maxSelectable = Math.max(0, Math.min(pendingCount, bulkScheduleMax));
   const calendar = buildCalendarMonth(view.year, view.month, nowMs);
+
+  const isProposal =
+    proposal.length > 0 &&
+    selected.length === proposal.length &&
+    selected.every((s, i) => s.dateKey === proposal[i].dateKey && s.hour === proposal[i].hour);
 
   const close = useCallback(() => onClose(), [onClose]);
 
@@ -134,6 +182,23 @@ export default function PackageBulkScheduler({
   }
 
   const bookedCount = results?.filter((r) => r.success).length ?? 0;
+  const failedCount = results?.filter((r) => !r.success).length ?? 0;
+
+  /**
+   * Back to the calendar with only the failures left to place.
+   *
+   * The booked ones are gone from the selection deliberately -- they are
+   * real appointments now, and re-offering them would invite a patient to
+   * book the same slot twice. The count they are allowed to pick shrinks to
+   * match, because that is how many sessions are actually still unspent.
+   */
+  function retryFailed() {
+    setResults(null);
+    setSelected([]);
+    setActiveDateKey(null);
+    setError(null);
+    router.refresh();
+  }
 
   return (
     <AnimatePresence>
@@ -176,6 +241,13 @@ export default function PackageBulkScheduler({
                 <p className="text-sm font-semibold text-slate-800">
                   {bookedCount} of {results.length} session{results.length === 1 ? "" : "s"} scheduled.
                 </p>
+                {failedCount > 0 && (
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    {failedCount === 1 ? "One time" : `${failedCount} times`} didn&apos;t work. Your other
+                    sessions are booked and nothing was charged again — pick another time for{" "}
+                    {failedCount === 1 ? "it" : "them"} below.
+                  </p>
+                )}
                 <ul className="space-y-1.5 text-xs">
                   {results.map((r) => (
                     <li
@@ -191,19 +263,65 @@ export default function PackageBulkScheduler({
                     </li>
                   ))}
                 </ul>
-                <button
-                  onClick={close}
-                  className="w-full rounded-xl bg-teal-700 py-3 text-sm font-bold text-white transition hover:bg-teal-800"
-                >
-                  Done
-                </button>
+                {/* The whole point of showing failures at all is that the
+                    patient can act on them. A list they can only close means
+                    starting the flow again from a screen that has forgotten
+                    what went wrong. */}
+                {failedCount > 0 ? (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <button
+                      onClick={retryFailed}
+                      className="flex-1 rounded-xl bg-teal-700 py-3 text-sm font-bold text-white transition hover:bg-teal-800"
+                    >
+                      Pick another time
+                    </button>
+                    <button
+                      onClick={close}
+                      className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      I&apos;ll do it later
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={close}
+                    className="w-full rounded-xl bg-teal-700 py-3 text-sm font-bold text-white transition hover:bg-teal-800"
+                  >
+                    Done
+                  </button>
+                )}
               </div>
             ) : (
               <>
-                <p className="mb-4 text-xs text-slate-500">
-                  Pick up to {maxSelectable} session{maxSelectable === 1 ? "" : "s"} to schedule now. You can
-                  always come back for the rest.
-                </p>
+                {proposal.length > 0 ? (
+                  <div className="mb-4 rounded-xl border border-teal-100 bg-teal-50/60 p-3">
+                    <p className="text-xs font-semibold text-slate-800">
+                      {isProposal
+                        ? `We've picked ${proposal.length} time${proposal.length === 1 ? "" : "s"} for you`
+                        : "Your times"}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-600">
+                      {frequencyPerWeek
+                        ? `Spaced ${frequencyPerWeek} a week, the way your therapist recommended.`
+                        : "Spaced a week apart."}{" "}
+                      Change any of them below — nothing is booked until you confirm.
+                    </p>
+                    {!isProposal && (
+                      <button
+                        type="button"
+                        onClick={() => setSelected(proposal)}
+                        className="mt-2 text-[11px] font-semibold text-teal-700 underline-offset-2 hover:underline"
+                      >
+                        Put the suggested times back
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mb-4 text-xs text-slate-500">
+                    Pick up to {maxSelectable} session{maxSelectable === 1 ? "" : "s"} to schedule now. You
+                    can always come back for the rest.
+                  </p>
+                )}
                 {error && (
                   <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
                     {error}

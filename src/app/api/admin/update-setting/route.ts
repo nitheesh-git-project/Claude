@@ -19,10 +19,9 @@ const ALLOWED_COLUMNS = new Set([
   "contact_scan_mode",
   "contact_masking_enabled",
   "risk_signals_enabled",
+  "care_plan_requires_approval",
   "care_plan_default_expiry_days",
   "care_plan_max_frequency_per_week",
-  "session_packages_visible",
-  "show_programme_prices",
   "session_timeout_minutes",
   "google_meet_enabled",
   // Whether a new session's Meet space is opened so neither party is held
@@ -133,8 +132,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unknown setting key" }, { status: 400 });
   }
   if (
-    (key === "session_packages_visible" ||
-      key === "show_programme_prices" ||
+    (key === "care_plan_requires_approval" ||
       key === "google_meet_enabled" ||
       key === "package_therapist_lock_enabled" ||
       key === "home_visit_enabled" ||

@@ -67,7 +67,11 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
-  if (plan.status !== "active") {
+  // Either open state may be withdrawn. A recommendation still waiting for
+  // the clinic's own decision is exactly the kind that turns out to be wrong,
+  // and refusing to close it would leave the queue holding a thread nobody
+  // intends to approve while the patient's one-plan slot stays taken.
+  if (plan.status !== "active" && plan.status !== "pending_review") {
     return NextResponse.json(
       { error: "That recommendation is already closed." },
       { status: 409 }
@@ -80,7 +84,7 @@ export async function POST(request: NextRequest) {
     .from("care_plans")
     .update({ status: "withdrawn", updated_at: new Date().toISOString() })
     .eq("id", carePlanId)
-    .eq("status", "active")
+    .in("status", ["active", "pending_review"])
     .select("id")
     .maybeSingle();
 

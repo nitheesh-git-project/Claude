@@ -61,7 +61,7 @@ Dr. Pooja's Physio is a production web application for a physiotherapy practice.
 
 ### The business model in one paragraph
 
-A patient's **first purchase is always one session** — a video consultation, or (if the clinic's home-visit switch is on and their pincode is serviceable) a single home visit. Multi-session programmes cannot be bought from a price list at all: a therapist must run a session, then write a **care plan** recommending an admin-configured package. The patient accepts and pays from their own dashboard. That purchase creates **session credits**, which are spent one at a time as sessions are booked and delivered. Money is split between the therapist (a revenue share, earned only on delivered sessions), the referring hospital (a commission on net revenue), and the clinic.
+A patient's **first purchase is always one session** — a video consultation, or (if the clinic's home-visit switch is on and their pincode is serviceable) a single home visit. Multi-session programmes cannot be bought from a price list at all: a therapist must run a session, then write a **care plan** recommending an admin-configured package, and an admin must approve it before the patient sees anything. The patient then accepts and pays from their own dashboard. That purchase creates **session credits**, which are spent one at a time as sessions are booked and delivered. Money is split between the therapist (a revenue share, earned only on delivered sessions), the referring hospital (a commission on net revenue), and the clinic.
 
 ### Integrations
 
@@ -157,7 +157,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Sessions | `all` | All Sessions | `ADM-SESS-001` |
 | Sessions | `roster` | Roster | `ADM-ROST-001` |
 | Sessions | `delivery` | Delivery (operational rates) | `ADM-DELIV-001` |
-| Sessions | `recommendations` | Recommendations | `ADM-CARE-001` |
+| Sessions | `recommendations` | Recommendations — the clinic's review queue, plus every plan | `ADM-CARE-001`, `ADM-CARE-004` |
 | Sessions | `new` | New Booking | `ADM-NEWB-001` |
 | People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001` |
 | People | `therapists` | Therapists | `ADM-PEOP-005` |
@@ -288,7 +288,7 @@ Rules that must hold (tested in `ADM-SET-025`–`ADM-SET-029`):
 
 ### 6.1 Why the database must be reset
 
-Testing this application means filling it with throwaway patients, bookings, purchases and payouts. Several rules in the product are **one-per-thing** rules — one active care plan per patient, one pending suggestion per purchase, one open risk signal per rule+subject, a unique Razorpay order id — so leftover rows from a previous run make a correct application look broken. Two known examples:
+Testing this application means filling it with throwaway patients, bookings, purchases and payouts. Several rules in the product are **one-per-thing** rules — one open care plan per patient (published or awaiting the clinic), one pending suggestion per purchase, one open risk signal per rule+subject, a unique Razorpay order id — so leftover rows from a previous run make a correct application look broken. Two known examples:
 
 * A booking test that books a fixed slot leaves the appointment behind; the next run's identical booking is refused as a clash. That refusal is **correct behaviour**, not a defect.
 * An audit-log count assertion picks up the previous run's writes.
@@ -299,7 +299,7 @@ Testing this application means filling it with throwaway patients, bookings, pur
 
 The Reset data button calls `/api/admin/debug-reset`, which calls the database function `debug_reset_all_data()`. It is **one atomic `TRUNCATE`**, not a list of deletes.
 
-**Removed:** every appointment, package purchase, home-visit purchase, payment, payment webhook event, payment failure log, entitlement and credit ledger row, session note and revision, pain assessment, condition profile, condition change request and access grant, patient address, medical-document metadata row, admin notes, profile change request, availability template and override, referral, B2B lead, home-visit waitlist, service area, both package catalogs, treatment categories, testimonials, FAQs, intake question templates, payout requests and batches, business expenses, session suggestions, care plans and versions, risk signals and reviews, communication flags, contact reveal log, and the admin activity log. `site_settings` is put back to its defaults. **Every non-admin account is deleted.**
+**Removed:** every appointment, package purchase, home-visit purchase, payment, payment webhook event, payment failure log, entitlement and credit ledger row, session note and revision, pain assessment, condition profile, condition change request and access grant, patient address, medical-document metadata row, admin notes, profile change request, availability template and override, referral, B2B lead, home-visit waitlist, service area, both package catalogs, treatment categories, testimonials, FAQs, intake question templates, payout requests and batches, business expenses, session suggestions, care plans, their versions and the clinic's reviews of them, risk signals and reviews, communication flags, contact reveal log, and the admin activity log. `site_settings` is put back to its defaults. **Every non-admin account is deleted.**
 
 **Kept:**
 * **Admin logins** — the function refuses to run if it would leave no admin behind.
@@ -1591,7 +1591,7 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 
 #### `PAT-CARE-001` — Read a therapist's recommendation · P0
 
-**Preconditions.** `THR-CARE-001` has written a care plan recommending Package P1.
+**Preconditions.** `THR-CARE-001` has written a care plan recommending Package P1, **and `ADM-CARE-004` has approved it.** Until the clinic approves, the patient must see nothing — check that first: an unapproved recommendation absent from this screen is the feature working, not a missing fixture.
 **Steps.** Open `/patient/dashboard/suggested` (and `/patient/dashboard/health-profile`).
 **Expected Result.** An offer card showing the programme name, **session count**, **price**, validity, the therapist's *"Why this, for this patient"* text written **to** the patient, and their instructions. The same rows render on the therapist's chart and on the patient's Health Profile — one record, two readers. **There is no price field the therapist could have set**: the price comes from the admin's catalog row.
 
@@ -1603,7 +1603,8 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 * A `patient_package_purchases` row is created with a **frozen `package_snapshot`** and `sessions_granted = 6`.
 * **Session credits are granted: exactly 6.** Not 5, not 12.
 * The care plan's status becomes `accepted`. **The thread is now closed** — a later recommendation opens a *new* plan with `supersedes_id` set.
-* **Your Packages** appears in the sidebar and lists the programme with `6 sessions`, `0 used`, `6 remaining`.
+* The payment does **not** refresh into an empty screen. In place of the offer card the patient reads *"Payment received — N sessions are yours"*, who will run them, and one next step. **If the screen goes blank after paying, that is a P0 defect** — it is the highest-intent moment in the product.
+* **Your Programmes** appears in the sidebar (not "Your Packages") and lists the programme with `6 sessions`, `0 used`, `6 remaining`.
 * A second attempt to buy the same plan is refused: `You've already bought this plan.`
 
 #### `PAT-CARE-003` — A recommended home-visit programme quotes travel correctly · P0
@@ -1611,6 +1612,30 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 **Preconditions.** A care plan recommending HV2 (4 visits), patient address in a ₹150 area.
 **Expected Result.** The offer card shows **programme + travel + total** as three figures, with travel charged **per visit**: `₹8,999 + (₹150 × 4) = ₹9,599`. A card that printed `₹8,999` on a button that charged `₹9,599` would be a P0 defect — travel is per visit, not per purchase.
 Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/create-order` must refuse the purchase with `Home visits aren't available right now. Please talk to your therapist.` A recommendation written before the service stopped must not stay purchasable.
+
+#### `PAT-SCHED-001` — The scheduler opens answered, not empty · P0
+
+**Feature.** Everything needed to lay out the run is already known — how many sessions, how often the clinician recommended, the programme's gap and weekly rules, the lead time, the validity. Handing the patient a blank calendar asks them to redo arithmetic somebody has already done, immediately after paying.
+
+**Preconditions.** A paid 6-session programme recommended at **2 a week**, with `min_gap_hours` 48 and `max_sessions_per_week` 2.
+
+**Steps.** Tap **Choose my times** (straight after payment) or **Schedule sessions** (from Your Programmes). Read what is already selected. Change one date. Read the panel again.
+
+**Expected Result**
+* Dates are **already chosen** — as many as the bulk limit allows — spaced roughly 3 days apart, none inside the 12-hour lead time, none past the programme's expiry, and no more than 2 in any calendar week.
+* Every proposed session is at the **same time of day**. A course at one hour is one thing to remember rather than six.
+* The panel says *"We've picked N times for you — spaced 2 a week, the way your therapist recommended."*
+* After an edit the heading becomes **Your times** and a **Put the suggested times back** link appears. The suggestion must **not** silently reapply itself — that is the calendar overruling the person using it.
+* Nothing is booked until Confirm. The proposal is a suggestion; the server re-checks every rule on submit.
+
+#### `PAT-SCHED-002` — A clashing slot can be fixed without starting over · P1
+**Steps.** Deliberately pick two sessions 24 hours apart on a programme with a 48-hour minimum gap, and confirm.
+**Expected Result.** *"N of M sessions scheduled"*, with the too-close one marked and the reason naming the gap. An amber line confirms the others **are** booked and nothing was charged twice. A **Pick another time** button returns to the calendar with only what is still unspent — the booked ones are gone from the selection, since re-offering them would invite booking the same slot twice.
+
+#### `PAT-SCHED-003` — Unbooked sessions keep asking · P0
+**Feature.** The one thing a patient can buy and then receive nothing for. Paying is the hard part and it is done; what is left is a calendar step on a screen they have to think to visit.
+**Steps.** Pay for a programme and tap **I'll do it later**. Open `/patient/dashboard`.
+**Expected Result.** The activity feed carries a **needsYou** item — *"N sessions still to book"* — naming the programme and linking to Your Programmes. It stays until the balance is spent and disappears when it is. The figure must agree with the Your Programmes card exactly; a feed claiming a balance that screen disagrees with is a P0.
 
 #### `PAT-CARE-004` — A declined or withdrawn recommendation · P2
 **Steps.** Decline a recommendation from the offer card. Separately, have an admin withdraw one (`ADM-CARE-002`). **Expected Result.** Declining closes it for the patient; withdrawing removes it from the patient's offers with the plan marked withdrawn. **A purchased plan can never be withdrawn** — the honest lane is a refund.
@@ -1916,9 +1941,9 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 **Steps**
 1. Open the completed session's note dialog.
-2. In the **Recommend treatment** panel, tap the **Programme** dropdown.
-3. Read the list of programmes offered.
-4. Select `QA Spine Recovery 6 Sessions`.
+2. In the **Recommend treatment** panel, tap the **Condition** dropdown.
+3. Read the list of conditions offered, and how they are grouped.
+4. Select the session's own condition, then tap the session-count chip for `6 sessions`.
 5. Read the four read-only figures shown beneath.
 6. Tap **How often, per week** and select `2 a week`.
 7. Tick **Needs hands-on treatment**.
@@ -1928,12 +1953,14 @@ A second attempt returns `This visit's payment has already been recorded.`
 11. Submit.
 
 **Expected Result**
-* Step 3: **only programmes for this session's own condition are offered.** `QA Neuro Rehab 8 Sessions` must not be in the list for a `QA Back & Spine Care` session.
+* Step 3: **conditions are grouped by condition type** — Orthopaedic, Neurological, Paediatric — from `treatment_categories.specialty`. A category an admin has not tagged appears under **Other** and still works. The panel **never shows a programme by name**: a clinician answers "which condition" and "how many sessions", and those two pick the catalogue row.
+* Step 3: **only programmes for this session's own condition are offered.** `QA Neuro Rehab 8 Sessions` must not be reachable for a `QA Back & Spine Care` session.
+* Step 4: a **Delivered as** toggle (Video sessions / Home visits) appears **only** where the clinic sells both against that condition. A toggle with one option is not a decision the clinician has.
 * Step 5: **Sessions `6`**, **Price `₹9,999`**, **Valid for `90 days`**, **Each session `60 min`** — all read-only, all from the admin's catalog row. **There is no price field, no session-count field and no discount field anywhere in this panel.** If one exists, that is a P0 defect: "the therapist set their own price" must be a thing the schema cannot express.
 * Step 6: the frequency dropdown is capped by `care_plan_max_frequency_per_week` (default 5) and offers `Leave open`.
-* Step 10: *"This goes to the patient as it is written. They accept and pay from their own dashboard — you are not booking or charging anything here."*
-* Step 11: the plan is written **live, with no review**, append-only and attributed. `care_plan_versions.source_appointment_id` is NOT NULL and is **re-derived from the appointment, not trusted from the body**.
-* The patient sees it immediately on Suggested Sessions and on their Health Profile.
+* Step 10: with `care_plan_requires_approval` **on** (the default), the panel says *"Goes to the clinic first. Your patient sees it once it is approved."* With it off, it says the patient sees it on their dashboard. **The copy must match the setting** — telling a clinician their patient can already see something sitting in a queue is a P0 defect.
+* Step 11: the plan lands `status = 'pending_review'`, append-only and attributed. `care_plan_versions.source_appointment_id` is NOT NULL and is **re-derived from the appointment, not trusted from the body**. `care_plan_versions.expires_at` is **null** — the offer window is stamped at approval, not now.
+* **The patient sees nothing.** Not a greyed-out card: the recommendation is absent from Suggested Sessions and from their Health Profile until an admin approves it (`ADM-CARE-004`).
 
 #### `THR-CARE-006` — The Overview names who is waiting to hear · P1
 
@@ -1941,6 +1968,13 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 **Steps.** Complete a session for Patient A and write no recommendation. Open `/therapist/dashboard`.
 **Expected Result.** The activity feed carries a **named** item — *"QA Patient A is waiting to hear what next"* — pinned by `needsYou` and linking to that patient's chart. It disappears once a recommendation is written, or once the patient's plan is accepted. A patient who **already has** a live or purchased recommendation must **not** appear; a patient whose plan was declined or withdrawn **should**, because that thread is open again. At most four are shown, most recently seen first, alongside the note nudge.
+
+#### `THR-CARE-008` — Writing a second one while the first is still queued · P1
+
+**Feature.** Submitting again is allowed — it lands as a new version on the same thread, which is right when a clinician has genuinely changed their mind. Doing it *without being told* is how the same plan gets submitted twice by someone who assumed the first had failed.
+
+**Steps.** With a recommendation already waiting for the clinic, open another completed session's note dialog for the same patient.
+**Expected Result.** The panel says *"You have already recommended a programme for this patient and the clinic has not decided yet — nothing has gone wrong, and your patient has not been asked for anything. Writing another replaces it."* The button reads **Replace it**, not **Add a recommendation**.
 
 #### `THR-CARE-002` — A recommendation needs a completed session this therapist ran · P0
 **Steps.** Attempt to submit a care plan (a) for a patient this therapist is not assigned to, (b) against a session run by Therapist B, (c) against a session that is not completed.
@@ -1950,15 +1984,28 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Preconditions.** Patient A has **bought** the recommendation (`PAT-CARE-002`).
 **Steps.** Attempt to write a new recommendation for the same patient.
 **Expected Result.** The purchased thread is **closed**. A new recommendation opens a **new plan** with `supersedes_id` set — it does not add a version to the purchased one. Editing a purchased plan would change the description of something already paid for.
-`care_plans_one_active_per_patient` means the patient never sees two competing live recommendations.
+`care_plans_one_open_per_patient` means the patient never sees two competing live recommendations — and covers a **queued** plan too, so a submission waiting on the clinic blocks a second one exactly as a published one does.
 
 #### `THR-CARE-004` — Versions are append-only by trigger · P1 **[SQL]**
 **Steps.** In the Supabase SQL editor, attempt `update care_plan_versions set clinical_rationale='changed' where id='<id>';` and `delete from care_plan_versions where id='<id>';`
-**Expected Result.** Both **raise**. Only `is_current` may change. This is enforced by trigger, not by RLS — every route writes with the service role, which bypasses RLS entirely.
+**Expected Result.** Both **raise**. Only `is_current` and a **first** `expires_at` may change — the offer window is stamped once, at approval, and moving one already set raises too. This is enforced by trigger, not by RLS — every route writes with the service role, which bypasses RLS entirely.
 
 #### `THR-CARE-005` — Withdraw one's own recommendation · P2
-**Steps.** Tap the withdraw control on an unpurchased recommendation.
-**Expected Result.** The plan closes; the patient's offer disappears. **A purchased plan cannot be withdrawn at all.**
+**Steps.** Tap the withdraw control on an unpurchased recommendation, then on one still **waiting for the clinic's approval**.
+**Expected Result.** Both close; the patient's offer disappears where there was one. **A purchased plan cannot be withdrawn at all.**
+
+#### `THR-CARE-007` — The clinic's decision reaches the therapist · P0
+
+**Feature.** A recommendation turned down silently is one that never happened, and the therapist is the only person who can put it right — they rewrite.
+
+**Preconditions.** `ADM-CARE-005` has turned down this therapist's recommendation with the reason `This patient still has four unused sessions on their current plan.`
+
+**Steps.** Open `/therapist/dashboard`. Then open that patient's chart.
+**Expected Result.**
+* The activity feed carries a **needsYou** item: *"The clinic turned down your recommendation for QA Patient A"*, with the admin's reason as its detail. It is the **only** care-plan feed item marked `needsYou` — an approval is the expected outcome and marking it so would train the therapist to ignore the badge.
+* An **approval** and an **approve-with-changes** also appear, not marked `needsYou`: a submission that vanishes into a queue and never reports back teaches a clinician to stop trusting the queue.
+* On the chart, the thread reads **Not approved** **with the clinic's reason printed beneath it**, in red. The reason is the actionable half — "Not approved" says the recommendation is gone, and only the reason says what to write instead — and the feed item scrolls away while the chart is where a clinician goes to rewrite. A queued thread reads **Waiting for the clinic to approve**. Both are visible to the clinician and **neither is visible to the patient**.
+* The thread being closed frees the one-open-plan slot, so a fresh recommendation can be written straight away.
 
 #### `THR-SUGG-001` — Suggest a session · P0
 
@@ -2405,17 +2452,73 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 
 #### `ADM-CARE-001` — Recommendations: see every care plan · P0
 **Steps.** Open **Sessions → Recommendations**.
-**Expected Result.** Every care plan in the clinic is listed with its patient, therapist, package, status and date. A care plan is now the **only** route by which a patient buys a programme, so the clinic must be able to see them all.
+**Expected Result.** Three bands, in this order: **Waiting for your decision**, **Waiting on a patient**, **Answered and closed**. Every care plan in the clinic is listed with its patient, therapist, package, status and date. A care plan is now the **only** route by which a patient buys a programme, so the clinic must be able to see them all.
+The first band **renders even when empty**, saying so. A section that disappears when there is nothing in it gives an admin no way to tell "nothing waiting" from "I am on the wrong screen".
+
+#### `ADM-CARE-004` — Approve a recommendation · P0
+
+**Feature.** A therapist's recommendation is a bill as well as a clinical note, and the clinic that carries it sees one before the patient is asked to pay it.
+
+**Preconditions.** `care_plan_requires_approval` is **on** (default, at Settings → Booking Rules). `THR-CARE-001` has been submitted.
+
+**Steps**
+1. Open **Today → Overview** and read the Clinical group of the action inbox.
+2. Follow **Recommendations waiting for approval** to the queue.
+3. Read the card: patient, therapist, programme, sessions, price, frequency, the clinician's reasoning and their instructions to the patient.
+4. Note the order of the cards and what the badge on each one says.
+5. Tap **Approve**.
+6. Check the patient's Suggested Sessions screen.
+7. Attempt the same decision a second time.
+
+**Expected Result**
+* Step 1: the count is there, and it turns **urgent** only once something has been waiting over four hours — never merely because the queue is non-empty. A badge that is always on is a badge nobody reads, and this is the one queue with a patient on the other side of it who has been told nothing at all. The hint names how many are late.
+* Step 2: the link lands on `?section=sessions&tab=recommendations` — the figure and the list it opens must agree.
+* Step 4: the queue is **oldest first** — every other list on this screen is a record and reads newest-first, but this is work, and the person waiting longest is served next. Each badge reads **how long** it has waited (`Waiting 3 hours`), not the date it arrived; past four hours it turns red. A card that reads `2 September` when the thing arrived nine minutes ago tells an admin nothing they can act on.
+* Step 4: where the patient still has unused sessions **or visits** on a live programme, the card says so in amber. The figure comes through the same ledger helper every other balance surface uses, so it cannot disagree with Catalog → Purchases after the ledger switch is flipped. It is **stated, never acted on** — a patient with sessions left may well need a different programme, and the clinician has seen them. This is the commonest reason to turn one down, and an admin previously had to leave the queue to find it out.
+* Step 5: **one tap, no reason asked.** Approving is the outcome this queue exists to reach, and demanding a sentence meaning "fine" twenty times a day is how a reason column fills with `ok` and stops being worth reading; a plain approval's evidence is who and when, both already on the row. The plan becomes `active`; `reviewed_by` and `reviewed_at` are stamped; a `care_plan_reviews` row records the decision and the reviewer with a null reason; a `care_plan.approve` audit row is written. **`care_plan_versions.expires_at` is stamped now** — the patient's answering window starts at approval, not at authoring, so a plan that waited in the queue does not arrive with its time already spent.
+* Step 6: the recommendation is now visible and purchasable.
+* Step 7: **409** — `Someone else decided this one first.` The decision is a compare-and-swap on `pending_review`, so two admins in the queue together cannot both decide.
+
+#### `ADM-CARE-008` — A stale offer is caught before the patient meets it · P0
+
+**Feature.** Checkout re-reads the package and refuses on a mismatch rather than charging a different amount. On its own that means the *patient* discovers the clinic's stale data, by having their payment refused at the last step.
+
+**Steps.** With a recommendation queued, go to **Catalog → Packages** and change that package's price. Come back and tap **Approve**. Then tap **Turn it down**.
+**Expected Result.** The approval is **refused** with a sentence naming the drift — *"This was written at ₹9,000 and the programme now costs ₹9,500. Approving it would quote one figure and charge another."* The plan is still queued and `reviewed_by` is still null: refused, not half-applied. Deactivating the package or clearing its **recommendable** flag refuses the same way.
+**Turning it down still works.** Refusing to let an admin close a thread because its package moved would trap exactly the recommendation that most needs closing.
+
+#### `ADM-CARE-005` — Turn a recommendation down · P0
+**Steps.** On a queued recommendation, tap **Turn it down**. Submit with the reason `ok` (two characters), then with `This patient still has four unused sessions on their current plan.`
+**Expected Result.** The two-character reason is **refused**, by the route and by a CHECK on `care_plan_reviews` — a rejection is what the therapist acts on, so it owes them a sentence, and one with none reads the same as one nobody got round to. With a real reason the plan becomes `rejected`; a `care_plan_reviews` row and a `care_plan.reject` audit row are written; the patient never sees it. The therapist sees it as something needing them, with the reason (`THR-CARE-007`) — **they rewrite; an admin does not edit their judgement**. The closed thread frees the one-open-plan slot immediately.
+
+#### `ADM-CARE-006` — Approve with different numbers · P0
+
+**Feature.** The middle case, and the one whose honesty is in the plumbing rather than the button.
+
+**Steps.** On a queued recommendation, tap **Approve with changes**. Change the session count chip and the frequency. Submit with the reason `Frequency reduced to match what this patient can attend.`
+
+**Expected Result**
+* The plan becomes `active` and the patient is offered the **new** numbers.
+* **The therapist's original version is untouched** and still readable in the thread, marked superseded. A version is append-only; rewriting one under a clinician's name would be a lie about who decided what, and the trigger refuses it regardless.
+* The new version carries `authored_by` = the **therapist** and `entered_by` = the **admin**. Check both in the database — this is the assertion the whole feature turns on.
+* The `care_plan_reviews` row records `edited_and_approved`, and a `care_plan.edit_and_approve` audit row is written.
+* The programmes offered in the change panel are **narrowed to that session's own condition**, exactly as on the therapist's own dialog.
+
+#### `ADM-CARE-007` — The switch · P1
+**Steps.** At **Settings → Booking Rules**, turn **Approve recommendations before the patient sees them** off. Have a therapist submit a recommendation.
+**Expected Result.** It publishes on save and the patient sees it immediately, exactly as before the review step existed. The therapist's panel copy changes to match. Turn it back on afterwards — the rest of the suite assumes the default.
+The setting **fails closed**: with the column unreadable, a submission is held rather than published. That is the opposite direction from `contact_scan_mode`, and deliberately so.
 
 #### `ADM-CARE-002` — Withdraw a recommendation · P0
 **Steps.** Withdraw an **active, unpurchased** plan with the reason `Therapist on extended leave; will re-review.` Then attempt to withdraw an **accepted (purchased)** plan.
 **Expected Result.** The active one closes; the patient's offer disappears; a `care_plan.withdraw` audit row is written; the route required `sessions` scope, a **mandatory reason**, and a compare-and-swap on `status='active'` (a stale attempt returns `Someone else closed this recommendation. Refresh to see it.`).
 **The purchased plan cannot be withdrawn at all** — the patient has paid and the sessions exist, so the honest lane is a refund or a credit adjustment, each of which has its own screen.
-**Withdrawing is deliberately the whole of that power.** There is no admin path to *edit* or *re-price* a recommendation. A recommendation that changed is a **new one written by a clinician who has seen the patient**.
+Withdrawal also covers a plan **still waiting for approval** — refusing would leave the queue holding a thread nobody intends to approve while the patient's one-plan slot stayed taken.
+**There is no admin path to *edit* a version.** Approving with different numbers (`ADM-CARE-006`) writes a **new** one attributed to the clinician; it does not change theirs, and no route anywhere can set a price.
 
 #### `ADM-CARE-003` — Write a recommendation on a therapist's behalf · P0
 
-**Feature.** One authoring implementation, two doors. This exists for when a therapist cannot reach their dashboard — on leave, off sick, gone — and a patient is still waiting to hear.
+**Feature.** One authoring implementation, three doors. This one exists for when a therapist cannot reach their dashboard — on leave, off sick, gone — and a patient is still waiting to hear.
 
 **Steps**
 1. On **Sessions → Recommendations**, open the authoring panel.
@@ -2429,7 +2532,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Expected Result**
 * Step 3: programmes are **narrowed to that session's own condition**, exactly as on the therapist's dialog.
 * Step 5: **whose name it goes out in is stated at the button**, not in a subtitle two screens up.
-* Step 6: the write succeeds with **split attribution** — `authored_by` is the clinician whose judgement it is, `entered_by` is the admin who typed it. Naming only the therapist would be a quiet lie about who was at the keyboard; naming only the admin a louder one about whose judgement it is. A `care_plan.author_on_behalf` audit row is written. The route required `sessions` scope and a mandatory reason.
+* Step 6: the write **publishes directly**, without passing through the review queue — the admin writing it is the approver, so their own queue would decide nothing. It succeeds with **split attribution** — `authored_by` is the clinician whose judgement it is, `entered_by` is the admin who typed it. Naming only the therapist would be a quiet lie about who was at the keyboard; naming only the admin a louder one about whose judgement it is. A `care_plan.author_on_behalf` audit row is written. The route required `sessions` scope and a mandatory reason.
 * Step 7: **the draft is dropped** when the session changes, so a package for someone else's condition cannot be carried across.
 * With **no** eligible session or **no** recommendable package, the panel **still renders** and says which of the two is missing. An admin opens this screen because a patient is waiting; a panel that is simply absent reads as a feature that does not exist.
 * The rules are **not weaker than the therapist's door**: the package still comes from the admin whitelist, the source must still be a completed session that therapist ran, and the text is still scanned.
@@ -2673,13 +2776,24 @@ This tab holds three groups: **Platform Rules**, **Package settings**, and **Hom
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
 | **Assign a Therapist Automatically** | **off** | See `ADM-SET-021` |
-| **Show programme prices publicly** | on | Off → public catalog cards hide the price. **This is not a purchase switch** — nobody can buy a programme directly either way. |
 | **Therapist Lock (site-wide)** | on | Off → later sessions on a purchase are not auto-assigned to the first therapist |
 | **Session Balances From The Ledger** | **off** | See `ADM-SET-019` |
 | **Therapist-Suggested Sessions** | **on for a fresh database** | Off → `/api/therapist/suggest-session` returns `Suggesting sessions is switched off.` and the control is absent. The column default is now true, but that only applies to a new `site_settings` row — **an existing database keeps its current value until an admin toggles it, or a reset restores defaults.** Check the toggle before running `THR-SUGG-*` rather than assuming |
 | **Default Validity** | 90 d | A new purchase's expiry when the package leaves it blank |
 | **Bulk Scheduler Limit** | 8 | `Too many slots in one request.` above this |
 | **Expiry Reminder Lead Time** | 14 d | When the expiry nudge appears on the patient's dashboard |
+
+#### `ADM-SET-022` — Recommendation settings · P0
+
+At **Settings → Booking Rules**, above the package settings.
+
+| Setting | Default | Dependent feature |
+| --- | --- | --- |
+| **Approve recommendations before the patient sees them** | **on** | Off → a therapist's submission publishes on save and the patient sees it immediately, as it did before the review step. On → it lands in Sessions → Recommendations and the patient sees nothing. See `ADM-CARE-004..008`. **Fails closed:** an unreadable column holds the recommendation rather than publishing it. Read in its own query, not through `SITE_SETTINGS_SELECT` — the same treatment **Therapist-Suggested Sessions** gets, so a database one apply behind loses this one control instead of resetting every setting on the page |
+| **How long a recommendation holds** | 30 d | The patient's answering window, counted **from approval**, not from when the therapist wrote it |
+| **Most sessions a week a clinician may ask for** | 5 | A ceiling over the programme's own `max_sessions_per_week`, whichever is lower. Above it: `This programme allows at most N sessions a week.` |
+
+Note there is no longer a **Show programme prices publicly** switch. Programmes are not advertised on the public site at all — see `PUB-CAT-002`.
 
 #### `ADM-SET-021` — Automatic therapist assignment · P0
 
@@ -3123,9 +3237,22 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 **Expected Result.** Every rail entry corresponds to a section that **actually rendered** (several bands are conditional on admin-controlled catalog data), and the entries are in **DOM order**. The arrow walks the list **top to bottom** — if it ever sends you backwards, an entry is out of order.
 
 #### `PUB-CAT-001` — A catalog card opens a dialog; booking is its own button · P1
-**Steps.** On `/` and `/conditions`, tap a programme card's **body**. Then tap its **Book …** link.
-**Expected Result.** The card body is **one tap target that opens a detail dialog** showing validity, the one-therapist lock and the minimum gap — the rules a patient needs before paying. The **Book …** link sits **below the card** and again at the foot of the dialog, **outside** the tap-target button (a link nested inside a button is invalid markup and behaves differently per browser). A programme card shows **no Buy button** — instead *"Arranged by your therapist after your first session."*
+**Steps.** On `/` and `/conditions`, tap a programme (treatment category) card's **body**. Then tap its **Book …** link.
+**Expected Result.** The card body is **one tap target that opens a detail dialog** carrying the long description and what the programme covers. The **Book …** link sits **below the card** and again at the foot of the dialog, **outside** the tap-target button (a link nested inside a button is invalid markup and behaves differently per browser). It goes to `/book?category=<id>` — a **first session**, never a course of them.
 **Cover images:** a card with no photo shows the **shared placeholder panel at the same height** as one with a photo. It must never look like an image that failed to load.
+
+#### `PUB-CAT-002` — No course of treatment is advertised anywhere public · P0
+
+**Feature.** A course of treatment is a clinical recommendation, so the public site does not carry a price list of them. Removed outright rather than hidden behind a setting: a toggle somebody can flip back on is not the rule being gone.
+
+**Preconditions.** Packages P1–P3 exist, are `active`, and have `visible_on_home` and `visible_on_conditions` on. That matters — this is an absence tested against rows that genuinely could have rendered.
+
+**Steps.** Read `/` and `/conditions` end to end, including inside every programme detail dialog. Then read `/home-visit`.
+**Expected Result**
+* **No session package appears anywhere** — no card, no title, no price, and no "Where this usually leads" list inside a programme's dialog.
+* **No link anywhere matches `/book?package=`.** A card still linking to package checkout would take money for something the server now refuses; this is the assertion that catches a partial revert.
+* `/home-visit` shows **single**-visit packages only. `HV1` (1 visit) is there and books directly; `HV2` (4 visits) is **absent** — it is a recommendation, not a product.
+* There is **no admin switch** for any of this. "Show programme prices publicly" no longer exists on Settings; if you find it, that is a defect.
 
 #### `PUB-TEAM-001` — Team · P2
 **Expected Result.** Only approved, active, team-visible therapists appear. Tapping one opens a popup with their profile and a **Book with …** action carrying `?therapist=` into the wizard.
@@ -3462,7 +3589,7 @@ SETUP-RESET-001
   → PAT-BOOK-002 → PAT-BOOK-003 (book + pay)
   → ADM-SESS-002 (assign)             → XR-BOOK-001 (five views agree)
   → THR-SESS-005 (complete)           → XR-COMPLETE-001
-  → THR-CARE-001 (recommend)          → XR-CARE-001
+  → THR-CARE-001 (recommend)          → ADM-CARE-004 (clinic approves) → XR-CARE-001
   → PAT-CARE-002 (accept + pay)       → XR-CARE-002
   → PAT-PKG-001 (spend 3 credits)     → XR-CREDIT-001
   → THR-SESS-005 ×3 (deliver them)
@@ -3570,7 +3697,7 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | 6 | **Booking** | `PAT-BOOK-001..017`, `PAT-HV-001..007` | Time-simulation scenarios TIME-A…D. |
 | 7 | **Payment** | `PAT-PAY-001..005`, §16.3 | Needs Razorpay test keys **and** the webhook secret. |
 | 8 | **Therapist session** | `ADM-SESS-002..004`, `THR-SESS-001..008` | |
-| 9 | **Care plan** | `THR-CARE-001..005`, `ADM-CARE-001..003` | |
+| 9 | **Care plan** | `THR-CARE-001..008`, `ADM-CARE-001..008` | |
 | 10 | **Purchase** | `PAT-CARE-001..004` | |
 | 11 | **Credits** | `PAT-PKG-001..004`, `THR-SUGG-*`, `PAT-SUGG-*` | |
 | 12 | **Clinical** | `THR-HP-*`, `PAT-HP-*`, `PAT-DOC-*`, `THR-LEAK-*` | |
@@ -3616,7 +3743,7 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | Availability / roster | — | `THR-AVAIL-001..008` | — | `ADM-ROST-001..005` | — | `THR-SEC-001`, `ADM-ROST-005` | — |
 | Health profile | `PAT-HP-001..005` | `THR-HP-001..006` | `HOS-SEC-002` | `ADM-PEOP-004`, `ADM-SET-020` | — | `SEC-DATA-001` | `UX-MOB-004` |
 | Documents | `PAT-DOC-001..003` | (read) | `HOS-SEC-002` | (read) | — | `SEC-DATA-004` | `UX-MOB-003` |
-| Care plans | `PAT-CARE-001..004` | `THR-CARE-001..005` | — | `ADM-CARE-001..003` | `PAY-AMT-002` | `THR-CARE-002` | — |
+| Care plans | `PAT-CARE-001..004`, `PAT-SCHED-001..003` | `THR-CARE-001..008` | — | `ADM-CARE-001..008` | `PAY-AMT-002` | `THR-CARE-002` | — |
 | Suggested sessions | `PAT-SUGG-001..005` | `THR-SUGG-001..002` | — | `ADM-SET-018` | — | `PAT-SUGG-004` | — |
 | Session credits | `PAT-PKG-001..004` | (view) | — | `ADM-CAT-014/015`, `ADM-SET-019` | `FIN-REF-004` | `SEC-TAMPER-003`, `PAY-CONC-001` | — |
 | Referrals | `HOS-REF-006` | — | `HOS-REF-001..007` | `ADM-PEOP-008` | `HOS-MONEY-001..003` | `HOS-SEC-001` | — |

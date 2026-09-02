@@ -131,6 +131,7 @@ export default async function Page() {
             // Resolved on the server so the card's state cannot flip
             // between render and hydration.
             nowMs={d.nowMs}
+            bulkScheduleMax={d.adminSettings.packageBulkScheduleMax}
           />
         </div>
       )}

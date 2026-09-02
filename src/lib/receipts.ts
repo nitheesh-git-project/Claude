@@ -162,7 +162,7 @@ export function buildPatientReceipts(
       packagePurchaseId: p.id,
       stage: "payment_confirmed",
       isPackageCovered: false,
-      title: `${p.session_count}-Session Package${
+      title: `${p.session_count}-session programme${
         p.category_id && categoryTitleById.has(p.category_id)
           ? `: ${categoryTitleById.get(p.category_id)}`
           : ""

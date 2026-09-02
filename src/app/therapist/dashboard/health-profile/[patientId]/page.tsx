@@ -12,7 +12,7 @@ import PatientOnboardingCard from "@/components/therapist/PatientOnboardingCard"
 import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import SessionNoteHistory from "@/components/therapist/SessionNoteHistory";
 import CarePlanHistory from "@/components/therapist/CarePlanHistory";
-import { loadCarePlanHistory } from "@/lib/carePlanServer";
+import { loadCarePlanHistory, loadCarePlanReviews } from "@/lib/carePlanServer";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
 import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
 import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
@@ -200,7 +200,20 @@ export default async function TherapistPatientHealthProfilePage({
 
   const showDebugNav = isDebugNavVisible();
 
-  const carePlanVersions = await loadCarePlanHistory(admin, patientId);
+  // Unapproved threads included: this is the clinician's own chart, and a
+  // recommendation of theirs sitting in the clinic's queue -- or turned down
+  // -- is exactly what they need to see. The patient's copy of this band
+  // gets the default, which drops both.
+  const carePlanVersions = await loadCarePlanHistory(admin, patientId, {
+    includeUnapproved: true,
+  });
+  // The clinic's decisions, so a thread that reads "Not approved" also says
+  // why. The reason is the actionable half -- this is the screen a
+  // therapist comes to in order to rewrite.
+  const carePlanReviews = await loadCarePlanReviews(
+    admin,
+    [...new Set(carePlanVersions.map((v) => v.planId))]
+  );
   const carePlanAuthorNames = new Map<string, string>();
   if (carePlanVersions.length > 0) {
     // Author names are not readable through RLS from a therapist's session
@@ -276,6 +289,7 @@ export default async function TherapistPatientHealthProfilePage({
           versions={carePlanVersions}
           authorNames={carePlanAuthorNames}
           voice="clinician"
+          reviewsByPlan={carePlanReviews}
         />
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

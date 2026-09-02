@@ -70,7 +70,7 @@ export function buildPatientNavItems({
       ? [
           {
             id: "packages",
-            label: "Your Packages",
+            label: "Your Programmes",
             icon: "fa-box-open",
             href: "/patient/dashboard/packages",
           },

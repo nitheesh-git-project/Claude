@@ -19,8 +19,8 @@ const STEPS: Step[] = [
   { targetId: "nav-sessions", title: "Your Sessions", body: "Book, join, and review your appointments." },
   {
     targetId: "nav-session-packages",
-    title: "Session Packages",
-    body: "Bundles of sessions with one therapist, at a bundle price.",
+    title: "Your Programmes",
+    body: "A course of treatment your therapist arranged, and the sessions you have left to book.",
   },
   {
     targetId: "nav-health-profile",
@@ -59,7 +59,7 @@ export default function OnboardingTour({
   // Starts as the full list so server and client render the same thing on
   // first hydration (no document access here) — the effect below narrows
   // it to only steps whose target actually exists right now (a new
-  // patient might not have a package yet, so "Session Packages" may not
+  // patient might not have a programme yet, so "Your Programmes" may not
   // be in the sidebar at all) in a normal post-mount client update.
   const [steps, setSteps] = useState<Step[]>(STEPS);
   useEffect(() => {

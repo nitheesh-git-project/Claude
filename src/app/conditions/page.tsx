@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 import ProgramCards from "@/components/catalog/ProgramCards";
-import SessionPackages from "@/components/home/SessionPackages";
 import PageHero from "@/components/marketing/PageHero";
 import Section from "@/components/marketing/Section";
 import ExploreSection from "@/components/marketing/ExploreSection";
@@ -41,46 +40,10 @@ export default async function ConditionsPage() {
 
   const rows = (categories ?? []) as Category[];
 
-  // Same isolated-query, migration-dependent-degrades-gracefully reasoning
-  // as the home page's own package section.
-  const { data: settingsRow } = await supabase
-    .from("site_settings")
-    .select("show_programme_prices, session_packages_visible")
-    .maybeSingle();
-
-  const { data: rawPackages } = (settingsRow?.show_programme_prices ?? settingsRow?.session_packages_visible)
-    ? await supabase
-        .from("treatment_category_packages")
-        .select(
-          "id, title, subtitle, image_url, promises, badge_label, highlight, session_count, price_paise, compare_at_paise, validity_days, therapist_locked, category_id"
-        )
-        .eq("active", true)
-        .eq("visible_on_conditions", true)
-        .order("display_order", { ascending: true })
-        .order("id", { ascending: true })
-    : { data: null };
-
-  // Same isolated-query reasoning as the home page: the dialog's long-form
-  // columns are migration-dependent, so losing them must not cost the whole
-  // packages section.
-  const packageIds = (rawPackages ?? []).map((p) => p.id);
-  const { data: packageDetail } = packageIds.length
-    ? await supabase
-        .from("treatment_category_packages")
-        .select(
-          "id, description, terms, package_code, session_duration_minutes, min_gap_hours, max_sessions_per_week, max_purchases_per_patient"
-        )
-        .in("id", packageIds)
-    : { data: null };
-  const detailById = new Map((packageDetail ?? []).map((d) => [d.id, d]));
-
-  const categoryPriceById = new Map(rows.map((c) => [c.id, c.price_paise]));
-  const packages = (rawPackages ?? []).map((p) => ({
-    ...p,
-    ...(detailById.get(p.id) ?? {}),
-    category_price_paise: categoryPriceById.get(p.category_id) ?? null,
-  }));
-
+  // No programme catalog here either -- see the note on the home page.
+  // A course of treatment comes from a therapist's recommendation after a
+  // session they ran, so the public pages quote a first consultation and
+  // nothing multi-session.
 
   // Cover photos live in their own call: treatment_categories.image_url is
   // migration-dependent (added at the end of schema.sql), and one
@@ -100,13 +63,12 @@ export default async function ConditionsPage() {
 
   const homeVisitEnabled = await readHomeVisitEnabled();
 
-  // Only sections that actually render -- programmes and packages are both
+  // Only sections that actually render -- the programmes are
   // admin-controlled, so a rail item pointing at an absent section would be a
   // dead pill and a skipped stop for the scroll arrow. Order matches the DOM.
   const sectionNavItems: SectionNavItem[] = [
     { id: "areas", label: "What We Treat", icon: "fa-bone" },
     ...(rows.length > 0 ? [{ id: "programs", label: "Programs", icon: "fa-clipboard-list" }] : []),
-    ...(packages.length > 0 ? [{ id: "packages", label: "Packages", icon: "fa-box-open" }] : []),
     { id: "explore", label: "Explore the Site", icon: "fa-compass" },
     { id: "not-sure", label: "Not Sure?", icon: "fa-circle-question" },
   ];
@@ -146,11 +108,10 @@ export default async function ConditionsPage() {
           title="What you can book today"
           lede="Same 60-minute assessment. Different protocol."
         >
-          <ProgramCards programs={programs} packages={packages} />
+          <ProgramCards programs={programs} />
         </Section>
       )}
 
-      <SessionPackages packages={packages} />
 
       <ExploreSection current="conditions" homeVisitEnabled={homeVisitEnabled} />
 

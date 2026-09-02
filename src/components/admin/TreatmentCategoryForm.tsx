@@ -14,6 +14,10 @@ type Category = {
   cta_label: string;
   display_order: number;
   active: boolean;
+  /** Which of the three condition types this belongs to. Migration-dependent
+   *  and optional on the type, so a caller reading it from a database
+   *  without the column hands through undefined rather than failing. */
+  specialty?: string | null;
 };
 
 type NewCategoryValues = Omit<Category, "id">;
@@ -41,6 +45,7 @@ export default function TreatmentCategoryForm({
     defaults ? String(defaults.duration_minutes) : "60"
   );
   const [ctaLabel, setCtaLabel] = useState(defaults?.cta_label ?? "Book Assessment");
+  const [specialty, setSpecialty] = useState(defaults?.specialty ?? "");
   const [displayOrder, setDisplayOrder] = useState(
     defaults ? String(defaults.display_order) : "0"
   );
@@ -68,6 +73,7 @@ export default function TreatmentCategoryForm({
       priceInr,
       durationMinutes,
       ctaLabel,
+      specialty: specialty || null,
       displayOrder,
       active,
     };
@@ -204,6 +210,31 @@ export default function TreatmentCategoryForm({
             className="w-full p-2 rounded-lg border border-slate-300"
           />
         </div>
+      </div>
+      {/* Nothing a patient sees. It groups this condition in the picker a
+          therapist uses to recommend treatment, so a clinician chooses a
+          condition type and a number of sessions rather than reading a list
+          of programme names. Leaving it unset is allowed and costs only the
+          grouping. */}
+      <div>
+        <label htmlFor="category-specialty" className="block font-semibold mb-1">
+          Condition type
+        </label>
+        <select
+          id="category-specialty"
+          value={specialty}
+          onChange={(e) => setSpecialty(e.target.value)}
+          className="w-full p-2 rounded-lg border border-slate-300"
+        >
+          <option value="">Not set</option>
+          <option value="ortho">Orthopaedic</option>
+          <option value="neuro">Neurological</option>
+          <option value="pediatrics">Paediatric</option>
+        </select>
+        <p className="text-[11px] text-slate-500 mt-1">
+          Groups this condition in the therapist&apos;s recommendation picker. Patients never
+          see it.
+        </p>
       </div>
       <label className="flex items-center gap-2 font-semibold">
         <input

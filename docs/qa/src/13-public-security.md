@@ -39,9 +39,22 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 **Expected Result.** Every rail entry corresponds to a section that **actually rendered** (several bands are conditional on admin-controlled catalog data), and the entries are in **DOM order**. The arrow walks the list **top to bottom** — if it ever sends you backwards, an entry is out of order.
 
 #### `PUB-CAT-001` — A catalog card opens a dialog; booking is its own button · P1
-**Steps.** On `/` and `/conditions`, tap a programme card's **body**. Then tap its **Book …** link.
-**Expected Result.** The card body is **one tap target that opens a detail dialog** showing validity, the one-therapist lock and the minimum gap — the rules a patient needs before paying. The **Book …** link sits **below the card** and again at the foot of the dialog, **outside** the tap-target button (a link nested inside a button is invalid markup and behaves differently per browser). A programme card shows **no Buy button** — instead *"Arranged by your therapist after your first session."*
+**Steps.** On `/` and `/conditions`, tap a programme (treatment category) card's **body**. Then tap its **Book …** link.
+**Expected Result.** The card body is **one tap target that opens a detail dialog** carrying the long description and what the programme covers. The **Book …** link sits **below the card** and again at the foot of the dialog, **outside** the tap-target button (a link nested inside a button is invalid markup and behaves differently per browser). It goes to `/book?category=<id>` — a **first session**, never a course of them.
 **Cover images:** a card with no photo shows the **shared placeholder panel at the same height** as one with a photo. It must never look like an image that failed to load.
+
+#### `PUB-CAT-002` — No course of treatment is advertised anywhere public · P0
+
+**Feature.** A course of treatment is a clinical recommendation, so the public site does not carry a price list of them. Removed outright rather than hidden behind a setting: a toggle somebody can flip back on is not the rule being gone.
+
+**Preconditions.** Packages P1–P3 exist, are `active`, and have `visible_on_home` and `visible_on_conditions` on. That matters — this is an absence tested against rows that genuinely could have rendered.
+
+**Steps.** Read `/` and `/conditions` end to end, including inside every programme detail dialog. Then read `/home-visit`.
+**Expected Result**
+* **No session package appears anywhere** — no card, no title, no price, and no "Where this usually leads" list inside a programme's dialog.
+* **No link anywhere matches `/book?package=`.** A card still linking to package checkout would take money for something the server now refuses; this is the assertion that catches a partial revert.
+* `/home-visit` shows **single**-visit packages only. `HV1` (1 visit) is there and books directly; `HV2` (4 visits) is **absent** — it is a recommendation, not a product.
+* There is **no admin switch** for any of this. "Show programme prices publicly" no longer exists on Settings; if you find it, that is a defect.
 
 #### `PUB-TEAM-001` — Team · P2
 **Expected Result.** Only approved, active, team-visible therapists appear. Tapping one opens a popup with their profile and a **Book with …** action carrying `?therapist=` into the wizard.

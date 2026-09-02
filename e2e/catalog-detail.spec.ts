@@ -1,5 +1,11 @@
-// The public catalog's detail dialogs -- session packages, home-visit
-// packages and programmes -- driven through a real browser.
+// The public catalog's detail dialogs -- programmes and the single home
+// visit -- driven through a real browser.
+//
+// Session programmes are no longer advertised publicly at all: a course of
+// treatment is a clinical recommendation, so the pages quote a first
+// consultation and nothing multi-session. Several tests here therefore
+// assert an absence, and the seeded package below exists so that absence is
+// tested against a row that genuinely could have rendered.
 //
 // Browser-only, like admin-dashboard-ui.spec.ts and section-nav.spec.ts:
 // what is under test is a dialog's accessibility contract and whether the
@@ -94,11 +100,17 @@ test.describe("Catalog detail dialogs", () => {
     ).toBe(true);
   }
 
-  test("CD-001: a package card opens its dialog and honours the dialog contract", async ({
-    page,
-  }) => {
-    await page.goto(`${BASE}/`);
-    await assertDialogContract(page, PACKAGE_TITLE, PACKAGE_TITLE);
+  test("CD-001: no session programme is advertised on any public page", async ({ page }) => {
+    // The seeded package is active and visible on both flags, so if any
+    // public page still rendered the catalogue this would find it. That is
+    // the point: an absence tested against a row that could have appeared.
+    for (const path of ["/", "/conditions"]) {
+      await page.goto(`${BASE}${path}`);
+      await expect(page.getByText(PACKAGE_TITLE, { exact: false })).toHaveCount(0);
+      // Nor its price, which is the specific thing a visitor was shopping
+      // from before this changed.
+      await expect(page.getByText("₹4,000", { exact: false })).toHaveCount(0);
+    }
   });
 
   test("CD-002: a programme card opens its dialog on both pages that show it", async ({
@@ -110,43 +122,53 @@ test.describe("Catalog detail dialogs", () => {
     }
   });
 
-  test("CD-003: a home-visit package card opens its dialog", async ({ page }) => {
-    // Seeded by global-setup, which the whole suite already depends on.
+  test("CD-003: the single home visit opens its dialog, and the programme is absent", async ({
+    page,
+  }) => {
+    // Both seeded by global-setup. A one-visit home package IS the
+    // home-visit consultation and has to stay -- it is the only way in for
+    // a patient who needs to be seen at home -- while the four-visit
+    // programme is a recommendation and must not be advertised.
     await page.goto(`${BASE}/home-visit`);
-    await assertDialogContract(page, "4-Visit Home Recovery Programme", "4-Visit Home Recovery Programme");
+    await expect(
+      page.getByText("4-Visit Home Recovery Programme", { exact: false })
+    ).toHaveCount(0);
+    await assertDialogContract(page, "Single Home Visit", "Single Home Visit");
   });
 
-  test("CD-004: a programme card sells a first session, never the programme", async ({
+  test("CD-004: a programme card sells a first session, never a course of them", async ({
     page,
   }) => {
     await page.goto(`${BASE}/`);
 
-    // The checkout link is gone from the card and from the dialog. This is
-    // the assertion that would catch the consultation-first cutover being
-    // partially reverted -- a card that still linked to package checkout
-    // would take money for something the server now refuses.
+    // The assertion that would catch the consultation-first cutover being
+    // partially reverted -- any link to package checkout would take money
+    // for something the server now refuses.
     await expect(page.locator(`a[href*="/book?package="]`)).toHaveCount(0);
 
     const cardProgramme = page.locator(`a[href="/book?category=${categoryId}"]`);
     await expect(cardProgramme.first()).toBeVisible();
 
-    await page.getByText(PACKAGE_TITLE, { exact: false }).first().click();
+    // And inside the programme's own dialog, where the price list of
+    // courses used to sit under "Where this usually leads".
+    await page.getByText(CATEGORY_TITLE, { exact: false }).first().click();
     const dialog = page.getByRole("dialog");
     await expect(dialog.locator(`a[href*="/book?package="]`)).toHaveCount(0);
-    await expect(dialog.getByRole("link", { name: /Book a first session/i })).toBeVisible();
+    await expect(dialog.getByText(PACKAGE_TITLE, { exact: false })).toHaveCount(0);
   });
 
   test("CD-005: the dialog's book button starts a first session", async ({ page }) => {
-    await page.goto(`${BASE}/`);
-    await page.getByText(PACKAGE_TITLE, { exact: false }).first().click();
-    await page.getByRole("dialog").getByRole("link", { name: /Book a first session/i }).click();
-    // The destination is the plain booking page, carrying no package id --
-    // asserted on the URL rather than on the wizard's contents, because the
-    // wizard resolves the signed-in role against Supabase from the browser
-    // and that egress is not available in every environment this suite runs
-    // in (see AGENTS.md).
-    await page.waitForURL(/\/book(\?|$)/);
-    expect(new URL(page.url()).searchParams.get("package")).toBeNull();
+    await page.goto(`${BASE}/home-visit`);
+    await page.getByText("Single Home Visit", { exact: false }).first().click();
+    await page.getByRole("dialog").getByRole("link", { name: /Book this visit/i }).click();
+    // The destination is the home-visit booking page carrying the single
+    // visit's id -- asserted on the URL rather than on the wizard's
+    // contents, because the wizard resolves the signed-in role against
+    // Supabase from the browser and that egress is not available in every
+    // environment this suite runs in (see AGENTS.md). A single visit keeps
+    // its `?package=`, unlike a programme, because it is the consultation.
+    await page.waitForURL(/\/book-home-visit(\?|$)/);
+    expect(new URL(page.url()).searchParams.get("package")).not.toBeNull();
   });
 
   test("CD-007: a stale programme link explains itself instead of selling one session", async ({
@@ -164,19 +186,18 @@ test.describe("Catalog detail dialogs", () => {
 
   test("CD-006: the dialog carries the detail the card leaves out", async ({ page }) => {
     await page.goto(`${BASE}/`);
-    await page.getByText(PACKAGE_TITLE, { exact: false }).first().click();
+    await page.getByText(CATEGORY_TITLE, { exact: false }).first().click();
     const dialog = page.getByRole("dialog");
-    // Long description and terms exist only in the dialog -- the card shows
-    // neither, which is the whole reason the dialog exists.
-    await expect(dialog).toContainText("Long-form package copy");
-    await expect(dialog).toContainText("Seeded terms.");
-    // 4 sessions at ₹4,000 against a ₹4,800 compare-at is a 17% saving.
-    await expect(dialog).toContainText("Save 17%");
+    // The long description and the bullet points exist only in the dialog;
+    // the card shows a one-line summary, which is the whole reason the
+    // dialog exists.
+    await expect(dialog).toContainText("A programme seeded by the catalog detail spec.");
+    await expect(dialog).toContainText("Second point");
   });
 
-  test("CD-007: a backdrop click closes the dialog", async ({ page }) => {
+  test("CD-008: a backdrop click closes the dialog", async ({ page }) => {
     await page.goto(`${BASE}/`);
-    await page.getByText(PACKAGE_TITLE, { exact: false }).first().click();
+    await page.getByText(CATEGORY_TITLE, { exact: false }).first().click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.mouse.click(12, 12);
     await expect(page.getByRole("dialog")).toHaveCount(0);

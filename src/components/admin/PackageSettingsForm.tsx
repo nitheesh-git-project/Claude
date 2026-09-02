@@ -47,9 +47,6 @@ export default function PackageSettingsForm({
   const [isAutoAssignPending, startAutoAssignTransition] = useTransition();
   const [autoAssignError, setAutoAssignError] = useState<string | null>(null);
 
-  const [optimisticVisible, setOptimisticVisible] = useOptimistic(settings.showProgrammePrices);
-  const [isVisiblePending, startVisibleTransition] = useTransition();
-  const [visibleError, setVisibleError] = useState<string | null>(null);
 
   const [optimisticLockEnabled, setOptimisticLockEnabled] = useOptimistic(
     settings.packageTherapistLockEnabled
@@ -71,20 +68,6 @@ export default function PackageSettingsForm({
   const [isReminderPending, startReminderTransition] = useTransition();
   const [reminderError, setReminderError] = useState<string | null>(null);
   const [reminderSaved, setReminderSaved] = useState(false);
-
-  function handleToggleVisible() {
-    const next = !optimisticVisible;
-    setVisibleError(null);
-    startVisibleTransition(async () => {
-      setOptimisticVisible(next);
-      try {
-        await saveSetting("show_programme_prices", next);
-        router.refresh();
-      } catch (e) {
-        setVisibleError(e instanceof Error ? e.message : "Could not save. Please try again.");
-      }
-    });
-  }
 
   function handleToggleLock() {
     const next = !optimisticLockEnabled;
@@ -192,30 +175,6 @@ export default function PackageSettingsForm({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h3 className="font-bold text-sm text-slate-800">Show programme prices publicly</h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-md">
-              Whether the public pages print what a course of treatment costs. Nobody buys a
-              programme from those pages — a therapist recommends one after a first session —
-              so this only decides whether a visitor sees the price in advance. Existing
-              purchases and what therapists may recommend are unaffected either way.
-            </p>
-          </div>
-          <button
-            onClick={handleToggleVisible}
-            disabled={isVisiblePending}
-            className={`text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-60 ${
-              optimisticVisible ? "bg-teal-700 hover:bg-teal-800 text-white" : "bg-slate-200 hover:bg-slate-300 text-slate-800"
-            }`}
-          >
-            {optimisticVisible ? "Shown" : "Hidden"}
-          </button>
-        </div>
-        {visibleError && <p className="text-[11px] text-red-600 mt-2">{visibleError}</p>}
-      </div>
-
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>

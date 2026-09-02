@@ -11,10 +11,12 @@
 // clinician chooses are the four below, and none of them is money.
 
 export const CARE_PLAN_STATUSES = [
+  "pending_review",
   "active",
   "accepted",
   "declined",
   "withdrawn",
+  "rejected",
   "expired",
   "superseded",
 ] as const;
@@ -161,11 +163,13 @@ export function validateCarePlanInput(
  * `suggestionState` already follows for proposed times.
  */
 export type CarePlanState =
+  | "pending_review"
   | "awaiting_patient"
   | "lapsed"
   | "accepted"
   | "declined"
   | "withdrawn"
+  | "rejected"
   | "superseded";
 
 export function carePlanState(
@@ -173,6 +177,13 @@ export function carePlanState(
   version: { expires_at: string | null } | null,
   nowMs: number
 ): CarePlanState {
+  // Checked before everything else, and never allowed to fall through to
+  // the default. A recommendation waiting on the clinic must not read as
+  // one waiting on the patient: `isCarePlanPurchasable` is what the
+  // checkout route asks, and the honest answer for an unreviewed plan is
+  // no.
+  if (plan.status === "pending_review") return "pending_review";
+  if (plan.status === "rejected") return "rejected";
   if (plan.status === "accepted") return "accepted";
   if (plan.status === "declined") return "declined";
   if (plan.status === "withdrawn") return "withdrawn";
@@ -185,6 +196,8 @@ export function carePlanState(
 }
 
 export const CARE_PLAN_STATE_LABELS: Record<CarePlanState, string> = {
+  pending_review: "Waiting for the clinic to approve",
+  rejected: "Not approved by the clinic",
   awaiting_patient: "Waiting for your answer",
   lapsed: "This recommendation has expired",
   accepted: "Purchased",
@@ -277,3 +290,45 @@ export function narrowToCategory<T extends { categoryId: string | null }>(
   return options.filter((o) => o.categoryId === null || o.categoryId === categoryId);
 }
 
+
+/**
+ * How long something has been sitting in a queue, in words.
+ *
+ * A queue whose rows are dated but not aged makes an admin do arithmetic to
+ * find the person who has been waiting longest — and a card that reads
+ * "2 September" when the thing arrived nine minutes ago is worse than no
+ * date at all, because the reader cannot tell nine minutes from nine hours.
+ *
+ * Deliberately coarse. The number an admin acts on is "is this hours or
+ * days", never "is this 41 or 43 minutes".
+ */
+export function formatWaitingFor(sinceIso: string | null, nowMs: number): string | null {
+  if (!sinceIso) return null;
+  const then = new Date(sinceIso).getTime();
+  if (Number.isNaN(then)) return null;
+  const minutes = Math.floor((nowMs - then) / 60_000);
+  if (minutes < 0) return "just now";
+  if (minutes < 2) return "just now";
+  if (minutes < 60) return `${minutes} minutes`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"}`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+/**
+ * Whether something has been waiting long enough to be worth chasing.
+ *
+ * Four hours, and a fixed number rather than a setting on purpose: this
+ * changes nothing about what the clinic may do, only whether a row is
+ * coloured — and a threshold an admin can raise until nothing is ever late
+ * is a threshold that has stopped meaning anything.
+ */
+export const CARE_PLAN_QUEUE_STALE_HOURS = 4;
+
+export function isQueueStale(sinceIso: string | null, nowMs: number): boolean {
+  if (!sinceIso) return false;
+  const then = new Date(sinceIso).getTime();
+  if (Number.isNaN(then)) return false;
+  return nowMs - then >= CARE_PLAN_QUEUE_STALE_HOURS * 3_600_000;
+}

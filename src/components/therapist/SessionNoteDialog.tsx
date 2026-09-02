@@ -37,6 +37,8 @@ export default function SessionNoteDialog({
   patientId,
   sessionCompleted,
   recommendable,
+  recommendationNeedsApproval,
+  recommendationAwaitingClinic,
   onClose,
 }: {
   appointmentId: string;
@@ -50,6 +52,8 @@ export default function SessionNoteDialog({
   /** The programmes admin has cleared for recommendation. Empty means the
    *  section stays hidden rather than showing an empty picker. */
   recommendable: RecommendableOption[];
+  recommendationNeedsApproval: boolean;
+  recommendationAwaitingClinic: boolean;
   /** When the session was, for the dialog's own subtitle. */
   sessionLabel: string;
   existing: SessionNoteRow | null;
@@ -298,6 +302,8 @@ export default function SessionNoteDialog({
             {!locked && sessionCompleted && recommendable.length > 0 && (
               <CarePlanFields
                 options={recommendable}
+                needsApproval={recommendationNeedsApproval}
+                awaitingClinic={recommendationAwaitingClinic}
                 value={plan}
                 onChange={(next) => {
                   setPlan(next);

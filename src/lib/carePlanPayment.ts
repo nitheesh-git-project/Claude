@@ -10,7 +10,10 @@ type PayForCarePlanArgs = {
   name: string;
   email: string;
   description: string;
-  onSuccess: () => void;
+  /** Handed the purchase it created, so the caller can carry the patient
+   *  straight into scheduling it rather than refreshing into an empty
+   *  screen. */
+  onSuccess: (result: { purchaseId: string | null }) => void;
   onError: (message: string) => void;
   onDismiss: () => void;
 };
@@ -81,7 +84,7 @@ export async function payForCarePlan({
           });
           const verifyData = await verifyRes.json().catch(() => ({}));
           if (verifyRes.ok) {
-            onSuccess();
+            onSuccess({ purchaseId: verifyData.purchaseId ?? orderData.purchaseId ?? null });
           } else {
             onError(
               verifyData.error

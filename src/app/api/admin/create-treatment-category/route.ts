@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
     priceInr,
     durationMinutes,
     ctaLabel,
+    specialty,
     displayOrder,
   } = await request.json();
 
@@ -71,6 +72,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  await writeSpecialty(admin, data.id, specialty);
+
   // Catalog rows decide what is sold and at what price, so every
   // create/update/delete belongs in the same log every other admin
   // action is read from.
@@ -81,4 +84,34 @@ export async function POST(request: NextRequest) {
   });
 
   return NextResponse.json({ success: true, id: data.id });
+}
+
+/**
+ * The condition type, written on its own.
+ *
+ * `treatment_categories.specialty` is migration-dependent, and folding it
+ * into the row above would mean a database one apply behind refusing every
+ * edit to a category rather than losing one optional tag. Same isolation
+ * rule the reads follow.
+ */
+async function writeSpecialty(
+  admin: ReturnType<typeof createAdminClient>,
+  id: string,
+  specialty: unknown
+): Promise<void> {
+  const value =
+    specialty === "ortho" || specialty === "neuro" || specialty === "pediatrics"
+      ? specialty
+      : null;
+  try {
+    const { error } = await admin
+      .from("treatment_categories")
+      .update({ specialty: value })
+      .eq("id", id);
+    if (error) {
+      console.error("Could not save a treatment category's condition type", id, error);
+    }
+  } catch (e) {
+    console.error("Could not save a treatment category's condition type", id, e);
+  }
 }

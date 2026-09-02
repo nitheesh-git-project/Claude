@@ -5,6 +5,7 @@ import HomeVisitPackages, {
   type PublicHomeVisitPackage,
 } from "@/components/home/HomeVisitPackages";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
+import { isDirectlyPurchasable } from "@/lib/consultationFirst";
 import PageHero from "@/components/marketing/PageHero";
 import Section from "@/components/marketing/Section";
 import IconCard from "@/components/marketing/IconCard";
@@ -97,10 +98,18 @@ export default async function HomeVisitPage() {
     : { data: null };
   const detailById = new Map((packageDetail ?? []).map((d) => [d.id, d]));
 
-  const packages = (rawPackages ?? []).map((p) => ({
-    ...p,
-    ...(detailById.get(p.id) ?? {}),
-  })) as PublicHomeVisitPackage[];
+  // Single visits only. Every home visit in this app is a package purchase,
+  // so a one-visit package IS the home-visit consultation and has to stay on
+  // this page -- it is the only way in for a patient who needs to be seen at
+  // home. A multi-visit programme is a clinical recommendation a therapist
+  // writes after seeing someone, so it is not advertised here at all, the
+  // same rule / and /conditions now follow for session programmes.
+  const packages = (rawPackages ?? [])
+    .filter((p) => isDirectlyPurchasable(p.visit_count))
+    .map((p) => ({
+      ...p,
+      ...(detailById.get(p.id) ?? {}),
+    })) as PublicHomeVisitPackage[];
 
   const heading =
     settingsRow?.home_visit_page_heading?.trim() || DEFAULT_HOME_VISIT_PAGE_HEADING;

@@ -13,6 +13,7 @@ import { mergeMeetLinks } from "@/lib/meetLink";
 import { countAnswered, patientIntakeGate, questionsForSpecialty } from "@/lib/conditionIntake";
 import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
 import { buildPatientFeed } from "@/lib/dashboardFeed";
+import { computePackageCounts } from "@/lib/packageProgress";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { expireDueHomeVisitPurchases } from "@/lib/expireHomeVisitPurchases";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
@@ -222,7 +223,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     supabase
       .from("patient_package_purchases")
       .select(
-        "id, package_id, category_id, purchase_code, session_count, sessions_used, status, locked_therapist_id, expires_at"
+        "id, package_id, category_id, purchase_code, session_count, sessions_used, status, locked_therapist_id, expires_at, paid_at, created_at"
       )
       .eq("patient_id", user.id)
       .eq("payment_status", "paid")
@@ -392,9 +393,21 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       ownedPackageIds.length > 0 && needPackageDetail
         ? admin
             .from("treatment_category_packages")
-            .select("id, title, image_url")
+            // The two scheduling rules come along with the title: the
+            // scheduler proposes a run of dates and would otherwise propose
+            // one the booking route then refuses, which is a refusal for a
+            // schedule the app itself suggested.
+            .select("id, title, image_url, min_gap_hours, max_sessions_per_week")
             .in("id", ownedPackageIds as string[])
-        : Promise.resolve({ data: [] as { id: string; title: string; image_url: string | null }[] }),
+        : Promise.resolve({
+            data: [] as {
+              id: string;
+              title: string;
+              image_url: string | null;
+              min_gap_hours: number | null;
+              max_sessions_per_week: number | null;
+            }[],
+          }),
       ownedHomeVisitPackageIds.length > 0 && needPackageDetail
         ? admin
             .from("home_visit_packages")
@@ -411,6 +424,45 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const ownedPackageInfoMap = new Map((ownedPackageInfo ?? []).map((p) => [p.id, p]));
   const ownedHomeVisitPackageInfoMap = new Map((ownedHomeVisitPackageInfo ?? []).map((p) => [p.id, p]));
   const purchaseCodeById = new Map(ownedPackagesForDisplay.map((p) => [p.id, p.purchase_code]));
+
+  // How often the clinician said, per purchase.
+  //
+  // Read in its own call for two reasons: `care_plan_version_id` is a newer
+  // column, and this is the one number that turns an empty calendar into a
+  // proposal. Losing it costs the patient a pre-filled rhythm, never the
+  // screen -- they fall back to weekly, which is what an unanswered
+  // frequency means anyway.
+  const frequencyByPurchase = new Map<string, number>();
+  if (needPackageDetail && ownedPackagesForDisplay.length > 0) {
+    try {
+      const { data: linked } = await admin
+        .from("patient_package_purchases")
+        .select("id, care_plan_version_id")
+        .in(
+          "id",
+          ownedPackagesForDisplay.map((p) => p.id)
+        );
+      const versionIds = (linked ?? [])
+        .map((r) => (r as { care_plan_version_id?: string | null }).care_plan_version_id)
+        .filter((id): id is string => !!id);
+      if (versionIds.length > 0) {
+        const { data: versions } = await admin
+          .from("care_plan_versions")
+          .select("id, frequency_per_week")
+          .in("id", versionIds);
+        const freqByVersion = new Map(
+          (versions ?? []).map((v) => [v.id, v.frequency_per_week as number | null])
+        );
+        for (const row of linked ?? []) {
+          const versionId = (row as { care_plan_version_id?: string | null }).care_plan_version_id;
+          const freq = versionId ? freqByVersion.get(versionId) : null;
+          if (freq) frequencyByPurchase.set(row.id, freq);
+        }
+      }
+    } catch {
+      // Falls back to weekly, which is what "they did not say" means.
+    }
+  }
 
   // Times this patient's therapist has suggested and they haven't answered.
   // Read in its own call for the usual migration tolerance: without the
@@ -447,7 +499,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
         packageTitle:
           ownedPackageInfoMap.get(purchase.package_id)?.title ??
           activeCategoryMap.get(purchase.category_id) ??
-          "Session Package",
+          "Your programme",
         // The session this would become: one past what is already claimed.
         sessionNumber: Math.min(purchase.sessions_used + 1, purchase.session_count),
         sessionCount: purchase.session_count,
@@ -592,13 +644,42 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       activeCarePlan?.version
         ? {
             id: activeCarePlan.id,
-            authoredAt: activeCarePlan.version.authoredAt,
+            // When the patient could first see it, not when the therapist
+            // typed it. A plan that spent two days in the clinic's queue
+            // would otherwise arrive on their dashboard dated two days ago,
+            // reading as something they had been ignoring.
+            authoredAt: activeCarePlan.reviewedAt ?? activeCarePlan.version.authoredAt,
             title: summariseVersion({
               offer_snapshot: activeCarePlan.version.offerSnapshot,
               frequency_per_week: activeCarePlan.version.frequencyPerWeek,
             }),
           }
         : null,
+    // Everything paid for and not yet in the diary. Computed from rows this
+    // loader already has -- no extra query, and the same counter every
+    // other surface reads, so the feed cannot claim a balance the Packages
+    // screen disagrees with.
+    unscheduled: ownedPackagesForDisplay.flatMap((p) => {
+      if (p.status !== "active") return [];
+      const counts = computePackageCounts({
+        sessionCount: p.session_count,
+        sessionsUsed: p.sessions_used,
+        completedCount: completedCountByPurchase.get(p.id) ?? 0,
+        scheduledCount: scheduledCountByPurchase.get(p.id) ?? 0,
+      });
+      if (counts.pending <= 0) return [];
+      return [
+        {
+          purchaseId: p.id,
+          title:
+            ownedPackageInfoMap.get(p.package_id)?.title ??
+            activeCategoryMap.get(p.category_id) ??
+            "Your programme",
+          pending: counts.pending,
+          since: p.paid_at ?? p.created_at ?? new Date(nowMs).toISOString(),
+        },
+      ];
+    }),
   });
 
   const overviewCells: StatCell[] = [
@@ -707,6 +788,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     therapistMap,
     activeCategoryMap,
     ownedPackageInfoMap,
+    frequencyByPurchase,
     ownedHomeVisitPackageInfoMap,
     purchaseCodeById,
     pendingSuggestions,

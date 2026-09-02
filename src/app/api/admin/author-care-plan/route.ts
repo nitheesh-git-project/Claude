@@ -105,6 +105,10 @@ export async function POST(request: NextRequest) {
     authoredBy: appointment.therapist_id,
     enteredBy: adminUser.id,
     actorRole: "admin",
+    // Published on the spot. The admin writing it IS the approver, so
+    // routing their own typing into their own review queue would be a step
+    // that decides nothing and leaves the patient waiting for it.
+    landsApproved: true,
   });
 
   if (!result.ok) {

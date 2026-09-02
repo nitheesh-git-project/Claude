@@ -32,10 +32,24 @@ export type FeedItem = {
   needsYou?: boolean;
 };
 
+/**
+ * Newest first, with anything still waiting on the viewer pinned above it.
+ *
+ * The pinning is the point and it was missing: `needsYou` was counted but
+ * not ordered on, so an item sorted purely by date could fall off the end
+ * of a busy feed at exactly the moment it mattered most. A programme paid
+ * for a month ago with sessions still unbooked is the case that made it
+ * obvious -- it dates from the payment, so the longer it went unanswered
+ * the further down it sank, which is precisely backwards.
+ */
 export function sortFeed(items: FeedItem[], limit = 12): FeedItem[] {
   return [...items]
     .filter((i) => !!i.at)
-    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .sort((a, b) => {
+      const needs = Number(!!b.needsYou) - Number(!!a.needsYou);
+      if (needs !== 0) return needs;
+      return new Date(b.at).getTime() - new Date(a.at).getTime();
+    })
     .slice(0, limit);
 }
 
@@ -94,11 +108,22 @@ export function buildPatientFeed({
   appointments,
   conditionRequests,
   carePlan,
+  unscheduled = [],
 }: {
   appointments: FeedAppointment[];
   conditionRequests: FeedRequest[];
   /** The live recommendation, when there is one. */
   carePlan?: { id: string; authoredAt: string; title: string } | null;
+  /**
+   * Programmes with sessions paid for and not yet in the diary.
+   *
+   * The one thing a patient can buy and then receive nothing for. Paying is
+   * the hard part and it is already done; what is left is a calendar step
+   * on a screen they have to think to visit, and a patient who never takes
+   * it has paid the clinic for treatment they will not get. So it is
+   * `needsYou` and it stays until the balance is spent.
+   */
+  unscheduled?: { purchaseId: string; title: string; pending: number; since: string }[];
 }): FeedItem[] {
   const items: FeedItem[] = [];
 
@@ -114,6 +139,19 @@ export function buildPatientFeed({
       detail: carePlan.title,
       href: "/patient/dashboard/suggested",
       needsYou: true,
+    });
+  }
+
+  for (const u of unscheduled) {
+    items.push({
+      id: `unscheduled-${u.purchaseId}`,
+      at: u.since,
+      icon: "fa-calendar-plus",
+      tone: "warn",
+      needsYou: true,
+      title: `${u.pending} session${u.pending === 1 ? "" : "s"} still to book`,
+      detail: `${u.title} — you've paid for these. Pick your times whenever suits you.`,
+      href: "/patient/dashboard/packages",
     });
   }
 
@@ -232,6 +270,7 @@ export function buildTherapistFeed({
   accessGrants,
   onboardingPatients = [],
   carePlanAnswers = [],
+  carePlanDecisions = [],
   awaitingRecommendation = [],
 }: {
   appointments: FeedAppointment[];
@@ -248,6 +287,22 @@ export function buildTherapistFeed({
     title: string;
     status: "accepted" | "declined";
     answeredAt: string;
+  }[];
+  /** What the clinic decided about recommendations this therapist
+   *  submitted. A rejection IS `needsYou`, and it is the only care-plan feed
+   *  item that is: the thread is closed, the patient has been told nothing,
+   *  and the only person who can put that right is the clinician who wrote
+   *  it. A recommendation turned down silently is one that never happened.
+   *  An approval is not `needsYou` -- it is the outcome they expected -- but
+   *  it still appears, because a submission that vanishes into a queue and
+   *  never reports back teaches a therapist to stop trusting the queue. */
+  carePlanDecisions?: {
+    id: string;
+    patientName: string;
+    title: string;
+    decision: "approved" | "rejected" | "edited_and_approved";
+    reason: string;
+    decidedAt: string;
   }[];
   /** Patients assigned to this therapist whose condition record nobody
    *  has written yet. Their own health profile is locked until it is
@@ -269,6 +324,25 @@ export function buildTherapistFeed({
 }): FeedItem[] {
   const items: FeedItem[] = [];
   const now = Date.now();
+
+  for (const decision of carePlanDecisions) {
+    const rejected = decision.decision === "rejected";
+    const changed = decision.decision === "edited_and_approved";
+    items.push({
+      id: `care-plan-decision-${decision.id}`,
+      at: decision.decidedAt,
+      icon: rejected ? "fa-circle-xmark" : changed ? "fa-pen-to-square" : "fa-circle-check",
+      tone: rejected ? "warn" : changed ? "neutral" : "good",
+      needsYou: rejected,
+      title: rejected
+        ? `The clinic turned down your recommendation for ${decision.patientName}`
+        : changed
+          ? `The clinic approved your recommendation for ${decision.patientName}, with changes`
+          : `The clinic approved your recommendation for ${decision.patientName}`,
+      detail: `${decision.title} — ${decision.reason}`,
+      href: "/therapist/dashboard/patients",
+    });
+  }
 
   for (const plan of carePlanAnswers) {
     const accepted = plan.status === "accepted";

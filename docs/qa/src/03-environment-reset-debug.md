@@ -35,7 +35,7 @@
 
 ### 6.1 Why the database must be reset
 
-Testing this application means filling it with throwaway patients, bookings, purchases and payouts. Several rules in the product are **one-per-thing** rules — one active care plan per patient, one pending suggestion per purchase, one open risk signal per rule+subject, a unique Razorpay order id — so leftover rows from a previous run make a correct application look broken. Two known examples:
+Testing this application means filling it with throwaway patients, bookings, purchases and payouts. Several rules in the product are **one-per-thing** rules — one open care plan per patient (published or awaiting the clinic), one pending suggestion per purchase, one open risk signal per rule+subject, a unique Razorpay order id — so leftover rows from a previous run make a correct application look broken. Two known examples:
 
 * A booking test that books a fixed slot leaves the appointment behind; the next run's identical booking is refused as a clash. That refusal is **correct behaviour**, not a defect.
 * An audit-log count assertion picks up the previous run's writes.
@@ -46,7 +46,7 @@ Testing this application means filling it with throwaway patients, bookings, pur
 
 The Reset data button calls `/api/admin/debug-reset`, which calls the database function `debug_reset_all_data()`. It is **one atomic `TRUNCATE`**, not a list of deletes.
 
-**Removed:** every appointment, package purchase, home-visit purchase, payment, payment webhook event, payment failure log, entitlement and credit ledger row, session note and revision, pain assessment, condition profile, condition change request and access grant, patient address, medical-document metadata row, admin notes, profile change request, availability template and override, referral, B2B lead, home-visit waitlist, service area, both package catalogs, treatment categories, testimonials, FAQs, intake question templates, payout requests and batches, business expenses, session suggestions, care plans and versions, risk signals and reviews, communication flags, contact reveal log, and the admin activity log. `site_settings` is put back to its defaults. **Every non-admin account is deleted.**
+**Removed:** every appointment, package purchase, home-visit purchase, payment, payment webhook event, payment failure log, entitlement and credit ledger row, session note and revision, pain assessment, condition profile, condition change request and access grant, patient address, medical-document metadata row, admin notes, profile change request, availability template and override, referral, B2B lead, home-visit waitlist, service area, both package catalogs, treatment categories, testimonials, FAQs, intake question templates, payout requests and batches, business expenses, session suggestions, care plans, their versions and the clinic's reviews of them, risk signals and reviews, communication flags, contact reveal log, and the admin activity log. `site_settings` is put back to its defaults. **Every non-admin account is deleted.**
 
 **Kept:**
 * **Admin logins** — the function refuses to run if it would leave no admin behind.

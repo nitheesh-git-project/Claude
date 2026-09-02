@@ -5,14 +5,14 @@ import PatientPackageWidget from "@/components/packages/PatientPackageWidget";
 import HomeVisitPackageWidget from "@/components/patient/HomeVisitPackageWidget";
 
 export const metadata: Metadata = {
-  title: "Packages | Dr. Pooja's Physio",
+  title: "Your Programmes | Dr. Pooja's Physio",
 };
 
 export default async function Page() {
   const d = await loadPatientDashboard("packages");
 
   return (
-    <PatientDashboardShell data={d} title="Packages" subtitle="The programmes your therapist has arranged for you.">
+    <PatientDashboardShell data={d} title="Your Programmes" subtitle="The treatment your therapist arranged, and the sessions you have left.">
       {d.ownedPackages && d.ownedPackages.length > 0 && (
         <div id="your-packages" className="mt-8">
           <PatientPackageWidget
@@ -21,7 +21,7 @@ export default async function Page() {
             purchases={d.ownedPackages.map((p) => ({
               id: p.id,
               purchaseCode: p.purchase_code,
-              title: d.ownedPackageInfoMap.get(p.package_id)?.title ?? d.activeCategoryMap.get(p.category_id) ?? "Session Package",
+              title: d.ownedPackageInfoMap.get(p.package_id)?.title ?? d.activeCategoryMap.get(p.category_id) ?? "Your programme",
               imageUrl: d.ownedPackageInfoMap.get(p.package_id)?.image_url ?? null,
               sessionCount: p.session_count,
               sessionsUsed: p.sessions_used,
@@ -30,6 +30,9 @@ export default async function Page() {
               status: p.status,
               expiresAt: p.expires_at,
               therapistName: p.locked_therapist_id ? d.therapistMap.get(p.locked_therapist_id) ?? null : null,
+              frequencyPerWeek: d.frequencyByPurchase.get(p.id) ?? null,
+              minGapHours: d.ownedPackageInfoMap.get(p.package_id)?.min_gap_hours ?? null,
+              maxPerWeek: d.ownedPackageInfoMap.get(p.package_id)?.max_sessions_per_week ?? null,
             }))}
           />
         </div>

@@ -4,6 +4,9 @@ import {
   parseOfferSnapshot,
   carePlanState,
   isCarePlanPurchasable,
+  CARE_PLAN_STATE_LABELS,
+  formatWaitingFor,
+  isQueueStale,
   validateCarePlanInput,
   narrowToCategory,
   type CarePlanStatus,
@@ -162,5 +165,91 @@ describe("narrowToCategory", () => {
     // A session recorded before appointments carried category_id. Narrowing
     // it to nothing would hide the whole feature on old rows.
     expect(narrowToCategory(all, null)).toEqual(all);
+  });
+});
+
+describe("carePlanState with a review step", () => {
+  it("never reports a queued plan as waiting on the patient", () => {
+    // The whole point of the review step. `isCarePlanPurchasable` is what
+    // /api/care-plan/create-order asks, so a pending plan falling through
+    // to the default would sell a programme nobody at the clinic approved.
+    const state = carePlanState(
+      { status: "pending_review" as CarePlanStatus },
+      { expires_at: null },
+      NOW
+    );
+    expect(state).toBe<CarePlanState>("pending_review");
+    expect(isCarePlanPurchasable(state)).toBe(false);
+  });
+
+  it("never reports a rejected plan as purchasable", () => {
+    const state = carePlanState(
+      { status: "rejected" as CarePlanStatus },
+      { expires_at: future },
+      NOW
+    );
+    expect(state).toBe<CarePlanState>("rejected");
+    expect(isCarePlanPurchasable(state)).toBe(false);
+  });
+
+  it("does not lapse a queued plan that has no window yet", () => {
+    // A version is written with a null expires_at and stamped at approval,
+    // so "no window" means "not published", never "expired".
+    expect(
+      carePlanState({ status: "pending_review" as CarePlanStatus }, null, NOW)
+    ).toBe<CarePlanState>("pending_review");
+  });
+
+  it("still lapses an approved plan past its window", () => {
+    expect(
+      carePlanState({ status: "active" as CarePlanStatus }, { expires_at: past }, NOW)
+    ).toBe<CarePlanState>("lapsed");
+  });
+
+  it("labels every state, including the two the review step added", () => {
+    // A state with no label renders as its raw column value on an admin
+    // screen, which is how "pending_review" ends up in front of a person.
+    for (const state of [
+      "pending_review",
+      "rejected",
+      "awaiting_patient",
+      "lapsed",
+      "accepted",
+      "declined",
+      "withdrawn",
+      "superseded",
+    ] as CarePlanState[]) {
+      expect(CARE_PLAN_STATE_LABELS[state]).toBeTruthy();
+    }
+  });
+});
+
+describe("formatWaitingFor", () => {
+  const now = Date.parse("2026-09-02T12:00:00Z");
+  const ago = (ms: number) => new Date(now - ms).toISOString();
+
+  it("says how long, coarsely", () => {
+    expect(formatWaitingFor(ago(30_000), now)).toBe("just now");
+    expect(formatWaitingFor(ago(9 * 60_000), now)).toBe("9 minutes");
+    expect(formatWaitingFor(ago(3 * 3_600_000), now)).toBe("3 hours");
+    expect(formatWaitingFor(ago(26 * 3_600_000), now)).toBe("1 day");
+    expect(formatWaitingFor(ago(50 * 3_600_000), now)).toBe("2 days");
+  });
+
+  it("handles a row with nothing to age from", () => {
+    // submitted_at is a new column, so a plan written before it existed
+    // must render without an age rather than "NaN minutes".
+    expect(formatWaitingFor(null, now)).toBeNull();
+    expect(formatWaitingFor("not a date", now)).toBeNull();
+  });
+
+  it("does not go negative on a clock skew", () => {
+    expect(formatWaitingFor(new Date(now + 60_000).toISOString(), now)).toBe("just now");
+  });
+
+  it("marks a queue row stale only past the threshold", () => {
+    expect(isQueueStale(ago(3 * 3_600_000), now)).toBe(false);
+    expect(isQueueStale(ago(5 * 3_600_000), now)).toBe(true);
+    expect(isQueueStale(null, now)).toBe(false);
   });
 });

@@ -1,11 +1,20 @@
 import { describeVersionChange, parseOfferSnapshot, summariseVersion } from "@/lib/carePlans";
-import type { CarePlanHistoryVersion as HistoryRow } from "@/lib/carePlanServer";
+import type {
+  CarePlanHistoryVersion as HistoryRow,
+  CarePlanReviewRecord,
+} from "@/lib/carePlanServer";
 
 function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
 }
 
+// Clinician-facing wording. The patient never reads a `pending_review` or
+// `rejected` thread at all -- `loadCarePlanHistory` drops those unless the
+// caller asks for them -- so these two labels exist for the therapist and
+// the admin only, and say plainly who is being waited on.
 const PLAN_STATUS_LABELS: Record<string, string> = {
+  pending_review: "Waiting for the clinic to approve",
+  rejected: "Not approved",
   active: "Waiting on the patient",
   accepted: "Purchased",
   declined: "Declined",
@@ -35,11 +44,24 @@ export default function CarePlanHistory({
   versions,
   authorNames,
   voice,
+  reviewsByPlan,
 }: {
   versions: HistoryRow[];
   /** Therapist id to display name, resolved by the caller. */
   authorNames: Map<string, string>;
   voice: "clinician" | "patient";
+  /**
+   * What the clinic decided, keyed by plan. Clinician surfaces only — the
+   * patient is never shown an unapproved thread, so there is no decision on
+   * one of theirs to explain.
+   *
+   * The reason is the actionable half of a rejection: "Not approved" tells
+   * a therapist their recommendation is gone, and only the reason tells
+   * them what to write instead. Leaving it in a feed item alone means it
+   * scrolls away and the chart, which is where they go to rewrite, says
+   * nothing.
+   */
+  reviewsByPlan?: Map<string, CarePlanReviewRecord[]>;
 }) {
   if (versions.length === 0) {
     return (
@@ -78,6 +100,7 @@ export default function CarePlanHistory({
           // and the reasoning behind it sits underneath.
           const ordered = [...planVersions].sort((a, b) => b.versionNo - a.versionNo);
           const status = ordered[0]?.planStatus ?? "active";
+          const latestReview = reviewsByPlan?.get(planId)?.[0] ?? null;
           return (
             <div key={planId} className="rounded-xl border border-slate-200">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
@@ -91,6 +114,25 @@ export default function CarePlanHistory({
                   {PLAN_STATUS_LABELS[status] ?? status}
                 </span>
               </div>
+
+              {latestReview && voice === "clinician" && (
+                <div
+                  className={`border-b px-4 py-2.5 text-[11px] ${
+                    latestReview.decision === "rejected"
+                      ? "border-rose-100 bg-rose-50 text-rose-800"
+                      : "border-slate-100 bg-slate-50 text-slate-600"
+                  }`}
+                >
+                  <span className="font-semibold">
+                    {latestReview.decision === "rejected"
+                      ? "The clinic did not approve this"
+                      : latestReview.decision === "edited_and_approved"
+                        ? "The clinic approved this with changes"
+                        : "Approved by the clinic"}
+                  </span>
+                  {latestReview.reason && <span> — {latestReview.reason}</span>}
+                </div>
+              )}
 
               <ol className="divide-y divide-slate-100">
                 {ordered.map((version, index) => {
