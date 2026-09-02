@@ -94,11 +94,22 @@ export function buildPatientFeed({
   appointments,
   conditionRequests,
   carePlan,
+  unscheduled = [],
 }: {
   appointments: FeedAppointment[];
   conditionRequests: FeedRequest[];
   /** The live recommendation, when there is one. */
   carePlan?: { id: string; authoredAt: string; title: string } | null;
+  /**
+   * Programmes with sessions paid for and not yet in the diary.
+   *
+   * The one thing a patient can buy and then receive nothing for. Paying is
+   * the hard part and it is already done; what is left is a calendar step
+   * on a screen they have to think to visit, and a patient who never takes
+   * it has paid the clinic for treatment they will not get. So it is
+   * `needsYou` and it stays until the balance is spent.
+   */
+  unscheduled?: { purchaseId: string; title: string; pending: number; since: string }[];
 }): FeedItem[] {
   const items: FeedItem[] = [];
 
@@ -114,6 +125,19 @@ export function buildPatientFeed({
       detail: carePlan.title,
       href: "/patient/dashboard/suggested",
       needsYou: true,
+    });
+  }
+
+  for (const u of unscheduled) {
+    items.push({
+      id: `unscheduled-${u.purchaseId}`,
+      at: u.since,
+      icon: "fa-calendar-plus",
+      tone: "warn",
+      needsYou: true,
+      title: `${u.pending} session${u.pending === 1 ? "" : "s"} still to book`,
+      detail: `${u.title} — you've paid for these. Pick your times whenever suits you.`,
+      href: "/patient/dashboard/packages",
     });
   }
 

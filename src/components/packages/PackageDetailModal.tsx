@@ -158,7 +158,7 @@ export default function PackageDetailModal({
               <i aria-hidden="true" className="fa-solid fa-xmark" />
             </button>
             <h3 id="package-modal-title" className="font-display pr-10 text-xl font-extrabold text-white sm:text-2xl">
-              {data?.purchase.packageTitle ?? "Session Package"}
+              {data?.purchase.packageTitle ?? "Your programme"}
             </h3>
             {data?.purchase.purchaseCode && (
               <p className="mt-1 text-xs font-semibold text-teal-100">{data.purchase.purchaseCode}</p>

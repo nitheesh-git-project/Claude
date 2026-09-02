@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       id: purchase.id,
       purchaseCode: purchase.purchase_code,
       packageCode: packageRow?.package_code ?? null,
-      packageTitle: packageRow?.title ?? "Session Package",
+      packageTitle: packageRow?.title ?? "Treatment programme",
       packageImageUrl: packageRow?.image_url ?? null,
       categoryTitle: category?.title ?? null,
       sessionCount: purchase.session_count,

@@ -103,7 +103,7 @@ export function buildPatientTransactions(
       transactionId: p.razorpay_payment_id,
       modeOfPayment: MODE_OF_PAYMENT,
       amountPaise: p.amount_paid_paise ?? 0,
-      purpose: `${p.session_count}-Session Package${
+      purpose: `${p.session_count}-session programme${
         p.category_id && categoryTitleById.has(p.category_id)
           ? `: ${categoryTitleById.get(p.category_id)}`
           : ""

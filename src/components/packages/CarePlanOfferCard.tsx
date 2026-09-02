@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { payForCarePlan } from "@/lib/carePlanPayment";
 import AddressForm from "@/components/booking/AddressForm";
+import PackageBulkScheduler from "@/components/packages/PackageBulkScheduler";
 import type { HomeVisitAddressForm } from "@/lib/homeVisitPayment";
 import {
   carePlanState,
@@ -57,6 +58,7 @@ export default function CarePlanOfferCard({
   patientEmail,
   savedAddresses,
   nowMs,
+  bulkScheduleMax,
 }: {
   offer: CarePlanOffer;
   patientName: string;
@@ -65,9 +67,12 @@ export default function CarePlanOfferCard({
   savedAddresses: SavedAddress[];
   /** Passed in from the server so the state does not flip at hydration. */
   nowMs: number;
+  /** The admin's cap on how many sessions may be scheduled in one go. */
+  bulkScheduleMax: number;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [paid, setPaid] = useState<{ purchaseId: string | null } | null>(null);
   const [decliningOpen, setDecliningOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -185,10 +190,18 @@ export default function CarePlanOfferCard({
       name: patientName,
       email: patientEmail,
       description: snapshot?.title ?? "Treatment programme",
-      onSuccess: () => {
+      onSuccess: ({ purchaseId }) => {
         inFlight.current = false;
         setPaying(false);
-        router.refresh();
+        // Deliberately NOT a plain refresh.
+        //
+        // A refresh here removed the card and put nothing in its place: the
+        // patient had just spent several thousand rupees, and the screen
+        // went blank at the highest-intent moment in the whole product.
+        // What they actually bought is appointments, not a credit balance,
+        // so the payment now lands on the step that turns one into the
+        // other.
+        setPaid({ purchaseId });
       },
       onError: (message) => {
         inFlight.current = false;
@@ -227,6 +240,24 @@ export default function CarePlanOfferCard({
   }
 
   const actionable = state === "awaiting_patient";
+
+  // What the patient sees the instant the payment clears, in place of the
+  // card they were reading. It stays until they schedule or dismiss it --
+  // a refresh would drop them back to a screen with nothing on it.
+  if (paid) {
+    return (
+      <PaidAndUnscheduled
+        offer={offer}
+        purchaseId={paid.purchaseId}
+        sessionCount={snapshot?.sessionCount ?? 0}
+        minGapHours={snapshot?.minGapHours ?? null}
+        maxPerWeek={snapshot?.maxPerWeek ?? null}
+        validityDays={snapshot?.validityDays ?? null}
+        bulkScheduleMax={bulkScheduleMax}
+        nowMs={nowMs}
+      />
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-teal-200 bg-white p-6 shadow-sm">
@@ -454,5 +485,145 @@ function Tag({ children }: { children: React.ReactNode }) {
     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
       {children}
     </span>
+  );
+}
+
+
+/**
+ * The moment straight after payment.
+ *
+ * The problem this exists to fix: paying used to refresh the screen, the
+ * offer card disappeared because the plan was now accepted, and the patient
+ * was left looking at nothing -- having just paid for a course of
+ * treatment, with no confirmation and no route to the one step that turns
+ * their balance into actual appointments. A new sidebar entry appeared
+ * silently and they were expected to find it.
+ *
+ * Two rules shape what replaces it:
+ *
+ * 1. **Confirm first, ask second.** The first thing on the screen says the
+ *    money arrived and what they now own. Nothing is asked of them until
+ *    that has been said.
+ * 2. **One next step, already answered.** Scheduling opens with the dates
+ *    already proposed from the clinician's own cadence, so the ask is
+ *    "does this look right?" rather than "compose five appointments". And
+ *    "later" is a real, unpunished option -- the dashboard keeps asking
+ *    until the balance is spent.
+ */
+function PaidAndUnscheduled({
+  offer,
+  purchaseId,
+  sessionCount,
+  minGapHours,
+  maxPerWeek,
+  validityDays,
+  bulkScheduleMax,
+  nowMs,
+}: {
+  offer: CarePlanOffer;
+  purchaseId: string | null;
+  sessionCount: number;
+  minGapHours: number | null;
+  maxPerWeek: number | null;
+  validityDays: number | null;
+  bulkScheduleMax: number;
+  nowMs: number;
+}) {
+  const router = useRouter();
+  const [scheduling, setScheduling] = useState(false);
+  const noun = offer.isHomeVisit ? "visit" : "session";
+
+  return (
+    <div className="rounded-2xl border border-teal-300 bg-teal-50/50 p-6 shadow-sm">
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-700 text-white"
+        >
+          <i className="fa-solid fa-check" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="font-display text-lg font-bold text-slate-900">
+            Payment received — {sessionCount} {noun}
+            {sessionCount === 1 ? "" : "s"}{" "}
+            {sessionCount === 1 ? "is" : "are"} yours
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            {offer.therapistName} will run {sessionCount === 1 ? "it" : "them"}.
+            {validityDays ? ` Use them within ${validityDays} days.` : ""}
+          </p>
+        </div>
+      </div>
+
+      {/* Home visits schedule from their own widget, which collects the
+          address per visit -- so this hands them there rather than opening a
+          picker that cannot ask the one question a visit needs. */}
+      {offer.isHomeVisit || !purchaseId ? (
+        <div className="mt-5">
+          <p className="text-sm font-semibold text-slate-800">Next: pick your times.</p>
+          <p className="mt-1 text-xs text-slate-600">
+            Nothing is scheduled yet. Your {noun}s are waiting for you under Your
+            programmes.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push("/patient/dashboard/packages")}
+            className="mt-3 rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-teal-800"
+          >
+            Pick my times
+          </button>
+        </div>
+      ) : (
+        <div className="mt-5">
+          <p className="text-sm font-semibold text-slate-800">
+            Shall we put them in the diary now?
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            We&apos;ll suggest{" "}
+            {offer.frequencyPerWeek
+              ? `${offer.frequencyPerWeek} a week, the way ${offer.therapistName} recommended`
+              : "a weekly rhythm"}
+            . You can change any of them.
+          </p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => setScheduling(true)}
+              className="rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-teal-800"
+            >
+              Choose my times
+            </button>
+            {/* A real option, not a dark pattern. The dashboard keeps a
+                needsYou item until the balance is spent, so leaving now
+                costs nothing and is not forgotten. */}
+            <button
+              type="button"
+              onClick={() => router.refresh()}
+              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              I&apos;ll do it later
+            </button>
+          </div>
+        </div>
+      )}
+
+      {scheduling && purchaseId && (
+        <PackageBulkScheduler
+          purchaseId={purchaseId}
+          pendingCount={sessionCount}
+          bulkScheduleMax={bulkScheduleMax}
+          frequencyPerWeek={offer.frequencyPerWeek}
+          minGapHours={minGapHours}
+          maxPerWeek={maxPerWeek}
+          expiresAt={
+            validityDays ? new Date(nowMs + validityDays * 86_400_000).toISOString() : null
+          }
+          onClose={() => {
+            setScheduling(false);
+            router.refresh();
+          }}
+        />
+      )}
+    </div>
   );
 }
