@@ -32,11 +32,14 @@ export type GoogleMeetSyncIssue = {
 export default function AdminFeatureControlTab({
   settings,
   syncIssues,
+  webhookSecretConfigured = true,
   adminEmail,
   view,
 }: {
   settings: AdminSettings;
   syncIssues: GoogleMeetSyncIssue[];
+  /** Whether RAZORPAY_WEBHOOK_SECRET is set in the server environment. */
+  webhookSecretConfigured?: boolean;
   adminEmail: string;
   // Which slice of this component to render. It used to be one "Feature
   // Control" tab holding three unrelated jobs at once: the rules that govern
@@ -561,6 +564,39 @@ export default function AdminFeatureControlTab({
       )}
 
       {view === "health" && (
+      <>
+      {/* The only configuration whose absence silently loses money.
+          Without the webhook secret /api/razorpay/webhook answers 503, so a
+          patient who pays and closes the tab before the browser callback
+          lands leaves a paid Razorpay order sitting against an unpaid
+          booking -- and nothing anywhere says so. It is a one-line check,
+          on the screen that already exists to say what is quietly wrong. */}
+      <div
+        className={`rounded-2xl border p-6 shadow-sm ${
+          webhookSecretConfigured
+            ? "border-slate-200 bg-white"
+            : "border-red-300 bg-red-50"
+        }`}
+      >
+        <h3 className="font-bold text-sm text-slate-800">Payment Confirmations</h3>
+        {webhookSecretConfigured ? (
+          <p className="mt-1 max-w-md text-xs text-slate-500">
+            The Razorpay webhook is configured. A payment is confirmed by whichever arrives
+            first — the patient&apos;s browser or Razorpay&apos;s own server call — so a patient
+            who pays and closes the tab is still confirmed.
+          </p>
+        ) : (
+          <p className="mt-1 max-w-md text-xs text-red-800">
+            <span className="font-bold">The Razorpay webhook is not configured.</span> Payments
+            are being confirmed by the patient&apos;s browser alone. A patient who pays and
+            closes the tab before the page finishes will leave a{" "}
+            <span className="font-semibold">paid order against an unpaid booking</span>, and
+            nothing will flag it. Set <code className="font-mono">RAZORPAY_WEBHOOK_SECRET</code>{" "}
+            in the server environment and add the matching endpoint in the Razorpay dashboard.
+          </p>
+        )}
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-sm text-slate-800">Sync Health</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
@@ -622,6 +658,7 @@ export default function AdminFeatureControlTab({
           </div>
         )}
       </div>
+      </>
       )}
     </div>
   );

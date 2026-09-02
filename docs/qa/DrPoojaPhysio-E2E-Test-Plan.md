@@ -303,7 +303,10 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 **Kept:**
 * **Admin logins** — the function refuses to run if it would leave no admin behind.
+* **Detector thresholds** (`risk_rules`) — configuration, like `site_settings`, so it is **reset to its seeded defaults** rather than emptied. Emptying it would silently disable every detector instead of restoring it.
 * **Objects in the private `medical-reports` Storage bucket.** The metadata rows go; the files do not. Storage is not reachable from SQL. Clear that bucket from the Supabase dashboard if you need the space back.
+
+> **Regression worth knowing about.** An earlier version of this function predated the care-plan, evidence and risk tables and cleared none of them; three were saved by CASCADE, but `communication_flags`, `risk_signals` and `risk_reviews` survived a "delete everything". The one that actually bit a tester was `risk_signals`: it carries a partial unique index allowing at most one **open or reviewing** signal per `(rule, subject)`, so a leftover open signal held the slot and the same rule firing again wrote nothing — an empty Risk queue on a supposedly clean database, which reads exactly like a broken detector. All three are now named in the TRUNCATE list. `SETUP-RESET-001` asserts it.
 
 ### 6.3 The four gates (all must pass)
 
@@ -354,6 +357,8 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 * Navigating to **Sessions → All Sessions** shows no sessions.
 * Navigating to **Settings → Activity Log** shows an empty log (the reset itself truncates it).
 * Navigating to **Settings → Team & Access** still lists at least one admin, and your own row is there. **If this list is empty, stop immediately and restore from backup — the reset must never leave the clinic without an admin.**
+* Navigating to **Today → Risk** shows an **empty** queue. **[SQL]** confirm with `select count(*) from communication_flags;` and `select count(*) from risk_signals;` — both must return `0`. A non-zero count here is the regression described above, and it will silently suppress the detector tests later in this plan.
+* **[SQL]** `select rule_key, enabled from risk_rules;` still returns the eight rules, with `plan_conversion_low` and `post_consultation_dropout` back to **disabled** — thresholds are restored to their seeded defaults, not wiped.
 
 **Cleanup.** None. This is the starting state for the whole plan.
 
@@ -823,7 +828,18 @@ Create small dummy files locally. Content does not matter; the filename and type
 | `Grade III PA mobilisation ×3 sets, 30s hold. 10 reps, 2× daily. Order ref 90210.` | **no hit** — clinical text with digits must not fire | Session note |
 | `Call me on 9876543210` written by the **patient** | **record only** — never blocked | Patient's booking notes on `/book` |
 
-### 8.17 Setup aliases used in preconditions
+### 8.17 Admin settings this plan assumes
+
+Unless a test says otherwise, leave every setting at its default. The four that matter most for setup:
+
+| Setting | Default | Note |
+| --- | --- | --- |
+| **Therapist-Suggested Sessions** | **on** | Needed by `THR-SUGG-*` and `PAT-SUGG-*` |
+| **Assign a Therapist Automatically** | **off** | `ADM-SET-021` switches it on; several booking tests assume the queue behaviour while it is off |
+| **Session Balances From The Ledger** | **off** | `ADM-SET-019` |
+| **Home Visit** | **off** | `ADM-SET-013` switches it on for the home-visit journey |
+
+### 8.18 Setup aliases used in preconditions
 
 Several tests name a setup step by a `SETUP-*` alias. Each is simply the catalog test that creates that fixture:
 
@@ -1365,10 +1381,11 @@ Attempt **Review Booking →** once per row, as a guest:
 **Steps.** Tap **Request Booking**, then close the Razorpay modal with its ✕.
 **Expected Result.** `Payment was not completed. You can try again below.` The button reads **Pay … Now**. The unpaid appointment is visible at `/patient/dashboard/sessions` under Upcoming with a **Pay … Now** button.
 
-#### `PAT-PAY-003` — Three failures reveal the escape hatch · P1
+#### `PAT-PAY-003` — Reassurance on the first failure, escape hatch on the third · P1
 
-**Steps.** Fail or dismiss the payment three times on the same booking.
-**Expected Result.** After the third, an amber panel appears: *"Having trouble paying? Your booking is saved as pending — you can come back and pay any time from your dashboard."* with a **Go to Dashboard →** link. Following it lands on `/patient/dashboard` with the session listed as unpaid. **The patient is not bounced to `/pending-approval`** — the first genuine attempt already approved them.
+**Steps.** Fail or dismiss the payment **once** and read the card. Then fail it twice more.
+**Expected Result.** After the **first** failure a slate panel reads *"Nothing was lost — your booking is saved and still held as unpaid. You can try again above, or pay later from your dashboard."* A patient whose card was declined has no other way of knowing the booking survived, and the likeliest next action is closing the tab.
+After the third, that line is replaced by an amber panel: *"Having trouble paying? Your booking is saved as pending — you can come back and pay any time from your dashboard."* with a **Go to Dashboard →** link. Following it lands on `/patient/dashboard` with the session listed as unpaid. **The patient is not bounced to `/pending-approval`** — the first genuine attempt already approved them.
 
 #### `PAT-PAY-004` — Abandon then pay from the dashboard · P0
 
@@ -1501,6 +1518,7 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 * On the Health Profile screen: **no** "answer your questions" call to action and **no** answered counter — they are **absent, not greyed out**.
 * The **reports uploader is present and usable** — it is the one useful thing the patient can do beforehand.
 * On the dashboard overview: the health-profile cell reads **`—` on a slate background**, never `0%` on amber, and there is **no amber banner**.
+* The waiting panel **names the session it is waiting on**, by date — *"Your session on 11/09/2026 is when this gets filled in"* before the session, and *"Expected at your session on 11/09/2026. If it still isn't here in a day or two, tell us and we'll chase it."* after it. A locked screen with no date on it leaves the patient unable to tell whether the wait is normal or whether they have been forgotten. A patient with no session yet simply sees no date line — never a placeholder.
 * Attempting the API directly (`POST /api/patient/condition-profile/save-draft` with the patient's cookie) is **refused** — the lock is enforced in `submit`, in `save-draft`, and by an insert policy on `condition_change_requests`. A UI-only lock would be cosmetic.
 
 #### `PAT-HP-002` — After the therapist's first fill, the wizard unlocks · P0
@@ -1917,6 +1935,13 @@ A second attempt returns `This visit's payment has already been recorded.`
 * Step 11: the plan is written **live, with no review**, append-only and attributed. `care_plan_versions.source_appointment_id` is NOT NULL and is **re-derived from the appointment, not trusted from the body**.
 * The patient sees it immediately on Suggested Sessions and on their Health Profile.
 
+#### `THR-CARE-006` — The Overview names who is waiting to hear · P1
+
+**Feature.** Every programme a patient can buy comes from a recommendation written after a completed session, so that one step is the whole distance between a delivered consultation and a course of treatment. It used to be carried only by an aggregate count, which reads as a score rather than as a list of people.
+
+**Steps.** Complete a session for Patient A and write no recommendation. Open `/therapist/dashboard`.
+**Expected Result.** The activity feed carries a **named** item — *"QA Patient A is waiting to hear what next"* — pinned by `needsYou` and linking to that patient's chart. It disappears once a recommendation is written, or once the patient's plan is accepted. A patient who **already has** a live or purchased recommendation must **not** appear; a patient whose plan was declined or withdrawn **should**, because that thread is open again. At most four are shown, most recently seen first, alongside the note nudge.
+
 #### `THR-CARE-002` — A recommendation needs a completed session this therapist ran · P0
 **Steps.** Attempt to submit a care plan (a) for a patient this therapist is not assigned to, (b) against a session run by Therapist B, (c) against a session that is not completed.
 **Expected Result.** (a) `That isn't your patient.` (403). (b) and (c) refused by the route's own re-derivation. This is what makes "recommend to everyone and see who bites" **impossible rather than discouraged**.
@@ -1937,7 +1962,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 #### `THR-SUGG-001` — Suggest a session · P0
 
-**Preconditions.** `therapist_suggestions_enabled` is **on** (it is off by default — turn it on in Settings → Booking Rules). A programme locked to this therapist with credits remaining.
+**Preconditions.** `therapist_suggestions_enabled` is **on** (it is on by default now; confirm in Settings → Booking Rules). A programme locked to this therapist with credits remaining.
 
 **Steps**
 1. On the programme's card, tap the suggest control.
@@ -2243,6 +2268,7 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 
 **Expected Result.** The row leaves the queue and the badge decreases by one. `profiles.approved` becomes true. Patient B can now sign in and reach `/patient/dashboard` instead of `/pending-approval`. An `admin_activity_log` row records the approval with the actor, the target and the timestamp.
 **Approvals live under Today, beside the inbox that counts them — never on the patients directory.** A queue is not a person.
+**The screen states what it is deciding**, because the two halves are not the same decision: a therapist here is a credentials check, while a patient here registered *without* booking — anyone who genuinely attempts a payment is approved automatically at that moment. Approving a patient from this list changes what they can see, never whether they can pay. Confirm that line is present; without it a new admin cannot tell what they are being asked to judge.
 
 #### `ADM-APPR-002` — Approve a therapist · P0
 Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign in and reach the dashboard, and their availability routes stop returning 403.
@@ -2290,7 +2316,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Expected Result**
 * One list containing every session, video and home visit alike. Home-visit specifics (address, travel fee, cash) are a **panel inside the drawer**, not a parallel screen.
 * Filters are **remembered per browser** — but **the date range is not**, because it goes stale.
-* The list ends in the standard pager: a **Show N per page** field (default **10**, remembered per browser under this list's own key), Previous/Next that grey out at the ends, and an "x–y of n" count. There is **no arbitrary row cap with a "Show all" escape hatch** — that was the old behaviour, and "Show all" then painted every row anyway, which is the thing the pager replaced.
+* The list ends in the standard pager: a **Show N per page** field (default **25** on this screen — it is the one an admin lives on, where ten rows made every working day a paging exercise; other lists keep the shared default of 10, remembered per browser under this list's own key), Previous/Next that grey out at the ends, and an "x–y of n" count. There is **no arbitrary row cap with a "Show all" escape hatch** — that was the old behaviour, and "Show all" then painted every row anyway, which is the thing the pager replaced.
 * Filtering, sorting, totals and **both exports** always run over the **whole filtered set** — only what is painted is paged. Otherwise a range total would start describing a page.
 
 #### `ADM-SESS-002` — Assign a therapist · P0
@@ -2618,13 +2644,37 @@ This tab holds three groups: **Platform Rules**, **Package settings**, and **Hom
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
+| **Assign a Therapist Automatically** | **off** | See `ADM-SET-021` |
 | **Show programme prices publicly** | on | Off → public catalog cards hide the price. **This is not a purchase switch** — nobody can buy a programme directly either way. |
 | **Therapist Lock (site-wide)** | on | Off → later sessions on a purchase are not auto-assigned to the first therapist |
 | **Session Balances From The Ledger** | **off** | See `ADM-SET-019` |
-| **Therapist-Suggested Sessions** | **off** | Off → `/api/therapist/suggest-session` returns `Suggesting sessions is switched off.` and the control is absent |
+| **Therapist-Suggested Sessions** | **on** | Off → `/api/therapist/suggest-session` returns `Suggesting sessions is switched off.` and the control is absent. It shipped off while the flow was unproven and is on by default now |
 | **Default Validity** | 90 d | A new purchase's expiry when the package leaves it blank |
 | **Bulk Scheduler Limit** | 8 | `Too many slots in one request.` above this |
 | **Expiry Reminder Lead Time** | 14 d | When the expiry nudge appears on the patient's dashboard |
+
+#### `ADM-SET-021` — Automatic therapist assignment · P0
+
+**Feature.** When a session is paid for and **exactly one** therapist is unambiguously free for it, assign them and confirm the booking immediately instead of leaving it in the admin queue. It reads the roster (weekly template + that date's exceptions + leave) and the same conflict check the admin's assign form uses. **It does not change what times a patient is offered** — the roster still does not filter the picker.
+
+| # | Set up | Expected |
+| --- | --- | --- |
+| 1 | Switch **off**. Book and pay a session. | Session is `requested`, **unassigned**, in the queue — the pre-existing behaviour. |
+| 2 | Switch **on**. Roster **only** Therapist A for the slot's hour. Book and pay. | Assigned to Therapist A, `confirmed`, Meet link created, and the therapist sees it immediately. The unassigned badge does **not** rise. |
+| 3 | Roster **both** Therapist A and B for that hour, neither busy. Book and pay. | **Nothing is assigned.** The session waits in the queue. Two free clinicians is a choice for a person. |
+| 4 | Both rostered, but Therapist B already has a clashing session. | Assigned to **A** — one free candidate. |
+| 5 | Both rostered and free, and the patient booked via `/book?therapist=<B>`. | Assigned to **B**, not A. A stated preference beats the count. |
+| 6 | Patient requested B, but B is busy; A is free. | Assigned to **A**. The preference is dropped rather than the session waiting. |
+| 7 | Patient requested a therapist who is **not rostered** for that hour. | Falls back to the count. A stale `?therapist=` link never overrides the roster. |
+| 8 | Nobody rostered for that hour. | Nothing assigned; queue as before. |
+| 9 | Therapist A rostered but **on leave**. | Not a candidate. |
+| 10 | Therapist A rostered but **unapproved** or **inactive**. | Not a candidate. |
+| 11 | A **home visit**, with two therapists free but one finishing a visit within the travel buffer. | The buffered one is treated as busy — the conflict check is padded by `home_visit_travel_buffer_minutes` on both sides. |
+| 12 | Pay, then close the tab before the callback lands (webhook configured). | The **webhook** applies the same assignment. Both paths use one decision, so they cannot disagree about who is free. |
+
+**Expected Result throughout.** No session is ever assigned to a therapist who is unavailable, on leave, unapproved, inactive or already booked. When it declines to choose, the outcome is **identical to the switch being off**. A failure inside this logic must never fail the payment — the appointment is still marked paid either way.
+
+**Cross-check `XCFG-ROSTER-001` afterwards:** rostering changes must still leave `/book`'s picker byte-identical.
 
 #### `ADM-SET-019` — The ledger authority switch · P0
 

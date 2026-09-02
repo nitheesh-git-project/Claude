@@ -465,6 +465,55 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
           }[],
         };
 
+  // Patients this therapist has seen and not yet recommended anything to.
+  // Every programme a patient can buy comes from a recommendation written
+  // after a completed session, so this one step is the whole distance
+  // between a delivered consultation and a course of treatment -- and it
+  // was carried only by an aggregate figure, which reads as a score rather
+  // than as a list of people waiting to hear. One item per patient, most
+  // recently seen first, capped like the note nudge beside it.
+  const { data: openPlanRows } =
+    screen === "overview"
+      ? await admin
+          .from("care_plans")
+          .select("patient_id, status")
+          .eq("therapist_id", user.id)
+      : { data: [] as { patient_id: string; status: string }[] };
+
+  // A patient with a live or already-purchased recommendation is not
+  // waiting to hear; a declined or withdrawn one means the thread is open
+  // again, which is exactly when a fresh recommendation is wanted.
+  const patientsWithLivePlan = new Set(
+    (openPlanRows ?? [])
+      .filter((p) => p.status === "active" || p.status === "accepted")
+      .map((p) => p.patient_id)
+  );
+
+  const awaitingRecommendation =
+    screen === "overview"
+      ? Array.from(
+          new Map(
+            (appointments ?? [])
+              .filter(
+                (a) =>
+                  a.status === "completed" &&
+                  !a.no_show &&
+                  !patientsWithLivePlan.has(a.patient_id)
+              )
+              .sort((a, b) => (b.slot_time ?? "").localeCompare(a.slot_time ?? ""))
+              .map((a) => [
+                a.patient_id,
+                {
+                  appointmentId: a.id,
+                  patientId: a.patient_id,
+                  patientName: patientNameById.get(a.patient_id) ?? "A patient",
+                  completedAt: a.slot_time ?? new Date(nowMsForOverview).toISOString(),
+                },
+              ])
+          ).values()
+        ).slice(0, 4)
+      : [];
+
   const answeredVersionIds = (answeredPlans ?? [])
     .map((p) => p.current_version_id)
     .filter((id): id is string => !!id);
@@ -482,6 +531,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   );
 
   const therapistFeed = buildTherapistFeed({
+    awaitingRecommendation,
     carePlanAnswers: (answeredPlans ?? [])
       .filter((p) => p.accepted_at || p.declined_at)
       .map((p) => ({

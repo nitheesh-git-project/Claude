@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  pickAutoAssignTherapist,
+  readAutoAssignSettings,
+} from "@/lib/autoAssignTherapist";
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { approvePatientForGenuinePaymentAttempt } from "@/lib/supabase/requireActiveProfile";
@@ -28,7 +32,9 @@ export async function POST(request: NextRequest) {
 
   const { data: appointment } = await supabase
     .from("appointments")
-    .select("id, patient_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone")
+    .select(
+      "id, patient_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone, visit_mode, preferred_therapist_id"
+    )
     .eq("id", appointmentId)
     .eq("patient_id", user.id)
     .single();
@@ -60,13 +66,41 @@ export async function POST(request: NextRequest) {
   // arranged (e.g. a hospital referral) — payment was the only thing
   // pending, so confirm it now rather than leaving it stuck on
   // "requested" waiting for a separate admin action.
-  const shouldAutoConfirm = appointment.therapist_id && appointment.status === "requested";
+  //
+  // When nobody is assigned yet, the roster is asked whether the answer is
+  // unambiguous: exactly one approved, active, not-on-leave therapist who
+  // works that hour and has no clashing session. If so the session is
+  // assigned and confirmed here rather than waiting for an admin to open
+  // the dashboard, which was the longest unnecessary wait in the funnel.
+  // Anything less certain than "exactly one" returns null and the
+  // appointment stays in the queue exactly as before — see
+  // autoAssignTherapist.ts for why the tie-break is deliberately "don't".
+  const admin = createAdminClient();
+
+  let assignedTherapistId = appointment.therapist_id as string | null;
+  let autoAssignReason: string | null = null;
+  if (!assignedTherapistId && appointment.status === "requested" && appointment.slot_time) {
+    const settings = await readAutoAssignSettings(admin);
+    const picked = await pickAutoAssignTherapist(admin, {
+      appointmentId: appointment.id,
+      slotTime: appointment.slot_time,
+      durationMinutes: appointment.duration_minutes,
+      preferredTherapistId: appointment.preferred_therapist_id,
+      visitMode: appointment.visit_mode,
+      travelBufferMinutes: settings.travelBufferMinutes,
+    });
+    if (picked) {
+      assignedTherapistId = picked.therapistId;
+      autoAssignReason = picked.reason;
+    }
+  }
+
+  const shouldAutoConfirm = assignedTherapistId && appointment.status === "requested";
 
   // amount_paid_paise is already set by /api/razorpay/create-order at the
   // moment the order was created (resolved from the appointment's category
   // price, or the flat base fee) — that's the real amount this specific
   // order charged, so it's not re-derived or overwritten here.
-  const admin = createAdminClient();
 
   // Atomic claim: only actually confirm/mark-paid if the appointment is
   // still in the same active state it was in when read above. Without this,
@@ -81,7 +115,14 @@ export async function POST(request: NextRequest) {
       payment_status: "paid",
       razorpay_payment_id,
       paid_at: new Date().toISOString(),
-      ...(shouldAutoConfirm ? { status: "confirmed" } : {}),
+      ...(shouldAutoConfirm
+        ? {
+            status: "confirmed",
+            // Written in the same claim as the confirmation, so a session
+            // can never be confirmed with nobody on it.
+            ...(autoAssignReason ? { therapist_id: assignedTherapistId } : {}),
+          }
+        : {}),
     })
     .eq("id", appointmentId)
     .in("status", ["requested", "confirmed"])
@@ -134,11 +175,11 @@ export async function POST(request: NextRequest) {
   // The atomic claim above already applied shouldAutoConfirm inside the
   // same write -- if it succeeded, the status change (if any) actually
   // stuck, so it's safe to create the Meet event now.
-  if (shouldAutoConfirm && appointment.therapist_id && appointment.slot_time) {
+  if (shouldAutoConfirm && assignedTherapistId && appointment.slot_time) {
     await createMeetEventForConfirmedAppointment(admin, {
       appointmentId,
       patientId: appointment.patient_id,
-      therapistId: appointment.therapist_id,
+      therapistId: assignedTherapistId,
       slotTime: appointment.slot_time,
       durationMinutes: appointment.duration_minutes,
       timezone: appointment.timezone,

@@ -280,10 +280,11 @@ Attempt **Review Booking →** once per row, as a guest:
 **Steps.** Tap **Request Booking**, then close the Razorpay modal with its ✕.
 **Expected Result.** `Payment was not completed. You can try again below.` The button reads **Pay … Now**. The unpaid appointment is visible at `/patient/dashboard/sessions` under Upcoming with a **Pay … Now** button.
 
-#### `PAT-PAY-003` — Three failures reveal the escape hatch · P1
+#### `PAT-PAY-003` — Reassurance on the first failure, escape hatch on the third · P1
 
-**Steps.** Fail or dismiss the payment three times on the same booking.
-**Expected Result.** After the third, an amber panel appears: *"Having trouble paying? Your booking is saved as pending — you can come back and pay any time from your dashboard."* with a **Go to Dashboard →** link. Following it lands on `/patient/dashboard` with the session listed as unpaid. **The patient is not bounced to `/pending-approval`** — the first genuine attempt already approved them.
+**Steps.** Fail or dismiss the payment **once** and read the card. Then fail it twice more.
+**Expected Result.** After the **first** failure a slate panel reads *"Nothing was lost — your booking is saved and still held as unpaid. You can try again above, or pay later from your dashboard."* A patient whose card was declined has no other way of knowing the booking survived, and the likeliest next action is closing the tab.
+After the third, that line is replaced by an amber panel: *"Having trouble paying? Your booking is saved as pending — you can come back and pay any time from your dashboard."* with a **Go to Dashboard →** link. Following it lands on `/patient/dashboard` with the session listed as unpaid. **The patient is not bounced to `/pending-approval`** — the first genuine attempt already approved them.
 
 #### `PAT-PAY-004` — Abandon then pay from the dashboard · P0
 
@@ -416,6 +417,7 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 * On the Health Profile screen: **no** "answer your questions" call to action and **no** answered counter — they are **absent, not greyed out**.
 * The **reports uploader is present and usable** — it is the one useful thing the patient can do beforehand.
 * On the dashboard overview: the health-profile cell reads **`—` on a slate background**, never `0%` on amber, and there is **no amber banner**.
+* The waiting panel **names the session it is waiting on**, by date — *"Your session on 11/09/2026 is when this gets filled in"* before the session, and *"Expected at your session on 11/09/2026. If it still isn't here in a day or two, tell us and we'll chase it."* after it. A locked screen with no date on it leaves the patient unable to tell whether the wait is normal or whether they have been forgotten. A patient with no session yet simply sees no date line — never a placeholder.
 * Attempting the API directly (`POST /api/patient/condition-profile/save-draft` with the patient's cookie) is **refused** — the lock is enforced in `submit`, in `save-draft`, and by an insert policy on `condition_change_requests`. A UI-only lock would be cosmetic.
 
 #### `PAT-HP-002` — After the therapist's first fill, the wizard unlocks · P0

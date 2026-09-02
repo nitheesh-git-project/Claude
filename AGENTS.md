@@ -575,6 +575,27 @@ client is the only writer and the log is append-only from any session.
   previously refused neither, and a therapist could mark a session done
   before its slot and be owed for it.
 
+- **A paid session assigns itself when the answer is unambiguous, and
+  otherwise waits exactly as it did.** `src/lib/autoAssignTherapist.ts`,
+  called from `/api/razorpay/verify` and `/api/razorpay/webhook` -- both, so
+  a patient who pays and closes the tab gets the same outcome as one who
+  waits for the page. It reads the roster (template + that date's
+  exceptions + `on_leave`) and `findTherapistConflict`, and assigns only
+  when **exactly one** eligible therapist is free, or when the patient's own
+  `preferred_therapist_id` is among the free ones. Zero or two-or-more
+  returns null and the appointment stays `requested` and unassigned in the
+  admin queue -- the pre-existing behaviour, and deliberately the fallback,
+  because assigning the wrong clinician is far worse than the wait this
+  removes. `decideAutoAssignment()` is that rule with the database taken
+  out, so the judgement is unit-tested rather than only integration-tested.
+  It never throws: this runs inside payment confirmation and a booking must
+  never fail for it. Gated by `site_settings.auto_assign_therapist_enabled`,
+  read in its own call and failing **closed**.
+  **This is not the roster filtering the patient's picker** -- that
+  separation stays, and `e2e/therapist-roster.spec.ts` R-B02 still guards
+  it. The roster's own job is who can be *offered* a session, which is
+  exactly what is being read.
+
 - **A therapist suggests; the patient books.** A therapist can propose the
   next session on a programme locked to them
   (`/api/therapist/suggest-session`), and the patient accepts or declines
@@ -599,7 +620,9 @@ client is the only writer and the log is append-only from any session.
   synchronous ref (a `disabled` attribute lands a render too late) and never
   clear optimistically, so a request that dies on a bad connection leaves the
   person exactly where they were. Gated by
-  `site_settings.therapist_suggestions_enabled`, off by default.
+  `site_settings.therapist_suggestions_enabled`, **on by default** since the
+  flow proved out -- a finished feature nobody can reach drifts out of test
+  coverage and accrues maintenance for no return.
 
 - **The platform keeps its own conversations, and leaves evidence when it
   doesn't.** Treatment is paid for through this app, so a patient must never

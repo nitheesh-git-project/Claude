@@ -69,6 +69,16 @@ roster is the clinic's planning record; it does not filter the patient's
 booking picker, and availability never touches an appointment. See the
 "Nobody edits an hour" rule in `AGENTS.md`.
 
+A paid session is assigned automatically when **exactly one** therapist is
+unambiguously free for it -- rostered that hour, approved, not on leave and
+with no clashing session -- or when the patient's own requested therapist is
+among the free ones (`src/lib/autoAssignTherapist.ts`, called from both
+payment-confirmation paths). Anything less certain leaves the session in the
+admin's queue exactly as before. It is one switch
+(`auto_assign_therapist_enabled`, off for its first release) and it does not
+change what times a patient is offered: the roster still does not filter the
+booking picker.
+
 Session credits live in an append-only ledger (`session_credit_ledger`)
 over `session_entitlements`, not in a mutable counter. Every movement goes
 through a database function holding a real row lock, keyed for idempotency

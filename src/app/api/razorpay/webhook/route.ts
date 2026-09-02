@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  pickAutoAssignTherapist,
+  readAutoAssignSettings,
+} from "@/lib/autoAssignTherapist";
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 
@@ -181,18 +185,44 @@ export async function POST(request: NextRequest) {
   if (result.applied && result.targetUpdated && result.targetAppointmentId) {
     const { data: appointment } = await admin
       .from("appointments")
-      .select("id, patient_id, therapist_id, slot_time, duration_minutes, timezone, status, google_event_id")
+      .select(
+        "id, patient_id, therapist_id, slot_time, duration_minutes, timezone, status, google_event_id, visit_mode, preferred_therapist_id"
+      )
       .eq("id", result.targetAppointmentId)
       .maybeSingle();
 
+    // Same auto-assign the browser callback applies, for the case the
+    // callback never lands -- a patient who pays and closes the tab. Both
+    // paths go through pickAutoAssignTherapist so the webhook cannot
+    // develop a different idea of who is free from the one the callback
+    // has; whichever arrives first assigns, and the second finds the
+    // session already confirmed and does nothing.
+    let therapistId = appointment?.therapist_id ?? null;
+    if (appointment && !therapistId && appointment.slot_time && appointment.status === "requested") {
+      const settings = await readAutoAssignSettings(admin);
+      const picked = await pickAutoAssignTherapist(admin, {
+        appointmentId: appointment.id,
+        slotTime: appointment.slot_time,
+        durationMinutes: appointment.duration_minutes,
+        preferredTherapistId: appointment.preferred_therapist_id,
+        visitMode: appointment.visit_mode,
+        travelBufferMinutes: settings.travelBufferMinutes,
+      });
+      if (picked) therapistId = picked.therapistId;
+    }
+
     if (
-      appointment?.therapist_id &&
+      appointment &&
+      therapistId &&
       appointment.slot_time &&
       appointment.status === "requested"
     ) {
       const { data: confirmed } = await admin
         .from("appointments")
-        .update({ status: "confirmed" })
+        .update({
+          status: "confirmed",
+          ...(appointment.therapist_id ? {} : { therapist_id: therapistId }),
+        })
         .eq("id", appointment.id)
         .eq("status", "requested")
         .select("id")
@@ -206,7 +236,7 @@ export async function POST(request: NextRequest) {
         await createMeetEventForConfirmedAppointment(admin, {
           appointmentId: appointment.id,
           patientId: appointment.patient_id,
-          therapistId: appointment.therapist_id,
+          therapistId,
           slotTime: appointment.slot_time,
           durationMinutes: appointment.duration_minutes,
           timezone: appointment.timezone,

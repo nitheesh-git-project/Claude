@@ -22,12 +22,14 @@ async function saveSetting(key: string, value: boolean | number) {
 export default function PackageSettingsForm({
   settings,
   therapistSuggestionsEnabled = false,
+  autoAssignEnabled = false,
 }: {
   settings: AdminSettings;
   // Read by the caller in its own query rather than through AdminSettings:
   // the column is newer than the rest, and a database without it should
   // leave the feature off rather than break this whole form.
   therapistSuggestionsEnabled?: boolean;
+  autoAssignEnabled?: boolean;
 }) {
   const router = useRouter();
 
@@ -41,6 +43,9 @@ export default function PackageSettingsForm({
   const [ledgerError, setLedgerError] = useState<string | null>(null);
   const [isSuggestionsPending, startSuggestionsTransition] = useTransition();
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [optimisticAutoAssign, setOptimisticAutoAssign] = useOptimistic(autoAssignEnabled);
+  const [isAutoAssignPending, startAutoAssignTransition] = useTransition();
+  const [autoAssignError, setAutoAssignError] = useState<string | null>(null);
 
   const [optimisticVisible, setOptimisticVisible] = useOptimistic(settings.showProgrammePrices);
   const [isVisiblePending, startVisibleTransition] = useTransition();
@@ -105,6 +110,20 @@ export default function PackageSettingsForm({
         router.refresh();
       } catch (e) {
         setSuggestionsError(e instanceof Error ? e.message : "Could not save. Please try again.");
+      }
+    });
+  }
+
+  function handleToggleAutoAssign() {
+    const next = !optimisticAutoAssign;
+    setAutoAssignError(null);
+    startAutoAssignTransition(async () => {
+      setOptimisticAutoAssign(next);
+      try {
+        await saveSetting("auto_assign_therapist_enabled", next);
+        router.refresh();
+      } catch (e) {
+        setAutoAssignError(e instanceof Error ? e.message : "Could not save. Please try again.");
       }
     });
   }
@@ -247,6 +266,33 @@ export default function PackageSettingsForm({
           </button>
         </div>
         {ledgerError && <p className="text-[11px] text-red-600 mt-2">{ledgerError}</p>}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="font-bold text-sm text-slate-800">Assign a Therapist Automatically</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-md">
+              When a session is paid for and <span className="font-semibold">exactly one</span>{" "}
+              therapist is free for it — approved, not on leave, rostered for that hour and with no
+              clashing session — assign them and confirm the booking straight away, instead of
+              leaving it in this queue until someone opens this screen. If the patient asked for a
+              specific therapist and that therapist is free, they are the one chosen. If two or more
+              are free, or none, nothing happens and the session waits for you exactly as it does
+              today. This never changes what times a patient is offered.
+            </p>
+          </div>
+          <button
+            onClick={handleToggleAutoAssign}
+            disabled={isAutoAssignPending}
+            className={`text-xs font-semibold px-4 py-2 rounded-lg transition disabled:opacity-60 ${
+              optimisticAutoAssign ? "bg-teal-700 hover:bg-teal-800 text-white" : "bg-slate-200 hover:bg-slate-300 text-slate-800"
+            }`}
+          >
+            {optimisticAutoAssign ? "Enabled" : "Disabled"}
+          </button>
+        </div>
+        {autoAssignError && <p className="text-[11px] text-red-600 mt-2">{autoAssignError}</p>}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

@@ -302,7 +302,13 @@ export default function AdminAllSessionsTab({
   // the dashboard server-renders every screen at once, so an unbounded
   // table is HTML every admin downloads whether they open this screen or
   // not, and this is the largest table on the page.
-  const { rows: visibleRows, pager } = usePagedList(rows, { storageKey: "admin-sessions" });
+  const { rows: visibleRows, pager } = usePagedList(rows, {
+    storageKey: "admin-sessions",
+    // This is the screen an admin lives on, not a list they glance at --
+    // ten rows made every working day a paging exercise. The per-browser
+    // storageKey means anyone who has already chosen a size keeps it.
+    defaultPageSize: 25,
+  });
 
   // The drawer reads from the live prop rather than from a snapshot taken
   // when the row was clicked, so an edit made inside it (or by another admin)

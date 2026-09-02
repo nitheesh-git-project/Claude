@@ -14,6 +14,7 @@ import { isContactScanMode } from "@/lib/adminSettings";
 
 const ALLOWED_COLUMNS = new Set([
   "therapist_suggestions_enabled",
+  "auto_assign_therapist_enabled",
   "entitlement_ledger_authoritative",
   "contact_scan_mode",
   "contact_masking_enabled",
@@ -135,6 +136,7 @@ export async function POST(request: NextRequest) {
       key === "home_visit_enabled" ||
       key === "home_visit_cash_enabled" ||
       key === "therapist_suggestions_enabled" ||
+      key === "auto_assign_therapist_enabled" ||
       key === "entitlement_ledger_authoritative" ||
       key === "contact_masking_enabled" ||
       key === "risk_signals_enabled" ||

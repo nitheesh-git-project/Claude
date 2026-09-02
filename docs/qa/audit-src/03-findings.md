@@ -4,6 +4,17 @@
 
 Six findings. Severity is the impact on the product or on the ability to trust a test run, not on how hard it is to fix.
 
+**All six are fixed.** Each entry below keeps the finding as written, and ends with what was changed. The unit suite went from **153 tests in 9 files to 187 in 11**, and `npm run verify` (lint + tests + build) is green on the result.
+
+| # | Finding | Severity | Status |
+| --- | --- | --- | --- |
+| F-01 | The reset misses four tables | P1 | **Fixed** — all named in the TRUNCATE list; `risk_rules` reset to seeded defaults |
+| F-02 | `risk_reviews.reviewer_id` NOT NULL + ON DELETE SET NULL | P2 | **Fixed** — column made nullable |
+| F-03 | `pain_assessments` append-only by revoke alone | P3 | **Fixed** — trigger attached |
+| F-04 | Plan overstated the admin scope guard | P3 | **Fixed** — plan corrected |
+| F-05 | Plan asserted a removed row cap | P3 | **Fixed** — plan corrected |
+| F-06 | The revenue split had no unit test | P1 (risk) | **Fixed** — `adminMetrics.test.ts`, 24 tests |
+
 ---
 
 ### F-01 — The data reset does not clear four tables, and one of them silently suppresses future test results · **P1**
@@ -36,6 +47,8 @@ Note that `therapist_schedule_state` **is** in the list despite also being added
 
 **Retest.** `SETUP-RESET-001`, plus a new assertion: after a reset, `select count(*) from communication_flags` and `from risk_signals` both return `0`.
 
+**FIXED.** `debug_reset_all_data` is redefined at the end of `schema.sql` (the file's append-only convention — later definitions win). `communication_flags`, `risk_signals` and `risk_reviews` are now named in the `TRUNCATE`, and `care_plans` / `care_plan_versions` / `contact_reveal_log` are named explicitly too rather than relying on CASCADE, so a future foreign-key change cannot quietly take them back out of the reset. `risk_rules` is deliberately **not** truncated — it is configuration, like `site_settings` — and is instead reset to its seeded defaults, because an empty `risk_rules` would silently disable every detector rather than restoring it. `SETUP-RESET-001` now asserts both counts and the restored thresholds.
+
 ---
 
 ### F-02 — `risk_reviews.reviewer_id` is `NOT NULL` with `ON DELETE SET NULL` · **P2**
@@ -54,6 +67,8 @@ These two clauses contradict each other. When the referenced profile is deleted,
 
 **Fix.** Pick the intent and state it. Either `reviewer_id` is nullable (a review outlives its reviewer, which matches how the other evidence tables treat authorship), or the reference is `ON DELETE RESTRICT` and a reviewer cannot be deleted while reviews exist. The current pair is neither, and produces a failure mode nobody chose.
 
+**FIXED.** `alter table risk_reviews alter column reviewer_id drop not null`. A review outliving its reviewer is the intended reading — the same posture `communication_flags` already takes with `author_id`, whose reference is nullable for exactly this reason. The reviewer's name is resolved at render time, as it already is for a flag whose author has gone.
+
 ---
 
 ### F-03 — `pain_assessments` is append-only by RLS alone, unlike its five siblings · **P3**
@@ -67,6 +82,8 @@ These two clauses contradict each other. When the referenced profile is deleted,
 **Severity is P3, not higher,** because no route today updates it, and the gap is a consistency and defence-in-depth issue rather than a live hole.
 
 **Fix.** Reuse the existing `communication_evidence_is_append_only()` trigger function — it already raises with the table's own name — and attach it to `pain_assessments`.
+
+**FIXED.** `pain_assessments_no_change`, a `before update or delete` trigger using that same function. The table now carries the same guarantee as its five siblings.
 
 ---
 
@@ -110,7 +127,19 @@ A tester would have reported a working screen as a defect. **Corrected in this s
 
 This is not a defect — the current implementation reads correctly, and the identities hold by construction because the clinic share is computed as the difference rather than accumulated independently. It is the **largest untested risk surface in the application**, and it is the one the finance section of the test plan spends the most manual effort re-deriving by hand.
 
-**Fix.** Add `adminMetrics.test.ts` covering the §16.1 reference dataset: a completed paid session, a paid-but-not-completed one, a refunded one, a hospital-referred one, one with an unset therapist share, and a home visit with a travel fee — asserting both identities plus the excluded count. That dataset is already written and hand-computed in the plan; it converts directly into a test table. The manual finance tests then become a check on the *screens*, not on the arithmetic.
+**FIXED.** `src/lib/adminMetrics.test.ts` — **24 tests**, structured around the four historical misstatements rather than around the function, so the point is that they stay fixed:
+
+* both identities asserted, including on an empty range;
+* a completed paid session earns a cut, a paid-but-undelivered one does not, and a cancelled-and-refunded one earns nothing while still counting in gross;
+* a home visit's travel fee lands in the cut and never in gross, falls back to the online share when no home-visit rate is set, and treats a negative fee as zero rather than as a credit;
+* the partner's commission is taken on net, so a refund reverses it, while the therapist's is untouched;
+* "not referred" and "referred but unconfigured" stay apart — same money, opposite treatment;
+* unpaid, slot-less and out-of-range sessions are ignored, and bucketing is by slot time rather than by when the money was taken;
+* and the whole seven-row §16.1 reference dataset, so the figures a tester re-derives by hand on the Money screens are the figures pinned here.
+
+The operational rates beside it (`computeNoShowRate`, `computeCancellationRate`, `computeRepeatBookingRate`) are covered too — including that they return **percentages, not fractions**, and `null` rather than zero when there is nothing to divide.
+
+**Original recommendation, for the record.** Add `adminMetrics.test.ts` covering the §16.1 reference dataset: a completed paid session, a paid-but-not-completed one, a refunded one, a hospital-referred one, one with an unset therapist share, and a home visit with a travel fee — asserting both identities plus the excluded count. That dataset is already written and hand-computed in the plan; it converts directly into a test table. The manual finance tests then become a check on the *screens*, not on the arithmetic.
 
 ---
 
@@ -133,12 +162,8 @@ The following are **NOT-VERIFIABLE** here and carry real residual risk. They are
 
 ## 6. Verdict and recommended sequence
 
-**Conditional pass.** Nothing found blocks a test run, and the invariants the plan cares most about — the capture path, the ledger constraints, the append-only triggers, the split identities, the scope guards, the audit-log coverage — are all genuinely implemented where the plan says they are. Two documentation defects in the plan itself were found and fixed.
+**Pass, after remediation.** The invariants the plan cares most about — the capture path, the ledger constraints, the append-only triggers, the split identities, the scope guards, the audit-log coverage — are all genuinely implemented where the plan says they are. **All six findings are fixed**, including the two documentation defects in the plan itself, and `npm run verify` is green on the result.
 
-**Do these three before the first execution:**
-
-1. **Fix F-01.** A tester cannot trust Step 0 until the reset clears what it claims to. It is a four-line change to the TRUNCATE list.
-2. **Add the `adminMetrics` unit test (F-06).** It is an afternoon, it uses a dataset that is already written, and it retires the largest untested risk in the product.
-3. **Decide F-02.** One line, but pick the intent rather than leaving a contradiction in the schema.
+**One thing still needs a person, not a commit.** The schema changes here — the redefined reset function, the nullable `reviewer_id`, the new trigger, and the `auto_assign_therapist_enabled` column — reach a live database only when `supabase/schema.sql` is applied, either by hand with `node scripts/run-schema.mjs` or by the schema-apply workflow on a push to `main`. **Until that runs, the fixes exist in the file and not in the database**, which is the exact failure mode the schema conventions warn about: the app looks fixed in review and still behaves the old way in production. Apply it, then re-run `SETUP-RESET-001` and confirm the two counts come back zero.
 
 **Then run, in this order:** the §16.3 payment-integrity sweep (highest value per hour, and entirely unverifiable statically), the §21 cross-role checks (they catch disagreements no single-role test can), then the §18 security sweep at the route level, then everything else in the plan's own recommended order.

@@ -138,13 +138,37 @@ This tab holds three groups: **Platform Rules**, **Package settings**, and **Hom
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
+| **Assign a Therapist Automatically** | **off** | See `ADM-SET-021` |
 | **Show programme prices publicly** | on | Off → public catalog cards hide the price. **This is not a purchase switch** — nobody can buy a programme directly either way. |
 | **Therapist Lock (site-wide)** | on | Off → later sessions on a purchase are not auto-assigned to the first therapist |
 | **Session Balances From The Ledger** | **off** | See `ADM-SET-019` |
-| **Therapist-Suggested Sessions** | **off** | Off → `/api/therapist/suggest-session` returns `Suggesting sessions is switched off.` and the control is absent |
+| **Therapist-Suggested Sessions** | **on** | Off → `/api/therapist/suggest-session` returns `Suggesting sessions is switched off.` and the control is absent. It shipped off while the flow was unproven and is on by default now |
 | **Default Validity** | 90 d | A new purchase's expiry when the package leaves it blank |
 | **Bulk Scheduler Limit** | 8 | `Too many slots in one request.` above this |
 | **Expiry Reminder Lead Time** | 14 d | When the expiry nudge appears on the patient's dashboard |
+
+#### `ADM-SET-021` — Automatic therapist assignment · P0
+
+**Feature.** When a session is paid for and **exactly one** therapist is unambiguously free for it, assign them and confirm the booking immediately instead of leaving it in the admin queue. It reads the roster (weekly template + that date's exceptions + leave) and the same conflict check the admin's assign form uses. **It does not change what times a patient is offered** — the roster still does not filter the picker.
+
+| # | Set up | Expected |
+| --- | --- | --- |
+| 1 | Switch **off**. Book and pay a session. | Session is `requested`, **unassigned**, in the queue — the pre-existing behaviour. |
+| 2 | Switch **on**. Roster **only** Therapist A for the slot's hour. Book and pay. | Assigned to Therapist A, `confirmed`, Meet link created, and the therapist sees it immediately. The unassigned badge does **not** rise. |
+| 3 | Roster **both** Therapist A and B for that hour, neither busy. Book and pay. | **Nothing is assigned.** The session waits in the queue. Two free clinicians is a choice for a person. |
+| 4 | Both rostered, but Therapist B already has a clashing session. | Assigned to **A** — one free candidate. |
+| 5 | Both rostered and free, and the patient booked via `/book?therapist=<B>`. | Assigned to **B**, not A. A stated preference beats the count. |
+| 6 | Patient requested B, but B is busy; A is free. | Assigned to **A**. The preference is dropped rather than the session waiting. |
+| 7 | Patient requested a therapist who is **not rostered** for that hour. | Falls back to the count. A stale `?therapist=` link never overrides the roster. |
+| 8 | Nobody rostered for that hour. | Nothing assigned; queue as before. |
+| 9 | Therapist A rostered but **on leave**. | Not a candidate. |
+| 10 | Therapist A rostered but **unapproved** or **inactive**. | Not a candidate. |
+| 11 | A **home visit**, with two therapists free but one finishing a visit within the travel buffer. | The buffered one is treated as busy — the conflict check is padded by `home_visit_travel_buffer_minutes` on both sides. |
+| 12 | Pay, then close the tab before the callback lands (webhook configured). | The **webhook** applies the same assignment. Both paths use one decision, so they cannot disagree about who is free. |
+
+**Expected Result throughout.** No session is ever assigned to a therapist who is unavailable, on leave, unapproved, inactive or already booked. When it declines to choose, the outcome is **identical to the switch being off**. A failure inside this logic must never fail the payment — the appointment is still marked paid either way.
+
+**Cross-check `XCFG-ROSTER-001` afterwards:** rostering changes must still leave `/book`'s picker byte-identical.
 
 #### `ADM-SET-019` — The ledger authority switch · P0
 

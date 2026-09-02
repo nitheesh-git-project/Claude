@@ -232,6 +232,7 @@ export function buildTherapistFeed({
   accessGrants,
   onboardingPatients = [],
   carePlanAnswers = [],
+  awaitingRecommendation = [],
 }: {
   appointments: FeedAppointment[];
   payouts: FeedPayout[];
@@ -252,6 +253,19 @@ export function buildTherapistFeed({
    *  has written yet. Their own health profile is locked until it is
    *  done, which is why this is a needsYou item rather than a nicety. */
   onboardingPatients?: { id: string; name: string; assignedAt: string }[];
+  /** Sessions this therapist completed and has not recommended anything
+   *  after. Named, one per patient, rather than folded into a count:
+   *  every programme a patient can buy now comes from a recommendation
+   *  written here, so this is the only step between a delivered
+   *  consultation and a course of treatment -- and an aggregate figure on
+   *  the Overview is read as a score rather than as a list of people
+   *  waiting to hear. */
+  awaitingRecommendation?: {
+    appointmentId: string;
+    patientId: string;
+    patientName: string;
+    completedAt: string;
+  }[];
 }): FeedItem[] {
   const items: FeedItem[] = [];
   const now = Date.now();
@@ -283,6 +297,20 @@ export function buildTherapistFeed({
       detail:
         "Four questions to set the condition type, then that type's own seven. Their Health Profile stays locked to them until it is done.",
       href: `/therapist/dashboard/health-profile/${p.id}`,
+      needsYou: true,
+    });
+  }
+
+  for (const pending of awaitingRecommendation) {
+    items.push({
+      id: `awaiting-recommendation-${pending.appointmentId}`,
+      at: pending.completedAt,
+      icon: "fa-notes-medical",
+      tone: "warn",
+      title: `${pending.patientName} is waiting to hear what next`,
+      detail:
+        "You saw them and haven't recommended anything yet. Open the session note to write one, or leave it — nothing is chased.",
+      href: `/therapist/dashboard/health-profile/${pending.patientId}`,
       needsYou: true,
     });
   }

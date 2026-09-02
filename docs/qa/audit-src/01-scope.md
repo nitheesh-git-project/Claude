@@ -6,7 +6,7 @@
 | **Subject** | Dr. Pooja's Physio — branch `claude/complete-e2e-testing-plan-910y5z` |
 | **Method** | Static source verification plus every check that is executable without a live environment |
 | **Date** | 2 September 2026 |
-| **Verdict** | **Conditional pass.** Build, lint and all 153 unit tests green. Six findings, none blocking a test run; one (F-01) invalidates the plan's own Step 0 and should be fixed before the first execution. |
+| **Verdict** | **Pass, after remediation.** All six findings fixed and seven of nine product recommendations shipped in the same pass. `npm run verify` green: lint, **187 unit tests in 11 files** (up from 153 in 9), and a full production build. |
 
 ---
 
@@ -43,28 +43,30 @@ All four commands ran in this environment against the branch head.
 | Command | Result | Detail |
 | --- | --- | --- |
 | `npm install` | **PASS** | Dependencies resolved |
-| `npm run test` | **PASS** | **153 tests, 9 files, 0 failures**, 1.65 s |
+| `npm run test` | **PASS** | **187 tests, 11 files, 0 failures** after remediation (153 in 9 before) |
 | `npm run lint` | **PASS** | Includes `check:realtime` |
 | `npm run build` | **PASS** | Full production build; every route in the plan's route map appears in the build output |
 
 ### 2.1 Unit test detail
 
 ```
-✓ src/lib/carePlans.test.ts            20 tests
-✓ src/lib/availabilityRequest.test.ts  16 tests
-✓ src/lib/availabilityRanges.test.ts   41 tests
-✓ src/lib/homeVisitPricing.test.ts     11 tests
-✓ src/lib/contactLeakScan.test.ts      33 tests
-✓ src/lib/contactMasking.test.ts       13 tests
-✓ src/lib/adminSettings.test.ts         8 tests
-✓ src/lib/riskSignals.test.ts           7 tests
-✓ src/lib/consultationFirst.test.ts     4 tests
-Test Files  9 passed (9)      Tests  153 passed (153)
+✓ src/lib/availabilityRanges.test.ts     41 tests
+✓ src/lib/contactLeakScan.test.ts        33 tests
+✓ src/lib/adminMetrics.test.ts           24 tests   <- added by this audit
+✓ src/lib/carePlans.test.ts              20 tests
+✓ src/lib/availabilityRequest.test.ts    16 tests
+✓ src/lib/contactMasking.test.ts         13 tests
+✓ src/lib/homeVisitPricing.test.ts       11 tests
+✓ src/lib/autoAssignTherapist.test.ts    10 tests   <- added by this audit
+✓ src/lib/adminSettings.test.ts           8 tests
+✓ src/lib/riskSignals.test.ts             7 tests
+✓ src/lib/consultationFirst.test.ts       4 tests
+Test Files  11 passed (11)     Tests  187 passed (187)
 ```
 
 **What this covers, and what it does not.** These are the dependency-free modules in `src/lib` — the roster's range↔hour conversion, the home-visit price and payout maths, the contact-leak scanner's two tiers, phone/email masking, the settings parser, the care-plan rules and the consultation-first rule. That is genuine coverage of the business arithmetic the finance and clinical sections of the plan depend on.
 
-It does **not** cover `adminMetrics.ts` — the module holding `moneyByBucketFor`, which is the single source of the clinic's revenue split and the one place both money identities are computed. **The most financially consequential module in the application has no unit test.** See F-06.
+It did **not** cover `adminMetrics.ts` — the module holding `moneyByBucketFor`, which is the single source of the clinic's revenue split and the one place both money identities are computed. **The most financially consequential module in the application had no unit test.** That is F-06, and it is now fixed: `adminMetrics.test.ts` adds 24 tests, and `autoAssignTherapist.test.ts` a further 10 for the assignment rule shipped in this pass.
 
 ### 2.2 Realtime coverage check
 

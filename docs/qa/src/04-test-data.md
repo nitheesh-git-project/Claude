@@ -272,7 +272,18 @@ Create small dummy files locally. Content does not matter; the filename and type
 | `Grade III PA mobilisation ×3 sets, 30s hold. 10 reps, 2× daily. Order ref 90210.` | **no hit** — clinical text with digits must not fire | Session note |
 | `Call me on 9876543210` written by the **patient** | **record only** — never blocked | Patient's booking notes on `/book` |
 
-### 8.17 Setup aliases used in preconditions
+### 8.17 Admin settings this plan assumes
+
+Unless a test says otherwise, leave every setting at its default. The four that matter most for setup:
+
+| Setting | Default | Note |
+| --- | --- | --- |
+| **Therapist-Suggested Sessions** | **on** | Needed by `THR-SUGG-*` and `PAT-SUGG-*` |
+| **Assign a Therapist Automatically** | **off** | `ADM-SET-021` switches it on; several booking tests assume the queue behaviour while it is off |
+| **Session Balances From The Ledger** | **off** | `ADM-SET-019` |
+| **Home Visit** | **off** | `ADM-SET-013` switches it on for the home-visit journey |
+
+### 8.18 Setup aliases used in preconditions
 
 Several tests name a setup step by a `SETUP-*` alias. Each is simply the catalog test that creates that fixture:
 

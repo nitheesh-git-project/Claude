@@ -6,7 +6,7 @@
 | **Subject** | Dr. Pooja's Physio — branch `claude/complete-e2e-testing-plan-910y5z` |
 | **Method** | Static source verification plus every check that is executable without a live environment |
 | **Date** | 2 September 2026 |
-| **Verdict** | **Conditional pass.** Build, lint and all 153 unit tests green. Six findings, none blocking a test run; one (F-01) invalidates the plan's own Step 0 and should be fixed before the first execution. |
+| **Verdict** | **Pass, after remediation.** All six findings fixed and seven of nine product recommendations shipped in the same pass. `npm run verify` green: lint, **187 unit tests in 11 files** (up from 153 in 9), and a full production build. |
 
 ---
 
@@ -43,28 +43,30 @@ All four commands ran in this environment against the branch head.
 | Command | Result | Detail |
 | --- | --- | --- |
 | `npm install` | **PASS** | Dependencies resolved |
-| `npm run test` | **PASS** | **153 tests, 9 files, 0 failures**, 1.65 s |
+| `npm run test` | **PASS** | **187 tests, 11 files, 0 failures** after remediation (153 in 9 before) |
 | `npm run lint` | **PASS** | Includes `check:realtime` |
 | `npm run build` | **PASS** | Full production build; every route in the plan's route map appears in the build output |
 
 ### 2.1 Unit test detail
 
 ```
-✓ src/lib/carePlans.test.ts            20 tests
-✓ src/lib/availabilityRequest.test.ts  16 tests
-✓ src/lib/availabilityRanges.test.ts   41 tests
-✓ src/lib/homeVisitPricing.test.ts     11 tests
-✓ src/lib/contactLeakScan.test.ts      33 tests
-✓ src/lib/contactMasking.test.ts       13 tests
-✓ src/lib/adminSettings.test.ts         8 tests
-✓ src/lib/riskSignals.test.ts           7 tests
-✓ src/lib/consultationFirst.test.ts     4 tests
-Test Files  9 passed (9)      Tests  153 passed (153)
+✓ src/lib/availabilityRanges.test.ts     41 tests
+✓ src/lib/contactLeakScan.test.ts        33 tests
+✓ src/lib/adminMetrics.test.ts           24 tests   <- added by this audit
+✓ src/lib/carePlans.test.ts              20 tests
+✓ src/lib/availabilityRequest.test.ts    16 tests
+✓ src/lib/contactMasking.test.ts         13 tests
+✓ src/lib/homeVisitPricing.test.ts       11 tests
+✓ src/lib/autoAssignTherapist.test.ts    10 tests   <- added by this audit
+✓ src/lib/adminSettings.test.ts           8 tests
+✓ src/lib/riskSignals.test.ts             7 tests
+✓ src/lib/consultationFirst.test.ts       4 tests
+Test Files  11 passed (11)     Tests  187 passed (187)
 ```
 
 **What this covers, and what it does not.** These are the dependency-free modules in `src/lib` — the roster's range↔hour conversion, the home-visit price and payout maths, the contact-leak scanner's two tiers, phone/email masking, the settings parser, the care-plan rules and the consultation-first rule. That is genuine coverage of the business arithmetic the finance and clinical sections of the plan depend on.
 
-It does **not** cover `adminMetrics.ts` — the module holding `moneyByBucketFor`, which is the single source of the clinic's revenue split and the one place both money identities are computed. **The most financially consequential module in the application has no unit test.** See F-06.
+It did **not** cover `adminMetrics.ts` — the module holding `moneyByBucketFor`, which is the single source of the clinic's revenue split and the one place both money identities are computed. **The most financially consequential module in the application had no unit test.** That is F-06, and it is now fixed: `adminMetrics.test.ts` adds 24 tests, and `autoAssignTherapist.test.ts` a further 10 for the assignment rule shipped in this pass.
 
 ### 2.2 Realtime coverage check
 
@@ -226,6 +228,17 @@ Each row names the plan section, the rule under audit, the evidence class, and w
 
 Six findings. Severity is the impact on the product or on the ability to trust a test run, not on how hard it is to fix.
 
+**All six are fixed.** Each entry below keeps the finding as written, and ends with what was changed. The unit suite went from **153 tests in 9 files to 187 in 11**, and `npm run verify` (lint + tests + build) is green on the result.
+
+| # | Finding | Severity | Status |
+| --- | --- | --- | --- |
+| F-01 | The reset misses four tables | P1 | **Fixed** — all named in the TRUNCATE list; `risk_rules` reset to seeded defaults |
+| F-02 | `risk_reviews.reviewer_id` NOT NULL + ON DELETE SET NULL | P2 | **Fixed** — column made nullable |
+| F-03 | `pain_assessments` append-only by revoke alone | P3 | **Fixed** — trigger attached |
+| F-04 | Plan overstated the admin scope guard | P3 | **Fixed** — plan corrected |
+| F-05 | Plan asserted a removed row cap | P3 | **Fixed** — plan corrected |
+| F-06 | The revenue split had no unit test | P1 (risk) | **Fixed** — `adminMetrics.test.ts`, 24 tests |
+
 ---
 
 ### F-01 — The data reset does not clear four tables, and one of them silently suppresses future test results · **P1**
@@ -258,6 +271,8 @@ Note that `therapist_schedule_state` **is** in the list despite also being added
 
 **Retest.** `SETUP-RESET-001`, plus a new assertion: after a reset, `select count(*) from communication_flags` and `from risk_signals` both return `0`.
 
+**FIXED.** `debug_reset_all_data` is redefined at the end of `schema.sql` (the file's append-only convention — later definitions win). `communication_flags`, `risk_signals` and `risk_reviews` are now named in the `TRUNCATE`, and `care_plans` / `care_plan_versions` / `contact_reveal_log` are named explicitly too rather than relying on CASCADE, so a future foreign-key change cannot quietly take them back out of the reset. `risk_rules` is deliberately **not** truncated — it is configuration, like `site_settings` — and is instead reset to its seeded defaults, because an empty `risk_rules` would silently disable every detector rather than restoring it. `SETUP-RESET-001` now asserts both counts and the restored thresholds.
+
 ---
 
 ### F-02 — `risk_reviews.reviewer_id` is `NOT NULL` with `ON DELETE SET NULL` · **P2**
@@ -276,6 +291,8 @@ These two clauses contradict each other. When the referenced profile is deleted,
 
 **Fix.** Pick the intent and state it. Either `reviewer_id` is nullable (a review outlives its reviewer, which matches how the other evidence tables treat authorship), or the reference is `ON DELETE RESTRICT` and a reviewer cannot be deleted while reviews exist. The current pair is neither, and produces a failure mode nobody chose.
 
+**FIXED.** `alter table risk_reviews alter column reviewer_id drop not null`. A review outliving its reviewer is the intended reading — the same posture `communication_flags` already takes with `author_id`, whose reference is nullable for exactly this reason. The reviewer's name is resolved at render time, as it already is for a flag whose author has gone.
+
 ---
 
 ### F-03 — `pain_assessments` is append-only by RLS alone, unlike its five siblings · **P3**
@@ -289,6 +306,8 @@ These two clauses contradict each other. When the referenced profile is deleted,
 **Severity is P3, not higher,** because no route today updates it, and the gap is a consistency and defence-in-depth issue rather than a live hole.
 
 **Fix.** Reuse the existing `communication_evidence_is_append_only()` trigger function — it already raises with the table's own name — and attach it to `pain_assessments`.
+
+**FIXED.** `pain_assessments_no_change`, a `before update or delete` trigger using that same function. The table now carries the same guarantee as its five siblings.
 
 ---
 
@@ -332,7 +351,19 @@ A tester would have reported a working screen as a defect. **Corrected in this s
 
 This is not a defect — the current implementation reads correctly, and the identities hold by construction because the clinic share is computed as the difference rather than accumulated independently. It is the **largest untested risk surface in the application**, and it is the one the finance section of the test plan spends the most manual effort re-deriving by hand.
 
-**Fix.** Add `adminMetrics.test.ts` covering the §16.1 reference dataset: a completed paid session, a paid-but-not-completed one, a refunded one, a hospital-referred one, one with an unset therapist share, and a home visit with a travel fee — asserting both identities plus the excluded count. That dataset is already written and hand-computed in the plan; it converts directly into a test table. The manual finance tests then become a check on the *screens*, not on the arithmetic.
+**FIXED.** `src/lib/adminMetrics.test.ts` — **24 tests**, structured around the four historical misstatements rather than around the function, so the point is that they stay fixed:
+
+* both identities asserted, including on an empty range;
+* a completed paid session earns a cut, a paid-but-undelivered one does not, and a cancelled-and-refunded one earns nothing while still counting in gross;
+* a home visit's travel fee lands in the cut and never in gross, falls back to the online share when no home-visit rate is set, and treats a negative fee as zero rather than as a credit;
+* the partner's commission is taken on net, so a refund reverses it, while the therapist's is untouched;
+* "not referred" and "referred but unconfigured" stay apart — same money, opposite treatment;
+* unpaid, slot-less and out-of-range sessions are ignored, and bucketing is by slot time rather than by when the money was taken;
+* and the whole seven-row §16.1 reference dataset, so the figures a tester re-derives by hand on the Money screens are the figures pinned here.
+
+The operational rates beside it (`computeNoShowRate`, `computeCancellationRate`, `computeRepeatBookingRate`) are covered too — including that they return **percentages, not fractions**, and `null` rather than zero when there is nothing to divide.
+
+**Original recommendation, for the record.** Add `adminMetrics.test.ts` covering the §16.1 reference dataset: a completed paid session, a paid-but-not-completed one, a refunded one, a hospital-referred one, one with an unset therapist share, and a home visit with a travel fee — asserting both identities plus the excluded count. That dataset is already written and hand-computed in the plan; it converts directly into a test table. The manual finance tests then become a check on the *screens*, not on the arithmetic.
 
 ---
 
@@ -355,13 +386,9 @@ The following are **NOT-VERIFIABLE** here and carry real residual risk. They are
 
 ## 6. Verdict and recommended sequence
 
-**Conditional pass.** Nothing found blocks a test run, and the invariants the plan cares most about — the capture path, the ledger constraints, the append-only triggers, the split identities, the scope guards, the audit-log coverage — are all genuinely implemented where the plan says they are. Two documentation defects in the plan itself were found and fixed.
+**Pass, after remediation.** The invariants the plan cares most about — the capture path, the ledger constraints, the append-only triggers, the split identities, the scope guards, the audit-log coverage — are all genuinely implemented where the plan says they are. **All six findings are fixed**, including the two documentation defects in the plan itself, and `npm run verify` is green on the result.
 
-**Do these three before the first execution:**
-
-1. **Fix F-01.** A tester cannot trust Step 0 until the reset clears what it claims to. It is a four-line change to the TRUNCATE list.
-2. **Add the `adminMetrics` unit test (F-06).** It is an afternoon, it uses a dataset that is already written, and it retires the largest untested risk in the product.
-3. **Decide F-02.** One line, but pick the intent rather than leaving a contradiction in the schema.
+**One thing still needs a person, not a commit.** The schema changes here — the redefined reset function, the nullable `reviewer_id`, the new trigger, and the `auto_assign_therapist_enabled` column — reach a live database only when `supabase/schema.sql` is applied, either by hand with `node scripts/run-schema.mjs` or by the schema-apply workflow on a push to `main`. **Until that runs, the fixes exist in the file and not in the database**, which is the exact failure mode the schema conventions warn about: the app looks fixed in review and still behaves the old way in production. Apply it, then re-run `SETUP-RESET-001` and confirm the two counts come back zero.
 
 **Then run, in this order:** the §16.3 payment-integrity sweep (highest value per hour, and entirely unverifiable statically), the §21 cross-role checks (they catch disagreements no single-role test can), then the §18 security sweep at the route level, then everything else in the plan's own recommended order.
 
@@ -370,6 +397,19 @@ The following are **NOT-VERIFIABLE** here and carry real residual risk. They are
 ## 7. Product review — flows worth changing
 
 This section is written from a product rather than a QA seat. Each item names what the code does today, what it costs, and what changing it would buy. They are ordered by expected value, not by effort.
+
+**Seven of the nine shipped in the same pass as the findings.** Each carries its outcome at the end. The two that did not are 7.6 and half of 7.7: both are owner decisions about *policy* rather than defects, and one of them (the ledger flip) is explicitly conditioned on evidence that does not exist yet.
+
+| # | Item | Outcome |
+| --- | --- | --- |
+| 7.1 | Auto-assign a therapist at payment | **Shipped**, behind a switch, off for one release |
+| 7.2 | Name who is waiting for a recommendation | **Shipped** |
+| 7.3 | Payment reassurance on the first failure | **Shipped** |
+| 7.4 | Webhook secret on System Health | **Shipped** |
+| 7.5 | Sweeps only run when an admin looks | **Documented** — an ops change, not a code one |
+| 7.6 | Patient approval queue | **Half shipped** — the screen now says what it decides; removing the gate is the owner's call |
+| 7.7 | Two dark features | **Suggestions on by default. Ledger deliberately left off** |
+| 7.8 | Smaller items | **Shipped** (page size, waiting-state date); therapist timezone still open |
 
 ### 7.1 The funnel stalls on a manual admin step, and the data to remove it already exists · **High value**
 
@@ -383,6 +423,8 @@ This section is written from a product rather than a QA seat. Each item names wh
 
 **Measure.** Median minutes from `paid_at` to `status = 'confirmed'`, before and after.
 
+**SHIPPED.** `src/lib/autoAssignTherapist.ts`, called from `/api/razorpay/verify` **and** `/api/razorpay/webhook` — both, so a patient who pays and closes the tab gets the same outcome as one who waits for the page, and neither path can develop its own idea of who is free. It reads the roster (weekly template, that date's exceptions, `on_leave`) plus the existing conflict check, and assigns only when **exactly one** eligible therapist is free, or when the patient's own `preferred_therapist_id` is among the free ones. Zero or two-or-more does nothing and the session waits in the queue exactly as before. It never throws. `decideAutoAssignment()` extracts that rule with the database taken out, so the judgement itself is unit-tested (10 tests) rather than only reachable through a payment. Gated by `auto_assign_therapist_enabled` — **off for its first release**, because it changes what happens to a booking after money has moved and the honest way to introduce that is with the previous behaviour one click away. `ADM-SET-021` covers all twelve cases.
+
 ### 7.2 Consultation → programme conversion depends on a therapist remembering · **High value**
 
 **Today.** A programme can only be bought from a care plan, and a care plan can only be written from the session-note dialog of a **completed** session the therapist ran. The nudge is passive: a "Notes to write" figure on the therapist's Overview and a feed item. The detector that would measure the failure, `plan_conversion_low`, **ships disabled**.
@@ -393,6 +435,8 @@ This section is written from a product rather than a QA seat. Each item names wh
 
 **A cheap intervention that does not need the baseline:** the session-note dialog already contains the recommendation panel. Make "no recommendation written" an explicit `needsYou` feed item with the patient's name and the date of the session, rather than an aggregate count. A named item is acted on; a number is not.
 
+**SHIPPED (the cheap half).** The therapist's Overview feed now carries a named item per patient — *"QA Patient A is waiting to hear what next"* — pinned by `needsYou` and linking to that patient's chart. A patient with a live or already-purchased recommendation is excluded; a declined or withdrawn one is included, because that thread is open again. Capped at four, most recently seen first, beside the existing note nudge. `THR-CARE-006` covers it. **The measurement half is still the right first move** — `plan_conversion_low` remains disabled until the clinic has a baseline, and that reasoning has not changed.
+
 ### 7.3 The payment reassurance arrives two failures too late · **Cheap, do it now**
 
 **Today.** After a failed or dismissed payment the wizard shows an error and re-labels the button **Pay ₹… Now**. The reassuring message — *"Your booking is saved as pending — you can come back and pay any time from your dashboard"* — appears only after **three** failed attempts.
@@ -400,6 +444,8 @@ This section is written from a product rather than a QA seat. Each item names wh
 **What it costs.** A patient whose card fails once has no idea their booking survived. The most likely next action is to close the tab, and they have no reason to believe anything is waiting for them.
 
 **The change.** Show the "your booking is saved" line on the **first** failure. Keep the escape-hatch link at three. One conditional; no new state.
+
+**SHIPPED.** One conditional in `BookingWizard.tsx`: from the first failure the card reads *"Nothing was lost — your booking is saved and still held as unpaid. You can try again above, or pay later from your dashboard."* The amber escape hatch to the dashboard still waits until three, because that is the point at which retrying here has plainly stopped working. `PAT-PAY-003`.
 
 ### 7.4 Losing money silently when one environment variable is unset · **Cheap, high consequence**
 
@@ -409,6 +455,8 @@ This section is written from a product rather than a QA seat. Each item names wh
 
 **The change.** Settings → System Health already exists and already surfaces sync failures and accounting disagreements. Add one row: webhook secret configured, yes or no, red when no. It is the only configuration whose absence silently loses money, and the screen that should say so is already built.
 
+**SHIPPED.** A **Payment Confirmations** panel at the top of System Health. Configured, it states that a payment is confirmed by whichever arrives first, browser or webhook. Unconfigured, the whole panel turns red and says plainly that a patient who pays and closes the tab will leave a paid order against an unpaid booking with nothing flagging it, and names the variable to set. The presence of the secret is read server-side in the dashboard page and only the boolean crosses to the browser. `ADM-SET-030`.
+
 ### 7.5 Time-based work only happens when an admin is looking · **Medium**
 
 **Today.** There is no cron, by design. The sweeps run at page render — and the audit confirms **the failed-Meet-sync retry and the risk detector run only on the admin dashboard render**. Package expiry additionally runs on the patient dashboard.
@@ -417,6 +465,8 @@ This section is written from a product rather than a QA seat. Each item names wh
 
 **The change.** Do not build a worker — the no-cron rule buys real simplicity and the sweeps are correctly bounded. Instead point a free uptime monitor at one authenticated-free endpoint every fifteen minutes. That is a configuration change with no code, and it converts "when an admin looks" into "every fifteen minutes" for the two sweeps that most need it.
 
+**NOT SHIPPED, deliberately — this one is an ops change, not a code change.** Adding an endpoint that runs the sweeps would be a worker in all but name, and would undo the property that makes the no-cron design defensible: every sweep is bounded because it runs inside a render somebody is waiting for. The recommendation stands as written, for whoever configures the deployment.
+
 ### 7.6 Patient approval may be a queue that no longer earns its keep · **Worth a decision**
 
 **Today.** Patients are gated on `approved`. But a genuine payment attempt auto-approves them. So the patient approval queue only ever contains people who registered **without** paying — and the plan's own §4.3 explains that this is deliberate, so that a failing card does not bounce someone to `/pending-approval`.
@@ -424,6 +474,8 @@ This section is written from a product rather than a QA seat. Each item names wh
 **The question for the owner.** What is the queue actually filtering? Everyone who pays is approved automatically; everyone who does not pay cannot book. The remaining population is people who registered to browse. If the answer is "nothing much", the queue is manual work with no decision attached to it, and it delays the one group who took a deliberate action but have not yet paid.
 
 **Two honest options.** Keep it and state its purpose in one sentence on the screen so a new admin knows what they are deciding; or drop patient approval to "review only if flagged" and keep the human gate for therapists, where credential checking is a real decision.
+
+**HALF SHIPPED.** The first option is done: Today → Approvals now states what it is deciding — *"Therapists here are waiting on a credentials check. Patients here registered without booking — a patient who starts a payment is approved automatically, so approving one from this list only affects what they can see, never whether they can pay."* **The second is not, and should not be done by an engineer.** Removing a gate on who can use a clinical product is a policy decision with a compliance dimension, and the sentence above is what makes it possible to take that decision with the facts in view.
 
 ### 7.7 Two features are built, dark, and rotting · **Worth a decision**
 
@@ -440,9 +492,9 @@ Both defaults were right when written. Both now need a date rather than a defaul
 
 | Item | Today | Suggested |
 | --- | --- | --- |
-| **All Sessions page size** | Defaults to 10 rows | 25–50 for this one list. It is an operations daily-driver, and `usePagedList` already takes a `defaultPageSize`; the per-browser memory means a change only affects first use |
-| **A patient locked out of their own health profile** | Read-only until a therapist writes the first record, with the CTA absent rather than disabled — correct, and deliberately quiet | Add one line naming what is being waited for and since when. "Absent, not disabled" is right; "absent and unexplained" is one step further than intended |
-| **Therapist timezone** | `profiles.timezone` is displayed on the roster and settable nowhere | Either expose it on the therapist's profile or drop the column and state that the clinic operates in one timezone. A field that is displayed but unsettable invites a bug report |
+| **All Sessions page size** | Defaults to 10 rows | **Shipped** at 25. The per-browser `storageKey` means anyone who already chose a size keeps it |
+| **A patient locked out of their own health profile** | Read-only until a therapist writes the first record, with the CTA absent rather than disabled — correct, and deliberately quiet | **Shipped.** The waiting panel now names the session by date — *"Your session on 11/09/2026 is when this gets filled in"*, or after it *"Expected at your session on … If it still isn't here in a day or two, tell us and we'll chase it."* A patient with no session yet sees no date line rather than a placeholder |
+| **Therapist timezone** | `profiles.timezone` is displayed on the roster and settable nowhere | **Still open** — it is a product decision (is this a one-timezone clinic?), not a defect, and is item 2 in the plan's own clarifications list. Either expose it on the therapist's profile or drop the column |
 | **`risk_rules` after a reset** | Survives with edited thresholds (F-01) | Whatever is decided for F-01, make it deliberate — configuration that survives a wipe should do so for the same stated reason `site_settings` does |
 
 ### 7.9 What is working well, and should not be traded away

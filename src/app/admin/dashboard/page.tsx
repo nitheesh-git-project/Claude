@@ -796,6 +796,18 @@ export default async function AdminDashboardPage({
             </span>
           )}
         </h2>
+        {/* What this queue is actually deciding, since the two halves of it
+            are not the same decision. A therapist is a credential check --
+            that is the real judgement here. A patient in this list is
+            someone who registered without paying: anyone who genuinely
+            attempts a payment is approved automatically at that moment (see
+            approvePatientForGenuinePaymentAttempt), so nobody is waiting
+            here to be allowed to buy their first session. */}
+        <p className="-mt-2 mb-4 max-w-2xl text-xs leading-relaxed text-slate-500">
+          Therapists here are waiting on a credentials check. Patients here registered without
+          booking — a patient who starts a payment is approved automatically, so approving one
+          from this list only affects what they can see, never whether they can pay.
+        </p>
         {!pendingAccounts || pendingAccounts.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">
             No pending applications or registrations.
@@ -2116,6 +2128,7 @@ export default async function AdminDashboardPage({
       <PackageSettingsForm
         settings={adminSettings}
         therapistSuggestionsEnabled={therapistSuggestionsEnabled}
+        autoAssignEnabled={adminSettings.autoAssignTherapistEnabled}
       />
       <HomeVisitSettingsForm
         settings={adminSettings}
@@ -2144,6 +2157,9 @@ export default async function AdminDashboardPage({
         syncIssues={googleMeetSyncIssues}
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         view="health"
+        // Read here rather than in the component: this is a server-only
+        // secret, and only its presence crosses to the browser.
+        webhookSecretConfigured={!!process.env.RAZORPAY_WEBHOOK_SECRET}
       />
       <AccountingHealthPanel health={accountingHealth} />
     </div>
