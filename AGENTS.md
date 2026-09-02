@@ -102,6 +102,15 @@ never hand-edited. It quotes real route paths, screen names, setting defaults
 and error strings, so it goes stale the same way the other docs do -- update it
 in the change that makes it wrong.
 
+`scripts/care-plan-review-sql-checks.sql` is the review step's
+storage-layer check -- the one-open-plan index covering a queued plan, the
+offer window that may be stamped once and never moved, and the review trail
+being append-only with a real reason on it. It runs inside one transaction
+and ends in ROLLBACK, so it leaves nothing behind and can be re-run against
+the same database. Applying `schema.sql` twice against a scratch Postgres and
+then running this is what a schema change to these tables should be verified
+with.
+
 `scripts/roster-sql-checks.sql` is the roster's storage-layer check: the
 malformed and out-of-range payloads the API routes cannot produce, asserted
 against a scratch Postgres with `schema.sql` applied
