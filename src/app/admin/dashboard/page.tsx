@@ -2062,13 +2062,8 @@ export default async function AdminDashboardPage({
           {
             label: "Programmes",
             value: String(visiblePackageCount),
-            note: adminSettings.showProgrammePrices
-              ? "Therapists can recommend these"
-              : "Prices hidden on the public pages",
-            accent:
-              adminSettings.showProgrammePrices && visiblePackageCount > 0
-                ? "bg-blue-500"
-                : "bg-slate-400",
+            note: "Therapists can recommend these",
+            accent: visiblePackageCount > 0 ? "bg-blue-500" : "bg-slate-400",
           },
           {
             label: "Service areas",

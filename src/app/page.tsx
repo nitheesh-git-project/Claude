@@ -3,7 +3,6 @@ import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { Reveal, MotionButton } from "@/components/motion/primitives";
 import JourneySteps from "@/components/home/JourneySteps";
-import SessionPackages from "@/components/home/SessionPackages";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 import ProgramCards from "@/components/catalog/ProgramCards";
 import PageHero from "@/components/marketing/PageHero";
@@ -47,18 +46,8 @@ export default async function Home() {
       ? Math.min(...categories.map((c) => c.price_paise))
       : SESSION_FEE_PAISE;
 
-  // Isolated from the categories query above -- show_programme_prices
-  // and the package-specific columns are all migration-dependent, and a
-  // missing migration should only hide this section, never blank the
-  // categories that already render fine without it.
-  const { data: settingsRow } = await supabase
-    .from("site_settings")
-    .select("show_programme_prices, session_packages_visible")
-    .maybeSingle();
-
-  // Its own call for the same reason the one above is separate: this column
-  // is newer than that one, and a database missing it must only cost the
-  // walkthrough its configured pace, not hide the packages section too.
+  // Its own call, per the migration-dependent-column rule: a database
+  // missing this one must only cost the walkthrough its configured pace.
   const { data: journeyRow } = await supabase
     .from("site_settings")
     .select("journey_step_seconds")
@@ -78,40 +67,14 @@ export default async function Home() {
     .maybeSingle();
   const homeVisitEnabled = homeVisitRow?.home_visit_enabled === true;
 
-  const { data: rawPackages } = (settingsRow?.show_programme_prices ?? settingsRow?.session_packages_visible)
-    ? await supabase
-        .from("treatment_category_packages")
-        .select(
-          "id, title, subtitle, image_url, promises, badge_label, highlight, session_count, price_paise, compare_at_paise, validity_days, therapist_locked, category_id"
-        )
-        .eq("active", true)
-        .eq("visible_on_home", true)
-        .order("display_order", { ascending: true })
-        .order("id", { ascending: true })
-    : { data: null };
-
-  // The package detail dialog's copy (long description, terms, scheduling
-  // limits) lives in migration-dependent columns, so it is read in its own
-  // call and merged in: an unknown-column error here costs the dialog those
-  // fields instead of blanking the whole packages section.
-  const packageIds = (rawPackages ?? []).map((p) => p.id);
-  const { data: packageDetail } = packageIds.length
-    ? await supabase
-        .from("treatment_category_packages")
-        .select(
-          "id, description, terms, package_code, session_duration_minutes, min_gap_hours, max_sessions_per_week, max_purchases_per_patient"
-        )
-        .in("id", packageIds)
-    : { data: null };
-  const detailById = new Map((packageDetail ?? []).map((d) => [d.id, d]));
-
-  const categoryPriceById = new Map((categories ?? []).map((c) => [c.id, c.price_paise]));
-  const packages = (rawPackages ?? []).map((p) => ({
-    ...p,
-    ...(detailById.get(p.id) ?? {}),
-    category_price_paise: categoryPriceById.get(p.category_id) ?? null,
-  }));
-
+  // No programme catalog on the public site. A course of treatment is a
+  // clinical recommendation a therapist writes after a session they ran, so
+  // the public pages quote the one thing a visitor can decide for
+  // themselves -- a first consultation -- and nothing multi-session. The
+  // bands that used to print programme prices here were removed rather than
+  // hidden behind a setting: a toggle somebody can flip back on is not the
+  // same as the rule being gone, and a price list is exactly what this
+  // change exists to stop a patient shopping from.
 
   // Cover photos live in their own call: treatment_categories.image_url is
   // migration-dependent (added at the end of schema.sql), and one
@@ -165,7 +128,7 @@ export default async function Home() {
   const connectors = homeConnectors(homeVisitEnabled);
 
   // Only lists sections that actually render -- several of these blocks
-  // below are conditional on admin-controlled data (categories, packages,
+  // below are conditional on admin-controlled data (categories,
   // testimonials), so a nav item pointing at a section that isn't on the
   // page would just do nothing when clicked. Order must match the DOM: the
   // scroll arrow walks this list top to bottom.
@@ -177,7 +140,6 @@ export default async function Home() {
     ...(categories && categories.length > 0
       ? [{ id: "programs", label: "Programs", icon: "fa-clipboard-list" }]
       : []),
-    ...(packages.length > 0 ? [{ id: "packages", label: "Packages", icon: "fa-box-open" }] : []),
     ...(testimonials.length > 0
       ? [{ id: "reviews", label: "Reviews", icon: "fa-star" }]
       : []),
@@ -324,11 +286,10 @@ export default async function Home() {
           title="What you can book today"
           lede="Same 60-minute assessment. Different protocol."
         >
-          <ProgramCards programs={programs} packages={packages} />
+          <ProgramCards programs={programs} />
         </Section>
       )}
 
-      <SessionPackages packages={packages} />
 
       {testimonials.length > 0 && (
         <Section

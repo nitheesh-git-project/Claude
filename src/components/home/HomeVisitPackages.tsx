@@ -43,11 +43,17 @@ export type PublicHomeVisitPackage = {
   max_purchases_per_patient?: number | null;
 };
 
-// The home-visit sibling of home/SessionPackages.tsx. Like that one, this is
-// a pure display component -- the caller filters on visibility before
-// anything reaches here, so there is no visibility logic in this file -- and
-// it follows the same interaction contract: the card body opens the detail
-// dialog, booking is its own button on the card and in the dialog.
+// The public home-visit catalogue. A pure display component -- the caller
+// filters, both on visibility and (since programmes stopped being sold from
+// the public site) on visit count, so there is no filtering logic in this
+// file -- following the same interaction contract as the programme cards:
+// the card body opens the detail dialog, booking is its own button on the
+// card and in the dialog.
+//
+// The multi-visit branches below are kept deliberately. Nothing reaches them
+// while /home-visit filters to single visits, but this component takes
+// whatever it is handed, and a card that sold a programme because a caller
+// forgot to filter is a worse failure than an unused branch.
 export default function HomeVisitPackages({
   packages,
 }: {

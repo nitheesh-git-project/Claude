@@ -16,7 +16,6 @@ import {
   rupees,
   type StatTile,
 } from "@/components/catalog/CatalogVisuals";
-import { PROGRAMME_CARD_NOTE } from "@/lib/consultationFirst";
 
 export type PublicProgram = {
   id: string;
@@ -39,15 +38,6 @@ export type PublicProgram = {
   image_url?: string | null;
 };
 
-/** A package sold against a programme, shown inside that programme's dialog. */
-export type ProgramPackage = {
-  id: string;
-  title: string;
-  session_count: number;
-  price_paise: number;
-  category_id: string | null;
-};
-
 // Rotates through the illustration set so a grid of programmes does not
 // repeat one drawing down the page. Index-based rather than stored on the
 // row: these are admin-created records with no art field, and inventing one
@@ -66,11 +56,9 @@ const PROGRAM_ART: CareIllustrationId[] = ["neckback", "mobility", "sports", "er
  */
 export default function ProgramCards({
   programs,
-  packages = [],
   columns = "two",
 }: {
   programs: PublicProgram[];
-  packages?: ProgramPackage[];
   /** /conditions runs a two-column grid; the home page matches it. */
   columns?: "two" | "three";
 }) {
@@ -183,7 +171,6 @@ export default function ProgramCards({
 
       <ProgramDetail
         selection={selected}
-        packages={packages}
         onClose={() => setSelected(null)}
       />
     </>
@@ -192,11 +179,9 @@ export default function ProgramCards({
 
 function ProgramDetail({
   selection,
-  packages,
   onClose,
 }: {
   selection: { program: PublicProgram; index: number } | null;
-  packages: ProgramPackage[];
   onClose: () => void;
 }) {
   // Held through the close animation so the panel does not empty out mid-fade.
@@ -204,7 +189,6 @@ function ProgramDetail({
   const program = held?.program ?? null;
   const artIndex = held?.index ?? 0;
   const points = program && Array.isArray(program.points) ? (program.points as string[]) : [];
-  const related = program ? packages.filter((p) => p.category_id === program.id) : [];
 
   const stats: StatTile[] = program
     ? [
@@ -259,40 +243,6 @@ function ProgramDetail({
 
             <ProseSection title="About this programme" body={program.description} />
             <CheckList items={points} title="What this covers" />
-
-            {related.length > 0 && (
-              <section className="mt-6">
-                <h4 className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700">
-                  Where this usually leads
-                </h4>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                  {PROGRAMME_CARD_NOTE} These are what the courses of treatment cost.
-                </p>
-                <ul className="mt-3 space-y-2">
-                  {related.map((pkg) => (
-                    <li
-                      key={pkg.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
-                    >
-                      <span className="min-w-0">
-                        <span className="block text-sm font-bold text-slate-900">
-                          {pkg.title}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {pkg.session_count} sessions ·{" "}
-                          {rupees(Math.round(pkg.price_paise / pkg.session_count))} per session
-                        </span>
-                      </span>
-                      {/* The price, not a checkout link: a programme is
-                          arranged by a therapist after a first session. */}
-                      <span className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700">
-                        {rupees(pkg.price_paise)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
 
             <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-slate-500">
