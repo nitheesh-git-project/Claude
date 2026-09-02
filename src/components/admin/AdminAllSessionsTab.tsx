@@ -355,6 +355,10 @@ export default function AdminAllSessionsTab({
     // ten rows made every working day a paging exercise. The per-browser
     // storageKey means anyone who has already chosen a size keeps it.
     defaultPageSize: 25,
+    // A preset arriving from another screen is not a filter this reader
+    // set, so it starts them at the top rather than on whatever page they
+    // last left this table on.
+    resetKey: appliedView ?? "",
   });
 
   // The drawer reads from the live prop rather than from a snapshot taken

@@ -157,7 +157,13 @@ export default function SessionDetailDrawer({
   // already has one needs the fuller reschedule form. Showing only the
   // latter is what left an unassigned session reading "Reschedule /
   // Reassign", a verb for something that never happened.
-  const needsAssigning = canReassign && !a.therapist_id;
+  const isUnassigned = !a.therapist_id;
+  // The home-visit panel below carries its own assign control (a visit is a
+  // delivery mode, not a parallel booking system -- but the one control
+  // sits with the address and the cash it belongs beside), so the online
+  // form is not repeated for a visit. The heading still reads "Assign"
+  // whenever nobody is on the session, whichever control does the work.
+  const needsAssigning = canReassign && isUnassigned && !homeVisit;
   const patientName = peopleMap.get(a.patient_id) ?? "Unknown";
   const therapistName = a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : null;
   const categoryTitle = a.category_id ? categoryMap.get(a.category_id)?.title ?? null : null;
@@ -636,11 +642,11 @@ export default function SessionDetailDrawer({
           {canManageSessions && canReassign && (
             <div className="pt-3 border-t border-slate-100">
               <p className="font-bold text-slate-800 mb-2">
-                {needsAssigning ? "Assign a therapist" : "Reassign Session"}
+                {isUnassigned ? "Assign a therapist" : "Reassign Session"}
               </p>
               {therapists.length === 0 ? (
                 <p className="text-slate-400">
-                  No approved therapists available to {needsAssigning ? "assign" : "reassign to"}.
+                  No approved therapists available to {isUnassigned ? "assign" : "reassign to"}.
                 </p>
               ) : (
                 <>

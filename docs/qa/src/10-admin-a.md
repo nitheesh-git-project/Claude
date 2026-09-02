@@ -25,6 +25,25 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 **Steps.** Sign in as Admin Full. The dashboard opens on **Today → Today**.
 **Expected Result.** A strip of four figures, the inbox queues, and the activity feed — in that order. Each inbox row shows a **count**, a **one-line hint** saying why it matters, and links to the section/tab where that work is actually done. Rows representing **money at stake** render in red as urgent. The **Today** badge equals the sum of the inbox counts. Every row's destination must exist: tapping each row must land on a real screen, never on a section's first tab by accident.
 
+#### `ADM-TODAY-005` — A count opens the rows it counted · P1
+
+**Feature.** A figure or a queue row that opened an unfiltered list made the reader redo the filtering by hand, and made the number look wrong. The link carries a `?view=` preset the target screen applies on arrival.
+
+**Steps**
+1. With at least one unassigned session on record, note the **Unassigned sessions** figure on Today.
+2. Tap it.
+3. Read the **All Sessions** heading count and the status filter.
+4. Tap **Sessions today**, then **Cash to remit**, from Today.
+5. Return to **Today** in the sidebar, then open **Sessions → All Sessions** from the sidebar.
+6. Sign in as **Admin Clinical** (no Money scope) and read the same strip.
+
+**Expected Result**
+* Tapping **Unassigned sessions** opens All Sessions with the status filter on **Needs a therapist**, the header count equal to the figure, and the list starting at **page 1**. Every other filter — mode, payment, therapist, patient, date range — is cleared, including any remembered on this device: a remembered filter that hid rows the figure counted is the same bug in a subtler form.
+* **Sessions today** filters the date range to today; **Cash to remit** opens Money → Payouts filtered to therapists with a balance.
+* The preset is **one-shot**. Returning through the sidebar drops `view` from the URL, and re-opening All Sessions shows the filters as the admin last left them, not the preset again.
+* On All Sessions itself, the **No therapist**, **Today** and **Home visits** figures filter the list **in place** (no page navigation) and tapping the applied one clears it.
+* An admin whose scope cannot open the target section sees the figure **without a link** — never a link into a 403.
+
 #### `ADM-TODAY-002` — Inbox counts are live · P1
 **Steps.** In a second browser, have a patient book a session. Watch the admin's Today screen without reloading.
 **Expected Result.** The unassigned count and the badge update within the operational channel's cooldown. The **first** change appears immediately (leading edge); a burst of ten bookings collapses into one refresh.
@@ -97,7 +116,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 3. Select `QA Therapist A`.
 4. Submit.
 
-**Expected Result.** If the patient requested a specialist, that therapist is **preselected and marked "(requested)"**. On assignment the session becomes `confirmed`, a Google Calendar/Meet event is created (if credentials are configured), the therapist now sees it, and the patient's card shows the therapist's name. The unassigned badge decreases.
+**Expected Result.** The drawer's control reads **Assign a therapist**, never "Reschedule / Reassign" — nothing has been reassigned on a session nobody has ever been assigned to. If the patient requested a specialist, that therapist is **preselected and marked "(requested)"**, with the line "Patient requested this therapist" above the picker. An unassigned row on **All Sessions** and on the **Schedule** day panel carries a **Tap to assign** chip, and the reschedule control below the assign form is the one to use when the time has to move too. A **home visit** is assigned from the visit panel in the same drawer, not from a second copy of the online form. On assignment the session becomes `confirmed`, a Google Calendar/Meet event is created (if credentials are configured), the therapist now sees it, and the patient's card shows the therapist's name. The unassigned badge decreases.
 **Negative:** assigning a therapist who already has an overlapping session is refused with `This therapist already has another session that overlaps this time slot.` A session already over is refused with `This session is already over and can't be modified`. A stale submit returns `This session's status changed — please refresh and try again.`
 
 #### `ADM-SESS-003` — Meet sync failure is recorded, retried and capped · P1

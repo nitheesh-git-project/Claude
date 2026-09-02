@@ -181,7 +181,12 @@ export default function AdminPayoutsTab({
         ? r.summary.netOwedPaise > 0
         : r.summary.netOwedPaise <= 0
   );
-  const { rows: pageRows, pager } = usePagedList(visibleRows, { storageKey: "admin-payouts" });
+  const { rows: pageRows, pager } = usePagedList(visibleRows, {
+    storageKey: "admin-payouts",
+    // Same reasoning as All Sessions: a preset that arrived from Today
+    // starts at the top of what it filtered to.
+    resetKey: appliedView ?? "",
+  });
 
   const totalOwedPaise = rows.reduce((sum, r) => sum + r.summary.owedPaise, 0);
   const totalCashHeldPaise = rows.reduce((sum, r) => sum + r.summary.cashHeldPaise, 0);

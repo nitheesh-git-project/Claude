@@ -40,12 +40,20 @@ export function usePagedList<T>(
   {
     storageKey,
     defaultPageSize = DEFAULT_PAGE_SIZE,
+    resetKey,
   }: {
     /** Remembers this list's page size per browser. Each list gets its own
      *  key: an admin who wants 100 payouts on screen does not necessarily
      *  want 100 FAQ entries. */
     storageKey?: string;
     defaultPageSize?: number;
+    /** Changing this sends the list back to its first page. For a filter
+     *  the reader did not set themselves -- a ?view= preset arriving from
+     *  another screen -- where the clamp below would otherwise leave them
+     *  on the last page of a list they have not seen the start of. An
+     *  ordinary filter change deliberately does not pass this: the clamp
+     *  keeps the reader's place. */
+    resetKey?: string;
   } = {}
 ): { rows: T[]; pager: Pager } {
   const [pageSize, setPageSizeState] = useState(defaultPageSize);
@@ -69,6 +77,12 @@ export function usePagedList<T>(
       }
     }
     setRestored(true);
+  }
+
+  const [appliedResetKey, setAppliedResetKey] = useState(resetKey);
+  if (resetKey !== appliedResetKey) {
+    setAppliedResetKey(resetKey);
+    setPage(0);
   }
 
   const total = rows.length;
