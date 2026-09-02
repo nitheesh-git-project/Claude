@@ -91,7 +91,14 @@ import AdminCarePlansTab from "@/components/admin/AdminCarePlansTab";
 import type { AdminCarePlanRow, AuthorableSession } from "@/components/admin/AdminCarePlansTab";
 import type { RecommendableOption } from "@/components/therapist/CarePlanFields";
 import { loadRecommendablePackages } from "@/lib/carePlanServer";
-import { carePlanState, parseOfferSnapshot, type CarePlanStatus } from "@/lib/carePlans";
+import { readCarePlanRequiresApproval } from "@/lib/carePlanAuthoring";
+import {
+  CARE_PLAN_QUEUE_STALE_HOURS,
+  carePlanState,
+  isQueueStale,
+  parseOfferSnapshot,
+  type CarePlanStatus,
+} from "@/lib/carePlans";
 import type {
   RiskSignalRow,
   RiskReviewRow,
@@ -613,6 +620,10 @@ export default async function AdminDashboardPage({
     .maybeSingle();
   const therapistSuggestionsEnabled =
     suggestionsToggleRow?.therapist_suggestions_enabled === true;
+
+  // Same reasoning again, and through the same helper the submit route uses
+  // so the screen and the rule cannot disagree about what the switch says.
+  const carePlanRequiresApproval = await readCarePlanRequiresApproval(admin);
 
   // Same reasoning as the toggle above: treatment_categories.image_url is the
   // newest column on that table, and the batch it would otherwise join is one
@@ -2181,7 +2192,10 @@ export default async function AdminDashboardPage({
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         view="booking"
       />
-      <RecommendationSettingsForm settings={adminSettings} />
+      <RecommendationSettingsForm
+        settings={adminSettings}
+        requiresApproval={carePlanRequiresApproval}
+      />
       <PackageSettingsForm
         settings={adminSettings}
         therapistSuggestionsEnabled={therapistSuggestionsEnabled}
@@ -2287,7 +2301,6 @@ export default async function AdminDashboardPage({
     status: string;
     category_id: string | null;
     current_version_id: string | null;
-    submitted_at: string | null;
     created_at: string;
   };
   type CommunicationFlagQueryRow = {
@@ -2496,7 +2509,7 @@ export default async function AdminDashboardPage({
     ? await admin
         .from("care_plans")
         .select(
-          "id, patient_id, therapist_id, status, category_id, current_version_id, submitted_at, created_at"
+          "id, patient_id, therapist_id, status, category_id, current_version_id, created_at"
         )
         .order("created_at", { ascending: false })
         .limit(200)
@@ -2541,6 +2554,29 @@ export default async function AdminDashboardPage({
     (carePlanPeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
   );
 
+  // When each one was sent, read on its own. `submitted_at` arrived with the
+  // review step, later than the rows it sits on, so an unknown-column error
+  // must cost the queue its ordering rather than cost the screen every
+  // recommendation on it.
+  const submittedAtByPlan = new Map<string, string>();
+  if ((adminCarePlanRows ?? []).length > 0) {
+    try {
+      const { data: submittedRows } = await admin
+        .from("care_plans")
+        .select("id, submitted_at")
+        .in(
+          "id",
+          (adminCarePlanRows ?? []).map((p) => p.id)
+        );
+      for (const row of submittedRows ?? []) {
+        const at = (row as { submitted_at?: string | null }).submitted_at;
+        if (at) submittedAtByPlan.set(row.id, at);
+      }
+    } catch {
+      // Falls back to created_at below, which sorts a queue sensibly.
+    }
+  }
+
   // What the patient already owns, for the patients in the queue only.
   //
   // The single commonest reason to turn a recommendation down is that this
@@ -2559,22 +2595,49 @@ export default async function AdminDashboardPage({
   const unusedSessionsByPatient = new Map<string, number>();
   if (queuedPatientIds.length > 0) {
     try {
-      const { data: openPurchases } = await admin
-        .from("patient_package_purchases")
-        .select("patient_id, session_count, sessions_used, status, payment_status")
-        .in("patient_id", queuedPatientIds)
-        .eq("payment_status", "paid")
-        .eq("status", "active");
-      for (const purchase of openPurchases ?? []) {
-        const left = Math.max(
-          0,
-          (purchase.session_count ?? 0) - (purchase.sessions_used ?? 0)
-        );
-        if (left === 0) continue;
+      const [{ data: openPurchases }, { data: openVisits }] = await Promise.all([
+        admin
+          .from("patient_package_purchases")
+          .select("id, patient_id, session_count, sessions_used, status, payment_status")
+          .in("patient_id", queuedPatientIds)
+          .eq("payment_status", "paid")
+          .eq("status", "active"),
+        admin
+          .from("home_visit_package_purchases")
+          .select("id, patient_id, visit_count, visits_used, status, payment_status")
+          .in("patient_id", queuedPatientIds)
+          .eq("status", "active"),
+      ]);
+
+      // Through the same helper every other balance surface uses. Reading
+      // `sessions_used` raw would make this figure disagree with the
+      // Purchases screen the moment an admin flips the ledger switch --
+      // which is the "the list disagrees with the number" bug in the one
+      // place it would be read as a reason to refuse someone treatment.
+      const sessionRows = await applyLedgerSessionBalances(
+        admin,
+        openPurchases ?? [],
+        { authoritative: ledgerAuthoritative }
+      );
+      const visitRows = await applyLedgerVisitBalances(admin, openVisits ?? [], {
+        authoritative: ledgerAuthoritative,
+      });
+
+      const add = (patientId: string, left: number) => {
+        if (left <= 0) return;
         unusedSessionsByPatient.set(
-          purchase.patient_id,
-          (unusedSessionsByPatient.get(purchase.patient_id) ?? 0) + left
+          patientId,
+          (unusedSessionsByPatient.get(patientId) ?? 0) + left
         );
+      };
+      for (const p of sessionRows) {
+        add(p.patient_id, (p.session_count ?? 0) - (p.sessions_used ?? 0));
+      }
+      // Home visits count too: a recommendation can be for either, and a
+      // patient with visits left is in exactly the position this line
+      // exists to surface.
+      for (const p of visitRows) {
+        add(p.patient_id, (p.visit_count ?? 0) - (p.visits_used ?? 0));
       }
     } catch {
       // Losing this costs the card a warning line, never the queue.
@@ -2619,7 +2682,7 @@ export default async function AdminDashboardPage({
       // What the queue is ordered and aged by. Falls back to the row's own
       // creation time for a plan written before the column existed, so an
       // old row sorts sensibly rather than to one end.
-      submittedAt: p.submitted_at ?? p.created_at,
+      submittedAt: submittedAtByPlan.get(p.id) ?? p.created_at,
       unusedSessions: unusedSessionsByPatient.get(p.patient_id) ?? 0,
     };
   });
@@ -2725,6 +2788,14 @@ export default async function AdminDashboardPage({
   const carePlansPendingCount = adminCarePlans.filter(
     (p) => p.state === "pending_review"
   ).length;
+  // Urgent means late, not merely present. Marking the row urgent whenever
+  // anything is queued makes it permanently red on a clinic that is keeping
+  // up, and a badge that is always on is a badge nobody reads -- which is
+  // how the one queue with a patient waiting behind it stops being looked
+  // at. Same threshold the cards themselves colour on.
+  const carePlansStaleCount = adminCarePlans.filter(
+    (p) => p.state === "pending_review" && isQueueStale(p.submittedAt, nowTimestamp())
+  ).length;
 
   // ---- Today's action inbox -------------------------------------------
   // Every count here already existed somewhere on this page; what didn't
@@ -2823,8 +2894,13 @@ export default async function AdminDashboardPage({
           count: carePlansPendingCount,
           section: "sessions",
           tab: "recommendations",
-          hint: "A therapist recommended a programme. The patient cannot see it yet.",
-          urgent: carePlansPendingCount > 0,
+          hint:
+            carePlansStaleCount > 0
+              ? `A therapist recommended a programme. ${carePlansStaleCount} ${
+                  carePlansStaleCount === 1 ? "has" : "have"
+                } been waiting over ${CARE_PLAN_QUEUE_STALE_HOURS} hours, and the patient cannot see it yet.`
+              : "A therapist recommended a programme. The patient cannot see it yet.",
+          urgent: carePlansStaleCount > 0,
         },
         {
           label: "Care intake submissions to review",

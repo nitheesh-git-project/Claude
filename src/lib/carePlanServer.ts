@@ -223,13 +223,17 @@ export async function loadActiveCarePlan(
   try {
     const { data: plan } = await admin
       .from("care_plans")
-      .select(
-        "id, patient_id, therapist_id, status, accepted_at, reviewed_at, created_at, current_version_id"
-      )
+      .select("id, patient_id, therapist_id, status, accepted_at, created_at, current_version_id")
       .eq("patient_id", patientId)
       .eq("status", "active")
       .maybeSingle();
     if (!plan?.current_version_id) return null;
+
+    // `reviewed_at` is newer than the rest of this row, so it is read on its
+    // own and merged in. Folding it into the select above would mean a
+    // database one apply behind losing the patient their whole
+    // recommendation rather than losing it the timestamp it is dated by.
+    const reviewedAt = await readReviewedAt(admin, plan.id);
 
     const { data: version } = await admin
       .from("care_plan_versions")
@@ -245,7 +249,7 @@ export async function loadActiveCarePlan(
       therapistId: plan.therapist_id,
       status: plan.status,
       acceptedAt: plan.accepted_at,
-      reviewedAt: plan.reviewed_at ?? null,
+      reviewedAt,
       createdAt: plan.created_at,
       version: version
         ? {
@@ -412,9 +416,7 @@ export async function loadLatestCarePlanForClinician(
   try {
     const { data: plan } = await admin
       .from("care_plans")
-      .select(
-        "id, patient_id, therapist_id, status, accepted_at, reviewed_at, created_at, current_version_id"
-      )
+      .select("id, patient_id, therapist_id, status, accepted_at, created_at, current_version_id")
       .eq("patient_id", patientId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -440,7 +442,7 @@ export async function loadLatestCarePlanForClinician(
         therapistId: plan.therapist_id,
         status: plan.status,
         acceptedAt: plan.accepted_at,
-        reviewedAt: plan.reviewed_at ?? null,
+        reviewedAt: await readReviewedAt(admin, plan.id),
         createdAt: plan.created_at,
         version: version
           ? {
@@ -461,6 +463,29 @@ export async function loadLatestCarePlanForClinician(
       },
       reviews,
     };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * When the clinic published a plan, read on its own.
+ *
+ * The column arrived with the review step, later than the row it sits on, so
+ * it follows the migration-dependent-column rule: one unknown-column error
+ * costs a timestamp rather than the recommendation it belongs to.
+ */
+async function readReviewedAt(
+  admin: AdminClient,
+  carePlanId: string
+): Promise<string | null> {
+  try {
+    const { data } = await admin
+      .from("care_plans")
+      .select("reviewed_at")
+      .eq("id", carePlanId)
+      .maybeSingle();
+    return (data as { reviewed_at?: string | null } | null)?.reviewed_at ?? null;
   } catch {
     return null;
   }

@@ -982,13 +982,24 @@ client is the only writer and the log is append-only from any session.
      the back office is what door three is deliberately narrow about.
   The queue itself reads as work rather than as a record: **oldest first**,
   aged in words rather than dated (`formatWaitingFor`, with
-  `isQueueStale` colouring anything past four hours), and each card states
-  how many sessions that patient already has unused — the commonest reason
+  `isQueueStale` colouring anything past four hours -- and Today's inbox row
+  is urgent on **that** count, never on the queue merely being non-empty: a
+  badge that is always on is a badge nobody reads, which is how the one
+  queue with a patient waiting behind it stops being looked at), and each
+  card states how many sessions or visits that patient already has unused,
+  read through `applyLedgerSessionBalances` / `applyLedgerVisitBalances`
+  like every other balance surface -- reading `sessions_used` raw would make
+  this figure disagree with the Purchases screen the moment the ledger
+  switch is flipped, in the one place it is read as a reason to refuse
+  somebody treatment — the commonest reason
   to turn one down, and previously invisible without leaving the queue.
   Stated, never acted on: a patient with sessions left may well need a
   different programme, and the clinician has seen them.
   One switch, `site_settings.care_plan_requires_approval`, on by default,
-  read in its own call and failing **closed** — the opposite direction from
+  read in its own call -- deliberately **not** in `SITE_SETTINGS_SELECT`,
+  the same treatment `therapist_suggestions_enabled` gets, because it is the
+  newest column on that table and a shared select that fails takes every
+  other setting down to its default with it -- and failing **closed** — the opposite direction from
   `contact_scan_mode`, because the safe answer to "I could not read the
   setting" is to hold a recommendation, never to publish one unreviewed.
   With it off, a therapist's submission publishes on save exactly as before.

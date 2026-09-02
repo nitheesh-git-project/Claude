@@ -25,14 +25,21 @@ async function saveSetting(key: string, value: boolean | number) {
  */
 export default function RecommendationSettingsForm({
   settings,
+  requiresApproval,
 }: {
   settings: AdminSettings;
+  /**
+   * Read by the caller in its own query rather than through AdminSettings,
+   * exactly like `therapist_suggestions_enabled`: this column is newer than
+   * the rest, and a database that has not run the latest `schema.sql` must
+   * lose this one control rather than blank every other setting on the page
+   * by failing the shared select.
+   */
+  requiresApproval: boolean;
 }) {
   const router = useRouter();
 
-  const [optimisticApproval, setOptimisticApproval] = useOptimistic(
-    settings.carePlanRequiresApproval
-  );
+  const [optimisticApproval, setOptimisticApproval] = useOptimistic(requiresApproval);
   const [isApprovalPending, startApprovalTransition] = useTransition();
   const [approvalError, setApprovalError] = useState<string | null>(null);
 

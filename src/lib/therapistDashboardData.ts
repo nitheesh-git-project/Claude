@@ -14,6 +14,7 @@ import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { sessionsAwaitingNote, type SessionNoteRow } from "@/lib/sessionNotes";
 import type { StatCell } from "@/components/dashboard/StatStrip";
 import { loadCarePlanReviews, loadRecommendablePackages } from "@/lib/carePlanServer";
+import { readCarePlanRequiresApproval } from "@/lib/carePlanAuthoring";
 import { maskPhone } from "@/lib/contactMasking";
 import { parseOfferSnapshot } from "@/lib/carePlans";
 
@@ -505,6 +506,11 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // genuinely changed their mind -- but doing it without being told is how
   // a clinician ends up submitting the same plan twice and wondering which
   // one the clinic saw.
+  // Its own call, for the reason above: the copy in the recommendation panel
+  // has to match what actually happens on submit, and a database missing the
+  // column must lose neither.
+  const carePlanRequiresApproval = await readCarePlanRequiresApproval(admin);
+
   const patientsAwaitingClinic = new Set(
     (openPlanRows ?? [])
       .filter((p) => p.status === "pending_review")
@@ -761,6 +767,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     noteByAppointmentId,
     recommendablePackages,
     patientsAwaitingClinic,
+    carePlanRequiresApproval,
     notesOwed,
     therapistFeed,
     overviewCells,

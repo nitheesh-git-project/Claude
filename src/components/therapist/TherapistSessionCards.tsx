@@ -38,8 +38,8 @@ export function renderTherapistSessionCard(
     noteByAppointmentId,
     nowMs: nowMsForOverview,
     recommendablePackages,
-    adminSettings,
     patientsAwaitingClinic,
+    carePlanRequiresApproval,
   } = d;
     const patient = patientMap.get(a.patient_id);
     return (
@@ -132,7 +132,7 @@ export function renderTherapistSessionCard(
                 // happen per card -- and scanning the whole catalog is how
                 // the wrong programme gets picked.
                 recommendable={narrowToCategory(recommendablePackages, a.category_id ?? null)}
-                recommendationNeedsApproval={adminSettings.carePlanRequiresApproval}
+                recommendationNeedsApproval={carePlanRequiresApproval}
                 recommendationAwaitingClinic={patientsAwaitingClinic.has(a.patient_id)}
               />
             )}

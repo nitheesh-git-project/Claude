@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import PagedList from "@/components/dashboard/PagedList";
@@ -55,9 +55,10 @@ export type AdminCarePlanRow = {
   categoryId: string | null;
   /** When the therapist sent it. What the queue is ordered and aged by. */
   submittedAt: string | null;
-  /** Sessions this patient has paid for and not yet used, across their live
-   *  programmes. The commonest reason to turn a recommendation down, and
-   *  invisible from this card until it was put on it. */
+  /** Sessions and visits this patient has paid for and not yet used, across
+   *  their live programmes, read through the same ledger helper every other
+   *  balance surface uses. The commonest reason to turn a recommendation
+   *  down, and invisible from this card until it was put on it. */
   unusedSessions: number;
 };
 
@@ -357,6 +358,12 @@ function ReviewCard({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  // A synchronous guard, not the disabled attribute: `disabled` lands a
+  // render too late to stop the second of two fast taps, the same reason
+  // the suggestion controls carry one. The routes refuse the duplicate on
+  // their own compare-and-swap, so this saves a wasted round trip and an
+  // error message for something that did in fact work.
+  const submitting = useRef(false);
 
   // Narrowed to the session's own condition by the same helper both
   // authoring doors use, so an admin changing a recommendation cannot reach
@@ -380,6 +387,8 @@ function ReviewCard({
   );
 
   function decide(decision: "approved" | "rejected") {
+    if (submitting.current) return;
+    submitting.current = true;
     setError(null);
     startTransition(async () => {
       const res = await fetch("/api/admin/review-care-plan", {
@@ -390,16 +399,21 @@ function ReviewCard({
       if (res.ok) {
         setMode("idle");
         setReason("");
+        // Left latched on success: the row is about to disappear from the
+        // queue, and releasing it would reopen a window for a second tap
+        // on a card that no longer means anything.
         router.refresh();
         return;
       }
+      submitting.current = false;
       const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Could not save that decision. Please try again.");
     });
   }
 
   function approveWithChanges() {
-    if (!draft) return;
+    if (!draft || submitting.current) return;
+    submitting.current = true;
     setError(null);
     startTransition(async () => {
       const res = await fetch("/api/admin/edit-and-approve-care-plan", {
@@ -413,6 +427,7 @@ function ReviewCard({
         router.refresh();
         return;
       }
+      submitting.current = false;
       const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Could not save that decision. Please try again.");
     });
@@ -473,6 +488,7 @@ function ReviewCard({
         <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] font-semibold text-amber-800">
           <i aria-hidden="true" className="fa-solid fa-circle-info mr-1.5" />
           {plan.patientName} still has {plan.unusedSessions} unused session
+          {plan.unusedSessions === 1 ? "" : "s"} or visit
           {plan.unusedSessions === 1 ? "" : "s"} on a current programme.
         </p>
       )}
