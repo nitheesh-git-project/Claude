@@ -1141,6 +1141,36 @@ client is the only writer and the log is append-only from any session.
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
   runs.
+- **A count links to the rows it counted, never to the whole table.** A
+  Today figure or queue row that opened an unfiltered list made the reader
+  redo the filtering by hand and, worse, made the number look wrong.
+  `adminScreenHref(section, tab, view)` adds a third, optional `?view=`
+  preset, and the target screen applies it to its own filters on arrival:
+  `AdminAllSessionsTab` knows `unassigned`, `today`, `cancelled`, `no_show`,
+  `completed`, `home_visit` and `unpaid`; `AdminPayoutsTab` knows `owed` and
+  `settled`. Three rules keep it honest. It is **one-shot**:
+  `AdminShell.navigate()` deletes `view` on the next tab change, so a preset
+  never becomes a filter an admin cannot find the source of, and a repeat
+  tap on the same row re-applies it. It **clears the screen's other filters
+  first**, since a remembered therapist or date range would hide rows the
+  count included — the same "list disagrees with the number" bug in a
+  subtler form. And it is applied **during render** (read via
+  `useSearchParams`, not at mount): every screen is mounted at once behind
+  `hidden`, so there is no mount to hang it on when an admin already on the
+  dashboard taps a figure, and an effect would paint the unfiltered table
+  first. An unknown preset falls through to cleared filters, so a stale
+  link shows everything rather than nothing.
+- **Assigning is not reassigning, and the word has to say which.** A session
+  nobody has ever been assigned to offered only "Reschedule / Reassign",
+  which reads as editing something that already happened — so the one
+  action an admin most often needs had no name on screen. Where a therapist
+  is missing, every surface now says **Tap to assign**: the All Sessions and
+  Calendar rows carry it as a chip (the row click already opens the drawer,
+  where the work is done), `EditBookingForm`'s trigger swaps its label on
+  `currentTherapistId`, and `SessionDetailDrawer` leads with
+  `AssignTherapistForm` — one tap, honouring `preferred_therapist_id`, the
+  therapist the patient asked for — with the reschedule form kept below for
+  when the time has to move too.
 - **A session is listed once — on every dashboard, not only the admin's.**
   The patient's and therapist's video sessions and home visits were
   separate sidebar entries over the same `appointments` rows, so "what is

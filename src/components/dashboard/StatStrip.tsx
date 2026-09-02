@@ -16,33 +16,64 @@ export type StatCell = {
   accent?: string;
   valueClass?: string;
   href?: string;
+  /** Makes the cell a button rather than a link -- for a figure whose
+   *  answer is on the screen already (a list this cell counts a slice of),
+   *  where sending the reader through a navigation to re-render the same
+   *  screen would be pure cost. A cell passes one or the other, never both. */
+  onSelect?: () => void;
+  /** Marks a cell whose filter is currently applied, so a strip that
+   *  doubles as a filter says which slice is showing. */
+  selected?: boolean;
 };
 
 function Cell({ cell }: { cell: StatCell }) {
+  // Spans rather than <p>/<div>: one of the three wrappers below is a
+  // <button>, whose content model is phrasing content only. Same rule that
+  // keeps the catalog cards' booking link outside their card button --
+  // invalid nesting behaves differently per browser rather than failing
+  // loudly. `block` on each keeps the layout identical.
   const body = (
     <>
-      <div className="flex items-center gap-1.5">
+      <span className="flex items-center gap-1.5">
         <span aria-hidden className={`h-2.5 w-1 rounded-full ${cell.accent ?? "bg-slate-300"}`} />
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{cell.label}</p>
-      </div>
-      <p className="mt-1 flex items-baseline gap-1">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          {cell.label}
+        </span>
+      </span>
+      <span className="mt-1 flex items-baseline gap-1">
         <span className={`font-display text-2xl font-bold leading-none ${cell.valueClass ?? "text-slate-800"}`}>
           {cell.value}
         </span>
         {cell.unit && <span className="text-xs font-semibold text-slate-400">{cell.unit}</span>}
-      </p>
-      {cell.note && <p className="mt-1 text-[11px] leading-snug text-slate-500">{cell.note}</p>}
+      </span>
+      {cell.note && (
+        <span className="mt-1 block text-[11px] leading-snug text-slate-500">{cell.note}</span>
+      )}
     </>
   );
 
   if (cell.href) {
     return (
-      <a href={cell.href} className="block px-4 py-3 transition hover:bg-slate-50 sm:px-5">
+      <a href={cell.href} className="flex flex-col px-4 py-3 transition hover:bg-slate-50 sm:px-5">
         {body}
       </a>
     );
   }
-  return <div className="px-4 py-3 sm:px-5">{body}</div>;
+  if (cell.onSelect) {
+    return (
+      <button
+        type="button"
+        onClick={cell.onSelect}
+        aria-pressed={cell.selected ?? false}
+        className={`flex w-full flex-col px-4 py-3 text-left transition hover:bg-slate-50 sm:px-5 ${
+          cell.selected ? "bg-teal-50/70" : ""
+        }`}
+      >
+        {body}
+      </button>
+    );
+  }
+  return <div className="flex flex-col px-4 py-3 sm:px-5">{body}</div>;
 }
 
 export default function StatStrip({

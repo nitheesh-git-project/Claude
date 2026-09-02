@@ -150,8 +150,21 @@ export function findTab(
 // href (not a router push) so it behaves like any other link: middle-click
 // opens a second tab, and the shell's own popstate handler picks the target
 // up on load.
-export function adminScreenHref(section: AdminSectionKey, tab: string): string {
-  return `/admin/dashboard?section=${section}&tab=${tab}`;
+export function adminScreenHref(
+  section: AdminSectionKey,
+  tab: string,
+  // An optional preset the target screen applies to its own filters, so a
+  // count links to the rows it counted rather than to the whole table. A
+  // link that says "12 sessions with no therapist" and opens 900 sessions
+  // makes the reader redo the filtering by hand. The screen decides what
+  // each key means (see AdminAllSessionsTab's SESSION_VIEW_PRESETS); an
+  // unknown one is ignored, so a stale link still lands somewhere valid.
+  // AdminShell drops it from the URL on the next tab change, which is what
+  // keeps it a one-shot preset rather than a sticky filter.
+  view?: string
+): string {
+  const base = `/admin/dashboard?section=${section}&tab=${tab}`;
+  return view ? `${base}&view=${encodeURIComponent(view)}` : base;
 }
 
 
@@ -163,6 +176,9 @@ export type InboxItem = {
   count: number;
   section: AdminSectionKey;
   tab: string;
+  /** Filter preset the target screen applies on arrival, so the row opens
+   *  the rows it counted rather than the unfiltered list. */
+  view?: string;
   /** Why this matters / what to do -- one short line. */
   hint: string;
   /** Money at stake, real exposure rather than a queue. Renders red. */

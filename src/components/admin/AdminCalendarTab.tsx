@@ -231,6 +231,15 @@ export default function AdminCalendarTab({
                   <td className="py-2 pr-3 text-slate-400 font-mono">{a.session_code ?? "—"}</td>
                   <td className="py-2 pr-3 font-bold text-slate-900">
                     {a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : "Unassigned"}
+                    {!a.therapist_id && a.status !== "cancelled" && (
+                      // Same affordance as the All Sessions row: the click
+                      // that opens the drawer is also the click that leads
+                      // to the assignment, so say so rather than leaving
+                      // "Unassigned" as a bare statement of fact.
+                      <span className="ml-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                        Tap to assign
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">
                     {formatSlotRange(

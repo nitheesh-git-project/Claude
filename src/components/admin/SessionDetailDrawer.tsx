@@ -4,6 +4,7 @@ import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
+import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
@@ -45,6 +46,13 @@ export type SessionDetailAppointment = {
   refund_status: string | null;
   refund_amount_paise: number | null;
   package_purchase_id: string | null;
+  // Who the patient asked for at booking (/team's "book this therapist", or
+  // the wizard's "same therapist again"). Only a request -- the admin is the
+  // one who can see whether they are free -- but the assign control leads
+  // with it rather than making the admin remember it. Optional for the same
+  // reason session_code is: every existing caller of this shared type keeps
+  // compiling.
+  preferred_therapist_id?: string | null;
   therapist_payout_paid_at: string | null;
   no_show: boolean;
   // New/migration-dependent (see supabase/schema.sql's "Unique display IDs"
@@ -143,6 +151,19 @@ export default function SessionDetailDrawer({
   const feePaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
   const durationMinutes = a.duration_minutes ?? BASE_DURATION_MINUTES;
   const canReassign = a.status === "requested" || a.status === "confirmed";
+  // Assigning and reassigning are different jobs with different words. A
+  // session nobody has ever been assigned to needs one tap ("Assign &
+  // Confirm", honouring the therapist the patient asked for); a session that
+  // already has one needs the fuller reschedule form. Showing only the
+  // latter is what left an unassigned session reading "Reschedule /
+  // Reassign", a verb for something that never happened.
+  const isUnassigned = !a.therapist_id;
+  // The home-visit panel below carries its own assign control (a visit is a
+  // delivery mode, not a parallel booking system -- but the one control
+  // sits with the address and the cash it belongs beside), so the online
+  // form is not repeated for a visit. The heading still reads "Assign"
+  // whenever nobody is on the session, whichever control does the work.
+  const needsAssigning = canReassign && isUnassigned && !homeVisit;
   const patientName = peopleMap.get(a.patient_id) ?? "Unknown";
   const therapistName = a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : null;
   const categoryTitle = a.category_id ? categoryMap.get(a.category_id)?.title ?? null : null;
@@ -620,21 +641,38 @@ export default function SessionDetailDrawer({
 
           {canManageSessions && canReassign && (
             <div className="pt-3 border-t border-slate-100">
-              <p className="font-bold text-slate-800 mb-2">Reassign Session</p>
+              <p className="font-bold text-slate-800 mb-2">
+                {isUnassigned ? "Assign a therapist" : "Reassign Session"}
+              </p>
               {therapists.length === 0 ? (
                 <p className="text-slate-400">
-                  No approved therapists available to reassign to.
+                  No approved therapists available to {isUnassigned ? "assign" : "reassign to"}.
                 </p>
               ) : (
-                <EditBookingForm
-                  appointmentId={a.id}
-                  currentTherapistId={a.therapist_id}
-                  currentSlotTime={a.slot_time}
-                  currentCategoryId={a.category_id}
-                  therapists={therapists}
-                  categories={categories}
-                  onSaved={onClose}
-                />
+                <>
+                  {needsAssigning && (
+                    <div className="mb-2">
+                      <AssignTherapistForm
+                        appointmentId={a.id}
+                        therapists={therapists.filter((t) => t.active !== false)}
+                        preferredTherapistId={a.preferred_therapist_id ?? null}
+                      />
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        Confirms the session at the time it was booked for. Use the
+                        control below instead if the time has to move too.
+                      </p>
+                    </div>
+                  )}
+                  <EditBookingForm
+                    appointmentId={a.id}
+                    currentTherapistId={a.therapist_id}
+                    currentSlotTime={a.slot_time}
+                    currentCategoryId={a.category_id}
+                    therapists={therapists}
+                    categories={categories}
+                    onSaved={onClose}
+                  />
+                </>
               )}
             </div>
           )}

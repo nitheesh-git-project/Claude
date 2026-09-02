@@ -2697,6 +2697,9 @@ export default async function AdminDashboardPage({
           count: unassignedTotal,
           section: "sessions",
           tab: "all",
+          // Opens All Sessions already filtered to exactly these rows --
+          // the count and the list it links to have to agree.
+          view: "unassigned",
           hint: "Nobody is assigned to run these yet.",
           urgent: unassignedToday > 0,
         },
@@ -2824,6 +2827,14 @@ export default async function AdminDashboardPage({
     failedSyncs: googleMeetSyncIssues.length,
   });
 
+  // A figure on this strip is a question ("how many sessions have nobody on
+  // them?"), so tapping it opens the answer rather than the whole table --
+  // ?view= is the preset the target screen applies (see adminScreenHref).
+  // Scope-gated: an admin whose scope cannot open Sessions gets the figure
+  // without a link, rather than a link into a 403.
+  const canOpenSessions = allowedSections.includes("sessions");
+  const canOpenMoney = allowedSections.includes("money");
+
   const adminOverviewCells: StatCell[] = [
     {
       label: "Sessions today",
@@ -2833,6 +2844,7 @@ export default async function AdminDashboardPage({
           ? `${unassignedToday} with no therapist yet`
           : "All of today's work is assigned",
       accent: unassignedToday > 0 ? "bg-amber-500" : "bg-teal-500",
+      href: canOpenSessions ? adminScreenHref("sessions", "all", "today") : undefined,
     },
     {
       label: "Needs a person",
@@ -2845,6 +2857,7 @@ export default async function AdminDashboardPage({
       value: String(unassignedTotal),
       note: "Booked but nobody is running them",
       accent: unassignedTotal > 0 ? "bg-amber-500" : "bg-emerald-500",
+      href: canOpenSessions ? adminScreenHref("sessions", "all", "unassigned") : undefined,
     },
     {
       label: "Cash to remit",
@@ -2855,6 +2868,7 @@ export default async function AdminDashboardPage({
           ? `${manualRefundsPending} manual refund${manualRefundsPending === 1 ? "" : "s"} pending too`
           : "Cash collected on home visits, not yet handed in",
       accent: cashOwedByTherapists > 0 ? "bg-amber-500" : "bg-emerald-500",
+      href: canOpenMoney ? adminScreenHref("money", "payouts", "owed") : undefined,
     },
   ];
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import SessionDetailDrawer, {
   type SessionDetailAppointment,
   type ReassignmentLogEntry,
@@ -171,6 +172,52 @@ export default function AdminAllSessionsTab({
     setFiltersRestored(true);
   }
 
+  // A filter preset this screen was linked with (?view=, built by
+  // adminScreenHref) -- the Today screen's "Unassigned sessions" figure and
+  // its "Sessions with no therapist" queue row both point here, and a link
+  // that says twelve and opens nine hundred makes the reader redo the
+  // filtering by hand.
+  //
+  // Applied during render rather than in an effect, so a deep link paints
+  // filtered instead of painting the whole table and correcting itself a
+  // frame later. Read through useSearchParams rather than at mount, because
+  // every admin screen is already mounted (AdminShell hides the inactive
+  // ones with CSS) -- a mount-time read would only ever fire on a full page
+  // load, not when an admin already on the dashboard taps the figure.
+  //
+  // Every other filter is cleared first: a remembered therapist or date
+  // range would hide rows the count on the previous screen included, which
+  // is the same "the list disagrees with the number" bug in a subtler form.
+  const viewParam = useSearchParams().get("view");
+  const [appliedView, setAppliedView] = useState<string | null>(null);
+  if (viewParam !== appliedView) {
+    setAppliedView(viewParam);
+    if (viewParam) {
+      setFromDate("");
+      setToDate("");
+      setSessionCodeFilter("");
+      setModeFilter("all");
+      setStatusFilter("all");
+      setPaymentFilter("all");
+      setTherapistFilter("all");
+      setPatientFilter("all");
+      if (viewParam === "unassigned") setStatusFilter("unassigned");
+      else if (viewParam === "cancelled") setStatusFilter("cancelled");
+      else if (viewParam === "no_show") setStatusFilter("no_show");
+      else if (viewParam === "completed") setStatusFilter("completed");
+      else if (viewParam === "home_visit") setModeFilter("home_visit");
+      else if (viewParam === "unpaid") setPaymentFilter("unpaid");
+      else if (viewParam === "today") {
+        const key = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+        setFromDate(key);
+        setToDate(key);
+      }
+      // An unknown preset (a stale bookmark, a hand-edited URL) leaves the
+      // cleared filters above as the whole answer: everything, rather than
+      // nothing.
+    }
+  }
+
   useEffect(() => {
     if (!filtersRestored) return;
     try {
@@ -308,6 +355,10 @@ export default function AdminAllSessionsTab({
     // ten rows made every working day a paging exercise. The per-browser
     // storageKey means anyone who has already chosen a size keeps it.
     defaultPageSize: 25,
+    // A preset arriving from another screen is not a filter this reader
+    // set, so it starts them at the top rather than on whatever page they
+    // last left this table on.
+    resetKey: appliedView ?? "",
   });
 
   // The drawer reads from the live prop rather than from a snapshot taken
@@ -418,23 +469,44 @@ export default function AdminAllSessionsTab({
               note: `of ${appointments.length} on record`,
               accent: "bg-teal-500",
             },
+            // Three of these four figures are slices of the list right
+            // below them, so tapping one filters to it rather than leaving
+            // the reader to find the matching <select>. Tapping the applied
+            // one clears it again.
             {
               label: "No therapist",
               value: String(unassignedVisible),
-              note: unassignedVisible === 0 ? "All assigned" : "Nobody is running these yet",
+              note:
+                unassignedVisible === 0
+                  ? "All assigned"
+                  : statusFilter === "unassigned"
+                    ? "Showing these — tap to clear"
+                    : "Tap to see only these",
               accent: unassignedVisible > 0 ? "bg-amber-500" : "bg-emerald-500",
+              selected: statusFilter === "unassigned",
+              onSelect: () =>
+                setStatusFilter((f) => (f === "unassigned" ? "all" : "unassigned")),
             },
             {
               label: "Today",
               value: String(todayVisible),
-              note: "In this filtered set",
+              note: fromDate === todayKey && toDate === todayKey ? "Tap to clear" : "Tap to see only today",
               accent: "bg-blue-500",
+              selected: fromDate === todayKey && toDate === todayKey,
+              onSelect: () => {
+                const on = fromDate === todayKey && toDate === todayKey;
+                setFromDate(on ? "" : todayKey);
+                setToDate(on ? "" : todayKey);
+              },
             },
             {
               label: "Home visits",
               value: String(homeVisitsVisible),
               note: cancelledVisible > 0 ? `${cancelledVisible} cancelled in view` : "Travel sessions in view",
               accent: "bg-slate-400",
+              selected: modeFilter === "home_visit",
+              onSelect: () =>
+                setModeFilter((m) => (m === "home_visit" ? "all" : "home_visit")),
             },
           ]}
         />
@@ -611,8 +683,14 @@ export default function AdminAllSessionsTab({
                   <td className="py-2 pr-3 font-bold text-slate-900">
                     {therapistName}
                     {!a.therapist_id && a.status !== "cancelled" && (
-                      <span className="ml-1.5 text-[10px] font-bold uppercase text-amber-700">
-                        needs one
+                      // The row already opens the drawer, where the
+                      // assignment is made -- this says so. "needs one"
+                      // named the problem without naming the action, and
+                      // the drawer's own control used to read "Reschedule /
+                      // Reassign", which is the wrong verb for a session
+                      // nobody has ever been assigned to.
+                      <span className="ml-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                        Tap to assign
                       </span>
                     )}
                   </td>
