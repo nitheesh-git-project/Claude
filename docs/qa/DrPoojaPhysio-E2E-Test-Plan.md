@@ -1603,7 +1603,8 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 * A `patient_package_purchases` row is created with a **frozen `package_snapshot`** and `sessions_granted = 6`.
 * **Session credits are granted: exactly 6.** Not 5, not 12.
 * The care plan's status becomes `accepted`. **The thread is now closed** — a later recommendation opens a *new* plan with `supersedes_id` set.
-* **Your Packages** appears in the sidebar and lists the programme with `6 sessions`, `0 used`, `6 remaining`.
+* The payment does **not** refresh into an empty screen. In place of the offer card the patient reads *"Payment received — N sessions are yours"*, who will run them, and one next step. **If the screen goes blank after paying, that is a P0 defect** — it is the highest-intent moment in the product.
+* **Your Programmes** appears in the sidebar (not "Your Packages") and lists the programme with `6 sessions`, `0 used`, `6 remaining`.
 * A second attempt to buy the same plan is refused: `You've already bought this plan.`
 
 #### `PAT-CARE-003` — A recommended home-visit programme quotes travel correctly · P0
@@ -1611,6 +1612,30 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 **Preconditions.** A care plan recommending HV2 (4 visits), patient address in a ₹150 area.
 **Expected Result.** The offer card shows **programme + travel + total** as three figures, with travel charged **per visit**: `₹8,999 + (₹150 × 4) = ₹9,599`. A card that printed `₹8,999` on a button that charged `₹9,599` would be a P0 defect — travel is per visit, not per purchase.
 Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/create-order` must refuse the purchase with `Home visits aren't available right now. Please talk to your therapist.` A recommendation written before the service stopped must not stay purchasable.
+
+#### `PAT-SCHED-001` — The scheduler opens answered, not empty · P0
+
+**Feature.** Everything needed to lay out the run is already known — how many sessions, how often the clinician recommended, the programme's gap and weekly rules, the lead time, the validity. Handing the patient a blank calendar asks them to redo arithmetic somebody has already done, immediately after paying.
+
+**Preconditions.** A paid 6-session programme recommended at **2 a week**, with `min_gap_hours` 48 and `max_sessions_per_week` 2.
+
+**Steps.** Tap **Choose my times** (straight after payment) or **Schedule sessions** (from Your Programmes). Read what is already selected. Change one date. Read the panel again.
+
+**Expected Result**
+* Dates are **already chosen** — as many as the bulk limit allows — spaced roughly 3 days apart, none inside the 12-hour lead time, none past the programme's expiry, and no more than 2 in any calendar week.
+* Every proposed session is at the **same time of day**. A course at one hour is one thing to remember rather than six.
+* The panel says *"We've picked N times for you — spaced 2 a week, the way your therapist recommended."*
+* After an edit the heading becomes **Your times** and a **Put the suggested times back** link appears. The suggestion must **not** silently reapply itself — that is the calendar overruling the person using it.
+* Nothing is booked until Confirm. The proposal is a suggestion; the server re-checks every rule on submit.
+
+#### `PAT-SCHED-002` — A clashing slot can be fixed without starting over · P1
+**Steps.** Deliberately pick two sessions 24 hours apart on a programme with a 48-hour minimum gap, and confirm.
+**Expected Result.** *"N of M sessions scheduled"*, with the too-close one marked and the reason naming the gap. An amber line confirms the others **are** booked and nothing was charged twice. A **Pick another time** button returns to the calendar with only what is still unspent — the booked ones are gone from the selection, since re-offering them would invite booking the same slot twice.
+
+#### `PAT-SCHED-003` — Unbooked sessions keep asking · P0
+**Feature.** The one thing a patient can buy and then receive nothing for. Paying is the hard part and it is done; what is left is a calendar step on a screen they have to think to visit.
+**Steps.** Pay for a programme and tap **I'll do it later**. Open `/patient/dashboard`.
+**Expected Result.** The activity feed carries a **needsYou** item — *"N sessions still to book"* — naming the programme and linking to Your Programmes. It stays until the balance is spent and disappears when it is. The figure must agree with the Your Programmes card exactly; a feed claiming a balance that screen disagrees with is a P0.
 
 #### `PAT-CARE-004` — A declined or withdrawn recommendation · P2
 **Steps.** Decline a recommendation from the offer card. Separately, have an admin withdraw one (`ADM-CARE-002`). **Expected Result.** Declining closes it for the patient; withdrawing removes it from the patient's offers with the plan marked withdrawn. **A purchased plan can never be withdrawn** — the honest lane is a refund.
@@ -3718,7 +3743,7 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | Availability / roster | — | `THR-AVAIL-001..008` | — | `ADM-ROST-001..005` | — | `THR-SEC-001`, `ADM-ROST-005` | — |
 | Health profile | `PAT-HP-001..005` | `THR-HP-001..006` | `HOS-SEC-002` | `ADM-PEOP-004`, `ADM-SET-020` | — | `SEC-DATA-001` | `UX-MOB-004` |
 | Documents | `PAT-DOC-001..003` | (read) | `HOS-SEC-002` | (read) | — | `SEC-DATA-004` | `UX-MOB-003` |
-| Care plans | `PAT-CARE-001..004` | `THR-CARE-001..008` | — | `ADM-CARE-001..008` | `PAY-AMT-002` | `THR-CARE-002` | — |
+| Care plans | `PAT-CARE-001..004`, `PAT-SCHED-001..003` | `THR-CARE-001..008` | — | `ADM-CARE-001..008` | `PAY-AMT-002` | `THR-CARE-002` | — |
 | Suggested sessions | `PAT-SUGG-001..005` | `THR-SUGG-001..002` | — | `ADM-SET-018` | — | `PAT-SUGG-004` | — |
 | Session credits | `PAT-PKG-001..004` | (view) | — | `ADM-CAT-014/015`, `ADM-SET-019` | `FIN-REF-004` | `SEC-TAMPER-003`, `PAY-CONC-001` | — |
 | Referrals | `HOS-REF-006` | — | `HOS-REF-001..007` | `ADM-PEOP-008` | `HOS-MONEY-001..003` | `HOS-SEC-001` | — |

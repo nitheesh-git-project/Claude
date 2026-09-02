@@ -169,6 +169,7 @@ src/lib/marketingPhotos.ts every photograph the public pages use
 src/lib/careAreas.ts     the six areas of practice, shared by / and /conditions
 src/lib/carePlanAuthoring.ts the one writer of a care plan version, three doors
 src/lib/carePlanReview.ts the clinic's decision on a queued recommendation
+src/lib/sessionRhythm.ts the proposed run of dates a paid programme opens on
 src/lib/adminScope.ts    admin scopes and which sections each one may open
 src/lib/availabilityRanges.ts the roster's range layer over its hour rows
 src/lib/availabilityRequest.ts server-side validation both save doors share
@@ -721,6 +722,43 @@ client is the only writer and the log is append-only from any session.
   free-text field that one role writes and another reads means adding a
   `surface` value and a `guardCommunication` call — the CHECK on that column
   is what stops a new field quietly skipping the scan.
+
+- **A purchase ends in booked sessions, not in a balance.** What a patient
+  buys is appointments; a credit balance is an accounting fact about that
+  purchase, not the thing itself. Paying for a recommendation used to
+  `router.refresh()`, which removed the offer card (the plan was accepted,
+  so it no longer rendered) and put nothing in its place -- the highest
+  intent moment in the product, and the screen went blank. Three things now
+  hold the other half of the flow together:
+  1. **Payment lands on a confirmation and one next step.** What arrived,
+     what they own, then the scheduler. "I'll do it later" is a real,
+     unpunished option, because (3) keeps asking.
+  2. **The calendar opens answered, not empty.** `src/lib/sessionRhythm.ts`
+     proposes the whole run from what the clinician already decided --
+     `frequency_per_week` (captured since care plans shipped and, until
+     this, read by nothing), the programme's `min_gap_hours` and
+     `max_sessions_per_week`, the lead time, and the purchase's validity.
+     It is strictly a **proposal**: every slot still goes through
+     `/api/appointments/book-package-sessions`, which re-checks all of it
+     server-side, so this module being wrong can only produce a worse
+     suggestion and never a booking that should not exist. Two rules inside
+     it are load-bearing. A day that cannot take the run's hour is
+     **skipped rather than substituted** -- someone who asked for five
+     o'clock and was handed nine in the evening because it was the only
+     slot clearing the lead time has been given a schedule they did not ask
+     for, and a day later there is a five o'clock free. And it **stops at
+     the validity**, returning fewer than asked rather than proposing
+     sessions the patient would lose.
+  3. **The dashboard keeps asking.** Sessions paid for and not in the diary
+     are a `needsYou` feed item until the balance is spent. It is the one
+     thing a patient can buy and then receive nothing for, and the only
+     step between them and their treatment is a calendar on a screen they
+     have to think to visit. Derived from rows `patientDashboardData`
+     already loads, so it cannot claim a balance the Programmes screen
+     disagrees with.
+  A failed slot is fixable in place rather than a list that can only be
+  closed: a patient whose third pick clashed used to start the whole flow
+  again from a screen that had forgotten why.
 
 - **Session packages lock to one therapist by default.** The first therapist
   assigned to any session on a `patient_package_purchases` row sets

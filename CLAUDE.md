@@ -141,6 +141,14 @@ therapist-proposed times that used to live on Overview alone; accepting
 re-derives the price server-side, refuses on a catalog mismatch, and grants
 exactly the recommended sessions.
 
+**Paying ends in booked appointments, not a balance.** The payment lands on
+a confirmation and one next step; the scheduler opens with the whole run
+already proposed from the clinician's own cadence
+(`src/lib/sessionRhythm.ts` — a proposal only, re-checked server-side); and
+anything still unbooked stays a `needsYou` item on the patient's dashboard
+until the balance is spent. The patient's word for all of it is
+**programme**.
+
 A patient's first purchase is **one session**. A multi-session programme is a
 clinical judgement, so it comes from a care plan and never from a price list:
 `src/lib/consultationFirst.ts` allows direct purchase only of a single

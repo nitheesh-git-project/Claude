@@ -551,6 +551,27 @@ patient receives exactly the recommended number of sessions, locked to the
 therapist who recommended them, and the plan is marked accepted, which
 closes the thread.
 
+**Then they book them, and the app carries them there.** What a patient buys
+is appointments; a balance of credits is an accounting fact about that
+purchase, not the thing itself. So payment lands on a confirmation — what
+arrived, what they own — followed by one next step, and the scheduler opens
+with the whole run **already proposed**: spaced at the frequency the
+clinician recommended, inside the programme's minimum gap and weekly cap,
+clear of the 12-hour lead time, and stopping at the purchase's validity
+rather than proposing sessions that would be lost
+(`src/lib/sessionRhythm.ts`). The patient adjusts rather than composes.
+
+It is only ever a proposal. Every slot still goes through
+`/api/appointments/book-package-sessions`, which re-checks the lead time,
+the gap, the weekly cap, the expiry and the therapist's diary server-side,
+and reports exactly which slots made it in. A slot that clashed can be
+re-picked from the same dialog. Anything still unbooked stays a "needs you"
+item on the patient's dashboard until the balance is spent — the one thing
+a patient can buy and then receive nothing for.
+
+"I'll do it later" is a real option throughout; nothing is time-pressured
+beyond the programme's own validity.
+
 Declining is a real answer with an optional note, and it closes the thread
 too so the therapist can recommend something else. A therapist can withdraw
 a recommendation they got wrong, but never one already paid for — that is a
