@@ -142,7 +142,7 @@ This tab holds three groups: **Platform Rules**, **Package settings**, and **Hom
 | **Show programme prices publicly** | on | Off → public catalog cards hide the price. **This is not a purchase switch** — nobody can buy a programme directly either way. |
 | **Therapist Lock (site-wide)** | on | Off → later sessions on a purchase are not auto-assigned to the first therapist |
 | **Session Balances From The Ledger** | **off** | See `ADM-SET-019` |
-| **Therapist-Suggested Sessions** | **on** | Off → `/api/therapist/suggest-session` returns `Suggesting sessions is switched off.` and the control is absent. It shipped off while the flow was unproven and is on by default now |
+| **Therapist-Suggested Sessions** | **on for a fresh database** | Off → `/api/therapist/suggest-session` returns `Suggesting sessions is switched off.` and the control is absent. The column default is now true, but that only applies to a new `site_settings` row — **an existing database keeps its current value until an admin toggles it, or a reset restores defaults.** Check the toggle before running `THR-SUGG-*` rather than assuming |
 | **Default Validity** | 90 d | A new purchase's expiry when the package leaves it blank |
 | **Bulk Scheduler Limit** | 8 | `Too many slots in one request.` above this |
 | **Expiry Reminder Lead Time** | 14 d | When the expiry nudge appears on the patient's dashboard |

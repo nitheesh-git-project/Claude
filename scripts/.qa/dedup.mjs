@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-const S="qa_webhook_secret_2026", B="http://localhost:3000";
+const S = process.env.RAZORPAY_WEBHOOK_SECRET ?? "qa_webhook_secret_2026";
+const B = "http://localhost:3000";
 const body = JSON.stringify({ event:"payment.captured", payload:{ payment:{ entity:{ id:"pay_dedup_1", order_id:"order_dedup_1", amount:199900 }}}});
 const sig = crypto.createHmac("sha256",S).update(body).digest("hex");
 const send = (hdrs={}) => fetch(`${B}/api/razorpay/webhook`,{method:"POST",headers:{"Content-Type":"application/json","x-razorpay-signature":sig,...hdrs},body});

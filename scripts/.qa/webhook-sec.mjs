@@ -1,6 +1,9 @@
 import crypto from "node:crypto";
 const BASE = "http://localhost:3000";
-const SECRET = "qa_webhook_secret_2026";
+// Must match the running server's RAZORPAY_WEBHOOK_SECRET, or every
+// delivery below is correctly refused as an invalid signature and the run
+// looks like a product failure.
+const SECRET = process.env.RAZORPAY_WEBHOOK_SECRET ?? "qa_webhook_secret_2026";
 const sign = (b) => crypto.createHmac("sha256", SECRET).update(b).digest("hex");
 const post = (body, sig) => fetch(`${BASE}/api/razorpay/webhook`, {
   method: "POST",

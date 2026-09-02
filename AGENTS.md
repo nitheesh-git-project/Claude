@@ -620,9 +620,13 @@ client is the only writer and the log is append-only from any session.
   synchronous ref (a `disabled` attribute lands a render too late) and never
   clear optimistically, so a request that dies on a bad connection leaves the
   person exactly where they were. Gated by
-  `site_settings.therapist_suggestions_enabled`, **on by default** since the
-  flow proved out -- a finished feature nobody can reach drifts out of test
-  coverage and accrues maintenance for no return.
+  `site_settings.therapist_suggestions_enabled`. The column's default is now
+  **true** -- a finished feature nobody can reach drifts out of test coverage
+  and accrues maintenance for no return -- but that default applies to a
+  **fresh** database only. `site_settings` is a singleton that already
+  exists, so an established clinic keeps its current value until an admin
+  toggles it, or until a reset restores defaults. Applying a schema file must
+  not turn a live feature on by itself.
 
 - **The platform keeps its own conversations, and leaves evidence when it
   doesn't.** Treatment is paid for through this app, so a patient must never

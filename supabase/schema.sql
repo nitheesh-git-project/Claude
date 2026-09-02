@@ -7183,6 +7183,14 @@ alter table site_settings
 -- rots: it drifts out of test coverage and accrues maintenance for no
 -- return. Default is now on; the switch stays, so a clinic that does not
 -- want it still has one click.
+--
+-- Note what this does and does not do. SET DEFAULT applies to rows inserted
+-- from here on, and site_settings is a singleton that already exists -- so
+-- an established database keeps whatever value it currently holds until an
+-- admin toggles it on Settings -> Booking Rules, or until debug_reset_all_data
+-- restores defaults. That is deliberate: flipping a live clinic's feature on
+-- as a side effect of applying a schema file would be a behaviour change
+-- nobody asked for and nobody saw coming. A fresh database gets it on.
 alter table site_settings
   alter column therapist_suggestions_enabled set default true;
 

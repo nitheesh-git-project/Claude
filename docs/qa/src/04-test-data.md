@@ -278,7 +278,7 @@ Unless a test says otherwise, leave every setting at its default. The four that 
 
 | Setting | Default | Note |
 | --- | --- | --- |
-| **Therapist-Suggested Sessions** | **on** | Needed by `THR-SUGG-*` and `PAT-SUGG-*` |
+| **Therapist-Suggested Sessions** | **on** on a fresh database | Needed by `THR-SUGG-*` and `PAT-SUGG-*`. On a database that predates the change it stays at its old value — **confirm the toggle before running those tests** |
 | **Assign a Therapist Automatically** | **off** | `ADM-SET-021` switches it on; several booking tests assume the queue behaviour while it is off |
 | **Session Balances From The Ledger** | **off** | `ADM-SET-019` |
 | **Home Visit** | **off** | `ADM-SET-013` switches it on for the home-visit journey |
