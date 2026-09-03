@@ -1177,10 +1177,16 @@ produces is checked against the viewer's scope — an action for a section
 this scope cannot open is dropped rather than rendered, because `findTab`
 would otherwise redirect the tap somewhere else and the dead link would look
 like it worked. "Needs you" counts only the queues this admin can open, so
-the figure and the list beneath it agree. A limited scope also gets a
-**Your access** card naming what it covers and what it does not, and its
-access level beside its name in the sidebar — a missing section otherwise
-reads as a fault rather than as policy. Nothing here is a second permission
+the figure and the list beneath it agree. Every dashboard also **names itself** — `Master Admin`,
+`Operations`, `Finance`, `Clinical` — in the sidebar brand and again as the
+eyebrow above the section heading, so which of the four you are on is never
+something to infer from a missing sidebar entry. (Those are the same names
+the scope picker on Settings → Team & Access uses; `full` reads "Master
+Admin" rather than "Full access" because the one label has to work both as
+a permission and as the name of a desk.) A limited scope additionally gets a
+**Your access** card naming the sections its name covers and the ones it
+does not — a missing section otherwise reads as a fault rather than as
+policy. Nothing here is a second permission
 model: the queue list still shows every queue the routes let that scope
 work, in their order rather than a full admin's. Only a `full` admin can change scopes or
 create another admin, nobody can change their own, and the last `full` admin

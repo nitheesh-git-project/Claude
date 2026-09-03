@@ -141,12 +141,15 @@ export default function AdminShell({
   adminName: string;
   adminEmail: string;
   adminAvatarUrl: string | null;
-  // The viewer's access level, shown beside their name. Null for a full
-  // admin, who has nothing withheld to account for. It is here as well as
-  // on the Today screen's access card because this sidebar is where the
-  // absence is visible: an admin looking for Money and not finding it is
-  // looking at this list, not at Today.
-  scopeLabel: string | null;
+  // What this dashboard is called -- "Master Admin", "Operations",
+  // "Finance", "Clinical" (ADMIN_SCOPE_LABELS). Every scope has one,
+  // including full: four different dashboards that all say "Admin Panel"
+  // and differ only in which sidebar entries are missing leave an admin
+  // working out which one they are looking at from an absence. It is shown
+  // in the sidebar brand and again in the page header, because the
+  // collapsed rail hides the brand's text and the header is the one thing
+  // on screen at every width and on every screen.
+  scopeLabel: string;
   // Which sections this admin's scope may open (see adminScope.ts). The
   // sidebar hides the rest -- but hiding is presentation only; every route
   // re-checks scope server-side, since a hidden button is not a permission.
@@ -311,11 +314,23 @@ export default function AdminShell({
 
   function renderBrand(mini: boolean) {
     return (
-      <div className={`flex items-center gap-2.5 px-1 py-2 ${mini ? "justify-center" : ""}`}>
+      <div
+        className={`flex items-center gap-2.5 px-1 py-2 ${mini ? "justify-center" : ""}`}
+        // The rail keeps only the icon, so the name comes back as a tooltip
+        // -- and the page header carries it regardless.
+        title={mini ? `${scopeLabel} · Admin Panel` : undefined}
+      >
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white">
           <i className="fa-solid fa-user-doctor text-sm"></i>
         </div>
-        {!mini && <span className="text-sm font-bold leading-tight text-white">Admin Panel</span>}
+        {!mini && (
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-bold leading-tight text-white">
+              {scopeLabel}
+            </span>
+            <span className="block text-[11px] leading-tight text-slate-400">Admin Panel</span>
+          </span>
+        )}
       </div>
     );
   }
@@ -354,13 +369,11 @@ export default function AdminShell({
           {!mini && (
             <div className="min-w-0">
               <p className="truncate text-xs font-semibold text-white">{adminName}</p>
+              {/* No scope pill here: the brand at the top of this same
+                  sidebar and the page header both name the dashboard, and a
+                  third copy two inches below the second is noise rather than
+                  reassurance. */}
               <p className="truncate text-[11px] text-slate-400">{adminEmail}</p>
-              {scopeLabel && (
-                <p className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-teal-300">
-                  <i aria-hidden className="fa-solid fa-shield-halved text-[8px]" />
-                  {scopeLabel}
-                </p>
-              )}
             </div>
           )}
         </div>
@@ -472,7 +485,17 @@ export default function AdminShell({
         <div className="px-4 py-8 sm:px-6 lg:px-8">
           <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">
+              {/* Which dashboard this is, above what part of it you are
+                  looking at. In the header rather than only in the sidebar
+                  because the sidebar collapses to icons and disappears
+                  entirely on a phone, and "which dashboard am I on" is a
+                  question a scoped admin has on every screen, not just the
+                  first one. */}
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-teal-700">
+                <i aria-hidden className="fa-solid fa-shield-halved text-[10px]" />
+                {scopeLabel}
+              </p>
+              <h1 className="mt-0.5 text-2xl font-bold text-slate-900">
                 {activeSection.label}
                 {/* Suppressed when the screen's own name repeats the
                     section's -- Today's default screen is called Today, and

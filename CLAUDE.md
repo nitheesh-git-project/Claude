@@ -21,9 +21,12 @@ is dropped rather than rendered — `findTab` would redirect the tap somewhere
 else and the dead link would look like it worked. "Needs you" counts only
 the queues the viewer can open, so it agrees with the list beneath it, and
 ordering those queues by role is emphasis, never permission: nothing
-reachable is hidden. A limited scope gets a "Your access" card and its level
-in the sidebar, because a shorter sidebar with no explanation reads as a
-fault. See the scope rule in `AGENTS.md`.
+reachable is hidden. Every dashboard names itself — `Master Admin`,
+`Operations`, `Finance`, `Clinical` — in the sidebar brand and again above
+the section heading, so nobody has to infer which of the four they are on
+from which entries are missing; a limited scope also gets a "Your access"
+card saying which sections that name covers, because a shorter sidebar with
+no explanation reads as a fault. See the scope rule in `AGENTS.md`.
 
 The public marketing site is eight pages — `/`, `/conditions`,
 `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals` —

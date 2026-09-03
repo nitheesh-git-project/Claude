@@ -27,11 +27,10 @@ export default function AdminAccessCard({ note }: { note: AdminAccessNote }) {
       icon="fa-id-badge"
       subtitle={note.blurb}
     >
-      <p className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-1 text-[11px] font-semibold text-teal-700">
-        <i aria-hidden className="fa-solid fa-shield-halved text-[9px]" />
-        {note.scopeLabel}
-      </p>
-
+      {/* The scope's name is deliberately not repeated here: the sidebar
+          brand and the page header directly above this card both carry it,
+          and this card's job is the part they cannot say -- what the name
+          means in sections. */}
       <dl className="space-y-2 text-[11px]">
         <div className="flex gap-2">
           <dt className="w-16 shrink-0 font-semibold uppercase tracking-wide text-slate-400">
@@ -50,7 +49,7 @@ export default function AdminAccessCard({ note }: { note: AdminAccessNote }) {
       </dl>
 
       <p className="mt-3 border-t border-slate-100 pt-3 text-[11px] leading-relaxed text-slate-500">
-        A full-access admin can change this on Settings → Team &amp; Access.
+        A Master Admin can change this on Settings → Team &amp; Access.
       </p>
     </SurfaceCard>
   );

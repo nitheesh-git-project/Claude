@@ -45,6 +45,17 @@ const LEAD_FIGURE: Record<string, string> = {
   clinical: "Recommendations",
 };
 
+// What each dashboard calls itself, in the sidebar brand and the header
+// eyebrow (ADMIN_SCOPE_LABELS). Four dashboards that all said "Admin Panel"
+// left an admin working out which one they were on from which sidebar
+// entries were missing.
+const DASHBOARD_NAME: Record<string, string> = {
+  full: "Master Admin",
+  operations: "Operations",
+  finance: "Finance",
+  clinical: "Clinical",
+};
+
 test.describe("Suite S: scoped admin dashboards", () => {
   for (const scope of ["operations", "finance", "clinical"]) {
     test(`S-00${["operations", "finance", "clinical"].indexOf(scope) + 1}: a ${scope} admin opens on their own work, with nowhere dead to tap`, async ({
@@ -65,6 +76,16 @@ test.describe("Suite S: scoped admin dashboards", () => {
         await expect(page.getByText(LEAD_FIGURE[scope], { exact: true })).toBeVisible({
           timeout: 60_000,
         });
+
+        // ...and the dashboard says which one it is. At least twice: the
+        // sidebar brand and the header eyebrow. Deliberately a floor rather
+        // than an exact count -- the mobile top bar carries a third copy
+        // (in the DOM, hidden at this width), and every screen is mounted
+        // at once, so a scope that can open Settings also has the name in
+        // Team & Access's scope picker.
+        const name = page.getByText(DASHBOARD_NAME[scope], { exact: true });
+        await expect(name.first()).toBeVisible();
+        expect(await name.count()).toBeGreaterThanOrEqual(2);
 
         // Every quick action lands somewhere this scope may go. Before, they
         // were hardcoded at Sessions and Money for everybody.
@@ -105,6 +126,12 @@ test.describe("Suite S: scoped admin dashboards", () => {
       await expect(page.getByText("Sessions today", { exact: true })).toBeVisible({
         timeout: 60_000,
       });
+      // A full admin's dashboard names itself too -- "Master Admin", not a
+      // generic "Admin Panel" that says nothing about which of the four
+      // this is.
+      const fullName = page.getByText(DASHBOARD_NAME.full, { exact: true });
+      await expect(fullName.first()).toBeVisible();
+      expect(await fullName.count()).toBeGreaterThanOrEqual(2);
       // Nothing is withheld, so there is nothing to account for -- a card
       // saying "you can open everything" is a line nobody needs to read.
       await expect(page.getByRole("heading", { name: "Your access" })).toHaveCount(0);

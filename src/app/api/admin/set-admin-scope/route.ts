@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
   if (userId === context.id) {
     return NextResponse.json(
-      { error: "You can't change your own access. Ask another full-access admin." },
+      { error: "You can't change your own access. Ask another Master Admin." },
       { status: 409 }
     );
   }
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     if ((count ?? 0) <= 1) {
       return NextResponse.json(
-        { error: "This is the only full-access admin. Give someone else full access first." },
+        { error: "This is the only Master Admin. Make someone else a Master Admin first." },
         { status: 409 }
       );
     }

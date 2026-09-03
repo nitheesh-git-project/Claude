@@ -282,11 +282,23 @@ screen:
 Ordering the queues is emphasis, never permission: `orderQueueGroups()`
 moves a scope's own domains to the top and **removes nothing**, because what
 a scope may work is the routes' decision and a UI that hid a reachable queue
-would be a second permission model to disagree with the first. A limited
-scope also gets an access note (`AdminAccessCard`, plus the scope label in
-`AdminShell`'s footer) naming what it covers and what it does not -- the
-sections are correctly hidden already, and this is the sentence saying they
-were hidden on purpose. Add a screen to a scope's landing by editing that
+would be a second permission model to disagree with the first. **Every dashboard names itself**, in the sidebar brand (above "Admin Panel")
+and again as the eyebrow over the section heading -- `Master Admin`,
+`Operations`, `Finance`, `Clinical`, from `ADMIN_SCOPE_LABELS`. Twice
+because the sidebar collapses to icons and is a closed drawer on a phone,
+while the header is on every screen at every width. Four dashboards that all
+said "Admin Panel" and differed only in which sidebar entries were missing
+made an admin infer which one they were on from an absence. That label set
+is **one set, doing both jobs** -- the access level in Team & Access's picker
+and the name on the dashboard -- which is why `full` reads "Master Admin"
+rather than "Full access": as a permission both work, but only one is the
+name of a desk somebody sits at, and every user-facing string that used to
+say "full-access admin" says Master Admin now (the QA plan quotes those
+verbatim, so it moved in the same change). A limited scope additionally gets
+an access note (`AdminAccessCard`) naming which sections its name comes to
+-- the sections are correctly hidden already, and this is the sentence
+saying they were hidden on purpose. The note carries no scope name of its
+own: the brand and the header are both on that screen already. Add a screen to a scope's landing by editing that
 module, not the page; `src/lib/adminHome.test.ts` asserts the two invariants
 above over all four scopes.
 

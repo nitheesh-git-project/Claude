@@ -2668,8 +2668,8 @@ export default async function AdminDashboardPage({
     <SurfaceCard title="Risk signals" icon="fa-triangle-exclamation">
       <EmptyState
         icon="fa-lock"
-        title="Full access only"
-        body="These findings name individual therapists and quote what they wrote, so they are limited to full-access admins."
+        title="Master Admin only"
+        body="These findings name individual therapists and quote what they wrote, so they are limited to the Master Admin dashboard."
       />
     </SurfaceCard>
   ) : (
@@ -3508,7 +3508,7 @@ export default async function AdminDashboardPage({
         adminName={adminProfile?.full_name ?? "Admin"}
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         adminAvatarUrl={adminProfile?.avatar_url ?? null}
-        scopeLabel={viewerScope === "full" ? null : ADMIN_SCOPE_LABELS[viewerScope]}
+        scopeLabel={ADMIN_SCOPE_LABELS[viewerScope]}
         offsetTop={showDebugNav}
       />
     </JoinWindowProvider>

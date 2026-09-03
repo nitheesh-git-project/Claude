@@ -7,7 +7,6 @@ import {
 } from "@/lib/adminNav";
 import {
   ADMIN_SCOPE_BLURBS,
-  ADMIN_SCOPE_LABELS,
   scopeCanOpen,
   sectionsForScope,
   type AdminScope,
@@ -97,7 +96,10 @@ export type AdminHomeAction = {
 /** The line that tells a scoped admin why their sidebar is shorter than
  *  their colleague's. Null for `full`, which has nothing to explain. */
 export type AdminAccessNote = {
-  scopeLabel: string;
+  // Deliberately no scope name here. The sidebar brand and the page header
+  // both carry it (AdminShell reads ADMIN_SCOPE_LABELS directly), so a copy
+  // on this card would be the third on one screen. What the card says is
+  // the part a name cannot: which sections that name comes to.
   blurb: string;
   /** Section labels this scope can open, in sidebar order. */
   sections: string[];
@@ -562,7 +564,6 @@ function accessNoteFor(scope: AdminScope): AdminAccessNote | null {
   if (scope === "full") return null;
   const allowed = sectionsForScope(scope);
   return {
-    scopeLabel: ADMIN_SCOPE_LABELS[scope],
     blurb: ADMIN_SCOPE_BLURBS[scope],
     sections: ADMIN_SECTIONS.filter((s) => allowed.includes(s.key)).map((s) => s.label),
     withheld: ADMIN_SECTIONS.filter((s) => !allowed.includes(s.key)).map((s) => s.label),

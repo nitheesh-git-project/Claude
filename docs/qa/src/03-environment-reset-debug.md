@@ -15,7 +15,7 @@
 | `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Leave unset. The Debug Bar must be visible. |
 | Google Calendar credentials | Optional. Without them Meet sync fails and is recorded — which is itself a test (`ADM-SET-031`). |
 | The app running with **`npm run dev`** | Not `next start`. The public pages are ISR-cached for 300s, so a production build serves HTML that predates your fixtures. |
-| At least one **full-access admin** in `profiles` | The reset keeps admin logins and refuses to run if it would leave none. |
+| At least one **Master Admin** (`admin_scope = 'full'`) in `profiles` | The reset keeps admin logins and refuses to run if it would leave none. |
 | Browsers | Chrome/Edge desktop at 1440×900, plus a mobile viewport at **390 × 844**. |
 | Supabase SQL editor access | Only needed for the handful of tests marked **[SQL]**. |
 
@@ -74,7 +74,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 **Purpose.** Bring the database to a known-empty state, and prove all four gates behave.
 
-**Preconditions.** `ALLOW_DEBUG_DATA_RESET=true` in the server environment. A full-access admin account exists.
+**Preconditions.** `ALLOW_DEBUG_DATA_RESET=true` in the server environment. A Master Admin account exists.
 
 **Test Data.** Admin: `qa.admin@example.test` / `QaTest!2024pass`. Confirmation phrase: `RESET ALL DATA`.
 
@@ -133,7 +133,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 **Expected Result**
 
-* A red error appears in the bar reading exactly: `Only a full-access admin can reset data.`
+* A red error appears in the bar reading exactly: `Only a Master Admin can reset data.`
 * No data is deleted. **People → Patients** still lists the same rows as before step 5.
 * No `admin_activity_log` row is written for a reset.
 
