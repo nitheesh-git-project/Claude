@@ -429,13 +429,35 @@ function cellsFor(scope: AdminScope, counts: AdminHomeCounts): AdminHomeCell[] {
   }
 }
 
-type ActionSpec = Omit<AdminHomeAction, "href"> & {
+export type AdminActionSpec = Omit<AdminHomeAction, "href"> & {
   section: AdminSectionKey;
   tab: string;
   view?: string;
 };
 
-const ACTIONS: Record<AdminScope, ActionSpec[]> = {
+/**
+ * The actions of `specs` this scope can actually reach, as links.
+ *
+ * Exported so the dropping can be tested with a spec list that names an
+ * unreachable section. The tables below are hand-written and currently
+ * clean, so this filter never fires in production -- which is precisely why
+ * it needs a test of its own: an untested safety net that has never caught
+ * anything is indistinguishable from one that does not work, and the day it
+ * matters is the day somebody moves a screen between sections.
+ */
+export function reachableActions(
+  scope: AdminScope,
+  specs: AdminActionSpec[]
+): AdminHomeAction[] {
+  return specs
+    .filter((a) => scopeCanOpen(scope, a.section))
+    .map(({ section, tab, view, ...rest }) => ({
+      ...rest,
+      href: adminScreenHref(section, tab, view),
+    }));
+}
+
+const ACTIONS: Record<AdminScope, AdminActionSpec[]> = {
   full: [
     {
       label: "Approvals",
@@ -557,6 +579,12 @@ const ACTIONS: Record<AdminScope, ActionSpec[]> = {
   ],
 };
 
+/** The action specs a scope is offered before reachability is applied.
+ *  Read by the tests, which assert these are already clean. */
+export function actionSpecsFor(scope: AdminScope): AdminActionSpec[] {
+  return ACTIONS[scope] ?? ACTIONS.full;
+}
+
 function accessNoteFor(scope: AdminScope): AdminAccessNote | null {
   // A full admin sees every section, so there is nothing to account for --
   // and a card saying "you can open everything" is a line nobody needs to
@@ -578,12 +606,7 @@ export function buildAdminHome(scope: AdminScope, counts: AdminHomeCounts): Admi
     // Filtered rather than merely written carefully: an action is a promise
     // that tapping it lands somewhere, and the scope table is the thing that
     // decides. A future section move must break the list, not the admin.
-    actions: (ACTIONS[scope] ?? ACTIONS.full)
-      .filter((a) => scopeCanOpen(scope, a.section))
-      .map(({ section, tab, view, ...rest }) => ({
-        ...rest,
-        href: adminScreenHref(section, tab, view),
-      })),
+    actions: reachableActions(scope, ACTIONS[scope] ?? ACTIONS.full),
     accessNote: accessNoteFor(scope),
   };
 }

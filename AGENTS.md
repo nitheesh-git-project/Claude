@@ -49,8 +49,14 @@ surface that lists a session (`session-completed-cutoff.spec.ts`), and the
 brand splash's cold-open, reload and long-absence rules together with its
 admin settings (`splash-screen.spec.ts`), and each admin scope's own
 landing screen -- the figure it leads with, quick actions that all land
-inside that scope, and the access card a limited scope gets and a full
-admin does not (`admin-scoped-dashboard.spec.ts`), and the therapist roster end to end
+inside that scope, the access card a limited scope gets and a Master Admin
+does not, two dozen un-settled sidebar clicks leaving the dashboard naming
+itself exactly twice with no console error and the scope still enforced,
+and six concurrent renders of one dashboard agreeing on every figure
+(`admin-scoped-dashboard.spec.ts` -- whose console-error assertion splits
+failed requests by host, since this sandbox blocks the *browser* from
+reaching Supabase and RealtimeRefresh's socket dies on every run),
+and the therapist roster end to end
 (`therapist-roster.spec.ts`: ranges saving as the same hour rows, exceptions
 owning only their own date, leave leaving the schedule intact, role and
 scope authorization on every roster route, stale/double-clicked saves, and

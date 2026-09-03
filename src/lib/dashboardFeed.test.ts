@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { sortFeed, countNeedsYou, type FeedItem } from "@/lib/dashboardFeed";
+import { buildAdminFeed, sortFeed, countNeedsYou, type FeedItem } from "@/lib/dashboardFeed";
+import { sectionsForScope } from "@/lib/adminScope";
 
 function item(id: string, at: string, needsYou = false): FeedItem {
   return { id, at, icon: "fa-circle", tone: "info", title: id, needsYou };
@@ -74,5 +75,59 @@ describe("sortFeed crowding", () => {
     const sorted = sortFeed([...rows, { ...item("extra", "2026-08-01T10:00:00Z"), title: "Same thing" }]);
     expect(sorted).toHaveLength(3);
     expect(sorted[0].at.startsWith("2026-09-03")).toBe(true);
+  });
+});
+
+describe("buildAdminFeed and the viewer's scope", () => {
+  // The feed is a list of links to work. One pointing at a screen the
+  // viewer cannot open is not a lighter version of the work -- findTab
+  // falls back to the first allowed section, so the tap looks like it
+  // worked and lands somewhere else.
+  const queues = { pendingApprovals: 2, pendingRequests: 1, failedSyncs: 3 };
+
+  function titles(items: FeedItem[]) {
+    return items.map((i) => i.title);
+  }
+
+  it("keeps the Meet-sync item for a scope that can open Settings", () => {
+    const items = buildAdminFeed({
+      activity: [],
+      ...queues,
+      allowedSections: sectionsForScope("full"),
+    });
+    expect(titles(items).some((t) => t.includes("without a meeting link"))).toBe(true);
+  });
+
+  it("drops it for every scope that cannot -- they can neither reach nor fix it", () => {
+    for (const scope of ["operations", "finance", "clinical"] as const) {
+      const items = buildAdminFeed({
+        activity: [],
+        ...queues,
+        allowedSections: sectionsForScope(scope),
+      });
+      expect(
+        titles(items).some((t) => t.includes("without a meeting link")),
+        scope
+      ).toBe(false);
+      // ...and the approvals queue, which every scope can open, survives.
+      expect(titles(items).some((t) => t.includes("waiting for approval")), scope).toBe(true);
+    }
+  });
+
+  it("is unrestricted when no scope is given, so existing callers are unchanged", () => {
+    const items = buildAdminFeed({ activity: [], ...queues });
+    expect(titles(items).some((t) => t.includes("without a meeting link"))).toBe(true);
+  });
+
+  it("never emits a feed link into a section the viewer cannot open", () => {
+    for (const scope of ["full", "operations", "finance", "clinical"] as const) {
+      const allowed = sectionsForScope(scope);
+      const items = buildAdminFeed({ activity: [], ...queues, allowedSections: allowed });
+      for (const item of items) {
+        if (!item.href) continue;
+        const section = new URL(item.href, "https://x.test").searchParams.get("section");
+        expect(allowed, `${scope} feed item "${item.title}"`).toContain(section);
+      }
+    }
   });
 });

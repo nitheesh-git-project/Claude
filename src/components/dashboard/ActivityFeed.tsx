@@ -16,6 +16,23 @@ const TONE_DOT: Record<string, string> = {
   bad: "bg-red-50 text-red-600",
 };
 
+// Two things in here cannot agree between the server render and the
+// browser's hydration of it, and both did exactly what they look like they
+// would: an admin dashboard takes seconds to render, so `Date.now()` had
+// moved on by the time the browser read the HTML ("6m ago" server, "5m ago"
+// client), and `toLocaleDateString(undefined, ...)` formats in whatever
+// locale the runtime has, which is not the visitor's. React's answer to a
+// text mismatch is to throw away the whole subtree and re-render it, so
+// every dashboard load -- all four roles share this component through
+// DashboardOverview -- was rebuilding its feed and logging an uncaught
+// error to do it.
+//
+// The locale is pinned. The clock is not fixable that way (a relative time
+// is *meant* to differ a minute later), so the span carrying it is marked
+// hydration-suppressed at the call site, which is what React documents that
+// flag for. Suppressing keeps the server's text and skips the remount --
+// the number is a minute stale for one paint, which is what "6m ago" means
+// anyway.
 function when(iso: string) {
   const then = new Date(iso).getTime();
   const mins = Math.round((Date.now() - then) / 60000);
@@ -26,7 +43,7 @@ function when(iso: string) {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
 /**
@@ -96,7 +113,9 @@ export default function ActivityFeed({ items, emptyBody }: { items: FeedItem[]; 
                 <p className="text-sm font-semibold leading-snug text-slate-800">{item.title}</p>
                 {item.detail && <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{item.detail}</p>}
               </div>
-              <span className="shrink-0 text-[11px] text-slate-400">{when(item.at)}</span>
+              <span suppressHydrationWarning className="shrink-0 text-[11px] text-slate-400">
+                {when(item.at)}
+              </span>
             </div>
           );
           return (
