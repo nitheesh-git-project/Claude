@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { AnimatePresence, motion } from "motion/react";
 import AreaPainPicker from "@/components/profile/AreaPainPicker";
 import {

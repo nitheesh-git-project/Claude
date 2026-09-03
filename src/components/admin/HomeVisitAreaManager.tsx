@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { useConfirm } from "@/lib/useConfirm";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 

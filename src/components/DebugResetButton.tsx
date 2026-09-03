@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 
 // The reset control in the debug bar. Everything about it is deliberately
 // awkward: it is red, it is behind a typed phrase, and it says out loud what

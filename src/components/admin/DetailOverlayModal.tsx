@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import type { ReactNode } from "react";
 
 // Wraps a person-detail page's content when it's reached via in-portal soft

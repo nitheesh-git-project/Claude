@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { formatIST } from "@/lib/formatIST";
 import { useConfirm } from "@/lib/useConfirm";
 

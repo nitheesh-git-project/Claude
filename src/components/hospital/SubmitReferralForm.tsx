@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { createClient } from "@/lib/supabase/client";
 import PhoneNumberField from "@/components/PhoneNumberField";
 import { isValidStoredPhone } from "@/lib/phoneNumber";

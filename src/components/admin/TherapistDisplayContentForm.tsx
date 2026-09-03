@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 
 // Admin-curated public marketing copy for the /team popup (Feature 38) --
 // same Edit/Save shape as TherapistNotesForm, but this one is public-facing

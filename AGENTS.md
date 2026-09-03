@@ -1715,6 +1715,46 @@ client is the only writer and the log is append-only from any session.
   behind them -- a filter nobody can act on is noise. Don't cap a list at
   an arbitrary number with a "Show all" escape hatch: that was what All
   Sessions did, and "Show all" then painted every row anyway.
+- **The wait has to be visible, and it outlives the button.** Every mutating
+  control had its own `loading` flag, and that flag was the problem: the
+  shape was `setLoading(false); router.refresh();`, so the button went back
+  to looking idle and *then* the expensive half started. On the admin
+  dashboard a refresh re-runs the whole Server Component -- every screen's
+  markup, not only the visible one -- with nothing on screen saying so, which
+  is what gets reported as a freeze. A per-button flag cannot cover it: the
+  work outlives the control (the row it sat in is refreshed away), and a
+  navigation has no button left at all. So the signal is one counter at the
+  root (`PendingWorkProvider`, `src/lib/pendingWork.tsx`) and one teal bar
+  above every piece of chrome (`RouteProgress`). Three rules:
+  1. **`useRouter` comes from `src/lib/useRouter.ts`, not `next/navigation`.**
+     It is a drop-in with the same shape whose `refresh`/`push`/`replace`
+     run inside a React transition -- the only thing that knows when a
+     navigation has actually landed -- and reports that to the counter. That
+     is why 100-odd client components changed one import line and nothing
+     else: adopting it at the source covers every call site, including the
+     ones that will be written next.
+  2. **No percentage, ever.** Nothing in the client knows how far along a
+     server render is. The bar eases toward a ceiling it never reaches and
+     completes in one movement when the work lands; a bar that sits at 90%
+     is a lie people learn to ignore.
+  3. **It waits `APPEAR_AFTER_MS` before drawing.** Most actions finish well
+     inside it, and a bar that flashes on every tap makes a fast app feel
+     busy. Reduced motion keeps the bar and drops the travel -- someone who
+     asked for less movement still needs to know the app is thinking.
+  `Spinner` (`src/components/system/Spinner.tsx`) is the app's only spinner,
+  inheriting `currentColor` so one component works on the filled, outlined
+  and text buttons alike. Before it, every busy state was a text swap, which
+  reads as a label change rather than as motion.
+- **Isolated is not the same as sequential.** The admin dashboard keeps its
+  migration-dependent reads out of the big `Promise.all` so one
+  unknown-column error costs its own panel rather than the dashboard -- and
+  eleven of them had become a chain of `await`s, one round trip after
+  another, paid on page load *and* on every `router.refresh()` any admin
+  button fires. They are one second `Promise.all` now, each entry still
+  swallowing its own error (through a `guard()` wrapper or its own helper),
+  so the isolation is unchanged and only the waiting is gone. Add a new
+  migration-dependent read to that batch rather than as another `await`
+  below it.
 - **A dashboard refresh is expensive; debounce accordingly.**
   `RealtimeRefresh` turns a `postgres_changes` event into `router.refresh()`,
   which on the admin dashboard re-runs the whole Server Component — ~40

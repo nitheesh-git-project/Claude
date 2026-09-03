@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import type { IntakeQuestion } from "@/lib/conditionIntake";
 import AreaPainPicker from "@/components/profile/AreaPainPicker";
 

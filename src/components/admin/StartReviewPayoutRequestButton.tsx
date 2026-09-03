@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 
 export default function StartReviewPayoutRequestButton({ requestId }: { requestId: string }) {
   // The parent only renders this button for pending requests, so a real

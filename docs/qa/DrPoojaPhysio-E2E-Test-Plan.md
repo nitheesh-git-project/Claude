@@ -3555,6 +3555,22 @@ Covered by `PAT-BOOK-017`, `PAT-SUGG-004`, `THR-AVAIL-004`, `FIN-PAY-002`, `PAY-
 
 #### `UX-MOB-002` — Dashboards on mobile · P1
 **Steps.** At 390 × 844, open each of the four dashboards.
+#### `UX-BUSY-001` — The app says it is working · P1
+
+**Steps.** Tap anything that saves, creates or navigates — a Save on a settings form, **Done** on a session, a payout, a sidebar entry — and watch the very top of the viewport.
+**Expected Result.** A thin teal bar appears across the top for the whole time between the tap and the page answering, then completes and fades. It covers the part a button cannot: after `router.refresh()` the button is idle (and often unmounted with its row), while the server is still re-rendering — the gap that reads as a freeze.
+**Details that are the design, not decoration:**
+* **No percentage.** The bar eases toward a ceiling and only completes when the work lands. A bar sitting at 90% is a defect, not a slow server.
+* **It waits ~220ms before drawing.** An action that finishes faster must show **nothing at all** — a flash on every tap is the failure this delay prevents.
+* **Reduced motion** (`prefers-reduced-motion: reduce`) keeps the bar and drops the travel: a static full-width band that fades. It must not disappear entirely — that setting means less movement, not less information.
+* **Two overlapping actions**: start a second before the first finishes; the bar must stay up until **both** are done, not vanish with the first.
+* The five money buttons (**Done**, **Collect ₹…**, **Request Payout**, **Confirm … Payment**, **Assign & Confirm**) show a spinning ring beside their busy label rather than only swapping the text.
+
+#### `UX-BUSY-002` — The admin dashboard's second batch · P2
+**Steps.** Load **/admin/dashboard**, then tap any button that saves.
+**Expected Result.** Noticeably quicker than before: eleven migration-dependent reads that used to run one after another (accounting health, the suggestion and recommendation switches, discounts, the first-session offer, promo and invite settings, category covers and condition types, testimonial avatars, hospital notes) now run as one parallel batch, and both ledger-balance passes run together.
+**Critical check — the isolation is unchanged:** drop one of those columns (see `admin-degraded-schema.spec.ts`) and only that panel degrades. If the whole dashboard blanks, the batch has lost a `guard()` and that is a P0.
+
 **Expected Result.** Each shell offers a **mobile drawer** for the sidebar. **Back to Home is present in all three renders** — expanded sidebar, collapsed rail, and mobile drawer. On all four shells it sits at the **foot of the nav, directly above Collapse** (above the profile/Log Out footer in the mobile drawer, which has no Collapse). Without it the only exit from a dashboard is Log Out, which also ends the session. It is a plain link, not a client-side transition, because transitions into a differently-chromed route were silently not completing.
 
 #### `UX-MOB-003` — Modals and drawers fit · P1

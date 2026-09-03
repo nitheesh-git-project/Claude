@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { debugNow, getDebugNowOffsetMs, setDebugNowOffsetMs } from "@/lib/debugNow";
 import DebugResetButton from "@/components/DebugResetButton";
 import { MARKETING_PAGES } from "@/lib/marketingNav";

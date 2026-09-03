@@ -594,14 +594,99 @@ export default async function AdminDashboardPage({
   const viewerScope = parseAdminScope(adminScopeById.get(user.id));
   const canSeeMoney = scopeCanOpen(viewerScope, "money");
 
-  // Read after the main Promise.all rather than inside it: every query in
-  // there is against a table that has existed for a while, and these are
-  // against three that are brand new. loadAccountingHealth swallows its own
-  // errors and reports `available: false`, so a database that has not
-  // re-run schema.sql shows one panel saying so instead of blanking the
-  // whole dashboard -- the failure mode the migration-tolerance rule exists
-  // to prevent.
-  const accountingHealth = await loadAccountingHealth(admin);
+  // The second batch: everything the migration-tolerance rule keeps OUT of
+  // the big Promise.all above.
+  //
+  // Each of these is an isolated read because it touches a column or a table
+  // a live database may not have yet, so one unknown-column error costs its
+  // own panel rather than blanking the dashboard. Isolated is not the same
+  // as sequential, and they were sequential -- eleven round trips, one after
+  // another, on page load AND on every router.refresh() any admin button
+  // fires. That is the wait this dashboard was being blamed for.
+  //
+  // Isolation is kept exactly as it was: every entry either swallows its own
+  // errors already (the read* helpers, loadAccountingHealth) or is wrapped
+  // here, so this Promise.all cannot reject and one missing column still
+  // costs only its own value.
+  const guard = <T,>(run: () => Promise<T>, fallback: T): Promise<T> =>
+    run().catch(() => fallback);
+
+  const hospitalIds = (allProfiles ?? [])
+    .filter((p) => p.role === "hospital")
+    .map((h) => h.id);
+
+  const [
+    accountingHealth,
+    suggestionsToggleRow,
+    carePlanRequiresApproval,
+    discountRows,
+    offerRow,
+    promoCodesEnabled,
+    inviteSettings,
+    categoryImageRows,
+    categorySpecialtyRows,
+    testimonialAvatarRows,
+    hospitalNotes,
+  ] = await Promise.all([
+    loadAccountingHealth(admin),
+    guard(
+      async () =>
+        (
+          await supabase
+            .from("site_settings")
+            .select("therapist_suggestions_enabled")
+            .maybeSingle()
+        ).data,
+      null as { therapist_suggestions_enabled: boolean | null } | null
+    ),
+    readCarePlanRequiresApproval(admin),
+    guard(
+      async () =>
+        (
+          await admin
+            .from("appointments")
+            .select("id, list_price_paise, discount_paise, discount_source, discount_reason")
+            .gt("discount_paise", 0)
+        ).data,
+      null as Record<string, unknown>[] | null
+    ),
+    guard(
+      async () =>
+        (
+          await admin
+            .from("site_settings")
+            .select(
+              "first_session_offer_enabled, first_session_offer_type, first_session_offer_value"
+            )
+            .maybeSingle()
+        ).data,
+      null as Record<string, unknown> | null
+    ),
+    readPromoCodesEnabled(admin),
+    readInviteSettings(admin),
+    guard(
+      async () => (await admin.from("treatment_categories").select("id, image_url")).data,
+      null as { id: string; image_url: string | null }[] | null
+    ),
+    guard(
+      async () => (await admin.from("treatment_categories").select("id, specialty")).data,
+      null as { id: string; specialty: string | null }[] | null
+    ),
+    guard(
+      async () => (await admin.from("testimonials").select("id, avatar_url")).data,
+      null as { id: string; avatar_url: string | null }[] | null
+    ),
+    guard(
+      async () =>
+        (
+          await admin
+            .from("hospital_admin_notes")
+            .select("hospital_id, temp_password, temp_password_set_at")
+            .in("hospital_id", hospitalIds)
+        ).data,
+      null as { hospital_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
+    ),
+  ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
     (t) => t.active !== false
@@ -622,31 +707,29 @@ export default async function AdminDashboardPage({
   // consume the same `session_count` / `sessions_used` shape, so replacing
   // the number on the row flips all of them at once. A no-op while the flag
   // is off.
+  // Both at once: they read different tables and neither needs the other's
+  // answer, so running them one after the other was a round trip of pure
+  // waiting on every admin render.
   const ledgerAuthoritative = adminSettings.entitlementLedgerAuthoritative;
-  const packagePurchasesForDisplay = await applyLedgerSessionBalances(
-    admin,
-    packagePurchaseSummaries ?? [],
-    { authoritative: ledgerAuthoritative }
-  );
-  const homeVisitPurchasesForDisplay = await applyLedgerVisitBalances(
-    admin,
-    homeVisitPurchases ?? [],
-    { authoritative: ledgerAuthoritative }
-  );
+  const [packagePurchasesForDisplay, homeVisitPurchasesForDisplay] = await Promise.all([
+    applyLedgerSessionBalances(admin, packagePurchaseSummaries ?? [], {
+      authoritative: ledgerAuthoritative,
+    }),
+    applyLedgerVisitBalances(admin, homeVisitPurchases ?? [], {
+      authoritative: ledgerAuthoritative,
+    }),
+  ]);
 
-  // Its own call, not part of SITE_SETTINGS_SELECT: this column is newer
-  // than the rest, and a database that hasn't run the latest schema.sql
-  // should leave the feature off rather than blank every other setting.
-  const { data: suggestionsToggleRow } = await supabase
-    .from("site_settings")
-    .select("therapist_suggestions_enabled")
-    .maybeSingle();
+  // Read in the batch above, not as part of SITE_SETTINGS_SELECT: this
+  // column is newer than the rest, and a database that hasn't run the latest
+  // schema.sql should leave the feature off rather than blank every other
+  // setting.
   const therapistSuggestionsEnabled =
     suggestionsToggleRow?.therapist_suggestions_enabled === true;
 
   // Same reasoning again, and through the same helper the submit route uses
-  // so the screen and the rule cannot disagree about what the switch says.
-  const carePlanRequiresApproval = await readCarePlanRequiresApproval(admin);
+  // so the screen and the rule cannot disagree about what the switch says --
+  // read in the batch above.
 
   // The discount columns, in their own call for the same reason: they are
   // the newest columns on `appointments`, and an unknown-column error must
@@ -655,11 +738,7 @@ export default async function AdminDashboardPage({
     string,
     { listPricePaise: number | null; discountPaise: number; source: string | null; reason: string | null }
   >();
-  try {
-    const { data: discountRows } = await admin
-      .from("appointments")
-      .select("id, list_price_paise, discount_paise, discount_source, discount_reason")
-      .gt("discount_paise", 0);
+  {
     for (const row of discountRows ?? []) {
       const r = row as {
         id: string;
@@ -675,8 +754,6 @@ export default async function AdminDashboardPage({
         reason: r.discount_reason,
       });
     }
-  } catch {
-    // The control still renders; it simply cannot show an existing one.
   }
 
   // What discounting has cost, summed from the same isolated read the
@@ -696,33 +773,28 @@ export default async function AdminDashboardPage({
     type: "fixed",
     value: 0,
   };
-  try {
-    const { data: offerRow } = await admin
-      .from("site_settings")
-      .select(
-        "first_session_offer_enabled, first_session_offer_type, first_session_offer_value"
-      )
-      .maybeSingle();
+  {
     if (offerRow) {
+      const row = offerRow as {
+        first_session_offer_enabled?: unknown;
+        first_session_offer_type?: unknown;
+        first_session_offer_value?: unknown;
+      };
       firstSessionOffer = {
-        enabled: offerRow.first_session_offer_enabled === true,
-        type: offerRow.first_session_offer_type === "percent" ? "percent" : "fixed",
+        enabled: row.first_session_offer_enabled === true,
+        type: row.first_session_offer_type === "percent" ? "percent" : "fixed",
         value:
-          typeof offerRow.first_session_offer_value === "number"
-            ? offerRow.first_session_offer_value
+          typeof row.first_session_offer_value === "number"
+            ? row.first_session_offer_value
             : 0,
       };
     }
-  } catch {
-    // Off, which is the safe direction: no accidental discounting.
   }
 
   // Promo codes and invites, in their own calls for the same reason -- the
   // newest columns on site_settings and a table a database one apply behind
   // does not have at all. Both fail to "off" and an empty list, which costs
   // these two controls and nothing else on the page.
-  const promoCodesEnabled = await readPromoCodesEnabled(admin);
-  const inviteSettings = await readInviteSettings(admin);
 
   let promoCodeRows: PromoCodeRow[] = [];
   try {
@@ -784,9 +856,6 @@ export default async function AdminDashboardPage({
   // newest column on that table, and the batch it would otherwise join is one
   // Promise.all of ~40 queries -- an unknown-column error there would blank
   // the whole dashboard rather than one cover photo.
-  const { data: categoryImageRows } = await admin
-    .from("treatment_categories")
-    .select("id, image_url");
   const categoryImageById = new Map(
     (categoryImageRows ?? []).map((row) => [row.id, row.image_url as string | null])
   );
@@ -794,23 +863,12 @@ export default async function AdminDashboardPage({
   // And the condition type, newer still, in its own call for the same
   // reason -- losing it costs the therapist's picker its grouping, never the
   // dashboard.
-  let categorySpecialtyById = new Map<string, string | null>();
-  try {
-    const { data: rows } = await admin
-      .from("treatment_categories")
-      .select("id, specialty");
-    categorySpecialtyById = new Map(
-      (rows ?? []).map((row) => [row.id, (row as { specialty: string | null }).specialty ?? null])
-    );
-  } catch {
-    // Untagged database. Every condition reads as "Not set".
-  }
+  const categorySpecialtyById = new Map<string, string | null>(
+    (categorySpecialtyRows ?? []).map((row) => [row.id, row.specialty ?? null])
+  );
 
   // testimonials.avatar_url is migration-dependent too, so it stays out of
   // the ~40-query Promise.all above for the reason the category covers do.
-  const { data: testimonialAvatarRows } = await admin
-    .from("testimonials")
-    .select("id, avatar_url");
   const testimonialAvatarById = new Map(
     (testimonialAvatarRows ?? []).map((row) => [row.id, row.avatar_url as string | null])
   );
@@ -923,10 +981,6 @@ export default async function AdminDashboardPage({
     }));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
-  const { data: hospitalNotes } = await admin
-    .from("hospital_admin_notes")
-    .select("hospital_id, temp_password, temp_password_set_at")
-    .in("hospital_id", hospitals.map((h) => h.id));
   const hospitalNoteMap = new Map(
     (hospitalNotes ?? []).map((n) => [n.hospital_id, n])
   );

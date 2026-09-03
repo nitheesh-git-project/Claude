@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
+import Spinner from "@/components/system/Spinner";
 
 export default function AssignTherapistForm({
   appointmentId,
@@ -78,7 +79,13 @@ export default function AssignTherapistForm({
         disabled={loading}
         className="bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-semibold px-3 py-2 rounded-lg transition"
       >
-        {loading ? "Assigning..." : "Assign & Confirm"}
+        {loading ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Spinner /> Assigning…
+          </span>
+        ) : (
+          "Assign & Confirm"
+        )}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
     </div>

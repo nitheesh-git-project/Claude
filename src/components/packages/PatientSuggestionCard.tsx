@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { debugNow } from "@/lib/debugNow";
 import { suggestionState } from "@/lib/sessionSuggestions";

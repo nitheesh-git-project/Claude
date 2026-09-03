@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import {
   MAX_SPLASH_BRAND_LINE_LENGTH,
   MAX_SPLASH_HOLD_SECONDS,

@@ -206,3 +206,129 @@ html[data-splash] body {
     transition: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------
+   Route / action progress (src/components/system/RouteProgress.tsx)
+
+   A teal bar across the top of the viewport for the window between a tap
+   and the page answering. It lives here rather than in Tailwind classes
+   because the movement is a keyframe pair, and because the reduced-motion
+   variant is a different design rather than the same one with the
+   animation removed.
+
+   The travel curve never reaches 100%: nothing in the client knows how far
+   along a server render is, so the bar eases toward a ceiling and only
+   completes when the work actually lands. See the component's comment.
+   --------------------------------------------------------------------- */
+.route-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Above the sticky navbar, the debug bar and every drawer, and below the
+     splash sheet, which is the only thing that outranks it. */
+  z-index: 9998;
+  height: 3px;
+  pointer-events: none;
+}
+
+.route-progress__bar {
+  height: 100%;
+  width: 0;
+  border-radius: 0 9999px 9999px 0;
+  background: linear-gradient(90deg, #0f766e 0%, #14b8a6 60%, #5eead4 100%);
+  box-shadow: 0 0 10px rgba(20, 184, 166, 0.55);
+}
+
+.route-progress[data-state="running"] .route-progress__bar {
+  animation: route-progress-travel 9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.route-progress[data-state="done"] .route-progress__bar {
+  width: 100%;
+  transition: width 200ms ease-out;
+  animation: route-progress-finish 240ms ease-out forwards;
+}
+
+@keyframes route-progress-travel {
+  0% {
+    width: 0;
+    opacity: 1;
+  }
+  /* Most of the distance in the first second, so a normal action reads as
+     nearly finished before it finishes. */
+  25% {
+    width: 55%;
+  }
+  60% {
+    width: 82%;
+  }
+  /* The ceiling. A render slower than this holds here rather than claiming
+     to be complete. */
+  100% {
+    width: 94%;
+    opacity: 1;
+  }
+}
+
+@keyframes route-progress-finish {
+  0% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Someone who asked for less movement still needs to know the app is
+   working, so the bar stays and only the travel goes: a full-width band
+   that fades in, holds, and fades out. */
+@media (prefers-reduced-motion: reduce) {
+  .route-progress[data-state="running"] .route-progress__bar,
+  .route-progress[data-state="done"] .route-progress__bar {
+    width: 100%;
+    animation: none;
+    transition: opacity 200ms linear;
+  }
+  .route-progress[data-state="running"] .route-progress__bar {
+    opacity: 0.9;
+  }
+  .route-progress[data-state="done"] .route-progress__bar {
+    opacity: 0;
+  }
+}
+
+/* The shared spinner (src/components/system/Spinner.tsx). Rotation lives
+   here rather than on Tailwind's animate-spin so the reduced-motion answer
+   is defined in one place with the progress bar's, rather than depending on
+   a utility class remembering to opt out. */
+.spinner {
+  animation: spinner-rotate 720ms linear infinite;
+  transform-origin: 50% 50%;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A ring that has stopped spinning says nothing, so reduced motion gets a
+   pulse instead of a freeze -- still movement, but no rotation. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: spinner-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes spinner-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+}

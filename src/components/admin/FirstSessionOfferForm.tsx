@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 
 async function saveSetting(key: string, value: boolean | number | string) {
   const res = await fetch("/api/admin/update-setting", {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import TreatmentCategoryForm from "./TreatmentCategoryForm";
 import { useConfirm } from "@/lib/useConfirm";
 import { isOrderChanged, moveIdOnePlace } from "@/lib/listOrdering";

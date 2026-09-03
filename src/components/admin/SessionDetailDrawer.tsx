@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
 import AssignTherapistForm from "@/components/admin/AssignTherapistForm";

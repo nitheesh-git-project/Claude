@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import AdminSlotPicker, { slotFromIso, slotToMs } from "@/components/admin/AdminSlotPicker";
 
 // Sentinel for the category <select>, distinct from both a real category id

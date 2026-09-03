@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 
 // Booking on someone's behalf -- the phone call the dashboard could not

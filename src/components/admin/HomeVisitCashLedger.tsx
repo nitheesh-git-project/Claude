@@ -3,7 +3,7 @@
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { useConfirm } from "@/lib/useConfirm";
 import {

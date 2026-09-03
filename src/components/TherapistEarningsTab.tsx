@@ -3,7 +3,7 @@
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import RequestPayoutButton from "@/components/RequestPayoutButton";
 import TherapistEarningsChart, { type EarningsDay } from "@/components/TherapistEarningsChart";
 import type { TherapistEarningRow } from "@/lib/therapistEarnings";

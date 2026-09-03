@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Spinner from "@/components/system/Spinner";
 
 // The therapist's own confirmation that they took payment at the door. A
 // single, fairly irreversible action -- see record-cash-collection's CAS
@@ -49,7 +50,13 @@ export default function CollectCashButton({
         disabled={loading}
         className="rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-amber-700 disabled:opacity-60"
       >
-        {loading ? "Saving..." : `Collect ₹${(amountPaise / 100).toLocaleString("en-IN")}`}
+        {loading ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Spinner /> Saving…
+          </span>
+        ) : (
+          `Collect ₹${(amountPaise / 100).toLocaleString("en-IN")}`
+        )}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
       {confirming && (

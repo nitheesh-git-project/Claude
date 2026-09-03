@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 
 type Step = {
   targetId?: string; // DOM id (see DashboardShell's `nav-${item.id}`) — omitted for the intro step

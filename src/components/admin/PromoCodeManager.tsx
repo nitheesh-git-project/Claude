@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import SurfaceCard, { EmptyState, StatusPill } from "@/components/dashboard/SurfaceCard";
 import { useConfirm } from "@/lib/useConfirm";
 import {
