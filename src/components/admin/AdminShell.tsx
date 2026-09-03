@@ -351,7 +351,7 @@ export default function AdminShell({
         href="/"
         onClick={onNavigate}
         title={mini ? "Back to Home" : undefined}
-        className={`mt-1 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
+        className={`mt-2 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
           mini ? "justify-center px-0" : ""
         }`}
       >
@@ -443,10 +443,13 @@ export default function AdminShell({
                 <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
-            {renderHomeLink(false, () => setMobileOpen(false))}
             <div className="mt-1 flex-1 space-y-1">
               {sections.map((s) => renderNavItem(s, false, () => setMobileOpen(false)))}
             </div>
+            {/* The drawer has no Collapse button, so it lands directly above
+                the profile/Log Out footer -- the same place relative to the
+                list as on the desktop rail. */}
+            {renderHomeLink(false, () => setMobileOpen(false))}
             {renderFooter(false)}
           </nav>
         </div>
@@ -464,10 +467,14 @@ export default function AdminShell({
         } ${offsetTop ? "top-[41px] h-[calc(100vh-41px)]" : "top-0 h-screen"}`}
       >
         {renderBrand(collapsed)}
-        {renderHomeLink(collapsed)}
         <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
           {sections.map((s) => renderNavItem(s, collapsed))}
         </div>
+        {/* Below the sections rather than above them, and directly above
+            Collapse -- same placement as the other three shells. Leaving the
+            back office is not one of this admin's screens, so it belongs
+            with the controls that act on the sidebar itself. */}
+        {renderHomeLink(collapsed)}
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
