@@ -9,6 +9,22 @@ session video links come from Google Calendar/Meet. The admin back office is
 organised into six sections — Today, Sessions, People, Money, Catalog,
 Settings — defined once in `src/lib/adminNav.ts`.
 
+An admin carries a scope (`full`, `operations`, `finance`, `clinical`) that
+decides which of those sections they open, and **each scope opens on its own
+Today screen** — decided once in `src/lib/adminHome.ts`, never in the page,
+so four dashboards cannot grow four answers to "what needs me today".
+Operations leads with unassigned sessions, finance with what is owed to
+therapists, clinical with the recommendations a patient is waiting on; a
+full admin's screen is unchanged. Every link that module produces is built
+through the scope check, so an action for a section this admin cannot open
+is dropped rather than rendered — `findTab` would redirect the tap somewhere
+else and the dead link would look like it worked. "Needs you" counts only
+the queues the viewer can open, so it agrees with the list beneath it, and
+ordering those queues by role is emphasis, never permission: nothing
+reachable is hidden. A limited scope gets a "Your access" card and its level
+in the sidebar, because a shorter sidebar with no explanation reads as a
+fault. See the scope rule in `AGENTS.md`.
+
 The public marketing site is eight pages — `/`, `/conditions`,
 `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals` —
 defined once
@@ -263,7 +279,8 @@ page walkthrough's admin-configured rotation pace, and self-signup without
 an email-confirmation step, the brand splash's cold-open and
 long-absence rules and its admin settings, and the Session Completed cutoff,
 and the therapist roster end to end -- ranges, exceptions, leave,
-authorization, stale and double-clicked saves, and the booking regression
+authorization, stale and double-clicked saves, and the booking regression --
+and each admin scope's own landing screen
 (`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys — verify a change
 with a build and a lint.

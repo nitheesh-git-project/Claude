@@ -1,4 +1,4 @@
-import { adminScreenHref } from "@/lib/adminNav";
+import { adminScreenHref, type AdminSectionKey } from "@/lib/adminNav";
 // The notification feed every dashboard shows, derived rather than stored.
 //
 // The admin already had a real audit trail (admin_activity_log); patients,
@@ -533,12 +533,22 @@ export function buildAdminFeed({
   pendingApprovals = 0,
   pendingRequests = 0,
   failedSyncs = 0,
+  allowedSections,
 }: {
   activity: FeedActivityRow[];
   pendingApprovals?: number;
   pendingRequests?: number;
   failedSyncs?: number;
+  /** The sections this admin's scope may open (adminScope.ts). A feed item
+   *  is a link to work, so one pointing at a screen the viewer cannot open
+   *  is not a lighter version of the work -- it is a dead end that quietly
+   *  redirects (findTab falls back to the first allowed section). Omitted
+   *  means unrestricted, which is what every non-admin caller of the other
+   *  builders in this file is. */
+  allowedSections?: AdminSectionKey[];
 }): FeedItem[] {
+  const canOpen = (section: AdminSectionKey) =>
+    !allowedSections || allowedSections.includes(section);
   // Bulk edits write one audit row per field, so a single "save settings"
   // click can land ten identical-looking lines in a row. Collapse repeats
   // of the same action+target into one item carrying the count -- the log
@@ -589,7 +599,10 @@ export function buildAdminFeed({
       needsYou: true,
     });
   }
-  if (failedSyncs > 0) {
+  // Sync Health lives under Settings, which only a full admin opens -- and
+  // retrying a failed sync is a Settings route too, so for every other
+  // scope this is news about something they can neither reach nor fix.
+  if (failedSyncs > 0 && canOpen("settings")) {
     items.push({
       id: "queue-sync",
       at: now,

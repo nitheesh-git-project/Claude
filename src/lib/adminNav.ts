@@ -185,8 +185,22 @@ export type InboxItem = {
   urgent?: boolean;
 };
 
+/** What kind of work a queue group is. Named rather than inferred from the
+ *  group's title, because adminHome.ts orders these groups by the viewer's
+ *  scope -- and an ordering keyed on display text breaks silently the day
+ *  somebody rewords a heading. */
+export type AdminQueueDomain =
+  | "approvals"
+  | "risk"
+  | "scheduling"
+  | "clinical"
+  | "money"
+  | "growth"
+  | "health";
+
 export type InboxGroup = {
   title: string;
   icon: string;
+  domain: AdminQueueDomain;
   items: InboxItem[];
 };

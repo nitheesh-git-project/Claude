@@ -8,7 +8,7 @@ import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
 import AssignReferralForm from "@/components/admin/AssignReferralForm";
 import AdminShell, { type AdminScreens } from "@/components/admin/AdminShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
-import StatStrip, { type StatCell } from "@/components/dashboard/StatStrip";
+import StatStrip from "@/components/dashboard/StatStrip";
 import { buildAdminFeed } from "@/lib/dashboardFeed";
 import AdminInboxQueues from "@/components/admin/AdminInboxQueues";
 import AdminAllSessionsTab from "@/components/admin/AdminAllSessionsTab";
@@ -41,7 +41,18 @@ import {
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
 import ContactControlsForm from "@/components/admin/ContactControlsForm";
 import { adminScreenHref, type InboxGroup } from "@/lib/adminNav";
-import { parseAdminScope, scopeCanOpen, sectionsForScope } from "@/lib/adminScope";
+import {
+  buildAdminHome,
+  orderQueueGroups,
+  visibleQueueTotal,
+} from "@/lib/adminHome";
+import AdminAccessCard from "@/components/admin/AdminAccessCard";
+import {
+  ADMIN_SCOPE_LABELS,
+  parseAdminScope,
+  scopeCanOpen,
+  sectionsForScope,
+} from "@/lib/adminScope";
 import type { SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
 import AdminPayoutRequestsTab, { type PayoutRequestRow } from "@/components/admin/AdminPayoutRequestsTab";
@@ -1289,13 +1300,22 @@ export default async function AdminDashboardPage({
                     </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-100">
-                    <div>
-                      <p className="text-slate-400">Revenue Share</p>
-                      <EditRevenueShareForm
-                        hospitalId={h.id}
-                        currentPercent={sharePercent}
-                      />
-                    </div>
+                    {/* Editing a partner's commercial terms is a money
+                        capability (update-hospital-revenue-share takes
+                        requireAdminScope("money")), but this card sits on
+                        People -- which operations and clinical scopes both
+                        open. Rendering it to them is the 403-with-nothing-
+                        to-explain-it case, the same reason
+                        TherapistDetailContent hides its own share form. */}
+                    {canSeeMoney && (
+                      <div>
+                        <p className="text-slate-400">Revenue Share</p>
+                        <EditRevenueShareForm
+                          hospitalId={h.id}
+                          currentPercent={sharePercent}
+                        />
+                      </div>
+                    )}
                     <div>
                       <p className="text-slate-400">Paid Sessions</p>
                       <p className="font-bold text-slate-900">
@@ -1311,21 +1331,30 @@ export default async function AdminDashboardPage({
                         {referralStats.converted}/{referralStats.total} referrals
                       </p>
                     </div>
-                    <div>
-                      <p className="text-slate-400">Partner&apos;s share</p>
-                      <p className="font-bold text-teal-700">
-                        ₹{hospitalCut.toFixed(2)}
-                      </p>
-                      {isSuspended && (
-                        <p className="text-red-600">Stopped — suspended</p>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-slate-400">Clinic&apos;s share</p>
-                      <p className="font-bold text-slate-900">
-                        ₹{companyCut.toFixed(2)}
-                      </p>
-                    </div>
+                    {/* Same rule for the two figures the share produces:
+                        what a partner is owed and what the clinic keeps is
+                        the money a non-money scope is not shown on any
+                        other person's page either. The referral counts
+                        beside them are operational and stay. */}
+                    {canSeeMoney && (
+                      <>
+                        <div>
+                          <p className="text-slate-400">Partner&apos;s share</p>
+                          <p className="font-bold text-teal-700">
+                            ₹{hospitalCut.toFixed(2)}
+                          </p>
+                          {isSuspended && (
+                            <p className="text-red-600">Stopped — suspended</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-slate-400">Clinic&apos;s share</p>
+                          <p className="font-bold text-slate-900">
+                            ₹{companyCut.toFixed(2)}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-start justify-between gap-3 pt-2 border-t border-slate-100">
                     <ResetHospitalPasswordButton
@@ -2983,6 +3012,7 @@ export default async function AdminDashboardPage({
     {
       title: "Approvals",
       icon: "fa-user-check",
+      domain: "approvals",
       items: [
         {
           label: "Accounts waiting to be approved",
@@ -3003,6 +3033,7 @@ export default async function AdminDashboardPage({
     {
       title: "Risk",
       icon: "fa-triangle-exclamation",
+      domain: "risk",
       items: [
         {
           label: "Signals nobody has looked at",
@@ -3019,6 +3050,7 @@ export default async function AdminDashboardPage({
     {
       title: "Scheduling",
       icon: "fa-calendar-day",
+      domain: "scheduling",
       items: [
         {
           label: "Sessions with no therapist",
@@ -3043,6 +3075,7 @@ export default async function AdminDashboardPage({
     {
       title: "Clinical",
       icon: "fa-notes-medical",
+      domain: "clinical",
       items: [
         {
           // First in the clinical group and marked urgent, because it is the
@@ -3081,6 +3114,7 @@ export default async function AdminDashboardPage({
     {
       title: "Money",
       icon: "fa-sack-dollar",
+      domain: "money",
       items: [
         {
           label: "Payout requests open",
@@ -3109,6 +3143,7 @@ export default async function AdminDashboardPage({
     {
       title: "Growth",
       icon: "fa-seedling",
+      domain: "growth",
       items: [
         {
           label: "New B2B leads",
@@ -3129,6 +3164,7 @@ export default async function AdminDashboardPage({
     {
       title: "Health",
       icon: "fa-heart-pulse",
+      domain: "health",
       items: [
         {
           label: "Calendar / Meet sync failures",
@@ -3155,10 +3191,18 @@ export default async function AdminDashboardPage({
 
   const allowedSections = sectionsForScope(viewerScope);
 
-  const inboxTotal = inboxGroups.reduce(
-    (sum, g) => sum + g.items.reduce((s, i) => s + i.count, 0),
-    0
-  );
+  // Read by the global search below, which links into these two sections.
+  const canOpenSessionsSection = allowedSections.includes("sessions");
+  const canOpenCatalog = allowedSections.includes("catalog");
+
+  // The queues this admin can actually open, their own domain first, and
+  // what they add up to. The strip's "Needs you" figure reads this same
+  // total rather than summing every group: before, a clinical admin was
+  // told 23 things were waiting over a list showing four, which is the
+  // "the list disagrees with the number" failure in the first place
+  // anybody looks.
+  const scopedInboxGroups = orderQueueGroups(inboxGroups, viewerScope);
+  const inboxTotal = visibleQueueTotal(inboxGroups, allowedSections);
 
   const adminFeed = buildAdminFeed({
     activity: activityRows.slice(0, 10).map((r) => ({
@@ -3171,81 +3215,94 @@ export default async function AdminDashboardPage({
     pendingApprovals: pendingAccounts?.length ?? 0,
     pendingRequests: pendingProfileChanges?.length ?? 0,
     failedSyncs: googleMeetSyncIssues.length,
+    allowedSections,
   });
 
-  // A figure on this strip is a question ("how many sessions have nobody on
-  // them?"), so tapping it opens the answer rather than the whole table --
-  // ?view= is the preset the target screen applies (see adminScreenHref).
-  // Scope-gated: an admin whose scope cannot open Sessions gets the figure
-  // without a link, rather than a link into a 403.
-  const canOpenSessions = allowedSections.includes("sessions");
-  const canOpenMoney = allowedSections.includes("money");
+  // All-time and net of cash held -- the figure the Payouts screen shows and
+  // the Pay button transfers, never date-scoped (see the balance rule in
+  // AGENTS.md). Computed only for a scope that may open Money: a pass over
+  // every appointment to produce a number nobody on this dashboard may read
+  // is pure cost. Grouped by therapist first so this is one pass rather than
+  // one per therapist over the whole array.
+  let owedToTherapistsPaise: number | null = null;
+  if (canSeeMoney) {
+    const byTherapist = new Map<string, typeof appointmentsForPayouts>();
+    for (const a of appointmentsForPayouts) {
+      if (!a.therapist_id) continue;
+      const list = byTherapist.get(a.therapist_id);
+      if (list) list.push(a);
+      else byTherapist.set(a.therapist_id, [a]);
+    }
+    const payoutNowMs = nowTimestamp();
+    owedToTherapistsPaise = allTherapists.reduce((sum, t) => {
+      // A therapist with no revenue share configured has no computable cut
+      // -- 0, not "nothing owed" -- so they are skipped rather than added
+      // as zero, the same rule the Payouts table and the metrics split use.
+      if (t.revenue_share_percent === null || t.revenue_share_percent === undefined) return sum;
+      const theirs = byTherapist.get(t.id);
+      if (!theirs) return sum;
+      return (
+        sum +
+        computeTherapistPayoutSummary(
+          t.id,
+          t.revenue_share_percent,
+          theirs,
+          payoutNowMs,
+          homeVisitShareById.get(t.id) ?? null
+        ).netOwedPaise
+      );
+    }, 0);
+  }
 
-  const adminOverviewCells: StatCell[] = [
-    {
-      label: "Sessions today",
-      value: String(sessionsToday.length),
-      note:
-        unassignedToday > 0
-          ? `${unassignedToday} with no therapist yet`
-          : "All of today's work is assigned",
-      accent: unassignedToday > 0 ? "bg-amber-500" : "bg-teal-500",
-      href: canOpenSessions ? adminScreenHref("sessions", "all", "today") : undefined,
-    },
-    {
-      label: "Needs a person",
-      value: String(inboxTotal),
-      note: inboxTotal === 0 ? "The queues are clear" : "Across approvals, scheduling and money",
-      accent: inboxTotal > 0 ? "bg-red-500" : "bg-emerald-500",
-    },
-    {
-      label: "Unassigned sessions",
-      value: String(unassignedTotal),
-      note: "Booked but nobody is running them",
-      accent: unassignedTotal > 0 ? "bg-amber-500" : "bg-emerald-500",
-      href: canOpenSessions ? adminScreenHref("sessions", "all", "unassigned") : undefined,
-    },
-    {
-      label: "Cash to remit",
-      value: String(cashOwedByTherapists),
-      unit: cashOwedByTherapists === 1 ? "visit" : "visits",
-      note:
-        manualRefundsPending > 0
-          ? `${manualRefundsPending} manual refund${manualRefundsPending === 1 ? "" : "s"} pending too`
-          : "Cash collected on home visits, not yet handed in",
-      accent: cashOwedByTherapists > 0 ? "bg-amber-500" : "bg-emerald-500",
-      href: canOpenMoney ? adminScreenHref("money", "payouts", "owed") : undefined,
-    },
-  ];
+  // One module decides what each of the four scopes opens on -- the
+  // greeting, the four figures, the actions and the queue order -- so the
+  // dashboards cannot drift into four different answers to "what needs me
+  // today", and so every link on this screen lands somewhere the viewer may
+  // actually go. See src/lib/adminHome.ts.
+  const home = buildAdminHome(viewerScope, {
+    sessionsToday: sessionsToday.length,
+    unassignedToday,
+    unassignedTotal,
+    pendingAccounts: pendingAccounts?.length ?? 0,
+    pendingProfileChanges: pendingProfileChanges?.length ?? 0,
+    carePlansPending: carePlansPendingCount,
+    carePlansStale: carePlansStaleCount,
+    conditionRequestsPending: conditionRequestsPendingCount ?? 0,
+    conditionAccessPending: conditionAccessPendingCount ?? 0,
+    payoutRequestsOpen: payoutRequestsBadgeCount,
+    cashToRemitVisits: cashOwedByTherapists,
+    manualRefundsPending,
+    needsYouTotal: inboxTotal,
+    owedToTherapistsPaise,
+  });
 
   const adminOverviewTab = (
     <DashboardOverview
-      greeting="The clinic today"
-      headline={
-        inboxTotal > 0
-          ? `${inboxTotal} thing${inboxTotal === 1 ? "" : "s"} waiting on an admin, and ${sessionsToday.length} session${
-              sessionsToday.length === 1 ? "" : "s"
-            } scheduled today.`
-          : `Nothing is waiting on you. ${sessionsToday.length} session${
-              sessionsToday.length === 1 ? "" : "s"
-            } scheduled today.`
-      }
-      cells={adminOverviewCells}
+      greeting={home.greeting}
+      headline={home.headline}
+      cells={home.cells}
       feed={adminFeed}
       feedTitle="Activity"
       feedEmptyBody="Admin actions and anything waiting on a person appear here."
-      aside={<AdminInboxQueues groups={inboxGroups} allowedSections={allowedSections} />}
-      actions={[
-        { label: "Approvals", hint: "Signups and profile change requests", icon: "fa-user-check", href: "/admin/dashboard?section=today&tab=approvals", primary: true },
-        { label: "All sessions", hint: "Assign, reschedule, refund", icon: "fa-calendar-check", href: "/admin/dashboard?section=sessions&tab=all" },
-        { label: "Money summary", hint: "Revenue, payouts and cash", icon: "fa-indian-rupee-sign", href: "/admin/dashboard?section=money&tab=summary" },
-      ]}
+      aside={
+        <>
+          <AdminInboxQueues groups={scopedInboxGroups} allowedSections={allowedSections} />
+          {home.accessNote && <AdminAccessCard note={home.accessNote} />}
+        </>
+      }
+      actions={home.actions}
     />
   );
 
   // ---- Global search ---------------------------------------------------
   // Built from data this page already loaded, so the box costs one pass over
   // arrays that are already in memory rather than a new query.
+  //
+  // Scope-filtered for the same reason the quick actions are: a result is a
+  // link, and a clinical admin who searches a purchase code and lands back
+  // on Today (findTab's fallback) has been told the code does not exist.
+  // Patient and therapist results are person pages, which every scope may
+  // open -- People is in all four scopes' section lists.
   const searchEntities: SearchEntity[] = [
     ...patients.map((p) => ({
       id: p.id,
@@ -3271,7 +3328,7 @@ export default async function AdminDashboardPage({
       href: adminScreenHref("people", "partners"),
       hint: h.full_name,
     })),
-    ...appointmentsWithSessionCode
+    ...(canOpenSessionsSection ? appointmentsWithSessionCode : [])
       .filter((a) => a.session_code)
       .map((a) => ({
         id: a.id,
@@ -3285,7 +3342,7 @@ export default async function AdminDashboardPage({
         href: adminScreenHref("sessions", "all"),
         hint: `${profileMap.get(a.patient_id)?.full_name ?? "Unknown"} · ${a.status}`,
       })),
-    ...packagePurchaseRows
+    ...(canOpenCatalog ? packagePurchaseRows : [])
       .filter((p) => p.purchaseCode)
       .map((p) => ({
         id: p.id,
@@ -3295,7 +3352,7 @@ export default async function AdminDashboardPage({
         href: adminScreenHref("catalog", "purchases"),
         hint: `${p.patientName} · ${p.packageTitle}`,
       })),
-    ...homeVisitPurchaseRows
+    ...(canOpenCatalog ? homeVisitPurchaseRows : [])
       .filter((p) => p.purchaseCode)
       .map((p) => ({
         id: p.id,
@@ -3451,6 +3508,7 @@ export default async function AdminDashboardPage({
         adminName={adminProfile?.full_name ?? "Admin"}
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         adminAvatarUrl={adminProfile?.avatar_url ?? null}
+        scopeLabel={viewerScope === "full" ? null : ADMIN_SCOPE_LABELS[viewerScope]}
         offsetTop={showDebugNav}
       />
     </JoinWindowProvider>

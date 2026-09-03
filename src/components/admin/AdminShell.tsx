@@ -127,6 +127,7 @@ export default function AdminShell({
   adminName,
   adminEmail,
   adminAvatarUrl,
+  scopeLabel,
   allowedSections,
   offsetTop,
   initialSection,
@@ -140,6 +141,12 @@ export default function AdminShell({
   adminName: string;
   adminEmail: string;
   adminAvatarUrl: string | null;
+  // The viewer's access level, shown beside their name. Null for a full
+  // admin, who has nothing withheld to account for. It is here as well as
+  // on the Today screen's access card because this sidebar is where the
+  // absence is visible: an admin looking for Money and not finding it is
+  // looking at this list, not at Today.
+  scopeLabel: string | null;
   // Which sections this admin's scope may open (see adminScope.ts). The
   // sidebar hides the rest -- but hiding is presentation only; every route
   // re-checks scope server-side, since a hidden button is not a permission.
@@ -348,6 +355,12 @@ export default function AdminShell({
             <div className="min-w-0">
               <p className="truncate text-xs font-semibold text-white">{adminName}</p>
               <p className="truncate text-[11px] text-slate-400">{adminEmail}</p>
+              {scopeLabel && (
+                <p className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-teal-300">
+                  <i aria-hidden className="fa-solid fa-shield-halved text-[8px]" />
+                  {scopeLabel}
+                </p>
+              )}
             </div>
           )}
         </div>

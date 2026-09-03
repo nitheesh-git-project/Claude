@@ -47,7 +47,10 @@ going through with no email-confirmation step
 (`patient-registration.spec.ts`), the Session Completed cutoff on every
 surface that lists a session (`session-completed-cutoff.spec.ts`), and the
 brand splash's cold-open, reload and long-absence rules together with its
-admin settings (`splash-screen.spec.ts`), and the therapist roster end to end
+admin settings (`splash-screen.spec.ts`), and each admin scope's own
+landing screen -- the figure it leads with, quick actions that all land
+inside that scope, and the access card a limited scope gets and a full
+admin does not (`admin-scoped-dashboard.spec.ts`), and the therapist roster end to end
 (`therapist-roster.spec.ts`: ranges saving as the same hour rows, exceptions
 owning only their own date, leave leaving the schedule intact, role and
 scope authorization on every roster route, stale/double-clicked saves, and
@@ -180,6 +183,7 @@ src/components/marketing/ the eight public pages' design system: PageHero,
                          IconCard, TrustBar, ExploreGrid, ClosingCta
 src/lib/                 domain logic, formatting, Supabase clients
 src/lib/adminNav.ts      the admin dashboard's six sections + their screens
+src/lib/adminHome.ts     what each admin scope's Today screen opens on
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
 src/lib/mission.ts       the mission, vision, promises and stated limits
 src/lib/marketingPhotos.ts every photograph the public pages use
@@ -243,9 +247,48 @@ directly. The section is chosen by the capability, not by where the button
 happens to sit — a refund is `money` even though its button lives on a
 Catalog screen. And a guarded route needs the UI to match: a control an
 admin's scope cannot call must not render, or they get a 403 with nothing
-to explain it. `ProfileSessionList`, `SessionDetailDrawer` and the two
-purchase detail modals take `canSeeMoney` / `canManageSessions` for exactly
-that reason.
+to explain it. `ProfileSessionList`, `SessionDetailDrawer`, the two
+purchase detail modals and the Partners screen's revenue-share editor and
+its two share figures take `canSeeMoney` / `canManageSessions` for exactly
+that reason -- Partners sits on People, which every scope opens, while
+`update-hospital-revenue-share` is a money route.
+
+**Every scope opens on its own dashboard, and one module decides all four.**
+`src/lib/adminHome.ts` returns the greeting, the four figures, the quick
+actions, the queue order and the access note for a given scope, and the
+dashboard page renders what it returns. Four scopes on one Today screen went
+wrong in three ways, and all three are the kind that look like a working
+screen:
+1. **A figure that disagrees with the list under it.** "Needs a person"
+   summed every queue while the queue list beside it was already filtered to
+   what the viewer could open, so a clinical admin read 23 over a list of
+   four. `visibleQueueTotal()` counts the same rows the list renders, and
+   the strip reads that. Same rule as the `?view=` presets: a count links to
+   -- and agrees with -- the rows it counted.
+2. **A link the viewer cannot follow.** The quick actions were hardcoded at
+   Sessions and Money for everybody, and `findTab` falls back to the first
+   section a scope *can* open -- so a finance admin's "All sessions" landed
+   back on Today, silently. Every href this module produces is built through
+   `scopeCanOpen`, and an action for an unreachable section is **dropped**
+   rather than written carefully, so a future change to the scope table
+   breaks the list rather than the admin. The dashboard's global search is
+   filtered the same way: a purchase code that opens Today is a code the
+   admin is told does not exist.
+3. **A role reading a different role's questions first.** Emphasis is
+   scope-shaped: operations leads with unassigned sessions, finance with
+   what is owed, clinical with the recommendation queue. A money figure is
+   not merely unlinked for a scope that cannot open Money -- the page does
+   not compute it.
+Ordering the queues is emphasis, never permission: `orderQueueGroups()`
+moves a scope's own domains to the top and **removes nothing**, because what
+a scope may work is the routes' decision and a UI that hid a reachable queue
+would be a second permission model to disagree with the first. A limited
+scope also gets an access note (`AdminAccessCard`, plus the scope label in
+`AdminShell`'s footer) naming what it covers and what it does not -- the
+sections are correctly hidden already, and this is the sentence saying they
+were hidden on purpose. Add a screen to a scope's landing by editing that
+module, not the page; `src/lib/adminHome.test.ts` asserts the two invariants
+above over all four scopes.
 
 `getAdminUser()` and the proxy's admin branch both refuse a suspended admin
 (`profiles.active`). They deliberately do **not** check `approved`: an admin
