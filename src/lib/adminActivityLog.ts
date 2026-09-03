@@ -30,6 +30,7 @@ export type AdminActivityAction =
   // A recommendation is the only route to a programme, so withdrawing one
   // stops a purchase from happening -- worth the same trail as cancelling
   // a session.
+  | "payment.goodwill_discount"
   | "care_plan.approve"
   | "care_plan.reject"
   | "care_plan.edit_and_approve"
@@ -62,6 +63,12 @@ export type AdminActivityAction =
   | "cash.mark_refund_returned"
   | "expense.create"
   | "expense.delete"
+  // A campaign an admin sets up decides what every patient who types its
+  // name pays, so creating or re-pricing one moves more money than most
+  // single refunds do -- see isMoneyAction, which counts all three.
+  | "promo.create"
+  | "promo.update"
+  | "promo.delete"
   // Every future payout for this therapist is computed from this
   // percentage, so changing it moves more money than most single refunds
   // do -- see isMoneyAction, which counts it as one.
@@ -139,6 +146,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "session.assign": "Assigned therapist",
   "session.update": "Edited session",
   "session.cancel": "Cancelled session",
+  "payment.goodwill_discount": "Took an amount off a session as goodwill",
   "care_plan.approve": "Approved a recommendation",
   "care_plan.reject": "Turned down a recommendation",
   "care_plan.edit_and_approve": "Approved a recommendation with different numbers",
@@ -161,6 +169,9 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "cash.mark_remitted": "Marked cash remitted",
   "cash.mark_refund_returned": "Marked cash refund returned",
   "expense.create": "Recorded a cost",
+  "promo.create": "Created a promo code",
+  "promo.update": "Changed a promo code",
+  "promo.delete": "Deleted a promo code",
   "expense.delete": "Removed a cost",
   "therapist.set_revenue_share": "Changed therapist revenue share",
   "therapist.set_weekly_schedule": "Changed therapist working hours",
@@ -187,6 +198,7 @@ export function isMoneyAction(action: string): boolean {
     action.startsWith("refund") ||
     action.startsWith("cash.") ||
     action.startsWith("expense.") ||
+    action.startsWith("promo.") ||
     action === "session.mark_paid_cash" ||
     action === "hospital.set_revenue_share" ||
     action === "therapist.set_revenue_share" ||

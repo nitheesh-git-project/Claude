@@ -158,6 +158,24 @@ At **Settings → Booking Rules**, above the package settings.
 
 Note there is no longer a **Show programme prices publicly** switch. Programmes are not advertised on the public site at all — see `PUB-CAT-002`.
 
+#### `ADM-SET-023` — First session offer · P0
+
+At **Settings → Booking Rules**, above the recommendation settings.
+
+| Setting | Default | Dependent feature |
+| --- | --- | --- |
+| **First session offer** | **off** | On → a patient who has never paid for a session is charged the offer price for a video consultation. Off → everyone pays list price |
+| **Offer type** | `A set price` | `A set price` names what they pay ("₹499"); `A percentage off` adapts across categories priced differently |
+| **Offer value** | 0 | Rupees or whole percent depending on the type. The panel previews what a real category's session would cost a new patient |
+
+**Steps.** Turn it on, set a set price of ₹499. Read the preview. Book and pay as a **brand-new** patient, then as one who has paid before.
+**Expected Result**
+* The preview quotes a real category's price — *"A ₹1,200 session would cost a new patient ₹499."*
+* The new patient is charged **₹499**; the returning patient is charged **₹1,200**. Eligibility is decided server-side from payment history, so it cannot be requested, repeated, or sent from the browser.
+* Programmes and home visits are **not** discounted by it.
+* Values the route must refuse: a type other than `fixed`/`percent`, a value of 0 or negative, a non-boolean for the switch.
+* Set 100% off: the patient is charged the ₹1 minimum rather than zero — Razorpay refuses a zero-amount order, so an unguarded 100% would be a 500 at the last step of checkout.
+
 #### `ADM-SET-021` — Automatic therapist assignment · P0
 
 **Feature.** When a session is paid for and **exactly one** therapist is unambiguously free for it, assign them and confirm the booking immediately instead of leaving it in the admin queue. It reads the roster (weekly template + that date's exceptions + leave) and the same conflict check the admin's assign form uses. **It does not change what times a patient is offered** — the roster still does not filter the picker.

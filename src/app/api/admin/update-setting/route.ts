@@ -20,6 +20,14 @@ const ALLOWED_COLUMNS = new Set([
   "contact_masking_enabled",
   "risk_signals_enabled",
   "care_plan_requires_approval",
+  "first_session_offer_enabled",
+  "first_session_offer_type",
+  "first_session_offer_value",
+  "promo_codes_enabled",
+  "invite_rewards_enabled",
+  "invite_reward_paise",
+  "invite_welcome_paise",
+  "invite_max_rewards_per_patient",
   "care_plan_default_expiry_days",
   "care_plan_max_frequency_per_week",
   "session_timeout_minutes",
@@ -132,7 +140,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unknown setting key" }, { status: 400 });
   }
   if (
-    (key === "care_plan_requires_approval" ||
+    (key === "first_session_offer_enabled" ||
+      key === "promo_codes_enabled" ||
+      key === "invite_rewards_enabled" ||
+      key === "care_plan_requires_approval" ||
       key === "google_meet_enabled" ||
       key === "package_therapist_lock_enabled" ||
       key === "home_visit_enabled" ||
@@ -283,6 +294,45 @@ export async function POST(request: NextRequest) {
   ) {
     return NextResponse.json(
       { error: "value must be a whole number between 1 and 7" },
+      { status: 400 }
+    );
+  }
+
+  // The offer's own two columns. Bounded here as well as by their CHECK
+  // constraints, because a misconfigured discount is the one setting on this
+  // route that changes what somebody is charged -- and "50" typed into a
+  // field that wanted paise is a fifty-paise session.
+  if (
+    key === "first_session_offer_type" &&
+    value !== "fixed" &&
+    value !== "percent"
+  ) {
+    return NextResponse.json(
+      { error: "value must be 'fixed' or 'percent'" },
+      { status: 400 }
+    );
+  }
+  // Zero is meaningful for all three: an invite half set to zero is a half
+  // the clinic is not paying, and a reward ceiling of zero stops new invites
+  // being claimed without switching the feature off for the ones already
+  // promised.
+  if (
+    (key === "invite_reward_paise" ||
+      key === "invite_welcome_paise" ||
+      key === "invite_max_rewards_per_patient") &&
+    (typeof value !== "number" || !Number.isInteger(value) || value < 0)
+  ) {
+    return NextResponse.json(
+      { error: "value must be a non-negative whole number" },
+      { status: 400 }
+    );
+  }
+  if (
+    key === "first_session_offer_value" &&
+    (typeof value !== "number" || !Number.isInteger(value) || value < 1)
+  ) {
+    return NextResponse.json(
+      { error: "value must be a positive whole number" },
       { status: 400 }
     );
   }

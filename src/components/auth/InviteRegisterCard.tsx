@@ -65,7 +65,7 @@ export default function InviteRegisterCard() {
               </p>
             </>
           ) : (
-            <p className="text-sm text-slate-500">Checking your invite...</p>
+            <p className="text-sm text-slate-500">Checking your registration link...</p>
           )}
         </div>
       </section>

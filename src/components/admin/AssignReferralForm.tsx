@@ -116,7 +116,7 @@ export default function AssignReferralForm({
         disabled={loading}
         className="bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-semibold px-3 py-2 rounded-lg transition"
       >
-        {loading ? "Assigning..." : "Assign & Generate Invite"}
+        {loading ? "Assigning..." : "Assign & Create Registration Link"}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
     </form>

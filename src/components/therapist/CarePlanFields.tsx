@@ -174,9 +174,18 @@ export default function CarePlanFields({
     });
   }
 
-  // Grouped by condition type where an admin has tagged them, and under one
-  // unnamed heading where they have not -- a database mid-migration reads as
-  // one flat list rather than as an empty picker.
+  // Grouped by condition type where an admin has tagged them, and under
+  // **General** where they have not -- a database mid-migration reads as one
+  // flat list rather than as an empty picker.
+  //
+  // "General" rather than "Other", which is what this said first. An
+  // untagged condition is almost always the general consultation every
+  // clinic carries, and "Other" reads as a leftover bin the clinician is
+  // being asked to apologise for picking from. It is also honest about what
+  // the tag is for: `specialty` groups this picker, and it is deliberately
+  // **not** a fourth condition type -- a patient's own health profile is
+  // ortho, neuro or paediatric, decided by the therapist at triage, and
+  // nobody's record should ever be "general".
   const groupedConditions = (() => {
     const order = ["ortho", "neuro", "pediatrics", null];
     const groups: { label: string; conditions: { key: string; label: string }[] }[] = [];
@@ -186,7 +195,7 @@ export default function CarePlanFields({
         .sort((a, b) => a.label.localeCompare(b.label));
       if (conditions.length === 0) continue;
       groups.push({
-        label: specialty ? SPECIALTY_LABELS[specialty] : "Other",
+        label: specialty ? SPECIALTY_LABELS[specialty] : "General",
         conditions,
       });
     }

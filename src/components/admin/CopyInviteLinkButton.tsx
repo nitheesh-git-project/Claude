@@ -21,7 +21,7 @@ export default function CopyInviteLinkButton({
       onClick={handleCopy}
       className="text-[11px] text-teal-700 font-semibold hover:underline"
     >
-      {copied ? "Copied!" : "Copy Invite Link"}
+      {copied ? "Copied!" : "Copy Registration Link"}
     </button>
   );
 }

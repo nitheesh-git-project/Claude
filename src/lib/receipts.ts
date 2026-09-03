@@ -1,3 +1,4 @@
+import { describeDiscount, type DiscountSource } from "@/lib/discounts";
 // Pure aggregation for the Receipts feature -- kept separate from any
 // rendering component so the logic can be reasoned about on its own,
 // matching this codebase's established convention (see paymentHistory.ts,
@@ -25,6 +26,13 @@ export type PatientReceiptAppointment = {
   razorpay_payment_id: string | null;
   package_purchase_id: string | null;
   refund_status: string | null;
+  /** What the session listed at and what came off it, when a discount
+   *  applied. Migration-dependent, so a caller reading a database without
+   *  the columns hands through undefined and the receipt simply shows the
+   *  amount charged, as it always did. */
+  list_price_paise?: number | null;
+  discount_paise?: number | null;
+  discount_source?: string | null;
 };
 
 export type PayoutReceiptAppointment = {
@@ -89,6 +97,17 @@ export type BookingReceipt = {
   slotTime: string | null;
   slotTimezone: string | null;
   amountPaise: number;
+  /**
+   * What it would have cost, and what came off — shown as its own line
+   * rather than folded into the amount.
+   *
+   * A receipt that silently prints a lower number tells the patient nothing
+   * about the fact that they were given something. The whole value of an
+   * acquisition offer is that the person knows they received it.
+   */
+  listPricePaise: number | null;
+  discountPaise: number;
+  discountLabel: string | null;
   transactionId: string | null;
   date: string; // paid_at, used for sorting/display
 };
@@ -149,6 +168,17 @@ export function buildPatientReceipts(
       slotTime: a.slot_time,
       slotTimezone: a.timezone,
       amountPaise: a.package_purchase_id ? 0 : a.amount_paid_paise ?? 0,
+      // Only where something actually came off, and never on a
+      // package-covered session — that row charges nothing, so "₹700 off"
+      // beside a zero would be nonsense.
+      listPricePaise: a.package_purchase_id ? null : a.list_price_paise ?? null,
+      discountPaise: a.package_purchase_id ? 0 : a.discount_paise ?? 0,
+      discountLabel: a.package_purchase_id
+        ? null
+        : describeDiscount(
+            (a.discount_source as DiscountSource | null) ?? null,
+            a.discount_paise ?? 0
+          ),
       transactionId: a.razorpay_payment_id,
       date: a.paid_at as string,
     }));
@@ -170,6 +200,9 @@ export function buildPatientReceipts(
       slotTime: null,
       slotTimezone: null,
       amountPaise: p.amount_paid_paise ?? 0,
+      listPricePaise: null,
+      discountPaise: 0,
+      discountLabel: null,
       transactionId: p.razorpay_payment_id,
       date: p.paid_at as string,
     }));

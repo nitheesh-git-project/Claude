@@ -94,6 +94,10 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   "risk_reviews",
   "communication_flags",
   "contact_reveal_log",
+  // Campaigns are admin-edited catalog data like the rest of this list, and
+  // the editor already sees their own change -- so the long cooldown is
+  // right and the operational one would be wasted rebuilds.
+  "promo_codes",
 ];
 
 // Cooldowns, not delays: RealtimeRefresh fires on the leading edge, so

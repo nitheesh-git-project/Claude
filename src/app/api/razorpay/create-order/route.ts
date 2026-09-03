@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isGatewayPayable } from "@/lib/discounts";
+import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
 import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import {
   isProfileActive,
   isPatientProfile,
@@ -27,10 +28,13 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
-  const { appointmentId } = await request.json();
+  const { appointmentId, promoCode } = await request.json();
   if (!appointmentId) {
     return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
   }
+  // An identifier, never an amount. What the code is worth is read from the
+  // row an admin created, server-side, below.
+  const typedPromoCode = typeof promoCode === "string" ? promoCode : "";
 
   // Deliberately isProfileActive, not isProfileActiveAndApproved:
   // appointments_insert_own already lets an unapproved patient's
@@ -177,35 +181,54 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Resolve the real price for what was actually booked. Looked up via the
-  // admin client (not the active-only public policy) so that if a category
-  // gets deactivated after this appointment was created, the patient is
-  // still charged the price they originally saw — not silently bumped to
-  // the flat fallback fee. No category (e.g. a hospital-referred booking)
-  // charges the flat base fee.
-  let amountPaise = SESSION_FEE_PAISE;
-  if (appointment.category_id) {
-    const { data: category } = await admin
-      .from("treatment_categories")
-      .select("price_paise")
-      .eq("id", appointment.category_id)
-      .single();
-    if (category) {
-      amountPaise = category.price_paise;
-    }
+  // Price and discounts, resolved through the one module the quote route and
+  // the free-confirmation route also use -- see checkoutQuote.ts for why
+  // three callers sharing one resolution is the point. `claim: true` makes
+  // this the authority: a promo code is claimed under a row lock and an
+  // invite half is attached, both of which the read-only quote deliberately
+  // does not do.
+  const quote = await resolveCheckoutQuote(admin, {
+    appointment: {
+      id: appointment.id,
+      patient_id: appointment.patient_id,
+      category_id: appointment.category_id,
+      visit_mode: appointment.visit_mode,
+      travel_fee_paise: appointment.travel_fee_paise,
+    },
+    promoCode: typedPromoCode,
+    claim: true,
+  });
+
+  if (typedPromoCode && quote.promoError) {
+    // Refused rather than quietly charged at list price. The patient was
+    // shown a figure with this code applied; taking more money than they
+    // were quoted is the one outcome a payment screen must never produce.
+    return NextResponse.json({ error: quote.promoError }, { status: 409 });
   }
 
-  // A home-visit referral appointment (the only home-visit path that goes
-  // through this generic route -- purchase-backed visits pay via
-  // /api/home-visit/create-order instead) carries its own travel fee on top
-  // of the session price, same as every other home-visit charge. Charged to
-  // the patient, but never folded into amount_paid_paise itself -- that
-  // column is what revenue/payout math multiplies by the therapist's share,
-  // and travel is a pass-through paid in full, not a share-based earning
-  // (see homeVisitPricing.ts). therapistPayouts.ts already reads
-  // travel_fee_paise straight off the appointment for the payout side.
-  const travelFeePaise =
-    appointment.visit_mode === "home_visit" ? Math.max(0, appointment.travel_fee_paise ?? 0) : 0;
+  // Nothing left to charge. Razorpay refuses a zero-amount order, and a
+  // token rupee would charge a figure the patient was never quoted -- so a
+  // free booking is confirmed by its own route instead, and this one says
+  // so rather than inventing an amount.
+  if (!isGatewayPayable(quote.totalPaise)) {
+    return NextResponse.json(
+      {
+        free: true,
+        totalPaise: quote.totalPaise,
+        error: "This booking is free — confirm it without paying.",
+      },
+      { status: 409 }
+    );
+  }
+
+  const listPricePaise = quote.listPricePaise;
+  const travelFeePaise = quote.travelFeePaise;
+  const discount = {
+    discountPaise: quote.discountPaise,
+    payablePaise: quote.payablePaise,
+    source: quote.source,
+  };
+  const amountPaise = quote.payablePaise;
 
   // Guarded like /api/home-visit/create-order's own order.create call: an
   // uncaught throw here (bad/missing Razorpay keys, a Razorpay API hiccup)
@@ -230,7 +253,16 @@ export async function POST(request: NextRequest) {
 
   const { error: updateError } = await admin
     .from("appointments")
-    .update({ razorpay_order_id: order.id, amount_paid_paise: amountPaise })
+    .update({
+      razorpay_order_id: order.id,
+      amount_paid_paise: amountPaise,
+      // All four facts, so the books can tell "we sold cheap" from "we
+      // discounted". Written even when nothing came off, so a row without a
+      // discount is distinguishable from one recorded before this existed.
+      list_price_paise: listPricePaise,
+      discount_paise: discount.discountPaise,
+      ...(discount.source ? { discount_source: discount.source } : {}),
+    })
     .eq("id", appointmentId);
 
   if (updateError) {

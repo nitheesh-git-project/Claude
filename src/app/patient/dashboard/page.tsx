@@ -3,6 +3,7 @@ import Link from "next/link";
 import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import OnboardingTour from "@/components/patient/OnboardingTour";
+import InviteCard from "@/components/patient/InviteCard";
 import { StripProgress } from "@/components/dashboard/StatStrip";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -146,6 +147,26 @@ export default async function PatientDashboardPage() {
           },
         ]}
       />
+
+      {/* Below the overview, deliberately. Somebody's next session and what
+          is waiting on them come first; telling a friend is the last thing
+          on this screen, not a banner over the top of it. */}
+      {d.invite && (
+        <div className="mt-8">
+          <InviteCard
+            code={d.invite.code}
+            settings={d.invite.settings}
+            invited={d.invite.invited}
+            qualified={d.invite.qualified}
+            rewardWaitingPaise={d.invite.rewardWaitingPaise}
+            claimedSomeoneElses={d.invite.claimedSomeoneElses}
+            // You are new exactly once, so the entry field is gone the
+            // moment a session has been paid for -- the same test the
+            // server applies, said on screen rather than only refused.
+            canClaim={!d.appointments.some((a) => a.payment_status === "paid")}
+          />
+        </div>
+      )}
     </PatientDashboardShell>
   );
 }

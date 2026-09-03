@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { PROGRAMME_NEEDS_RECOMMENDATION } from "@/lib/consultationFirst";
 import { payForAppointment } from "@/lib/razorpay";
+import PromoCodeField from "@/components/booking/PromoCodeField";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
@@ -40,15 +41,33 @@ function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
 }
 
+type CheckoutQuoteResponse = {
+  listPricePaise: number;
+  discountPaise: number;
+  payablePaise: number;
+  travelFeePaise: number;
+  totalPaise: number;
+  discountLabel: string | null;
+  /** True when a discount took the total to nothing. Named for the decision
+   *  rather than the number, so this component never re-implements the
+   *  gateway threshold. */
+  free: boolean;
+};
+
 export default function BookingWizard({
   initialCategories,
   bookingLanguages,
+  promoCodesEnabled = false,
 }: {
   initialCategories: Category[];
   // Admin-configured (Feature Control → Booking Languages), never a
   // hardcoded list here -- see lib/adminSettings.ts for the "English"
   // fallback that applies when admin hasn't configured any yet.
   bookingLanguages: string[];
+  /** Whether the clinic is running any campaign at all. Off means the field
+   *  is not on screen: a code box with nothing behind it teaches every
+   *  patient that there is a discount they are missing. */
+  promoCodesEnabled?: boolean;
 }) {
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
@@ -60,6 +79,15 @@ export default function BookingWizard({
   const [done, setDone] = useState(false);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  // The code the patient applied, if any. Held as a string and sent to
+  // checkout as one -- the amount it is worth is never in this component.
+  const [promoCode, setPromoCode] = useState<string | null>(null);
+  // What the server says this booking costs, including every discount the
+  // browser cannot see -- a first-session offer, an invite half. The button
+  // reads from this rather than from the category price, because printing
+  // one figure and opening Razorpay at another is the bug this replaced.
+  const [quote, setQuote] = useState<CheckoutQuoteResponse | null>(null);
+  const [quoting, setQuoting] = useState(false);
 
   // Lazy initializer, not a bare Date.now() in the render body -- same
   // one-time-"now" pattern already used elsewhere in this codebase (see
@@ -292,6 +320,9 @@ export default function BookingWizard({
       return;
     }
     setStep(3);
+    // The figures on the payment screen come from the server, not from the
+    // category price this component happens to hold -- see refreshQuote.
+    void refreshQuote(appointmentId, promoCode);
   }
 
   async function handleSubmit() {
@@ -403,7 +434,90 @@ export default function BookingWizard({
     }
 
     setAppointmentId(newAppointmentId);
+
+    // Re-quoted against the real account and the real booking before
+    // anything is charged. The quote on screen a moment ago may have been
+    // the anonymous one -- a self-signup patient reads a price before their
+    // account exists, so that quote answers for "a new patient" and knows
+    // nothing of a goodwill adjustment or an invite half. This one knows
+    // both, and create-order resolves it all again under a row lock anyway.
+    const identified = await refreshQuote(newAppointmentId, promoCode);
+    if (identified?.free) {
+      await confirmFree(newAppointmentId);
+      return;
+    }
     await startPayment(newAppointmentId);
+  }
+
+  /**
+   * What a booking the discounts took to nothing does instead of paying.
+   *
+   * The server re-resolves the price and every discount under the same row
+   * lock the order route uses and refuses if anything is still owed -- so
+   * this is a request to confirm, never a claim that it is free.
+   */
+  async function confirmFree(id: string) {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/appointments/confirm-free", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId: id, promoCode }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoading(false);
+        setError(data.error ?? "Could not confirm your booking. Please try again.");
+        setFailedAttempts((n) => n + 1);
+        // The price moved between the quote and this tap -- a cap filled, a
+        // code was paused. Re-quote so the screen stops saying "free".
+        await refreshQuote(id, promoCode);
+        return;
+      }
+      setLoading(false);
+      setDone(true);
+    } catch {
+      setLoading(false);
+      setError("Could not reach the server. Please check your connection and try again.");
+      setFailedAttempts((n) => n + 1);
+    }
+  }
+
+  /** The one place the payment screen's figures come from. Returns what it
+   *  fetched as well as storing it, because the moment after signup needs
+   *  the answer before a re-render can deliver it. */
+  async function refreshQuote(
+    id: string | null,
+    code: string | null
+  ): Promise<CheckoutQuoteResponse | null> {
+    if (!categoryId && !id) return null;
+    setQuoting(true);
+    try {
+      const res = await fetch("/api/appointments/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(id ? { appointmentId: id } : { categoryId }),
+          promoCode: code,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      // A failed quote leaves the previous figures alone rather than
+      // blanking the screen: the order route re-resolves and refuses
+      // anything it cannot honour, so a stale quote can only ever be
+      // corrected, never charged.
+      if (res.ok && data) {
+        setQuote(data as CheckoutQuoteResponse);
+        return data as CheckoutQuoteResponse;
+      }
+      return null;
+    } catch {
+      // Same reasoning.
+      return null;
+    } finally {
+      setQuoting(false);
+    }
   }
 
   async function startPayment(id: string) {
@@ -411,6 +525,10 @@ export default function BookingWizard({
     setLoading(true);
     await payForAppointment({
       appointmentId: id,
+      promoCode,
+      onFree: () => {
+        void confirmFree(id);
+      },
       name: fullName,
       email,
       description: selectedCategory?.title ?? "Virtual Physical Therapy Session",
@@ -837,15 +955,62 @@ export default function BookingWizard({
             </div>
             <div className="flex justify-between text-xs pt-3 border-t border-teal-100">
               <span className="text-slate-500">Session Fee</span>
-              <span className="font-bold text-slate-900">
-                {selectedCategory ? `${formatInr(selectedCategory.price_paise)} INR` : "—"}
+              <span className={`font-bold text-slate-900 ${quote && quote.discountPaise > 0 ? "line-through opacity-60" : ""}`}>
+                {quote
+                  ? `${formatInr(quote.listPricePaise)} INR`
+                  : selectedCategory
+                    ? `${formatInr(selectedCategory.price_paise)} INR`
+                    : "—"}
               </span>
             </div>
+            {quote && quote.discountPaise > 0 && (
+              <div className="flex justify-between text-xs">
+                <span className="text-teal-700">{quote.discountLabel ?? "Discount"}</span>
+                <span className="font-bold text-teal-700">
+                  −{formatInr(quote.discountPaise)}
+                </span>
+              </div>
+            )}
+            {quote && quote.travelFeePaise > 0 && (
+              <div className="flex justify-between text-xs">
+                {/* Never discounted: a pass-through paid to the therapist in
+                    full, so it is added after the discount and shown as its
+                    own line rather than folded into a price. */}
+                <span className="text-slate-500">Travel</span>
+                <span className="font-bold text-slate-900">
+                  {formatInr(quote.travelFeePaise)}
+                </span>
+              </div>
+            )}
+            {quote && (
+              <div className="flex justify-between text-sm pt-3 border-t border-teal-100">
+                <span className="font-semibold text-slate-700">Total</span>
+                <span className="font-extrabold text-slate-900">
+                  {quote.free ? "Free" : `${formatInr(quote.totalPaise)} INR`}
+                </span>
+              </div>
+            )}
           </div>
+          {promoCodesEnabled && (
+            <div className="pt-1">
+              <PromoCodeField
+                categoryId={selectedCategory?.id ?? null}
+                appointmentId={appointmentId}
+                onApplied={(code) => {
+                  setPromoCode(code);
+                  // Re-quoted rather than adjusted here: the code may not be
+                  // the largest discount this patient qualifies for, and the
+                  // total has to be the one the order route will resolve.
+                  void refreshQuote(appointmentId, code);
+                }}
+              />
+            </div>
+          )}
           <p className="text-xs text-slate-500">
             <i className="fa-solid fa-lock text-teal-600 mr-1"></i>
-            Secure payment via Razorpay. Your slot is held once payment is
-            confirmed.
+            {quote?.free
+              ? "Nothing to pay — your discount covers this session in full. Your slot is held once you confirm."
+              : "Secure payment via Razorpay. Your slot is held once payment is confirmed."}
           </p>
           <p className="text-xs text-slate-500">
             <i className="fa-solid fa-circle-info text-teal-600 mr-1"></i>
@@ -872,15 +1037,25 @@ export default function BookingWizard({
               Back
             </button>
             <button
-              onClick={appointmentId ? () => startPayment(appointmentId) : handleSubmit}
-              disabled={loading}
+              onClick={
+                appointmentId
+                  ? quote?.free
+                    ? () => confirmFree(appointmentId)
+                    : () => startPayment(appointmentId)
+                  : handleSubmit
+              }
+              // Disabled while a quote is in flight, so a tap can never act
+              // on a figure that is about to change.
+              disabled={loading || quoting}
               className="w-2/3 bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition shadow-lg"
             >
               {loading
                 ? "Please wait..."
-                : appointmentId
-                ? `Pay ${selectedCategory ? formatInr(selectedCategory.price_paise) : ""} Now`
-                : "Request Booking"}
+                : quote?.free
+                  ? "Confirm booking — free"
+                  : appointmentId
+                    ? `Pay ${formatInr(quote?.totalPaise ?? selectedCategory?.price_paise ?? 0)} Now`
+                    : "Request Booking"}
             </button>
           </div>
           {/* One failure is enough to want reassurance. A patient whose card

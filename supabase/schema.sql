@@ -7553,7 +7553,10 @@ begin
     risk_signals_enabled = default,
     therapist_suggestions_enabled = default,
     auto_assign_therapist_enabled = default,
-    care_plan_requires_approval = default
+    care_plan_requires_approval = default,
+    first_session_offer_enabled = default,
+    first_session_offer_type = default,
+    first_session_offer_value = default
   where id;
 
   return jsonb_build_object(
@@ -7617,3 +7620,824 @@ begin
   return new;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Acquisition discounting
+-- ---------------------------------------------------------------------------
+-- Two discounts, and deliberately only two: a standing first-session offer
+-- that buys a stranger's first appointment, and a per-booking adjustment an
+-- admin makes for one patient with a reason. Bundle pricing already exists
+-- as `compare_at_paise` on a package, and promo codes deliberately do not --
+-- a coupon engine built before there is a campaign to run is machinery
+-- nobody uses.
+--
+-- What is recorded matters as much as what is charged. A discount
+-- implemented by simply charging less leaves the books unable to tell "we
+-- sold this cheap" from "we discounted it", and that difference is the one
+-- number that decides whether an offer continues. So a discounted booking
+-- carries all four facts: what it would have cost, what came off, which rule
+-- did it, and (for the admin lane) why.
+--
+-- `amount_paid_paise` keeps its existing meaning throughout -- what was
+-- actually collected. Revenue, payouts and refunds all read it, and none of
+-- them needed changing.
+alter table appointments add column if not exists list_price_paise integer
+  check (list_price_paise is null or list_price_paise >= 0);
+alter table appointments add column if not exists discount_paise integer not null default 0
+  check (discount_paise >= 0);
+alter table appointments add column if not exists discount_source text
+  check (discount_source is null or discount_source in ('first_session', 'goodwill'));
+alter table appointments add column if not exists discount_reason text;
+
+-- A goodwill adjustment always names a person and a reason; the standing
+-- offer never does, because "they were new" is already recorded by the
+-- source. Enforced here rather than only in the route: this is the column an
+-- admin's own discretion is written into, and a discretionary discount
+-- nobody can explain later is indistinguishable from an error.
+alter table appointments drop constraint if exists appointments_goodwill_needs_reason;
+alter table appointments add constraint appointments_goodwill_needs_reason check (
+  discount_source is distinct from 'goodwill'
+  or char_length(btrim(coalesce(discount_reason, ''))) >= 10
+);
+
+create index if not exists appointments_discount_idx
+  on appointments (discount_source, created_at desc) where discount_paise > 0;
+
+-- The offer itself. Off by default: a clinic that has not decided its
+-- acquisition price should not be discounting by accident on the first
+-- deploy.
+--
+-- `fixed` is paise and sets the price outright ("first session ₹499"), which
+-- is what a clinic advertises; `percent` is whole percent and adapts across
+-- categories priced differently. One or the other, never both, so there is
+-- no question about which applied.
+alter table site_settings add column if not exists first_session_offer_enabled boolean not null default false;
+alter table site_settings add column if not exists first_session_offer_type text not null default 'fixed'
+  check (first_session_offer_type in ('fixed', 'percent'));
+alter table site_settings add column if not exists first_session_offer_value integer not null default 0
+  check (first_session_offer_value >= 0);
+
+-- ---------------------------------------------------------------------------
+-- Promo codes
+-- ---------------------------------------------------------------------------
+-- The one discount in this app where something the patient sends takes money
+-- off the bill, so it is worth being exact about what is sent. The browser
+-- sends an **identifier**: the code names a row an admin created, and every
+-- figure -- what comes off, the window, how many claims are allowed -- is
+-- read from that row server-side. The standing rule holds ("a discount is a
+-- rule an admin configured, never a number a browser sent") while the clinic
+-- can still run a campaign it can print on a poster.
+--
+-- Deliberately arriving now rather than with the first two discounts. A
+-- coupon engine built before there is a campaign to run is machinery nobody
+-- uses; this one exists because the clinic asked for it, and it is still
+-- switched off until an admin turns it on.
+create table if not exists promo_codes (
+  id uuid primary key default gen_random_uuid(),
+  -- Stored in the one spelling `normalizePromoCode` produces, so a typed
+  -- code and a stored one are compared as the same string rather than
+  -- nearly. The CHECK is what keeps that true for a hand-run INSERT too.
+  code text not null unique,
+  kind text not null default 'amount_off' check (kind in ('amount_off', 'percent_off')),
+  -- Paise off when `amount_off`, whole percent when `percent_off`.
+  -- Deliberately not the first-session offer's `fixed`/`percent`: that
+  -- offer's `fixed` sets the price outright ("first session Rs 499"), a
+  -- code's `amount_off` takes an amount off ("Rs 200 off"). Two rules behind
+  -- one word is the mistake the money vocabulary rules exist to stop.
+  value integer not null check (value > 0),
+  active boolean not null default true,
+  starts_at timestamptz,
+  ends_at timestamptz,
+  -- Null means unlimited. A number means that number, and
+  -- claim_promo_code() below is what makes it mean it under load.
+  max_redemptions integer check (max_redemptions is null or max_redemptions > 0),
+  max_per_patient integer not null default 1 check (max_per_patient >= 1),
+  min_spend_paise integer not null default 0 check (min_spend_paise >= 0),
+  first_session_only boolean not null default false,
+  -- What the campaign is for, in the admin's own words. Never shown to a
+  -- patient: the code and the amount off are what they need.
+  description text,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint promo_codes_code_shape check (code ~ '^[A-Z0-9]{3,24}$'),
+  constraint promo_codes_percent_range check (kind <> 'percent_off' or value between 1 and 100),
+  constraint promo_codes_window_ordered check (
+    starts_at is null or ends_at is null or ends_at > starts_at
+  )
+);
+
+alter table promo_codes enable row level security;
+
+-- Admin only, and deliberately no patient select policy: a patient who can
+-- list this table can read every campaign the clinic has ever scheduled,
+-- including the ones not yet running. Checkout reaches a code through
+-- claim_promo_code() with the service role instead, which answers about one
+-- code the patient already knew the name of.
+drop policy if exists promo_codes_admin_all on promo_codes;
+create policy promo_codes_admin_all on promo_codes
+  for all using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  ) with check (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+-- The claim is recorded on the booking, not in a second table.
+--
+-- An appointment already carries all four discount facts (list price, amount
+-- off, which rule, why), so a separate redemptions table would be a second
+-- place the same claim is written -- and two places that can disagree about
+-- how many times a code was used is exactly the bug a redemption cap exists
+-- to prevent. The cap is counted off these two columns instead, which cannot
+-- drift from the money.
+alter table appointments add column if not exists promo_code_id uuid references promo_codes(id);
+alter table appointments add column if not exists promo_claimed_at timestamptz;
+create index if not exists appointments_promo_code_idx
+  on appointments (promo_code_id, promo_claimed_at desc) where promo_code_id is not null;
+
+-- Five sources now. The two invite halves are recorded separately from each
+-- other on purpose -- see DISCOUNT_SOURCE_LABELS in src/lib/discounts.ts.
+alter table appointments drop constraint if exists appointments_discount_source_check;
+alter table appointments drop constraint if exists appointments_discount_source_known;
+alter table appointments add constraint appointments_discount_source_known check (
+  discount_source is null
+  or discount_source in ('first_session', 'goodwill', 'promo_code', 'invite_reward', 'invite_welcome')
+);
+
+-- ---------------------------------------------------------------------------
+-- Claiming a code, under a real lock
+-- ---------------------------------------------------------------------------
+-- A cap of 100 has to mean roughly 100 even when 40 people are at checkout
+-- at once, and a count taken a moment before an update does not do that.
+-- This is the same shape as reserve_session_credit: open with
+-- `select ... for update` on the row being counted against, so concurrent
+-- claims serialise behind each other rather than each reading a stale total.
+--
+-- **A claim is not a payment.** A code stamped onto an appointment that is
+-- never paid for would hold a slot in the cap forever, and this deployment
+-- has no worker to release it -- so a claim that has not been paid for
+-- simply stops counting after `v_hold`, computed at read time. That is the
+-- same rule a pending session suggestion follows: nothing writes an
+-- "expired" status, because a status recording the passage of time needs a
+-- sweep to keep true.
+create or replace function public.claim_promo_code(
+  p_code text,
+  p_patient_id uuid,
+  p_appointment_id uuid,
+  p_patient_has_paid_before boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_promo promo_codes%rowtype;
+  -- Long enough for a real checkout (a UPI hand-off to a bank app and back),
+  -- short enough that an abandoned one gives the claim back the same
+  -- afternoon rather than at the end of the campaign.
+  v_hold constant interval := interval '30 minutes';
+  v_used integer;
+  v_used_by_patient integer;
+begin
+  select * into v_promo from promo_codes
+    where code = upper(btrim(p_code))
+    for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  if not v_promo.active then
+    return jsonb_build_object('ok', false, 'reason', 'inactive');
+  end if;
+  if v_promo.starts_at is not null and now() < v_promo.starts_at then
+    return jsonb_build_object('ok', false, 'reason', 'not_started');
+  end if;
+  -- The end of the window is exclusive: a code ending "1 April" ends at the
+  -- first instant of 1 April. Anything else makes the last day ambiguous.
+  if v_promo.ends_at is not null and now() >= v_promo.ends_at then
+    return jsonb_build_object('ok', false, 'reason', 'expired');
+  end if;
+  if v_promo.first_session_only and p_patient_has_paid_before then
+    return jsonb_build_object('ok', false, 'reason', 'first_session_only');
+  end if;
+
+  -- What counts as used: a booking that was paid for, plus one still inside
+  -- its hold. This appointment is excluded so re-opening checkout on the
+  -- same booking is not a second claim.
+  select count(*) into v_used from appointments a
+    where a.promo_code_id = v_promo.id
+      and a.id <> p_appointment_id
+      and a.status <> 'cancelled'
+      and (a.payment_status = 'paid' or a.promo_claimed_at > now() - v_hold);
+
+  if v_promo.max_redemptions is not null and v_used >= v_promo.max_redemptions then
+    return jsonb_build_object('ok', false, 'reason', 'exhausted');
+  end if;
+
+  select count(*) into v_used_by_patient from appointments a
+    where a.promo_code_id = v_promo.id
+      and a.patient_id = p_patient_id
+      and a.id <> p_appointment_id
+      and a.status <> 'cancelled'
+      and (a.payment_status = 'paid' or a.promo_claimed_at > now() - v_hold);
+
+  if v_used_by_patient >= v_promo.max_per_patient then
+    return jsonb_build_object('ok', false, 'reason', 'already_used');
+  end if;
+
+  update appointments
+    set promo_code_id = v_promo.id,
+        promo_claimed_at = now()
+    where id = p_appointment_id
+      and patient_id = p_patient_id
+      and payment_status <> 'paid';
+
+  if not found then
+    -- Already paid, or not this patient's booking. Either way there is
+    -- nothing to discount, and saying so beats stamping a code onto a row
+    -- whose price is settled.
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'promo_code_id', v_promo.id,
+    'code', v_promo.code,
+    'kind', v_promo.kind,
+    'value', v_promo.value,
+    'min_spend_paise', v_promo.min_spend_paise,
+    'max_per_patient', v_promo.max_per_patient,
+    'first_session_only', v_promo.first_session_only
+  );
+end;
+$$;
+
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from public;
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from anon;
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from authenticated;
+
+-- Taking a code back off a booking, when it turned out not to be the best
+-- discount available or the patient cleared the field. Separate from the
+-- claim so the release cannot be mistaken for one, and refusing to touch a
+-- booking that has been paid for.
+create or replace function public.release_promo_code(
+  p_appointment_id uuid,
+  p_patient_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update appointments
+    set promo_code_id = null,
+        promo_claimed_at = null
+    where id = p_appointment_id
+      and patient_id = p_patient_id
+      and payment_status <> 'paid';
+  return found;
+end;
+$$;
+
+revoke all on function public.release_promo_code(uuid, uuid) from public;
+revoke all on function public.release_promo_code(uuid, uuid) from anon;
+revoke all on function public.release_promo_code(uuid, uuid) from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Invites
+-- ---------------------------------------------------------------------------
+-- One patient telling another about the clinic, and both being thanked.
+--
+-- **The word is "invite", never "referral".** A referral in this app is a
+-- hospital sending a patient under a commercial agreement, with its own
+-- table (patient_referrals), its own dashboard and its own revenue share.
+-- Giving both one word would mean every screen and every query has to say
+-- which kind it means.
+--
+-- Two halves: a **welcome** off the invited friend's first booking, and a
+-- **reward** off the inviter's next one once that friend has actually paid
+-- for a session. The order is the anti-abuse rule -- a reward that pays out
+-- on signups is a reward for creating accounts, and somebody will.
+alter table profiles add column if not exists invite_code text;
+create unique index if not exists profiles_invite_code_key
+  on profiles (invite_code) where invite_code is not null;
+
+create table if not exists patient_invites (
+  id uuid primary key default gen_random_uuid(),
+  inviter_id uuid not null references profiles(id) on delete cascade,
+  -- One invite per patient, ever, enforced by the constraint rather than by
+  -- a route check: SELECT-then-INSERT loses to a double tap, and this is a
+  -- row that gives money away.
+  invitee_id uuid not null unique references profiles(id) on delete cascade,
+  code_used text not null,
+  claimed_at timestamptz not null default now(),
+  -- Set when the invited friend's first session is actually paid for. Until
+  -- then the inviter's half does not exist.
+  qualified_at timestamptz,
+  qualifying_appointment_id uuid references appointments(id) on delete set null,
+  -- Snapshotted at claim, never read live from settings. A clinic that
+  -- lowers its reward next month must not lower what it already promised
+  -- somebody who has already sent a friend -- the same reason a purchased
+  -- entitlement reads its package snapshot rather than the live catalog.
+  reward_paise integer not null default 0 check (reward_paise >= 0),
+  welcome_paise integer not null default 0 check (welcome_paise >= 0),
+  reward_spent_on uuid references appointments(id) on delete set null,
+  reward_settled_at timestamptz,
+  welcome_spent_on uuid references appointments(id) on delete set null,
+  welcome_settled_at timestamptz,
+  constraint patient_invites_not_self check (inviter_id <> invitee_id)
+);
+
+create index if not exists patient_invites_inviter_idx on patient_invites (inviter_id, claimed_at desc);
+
+alter table patient_invites enable row level security;
+
+-- A patient reads their own invites, from either end: the inviter needs to
+-- see how many friends joined and whether a reward is waiting, and the
+-- invitee needs to see the welcome they were promised. Nobody writes through
+-- RLS -- every write here is a security-definer function below, because each
+-- one gives money away and none of them may be driven from a browser.
+drop policy if exists patient_invites_select_own on patient_invites;
+create policy patient_invites_select_own on patient_invites
+  for select using (auth.uid() = inviter_id or auth.uid() = invitee_id);
+
+drop policy if exists patient_invites_admin_select on patient_invites;
+create policy patient_invites_admin_select on patient_invites
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+-- The invite settings. Off by default, like the first-session offer: a
+-- clinic that has not decided what an introduction is worth should not be
+-- paying for them on the first deploy.
+alter table site_settings add column if not exists invite_rewards_enabled boolean not null default false;
+alter table site_settings add column if not exists invite_reward_paise integer not null default 0
+  check (invite_reward_paise >= 0);
+alter table site_settings add column if not exists invite_welcome_paise integer not null default 0
+  check (invite_welcome_paise >= 0);
+-- A ceiling rather than none. Somebody who genuinely sends ten patients is
+-- worth ten rewards; somebody sending a hundred is running a scheme, and the
+-- difference is worth an admin looking at rather than a standing invitation
+-- to find out.
+alter table site_settings add column if not exists invite_max_rewards_per_patient integer not null default 10
+  check (invite_max_rewards_per_patient >= 0);
+-- The checkout field is hidden until the clinic is actually running a
+-- campaign: "Have a promo code?" with no codes in existence is a box that
+-- teaches patients to go looking for one.
+alter table site_settings add column if not exists promo_codes_enabled boolean not null default false;
+
+-- Giving a patient their code. Idempotent: a patient who already has one
+-- keeps it, so this can be called on every dashboard render.
+create or replace function public.ensure_invite_code(
+  p_profile_id uuid,
+  p_candidate text
+)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_existing text;
+begin
+  select invite_code into v_existing from profiles where id = p_profile_id for update;
+  if v_existing is not null then
+    return v_existing;
+  end if;
+  update profiles set invite_code = upper(btrim(p_candidate)) where id = p_profile_id;
+  return upper(btrim(p_candidate));
+exception
+  -- A collision on the unique index means the caller's candidate was taken.
+  -- Answering null asks it for another rather than failing the render that
+  -- happened to be the first to need a code.
+  when unique_violation then
+    return null;
+end;
+$$;
+
+revoke all on function public.ensure_invite_code(uuid, text) from public;
+revoke all on function public.ensure_invite_code(uuid, text) from anon;
+revoke all on function public.ensure_invite_code(uuid, text) from authenticated;
+
+-- Claiming somebody's code. Every refusal here is an abuse rule as much as a
+-- business one; see evaluateInviteClaim in src/lib/inviteRewards.ts for what
+-- each one is stopping. Both are enforced -- the module so the patient gets
+-- a sentence they can act on, this function so a session cookie posting
+-- straight at the API gets the same answer.
+create or replace function public.claim_invite(
+  p_code text,
+  p_invitee_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_settings site_settings%rowtype;
+  v_inviter_id uuid;
+  v_paid_before integer;
+  v_rewards_earned integer;
+begin
+  select * into v_settings from site_settings where id limit 1;
+  if not found or not coalesce(v_settings.invite_rewards_enabled, false) then
+    return jsonb_build_object('ok', false, 'reason', 'disabled');
+  end if;
+
+  select id into v_inviter_id from profiles
+    where invite_code = upper(btrim(replace(replace(p_code, '-', ''), ' ', '')))
+      and role = 'patient';
+  if v_inviter_id is null then
+    return jsonb_build_object('ok', false, 'reason', 'unknown_code');
+  end if;
+  if v_inviter_id = p_invitee_id then
+    return jsonb_build_object('ok', false, 'reason', 'self');
+  end if;
+
+  -- A patient is new exactly once, the same test the first-session offer
+  -- uses. Without it an established patient collects a welcome by asking a
+  -- friend for their code.
+  select count(*) into v_paid_before from appointments
+    where patient_id = p_invitee_id and payment_status = 'paid';
+  if v_paid_before > 0 then
+    return jsonb_build_object('ok', false, 'reason', 'not_new');
+  end if;
+
+  select count(*) into v_rewards_earned from patient_invites
+    where inviter_id = v_inviter_id and qualified_at is not null;
+  if v_rewards_earned >= coalesce(v_settings.invite_max_rewards_per_patient, 0) then
+    return jsonb_build_object('ok', false, 'reason', 'inviter_capped');
+  end if;
+
+  begin
+    insert into patient_invites (
+      inviter_id, invitee_id, code_used, reward_paise, welcome_paise
+    ) values (
+      v_inviter_id,
+      p_invitee_id,
+      upper(btrim(replace(replace(p_code, '-', ''), ' ', ''))),
+      coalesce(v_settings.invite_reward_paise, 0),
+      coalesce(v_settings.invite_welcome_paise, 0)
+    );
+  exception when unique_violation then
+    return jsonb_build_object('ok', false, 'reason', 'already_claimed');
+  end;
+
+  return jsonb_build_object(
+    'ok', true,
+    'welcome_paise', coalesce(v_settings.invite_welcome_paise, 0),
+    'reward_paise', coalesce(v_settings.invite_reward_paise, 0)
+  );
+end;
+$$;
+
+revoke all on function public.claim_invite(text, uuid) from public;
+revoke all on function public.claim_invite(text, uuid) from anon;
+revoke all on function public.claim_invite(text, uuid) from authenticated;
+
+-- The inviter's half becomes real here, and only here: the friend's first
+-- session was paid for. Idempotent on the invite row, so the browser
+-- callback and the webhook racing each other produce one reward.
+create or replace function public.grant_invite_reward(
+  p_invitee_id uuid,
+  p_appointment_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_invite patient_invites%rowtype;
+begin
+  select * into v_invite from patient_invites where invitee_id = p_invitee_id for update;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'no_invite');
+  end if;
+  if v_invite.qualified_at is not null then
+    return jsonb_build_object('ok', true, 'already', true);
+  end if;
+
+  update patient_invites
+    set qualified_at = now(),
+        qualifying_appointment_id = p_appointment_id
+    where id = v_invite.id;
+
+  return jsonb_build_object('ok', true, 'already', false, 'reward_paise', v_invite.reward_paise);
+end;
+$$;
+
+revoke all on function public.grant_invite_reward(uuid, uuid) from public;
+revoke all on function public.grant_invite_reward(uuid, uuid) from anon;
+revoke all on function public.grant_invite_reward(uuid, uuid) from authenticated;
+
+-- Attaching an unspent half to a booking, under the same hold rule the promo
+-- claim uses. A patient with two checkouts open gets the discount on one of
+-- them, not on both: without the hold, both orders are minted at the
+-- discounted amount and paying both spends one reward twice.
+create or replace function public.claim_invite_half(
+  p_patient_id uuid,
+  p_appointment_id uuid,
+  p_half text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_invite patient_invites%rowtype;
+  v_hold constant interval := interval '30 minutes';
+  v_amount integer;
+  v_spent_on uuid;
+  v_settled timestamptz;
+  v_held boolean;
+begin
+  if p_half = 'welcome' then
+    select * into v_invite from patient_invites
+      where invitee_id = p_patient_id for update;
+  elsif p_half = 'reward' then
+    -- An inviter may hold several invites at once, so this picks the best
+    -- candidate rather than filtering to it: qualified before unqualified,
+    -- unspent before spent. Filtering out the settled ones instead would
+    -- report "you have no reward" to somebody who has one and has already
+    -- used it, which is a different sentence and the wrong one.
+    select * into v_invite from patient_invites
+      where inviter_id = p_patient_id
+      order by (qualified_at is null), (reward_settled_at is not null), qualified_at
+      limit 1
+      for update;
+  else
+    return jsonb_build_object('ok', false, 'reason', 'unknown_half');
+  end if;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'none');
+  end if;
+
+  if p_half = 'welcome' then
+    v_amount := v_invite.welcome_paise;
+    v_spent_on := v_invite.welcome_spent_on;
+    v_settled := v_invite.welcome_settled_at;
+  else
+    -- The reward exists only once the friend has paid.
+    if v_invite.qualified_at is null then
+      return jsonb_build_object('ok', false, 'reason', 'not_qualified');
+    end if;
+    v_amount := v_invite.reward_paise;
+    v_spent_on := v_invite.reward_spent_on;
+    v_settled := v_invite.reward_settled_at;
+  end if;
+
+  if v_amount <= 0 then
+    return jsonb_build_object('ok', false, 'reason', 'none');
+  end if;
+  if v_settled is not null then
+    return jsonb_build_object('ok', false, 'reason', 'spent');
+  end if;
+
+  -- Held by another booking that is still inside its checkout window.
+  select exists (
+    select 1 from appointments a
+      where a.id = v_spent_on
+        and a.id <> p_appointment_id
+        and a.status <> 'cancelled'
+        and a.payment_status <> 'paid'
+        and a.promo_claimed_at > now() - v_hold
+  ) into v_held;
+  if v_held then
+    return jsonb_build_object('ok', false, 'reason', 'held');
+  end if;
+
+  if p_half = 'welcome' then
+    update patient_invites set welcome_spent_on = p_appointment_id where id = v_invite.id;
+  else
+    update patient_invites set reward_spent_on = p_appointment_id where id = v_invite.id;
+  end if;
+
+  -- promo_claimed_at doubles as "this booking's discount hold started now".
+  -- One column rather than two that can disagree: a booking holds at most
+  -- one discount, because the discounts never stack.
+  update appointments set promo_claimed_at = now()
+    where id = p_appointment_id and patient_id = p_patient_id and payment_status <> 'paid';
+
+  return jsonb_build_object('ok', true, 'amount_paise', v_amount, 'invite_id', v_invite.id);
+end;
+$$;
+
+revoke all on function public.claim_invite_half(uuid, uuid, text) from public;
+revoke all on function public.claim_invite_half(uuid, uuid, text) from anon;
+revoke all on function public.claim_invite_half(uuid, uuid, text) from authenticated;
+
+-- Settling a half once the booking it was attached to is paid for. Called
+-- from the capture paths, idempotent, and CAS'd on the appointment it was
+-- attached to so a stale caller cannot settle a half that has since moved.
+create or replace function public.settle_invite_half(
+  p_appointment_id uuid,
+  p_half text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_half = 'welcome' then
+    update patient_invites
+      set welcome_settled_at = now()
+      where welcome_spent_on = p_appointment_id and welcome_settled_at is null;
+  elsif p_half = 'reward' then
+    update patient_invites
+      set reward_settled_at = now()
+      where reward_spent_on = p_appointment_id and reward_settled_at is null;
+  else
+    return false;
+  end if;
+  return found;
+end;
+$$;
+
+revoke all on function public.settle_invite_half(uuid, text) from public;
+revoke all on function public.settle_invite_half(uuid, text) from anon;
+revoke all on function public.settle_invite_half(uuid, text) from authenticated;
+
+-- Realtime: promo_codes is admin-edited catalog data, so it rides the long
+-- cooldown with the rest of the catalog. patient_invites is deliberately not
+-- published -- no screen watches it live, and a reward landing mid-render is
+-- not worth a ~40-query dashboard rebuild.
+do $$
+begin
+  alter publication supabase_realtime add table promo_codes;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- debug_reset_all_data: now clears the promo and invite tables too
+-- ---------------------------------------------------------------------------
+create or replace function public.debug_reset_all_data()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  deleted_accounts integer;
+  admin_count integer;
+begin
+  select count(*) into admin_count from profiles where role = 'admin';
+  if admin_count = 0 then
+    raise exception 'refusing to reset: no admin account would be left behind';
+  end if;
+
+  truncate table
+    session_credit_ledger,
+    session_entitlements,
+    payment_webhook_events,
+    payments,
+    business_expenses,
+    admin_activity_log,
+    session_suggestions,
+    appointment_reassignment_log,
+    payment_failure_log,
+    package_purchase_events,
+    home_visit_purchase_events,
+    appointments,
+    patient_package_purchases,
+    home_visit_package_purchases,
+    therapist_payout_requests,
+    therapist_payout_batches,
+    session_note_revisions,
+    session_notes,
+    patient_medical_documents,
+    pain_assessments,
+    condition_change_requests,
+    condition_access_grants,
+    patient_condition_profiles,
+    patient_addresses,
+    patient_admin_notes,
+    therapist_admin_notes,
+    hospital_admin_notes,
+    profile_change_requests,
+    therapist_availability_override,
+    therapist_availability_template,
+    therapist_schedule_state,
+    patient_referrals,
+    b2b_leads,
+    home_visit_waitlist,
+    home_visit_areas,
+    home_visit_packages,
+    treatment_category_packages,
+    treatment_categories,
+    testimonials,
+    faqs,
+    intake_question_templates,
+    pain_map_question_templates,
+    -- The four the previous definition missed. care_plans and
+    -- care_plan_versions were already reached by CASCADE; naming them is
+    -- belt and braces, and means a future change to their foreign keys
+    -- cannot quietly take them back out of the reset.
+    care_plan_versions,
+    care_plans,
+    communication_flags,
+    contact_reveal_log,
+    risk_reviews,
+    risk_signals,
+    -- Added with the review step. A reset that left the clinic's decisions
+    -- behind would leave a record of approvals for recommendations that no
+    -- longer exist.
+    care_plan_reviews,
+    -- Adding a table means adding it here, or a reset silently leaves its
+    -- rows behind. patient_invites first: it references appointments, and
+    -- a reset that kept it would leave rewards pointing at bookings that no
+    -- longer exist. promo_codes after, since appointments reference it.
+    patient_invites,
+    promo_codes
+  cascade;
+
+  with removed as (
+    delete from auth.users
+    where id not in (select id from profiles where role = 'admin')
+    returning 1
+  )
+  select count(*) into deleted_accounts from removed;
+
+  -- Detector thresholds back to what the seed set. Not truncated, because
+  -- an empty risk_rules would silently disable every detector rather than
+  -- restoring it -- risk_signals.rule_key references this table.
+  update risk_rules set
+    enabled = default,
+    config = default,
+    updated_at = now();
+
+  update site_settings set
+    site_name = default,
+    site_tagline = default,
+    site_description = default,
+    contact_email = default,
+    whatsapp_number = default,
+    contact_phone = default,
+    footer_copyright_text = default,
+    home_visit_page_heading = null,
+    home_visit_page_subheading = null,
+    ratings_visible_publicly = default,
+    session_packages_visible = default,
+    session_timeout_minutes = default,
+    google_meet_enabled = default,
+    join_window_minutes = default,
+    join_window_after_minutes = default,
+    session_completed_after_minutes = default,
+    booking_languages = default,
+    package_default_validity_days = default,
+    package_therapist_lock_enabled = default,
+    package_bulk_schedule_max = default,
+    package_expiry_reminder_days = default,
+    home_visit_enabled = default,
+    home_visit_cash_enabled = default,
+    home_visit_lead_time_hours = default,
+    home_visit_cancellation_refund_hours = default,
+    home_visit_default_validity_days = default,
+    home_visit_bulk_schedule_max = default,
+    home_visit_travel_buffer_minutes = default,
+    online_booking_lead_time_hours = default,
+    online_cancellation_refund_hours = default,
+    payment_gateway_fee_percent = default,
+    farewell_banner_seconds = default,
+    journey_step_seconds = default,
+    splash_enabled = default,
+    splash_brand_line = default,
+    splash_phrase = default,
+    splash_hold_seconds = default,
+    splash_revisit_minutes = default,
+    enabled_intake_specialties = default,
+    entitlement_ledger_authoritative = default,
+    care_plan_default_expiry_days = default,
+    care_plan_max_frequency_per_week = default,
+    contact_scan_mode = default,
+    contact_masking_enabled = default,
+    risk_signals_enabled = default,
+    therapist_suggestions_enabled = default,
+    auto_assign_therapist_enabled = default,
+    care_plan_requires_approval = default,
+    first_session_offer_enabled = default,
+    first_session_offer_type = default,
+    first_session_offer_value = default,
+    promo_codes_enabled = default,
+    invite_rewards_enabled = default,
+    invite_reward_paise = default,
+    invite_welcome_paise = default,
+    invite_max_rewards_per_patient = default
+  where id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'deleted_accounts', deleted_accounts
+  );
+end;
+$$;
+
+revoke all on function public.debug_reset_all_data() from public;
+revoke all on function public.debug_reset_all_data() from anon;
+revoke all on function public.debug_reset_all_data() from authenticated;

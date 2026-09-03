@@ -62,23 +62,35 @@ export function loadRazorpayScript(): Promise<void> {
 
 type PayForAppointmentArgs = {
   appointmentId: string;
+  /** A code the patient typed, passed straight through. An identifier, never
+   *  an amount -- what it is worth is decided server-side under a lock, and
+   *  create-order refuses the whole checkout if it cannot be applied rather
+   *  than quietly charging list price. */
+  promoCode?: string | null;
   name: string;
   email: string;
   description: string;
   onSuccess: () => void;
   onError: (message: string) => void;
   onDismiss: () => void;
+  /** A discount took the price to nothing between the quote and this tap.
+   *  Razorpay refuses a zero-amount order, so the booking is confirmed by
+   *  /api/appointments/confirm-free instead -- handled here rather than
+   *  surfaced as an error, since from the patient's side nothing went wrong. */
+  onFree?: () => void;
 };
 
 /** Creates a Razorpay order for an existing appointment and opens Checkout. */
 export async function payForAppointment({
   appointmentId,
+  promoCode,
   name,
   email,
   description,
   onSuccess,
   onError,
   onDismiss,
+  onFree,
 }: PayForAppointmentArgs) {
   try {
     await loadRazorpayScript();
@@ -86,11 +98,15 @@ export async function payForAppointment({
     const res = await fetch("/api/razorpay/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId }),
+      body: JSON.stringify({ appointmentId, ...(promoCode ? { promoCode } : {}) }),
     });
     const orderData = await res.json();
 
     if (!res.ok) {
+      if (orderData.free === true && onFree) {
+        onFree();
+        return;
+      }
       onError(orderData.error ?? "Could not start payment. Please try again.");
       return;
     }

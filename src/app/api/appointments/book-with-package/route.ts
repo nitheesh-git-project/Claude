@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 import { bookPackageSession } from "@/lib/bookPackageSession";
@@ -60,6 +62,25 @@ export async function POST(request: NextRequest) {
 
   if (!purchase || purchase.patient_id !== user.id) {
     return NextResponse.json({ error: "Package not found" }, { status: 404 });
+  }
+
+  // The booking lead time, which this route did not enforce either -- see
+  // the note in book-package-sessions. "In the future" let a session on a
+  // programme be booked to start in five minutes by posting here directly,
+  // ambushing a therapist with an appointment they have no chance of
+  // seeing. Read from the same setting the patient's own picker reads.
+  const { data: leadSettings } = await admin
+    .from("site_settings")
+    .select("online_booking_lead_time_hours")
+    .maybeSingle();
+  const leadTimeHours =
+    leadSettings?.online_booking_lead_time_hours ??
+    DEFAULT_ADMIN_SETTINGS.onlineBookingLeadTimeHours;
+  if (slotTimestamp < Date.now() + leadTimeMsFromHours(leadTimeHours)) {
+    return NextResponse.json(
+      { error: `Please pick a time at least ${leadTimeHours} hours from now.` },
+      { status: 409 }
+    );
   }
 
   // The package row's own session_duration_minutes override (if any) --

@@ -639,6 +639,81 @@ record (`/api/admin/refund-session-partial`) — it requires a stated reason,
 caps at what is still refundable, sets `refund_is_manual`, and is recorded
 in the activity log.
 
+## Discounts
+
+Four, and deliberately no more.
+
+**The first session offer** is how a stranger is bought through the door.
+Configured at **Settings → Booking Rules** — off by default, either a set
+price ("first session ₹499") or a percentage off — and it applies to a video
+consultation only. Eligibility is decided by the server asking *has this
+patient ever paid for a session*, so it cannot be claimed twice, cannot be
+asked for, and cannot be sent from a browser. A patient is only new once.
+Programmes and home visits are never discounted by it: a programme comes
+from a therapist's recommendation, and a visit's travel fee is money that
+goes straight to the therapist.
+
+**A goodwill adjustment** is one admin taking an amount off one session for
+one patient — a session cut short, a therapist who ran late, real hardship.
+It lives on the session's own drawer under Money scope, needs a reason of at
+least ten characters, and writes an audit row. It works only **before**
+payment: taking money off something already paid for is a refund, and
+refunds have their own screen.
+
+**A promo code** is a campaign a patient can claim by typing its name at
+checkout. Set one up on **Money → Costs**, beside the figure it produces: a
+code, an amount or a percentage off, an optional window, a total cap, a
+per-patient cap, a minimum spend, and an optional "first session only". The
+whole feature is off until you switch it on there — a code field with no
+campaign behind it teaches every patient that there is a discount they are
+missing.
+
+What the browser sends is the **code**, never an amount: every figure comes
+from the row you created. The cap is enforced by the database under a row
+lock, so "100 uses" means 100 even when forty people are at checkout at
+once, and a code claimed on a checkout that is then abandoned frees up again
+after half an hour. If a code cannot be applied at the moment of payment,
+checkout refuses and says why rather than quietly charging full price. A
+code that has been used is never deleted, only paused, so the bookings that
+used it keep their record.
+
+**When a discount covers the whole session**, the booking is confirmed
+without a payment. The payment step shows the session fee, the discount and
+the total; if the total is nothing, the button reads **Confirm booking —
+free** and no card, UPI or gateway screen appears at all. The clinic still
+sees a real session, and the books still record what it would have cost and
+which rule gave it away — a free session is a session. A goodwill adjustment
+is the one thing that cannot reach zero: an amount at or above the session
+price is treated as a typo and refused.
+
+**A patient invite** is one patient telling another. Every patient's
+dashboard shows a code to share; their friend gets something off their first
+session, and they get something off their next one — once that friend has
+actually had and paid for a session, never on a signup. Set both amounts and
+a ceiling on how many rewards one patient may earn at **Settings → Booking
+Rules**; it is off by default. A code cannot be used by its owner, cannot be
+used twice, and cannot be used by somebody who has already paid for a
+session — you are new exactly once. An amount already promised is honoured
+even if you change the figures or switch the feature off later.
+
+This is **not** the same thing as a hospital referral, which is a partner
+sending a patient under a commercial agreement and has its own screens and
+its own revenue share.
+
+They never stack, and where more than one would apply the patient pays the
+lowest. Travel is never discounted. A discounted booking records all four
+facts — what it would have cost, what came off, which rule did it and why —
+so the books can tell "we sold this cheap" from "we discounted it".
+
+**What discounting cost** appears on **Money → Costs**, split by rule. It is
+stated, never deducted from profit: a discount means less was collected, so
+it is already inside gross revenue as a smaller number, and subtracting it
+again would understate profit by exactly the amount given away.
+
+Bundle pricing is separate and already existed — a package priced below its
+per-session rate, with `therapist_rate_basis` deciding whether the clinic or
+the therapist absorbs it.
+
 **Session packages.** A package is a programme, not just a discount: bundle
 price, an optional struck-through compare-at price (derived from the
 category's per-session price when left blank), promises, validity, and

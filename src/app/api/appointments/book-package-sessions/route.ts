@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 import { bookPackageSession, type PurchaseForBooking } from "@/lib/bookPackageSession";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 
 const MAX_NOTES_LENGTH = 1000;
 // Absolute ceiling regardless of the admin-configured
@@ -116,7 +117,10 @@ export async function POST(request: NextRequest) {
       .select("session_duration_minutes, min_gap_hours, max_sessions_per_week")
       .eq("id", purchase.package_id)
       .maybeSingle(),
-    admin.from("site_settings").select("package_bulk_schedule_max").maybeSingle(),
+    admin
+      .from("site_settings")
+      .select("package_bulk_schedule_max, online_booking_lead_time_hours")
+      .maybeSingle(),
     admin
       .from("appointments")
       .select("slot_time")
@@ -125,6 +129,25 @@ export async function POST(request: NextRequest) {
   ]);
 
   const bulkMax = settingsRow?.package_bulk_schedule_max ?? DEFAULT_ADMIN_SETTINGS.packageBulkScheduleMax;
+
+  // The booking lead time, which this route did not enforce at all.
+  //
+  // "In the future" was the only check, so a session on a programme could be
+  // booked to start in five minutes by posting here directly -- ambushing a
+  // therapist with an appointment they have no chance of seeing, which is
+  // the entire reason the lead time exists. The calendar filters unbookable
+  // hours out client-side, so nobody could do it by accident; that is
+  // exactly the shape of gap the "never trust what the client sent,
+  // re-derive it server-side" rule exists for.
+  //
+  // Read from the same setting the wizard's picker reads, so the two cannot
+  // drift apart -- the whole point of bookingSlots.ts. Refused per slot
+  // rather than for the whole request, so one too-soon pick does not throw
+  // away four good ones.
+  const leadTimeHours =
+    settingsRow?.online_booking_lead_time_hours ??
+    DEFAULT_ADMIN_SETTINGS.onlineBookingLeadTimeHours;
+  const earliestBookableMs = Date.now() + leadTimeMsFromHours(leadTimeHours);
   const pendingCount = Math.max(purchase.session_count - purchase.sessions_used, 0);
   const allowedCount = Math.min(bulkMax, pendingCount);
 
@@ -165,6 +188,14 @@ export async function POST(request: NextRequest) {
   let sessionsUsedSoFar = purchase.sessions_used;
 
   for (const slot of parsedSlots) {
+    if (slot.ms < earliestBookableMs) {
+      results.push({
+        slotDateTime: slot.slotDateTime,
+        success: false,
+        error: `Please pick a time at least ${leadTimeHours} hours from now.`,
+      });
+      continue;
+    }
     if (purchase.expires_at && slot.ms > new Date(purchase.expires_at).getTime()) {
       results.push({ slotDateTime: slot.slotDateTime, success: false, error: "After this package's validity ends." });
       continue;

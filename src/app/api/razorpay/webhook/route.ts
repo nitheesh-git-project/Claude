@@ -6,6 +6,7 @@ import {
   readAutoAssignSettings,
 } from "@/lib/autoAssignTherapist";
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
+import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 
 // Razorpay's server-to-server notification that a payment happened.
@@ -175,6 +176,14 @@ export async function POST(request: NextRequest) {
       await admin.from("payment_webhook_events").delete().eq("id", eventRowId);
     }
     return NextResponse.json({ error: "Could not apply capture" }, { status: 500 });
+  }
+
+  // Same invite settlement the browser callback applies, for the case the
+  // callback never lands -- a patient who pays and closes the tab. Both are
+  // idempotent, so whichever arrives first does the work and the second
+  // finds it done.
+  if (result.applied && result.targetAppointmentId) {
+    await settleInvitesOnCapture(admin, result.targetAppointmentId);
   }
 
   // The one thing record_payment_capture deliberately does not do, because

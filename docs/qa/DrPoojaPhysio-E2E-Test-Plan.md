@@ -1953,7 +1953,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 11. Submit.
 
 **Expected Result**
-* Step 3: **conditions are grouped by condition type** — Orthopaedic, Neurological, Paediatric — from `treatment_categories.specialty`. A category an admin has not tagged appears under **Other** and still works. The panel **never shows a programme by name**: a clinician answers "which condition" and "how many sessions", and those two pick the catalogue row.
+* Step 3: **conditions are grouped by condition type** — Orthopaedic, Neurological, Paediatric — from `treatment_categories.specialty`. A category an admin has not tagged appears under **General** and still works — that is where the clinic's general consultation sits, and "General" is deliberately **not** a fourth condition type: a patient's own health profile is only ever ortho, neuro or paediatric. The panel **never shows a programme by name**: a clinician answers "which condition" and "how many sessions", and those two pick the catalogue row.
 * Step 3: **only programmes for this session's own condition are offered.** `QA Neuro Rehab 8 Sessions` must not be reachable for a `QA Back & Spine Care` session.
 * Step 4: a **Delivered as** toggle (Video sessions / Home visits) appears **only** where the clinic sells both against that condition. A toggle with one option is not a decision the clinician has.
 * Step 5: **Sessions `6`**, **Price `₹9,999`**, **Valid for `90 days`**, **Each session `60 min`** — all read-only, all from the admin's catalog row. **There is no price field, no session-count field and no discount field anywhere in this panel.** If one exists, that is a P0 defect: "the therapist set their own price" must be a thing the schema cannot express.
@@ -2450,6 +2450,81 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** Open **Sessions → Delivery**.
 **Expected Result.** No-show rate, cancellation rate, repeat-booking rate and sessions-per-therapist. **These live under Sessions, not Money** — a no-show rate is about how the clinic runs, not about its books. All three metric slices (summary, breakdown, delivery) are computed from **one pass** of the same maths, so a figure here can never contradict the same figure on Money.
 
+#### `ADM-MONEY-GW-001` — Goodwill: take an amount off one session · P0
+
+**Feature.** The lane for a session cut short, a therapist who ran late, or a patient in genuine hardship. Without it these are settled outside the system, where nobody can see them and the books never learn they happened.
+
+**Preconditions.** An **unpaid** session on a ₹1,200 category. Signed in as an admin with **Money** scope.
+
+**Steps**
+1. Open the session from **Sessions → All Sessions** and find **Goodwill** in the drawer.
+2. Enter `200` and a two-character reason. Submit.
+3. Replace the reason with `Their last session was cut short by a connection problem.` Submit.
+4. Re-open the drawer.
+5. Separately, try `2400` (more than the session costs) on another unpaid session.
+6. Separately, try it on a **paid** session.
+
+**Expected Result**
+* Step 1: the panel states the session price and says plainly that this reduces what the patient is asked for, and refunds nothing, because nothing has been paid.
+* Step 2: **refused.** Under ten characters is rejected by the route and by a CHECK on the column — a discount nobody can explain a month later is indistinguishable from a mistake.
+* Step 3: applied. The row records **all four facts**: list price `120000`, discount `20000`, source `goodwill`, and the reason. A `payment.goodwill_discount` audit row is written.
+* Step 4: the drawer shows the amount, what they now pay, and the reason. It is **not** re-editable — the patient has been quoted it.
+* Step 5: **refused**, not applied at ₹1. This is a number typed with the price on screen beside it, so more than the price is a typo (2400 for 240), and quietly charging ₹1 is worse than saying no. *(A configured offer behaves differently and is floored — see `ADM-SET-023`.)*
+* Step 6: **409** — *"Refund it instead."* Money that has moved comes back through the refund route, with its own Razorpay call and its own audit.
+* A **Clinical** or **Operations** admin gets 403: this changes what somebody is charged, which is a money capability whatever the reason for it.
+
+#### `ADM-MONEY-GW-002` — What discounting cost · P1
+**Steps.** Apply a goodwill discount and let a first-session offer run, then open **Money → Costs**.
+**Expected Result.** A **Discounts given** figure, split by rule — the offer, goodwill, promo codes and both halves of an invite, each line appearing only when it has something behind it. It is **stated, not deducted** — the note says so — because a discount means less was collected and is already inside gross revenue as a smaller number; subtracting it from profit would count it twice. If Operating profit drops by the discount amount, that is a P0 defect.
+
+#### `ADM-PROMO-001` — Create a campaign · P1
+**Steps.** As a **Money** admin, open **Money → Costs → Promo codes**. Switch codes on. Create `WELCOME200`, ₹200 off, total 50 uses, 1 per patient. Then try each of: a code with a hyphen in it; a percentage of 150; an end date before the start date; a second code called `WELCOME200`.
+**Expected Result.** The first saves and appears as **Running**. Each of the four is refused with a sentence naming the problem, not a raw database error. A `promo.create` audit row is written for the one that saved. A **Clinical** or **Operations** admin gets 403 on the route: this decides what every patient who types the code pays, which is a money capability however much it reads like catalog data.
+
+#### `ADM-PROMO-002` — A used code is paused, never deleted · P1
+**Steps.** Have a patient claim a code at checkout, then try to delete it. Then pause it and have another patient try it.
+**Expected Result.** Delete is **not offered** on a code that has been claimed, and the route refuses it with *"switch it off instead"* — a paid session pointing at a campaign nobody can name cannot answer which rule gave the money away. Pausing works, and the next patient is told the code is **no longer available** rather than "not recognised".
+
+#### `ADM-PROMO-003` — The cap means what it says · P0
+**Steps.** Create a code capped at **1** total use. Open checkout for it as patient A and pay. Then try it as patient B.
+**Expected Result.** Patient B is refused with *"That code has been fully claimed."* Repeat with patient A abandoning checkout instead of paying: after **30 minutes** the claim frees up and patient B can use it. A cap that can be exceeded by opening two checkouts is a P0 defect.
+
+#### `PAT-PAY-FREE-001` — The payment screen quotes what it charges · P0
+**Steps.** As a patient with a first-session offer running (say 25% off), reach step 3 of the booking wizard.
+**Expected Result.** The summary shows the session fee **struck through**, the discount named on its own line, and a **Total**. The button reads **Pay ₹<total> Now** with that same total. If the button quotes the list price while Razorpay opens at the discounted figure — or the reverse — that is a P0 defect: quoting one number and charging another is the one thing a payment screen must never do.
+
+#### `PAT-PAY-FREE-001b` — A brand-new visitor is quoted the offer too · P0
+**Steps.** With a first-session offer running, open `/book` **signed out**, pick a condition and a slot, and reach step 3 without creating an account yet.
+**Expected Result.** The summary already shows the offer — fee struck through, "First session offer — ₹X off", and the discounted **Total** — before any account exists. This is the path the offer is *for*: a self-signup patient makes their account, their booking and their payment with one tap on this screen. Showing list price here and then opening Razorpay at the offer price is a P0 defect.
+
+#### `PAT-PAY-FREE-002` — A 100%-off code books without paying · P0
+**Steps.** Create a promo code at **100%** off. As a patient, apply it at step 3.
+**Expected Result.** Total reads **Free**, the lock line changes to *"Nothing to pay — your discount covers this session in full"*, and the button reads **Confirm booking — free**. Tapping it books the session with **no Razorpay screen at all**. The session appears in the patient's dashboard as confirmed or pending exactly like a paid one. Being charged ₹1 instead is a P0 defect — that was the old behaviour and it charges a figure nobody was quoted.
+
+#### `PAT-PAY-FREE-003` — Free is decided by the server, never the browser · P0
+**Steps.** With no discount running, POST to `/api/appointments/confirm-free` with a real unpaid appointment id (browser console or curl, signed in as that patient).
+**Expected Result.** **409**, *"This booking still has an amount to pay."*, and the booking stays **unpaid**. If a booking can be confirmed free by asking, every session in the app is free.
+
+#### `ADM-MONEY-FREE-001` — A free session still shows in the books · P1
+**Steps.** After `PAT-PAY-FREE-002`, open **Money → Costs** and the session's own drawer.
+**Expected Result.** The booking records the full price as list price, the whole of it as the discount, and `promo_code` as the source — so **What discounting cost** includes it. Amount paid is **₹0** and there is no payment/transaction row, because no money moved. A free session that recorded nothing would make the giveaway invisible, which is the figure that decides whether the campaign continues.
+
+#### `ADM-INVITE-001` — Invites: the two halves · P1
+**Steps.** As a **Full** admin, open **Settings → Booking Rules → Patient invites**. Switch on, set the friend's welcome to ₹300 and the reward to ₹200, and save. Open a patient's dashboard.
+**Expected Result.** The panel previews the exact sentence the patient will read, and it says the reward arrives **once their friend has had a session** — not on a signup. The patient's dashboard shows their own code, formatted in two halves, with a copy button.
+
+#### `ADM-INVITE-002` — What an invite refuses · P0
+**Steps.** As the code's owner, try to use your own code. As a patient who has already paid for a session, try to use somebody's code. As a patient who has already used one, try a second.
+**Expected Result.** All three refused, each with its own sentence: *"That's your own invite code."*, *"An invite code can only be used before your first session."*, *"You've already used an invite code."* The entry field is **not shown at all** to a patient who has already paid or already claimed — a field that can only refuse is worse than no field. A patient reaching the API directly gets the same three answers; none of these rules lives only in the browser.
+
+#### `ADM-INVITE-003` — A promise already made is kept · P1
+**Steps.** Have a patient claim an invite while the welcome is ₹300. Lower it to ₹100, then switch invites off entirely. Open that patient's checkout.
+**Expected Result.** They still get **₹300** off. Amounts are snapshotted at claim, and the switch stops new claims rather than withdrawing one already made. Charging them the new figure — or nothing — is a P0 defect.
+
+#### `PAT-PAY-DSC-001` — The patient sees what they were given · P1
+**Steps.** As a patient who received a discount, open **Payments** and tap the receipt.
+**Expected Result.** Three lines: the session price struck through, the discount named and negative, and **You paid**. A receipt that silently printed the lower number would tell the patient nothing about having been given something, which is the entire value of an offer.
+
 #### `ADM-CARE-001` — Recommendations: see every care plan · P0
 **Steps.** Open **Sessions → Recommendations**.
 **Expected Result.** Three bands, in this order: **Waiting for your decision**, **Waiting on a patient**, **Answered and closed**. Every care plan in the clinic is listed with its patient, therapist, package, status and date. A care plan is now the **only** route by which a patient buys a programme, so the clinic must be able to see them all.
@@ -2794,6 +2869,24 @@ At **Settings → Booking Rules**, above the package settings.
 | **Most sessions a week a clinician may ask for** | 5 | A ceiling over the programme's own `max_sessions_per_week`, whichever is lower. Above it: `This programme allows at most N sessions a week.` |
 
 Note there is no longer a **Show programme prices publicly** switch. Programmes are not advertised on the public site at all — see `PUB-CAT-002`.
+
+#### `ADM-SET-023` — First session offer · P0
+
+At **Settings → Booking Rules**, above the recommendation settings.
+
+| Setting | Default | Dependent feature |
+| --- | --- | --- |
+| **First session offer** | **off** | On → a patient who has never paid for a session is charged the offer price for a video consultation. Off → everyone pays list price |
+| **Offer type** | `A set price` | `A set price` names what they pay ("₹499"); `A percentage off` adapts across categories priced differently |
+| **Offer value** | 0 | Rupees or whole percent depending on the type. The panel previews what a real category's session would cost a new patient |
+
+**Steps.** Turn it on, set a set price of ₹499. Read the preview. Book and pay as a **brand-new** patient, then as one who has paid before.
+**Expected Result**
+* The preview quotes a real category's price — *"A ₹1,200 session would cost a new patient ₹499."*
+* The new patient is charged **₹499**; the returning patient is charged **₹1,200**. Eligibility is decided server-side from payment history, so it cannot be requested, repeated, or sent from the browser.
+* Programmes and home visits are **not** discounted by it.
+* Values the route must refuse: a type other than `fixed`/`percent`, a value of 0 or negative, a non-boolean for the switch.
+* Set 100% off: the patient is charged the ₹1 minimum rather than zero — Razorpay refuses a zero-amount order, so an unguarded 100% would be a 500 at the last step of checkout.
 
 #### `ADM-SET-021` — Automatic therapist assignment · P0
 
