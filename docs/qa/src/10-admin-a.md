@@ -338,6 +338,14 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 #### `ADM-NEWB-001` — New Booking · P1
 **Steps.** Open **Sessions → New Booking**. Create a booking for `QA Patient A` with `QA Therapist A` at a chosen slot.
 **Expected Result.** The booking is created server-side with the same re-derivation as the patient route. **An admin has a lead-time override** (there is somebody on the phone arranging the exception) where the patient route has none. Missing fields are refused with `Missing appointmentId, therapistId, or slotDateTime` / `Choose a patient.` / `Choose a treatment category.` The booking is audited.
+**The date and time are the patient's own calendar**, not native date/time boxes: a month grid plus hour cells, opened on the earliest eligible slot. Ticking **Book inside the N-hour window anyway** re-opens the grid down to the current hour — the one thing this screen may do that `/book` may not — and the caption under it changes to say the lead-time rule does not apply. It still never offers a past slot.
+
+#### `ADM-CAL-001` — One calendar, everywhere a session time is chosen · P1
+
+**Steps.** Open each of these and compare the date grid and the hour cells: `/book` Step 1; the patient's package **bulk scheduler**; the home-visit bulk scheduler; the therapist's **Suggest next session**; admin **Sessions → New Booking**; admin **Reschedule / Reassign** on a session; admin **People → Partners → Patient Referrals → Pick a time**.
+**Expected Result.** All seven render the **same** control — same month grid, same weekday headers, same cell colours and states (available / selected / struck-through), same hour cells. Nothing on this list is a native `date`, `time` or `datetime-local` box, and nothing opens in a pop-up on the admin screens. The bulk schedulers additionally dot any day already holding a chosen slot; that dot outranks the today marker.
+**Where the lead time differs, and why:** `/book`, both bulk schedulers, Suggest and Assign-a-referral use the platform's 12-hour rule (home visits use their own, longer, setting). **Reschedule** uses zero — it moves a session that already exists, which is the admin override lane — and **New Booking** uses zero only while its override box is ticked. Zero never means "the past": no screen offers a slot before now.
+**Deliberately unchanged:** dates that are not session slots keep their native inputs — a report's date, a leave range, a schedule exception, a promo campaign's window, and every from/to range filter (Metrics, Costs, Activity Log, All Sessions, Payment History, Earnings, the Calendar tab's day). They have no hours and no lead time, and a grid whose greyed-out cells mean "too soon to book" would be lying on all of them.
 
 ---
 

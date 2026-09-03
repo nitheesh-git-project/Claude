@@ -26,6 +26,8 @@ export default function BookingCalendar({
   autoSelected,
   leadTimeMs,
   compact = false,
+  markedDateKeys,
+  gridLabel = "Choose a date",
 }: {
   selectedDateKey: string;
   onSelect: (dateKey: string) => void;
@@ -42,6 +44,12 @@ export default function BookingCalendar({
   // component, same lead-time rule, smaller cells -- forking it would be how
   // the two quietly grow different ideas of which dates are bookable.
   compact?: boolean;
+  // Days carrying a dot because something is already chosen on them. The bulk
+  // schedulers pick several slots across several dates, so the grid has to say
+  // which days are spoken for while only one is open for editing -- they had
+  // their own copy of this month grid for exactly that one difference.
+  markedDateKeys?: string[];
+  gridLabel?: string;
 }) {
   const reduceMotion = useReducedMotion();
   // Open on the selected date's month so the preselection is on screen
@@ -132,13 +140,14 @@ export default function BookingCalendar({
           has room for a full 8px. */}
       <div
         role="grid"
-        aria-label="Choose a date"
+        aria-label={gridLabel}
         className={`grid grid-cols-7 ${compact ? "gap-1" : "gap-1.5 sm:gap-2"}`}
       >
         {calendar.cells.map((cell, index) => {
           if (!cell) return <div key={`pad-${index}`} aria-hidden="true" />;
 
           const selected = cell.dateKey === selectedDateKey;
+          const marked = markedDateKeys?.includes(cell.dateKey) ?? false;
           const showCue = selected && autoSelected && !reduceMotion;
 
           return (
@@ -165,7 +174,11 @@ export default function BookingCalendar({
               transition={{ duration: 0.28, ease: "easeOut" }}
             >
               {cell.dayOfMonth}
-              {cell.isToday && !selected && (
+              {/* A day holding a chosen slot outranks the today marker: the
+                  two dots look identical, and "something is booked here" is
+                  the more useful of the two on a screen where several days
+                  are being filled. */}
+              {(marked || cell.isToday) && !selected && (
                 <span
                   aria-hidden="true"
                   className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-teal-600"

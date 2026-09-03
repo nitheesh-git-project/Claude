@@ -4,15 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import {
-  WEEKDAY_HEADERS,
-  buildCalendarMonth,
   bookableHoursForDate,
   formatDateKeyLong,
-  isMonthEntirelyUnbookable,
   leadTimeMsFromHours,
 } from "@/lib/bookingSlots";
+import BookingCalendar from "@/components/booking/BookingCalendar";
 import { formatHourRange } from "@/lib/therapistAvailability";
-import { bookingCellClass, BOOKING_DAY_CELL, BOOKING_OPTION_GRID, BOOKING_OPTION_CELL } from "@/lib/bookingCellStyles";
+import { bookingCellClass, BOOKING_OPTION_GRID, BOOKING_OPTION_CELL } from "@/lib/bookingCellStyles";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -50,10 +48,6 @@ export default function HomeVisitBulkScheduler({
   const router = useRouter();
   const [nowMs] = useState(() => Date.now());
   const leadTimeMs = useMemo(() => leadTimeMsFromHours(leadTimeHours), [leadTimeHours]);
-  const [view, setView] = useState(() => {
-    const now = new Date(nowMs);
-    return { year: now.getFullYear(), month: now.getMonth() };
-  });
   const [activeDateKey, setActiveDateKey] = useState<string | null>(null);
   const [selected, setSelected] = useState<Slot[]>([]);
   const [notes, setNotes] = useState("");
@@ -64,7 +58,6 @@ export default function HomeVisitBulkScheduler({
   const lastFocused = useRef<HTMLElement | null>(null);
 
   const maxSelectable = Math.max(0, Math.min(pendingCount, bulkScheduleMax));
-  const calendar = buildCalendarMonth(view.year, view.month, nowMs, leadTimeMs);
 
   const close = useCallback(() => onClose(), [onClose]);
 
@@ -84,14 +77,6 @@ export default function HomeVisitBulkScheduler({
     };
   }, [close]);
 
-  function shiftMonth(delta: number) {
-    setView((prev) => {
-      const next = new Date(prev.year, prev.month + delta, 1);
-      return { year: next.getFullYear(), month: next.getMonth() };
-    });
-  }
-  const previousMonth = new Date(view.year, view.month - 1, 1);
-  const canGoBack = !isMonthEntirelyUnbookable(previousMonth.getFullYear(), previousMonth.getMonth(), nowMs, leadTimeMs);
 
   function toggleHour(dateKey: string, hour: number) {
     setSelected((prev) => {
@@ -216,62 +201,18 @@ export default function HomeVisitBulkScheduler({
                   </div>
                 )}
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-2 sm:p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => shiftMonth(-1)}
-                      disabled={!canGoBack}
-                      aria-label="Previous month"
-                      className="h-9 w-9 rounded-xl text-slate-600 transition hover:bg-slate-100 disabled:opacity-30"
-                    >
-                      <i className="fa-solid fa-chevron-left" aria-hidden="true" />
-                    </button>
-                    <span className="text-sm font-bold text-slate-900">{calendar.label}</span>
-                    <button
-                      type="button"
-                      onClick={() => shiftMonth(1)}
-                      aria-label="Next month"
-                      className="h-9 w-9 rounded-xl text-slate-600 transition hover:bg-slate-100"
-                    >
-                      <i className="fa-solid fa-chevron-right" aria-hidden="true" />
-                    </button>
-                  </div>
-                  <div className="mb-1 grid grid-cols-7 gap-1.5">
-                    {WEEKDAY_HEADERS.map((day) => (
-                      <div key={day} className="py-1 text-center text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                        {day}
-                      </div>
-                    ))}
-                  </div>
-                  <div role="grid" aria-label="Choose dates" className="grid grid-cols-7 gap-1.5">
-                    {calendar.cells.map((cell, index) => {
-                      if (!cell) return <div key={`pad-${index}`} aria-hidden="true" />;
-                      const dayHasSelection = selected.some((s) => s.dateKey === cell.dateKey);
-                      const active = cell.dateKey === activeDateKey;
-                      return (
-                        <button
-                          key={cell.dateKey}
-                          type="button"
-                          role="gridcell"
-                          disabled={!cell.bookable}
-                          aria-selected={active}
-                          aria-label={formatDateKeyLong(cell.dateKey)}
-                          onClick={() => setActiveDateKey(cell.dateKey)}
-                          className={`relative ${bookingCellClass({ selected: active, disabled: !cell.bookable })} ${BOOKING_DAY_CELL}`}
-                        >
-                          {cell.dayOfMonth}
-                          {dayHasSelection && !active && (
-                            <span
-                              aria-hidden="true"
-                              className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-teal-600"
-                            />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                {/* The patient's own calendar, not a copy of it. This screen used
+                    to carry its own month grid for one difference -- a dot on days
+                    that already hold a chosen slot -- which is now a prop. */}
+                <BookingCalendar
+                  selectedDateKey={activeDateKey ?? ""}
+                  onSelect={setActiveDateKey}
+                  nowMs={nowMs}
+                  leadTimeMs={leadTimeMs}
+                  autoSelected={false}
+                  markedDateKeys={selected.map((s) => s.dateKey)}
+                  gridLabel="Choose dates"
+                />
 
                 {activeDateKey && (
                   <div className="mt-4">

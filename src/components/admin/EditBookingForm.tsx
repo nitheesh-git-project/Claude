@@ -2,29 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import AdminSlotPicker, { slotFromIso, slotToMs } from "@/components/admin/AdminSlotPicker";
 
 // Sentinel for the category <select>, distinct from both a real category id
 // and the empty string (which means "leave the category unchanged"). Lets
 // the admin explicitly clear a category instead of only ever being able to
 // pick a different one.
 const CLEAR_CATEGORY_VALUE = "__none__";
-
-function minDateTimeLocal() {
-  const d = new Date(Date.now() + 5 * 60 * 1000);
-  d.setSeconds(0, 0);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
-}
-
-function toDateTimeLocalValue(iso: string) {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
-}
 
 export default function EditBookingForm({
   appointmentId,
@@ -47,9 +31,9 @@ export default function EditBookingForm({
   const [therapistId, setTherapistId] = useState(
     currentTherapistId ?? therapists[0]?.id ?? ""
   );
-  const [slotDateTime, setSlotDateTime] = useState(
-    currentSlotTime ? toDateTimeLocalValue(currentSlotTime) : ""
-  );
+  // Read once on mount, so the grid and the submit check agree on "now".
+  const [nowMs] = useState(() => Date.now());
+  const [slot, setSlot] = useState(() => slotFromIso(currentSlotTime));
   const [categoryId, setCategoryId] = useState(currentCategoryId ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +41,11 @@ export default function EditBookingForm({
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!therapistId || !slotDateTime) return;
+    const slotMs = slotToMs(slot.dateKey, slot.hour);
+    if (!therapistId || slotMs === null) {
+      setError("Pick a date and time for the session.");
+      return;
+    }
     setLoading(true);
     setError(null);
     const res = await fetch("/api/admin/update-appointment", {
@@ -66,7 +54,7 @@ export default function EditBookingForm({
       body: JSON.stringify({
         appointmentId,
         therapistId,
-        slotDateTime: new Date(slotDateTime).toISOString(),
+        slotDateTime: new Date(slotMs).toISOString(),
         categoryId:
           categoryId === "" ? undefined : categoryId === CLEAR_CATEGORY_VALUE ? null : categoryId,
       }),
@@ -123,14 +111,6 @@ export default function EditBookingForm({
             </option>
           ))}
         </select>
-        <input
-          type="datetime-local"
-          value={slotDateTime}
-          min={minDateTimeLocal()}
-          onChange={(e) => setSlotDateTime(e.target.value)}
-          required
-          className="p-2 rounded-lg border border-slate-300"
-        />
         {categories && categories.length > 0 && (
           <select
             value={categoryId}
@@ -148,6 +128,21 @@ export default function EditBookingForm({
           </select>
         )}
       </div>
+      {/* Same calendar and hour cells as the patient's own booking screen, so
+          one control means one thing everywhere. The lead time is zero here
+          on purpose: this moves a session that already exists, which is the
+          admin override lane rather than a booking — the same reasoning that
+          exempts an admin from complete-session's gates. It still cannot
+          reach into the past. */}
+      <AdminSlotPicker
+        startOpen
+        label="Session date & time"
+        dateKey={slot.dateKey}
+        hour={slot.hour}
+        onChange={setSlot}
+        nowMs={nowMs}
+        leadTimeMs={0}
+      />
       <div className="flex gap-2">
         <button
           type="button"

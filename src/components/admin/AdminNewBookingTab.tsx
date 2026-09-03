@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
+import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { useRouter } from "next/navigation";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 
@@ -26,8 +28,10 @@ export default function AdminNewBookingTab({
   const [patientId, setPatientId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [therapistId, setTherapistId] = useState("");
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
+  // One instant for the form, read once on mount, so the picker offers dates
+  // against the same clock the submit check uses.
+  const [nowMs] = useState(() => Date.now());
+  const [slot, setSlot] = useState(() => earliestSlot(Date.now(), leadTimeMsFromHours(leadTimeHours)));
   const [notes, setNotes] = useState("");
   const [paymentMode, setPaymentMode] = useState<"unpaid" | "paid_offline">("unpaid");
   const [overrideLeadTime, setOverrideLeadTime] = useState(false);
@@ -47,7 +51,8 @@ export default function AdminNewBookingTab({
     setError(null);
     setSuccess(null);
 
-    if (!patientId || !categoryId || !date || !time) {
+    const slotMs = slotToMs(slot.dateKey, slot.hour);
+    if (!patientId || !categoryId || slotMs === null) {
       setError("Patient, category, date and time are all required.");
       return;
     }
@@ -55,7 +60,7 @@ export default function AdminNewBookingTab({
     // Built as a local wall-clock time and sent as an ISO instant -- the
     // clinic works in IST and the admin is typing IST, so the browser's own
     // timezone doing the conversion is the correct behaviour here.
-    const slotTime = new Date(`${date}T${time}`).toISOString();
+    const slotTime = new Date(slotMs).toISOString();
 
     startTransition(async () => {
       const res = await fetch("/api/admin/create-booking", {
@@ -87,8 +92,7 @@ export default function AdminNewBookingTab({
       setNeedsOverride(false);
       setOverrideLeadTime(false);
       setNotes("");
-      setDate("");
-      setTime("");
+      setSlot(earliestSlot(Date.now(), leadTimeMsFromHours(leadTimeHours)));
       router.refresh();
     });
   }
@@ -145,32 +149,20 @@ export default function AdminNewBookingTab({
           </select>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls} htmlFor="booking-date">
-              Date
-            </label>
-            <input
-              id="booking-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className={fieldCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls} htmlFor="booking-time">
-              Time
-            </label>
-            <input
-              id="booking-time"
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className={fieldCls}
-            />
-          </div>
-        </div>
+        {/* The patient's own calendar and hour cells rather than a pair of
+            native inputs, so an admin booking on the phone sees exactly what
+            the caller would see on the website. Ticking the override below
+            drops the lead time to zero and the grid opens up with it --
+            that is the one thing this screen may do that /book may not. */}
+        <AdminSlotPicker
+          startOpen
+          label="Date & time"
+          dateKey={slot.dateKey}
+          hour={slot.hour}
+          onChange={setSlot}
+          nowMs={nowMs}
+          leadTimeMs={overrideLeadTime ? 0 : leadTimeMsFromHours(leadTimeHours)}
+        />
 
         <div>
           <label className={labelCls} htmlFor="booking-therapist">

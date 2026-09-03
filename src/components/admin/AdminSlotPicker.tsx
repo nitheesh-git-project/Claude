@@ -13,6 +13,8 @@ import {
   earliestBookableDateKey,
   formatDateKeyLong,
   slotStartMs,
+  toDateKey,
+  BOOKING_LEAD_TIME_MS,
 } from "@/lib/bookingSlots";
 import { formatHourRange } from "@/lib/therapistAvailability";
 
@@ -40,6 +42,8 @@ export default function AdminSlotPicker({
   nowMs,
   label = "Session date & time",
   disabled = false,
+  leadTimeMs = BOOKING_LEAD_TIME_MS,
+  startOpen = false,
 }: {
   dateKey: string;
   hour: number | null;
@@ -48,16 +52,28 @@ export default function AdminSlotPicker({
   nowMs: number;
   label?: string;
   disabled?: boolean;
+  /**
+   * How far ahead a slot must be. Defaults to the patient's 12 hours.
+   *
+   * Pass 0 where the screen is an admin override lane rather than a booking:
+   * rescheduling a session that already exists, or creating one for a patient
+   * who telephoned, are exactly the cases the lead time is not about. They get
+   * the same control and the same colours -- only the boundary moves, and it
+   * never moves into the past.
+   */
+  leadTimeMs?: number;
+  /** Expanded from the start, where the screen exists to choose a time. */
+  startOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
 
-  const hours = dateKey ? bookableHoursForDate(dateKey, nowMs) : [];
+  const hours = dateKey ? bookableHoursForDate(dateKey, nowMs, leadTimeMs) : [];
 
   function selectDate(nextDateKey: string) {
     // Keep the hour when the new date still offers it; otherwise fall to that
     // day's earliest bookable one rather than silently keeping a time the
     // lead-time rule has just ruled out.
-    const nextHours = bookableHoursForDate(nextDateKey, nowMs);
+    const nextHours = bookableHoursForDate(nextDateKey, nowMs, leadTimeMs);
     const keep = hour !== null && nextHours.includes(hour) ? hour : (nextHours[0] ?? null);
     onChange({ dateKey: nextDateKey, hour: keep });
   }
@@ -92,6 +108,7 @@ export default function AdminSlotPicker({
             selectedDateKey={dateKey}
             onSelect={selectDate}
             nowMs={nowMs}
+            leadTimeMs={leadTimeMs}
             autoSelected={false}
           />
           <div>
@@ -124,8 +141,9 @@ export default function AdminSlotPicker({
           {/* Says why yesterday and this afternoon are not on offer, rather
               than leaving an admin to work it out from greyed-out cells. */}
           <p className="text-[10px] text-slate-500">
-            Earliest bookable time is {BOOKING_LEAD_TIME_HOURS} hours from now — the same
-            rule the patient&apos;s own booking screen follows.
+            {leadTimeMs === BOOKING_LEAD_TIME_MS
+              ? `Earliest bookable time is ${BOOKING_LEAD_TIME_HOURS} hours from now — the same rule the patient's own booking screen follows.`
+              : "Any time from now on — this screen is an override, so the patient's lead-time rule does not apply."}
           </p>
         </div>
       )}
@@ -139,9 +157,26 @@ export default function AdminSlotPicker({
  * empty date when nothing qualifies, which the caller must treat as "no
  * availability" rather than assuming a day.
  */
-export function earliestSlot(nowMs: number): { dateKey: string; hour: number | null } {
-  const dateKey = earliestBookableDateKey(nowMs) ?? "";
-  return { dateKey, hour: dateKey ? (bookableHoursForDate(dateKey, nowMs)[0] ?? null) : null };
+export function earliestSlot(
+  nowMs: number,
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+): { dateKey: string; hour: number | null } {
+  const dateKey = earliestBookableDateKey(nowMs, leadTimeMs) ?? "";
+  return {
+    dateKey,
+    hour: dateKey ? (bookableHoursForDate(dateKey, nowMs, leadTimeMs)[0] ?? null) : null,
+  };
+}
+
+/** Splits a stored ISO instant back into the picker's `{dateKey, hour}`, in
+ *  local time -- the same wall-clock basis `slotStartMs` builds. Minutes are
+ *  dropped, because every slot in this app starts on the hour; a legacy row
+ *  at 10:30 opens the picker on 10 and is rewritten on save. */
+export function slotFromIso(iso: string | null): { dateKey: string; hour: number | null } {
+  if (!iso) return { dateKey: "", hour: null };
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { dateKey: "", hour: null };
+  return { dateKey: toDateKey(d), hour: d.getHours() };
 }
 
 /** Local-time epoch ms for a chosen slot, or null when one is incomplete. */

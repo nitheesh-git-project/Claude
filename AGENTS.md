@@ -476,9 +476,26 @@ client is the only writer and the log is append-only from any session.
   `bookableHoursForDate`, and `/api/admin/assign-referral` re-checks the
   lead time server-side rather than trusting the browser. It is deliberately
   **not** a dialog: the slot is chosen against the referral it sits inside.
-  `EditBookingForm`'s free datetime field is left as it is on purpose —
-  moving a booking that already exists is the admin override lane, the same
-  reasoning that exempts an admin from `complete-session`'s two gates.
+  **Every screen that picks a session slot now renders that one control**,
+  and `BookingCalendar` is the only month grid in the app: the two bulk
+  schedulers kept private copies of it for one difference — a dot on days
+  already holding a chosen slot — which is a `markedDateKeys` prop now;
+  `AdminNewBookingTab` and `EditBookingForm` dropped their native
+  date/time/datetime-local inputs; and the therapist's `SuggestSessionControl`
+  dropped a date box beside an hour dropdown that could offer a time the
+  patient's own screen would then refuse.
+  **The lead time is a prop, and zero is the override lane.** `leadTimeMs` on
+  `AdminSlotPicker` defaults to the patient's 12 hours; `EditBookingForm`
+  passes 0 (moving a session that already exists is not a booking) and
+  `AdminNewBookingTab` passes 0 only while its existing
+  "book inside the window anyway" box is ticked, so the grid opens up exactly
+  when the route would accept it. Zero still cannot reach into the past.
+  A **date that is not a session slot** keeps its native input, deliberately:
+  a report's date, a leave range, a promo campaign's window and every
+  from/to filter (Metrics, Costs, Activity Log, All Sessions, Payment
+  History, Earnings, the Calendar tab's day) have no hours and no lead time,
+  and a control whose disabled state means "too soon to book" would be
+  lying on all of them.
 - **Availability** = weekly template + per-date exceptions + leave flag, then
   a conflict check (`src/lib/therapistAvailability.ts`,
   `src/lib/checkTherapistConflict.ts`). It is the clinic's planning record —
