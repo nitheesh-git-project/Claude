@@ -203,6 +203,7 @@ src/lib/inviteRewards.ts one patient inviting another, and both halves of it
 src/lib/checkoutQuote.ts what a booking costs, resolved once for three callers
 src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
 src/lib/adminScope.ts    admin scopes and which sections each one may open
+src/lib/listOrdering.ts  moving a row up or down a hand-ordered admin list
 src/lib/availabilityRanges.ts the roster's range layer over its hour rows
 src/lib/availabilityRequest.ts server-side validation both save doors share
 src/lib/conditionSpecialty.ts the three condition specialties, the triage
@@ -1991,6 +1992,35 @@ client is the only writer and the log is append-only from any session.
   with nothing to sign, and a bucket would mean an upload pipeline to
   maintain. Rendered through a plain `<img>`, since optimising it would need a
   `remotePatterns` allowlist for every host an admin might paste from.
+- **Ordering a list is one save of the whole list, never a pairwise swap.**
+  The Conditions screen moved a category by swapping two rows'
+  `display_order` values. Two rows holding the *same* order swapped to the
+  same two numbers, so the write succeeded and changed nothing — and the
+  admin create form defaulted Order to `0`, which made equal orders the norm
+  rather than the exception. The optimistic list showed the move, the next
+  render put it back, and the public pages never changed. The arrows now
+  rearrange client-side only and **Save order** posts the whole id list to
+  `/api/admin/reorder-treatment-categories`, which renumbers `1..n` by array
+  position in `set_treatment_category_order()` — a total order ties cannot
+  express. Three rules came out of it: the button is **always rendered and
+  only enabled when something moved**, so saving is visibly the step that
+  publishes; the route **refuses a list that does not cover every row**
+  (409), since renumbering a subset collides with the rows it never saw; and
+  a new category is created at `max(display_order) + 1` rather than `0`, so
+  it appends instead of landing on top of everything at the same number.
+  Build a future reorder control the same way rather than reintroducing a
+  swap.
+- **An admin write that a public page renders must invalidate that page.**
+  `/`, `/conditions`, `/book`, `/faq`, `/mission` and `/team` are ISR-cached
+  (`export const revalidate = 300`), so a catalog or content edit was
+  invisible on the live site for up to five minutes — which reads as a save
+  that silently failed, and is how the same edit gets made twice. Every
+  admin route writing `treatment_categories`, `faqs`, `testimonials` or the
+  rating-visibility settings now calls `revalidatePath` for each page that
+  reads it, the way the home-visit routes always have. Adding a public
+  surface for an admin-editable table means adding its path to those routes
+  in the same change; the ISR window is a cache, not a publishing delay
+  anyone chose.
 - **A connector shows the whole of what is short and the headline of what is
   long.** The home page's mission band gives the mission and vision in full —
   they are two sentences, and paraphrasing them into a teaser would leave the

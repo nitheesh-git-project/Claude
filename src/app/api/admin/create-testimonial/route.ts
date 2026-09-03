@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
@@ -54,6 +55,12 @@ export async function POST(request: NextRequest) {
     targetId: null,
     targetLabel: "Testimonial",
   });
+
+  // One component serves the testimonial band on both pages, and both are
+  // ISR-cached (revalidate = 300) -- so both have to be invalidated or the
+  // two bands disagree until the window expires.
+  revalidatePath("/");
+  revalidatePath("/mission");
 
   return NextResponse.json({ success: true, id: data.id });
 }

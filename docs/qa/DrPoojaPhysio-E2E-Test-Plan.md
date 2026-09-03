@@ -2672,11 +2672,16 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 8. Optionally paste a **Cover Image URL**.
 9. Save.
 
-**Expected Result.** The category is created and appears on `/` and `/conditions` (allow for ISR if not on `next dev`), in the `/book` concern dropdown as `QA Back & Spine Care — ₹1,999 / 60 min`, and as an option when creating a package. The cover image is a **plain URL an admin pastes**, not a Storage upload, rendered through a plain `<img>`; a row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
+**Expected Result.** The category is created and appears **immediately** on `/` and `/conditions` — the create route invalidates both ISR-cached pages, so a five-minute wait is now a defect, not expected behaviour — in the `/book` concern dropdown as `QA Back & Spine Care — ₹1,999 / 60 min`, and as an option when creating a package. The cover image is a **plain URL an admin pastes**, not a Storage upload, rendered through a plain `<img>`; a row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
 **Negatives:** `Missing title, priceInr, or durationMinutes`; `Price must be a positive number`; `Session length must be a positive number of minutes`; `Order must be a number`.
 
 #### `ADM-CAT-002` — Edit, reorder, deactivate, delete a category · P1
-**Expected Result.** Editing the price changes what `/book` charges **for new bookings** and is re-derived server-side at booking time. Reordering changes the display order everywhere. Deactivating removes it from public surfaces and refuses new bookings against it (`That concern isn't available any more. Please pick another one.`) while **leaving existing appointments untouched**. Deleting a category referenced by a live purchase must not silently break that purchase.
+**Expected Result.** Editing the price changes what `/book` charges **for new bookings** and is re-derived server-side at booking time. Reordering changes the display order everywhere.
+
+**Reorder, in detail.** The up/down arrows rearrange the list **in the browser only** — nothing is written until **Save order** is tapped. That button is **always visible** and is **disabled until something has actually moved**; while there are unsaved moves the screen reads `Not saved yet — the public pages still show the old order.` beside an **Undo changes** link. Saving posts the whole list, renumbers it `1..n`, and shows `Order saved — live on the site.`
+**Critical check:** reload the tab after saving and confirm the new order **survives**, then open `/` and `/conditions` and confirm they show the same order **immediately** (the pages are ISR-cached, and the save invalidates them). A reorder that reverts on reload, or one the public pages ignore, is the P1 defect this case exists for — it was caused by a pairwise `display_order` swap that did nothing whenever two categories held the same number, which every category created without typing an **Order** did.
+**Negatives:** with two browser tabs open, add or delete a category in tab B, then Save order in tab A — refused with `The condition list changed while you were reordering it. Refresh and try again.`
+**Also:** creating a category now defaults **Order** to one past the last existing category, so a new condition appends rather than appearing first. Deactivating removes it from public surfaces and refuses new bookings against it (`That concern isn't available any more. Please pick another one.`) while **leaving existing appointments untouched**. Deleting a category referenced by a live purchase must not silently break that purchase.
 
 #### `ADM-CAT-005` — Create a session package · P0
 **Steps.** Create Package P1 exactly as specified in §8.11.
@@ -2767,13 +2772,13 @@ Every setting below is read through one shared settings module with defaults. **
 
 #### `ADM-SET-007` — Testimonials · P1
 **Steps.** Create a testimonial with patient name `QA Story` and quote `The exercises made a real difference in six weeks.` Save. Open `/` and `/mission`.
-**Expected Result.** It appears in the same band on **both** pages — one component serves both, because the two bands make the same claim and a visitor may see both in one session. The avatar is optional; with none, the **patient's initial** is shown, never a generic silhouette.
+**Expected Result.** It appears **immediately** in the same band on **both** pages (the route invalidates `/` and `/mission`, both ISR-cached) — one component serves both, because the two bands make the same claim and a visitor may see both in one session. The avatar is optional; with none, the **patient's initial** is shown, never a generic silhouette.
 **Critical check:** the five rows the schema seeds are **illustrative copy, not real patients**, and the admin form must **say so at the point of entry**. Never present a seeded testimonial as real. The only place a **real** number is quoted is the public rating summary.
 **Negatives:** `Missing patientName or quote`; editing requires `Missing id, patientName, or quote`.
 
 #### `ADM-SET-008` — FAQ · P2
 **Steps.** Create, edit, reorder and delete an FAQ. Open `/faq`.
-**Expected Result.** The public accordion reflects each change. Negatives: `Missing question or answer`, `Missing id, question, or answer`.
+**Expected Result.** The public accordion reflects each change **immediately** — `/faq` is ISR-cached and every FAQ route invalidates it. Negatives: `Missing question or answer`, `Missing id, question, or answer`.
 
 ---
 

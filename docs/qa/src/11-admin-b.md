@@ -55,13 +55,13 @@ Every setting below is read through one shared settings module with defaults. **
 
 #### `ADM-SET-007` — Testimonials · P1
 **Steps.** Create a testimonial with patient name `QA Story` and quote `The exercises made a real difference in six weeks.` Save. Open `/` and `/mission`.
-**Expected Result.** It appears in the same band on **both** pages — one component serves both, because the two bands make the same claim and a visitor may see both in one session. The avatar is optional; with none, the **patient's initial** is shown, never a generic silhouette.
+**Expected Result.** It appears **immediately** in the same band on **both** pages (the route invalidates `/` and `/mission`, both ISR-cached) — one component serves both, because the two bands make the same claim and a visitor may see both in one session. The avatar is optional; with none, the **patient's initial** is shown, never a generic silhouette.
 **Critical check:** the five rows the schema seeds are **illustrative copy, not real patients**, and the admin form must **say so at the point of entry**. Never present a seeded testimonial as real. The only place a **real** number is quoted is the public rating summary.
 **Negatives:** `Missing patientName or quote`; editing requires `Missing id, patientName, or quote`.
 
 #### `ADM-SET-008` — FAQ · P2
 **Steps.** Create, edit, reorder and delete an FAQ. Open `/faq`.
-**Expected Result.** The public accordion reflects each change. Negatives: `Missing question or answer`, `Missing id, question, or answer`.
+**Expected Result.** The public accordion reflects each change **immediately** — `/faq` is ISR-cached and every FAQ route invalidates it. Negatives: `Missing question or answer`, `Missing id, question, or answer`.
 
 ---
 

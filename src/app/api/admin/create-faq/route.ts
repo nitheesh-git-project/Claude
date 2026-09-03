@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
@@ -38,6 +39,10 @@ export async function POST(request: NextRequest) {
     targetId: null,
     targetLabel: "FAQ",
   });
+
+  // /faq is ISR-cached (revalidate = 300), so without this the accordion
+  // keeps serving the old questions for up to five minutes after a save.
+  revalidatePath("/faq");
 
   return NextResponse.json({ success: true, id: data.id });
 }

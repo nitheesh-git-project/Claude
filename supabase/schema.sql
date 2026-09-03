@@ -8441,3 +8441,52 @@ $$;
 revoke all on function public.debug_reset_all_data() from public;
 revoke all on function public.debug_reset_all_data() from anon;
 revoke all on function public.debug_reset_all_data() from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Condition (treatment category) ordering: one write for the whole list
+-- ---------------------------------------------------------------------------
+--
+-- Replaces swap_treatment_category_order, which swapped two rows'
+-- display_order values pairwise. That is a silent no-op whenever the two rows
+-- already hold the SAME display_order -- and they routinely do, because the
+-- admin create form defaults Order to 0, so every condition added without
+-- someone typing a number sits at 0. Setting a = b's order and b = a's order
+-- then writes 0 and 0, the `order by display_order, id` tiebreaker keeps the
+-- list exactly as it was, and the admin watches their reorder revert on the
+-- next render. The bug was invisible on the seeded rows (1, 2, 999) and
+-- appeared the moment a real catalogue was entered.
+--
+-- Taking the whole ordered list instead of a pair makes ties unrepresentable:
+-- every row is assigned its 1-based position, so the result is always a
+-- strict total order regardless of what the column held before. One
+-- statement, one transaction -- a failure leaves the previous order intact
+-- rather than half-renumbered.
+--
+-- Rows whose id is not in the array are left alone. The caller
+-- (/api/admin/reorder-treatment-categories) refuses a list that does not
+-- cover every row for exactly that reason, so a stale browser cannot
+-- renumber a subset into a collision with a row it never saw.
+create or replace function set_treatment_category_order(ordered_ids uuid[])
+returns void
+language plpgsql
+as $$
+begin
+  update treatment_categories t
+  set display_order = pos.ord
+  from (
+    select u.id, u.ord::integer as ord
+    from unnest(ordered_ids) with ordinality as u(id, ord)
+  ) as pos
+  where t.id = pos.id
+    and t.display_order is distinct from pos.ord;
+end;
+$$;
+
+revoke all on function public.set_treatment_category_order(uuid[]) from public;
+revoke all on function public.set_treatment_category_order(uuid[]) from anon;
+revoke all on function public.set_treatment_category_order(uuid[]) from authenticated;
+
+-- Dropped rather than left in place: its only caller is gone, and a function
+-- that silently does nothing on tied orders is exactly the kind of thing a
+-- later change reaches for again.
+drop function if exists swap_treatment_category_order(uuid, uuid);
