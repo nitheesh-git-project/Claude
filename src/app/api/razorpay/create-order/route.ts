@@ -1,19 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  isFirstSessionEligible,
-  resolveDiscount,
-  type DiscountOutcome,
-  type FirstSessionOffer,
-  type PriorPaidLookup,
-} from "@/lib/discounts";
-import { applyInviteDiscount } from "@/lib/inviteRewards";
-import { claimPromoCode, releasePromoCode } from "@/lib/promoCodesServer";
-import { claimInviteHalf, readInviteHalves } from "@/lib/inviteRewardsServer";
-import { readPromoCodesEnabled } from "@/lib/acquisitionSettings";
+import { isGatewayPayable } from "@/lib/discounts";
+import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
 import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { readAppointmentServicePrice } from "@/lib/appointmentPriceServer";
 import {
   isProfileActive,
   isPatientProfile,
@@ -191,123 +181,54 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Resolve the real price for what was actually booked, through the one
-  // helper the promo preview also uses -- see appointmentPriceServer.ts for
-  // why it reads with the admin client, and why a preview and its checkout
-  // must not be able to work from two different prices.
-  let amountPaise = await readAppointmentServicePrice(admin, appointment.category_id);
-
-  // A home-visit referral appointment (the only home-visit path that goes
-  // through this generic route -- purchase-backed visits pay via
-  // /api/home-visit/create-order instead) carries its own travel fee on top
-  // of the session price, same as every other home-visit charge. Charged to
-  // the patient, but never folded into amount_paid_paise itself -- that
-  // column is what revenue/payout math multiplies by the therapist's share,
-  // and travel is a pass-through paid in full, not a share-based earning
-  // (see homeVisitPricing.ts). therapistPayouts.ts already reads
-  // travel_fee_paise straight off the appointment for the payout side.
-  const travelFeePaise =
-    appointment.visit_mode === "home_visit" ? Math.max(0, appointment.travel_fee_paise ?? 0) : 0;
-
-  // Discounts, resolved here and nowhere else.
-  //
-  // Both the standing first-session offer and any goodwill an admin put on
-  // this booking are read server-side: the offer from settings plus this
-  // patient's own payment history, the adjustment from the appointment row
-  // an admin wrote it to. Nothing about either arrives in the request body,
-  // for the same reason the price never has.
-  //
-  // Applied to the service line only. Travel is a pass-through paid to the
-  // therapist in full, so it is added back after the discount and never
-  // reduced by it -- discounting travel means the therapist funds their own
-  // transport to subsidise the clinic's marketing.
-  const listPricePaise = amountPaise;
-  const priorPaid = await countPriorPaidSessions(admin, user.id);
-  const [offer, goodwillPaise, promoCodesEnabled, halves] = await Promise.all([
-    readFirstSessionOffer(admin),
-    readGoodwillOnAppointment(admin, appointmentId),
-    readPromoCodesEnabled(admin),
-    readInviteHalves(admin, user.id),
-  ]);
-
-  // Two of the five sources have to be claimed rather than simply worked
-  // out: a promo code counts against a cap, and an invite half is spent
-  // once. So the candidates are **previewed** first, the winner is decided,
-  // and only the winner is claimed -- attaching a code that then loses to a
-  // larger discount would count it against its own cap for nothing.
-  //
-  // A claim that the database refuses (the cap filled between the preview
-  // and now, another checkout is holding the half) drops that candidate and
-  // the next-best one is tried. That loop terminates because each pass
-  // removes one candidate.
-  //
-  // An unspent half is honoured whether or not invites are still switched
-  // on. The switch stops new claims; it does not withdraw a promise the
-  // clinic already made to somebody who has already sent a friend.
-  const candidates: DiscountOutcome[] = [];
-  // The reward before the welcome, so a tie goes to the older promise.
-  if (halves.rewardPaise > 0) {
-    candidates.push(applyInviteDiscount(listPricePaise, halves.rewardPaise, "reward"));
-  }
-  if (halves.welcomePaise > 0) {
-    candidates.push(applyInviteDiscount(listPricePaise, halves.welcomePaise, "welcome"));
-  }
-
-  let promoClaim: Awaited<ReturnType<typeof claimPromoCode>> | null = null;
-  if (typedPromoCode) {
-    if (!promoCodesEnabled) {
-      return NextResponse.json({ error: "That code isn't recognised." }, { status: 409 });
-    }
-    promoClaim = await claimPromoCode(admin, {
-      code: typedPromoCode,
-      patientId: user.id,
-      appointmentId,
-      listPricePaise,
-      patientHasPaidBefore: (priorPaid.count ?? 1) > 0,
-    });
-    if (!promoClaim.ok) {
-      // Refused rather than quietly charged at list price. The patient was
-      // shown a figure with this code applied; taking more money than they
-      // were quoted is the one outcome a payment screen must never produce.
-      return NextResponse.json({ error: promoClaim.message }, { status: 409 });
-    }
-    candidates.unshift(promoClaim.outcome);
-  }
-
-  let discount = resolveDiscount({
-    listPricePaise,
-    offer,
-    offerEligible: isFirstSessionEligible(priorPaid),
-    goodwillPaise,
-    candidates,
+  // Price and discounts, resolved through the one module the quote route and
+  // the free-confirmation route also use -- see checkoutQuote.ts for why
+  // three callers sharing one resolution is the point. `claim: true` makes
+  // this the authority: a promo code is claimed under a row lock and an
+  // invite half is attached, both of which the read-only quote deliberately
+  // does not do.
+  const quote = await resolveCheckoutQuote(admin, {
+    appointment: {
+      id: appointment.id,
+      patient_id: appointment.patient_id,
+      category_id: appointment.category_id,
+      visit_mode: appointment.visit_mode,
+      travel_fee_paise: appointment.travel_fee_paise,
+    },
+    promoCode: typedPromoCode,
+    claim: true,
   });
 
-  // Claim whichever invite half won, and fall back if it is held by another
-  // open checkout.
-  while (discount.source === "invite_reward" || discount.source === "invite_welcome") {
-    const half = discount.source === "invite_reward" ? "reward" : "welcome";
-    const claimed = await claimInviteHalf(admin, user.id, appointmentId, half);
-    if (claimed !== null) break;
-    const dropped = discount.source;
-    const remaining = candidates.filter((candidate) => candidate.source !== dropped);
-    candidates.length = 0;
-    candidates.push(...remaining);
-    discount = resolveDiscount({
-      listPricePaise,
-      offer,
-      offerEligible: isFirstSessionEligible(priorPaid),
-      goodwillPaise,
-      candidates,
-    });
+  if (typedPromoCode && quote.promoError) {
+    // Refused rather than quietly charged at list price. The patient was
+    // shown a figure with this code applied; taking more money than they
+    // were quoted is the one outcome a payment screen must never produce.
+    return NextResponse.json({ error: quote.promoError }, { status: 409 });
   }
 
-  // A code that was claimed but lost to a larger discount is given back, so
-  // it does not go on counting against its own cap.
-  if (promoClaim?.ok && discount.source !== "promo_code") {
-    await releasePromoCode(admin, appointmentId, user.id);
+  // Nothing left to charge. Razorpay refuses a zero-amount order, and a
+  // token rupee would charge a figure the patient was never quoted -- so a
+  // free booking is confirmed by its own route instead, and this one says
+  // so rather than inventing an amount.
+  if (!isGatewayPayable(quote.totalPaise)) {
+    return NextResponse.json(
+      {
+        free: true,
+        totalPaise: quote.totalPaise,
+        error: "This booking is free — confirm it without paying.",
+      },
+      { status: 409 }
+    );
   }
 
-  amountPaise = discount.payablePaise;
+  const listPricePaise = quote.listPricePaise;
+  const travelFeePaise = quote.travelFeePaise;
+  const discount = {
+    discountPaise: quote.discountPaise,
+    payablePaise: quote.payablePaise,
+    source: quote.source,
+  };
+  const amountPaise = quote.payablePaise;
 
   // Guarded like /api/home-visit/create-order's own order.create call: an
   // uncaught throw here (bad/missing Razorpay keys, a Razorpay API hiccup)
@@ -360,77 +281,4 @@ export async function POST(request: NextRequest) {
     amount: order.amount,
     currency: order.currency,
   });
-}
-
-/**
- * The standing offer, read in its own call.
- *
- * Migration-dependent columns, and failing to read them must cost the offer
- * rather than the booking -- so an error here returns a disabled offer and
- * the patient pays list price, which is the safe direction.
- */
-async function readFirstSessionOffer(
-  admin: ReturnType<typeof createAdminClient>
-): Promise<FirstSessionOffer> {
-  const off: FirstSessionOffer = { enabled: false, type: "fixed", value: 0 };
-  try {
-    const { data, error } = await admin
-      .from("site_settings")
-      .select(
-        "first_session_offer_enabled, first_session_offer_type, first_session_offer_value"
-      )
-      .maybeSingle();
-    if (error || !data) return off;
-    return {
-      enabled: data.first_session_offer_enabled === true,
-      type: data.first_session_offer_type === "percent" ? "percent" : "fixed",
-      value: typeof data.first_session_offer_value === "number" ? data.first_session_offer_value : 0,
-    };
-  } catch {
-    return off;
-  }
-}
-
-/**
- * Has this patient ever paid for a session before?
- *
- * The whole eligibility rule, asked of the database rather than of anything
- * the browser sent. `failed` is carried rather than swallowed so
- * `isFirstSessionEligible` can fail closed on it -- an unreadable answer
- * must not become a discount for everybody.
- */
-async function countPriorPaidSessions(
-  admin: ReturnType<typeof createAdminClient>,
-  patientId: string
-): Promise<PriorPaidLookup> {
-  try {
-    const { count, error } = await admin
-      .from("appointments")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", patientId)
-      .eq("payment_status", "paid");
-    if (error) return { count: null, failed: true };
-    return { count: count ?? 0, failed: false };
-  } catch {
-    return { count: null, failed: true };
-  }
-}
-
-/** Any adjustment an admin already wrote onto this booking. */
-async function readGoodwillOnAppointment(
-  admin: ReturnType<typeof createAdminClient>,
-  appointmentId: string
-): Promise<number | null> {
-  try {
-    const { data } = await admin
-      .from("appointments")
-      .select("discount_paise, discount_source")
-      .eq("id", appointmentId)
-      .maybeSingle();
-    const row = data as { discount_paise?: number | null; discount_source?: string | null } | null;
-    if (!row || row.discount_source !== "goodwill") return null;
-    return row.discount_paise ?? null;
-  } catch {
-    return null;
-  }
 }

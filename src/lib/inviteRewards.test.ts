@@ -13,7 +13,7 @@ import {
   type InviteSettings,
   type InviteClaimContext,
 } from "@/lib/inviteRewards";
-import { MINIMUM_CHARGE_PAISE } from "@/lib/discounts";
+import { isGatewayPayable } from "@/lib/discounts";
 
 const LIST = 120000; // ₹1,200
 
@@ -138,8 +138,13 @@ describe("applyInviteDiscount", () => {
     expect(applyInviteDiscount(LIST, 30000, "welcome").payablePaise).toBe(90000);
   });
 
-  it("floors an amount larger than a cheap session's price", () => {
-    expect(applyInviteDiscount(9000, 30000, "welcome").payablePaise).toBe(MINIMUM_CHARGE_PAISE);
+  it("gives away a cheap session rather than charging a token rupee", () => {
+    // A configured amount that has drifted past a cheap category resolves to
+    // free, not to ₹1. Checkout answers a zero payable without a gateway.
+    const out = applyInviteDiscount(9000, 30000, "welcome");
+    expect(out.payablePaise).toBe(0);
+    expect(out.discountPaise).toBe(9000);
+    expect(isGatewayPayable(out.payablePaise)).toBe(false);
   });
 
   it("does nothing when the half is unconfigured", () => {

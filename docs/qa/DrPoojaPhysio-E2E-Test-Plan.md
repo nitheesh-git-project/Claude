@@ -2489,6 +2489,22 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** Create a code capped at **1** total use. Open checkout for it as patient A and pay. Then try it as patient B.
 **Expected Result.** Patient B is refused with *"That code has been fully claimed."* Repeat with patient A abandoning checkout instead of paying: after **30 minutes** the claim frees up and patient B can use it. A cap that can be exceeded by opening two checkouts is a P0 defect.
 
+#### `PAT-PAY-FREE-001` — The payment screen quotes what it charges · P0
+**Steps.** As a patient with a first-session offer running (say 25% off), reach step 3 of the booking wizard.
+**Expected Result.** The summary shows the session fee **struck through**, the discount named on its own line, and a **Total**. The button reads **Pay ₹<total> Now** with that same total. If the button quotes the list price while Razorpay opens at the discounted figure — or the reverse — that is a P0 defect: quoting one number and charging another is the one thing a payment screen must never do.
+
+#### `PAT-PAY-FREE-002` — A 100%-off code books without paying · P0
+**Steps.** Create a promo code at **100%** off. As a patient, apply it at step 3.
+**Expected Result.** Total reads **Free**, the lock line changes to *"Nothing to pay — your discount covers this session in full"*, and the button reads **Confirm booking — free**. Tapping it books the session with **no Razorpay screen at all**. The session appears in the patient's dashboard as confirmed or pending exactly like a paid one. Being charged ₹1 instead is a P0 defect — that was the old behaviour and it charges a figure nobody was quoted.
+
+#### `PAT-PAY-FREE-003` — Free is decided by the server, never the browser · P0
+**Steps.** With no discount running, POST to `/api/appointments/confirm-free` with a real unpaid appointment id (browser console or curl, signed in as that patient).
+**Expected Result.** **409**, *"This booking still has an amount to pay."*, and the booking stays **unpaid**. If a booking can be confirmed free by asking, every session in the app is free.
+
+#### `ADM-MONEY-FREE-001` — A free session still shows in the books · P1
+**Steps.** After `PAT-PAY-FREE-002`, open **Money → Costs** and the session's own drawer.
+**Expected Result.** The booking records the full price as list price, the whole of it as the discount, and `promo_code` as the source — so **What discounting cost** includes it. Amount paid is **₹0** and there is no payment/transaction row, because no money moved. A free session that recorded nothing would make the giveaway invisible, which is the figure that decides whether the campaign continues.
+
 #### `ADM-INVITE-001` — Invites: the two halves · P1
 **Steps.** As a **Full** admin, open **Settings → Booking Rules → Patient invites**. Switch on, set the friend's welcome to ₹300 and the reward to ₹200, and save. Open a patient's dashboard.
 **Expected Result.** The panel previews the exact sentence the patient will read, and it says the reward arrives **once their friend has had a session** — not on a signup. The patient's dashboard shows their own code, formatted in two halves, with a copy button.

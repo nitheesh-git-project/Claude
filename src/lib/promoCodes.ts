@@ -18,11 +18,7 @@
 // is what produces the honest message on the preview screen; the database's
 // is what makes "100 uses" mean 100.
 
-import {
-  applyConfiguredAmountOff,
-  MINIMUM_CHARGE_PAISE,
-  type DiscountOutcome,
-} from "@/lib/discounts";
+import { applyConfiguredAmountOff, type DiscountOutcome } from "@/lib/discounts";
 
 /**
  * How a code takes money off.
@@ -207,8 +203,11 @@ export function promoOutcome(promo: PromoCode, listPricePaise: number): Discount
     const percent = Math.min(100, promo.value);
     // Rounded down, so the rounding favours the patient -- same rule the
     // first-session offer follows, for the same reason.
-    let payable = Math.floor(listPricePaise * (1 - percent / 100));
-    payable = Math.max(MINIMUM_CHARGE_PAISE, payable);
+    // Floored at zero, not at the gateway minimum: a 100%-off campaign is a
+    // free session, and charging ₹1 for one would quote a figure and take
+    // another. Checkout answers a zero payable by not going to a gateway at
+    // all -- see isGatewayPayable and /api/appointments/confirm-free.
+    const payable = Math.max(0, Math.floor(listPricePaise * (1 - percent / 100)));
     if (payable >= listPricePaise) return none;
     return {
       listPricePaise,

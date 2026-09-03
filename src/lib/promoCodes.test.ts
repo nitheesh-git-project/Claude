@@ -9,7 +9,7 @@ import {
   type PromoCode,
   type PromoContext,
 } from "@/lib/promoCodes";
-import { MINIMUM_CHARGE_PAISE } from "@/lib/discounts";
+import { isGatewayPayable } from "@/lib/discounts";
 
 const LIST = 120000; // ₹1,200
 const NOW = new Date("2026-03-10T10:00:00Z");
@@ -66,20 +66,23 @@ describe("promoOutcome", () => {
     expect(out.payablePaise).toBe(66933);
   });
 
-  it("floors a 100%-off campaign at the minimum charge", () => {
-    // Razorpay refuses a zero-amount order, so an unguarded 100% code is a
-    // 500 at the last step of checkout rather than a free session.
+  it("makes a 100%-off campaign free rather than charging a token rupee", () => {
+    // A clinic that advertises a free first session and takes ₹1 has quoted
+    // one figure and charged another. Checkout answers a zero payable by not
+    // going to a gateway at all.
     const out = promoOutcome(code({ kind: "percent_off", value: 100 }), LIST);
-    expect(out.payablePaise).toBe(MINIMUM_CHARGE_PAISE);
+    expect(out.payablePaise).toBe(0);
+    expect(out.discountPaise).toBe(LIST);
     expect(out.source).toBe("promo_code");
+    expect(isGatewayPayable(out.payablePaise)).toBe(false);
   });
 
-  it("floors an amount larger than the price rather than refusing it", () => {
+  it("floors an amount larger than the price at zero rather than refusing it", () => {
     // Opposite of a goodwill adjustment: this figure came out of a campaign
     // set up weeks ago, so drifting past a cheap category is configuration,
     // not a typo made with the price on screen.
     const out = promoOutcome(code({ value: 500000 }), LIST);
-    expect(out.payablePaise).toBe(MINIMUM_CHARGE_PAISE);
+    expect(out.payablePaise).toBe(0);
   });
 });
 

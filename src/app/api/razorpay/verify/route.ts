@@ -2,13 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  pickAutoAssignTherapist,
-  readAutoAssignSettings,
-} from "@/lib/autoAssignTherapist";
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
+import { confirmPaidAppointment } from "@/lib/confirmPaidAppointment";
 import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
-import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { approvePatientForGenuinePaymentAttempt } from "@/lib/supabase/requireActiveProfile";
 
 export async function POST(request: NextRequest) {
@@ -68,87 +64,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Signature verification failed" }, { status: 400 });
   }
 
-  // A therapist already being assigned means everything else was already
-  // arranged (e.g. a hospital referral) — payment was the only thing
-  // pending, so confirm it now rather than leaving it stuck on
-  // "requested" waiting for a separate admin action.
-  //
-  // When nobody is assigned yet, the roster is asked whether the answer is
-  // unambiguous: exactly one approved, active, not-on-leave therapist who
-  // works that hour and has no clashing session. If so the session is
-  // assigned and confirmed here rather than waiting for an admin to open
-  // the dashboard, which was the longest unnecessary wait in the funnel.
-  // Anything less certain than "exactly one" returns null and the
-  // appointment stays in the queue exactly as before — see
-  // autoAssignTherapist.ts for why the tie-break is deliberately "don't".
   const admin = createAdminClient();
 
-  let assignedTherapistId = appointment.therapist_id as string | null;
-  let autoAssignReason: string | null = null;
-  if (!assignedTherapistId && appointment.status === "requested" && appointment.slot_time) {
-    const settings = await readAutoAssignSettings(admin);
-    const picked = await pickAutoAssignTherapist(admin, {
-      appointmentId: appointment.id,
-      slotTime: appointment.slot_time,
-      durationMinutes: appointment.duration_minutes,
-      preferredTherapistId: appointment.preferred_therapist_id,
-      visitMode: appointment.visit_mode,
-      travelBufferMinutes: settings.travelBufferMinutes,
-    });
-    if (picked) {
-      assignedTherapistId = picked.therapistId;
-      autoAssignReason = picked.reason;
-    }
-  }
+  // Everything a booking becoming paid entails -- the roster's answer, the
+  // atomic claim, the Meet event -- lives in one module so this route and
+  // the free-confirmation route beside it cannot grow two versions of it.
+  // See confirmPaidAppointment.ts.
+  //
+  // amount_paid_paise is deliberately not passed: /api/razorpay/create-order
+  // already wrote the figure this specific order charged, and re-deriving it
+  // here could disagree with the money that actually moved.
+  const outcome = await confirmPaidAppointment(admin, {
+    appointment,
+    razorpayPaymentId: razorpay_payment_id,
+  });
 
-  const shouldAutoConfirm = assignedTherapistId && appointment.status === "requested";
-
-  // amount_paid_paise is already set by /api/razorpay/create-order at the
-  // moment the order was created (resolved from the appointment's category
-  // price, or the flat base fee) — that's the real amount this specific
-  // order charged, so it's not re-derived or overwritten here.
-
-  // Atomic claim: only actually confirm/mark-paid if the appointment is
-  // still in the same active state it was in when read above. Without this,
-  // an admin cancelling the appointment in the moment between the patient's
-  // checkout succeeding and this callback landing would let this write go
-  // through anyway — either resurrecting a cancelled booking back to
-  // "confirmed", or marking a cancelled (and possibly already-refunded)
-  // appointment as paid with no refund ever attempted for this charge.
-  const { data: claimed, error: claimError } = await admin
-    .from("appointments")
-    .update({
-      payment_status: "paid",
-      razorpay_payment_id,
-      paid_at: new Date().toISOString(),
-      ...(shouldAutoConfirm
-        ? {
-            status: "confirmed",
-            // Written in the same claim as the confirmation, so a session
-            // can never be confirmed with nobody on it.
-            ...(autoAssignReason ? { therapist_id: assignedTherapistId } : {}),
-          }
-        : {}),
-    })
-    .eq("id", appointmentId)
-    .in("status", ["requested", "confirmed"])
-    .select("id")
-    .maybeSingle();
-
-  if (claimError) {
+  if (outcome.error) {
     // The payment itself succeeded with Razorpay at this point — never tell
     // the patient it failed. Surface it as a verification failure instead so
     // the existing "contact us with payment ID X" fallback UI kicks in,
     // rather than silently showing a false "Payment Confirmed" screen while
     // the booking is actually left unpaid in the database.
-    console.error("Failed to record payment for appointment", appointmentId, claimError);
+    console.error("Failed to record payment for appointment", appointmentId, outcome.error);
     return NextResponse.json(
       { error: "Could not record the payment. Please contact us." },
       { status: 500 }
     );
   }
 
-  if (!claimed) {
+  if (!outcome.claimed) {
     // The appointment's status changed between checkout and this callback
     // (almost certainly: it was cancelled) — but Razorpay has genuinely
     // already charged the patient by this point, so the payment must not
@@ -176,20 +120,6 @@ export async function POST(request: NextRequest) {
       },
       { status: 409 }
     );
-  }
-
-  // The atomic claim above already applied shouldAutoConfirm inside the
-  // same write -- if it succeeded, the status change (if any) actually
-  // stuck, so it's safe to create the Meet event now.
-  if (shouldAutoConfirm && assignedTherapistId && appointment.slot_time) {
-    await createMeetEventForConfirmedAppointment(admin, {
-      appointmentId,
-      patientId: appointment.patient_id,
-      therapistId: assignedTherapistId,
-      slotTime: appointment.slot_time,
-      durationMinutes: appointment.duration_minutes,
-      timezone: appointment.timezone,
-    });
   }
 
   // Record the money itself, in the one place that holds every payment

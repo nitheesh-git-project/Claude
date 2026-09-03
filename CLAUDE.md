@@ -182,6 +182,24 @@ Money → Costs, split by rule and never deducted from profit: it is already
 inside gross revenue as a smaller number. Bundle pricing stays
 `compare_at_paise` on a package.
 
+**The payment screen quotes what checkout charges, and a discount may reach
+zero.** One module resolves the price and every discount
+(`src/lib/checkoutQuote.ts`), read by three callers that must never disagree:
+`/api/appointments/quote` (a read, for the figure on the button),
+`/api/razorpay/create-order` (the authority, claiming under a row lock), and
+`/api/appointments/confirm-free`. The wizard used to print the category price
+while create-order silently applied a first-session offer behind it. When a
+discount takes the total to nothing there is no gateway order at all —
+Razorpay refuses one, and the old ₹1 floor charged a figure nobody was
+quoted; `MINIMUM_CHARGE_PAISE` now means only "the least a gateway order may
+be", tested by `isGatewayPayable`. The free confirmation re-resolves
+server-side and refuses with 409 if anything is still owed, writes no
+`payments` row (no money moved, and that table is keyed on Razorpay's own
+ids), records `amount_paid_paise = 0` with all four discount facts, and still
+does everything a paid confirmation does — auto-assignment, the Meet event,
+settling an invite half. A goodwill adjustment is the one rule still floored
+above zero: it is a number a person typed, not an advertised free session.
+
 **A promo code is an identifier, not an amount.** The browser sends the code;
 every figure comes from the row an admin created. Its redemption cap is
 enforced by `claim_promo_code()` under a row lock rather than by a count

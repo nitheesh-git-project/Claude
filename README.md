@@ -677,6 +677,15 @@ checkout refuses and says why rather than quietly charging full price. A
 code that has been used is never deleted, only paused, so the bookings that
 used it keep their record.
 
+**When a discount covers the whole session**, the booking is confirmed
+without a payment. The payment step shows the session fee, the discount and
+the total; if the total is nothing, the button reads **Confirm booking —
+free** and no card, UPI or gateway screen appears at all. The clinic still
+sees a real session, and the books still record what it would have cost and
+which rule gave it away — a free session is a session. A goodwill adjustment
+is the one thing that cannot reach zero: an amount at or above the session
+price is treated as a typo and refused.
+
 **A patient invite** is one patient telling another. Every patient's
 dashboard shows a code to share; their friend gets something off their first
 session, and they get something off their next one — once that friend has

@@ -73,6 +73,11 @@ type PayForAppointmentArgs = {
   onSuccess: () => void;
   onError: (message: string) => void;
   onDismiss: () => void;
+  /** A discount took the price to nothing between the quote and this tap.
+   *  Razorpay refuses a zero-amount order, so the booking is confirmed by
+   *  /api/appointments/confirm-free instead -- handled here rather than
+   *  surfaced as an error, since from the patient's side nothing went wrong. */
+  onFree?: () => void;
 };
 
 /** Creates a Razorpay order for an existing appointment and opens Checkout. */
@@ -85,6 +90,7 @@ export async function payForAppointment({
   onSuccess,
   onError,
   onDismiss,
+  onFree,
 }: PayForAppointmentArgs) {
   try {
     await loadRazorpayScript();
@@ -97,6 +103,10 @@ export async function payForAppointment({
     const orderData = await res.json();
 
     if (!res.ok) {
+      if (orderData.free === true && onFree) {
+        onFree();
+        return;
+      }
       onError(orderData.error ?? "Could not start payment. Please try again.");
       return;
     }

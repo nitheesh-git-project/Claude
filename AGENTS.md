@@ -65,7 +65,10 @@ acquisition discounts a patient can trigger themselves -- a promo code
 quoting what it takes off with no amount in the request, a redemption cap
 refusing the second claim, a paused or expired campaign doing nothing and
 saying which, and an invite that cannot be claimed by its owner, twice, or by
-a patient who has already paid (`acquisition-codes.spec.ts`).
+a patient who has already paid, plus the free-booking path -- the quote
+matching what checkout charges, a 100%-off code resolving to zero rather than
+a token rupee, a confirmation that writes no payment row and is idempotent,
+and the refusal to confirm anything still owed (`acquisition-codes.spec.ts`).
 It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
@@ -187,6 +190,8 @@ src/lib/sessionRhythm.ts the proposed run of dates a paid programme opens on
 src/lib/discounts.ts     the acquisition discounts and what they record
 src/lib/promoCodes.ts    a campaign's maths and whether this patient may claim it
 src/lib/inviteRewards.ts one patient inviting another, and both halves of it
+src/lib/checkoutQuote.ts what a booking costs, resolved once for three callers
+src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
 src/lib/adminScope.ts    admin scopes and which sections each one may open
 src/lib/availabilityRanges.ts the roster's range layer over its hour rows
 src/lib/availabilityRequest.ts server-side validation both save doors share
@@ -893,12 +898,55 @@ client is the only writer and the log is append-only from any session.
     Costs as a stated figure answering the question no revenue line can —
     what buying those patients cost.
   Every **configured** amount — the offer, a promo code, either invite half
-  — is **floored** at `MINIMUM_CHARGE_PAISE` through
-  `applyConfiguredAmountOff` (Razorpay refuses a zero-amount order, so an
-  unguarded 100%-off is a 500 at the last step of checkout). A goodwill
+  — is floored at **zero**, and a total of zero is a free booking rather than
+  a gateway order. That floor used to be `MINIMUM_CHARGE_PAISE`, which meant
+  a clinic advertising a free first session charged ₹1: the quote-versus-
+  charge bug again, in the place it matters most. The constant now means only
+  "the least a Razorpay order may be" and `isGatewayPayable` is the test
+  callers use to choose between paying and
+  `/api/appointments/confirm-free`. A goodwill
   amount at or above the session price is **refused** instead — that one is a number a person typed with the price
   on screen beside it, so more than the price is a typo, and quietly
   charging ₹1 because of it is far worse than saying no.
+
+- **One resolution, three callers, and a total of zero is free.**
+  `src/lib/checkoutQuote.ts` is the only place a booking's price and
+  discounts are worked out, because three things need that answer and must
+  not be able to disagree: `/api/appointments/quote` (what the payment screen
+  prints), `/api/razorpay/create-order` (what the patient is charged), and
+  `/api/appointments/confirm-free` (what happens when there is nothing to
+  charge). Before it, `BookingWizard` printed the category price on its own
+  Pay button while create-order silently resolved a first-session offer
+  behind it, so a patient owed ₹499 read "Pay ₹1,200 Now" and watched a
+  different figure open in the Razorpay sheet.
+  It has two modes and the difference is only whether anything is claimed:
+  `claim: false` is a read (being a moment stale costs nothing, nothing has
+  been promised), `claim: true` claims the promo code under
+  `claim_promo_code()`'s row lock, attaches an invite half, and releases
+  whichever candidate lost.
+  **A free booking never touches a gateway.** Five rules hold
+  `/api/appointments/confirm-free`:
+  1. **The browser never says it is free.** The route re-resolves everything
+     through the same module and answers 409 when `isGatewayPayable` is still
+     true. A route that trusted a `free: true` flag would be a way to book
+     anything for nothing.
+  2. **No `payments` row.** That table is the record of money that moved,
+     keyed on Razorpay's own order and payment ids; a collection of zero has
+     neither, and inventing them would put a fiction in the one place the
+     books are reconciled from.
+  3. **`amount_paid_paise = 0` with all four discount facts**, written inside
+     the same claim, so the giveaway is still nameable and a fact can never
+     be recorded against a booking whose claim was lost.
+  4. **Idempotent by that claim.** A double tap finds the row paid and
+     answers success rather than confirming twice.
+  5. **Everything else still happens** — auto-assignment, the Meet event, the
+     invite halves settling, the patient's approval. A free session is a
+     session, and `confirmPaidAppointment()` is that sequence shared with
+     `/api/razorpay/verify` so the two cannot drift.
+  `create-order` answers a zero total with `409 {free: true}` rather than
+  minting an order Razorpay would refuse, and `payForAppointment`'s `onFree`
+  callback turns that into the confirmation — so a quote that goes stale
+  between render and tap still lands correctly instead of erroring.
 
 - **Session packages lock to one therapist by default.** The first therapist
   assigned to any session on a `patient_package_purchases` row sets

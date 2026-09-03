@@ -8,6 +8,7 @@ import {
   isFirstSessionEligible,
   sumDiscountsGiven,
   applyConfiguredAmountOff,
+  isGatewayPayable,
   DISCOUNT_SOURCES,
   type FirstSessionOffer,
   type DiscountSource,
@@ -58,12 +59,14 @@ describe("applyFirstSessionOffer", () => {
     expect(out.source).toBeNull();
   });
 
-  it("floors at the minimum Razorpay will accept", () => {
-    // 100% off is a free session, and Razorpay refuses a zero-amount order
-    // -- unguarded that is a 500 at the last step of checkout.
+  it("makes 100% off a free session rather than a one-rupee one", () => {
+    // Razorpay refuses a zero-amount order, which is why this used to floor
+    // at ₹1. Checkout now answers a zero payable without a gateway, so the
+    // offer can mean what it says.
     const out = applyFirstSessionOffer(LIST, on({ type: "percent", value: 100 }));
-    expect(out.payablePaise).toBe(MINIMUM_CHARGE_PAISE);
-    expect(out.discountPaise).toBe(LIST - MINIMUM_CHARGE_PAISE);
+    expect(out.payablePaise).toBe(0);
+    expect(out.discountPaise).toBe(LIST);
+    expect(isGatewayPayable(out.payablePaise)).toBe(false);
   });
 
   it("survives a misconfigured setting rather than failing the booking", () => {
@@ -227,14 +230,21 @@ describe("applyConfiguredAmountOff", () => {
     expect(out.source).toBe("promo_code");
   });
 
-  it("floors rather than refuses, unlike a goodwill adjustment", () => {
+  it("floors at zero rather than refusing, unlike a goodwill adjustment", () => {
     // The distinction is who produced the figure. A campaign amount that has
     // drifted past a cheap category is configuration; an amount typed with
     // the price on screen beside it is a typo.
-    expect(applyConfiguredAmountOff(LIST, 500000, "invite_welcome").payablePaise).toBe(
-      MINIMUM_CHARGE_PAISE
-    );
+    const configured = applyConfiguredAmountOff(LIST, 500000, "invite_welcome");
+    expect(configured.payablePaise).toBe(0);
+    expect(configured.source).toBe("invite_welcome");
     expect(applyGoodwillDiscount(LIST, 500000).source).toBeNull();
+  });
+
+  it("never lets a goodwill adjustment reach the gateway minimum from below", () => {
+    // Goodwill is still floored at the gateway minimum rather than at zero:
+    // it is a person taking something off one bill, not the clinic
+    // advertising a free session.
+    expect(isGatewayPayable(applyGoodwillDiscount(LIST, 119990).payablePaise)).toBe(true);
   });
 });
 

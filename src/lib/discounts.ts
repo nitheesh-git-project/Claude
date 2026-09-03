@@ -60,14 +60,27 @@ export type FirstSessionOffer = {
 };
 
 /**
- * The least anyone may be charged.
+ * The least a **gateway order** may be for.
  *
- * Razorpay refuses a zero-amount order, so an unguarded 100%-off rule is a
- * 500 at the last step of checkout rather than a free session. One rupee is
- * the floor: a clinic that means "free" should not be taking the patient
- * through a payment screen at all.
+ * Razorpay refuses a zero-amount order, so nothing below this may be sent to
+ * it. That is the whole of what this constant means now, and it used to mean
+ * more: every configured discount was floored here, so a 100%-off campaign
+ * charged one rupee.
+ *
+ * That floor was the quote-versus-charge bug in miniature. A clinic that
+ * advertises a free first session and takes ₹1 has told the patient one
+ * figure and charged another, which is the one thing a payment screen must
+ * never do. So a discount that reaches the price now resolves to **zero**,
+ * and checkout answers a zero by not going to a gateway at all -- see
+ * `/api/appointments/confirm-free`. `isGatewayPayable` is the test callers
+ * use to choose between the two paths.
  */
 export const MINIMUM_CHARGE_PAISE = 100;
+
+/** Whether an amount can be sent to Razorpay, as opposed to being free. */
+export function isGatewayPayable(payablePaise: number): boolean {
+  return payablePaise >= MINIMUM_CHARGE_PAISE;
+}
 
 /** What a discount worked out to, and what it leaves to pay. */
 export type DiscountOutcome = {
@@ -114,8 +127,10 @@ export function applyFirstSessionOffer(
   // surcharge. It costs the offer rather than raising the bill.
   if (payable >= listPricePaise) return none;
 
-  payable = Math.max(MINIMUM_CHARGE_PAISE, payable);
-  if (payable >= listPricePaise) return none;
+  // Floored at zero, not at the gateway minimum. "First session free" is a
+  // real offer a clinic runs, and charging ₹1 for it would quote one figure
+  // and take another.
+  payable = Math.max(0, payable);
 
   return {
     listPricePaise,
@@ -132,12 +147,13 @@ export function applyFirstSessionOffer(
  * invite, because those three are the same act: a figure the clinic set in
  * advance, taken off one service line.
  *
- * **Floored, not refused**, which is the opposite of `applyGoodwillDiscount`
- * below and deliberately so. This amount came out of a settings row or a
- * campaign somebody set up weeks ago, so a value larger than the price is a
- * configuration that has drifted past a cheap category rather than a typo
- * made with the price on screen -- and the right answer to that is to charge
- * the minimum, not to fail the patient's checkout.
+ * **Floored at zero, not refused**, which is the opposite of
+ * `applyGoodwillDiscount` below and deliberately so. This amount came out of
+ * a settings row or a campaign somebody set up weeks ago, so a value larger
+ * than the price is a configuration that has drifted past a cheap category
+ * rather than a typo made with the price on screen -- and the right answer
+ * to that is to give the session away, not to fail the patient's checkout
+ * and not to charge them a token rupee they were never quoted.
  */
 export function applyConfiguredAmountOff(
   listPricePaise: number,
@@ -153,7 +169,7 @@ export function applyConfiguredAmountOff(
   if (!Number.isFinite(listPricePaise) || listPricePaise <= 0) return none;
   if (!Number.isFinite(amountOffPaise) || amountOffPaise <= 0) return none;
 
-  const payable = Math.max(MINIMUM_CHARGE_PAISE, listPricePaise - Math.floor(amountOffPaise));
+  const payable = Math.max(0, listPricePaise - Math.floor(amountOffPaise));
   if (payable >= listPricePaise) return none;
 
   return {
@@ -195,6 +211,11 @@ export function applyGoodwillDiscount(
   // because of it is far worse than saying no.
   if (Math.floor(goodwillPaise) >= listPricePaise) return none;
 
+  // Still floored at the gateway minimum rather than at zero, unlike every
+  // configured rule above. A goodwill adjustment is a person deciding to
+  // take something off one bill, not the clinic advertising a free session
+  // -- and one that reached zero would be an amount at or above the price,
+  // which is refused two lines up as a typo.
   const payable = Math.max(MINIMUM_CHARGE_PAISE, listPricePaise - Math.floor(goodwillPaise));
   if (payable >= listPricePaise) return none;
 

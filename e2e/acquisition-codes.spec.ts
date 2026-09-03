@@ -415,6 +415,186 @@ test.describe("Promo codes and invites", () => {
     expect(anon.status(), "anonymous").toBe(401);
   });
 
+  // ------------------------------------------------------- a free booking
+
+  test("FREE-001: the payment screen quotes what checkout will charge", async () => {
+    // The wizard used to print the category price on its own Pay button
+    // while create-order resolved a first-session offer behind it. The quote
+    // route is what makes those two the same number.
+    const { code } = await seedCode("QUOTE", { kind: "percent_off", value: 25 });
+    const appointmentId = await freshBooking(patientId);
+    const ctx = await playwrightRequest.newContext({
+      extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.patientA) },
+    });
+
+    const plain = await (await ctx.post(`${BASE}/api/appointments/quote`, {
+      data: { appointmentId },
+    })).json();
+    expect(plain.listPricePaise).toBe(CATEGORY_PRICE_PAISE);
+    expect(plain.totalPaise).toBe(CATEGORY_PRICE_PAISE);
+    expect(plain.free).toBe(false);
+
+    const withCode = await (await ctx.post(`${BASE}/api/appointments/quote`, {
+      data: { appointmentId, promoCode: code },
+    })).json();
+    expect(withCode.discountPaise).toBe(CATEGORY_PRICE_PAISE * 0.25);
+    expect(withCode.totalPaise).toBe(CATEGORY_PRICE_PAISE * 0.75);
+    expect(withCode.free).toBe(false);
+    expect(String(withCode.discountLabel)).toContain("Promo code");
+
+    // A quote is a read: nothing was claimed by asking.
+    const { data: row } = await admin
+      .from("appointments")
+      .select("promo_code_id")
+      .eq("id", appointmentId)
+      .single();
+    expect(row?.promo_code_id ?? null).toBeNull();
+
+    await ctx.dispose();
+  });
+
+  test("FREE-002: a 100%-off code is free, not a token rupee", async () => {
+    const { code } = await seedCode("ALLOFF", { kind: "percent_off", value: 100 });
+    const appointmentId = await freshBooking(patientId);
+    const ctx = await playwrightRequest.newContext({
+      extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.patientA) },
+    });
+
+    const quote = await (await ctx.post(`${BASE}/api/appointments/quote`, {
+      data: { appointmentId, promoCode: code },
+    })).json();
+    expect(quote.totalPaise, JSON.stringify(quote)).toBe(0);
+    expect(quote.free).toBe(true);
+    expect(quote.discountPaise).toBe(CATEGORY_PRICE_PAISE);
+
+    // Razorpay refuses a zero-amount order, so the order route says so
+    // rather than inventing an amount the patient was never quoted.
+    const order = await ctx.post(`${BASE}/api/razorpay/create-order`, {
+      data: { appointmentId, promoCode: code },
+    });
+    expect(order.status()).toBe(409);
+    expect((await order.json()).free).toBe(true);
+
+    await ctx.dispose();
+  });
+
+  test("FREE-003: confirming a free booking pays nothing and records everything", async () => {
+    const { code } = await seedCode("FREEBIE", { kind: "percent_off", value: 100 });
+    const appointmentId = await freshBooking(patientId);
+    const ctx = await playwrightRequest.newContext({
+      extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.patientA) },
+    });
+
+    try {
+      const res = await ctx.post(`${BASE}/api/appointments/confirm-free`, {
+        data: { appointmentId, promoCode: code },
+      });
+      expect(res.ok(), await res.text()).toBeTruthy();
+
+      const { data: row } = await admin
+        .from("appointments")
+        .select(
+          "payment_status, amount_paid_paise, list_price_paise, discount_paise, discount_source, razorpay_payment_id, paid_at"
+        )
+        .eq("id", appointmentId)
+        .single();
+      expect(row?.payment_status).toBe("paid");
+      expect(row?.amount_paid_paise).toBe(0);
+      // All four facts, so the books can still say what this cost.
+      expect(row?.list_price_paise).toBe(CATEGORY_PRICE_PAISE);
+      expect(row?.discount_paise).toBe(CATEGORY_PRICE_PAISE);
+      expect(row?.discount_source).toBe("promo_code");
+      // No money moved, so there is no gateway id and no payments row to
+      // reconcile -- inventing either would put a fiction in the one place
+      // the books are read from.
+      expect(row?.razorpay_payment_id ?? null).toBeNull();
+      expect(row?.paid_at).toBeTruthy();
+
+      const { count } = await admin
+        .from("payments")
+        .select("id", { count: "exact", head: true })
+        .eq("target_appointment_id", appointmentId);
+      expect(count ?? 0).toBe(0);
+
+      // A double tap finds it done rather than confirming twice.
+      const again = await ctx.post(`${BASE}/api/appointments/confirm-free`, {
+        data: { appointmentId, promoCode: code },
+      });
+      expect(again.ok()).toBeTruthy();
+      expect((await again.json()).alreadyConfirmed).toBe(true);
+    } finally {
+      // This spec deliberately marked a fixture patient's booking paid, and
+      // "has this patient ever paid" is what the first-session offer and the
+      // invite rules are decided on.
+      await admin
+        .from("appointments")
+        .update({
+          payment_status: "unpaid",
+          amount_paid_paise: null,
+          paid_at: null,
+          status: "cancelled",
+          promo_code_id: null,
+          promo_claimed_at: null,
+        })
+        .eq("id", appointmentId);
+      await ctx.dispose();
+    }
+  });
+
+  test("FREE-004: a booking with an amount left to pay cannot be confirmed free", async () => {
+    // The only thing standing between this route and being a way to book
+    // anything for nothing. The browser never says it is free -- the server
+    // re-resolves the price and refuses.
+    const appointmentId = await freshBooking(patientId);
+    const ctx = await playwrightRequest.newContext({
+      extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.patientA) },
+    });
+    const res = await ctx.post(`${BASE}/api/appointments/confirm-free`, {
+      data: { appointmentId },
+    });
+    expect(res.status(), await res.text()).toBe(409);
+    expect((await res.json()).totalPaise).toBe(CATEGORY_PRICE_PAISE);
+
+    const { data: row } = await admin
+      .from("appointments")
+      .select("payment_status")
+      .eq("id", appointmentId)
+      .single();
+    expect(row?.payment_status).toBe("unpaid");
+    await ctx.dispose();
+  });
+
+  test("FREE-005: neither route is open to anyone but the booking's own patient", async ({
+    request,
+  }) => {
+    const appointmentId = await freshBooking(patientId);
+    for (const path of ["/api/appointments/quote", "/api/appointments/confirm-free"]) {
+      const anon = await request.post(`${BASE}${path}`, {
+        headers: { "content-type": "application/json" },
+        data: { appointmentId },
+      });
+      expect(anon.status(), `${path} anonymous`).toBe(401);
+
+      for (const who of [QA_EMAILS.therapistA, QA_EMAILS.hospital]) {
+        const res = await request.post(`${BASE}${path}`, {
+          headers: { cookie: await cookieHeaderFor(who), "content-type": "application/json" },
+          data: { appointmentId },
+        });
+        expect(res.status(), `${path} ${who}`).toBe(403);
+      }
+
+      // Another patient's booking is not theirs to quote or confirm.
+      const other = await request.post(`${BASE}${path}`, {
+        headers: {
+          cookie: await cookieHeaderFor(QA_EMAILS.patientB),
+          "content-type": "application/json",
+        },
+        data: { appointmentId },
+      });
+      expect(other.status(), `${path} other patient`).toBe(404);
+    }
+  });
+
   async function setInvites(enabled: boolean) {
     await admin
       .from("site_settings")
