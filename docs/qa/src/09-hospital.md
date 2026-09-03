@@ -51,7 +51,7 @@ A hospital is a **referral source**, never a clinical actor. It is **provisioned
 
 #### `HOS-AUTH-001` — Hospital sign-in · P0
 **Steps.** Open `/hospital/login`, sign in with `qa.hospital@example.test` and the generated password.
-**Expected Result.** Lands on `/hospital/dashboard`. The sidebar reads **Back to Home**, **Overview**, **Refer a Patient**, **Your Referrals**, **Earnings**, **Edit Profile** (children: Logo, Organisation Details, Contact Preferences, Account Security). The money word on this sidebar is **Earnings** — matching the therapist. It must not read "Revenue & Payouts" or any third name for the same thing.
+**Expected Result.** Lands on `/hospital/dashboard`. The sidebar reads **Overview**, **Refer a Patient**, **Your Referrals**, **Earnings**, **Edit Profile**, with **Back to Home** at the foot of the nav directly above Collapse (children: Logo, Organisation Details, Contact Preferences, Account Security). The money word on this sidebar is **Earnings** — matching the therapist. It must not read "Revenue & Payouts" or any third name for the same thing.
 
 #### `HOS-AUTH-003` — A suspended hospital is locked out · P1
 **Steps.** Admin toggles the hospital inactive. With the hospital's cookie, load the dashboard, then call `POST /api/hospital/withdraw-referral`.

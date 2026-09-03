@@ -1130,7 +1130,7 @@ Two rules shape almost everything on the patient's screens:
 4. Tap the **Password** field. Enter `QaTest!2024pass`.
 5. Tap **Sign In**.
 
-**Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Back to Home**, **Overview**, **Book a Session**, **Health Profile** and **Edit Profile** at minimum. The public `Navbar` is **not** rendered on the dashboard. No error banner.
+**Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Overview**, **Book a Session**, **Health Profile** and **Edit Profile** at minimum, with **Back to Home** at the **foot of the nav, directly above Collapse** (above the profile footer in the mobile drawer, which has no Collapse). The public `Navbar` is **not** rendered on the dashboard. No error banner.
 **Cleanup.** Stay signed in for `PAT-DASH-001`.
 
 #### `PAT-AUTH-002` — Register a patient account from `/patient/register` · P0
@@ -1677,7 +1677,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 #### `PAT-EMPTY-001` — Empty states across the patient portal · P2
 **Preconditions.** A freshly approved patient with nothing at all.
-**Expected Result.** The sidebar shows only **Back to Home**, **Overview**, **Book a Session**, **Health Profile**, **Edit Profile**. Sessions, Packages, Payments and Suggested Sessions are **absent**. The Overview shows a friendly empty feed and quick actions, not a blank panel or a zero-filled table.
+**Expected Result.** The sidebar shows only **Overview**, **Book a Session**, **Health Profile**, **Edit Profile**, plus **Back to Home** at the foot of the nav. Sessions, Packages, Payments and Suggested Sessions are **absent**. The Overview shows a friendly empty feed and quick actions, not a blank panel or a zero-filled table.
 
 ---
 
@@ -1725,7 +1725,7 @@ Five rules shape almost every screen:
 
 #### `THR-AUTH-003` — Sign in after approval · P0
 **Preconditions.** `ADM-APPR-002` approved Therapist A.
-**Expected Result.** Sign-in lands on `/therapist/dashboard`. The sidebar shows **Back to Home**, **Overview**, **Availability**, **Sessions**, **Earnings**, **My Patients**, **Edit Profile** (with children Photo / Public Details / Credentials / Account Security).
+**Expected Result.** Sign-in lands on `/therapist/dashboard`. The sidebar shows **Overview**, **Availability**, **Sessions**, **Earnings**, **My Patients**, **Edit Profile**, with **Back to Home** at the foot of the nav directly above Collapse (with children Photo / Public Details / Credentials / Account Security).
 
 ---
 
@@ -2159,7 +2159,7 @@ A hospital is a **referral source**, never a clinical actor. It is **provisioned
 
 #### `HOS-AUTH-001` — Hospital sign-in · P0
 **Steps.** Open `/hospital/login`, sign in with `qa.hospital@example.test` and the generated password.
-**Expected Result.** Lands on `/hospital/dashboard`. The sidebar reads **Back to Home**, **Overview**, **Refer a Patient**, **Your Referrals**, **Earnings**, **Edit Profile** (children: Logo, Organisation Details, Contact Preferences, Account Security). The money word on this sidebar is **Earnings** — matching the therapist. It must not read "Revenue & Payouts" or any third name for the same thing.
+**Expected Result.** Lands on `/hospital/dashboard`. The sidebar reads **Overview**, **Refer a Patient**, **Your Referrals**, **Earnings**, **Edit Profile**, with **Back to Home** at the foot of the nav directly above Collapse (children: Logo, Organisation Details, Contact Preferences, Account Security). The money word on this sidebar is **Earnings** — matching the therapist. It must not read "Revenue & Payouts" or any third name for the same thing.
 
 #### `HOS-AUTH-003` — A suspended hospital is locked out · P1
 **Steps.** Admin toggles the hospital inactive. With the hospital's cookie, load the dashboard, then call `POST /api/hospital/withdraw-referral`.
@@ -3529,7 +3529,7 @@ Covered by `PAT-BOOK-017`, `PAT-SUGG-004`, `THR-AVAIL-004`, `FIN-PAY-002`, `PAY-
 
 #### `UX-MOB-002` — Dashboards on mobile · P1
 **Steps.** At 390 × 844, open each of the four dashboards.
-**Expected Result.** Each shell offers a **mobile drawer** for the sidebar. **Back to Home is present in all three renders** — expanded sidebar, collapsed rail, and mobile drawer. Without it the only exit from a dashboard is Log Out, which also ends the session. It is a plain link, not a client-side transition, because transitions into a differently-chromed route were silently not completing.
+**Expected Result.** Each shell offers a **mobile drawer** for the sidebar. **Back to Home is present in all three renders** — expanded sidebar, collapsed rail, and mobile drawer. On the patient, therapist and hospital shells it sits at the **foot of the nav, directly above Collapse**; the admin shell still carries it above the section list. Without it the only exit from a dashboard is Log Out, which also ends the session. It is a plain link, not a client-side transition, because transitions into a differently-chromed route were silently not completing.
 
 #### `UX-MOB-003` — Modals and drawers fit · P1
 **Steps.** At 390 × 844 open: a catalog detail dialog, the admin session drawer, the intake wizard, the pain-exam dialog, the confirm dialog.

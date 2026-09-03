@@ -1808,7 +1808,7 @@ client is the only writer and the log is append-only from any session.
   `NAV_HIDDEN_ROUTES`, so the public `Navbar` never renders there; without an
   explicit link the only exit is Log Out, which also ends the session. Both
   shells (`dashboard/DashboardShell.tsx`, `admin/AdminShell.tsx`) carry a
-  **Back to Home** entry at the top of the sidebar, in all three renders
+  **Back to Home** entry in all three renders
   (expanded, collapsed rail, mobile drawer). It is a plain `<a>`, not
   `next/link`, for the reason the nav entries document: client-side
   transitions into a differently-chromed route were silently not completing.

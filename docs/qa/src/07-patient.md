@@ -29,7 +29,7 @@ Two rules shape almost everything on the patient's screens:
 4. Tap the **Password** field. Enter `QaTest!2024pass`.
 5. Tap **Sign In**.
 
-**Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Back to Home**, **Overview**, **Book a Session**, **Health Profile** and **Edit Profile** at minimum. The public `Navbar` is **not** rendered on the dashboard. No error banner.
+**Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Overview**, **Book a Session**, **Health Profile** and **Edit Profile** at minimum, with **Back to Home** at the **foot of the nav, directly above Collapse** (above the profile footer in the mobile drawer, which has no Collapse). The public `Navbar` is **not** rendered on the dashboard. No error banner.
 **Cleanup.** Stay signed in for `PAT-DASH-001`.
 
 #### `PAT-AUTH-002` — Register a patient account from `/patient/register` · P0
@@ -576,4 +576,4 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 #### `PAT-EMPTY-001` — Empty states across the patient portal · P2
 **Preconditions.** A freshly approved patient with nothing at all.
-**Expected Result.** The sidebar shows only **Back to Home**, **Overview**, **Book a Session**, **Health Profile**, **Edit Profile**. Sessions, Packages, Payments and Suggested Sessions are **absent**. The Overview shows a friendly empty feed and quick actions, not a blank panel or a zero-filled table.
+**Expected Result.** The sidebar shows only **Overview**, **Book a Session**, **Health Profile**, **Edit Profile**, plus **Back to Home** at the foot of the nav. Sessions, Packages, Payments and Suggested Sessions are **absent**. The Overview shows a friendly empty feed and quick actions, not a blank panel or a zero-filled table.

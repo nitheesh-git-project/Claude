@@ -308,7 +308,7 @@ export default function DashboardShell({
         href="/"
         onClick={onNavigate}
         title={mini ? "Back to Home" : undefined}
-        className={`mt-1 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
+        className={`mt-2 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
           mini ? "justify-center px-0" : ""
         }`}
       >
@@ -401,10 +401,13 @@ export default function DashboardShell({
                 <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
-            {renderHomeLink(false, () => setMobileOpen(false))}
             <div className="mt-1 flex-1 space-y-1">
               {navItems.map((item) => renderNavEntry(item, false, () => setMobileOpen(false)))}
             </div>
+            {/* Same place as the desktop rail's, at the foot of the nav --
+                the drawer has no Collapse button, so it lands directly above
+                the profile/Log Out footer. */}
+            {renderHomeLink(false, () => setMobileOpen(false))}
             {renderFooter(false)}
           </nav>
         </div>
@@ -416,10 +419,14 @@ export default function DashboardShell({
         } ${offsetTop ? "top-[41px] h-[calc(100vh-41px)]" : "top-0 h-screen"}`}
       >
         {renderBrand(collapsed)}
-        {renderHomeLink(collapsed)}
         <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
           {navItems.map((item) => renderNavEntry(item, collapsed))}
         </div>
+        {/* Below the nav rather than above it, and directly above Collapse:
+            leaving the dashboard is not one of this person's screens, so it
+            belongs with the other two controls that act on the sidebar
+            itself rather than at the head of the list of places to go. */}
+        {renderHomeLink(collapsed)}
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}

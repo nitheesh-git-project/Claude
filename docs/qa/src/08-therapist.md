@@ -44,7 +44,7 @@ Five rules shape almost every screen:
 
 #### `THR-AUTH-003` — Sign in after approval · P0
 **Preconditions.** `ADM-APPR-002` approved Therapist A.
-**Expected Result.** Sign-in lands on `/therapist/dashboard`. The sidebar shows **Back to Home**, **Overview**, **Availability**, **Sessions**, **Earnings**, **My Patients**, **Edit Profile** (with children Photo / Public Details / Credentials / Account Security).
+**Expected Result.** Sign-in lands on `/therapist/dashboard`. The sidebar shows **Overview**, **Availability**, **Sessions**, **Earnings**, **My Patients**, **Edit Profile**, with **Back to Home** at the foot of the nav directly above Collapse (with children Photo / Public Details / Credentials / Account Security).
 
 ---
 
