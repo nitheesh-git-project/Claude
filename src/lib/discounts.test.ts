@@ -7,7 +7,11 @@ import {
   MINIMUM_CHARGE_PAISE,
   isFirstSessionEligible,
   sumDiscountsGiven,
+  applyConfiguredAmountOff,
+  DISCOUNT_SOURCES,
   type FirstSessionOffer,
+  type DiscountSource,
+  type DiscountOutcome,
 } from "@/lib/discounts";
 
 const LIST = 120000; // ₹1,200
@@ -213,5 +217,124 @@ describe("sumDiscountsGiven", () => {
     ]);
     expect(out.totalPaise).toBe(0);
     expect(out.count).toBe(0);
+  });
+});
+
+describe("applyConfiguredAmountOff", () => {
+  it("takes the amount off and records the source given", () => {
+    const out = applyConfiguredAmountOff(LIST, 20000, "promo_code");
+    expect(out.payablePaise).toBe(100000);
+    expect(out.source).toBe("promo_code");
+  });
+
+  it("floors rather than refuses, unlike a goodwill adjustment", () => {
+    // The distinction is who produced the figure. A campaign amount that has
+    // drifted past a cheap category is configuration; an amount typed with
+    // the price on screen beside it is a typo.
+    expect(applyConfiguredAmountOff(LIST, 500000, "invite_welcome").payablePaise).toBe(
+      MINIMUM_CHARGE_PAISE
+    );
+    expect(applyGoodwillDiscount(LIST, 500000).source).toBeNull();
+  });
+});
+
+describe("resolveDiscount with candidates", () => {
+  const candidate = (paise: number, source: DiscountSource): DiscountOutcome => ({
+    listPricePaise: LIST,
+    discountPaise: paise,
+    payablePaise: LIST - paise,
+    source,
+  });
+
+  it("takes the largest discount on offer", () => {
+    const out = resolveDiscount({
+      listPricePaise: LIST,
+      offer: on({ type: "percent", value: 10 }), // ₹120 off
+      offerEligible: true,
+      goodwillPaise: null,
+      candidates: [candidate(40000, "promo_code")],
+    });
+    expect(out.source).toBe("promo_code");
+    expect(out.discountPaise).toBe(40000);
+  });
+
+  it("gives a tie to the more deliberate decision", () => {
+    // Goodwill beats a code, and a code beats a campaign that runs itself.
+    const withGoodwill = resolveDiscount({
+      listPricePaise: LIST,
+      offer: on({ enabled: false }),
+      offerEligible: false,
+      goodwillPaise: 20000,
+      candidates: [candidate(20000, "promo_code")],
+    });
+    expect(withGoodwill.source).toBe("goodwill");
+
+    const withCode = resolveDiscount({
+      listPricePaise: LIST,
+      offer: on({ value: LIST - 20000 }), // ₹200 off, same as the code
+      offerEligible: true,
+      goodwillPaise: null,
+      candidates: [candidate(20000, "promo_code")],
+    });
+    expect(withCode.source).toBe("promo_code");
+  });
+
+  it("still resolves to nothing when no rule applies", () => {
+    const out = resolveDiscount({
+      listPricePaise: LIST,
+      offer: on({ enabled: false }),
+      offerEligible: false,
+      goodwillPaise: null,
+      candidates: [],
+    });
+    expect(out.source).toBeNull();
+    expect(out.payablePaise).toBe(LIST);
+  });
+
+  it("never stacks -- one source, one figure", () => {
+    const out = resolveDiscount({
+      listPricePaise: LIST,
+      offer: on({ value: 100000 }), // ₹200 off
+      offerEligible: true,
+      goodwillPaise: 10000,
+      candidates: [candidate(30000, "promo_code"), candidate(15000, "invite_welcome")],
+    });
+    expect(out.discountPaise).toBe(30000);
+    expect(out.payablePaise).toBe(LIST - 30000);
+  });
+});
+
+describe("sumDiscountsGiven across every source", () => {
+  it("splits what discounting cost by which rule did it", () => {
+    const totals = sumDiscountsGiven([
+      { discount_paise: 20000, discount_source: "promo_code" },
+      { discount_paise: 30000, discount_source: "invite_welcome" },
+      { discount_paise: 20000, discount_source: "invite_reward" },
+      { discount_paise: 10000, discount_source: "goodwill" },
+    ]);
+    expect(totals.totalPaise).toBe(80000);
+    expect(totals.bySource.promo_code).toBe(20000);
+    expect(totals.bySource.invite_welcome).toBe(30000);
+    expect(totals.bySource.invite_reward).toBe(20000);
+    expect(totals.count).toBe(4);
+  });
+
+  it("skips a source this build does not know", () => {
+    // A row written by a future discount belongs missing from the breakdown
+    // rather than silently miscounted into an existing line.
+    const totals = sumDiscountsGiven([
+      { discount_paise: 5000, discount_source: "some_future_rule" },
+      { discount_paise: 20000, discount_source: "promo_code" },
+    ]);
+    expect(totals.totalPaise).toBe(20000);
+    expect(totals.count).toBe(1);
+  });
+});
+
+describe("describeDiscount", () => {
+  it("names every source it can be given", () => {
+    for (const source of DISCOUNT_SOURCES) {
+      expect(describeDiscount(source, 20000)).toContain("₹200 off");
+    }
   });
 });

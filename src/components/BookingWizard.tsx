@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { PROGRAMME_NEEDS_RECOMMENDATION } from "@/lib/consultationFirst";
 import { payForAppointment } from "@/lib/razorpay";
+import PromoCodeField from "@/components/booking/PromoCodeField";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
@@ -43,12 +44,17 @@ function formatInr(paise: number) {
 export default function BookingWizard({
   initialCategories,
   bookingLanguages,
+  promoCodesEnabled = false,
 }: {
   initialCategories: Category[];
   // Admin-configured (Feature Control → Booking Languages), never a
   // hardcoded list here -- see lib/adminSettings.ts for the "English"
   // fallback that applies when admin hasn't configured any yet.
   bookingLanguages: string[];
+  /** Whether the clinic is running any campaign at all. Off means the field
+   *  is not on screen: a code box with nothing behind it teaches every
+   *  patient that there is a discount they are missing. */
+  promoCodesEnabled?: boolean;
 }) {
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
@@ -60,6 +66,9 @@ export default function BookingWizard({
   const [done, setDone] = useState(false);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  // The code the patient applied, if any. Held as a string and sent to
+  // checkout as one -- the amount it is worth is never in this component.
+  const [promoCode, setPromoCode] = useState<string | null>(null);
 
   // Lazy initializer, not a bare Date.now() in the render body -- same
   // one-time-"now" pattern already used elsewhere in this codebase (see
@@ -411,6 +420,7 @@ export default function BookingWizard({
     setLoading(true);
     await payForAppointment({
       appointmentId: id,
+      promoCode,
       name: fullName,
       email,
       description: selectedCategory?.title ?? "Virtual Physical Therapy Session",
@@ -853,6 +863,15 @@ export default function BookingWizard({
             your slot. Cancelling within {CANCELLATION_FULL_REFUND_HOURS} hours
             of the slot isn&apos;t eligible for a refund.
           </p>
+          {promoCodesEnabled && (
+            <div className="pt-1">
+              <PromoCodeField
+                categoryId={selectedCategory?.id ?? null}
+                appointmentId={appointmentId}
+                onApplied={setPromoCode}
+              />
+            </div>
+          )}
           <div className="flex gap-3 pt-1">
             <button
               onClick={() => {

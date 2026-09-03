@@ -165,17 +165,43 @@ toggle somebody can flip back on is not the rule being gone. The patient
 dashboard's booking hub is the same: one video consultation, or one visit
 at home.
 
-Two acquisition discounts exist and no more (`src/lib/discounts.ts`): a
-standing **first-session offer**, whose eligibility is "has this patient ever
-paid for a session" asked of the database and so cannot be claimed twice or
-posted from a browser, and a **goodwill adjustment** an admin applies to one
-unpaid session with a mandatory reason and an audit row. They never stack,
-travel is never discounted, and all four facts are recorded — list price,
-amount off, which rule, and why — so the books can tell "sold cheap" from
-"discounted". What discounting cost is **reported** on Money → Costs and
-never deducted from profit: it is already inside gross revenue as a smaller
-number. Bundle pricing stays `compare_at_paise` on a package; promo codes
-deliberately do not exist.
+Four acquisition discounts exist and no more (`src/lib/discounts.ts`,
+`promoCodes.ts`, `inviteRewards.ts`), recorded as five sources because an
+invite has two halves: a standing **first-session offer**, whose eligibility
+is "has this patient ever paid for a session" asked of the database and so
+cannot be claimed twice or posted from a browser; a **goodwill adjustment**
+an admin applies to one unpaid session with a mandatory reason and an audit
+row; a **promo code**, a campaign an admin sets up that a patient claims by
+typing its name at checkout; and a **patient invite**, which takes something
+off the invited friend's first session and something off the inviter's next
+one. They never stack — the largest applies, and a tie goes to the most
+deliberate decision — travel is never discounted, and all four facts are
+recorded — list price, amount off, which rule, and why — so the books can
+tell "sold cheap" from "discounted". What discounting cost is **reported** on
+Money → Costs, split by rule and never deducted from profit: it is already
+inside gross revenue as a smaller number. Bundle pricing stays
+`compare_at_paise` on a package.
+
+**A promo code is an identifier, not an amount.** The browser sends the code;
+every figure comes from the row an admin created. Its redemption cap is
+enforced by `claim_promo_code()` under a row lock rather than by a count
+taken a moment earlier, and a claim that is never paid for stops counting
+after a checkout hold computed at read time — no status column, no sweep,
+the same rule a pending session suggestion follows. The claim is recorded on
+the booking (`appointments.promo_code_id`), not in a second table, so the
+count and the money cannot disagree. Off by default
+(`promo_codes_enabled`), because a code field with no campaign behind it
+teaches every patient that there is a discount they are missing.
+
+**An invite is not a referral.** A referral is a hospital sending a patient
+under a commercial agreement; an invite is one patient telling another, and
+the two words stay apart (`patient_invites`, and the referral flow's own
+"invite link" is now a *registration link*). The inviter's half is earned
+when their friend's first session is **paid for**, never on a signup, and a
+patient may claim an invite exactly once and only before their own first
+paid session. Amounts are snapshotted at claim, so lowering the reward later
+does not lower what was already promised. Off by default
+(`invite_rewards_enabled`), with a per-patient ceiling on rewards.
 
 Treatment is paid for through this platform, and two admin-switchable
 controls keep it that way. Every string one role writes and another reads is

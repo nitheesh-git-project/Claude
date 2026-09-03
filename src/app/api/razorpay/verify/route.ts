@@ -7,6 +7,7 @@ import {
   readAutoAssignSettings,
 } from "@/lib/autoAssignTherapist";
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
+import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { approvePatientForGenuinePaymentAttempt } from "@/lib/supabase/requireActiveProfile";
 
@@ -201,6 +202,12 @@ export async function POST(request: NextRequest) {
     orderId: razorpay_order_id,
     paymentId: razorpay_payment_id,
   });
+
+  // An invite's two halves settle here: whichever one paid for this booking
+  // is spent for good, and this patient having paid is what turns their
+  // inviter's promise into a reward they can spend. Both idempotent, because
+  // this route and the webhook race each other by design.
+  await settleInvitesOnCapture(admin, appointment.id);
 
   // Belt-and-suspenders: /api/razorpay/create-order already approves the
   // patient the moment they genuinely attempt this payment, so this is

@@ -62,6 +62,11 @@ export function loadRazorpayScript(): Promise<void> {
 
 type PayForAppointmentArgs = {
   appointmentId: string;
+  /** A code the patient typed, passed straight through. An identifier, never
+   *  an amount -- what it is worth is decided server-side under a lock, and
+   *  create-order refuses the whole checkout if it cannot be applied rather
+   *  than quietly charging list price. */
+  promoCode?: string | null;
   name: string;
   email: string;
   description: string;
@@ -73,6 +78,7 @@ type PayForAppointmentArgs = {
 /** Creates a Razorpay order for an existing appointment and opens Checkout. */
 export async function payForAppointment({
   appointmentId,
+  promoCode,
   name,
   email,
   description,
@@ -86,7 +92,7 @@ export async function payForAppointment({
     const res = await fetch("/api/razorpay/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId }),
+      body: JSON.stringify({ appointmentId, ...(promoCode ? { promoCode } : {}) }),
     });
     const orderData = await res.json();
 

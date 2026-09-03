@@ -7,11 +7,25 @@ import { useRouter } from "next/navigation";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import StatStrip from "@/components/dashboard/StatStrip";
 import {
+  DISCOUNT_SOURCES,
+  DISCOUNT_SOURCE_LABELS,
+  type DiscountSource,
+} from "@/lib/discounts";
+import {
   EXPENSE_CATEGORIES,
   expensesByCategory,
   sumExpensesPaise,
   type ExpenseRow,
 } from "@/lib/operatingCosts";
+
+/** One line each on what this rule is for, in the admin's own words. */
+const DISCOUNT_SOURCE_NOTES: Record<DiscountSource, string> = {
+  first_session: "What it cost to bring new patients through the door.",
+  goodwill: "Taken off case by case, each with a stated reason on the session.",
+  promo_code: "Claimed at checkout from a campaign you set up.",
+  invite_reward: "Thanking a patient whose friend came and paid.",
+  invite_welcome: "Welcoming the friend they sent.",
+};
 
 function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -53,7 +67,15 @@ export default function AdminCostsTab({
    * it answers a question no revenue line can — what buying those patients
    * cost — which is what decides whether an offer continues.
    */
-  discountsGiven: { totalPaise: number; count: number; firstSessionPaise: number; goodwillPaise: number };
+  discountsGiven: {
+    totalPaise: number;
+    count: number;
+    /** Split by which rule gave it away. Rendered from the shared labels
+     *  rather than a tile per source written out by hand, so a discount
+     *  added later appears here without this screen being edited -- the
+     *  breakdown going stale is how a reported figure stops being read. */
+    bySource: Record<DiscountSource, number>;
+  };
   /** Today in IST, from the server — a fresh Date here would disagree with
    *  the server's HTML at hydration. */
   todayIso: string;
@@ -224,28 +246,21 @@ export default function AdminCostsTab({
           subtitle="Money not collected because an offer or an adjustment applied. Already reflected in revenue — this is not a second cost."
         >
           <dl className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 p-4">
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                First session offer
-              </dt>
-              <dd className="mt-1 text-lg font-bold text-slate-900">
-                {formatInr(discountsGiven.firstSessionPaise)}
-              </dd>
-              <p className="mt-1 text-[11px] text-slate-500">
-                What it cost to bring new patients through the door.
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 p-4">
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Goodwill adjustments
-              </dt>
-              <dd className="mt-1 text-lg font-bold text-slate-900">
-                {formatInr(discountsGiven.goodwillPaise)}
-              </dd>
-              <p className="mt-1 text-[11px] text-slate-500">
-                Taken off case by case, each with a stated reason on the session.
-              </p>
-            </div>
+            {DISCOUNT_SOURCES.filter((source) => discountsGiven.bySource[source] > 0).map(
+              (source) => (
+                <div key={source} className="rounded-xl border border-slate-200 p-4">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    {DISCOUNT_SOURCE_LABELS[source]}
+                  </dt>
+                  <dd className="mt-1 text-lg font-bold text-slate-900">
+                    {formatInr(discountsGiven.bySource[source])}
+                  </dd>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {DISCOUNT_SOURCE_NOTES[source]}
+                  </p>
+                </div>
+              )
+            )}
           </dl>
         </SurfaceCard>
       )}

@@ -22,7 +22,7 @@ export const revalidate = 300;
 
 export default async function BookPage() {
   const supabase = createPublicClient();
-  const [{ data: categories }, { data: settingsRow }] = await Promise.all([
+  const [{ data: categories }, { data: settingsRow }, { data: promoRow }] = await Promise.all([
     supabase
       .from("treatment_categories")
       .select("id, title, price_paise, duration_minutes")
@@ -36,6 +36,11 @@ export default async function BookPage() {
     // query fails and parseBookingLanguages falls back to ["English"],
     // instead of the failure blanking the category list too.
     supabase.from("site_settings").select("booking_languages").maybeSingle(),
+
+    // The promo master switch, in its own query for the same reason the
+    // languages are: it is the newest column on that table, and losing it
+    // must cost the code field rather than the category list.
+    supabase.from("site_settings").select("promo_codes_enabled").maybeSingle(),
   ]);
 
   return (
@@ -57,6 +62,7 @@ export default async function BookPage() {
           <BookingWizard
             initialCategories={categories ?? []}
             bookingLanguages={parseBookingLanguages(settingsRow?.booking_languages)}
+            promoCodesEnabled={promoRow?.promo_codes_enabled === true}
           />
         </Suspense>
         {/* Outside the wizard card, bottom-right. /book deliberately hides

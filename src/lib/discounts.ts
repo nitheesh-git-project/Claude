@@ -24,12 +24,27 @@
 /** Where a discount came from. Recorded on what was bought, so the books
  *  can tell "we sold cheap" from "we discounted", which is the question
  *  that decides whether an offer continues. */
-export const DISCOUNT_SOURCES = ["first_session", "goodwill"] as const;
+export const DISCOUNT_SOURCES = [
+  "first_session",
+  "goodwill",
+  "promo_code",
+  "invite_reward",
+  "invite_welcome",
+] as const;
 export type DiscountSource = (typeof DISCOUNT_SOURCES)[number];
 
 export const DISCOUNT_SOURCE_LABELS: Record<DiscountSource, string> = {
   first_session: "First session offer",
   goodwill: "Goodwill adjustment",
+  promo_code: "Promo code",
+  // The two halves of an invite are recorded separately, deliberately. They
+  // cost the same money and answer different questions: "what did thanking
+  // the inviter cost" is the number that decides whether the reward is the
+  // right size, and "what did welcoming their friend cost" sits beside the
+  // first-session offer as a second way of buying the same first booking.
+  // One combined figure could answer neither.
+  invite_reward: "Invite reward",
+  invite_welcome: "Invite welcome",
 };
 
 export type FirstSessionOfferType = "fixed" | "percent";
@@ -111,6 +126,45 @@ export function applyFirstSessionOffer(
 }
 
 /**
+ * A flat amount off, from a rule an admin configured.
+ *
+ * Shared by the promo code's `amount_off` kind and by both halves of an
+ * invite, because those three are the same act: a figure the clinic set in
+ * advance, taken off one service line.
+ *
+ * **Floored, not refused**, which is the opposite of `applyGoodwillDiscount`
+ * below and deliberately so. This amount came out of a settings row or a
+ * campaign somebody set up weeks ago, so a value larger than the price is a
+ * configuration that has drifted past a cheap category rather than a typo
+ * made with the price on screen -- and the right answer to that is to charge
+ * the minimum, not to fail the patient's checkout.
+ */
+export function applyConfiguredAmountOff(
+  listPricePaise: number,
+  amountOffPaise: number,
+  source: DiscountSource
+): DiscountOutcome {
+  const none: DiscountOutcome = {
+    listPricePaise,
+    discountPaise: 0,
+    payablePaise: listPricePaise,
+    source: null,
+  };
+  if (!Number.isFinite(listPricePaise) || listPricePaise <= 0) return none;
+  if (!Number.isFinite(amountOffPaise) || amountOffPaise <= 0) return none;
+
+  const payable = Math.max(MINIMUM_CHARGE_PAISE, listPricePaise - Math.floor(amountOffPaise));
+  if (payable >= listPricePaise) return none;
+
+  return {
+    listPricePaise,
+    discountPaise: listPricePaise - payable,
+    payablePaise: payable,
+    source,
+  };
+}
+
+/**
  * An admin's own adjustment on one booking.
  *
  * Deliberately separate from the offer above rather than another `type` on
@@ -172,6 +226,7 @@ export function resolveDiscount({
   offer,
   offerEligible,
   goodwillPaise,
+  candidates = [],
 }: {
   listPricePaise: number;
   offer: FirstSessionOffer;
@@ -179,16 +234,36 @@ export function resolveDiscount({
    *  database, never from anything the browser sent. */
   offerEligible: boolean;
   goodwillPaise: number | null;
+  /** Already-resolved outcomes from the discounts this module cannot work
+   *  out on its own -- a claimed promo code, an invite reward, an invite
+   *  welcome. They arrive resolved rather than as raw amounts because each
+   *  one has its own eligibility rules (a redemption cap, a code window, a
+   *  reward that has already been spent) which belong in their own modules,
+   *  and only the arithmetic belongs here. Order matters on a tie: earlier
+   *  candidates win, so callers list them most-deliberate first. */
+  candidates?: DiscountOutcome[];
 }): DiscountOutcome {
+  const nothing: DiscountOutcome = {
+    listPricePaise,
+    discountPaise: 0,
+    payablePaise: listPricePaise,
+    source: null,
+  };
   const goodwill = applyGoodwillDiscount(listPricePaise, goodwillPaise ?? 0);
-  const firstSession = offerEligible
-    ? applyFirstSessionOffer(listPricePaise, offer)
-    : { listPricePaise, discountPaise: 0, payablePaise: listPricePaise, source: null as null };
+  const firstSession = offerEligible ? applyFirstSessionOffer(listPricePaise, offer) : nothing;
 
-  if (goodwill.source && firstSession.source) {
-    return goodwill.discountPaise >= firstSession.discountPaise ? goodwill : firstSession;
+  // Goodwill first, then whatever the caller resolved, then the standing
+  // offer. On an exact tie the earlier one wins, which puts the most
+  // deliberate decision on top: an admin who looked at this patient beats a
+  // code the patient typed, which beats a campaign that runs itself.
+  const ordered = [goodwill, ...candidates, firstSession].filter((c) => c.source !== null);
+  if (ordered.length === 0) return nothing;
+
+  let best = ordered[0];
+  for (const candidate of ordered.slice(1)) {
+    if (candidate.discountPaise > best.discountPaise) best = candidate;
   }
-  return goodwill.source ? goodwill : firstSession;
+  return best;
 }
 
 /** How the discount reads to the patient on a receipt or a payment screen. */
@@ -198,9 +273,7 @@ export function describeDiscount(
 ): string | null {
   if (!source || discountPaise <= 0) return null;
   const rupees = `₹${(discountPaise / 100).toLocaleString("en-IN")}`;
-  return source === "first_session"
-    ? `${DISCOUNT_SOURCE_LABELS.first_session} — ${rupees} off`
-    : `${DISCOUNT_SOURCE_LABELS.goodwill} — ${rupees} off`;
+  return `${DISCOUNT_SOURCE_LABELS[source]} — ${rupees} off`;
 }
 
 /**
@@ -244,17 +317,27 @@ export function isFirstSessionEligible(prior: PriorPaidLookup): boolean {
 export function sumDiscountsGiven(
   rows: { discount_paise?: number | null; discount_source?: string | null }[]
 ): { totalPaise: number; bySource: Record<DiscountSource, number>; count: number } {
-  const bySource: Record<DiscountSource, number> = { first_session: 0, goodwill: 0 };
+  const bySource = Object.fromEntries(
+    DISCOUNT_SOURCES.map((source) => [source, 0])
+  ) as Record<DiscountSource, number>;
   let totalPaise = 0;
   let count = 0;
   for (const row of rows) {
     const paise = row.discount_paise ?? 0;
     if (paise <= 0) continue;
     const source = row.discount_source;
-    if (source !== "first_session" && source !== "goodwill") continue;
+    // An unknown source is skipped rather than lumped in: a row written by a
+    // future discount this build does not know about should be missing from
+    // the breakdown, not silently miscounted into an existing line.
+    if (!isDiscountSource(source)) continue;
     bySource[source] += paise;
     totalPaise += paise;
     count += 1;
   }
   return { totalPaise, bySource, count };
+}
+
+/** Whether a stored `discount_source` is one this build knows about. */
+export function isDiscountSource(value: string | null | undefined): value is DiscountSource {
+  return !!value && (DISCOUNT_SOURCES as readonly string[]).includes(value);
 }

@@ -641,7 +641,7 @@ in the activity log.
 
 ## Discounts
 
-Two, and deliberately no more.
+Four, and deliberately no more.
 
 **The first session offer** is how a stranger is bought through the door.
 Configured at **Settings → Booking Rules** — off by default, either a set
@@ -660,21 +660,50 @@ least ten characters, and writes an audit row. It works only **before**
 payment: taking money off something already paid for is a refund, and
 refunds have their own screen.
 
-The two never stack, and where both would apply the patient pays the lower
-of the two. Travel is never discounted. A discounted booking records all
-four facts — what it would have cost, what came off, which rule did it and
-why — so the books can tell "we sold this cheap" from "we discounted it".
+**A promo code** is a campaign a patient can claim by typing its name at
+checkout. Set one up on **Money → Costs**, beside the figure it produces: a
+code, an amount or a percentage off, an optional window, a total cap, a
+per-patient cap, a minimum spend, and an optional "first session only". The
+whole feature is off until you switch it on there — a code field with no
+campaign behind it teaches every patient that there is a discount they are
+missing.
 
-**What discounting cost** appears on **Money → Costs**, split between the
-offer and goodwill. It is stated, never deducted from profit: a discount
-means less was collected, so it is already inside gross revenue as a smaller
-number, and subtracting it again would understate profit by exactly the
-amount given away.
+What the browser sends is the **code**, never an amount: every figure comes
+from the row you created. The cap is enforced by the database under a row
+lock, so "100 uses" means 100 even when forty people are at checkout at
+once, and a code claimed on a checkout that is then abandoned frees up again
+after half an hour. If a code cannot be applied at the moment of payment,
+checkout refuses and says why rather than quietly charging full price. A
+code that has been used is never deleted, only paused, so the bookings that
+used it keep their record.
+
+**A patient invite** is one patient telling another. Every patient's
+dashboard shows a code to share; their friend gets something off their first
+session, and they get something off their next one — once that friend has
+actually had and paid for a session, never on a signup. Set both amounts and
+a ceiling on how many rewards one patient may earn at **Settings → Booking
+Rules**; it is off by default. A code cannot be used by its owner, cannot be
+used twice, and cannot be used by somebody who has already paid for a
+session — you are new exactly once. An amount already promised is honoured
+even if you change the figures or switch the feature off later.
+
+This is **not** the same thing as a hospital referral, which is a partner
+sending a patient under a commercial agreement and has its own screens and
+its own revenue share.
+
+They never stack, and where more than one would apply the patient pays the
+lowest. Travel is never discounted. A discounted booking records all four
+facts — what it would have cost, what came off, which rule did it and why —
+so the books can tell "we sold this cheap" from "we discounted it".
+
+**What discounting cost** appears on **Money → Costs**, split by rule. It is
+stated, never deducted from profit: a discount means less was collected, so
+it is already inside gross revenue as a smaller number, and subtracting it
+again would understate profit by exactly the amount given away.
 
 Bundle pricing is separate and already existed — a package priced below its
 per-session rate, with `therapist_rate_basis` deciding whether the clinic or
-the therapist absorbs it. There are no promo codes; a coupon engine built
-before there is a campaign to run is machinery nobody uses.
+the therapist absorbs it.
 
 **Session packages.** A package is a programme, not just a discount: bundle
 price, an optional struck-through compare-at price (derived from the

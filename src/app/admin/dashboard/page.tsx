@@ -25,6 +25,9 @@ import PackagePurchasesTable from "@/components/admin/PackagePurchasesTable";
 import PackageSettingsForm from "@/components/admin/PackageSettingsForm";
 import RecommendationSettingsForm from "@/components/admin/RecommendationSettingsForm";
 import FirstSessionOfferForm from "@/components/admin/FirstSessionOfferForm";
+import InviteRewardsForm from "@/components/admin/InviteRewardsForm";
+import PromoCodeManager, { type PromoCodeRow } from "@/components/admin/PromoCodeManager";
+import { readInviteSettings, readPromoCodesEnabled } from "@/lib/acquisitionSettings";
 import HomeVisitPurchasesTable from "@/components/admin/HomeVisitPurchasesTable";
 import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
@@ -694,6 +697,69 @@ export default async function AdminDashboardPage({
     }
   } catch {
     // Off, which is the safe direction: no accidental discounting.
+  }
+
+  // Promo codes and invites, in their own calls for the same reason -- the
+  // newest columns on site_settings and a table a database one apply behind
+  // does not have at all. Both fail to "off" and an empty list, which costs
+  // these two controls and nothing else on the page.
+  const promoCodesEnabled = await readPromoCodesEnabled(admin);
+  const inviteSettings = await readInviteSettings(admin);
+
+  let promoCodeRows: PromoCodeRow[] = [];
+  try {
+    const { data: codes } = await admin
+      .from("promo_codes")
+      .select(
+        "id, code, kind, value, active, starts_at, ends_at, max_redemptions, max_per_patient, min_spend_paise, first_session_only, description"
+      )
+      .order("created_at", { ascending: false });
+    const rows = (codes ?? []) as {
+      id: string;
+      code: string;
+      kind: string;
+      value: number;
+      active: boolean;
+      starts_at: string | null;
+      ends_at: string | null;
+      max_redemptions: number | null;
+      max_per_patient: number;
+      min_spend_paise: number;
+      first_session_only: boolean;
+      description: string | null;
+    }[];
+    // How many bookings claimed each one. Counted from the appointments
+    // themselves rather than a redemptions table, because the claim is
+    // recorded on the booking -- one place, which cannot disagree with the
+    // money. Delete is only offered where this is zero.
+    const claims = new Map<string, number>();
+    if (rows.length > 0) {
+      const { data: claimed } = await admin
+        .from("appointments")
+        .select("promo_code_id")
+        .not("promo_code_id", "is", null);
+      for (const row of (claimed ?? []) as { promo_code_id: string | null }[]) {
+        if (!row.promo_code_id) continue;
+        claims.set(row.promo_code_id, (claims.get(row.promo_code_id) ?? 0) + 1);
+      }
+    }
+    promoCodeRows = rows.map((row) => ({
+      id: row.id,
+      code: row.code,
+      kind: row.kind === "percent_off" ? "percent_off" : "amount_off",
+      value: row.value,
+      active: row.active,
+      startsAt: row.starts_at,
+      endsAt: row.ends_at,
+      maxRedemptions: row.max_redemptions,
+      maxPerPatient: row.max_per_patient,
+      minSpendPaise: row.min_spend_paise,
+      firstSessionOnly: row.first_session_only,
+      description: row.description,
+      claims: claims.get(row.id) ?? 0,
+    }));
+  } catch {
+    // No table yet -- the manager renders empty rather than blanking Costs.
   }
 
   // Same reasoning as the toggle above: treatment_categories.image_url is the
@@ -2285,6 +2351,7 @@ export default async function AdminDashboardPage({
           (treatmentCategories ?? []).find((c) => c.active)?.price_paise ?? null
         }
       />
+      <InviteRewardsForm settings={inviteSettings} />
       <RecommendationSettingsForm
         settings={adminSettings}
         requiresApproval={carePlanRequiresApproval}
@@ -3266,6 +3333,13 @@ export default async function AdminDashboardPage({
       <>
         {moneySummaryTab}
         <div className="mt-8">
+          <PromoCodeManager
+            codes={promoCodeRows}
+            enabled={promoCodesEnabled}
+            nowIso={new Date(nowTimestamp()).toISOString()}
+          />
+        </div>
+        <div className="mt-8">
           <MoneyGlossary />
         </div>
       </>
@@ -3292,8 +3366,7 @@ export default async function AdminDashboardPage({
           discountsGiven={{
             totalPaise: discountsGivenTotals.totalPaise,
             count: discountsGivenTotals.count,
-            firstSessionPaise: discountsGivenTotals.bySource.first_session,
-            goodwillPaise: discountsGivenTotals.bySource.goodwill,
+            bySource: discountsGivenTotals.bySource,
           }}
           expenses={businessExpenseRows ?? []}
           gatewayFeePercent={adminSettings.paymentGatewayFeePercent}

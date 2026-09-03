@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   isFirstSessionEligible,
   resolveDiscount,
+  type DiscountOutcome,
   type FirstSessionOffer,
   type PriorPaidLookup,
 } from "@/lib/discounts";
+import { applyInviteDiscount } from "@/lib/inviteRewards";
+import { claimPromoCode, releasePromoCode } from "@/lib/promoCodesServer";
+import { claimInviteHalf, readInviteHalves } from "@/lib/inviteRewardsServer";
+import { readPromoCodesEnabled } from "@/lib/acquisitionSettings";
 import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { readAppointmentServicePrice } from "@/lib/appointmentPriceServer";
 import {
   isProfileActive,
   isPatientProfile,
@@ -33,10 +38,13 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
-  const { appointmentId } = await request.json();
+  const { appointmentId, promoCode } = await request.json();
   if (!appointmentId) {
     return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
   }
+  // An identifier, never an amount. What the code is worth is read from the
+  // row an admin created, server-side, below.
+  const typedPromoCode = typeof promoCode === "string" ? promoCode : "";
 
   // Deliberately isProfileActive, not isProfileActiveAndApproved:
   // appointments_insert_own already lets an unapproved patient's
@@ -183,23 +191,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Resolve the real price for what was actually booked. Looked up via the
-  // admin client (not the active-only public policy) so that if a category
-  // gets deactivated after this appointment was created, the patient is
-  // still charged the price they originally saw — not silently bumped to
-  // the flat fallback fee. No category (e.g. a hospital-referred booking)
-  // charges the flat base fee.
-  let amountPaise = SESSION_FEE_PAISE;
-  if (appointment.category_id) {
-    const { data: category } = await admin
-      .from("treatment_categories")
-      .select("price_paise")
-      .eq("id", appointment.category_id)
-      .single();
-    if (category) {
-      amountPaise = category.price_paise;
-    }
-  }
+  // Resolve the real price for what was actually booked, through the one
+  // helper the promo preview also uses -- see appointmentPriceServer.ts for
+  // why it reads with the admin client, and why a preview and its checkout
+  // must not be able to work from two different prices.
+  let amountPaise = await readAppointmentServicePrice(admin, appointment.category_id);
 
   // A home-visit referral appointment (the only home-visit path that goes
   // through this generic route -- purchase-backed visits pay via
@@ -226,12 +222,91 @@ export async function POST(request: NextRequest) {
   // reduced by it -- discounting travel means the therapist funds their own
   // transport to subsidise the clinic's marketing.
   const listPricePaise = amountPaise;
-  const discount = resolveDiscount({
+  const priorPaid = await countPriorPaidSessions(admin, user.id);
+  const [offer, goodwillPaise, promoCodesEnabled, halves] = await Promise.all([
+    readFirstSessionOffer(admin),
+    readGoodwillOnAppointment(admin, appointmentId),
+    readPromoCodesEnabled(admin),
+    readInviteHalves(admin, user.id),
+  ]);
+
+  // Two of the five sources have to be claimed rather than simply worked
+  // out: a promo code counts against a cap, and an invite half is spent
+  // once. So the candidates are **previewed** first, the winner is decided,
+  // and only the winner is claimed -- attaching a code that then loses to a
+  // larger discount would count it against its own cap for nothing.
+  //
+  // A claim that the database refuses (the cap filled between the preview
+  // and now, another checkout is holding the half) drops that candidate and
+  // the next-best one is tried. That loop terminates because each pass
+  // removes one candidate.
+  //
+  // An unspent half is honoured whether or not invites are still switched
+  // on. The switch stops new claims; it does not withdraw a promise the
+  // clinic already made to somebody who has already sent a friend.
+  const candidates: DiscountOutcome[] = [];
+  // The reward before the welcome, so a tie goes to the older promise.
+  if (halves.rewardPaise > 0) {
+    candidates.push(applyInviteDiscount(listPricePaise, halves.rewardPaise, "reward"));
+  }
+  if (halves.welcomePaise > 0) {
+    candidates.push(applyInviteDiscount(listPricePaise, halves.welcomePaise, "welcome"));
+  }
+
+  let promoClaim: Awaited<ReturnType<typeof claimPromoCode>> | null = null;
+  if (typedPromoCode) {
+    if (!promoCodesEnabled) {
+      return NextResponse.json({ error: "That code isn't recognised." }, { status: 409 });
+    }
+    promoClaim = await claimPromoCode(admin, {
+      code: typedPromoCode,
+      patientId: user.id,
+      appointmentId,
+      listPricePaise,
+      patientHasPaidBefore: (priorPaid.count ?? 1) > 0,
+    });
+    if (!promoClaim.ok) {
+      // Refused rather than quietly charged at list price. The patient was
+      // shown a figure with this code applied; taking more money than they
+      // were quoted is the one outcome a payment screen must never produce.
+      return NextResponse.json({ error: promoClaim.message }, { status: 409 });
+    }
+    candidates.unshift(promoClaim.outcome);
+  }
+
+  let discount = resolveDiscount({
     listPricePaise,
-    offer: await readFirstSessionOffer(admin),
-    offerEligible: isFirstSessionEligible(await countPriorPaidSessions(admin, user.id)),
-    goodwillPaise: await readGoodwillOnAppointment(admin, appointmentId),
+    offer,
+    offerEligible: isFirstSessionEligible(priorPaid),
+    goodwillPaise,
+    candidates,
   });
+
+  // Claim whichever invite half won, and fall back if it is held by another
+  // open checkout.
+  while (discount.source === "invite_reward" || discount.source === "invite_welcome") {
+    const half = discount.source === "invite_reward" ? "reward" : "welcome";
+    const claimed = await claimInviteHalf(admin, user.id, appointmentId, half);
+    if (claimed !== null) break;
+    const dropped = discount.source;
+    const remaining = candidates.filter((candidate) => candidate.source !== dropped);
+    candidates.length = 0;
+    candidates.push(...remaining);
+    discount = resolveDiscount({
+      listPricePaise,
+      offer,
+      offerEligible: isFirstSessionEligible(priorPaid),
+      goodwillPaise,
+      candidates,
+    });
+  }
+
+  // A code that was claimed but lost to a larger discount is given back, so
+  // it does not go on counting against its own cap.
+  if (promoClaim?.ok && discount.source !== "promo_code") {
+    await releasePromoCode(admin, appointmentId, user.id);
+  }
+
   amountPaise = discount.payablePaise;
 
   // Guarded like /api/home-visit/create-order's own order.create call: an

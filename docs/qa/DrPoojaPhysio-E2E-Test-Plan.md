@@ -2475,7 +2475,31 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 
 #### `ADM-MONEY-GW-002` — What discounting cost · P1
 **Steps.** Apply a goodwill discount and let a first-session offer run, then open **Money → Costs**.
-**Expected Result.** A **Discounts given** figure, split between the offer and goodwill. It is **stated, not deducted** — the note says so — because a discount means less was collected and is already inside gross revenue as a smaller number; subtracting it from profit would count it twice. If Operating profit drops by the discount amount, that is a P0 defect.
+**Expected Result.** A **Discounts given** figure, split by rule — the offer, goodwill, promo codes and both halves of an invite, each line appearing only when it has something behind it. It is **stated, not deducted** — the note says so — because a discount means less was collected and is already inside gross revenue as a smaller number; subtracting it from profit would count it twice. If Operating profit drops by the discount amount, that is a P0 defect.
+
+#### `ADM-PROMO-001` — Create a campaign · P1
+**Steps.** As a **Money** admin, open **Money → Costs → Promo codes**. Switch codes on. Create `WELCOME200`, ₹200 off, total 50 uses, 1 per patient. Then try each of: a code with a hyphen in it; a percentage of 150; an end date before the start date; a second code called `WELCOME200`.
+**Expected Result.** The first saves and appears as **Running**. Each of the four is refused with a sentence naming the problem, not a raw database error. A `promo.create` audit row is written for the one that saved. A **Clinical** or **Operations** admin gets 403 on the route: this decides what every patient who types the code pays, which is a money capability however much it reads like catalog data.
+
+#### `ADM-PROMO-002` — A used code is paused, never deleted · P1
+**Steps.** Have a patient claim a code at checkout, then try to delete it. Then pause it and have another patient try it.
+**Expected Result.** Delete is **not offered** on a code that has been claimed, and the route refuses it with *"switch it off instead"* — a paid session pointing at a campaign nobody can name cannot answer which rule gave the money away. Pausing works, and the next patient is told the code is **no longer available** rather than "not recognised".
+
+#### `ADM-PROMO-003` — The cap means what it says · P0
+**Steps.** Create a code capped at **1** total use. Open checkout for it as patient A and pay. Then try it as patient B.
+**Expected Result.** Patient B is refused with *"That code has been fully claimed."* Repeat with patient A abandoning checkout instead of paying: after **30 minutes** the claim frees up and patient B can use it. A cap that can be exceeded by opening two checkouts is a P0 defect.
+
+#### `ADM-INVITE-001` — Invites: the two halves · P1
+**Steps.** As a **Full** admin, open **Settings → Booking Rules → Patient invites**. Switch on, set the friend's welcome to ₹300 and the reward to ₹200, and save. Open a patient's dashboard.
+**Expected Result.** The panel previews the exact sentence the patient will read, and it says the reward arrives **once their friend has had a session** — not on a signup. The patient's dashboard shows their own code, formatted in two halves, with a copy button.
+
+#### `ADM-INVITE-002` — What an invite refuses · P0
+**Steps.** As the code's owner, try to use your own code. As a patient who has already paid for a session, try to use somebody's code. As a patient who has already used one, try a second.
+**Expected Result.** All three refused, each with its own sentence: *"That's your own invite code."*, *"An invite code can only be used before your first session."*, *"You've already used an invite code."* The entry field is **not shown at all** to a patient who has already paid or already claimed — a field that can only refuse is worse than no field. A patient reaching the API directly gets the same three answers; none of these rules lives only in the browser.
+
+#### `ADM-INVITE-003` — A promise already made is kept · P1
+**Steps.** Have a patient claim an invite while the welcome is ₹300. Lower it to ₹100, then switch invites off entirely. Open that patient's checkout.
+**Expected Result.** They still get **₹300** off. Amounts are snapshotted at claim, and the switch stops new claims rather than withdrawing one already made. Charging them the new figure — or nothing — is a P0 defect.
 
 #### `PAT-PAY-DSC-001` — The patient sees what they were given · P1
 **Steps.** As a patient who received a discount, open **Payments** and tap the receipt.

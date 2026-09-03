@@ -60,7 +60,12 @@ deleted, since an append-only version pointing at one makes it undeletable),
 and that same file's walk through the review step -- a submission queued and
 invisible, refused at checkout with the patient's own session, approved with
 its window stamped and its decision recorded, turned down and rewritten, and
-approved with changes leaving the therapist's original in place.
+approved with changes leaving the therapist's original in place, and the two
+acquisition discounts a patient can trigger themselves -- a promo code
+quoting what it takes off with no amount in the request, a redemption cap
+refusing the second claim, a paused or expired campaign doing nothing and
+saying which, and an invite that cannot be claimed by its owner, twice, or by
+a patient who has already paid (`acquisition-codes.spec.ts`).
 It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
@@ -110,6 +115,15 @@ and ends in ROLLBACK, so it leaves nothing behind and can be re-run against
 the same database. Applying `schema.sql` twice against a scratch Postgres and
 then running this is what a schema change to these tables should be verified
 with.
+
+`scripts/promo-invite-sql-checks.sql` is the promo/invite storage-layer
+check -- a redemption cap holding under a second claim, an abandoned checkout
+giving its claim back, a window whose end is exclusive, a self-invite, a
+second invite for one patient, and a reward that does not exist until the
+friend has paid. It runs inside one transaction and ends in ROLLBACK, so it
+leaves nothing behind and can be re-run against the same database. Applying
+`schema.sql` twice against a scratch Postgres and then running this is what a
+schema change to these tables should be verified with.
 
 `scripts/roster-sql-checks.sql` is the roster's storage-layer check: the
 malformed and out-of-range payloads the API routes cannot produce, asserted
@@ -170,7 +184,9 @@ src/lib/careAreas.ts     the six areas of practice, shared by / and /conditions
 src/lib/carePlanAuthoring.ts the one writer of a care plan version, three doors
 src/lib/carePlanReview.ts the clinic's decision on a queued recommendation
 src/lib/sessionRhythm.ts the proposed run of dates a paid programme opens on
-src/lib/discounts.ts     the two acquisition discounts and what they record
+src/lib/discounts.ts     the acquisition discounts and what they record
+src/lib/promoCodes.ts    a campaign's maths and whether this patient may claim it
+src/lib/inviteRewards.ts one patient inviting another, and both halves of it
 src/lib/adminScope.ts    admin scopes and which sections each one may open
 src/lib/availabilityRanges.ts the roster's range layer over its hour rows
 src/lib/availabilityRequest.ts server-side validation both save doors share
@@ -764,9 +780,9 @@ client is the only writer and the log is append-only from any session.
 - **A discount is a rule an admin configured, never a number a browser
   sent.** The same reasoning that keeps a therapist picking a package rather
   than a price: an amount that can be posted is an amount that can be posted
-  wrong. There are exactly two, both in `src/lib/discounts.ts`, and a promo
-  code engine deliberately is not one of them — a coupon system built before
-  there is a campaign to run is machinery nobody uses.
+  wrong. There are exactly four, and the two that arrived last are the two
+  where something the patient sends is involved — which is why each of them
+  sends a **name**, never a figure.
   1. **The first-session offer** is standing configuration
      (`first_session_offer_enabled` / `_type` / `_value`, Settings → Booking
      Rules, off by default). Eligibility is `has this patient ever paid for
@@ -783,9 +799,82 @@ client is the only writer and the log is append-only from any session.
      `payment.goodwill_discount` audit row. Only **before** payment: a
      discount on something already paid for is a refund, and refunds have
      their own route, their own Razorpay call and their own audit.
-  The two never stack (`resolveDiscount`), and where both apply the patient
-  pays the lower of the two — the clinic agreed to both prices, so charging
-  the higher one because an admin tried to help would be perverse.
+  3. **The promo code** (`src/lib/promoCodes.ts`, `promoCodesServer.ts`,
+     `promo_codes`, `promo_codes_enabled` off by default) is a campaign an
+     admin sets up on Money → Costs, beside the figure it produces —
+     `/api/admin/save-promo-code` and `delete-promo-code`, both
+     `requireAdminScope("money")` with `promo.*` audit rows. Five things
+     hold it together:
+     - **The code is an identifier.** The browser sends its name; the kind,
+       the amount, the window and the caps are read from the row. That is
+       what keeps the rule above true for a discount the patient triggers.
+     - **The cap is enforced under a row lock**, by `claim_promo_code()` in
+       `schema.sql`, not by a count taken a moment before an update — two
+       patients at one checkout each are a race, and "100 uses" has to mean
+       100 while forty of them are open. `previewPromoCode` counts the same
+       way and is deliberately *not* the authority: a preview being a moment
+       stale costs nothing, because nothing has been promised yet.
+     - **A claim that is never paid for stops counting** after a checkout
+       hold computed at read time (`PROMO_HOLD_MS`, matching `v_hold`).
+       Nothing writes an "expired" status, for the reason a pending session
+       suggestion does not: a status recording the passage of time needs a
+       sweep, and there is no worker here to run one.
+     - **The claim lives on the booking**, `appointments.promo_code_id` +
+       `promo_claimed_at`, not in a redemptions table. A second place the
+       same claim is written is two places that can disagree about how many
+       times a code was used, which is the bug a cap exists to prevent.
+     - **A refused code refuses the checkout.** `/api/razorpay/create-order`
+       answers 409 rather than quietly charging list price: the patient was
+       shown a figure with the code applied, and taking more money than they
+       were quoted is the one outcome a payment screen must never produce.
+       A code that is claimed but then loses to a larger discount is
+       *released*, so it does not count against its own cap for nothing.
+     `promo_codes` has no patient select policy — a patient who can list it
+     reads every campaign the clinic has ever scheduled, including the ones
+     not yet running. A **claimed** code is never deleted, only paused: a
+     paid session pointing at a campaign nobody can name cannot answer which
+     rule gave the money away.
+  4. **The patient invite** (`src/lib/inviteRewards.ts`,
+     `inviteRewardsServer.ts`, `patient_invites`, `profiles.invite_code`,
+     `invite_rewards_enabled` off by default) is two halves: a **welcome**
+     off the invited friend's first booking, and a **reward** off the
+     inviter's next one. Six rules:
+     - **"Invite" is not "referral".** A referral is a hospital sending a
+       patient under a commercial agreement, with its own table, dashboard
+       and revenue share. One back office cannot have two things called an
+       invite, so the referral flow's own strings now say *registration
+       link* — this is the "one word for one concept" rule applied before
+       the second meaning got in rather than after.
+     - **The reward is earned by a paid session, never a signup.**
+       `grant_invite_reward()` fires from both capture paths (idempotent, so
+       the browser callback and the webhook racing produce one reward). A
+       reward that pays out on signups is a reward for creating accounts,
+       and somebody will.
+     - **A patient is new exactly once**, the same test the first-session
+       offer uses: an invite is claimable only before that patient's first
+       paid session, at most once ever (a unique index on `invitee_id`, not
+       a route check), and never their own code (`claim_invite()` and a
+       CHECK).
+     - **Amounts are snapshotted at claim.** Lowering the reward next month
+       must not lower what was already promised — the same reason a
+       purchased entitlement reads its package snapshot rather than the live
+       catalog. An unspent half is honoured even after the feature is
+       switched off; the switch stops new claims, it does not withdraw a
+       promise.
+     - **A half is spent once**, attached to a booking by
+       `claim_invite_half()` and made final by `settle_invite_half()` on
+       capture. The same checkout hold the promo claim uses stops one reward
+       being quoted on two open checkouts, which would otherwise spend it
+       twice.
+     - **A ceiling per inviter** (`invite_max_rewards_per_patient`, 10).
+       Someone who genuinely sends ten patients is worth ten rewards;
+       someone sending a hundred is running a scheme, and the refusal is
+       worded so it does not tell the invitee about somebody else's account.
+  They never stack (`resolveDiscount`), and where more than one applies the
+  patient pays the lowest — the clinic agreed to every one of those prices,
+  so charging a higher one because an admin tried to help would be perverse.
+  A tie goes to the more deliberate decision: goodwill, then the code the
+  patient typed, then a campaign that runs itself.
   Three rules are load-bearing:
   - **Travel is never discounted.** It is a pass-through reimbursement paid
     to the therapist in full, so discounting it makes them fund their own
@@ -803,10 +892,11 @@ client is the only writer and the log is append-only from any session.
     understate profit by exactly the amount given away. It sits on Money →
     Costs as a stated figure answering the question no revenue line can —
     what buying those patients cost.
-  A configured offer is **floored** at `MINIMUM_CHARGE_PAISE` (Razorpay
-  refuses a zero-amount order, so an unguarded 100%-off is a 500 at the last
-  step of checkout). A goodwill amount at or above the session price is
-  **refused** instead — that one is a number a person typed with the price
+  Every **configured** amount — the offer, a promo code, either invite half
+  — is **floored** at `MINIMUM_CHARGE_PAISE` through
+  `applyConfiguredAmountOff` (Razorpay refuses a zero-amount order, so an
+  unguarded 100%-off is a 500 at the last step of checkout). A goodwill
+  amount at or above the session price is **refused** instead — that one is a number a person typed with the price
   on screen beside it, so more than the price is a typo, and quietly
   charging ₹1 because of it is far worse than saying no.
 
@@ -1841,7 +1931,12 @@ client is the only writer and the log is append-only from any session.
   `contact_scan_mode` and `contact_masking_enabled`, on Settings → Team &
   Access, and `risk_signals_enabled` with the per-detector thresholds in
   `risk_rules`, on Today → Risk — and `enabled_intake_specialties`, which
-  condition types triage offers) is read
+  condition types triage offers — and the four invite settings on Settings →
+  Booking Rules (on/off, what the friend gets, what the inviter gets, and the
+  ceiling on rewards one patient may earn) plus `promo_codes_enabled`, whose
+  switch sits on Money → Costs beside the campaigns it governs rather than in
+  Settings, because an admin who has just written a code and cannot see why
+  it does nothing is the failure that placement avoids) is read
   through `src/lib/adminSettings.ts` with defaults — don't hardcode these.
   Every dashboard page must select `SITE_SETTINGS_SELECT` from that module
   rather than its own column list, or a new setting silently reads as its
