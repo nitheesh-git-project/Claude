@@ -57,7 +57,12 @@ export const CONDITION_SPECIALTIES: ConditionSpecialtyDef[] = [
   {
     key: "pediatrics",
     label: "Paediatric",
-    patientLabel: "Children's physiotherapy",
+    // The owner's word, chosen deliberately over "Children's
+    // physiotherapy": the clinic calls this paediatric on its own catalogue,
+    // and one name across the catalogue, the picker and this panel beats a
+    // warmer word that makes a parent wonder whether the two are the same
+    // service. Spelled the British way to match "Orthopaedic" beside it.
+    patientLabel: "Paediatric physiotherapy",
     blurb: "Children: delayed milestones, conditions from birth or childhood.",
     icon: "fa-child-reaching",
     chipClass: "border-amber-200 bg-amber-50 text-amber-700",

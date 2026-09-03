@@ -1362,8 +1362,14 @@ client is the only writer and the log is append-only from any session.
   - The kind of patient is a **condition type** to clinicians and admins.
     Never "specialty" (that is the column name), never "case". A patient is
     never shown a category word at all — name the care instead
-    ("Children's physiotherapy"), and keep "triage" and "onboarding" off
-    their screens entirely.
+    ("Paediatric physiotherapy", not "pediatrics"), and keep "triage" and
+    "onboarding" off their screens entirely. The clinician word and the
+    patient word are separate fields (`label` / `patientLabel`) and may
+    differ, but where the clinic has settled on one name for a service, both
+    say it: the catalogue, the condition picker and the exam panel calling
+    the same care three things is the confusion this rule exists to stop.
+    Spelling is British throughout — "Orthopaedic", "Paediatric" — so an
+    American spelling in one label reads as a typo beside the others.
   - Whoever approves a change is **the clinic** to a patient, and **admin**
     on admin screens. Not both, and not "us".
   Before adding a noun to any of these screens, check it is not a fifth name
