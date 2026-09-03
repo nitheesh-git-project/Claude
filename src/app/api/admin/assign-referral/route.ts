@@ -10,7 +10,11 @@ import {
 } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
-import { BOOKING_LEAD_TIME_HOURS, BOOKING_LEAD_TIME_MS } from "@/lib/bookingSlots";
+import {
+  BOOKING_LEAD_TIME_HOURS, BOOKING_LEAD_TIME_MS,
+  isWholeHourSlot,
+  NOT_WHOLE_HOUR_ERROR,
+} from "@/lib/bookingSlots";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -35,6 +39,13 @@ export async function POST(request: NextRequest) {
   const slotMs = new Date(slotDateTime).getTime();
   if (!Number.isFinite(slotMs)) {
     return NextResponse.json({ error: "Invalid slot time" }, { status: 400 });
+  }
+  // Slots start on the hour, everywhere. A referral's slot becomes a real
+  // appointment when the patient registers, so it obeys the same rule the
+  // booking it turns into does. The clinic's zone: a referral has no
+  // patient account yet, so there is no other timezone on file.
+  if (!isWholeHourSlot(new Date(slotMs).toISOString(), null)) {
+    return NextResponse.json({ error: NOT_WHOLE_HOUR_ERROR }, { status: 400 });
   }
   if (slotMs < Date.now() + BOOKING_LEAD_TIME_MS) {
     return NextResponse.json(

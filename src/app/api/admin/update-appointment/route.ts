@@ -6,6 +6,7 @@ import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { updateMeetEventForAppointment } from "@/lib/googleCalendarSync";
+import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("sessions");
@@ -53,6 +54,15 @@ export async function POST(request: NextRequest) {
 
   if (!appointment) {
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+  }
+  // Slots start on the hour, everywhere. A reschedule may ignore the lead
+  // time -- it is the admin override lane -- but never this: a session moved
+  // to 6:52 is one no picker in the app can express. Judged against the
+  // appointment's OWN recorded timezone rather than the clinic's, because
+  // that is the zone its hour was chosen in -- and it has to be read after
+  // the row is loaded, which is why this check sits below the fetch.
+  if (!isWholeHourSlot(new Date(slotTimestamp).toISOString(), appointment.timezone)) {
+    return NextResponse.json({ error: NOT_WHOLE_HOUR_ERROR }, { status: 400 });
   }
   if (appointment.status === "completed" || appointment.status === "cancelled") {
     return NextResponse.json(

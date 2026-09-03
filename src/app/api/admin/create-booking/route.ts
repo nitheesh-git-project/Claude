@@ -7,7 +7,11 @@ import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
-import { leadTimeMsFromHours } from "@/lib/bookingSlots";
+import {
+  leadTimeMsFromHours,
+  isWholeHourSlot,
+  NOT_WHOLE_HOUR_ERROR,
+} from "@/lib/bookingSlots";
 
 // Books a session on a patient's behalf.
 //
@@ -57,6 +61,12 @@ export async function POST(request: NextRequest) {
   const slotMs = new Date(slotTime).getTime();
   if (Number.isNaN(slotMs)) {
     return NextResponse.json({ error: "That date and time isn't valid." }, { status: 400 });
+  }
+  // Slots start on the hour, everywhere -- including the override lane. The
+  // override is about the lead time, never about landing between hours.
+  // Checked in the booking's own timezone, since 6 PM IST is 12:30 UTC.
+  if (!isWholeHourSlot(new Date(slotMs).toISOString(), body.timezone)) {
+    return NextResponse.json({ error: NOT_WHOLE_HOUR_ERROR }, { status: 400 });
   }
 
   const admin = createAdminClient();

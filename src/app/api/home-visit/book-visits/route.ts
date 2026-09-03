@@ -9,6 +9,7 @@ import {
   type HomeVisitAddressInput,
 } from "@/lib/bookHomeVisitSession";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
 
 const MAX_NOTES_LENGTH = 1000;
 // Same absolute ceiling as book-package-sessions -- a malformed/hostile
@@ -75,6 +76,12 @@ export async function POST(request: NextRequest) {
     }
     if (ms <= Date.now()) {
       return NextResponse.json({ error: "Every slot must be in the future." }, { status: 400 });
+    }
+    // Slots start on the hour, everywhere -- checked in each slot's own
+    // timezone, since 6 PM IST is 12:30 UTC and reading the minute off the
+    // instant would refuse every correct booking in the clinic.
+    if (!isWholeHourSlot(s.slotDateTime, s.timezone)) {
+      return NextResponse.json({ error: NOT_WHOLE_HOUR_ERROR }, { status: 400 });
     }
     parsedSlots.push({ slotDateTime: s.slotDateTime, timezone: s.timezone, ms });
   }

@@ -490,6 +490,27 @@ client is the only writer and the log is append-only from any session.
   `AdminNewBookingTab` passes 0 only while its existing
   "book inside the window anyway" box is ticked, so the grid opens up exactly
   when the route would accept it. Zero still cannot reach into the past.
+  **A slot starts on the hour, and the routes say so.** `isWholeHourSlot()` in
+  `bookingSlots.ts` refuses anything else at all nine doors that write a slot
+  time — `/api/appointments/create`, `book-package-sessions`,
+  `/api/admin/create-booking`, `update-appointment`, `assign-referral`,
+  `/api/therapist/suggest-session`, `/api/home-visit/book-visits`,
+  `book-cash` and `verify` — with one shared message
+  (`NOT_WHOLE_HOUR_ERROR`). Two admin screens used to reach `6:52` through a
+  raw `type="time"` / `datetime-local`; they share the picker now, and this
+  is the same rule where a request cannot get round it. **It is checked in
+  the booking's own timezone, never the server's**: India is UTC+05:30, so 6
+  PM IST is 12:30 UTC and reading the minute off the instant would refuse
+  every correct booking in the clinic while passing one half an hour out.
+  The wizard builds slots in the *patient's* local time and records which
+  zone that was, so that column is the one to judge against — `update-
+  appointment` reads it off the appointment row, which is why its check sits
+  below the fetch rather than beside the other argument validation. An
+  unknown IANA zone falls back to `CLINIC_TIMEZONE` rather than passing.
+  The rule is enforced where a human *picks* a time, never where one is
+  *consumed*: `/api/patient/respond-suggestion` and `register-via-referral`
+  book a slot somebody already agreed to, so a legacy row carrying minutes
+  is still honoured rather than stranded.
   A **date that is not a session slot** keeps its native input, deliberately:
   a report's date, a leave range, a promo campaign's window and every
   from/to filter (Metrics, Costs, Activity Log, All Sessions, Payment
