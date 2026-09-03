@@ -272,7 +272,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 11. Submit.
 
 **Expected Result**
-* Step 3: **conditions are grouped by condition type** — Orthopaedic, Neurological, Paediatric — from `treatment_categories.specialty`. A category an admin has not tagged appears under **Other** and still works. The panel **never shows a programme by name**: a clinician answers "which condition" and "how many sessions", and those two pick the catalogue row.
+* Step 3: **conditions are grouped by condition type** — Orthopaedic, Neurological, Paediatric — from `treatment_categories.specialty`. A category an admin has not tagged appears under **General** and still works — that is where the clinic's general consultation sits, and "General" is deliberately **not** a fourth condition type: a patient's own health profile is only ever ortho, neuro or paediatric. The panel **never shows a programme by name**: a clinician answers "which condition" and "how many sessions", and those two pick the catalogue row.
 * Step 3: **only programmes for this session's own condition are offered.** `QA Neuro Rehab 8 Sessions` must not be reachable for a `QA Back & Spine Care` session.
 * Step 4: a **Delivered as** toggle (Video sessions / Home visits) appears **only** where the clinic sells both against that condition. A toggle with one option is not a decision the clinician has.
 * Step 5: **Sessions `6`**, **Price `₹9,999`**, **Valid for `90 days`**, **Each session `60 min`** — all read-only, all from the admin's catalog row. **There is no price field, no session-count field and no discount field anywhere in this panel.** If one exists, that is a P0 defect: "the therapist set their own price" must be a thing the schema cannot express.
