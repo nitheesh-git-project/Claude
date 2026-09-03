@@ -244,11 +244,28 @@ The screen warns you to turn it on only once System Health has been clean.
 3. Attempt to change **your own** scope.
 4. Narrow every other `full` admin, then attempt to narrow the last one.
 
-**Expected Result.** Step 3: refused with `You can't change your own access. Ask another full-access admin.` Step 4: the last `full` admin **cannot be narrowed** — otherwise a single mis-click locks everyone out permanently. Only a `full` admin can change scopes or mint another admin.
+**Expected Result.** Step 3: refused with `You can't change your own access. Ask another Master Admin.` Step 4: the last `full` admin (**Master Admin** in the picker) **cannot be narrowed** — otherwise a single mis-click locks everyone out permanently. Only a `full` admin can change scopes or mint another admin.
 
 #### `ADM-SET-026` — Create the three scoped admins · P0
 **Steps.** Create `qa.admin.ops@example.test` (Operations), `qa.admin.finance@example.test` (Finance), `qa.admin.clinical@example.test` (Clinical).
 **Expected Result.** Each is created with a one-time password shown once and **never logged**. Signing in as each shows only their allowed sections in the sidebar — Operations: Today, Sessions, People, Catalog. Finance: Today, People, Money. Clinical: Today, Sessions, People.
+
+#### `ADM-SET-026a` — Each scope opens on its own dashboard · P1
+There is one admin login (`/admin/login`) and one dashboard route; the scope decides what it opens on. Sign in as each of the four in turn and read the Today screen without tapping anything.
+
+| Admin | Sidebar brand and header read | Today leads with | Quick actions |
+| --- | --- | --- | --- |
+| Master Admin | **Master Admin** | Sessions today | Approvals · All sessions · Money summary |
+| Operations | **Operations** | Unassigned sessions | Assign a session · Approvals · Roster · New booking |
+| Finance | **Finance** | Owed to therapists | Money summary · Payouts · Transactions · Costs |
+| Clinical | **Clinical** | Recommendations | Recommendations · Patients · All sessions · Roster |
+
+**Expected Result.** The dashboard names itself in two places on every screen — the sidebar brand (above **Admin Panel**) and the eyebrow above the section heading — so an admin never has to work out which dashboard they are on from which sidebar entries are missing.
+
+Three further checks, each one a bug this replaced:
+* **Every quick action lands somewhere.** Tap all of them for each scope. None may bounce to a different screen — a link into a section the scope cannot open silently falls back to the first allowed one, which looks like it worked.
+* **"Needs you" agrees with the list below it.** The figure counts only the queues in the **Queues** card beside it. Add up the badges; they must match. It must not count queues this scope cannot open.
+* **A limited scope gets a "Your access" card** under Queues, naming the sections it opens and the ones it does not. **Master Admin gets no such card** — nothing is withheld, so there is nothing to account for.
 
 #### `ADM-SET-027` — Scope is enforced at the route, not the sidebar · P0
 For each scoped admin, do **both**: navigate to a forbidden section by URL, **and** call a route in that section directly.

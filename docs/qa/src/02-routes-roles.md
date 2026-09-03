@@ -134,7 +134,7 @@ The application exposes 150+ POST route handlers under `/api`, grouped by audien
 | `patient` | Self-registers (at `/patient/register`, or inside either booking wizard) | `approved` + `active`. **Exception:** a genuine payment attempt auto-approves a patient (see below). |
 | `therapist` | Self-applies at `/therapist/login` → **Apply to Join** | Admin approval, then `active` |
 | `hospital` | Provisioned by an admin (People → Partners → onboard) | `active` |
-| `admin` | Promoted by hand in Supabase, or minted by a full-access admin | `active` only — **`approved` is deliberately not checked for admins** |
+| `admin` | Promoted by hand in Supabase, or minted by a Master Admin | `active` only — **`approved` is deliberately not checked for admins** |
 
 ### 4.2 The two flags
 

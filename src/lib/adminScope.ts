@@ -12,8 +12,18 @@ import type { AdminSectionKey } from "@/lib/adminNav";
 export const ADMIN_SCOPES = ["full", "operations", "finance", "clinical"] as const;
 export type AdminScope = (typeof ADMIN_SCOPES)[number];
 
+// One name per scope, and it does two jobs on purpose: it is the access
+// level in Team & Access's picker, and it is what the dashboard calls
+// itself in the sidebar and the page header. A second set of names for the
+// same four things is exactly the "one word for one concept" failure this
+// codebase keeps correcting -- an admin should not have to work out whether
+// the "Operations" in the picker is the "Operations" on their screen.
+//
+// `full` reads "Master Admin" rather than "Full access" for that reason:
+// as a permission both work, but only one of them is the name of a desk
+// somebody sits at, and the label has to serve both readings.
 export const ADMIN_SCOPE_LABELS: Record<AdminScope, string> = {
-  full: "Full access",
+  full: "Master Admin",
   operations: "Operations",
   finance: "Finance",
   clinical: "Clinical",

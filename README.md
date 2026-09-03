@@ -1162,7 +1162,33 @@ above.
 admin_scope` is one of `full`, `operations`, `finance`, `clinical` (see
 `src/lib/adminScope.ts`). It decides which sections an admin can open, and
 is enforced server-side by `requireAdminScope()` — hiding a section in the
-sidebar is presentation only. Only a `full` admin can change scopes or
+sidebar is presentation only.
+
+Each scope also gets **its own Today screen**, decided in one place
+(`src/lib/adminHome.ts`) rather than in the dashboard page, so the four
+cannot drift into four answers to "what needs me today". Operations opens on
+unassigned sessions, today's work and the approvals queue; Finance opens on
+what is owed to therapists (all-time, net of cash held), open payout
+requests and cash still out; Clinical opens on recommendations waiting for
+approval, health records to review and today's sessions; a `full` admin's
+screen is unchanged. The greeting, the four figures, the quick actions and
+the order of the queue list all come from that module, and every link it
+produces is checked against the viewer's scope — an action for a section
+this scope cannot open is dropped rather than rendered, because `findTab`
+would otherwise redirect the tap somewhere else and the dead link would look
+like it worked. "Needs you" counts only the queues this admin can open, so
+the figure and the list beneath it agree. Every dashboard also **names itself** — `Master Admin`,
+`Operations`, `Finance`, `Clinical` — in the sidebar brand and again as the
+eyebrow above the section heading, so which of the four you are on is never
+something to infer from a missing sidebar entry. (Those are the same names
+the scope picker on Settings → Team & Access uses; `full` reads "Master
+Admin" rather than "Full access" because the one label has to work both as
+a permission and as the name of a desk.) A limited scope additionally gets a
+**Your access** card naming the sections its name covers and the ones it
+does not — a missing section otherwise reads as a fault rather than as
+policy. Nothing here is a second permission
+model: the queue list still shows every queue the routes let that scope
+work, in their order rather than a full admin's. Only a `full` admin can change scopes or
 create another admin, nobody can change their own, and the last `full` admin
 cannot be narrowed. Admins are created from **Settings → Team & Access**
 (`/api/admin/create-account`, which also creates patients and therapists by

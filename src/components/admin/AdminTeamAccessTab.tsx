@@ -282,8 +282,8 @@ export default function AdminTeamAccessTab({
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Admins</h2>
         <p className="text-xs text-slate-500 mb-4">
           {canManage
-            ? "Change what each admin can reach. You can't change your own access, and the last full-access admin can't be narrowed — otherwise nobody could ever widen it again."
-            : "Only a full-access admin can change these."}
+            ? "Change what each admin can reach. You can't change your own access, and the last Master Admin can't be narrowed — otherwise nobody could ever widen it again."
+            : "Only a Master Admin can change these."}
         </p>
         <ul className="space-y-2">
           {pageAdmins.map((a) => (

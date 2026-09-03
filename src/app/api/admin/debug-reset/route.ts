@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   // reconnaissance.
   if (context.scope !== "full") {
     return NextResponse.json(
-      { error: "Only a full-access admin can reset data." },
+      { error: "Only a Master Admin can reset data." },
       { status: 403 }
     );
   }
