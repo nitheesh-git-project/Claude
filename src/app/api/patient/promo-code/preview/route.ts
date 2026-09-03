@@ -29,16 +29,23 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
-  if (!(await isProfileActive(user.id))) {
-    return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
-  }
-  // Same rule as the four purchase routes: one account carries one role, and
-  // a session is delivered to a patient.
-  if (!(await isPatientProfile(user.id))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // Open to a signed-out visitor for a **category-only** preview, the same
+  // reason /api/appointments/quote is: at step 3 of the wizard a self-signup
+  // patient has no account yet, and a code they cannot check until after
+  // they have paid is a code they will not use. Such a preview answers for a
+  // new patient and skips the per-patient cap, which needs an account to
+  // count against. The **claim** at checkout re-asks every rule against the
+  // real account and refuses rather than charging a different figure.
+  if (user) {
+    if (!(await isProfileActive(user.id))) {
+      return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
+    }
+    // Same rule as the four purchase routes: one account carries one role,
+    // and a session is delivered to a patient.
+    if (!(await isPatientProfile(user.id))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const { data: body, error: parseError } = await parseJsonBody<{
@@ -71,8 +78,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ applies: false, message: "That code isn't recognised." });
   }
 
+  // A real booking belongs to somebody, and only they may ask about it.
+  if (appointmentId && !user) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+
   let priceCategoryId: string | null = categoryId ?? null;
-  if (appointmentId) {
+  if (appointmentId && user) {
     // RLS already scopes this to the caller's own rows; the patient_id
     // filter is the explicit version, so a mismatch answers 404 rather than
     // a blank.
@@ -94,7 +106,7 @@ export async function POST(request: NextRequest) {
   const listPricePaise = await readAppointmentServicePrice(admin, priceCategoryId);
   const result = await previewPromoCode(admin, {
     code,
-    patientId: user.id,
+    patientId: user?.id ?? null,
     // With no booking yet there is nothing to exclude from the claim count,
     // and a uuid that matches nothing is the honest way to say so.
     appointmentId: appointmentId ?? EXCLUDES_NOTHING,

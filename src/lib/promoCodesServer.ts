@@ -66,7 +66,14 @@ export async function previewPromoCode(
   admin: AdminClient,
   args: {
     code: string;
-    patientId: string;
+    /** Null for a visitor who has not signed up yet. The per-patient cap and
+     *  the first-session restriction cannot be asked of somebody with no
+     *  account, so both are answered as "a new patient" -- which is what
+     *  they are about to be. The **claim** at checkout re-asks both against
+     *  the real account and refuses if either does not hold, so the worst an
+     *  anonymous preview can do is promise something the patient then does
+     *  not get, which checkout reports rather than silently charging. */
+    patientId: string | null;
     appointmentId: string;
     listPricePaise: number;
     now?: Date;
@@ -93,8 +100,10 @@ export async function previewPromoCode(
 
     const [total, mine, prior] = await Promise.all([
       countClaims(admin, promo.id, args.appointmentId, heldSince, null),
-      countClaims(admin, promo.id, args.appointmentId, heldSince, args.patientId),
-      countPriorPaid(admin, args.patientId),
+      args.patientId
+        ? countClaims(admin, promo.id, args.appointmentId, heldSince, args.patientId)
+        : Promise.resolve(0),
+      args.patientId ? countPriorPaid(admin, args.patientId) : Promise.resolve(0),
     ]);
 
     return evaluatePromoCode(promo, {

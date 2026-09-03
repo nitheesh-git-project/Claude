@@ -919,6 +919,21 @@ client is the only writer and the log is append-only from any session.
   Pay button while create-order silently resolved a first-session offer
   behind it, so a patient owed ₹499 read "Pay ₹1,200 Now" and watched a
   different figure open in the Razorpay sheet.
+  **A quote may be unidentified, and that is the case that matters.** At step
+  3 a self-signup patient has no account yet — the account, the booking and
+  the payment are all created by one tap further down the same screen — and
+  that visitor is exactly who a first-session offer is for. So
+  `/api/appointments/quote` and `/api/patient/promo-code/preview` both accept
+  a **category-only** request with no session, answering for a new patient:
+  the offer applies, and the three things needing an identity (a goodwill
+  adjustment, an invite half, a promo code's per-patient cap) are simply not
+  part of it. Naming an actual booking still requires being its patient. It
+  is never authoritative — the wizard re-quotes against the real appointment
+  the moment the account exists, and `create-order` resolves everything again
+  under a row lock — so the worst an anonymous quote can do is promise
+  something checkout then reports rather than silently charging. Refusing
+  these callers, which is where this landed first, means showing list price
+  and charging the offer: the same bug, on the one path the offer exists for.
   It has two modes and the difference is only whether anything is claimed:
   `claim: false` is a read (being a moment stale costs nothing, nothing has
   been promised), `claim: true` claims the promo code under

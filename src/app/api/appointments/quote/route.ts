@@ -22,16 +22,29 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
-  if (!(await isProfileActive(user.id))) {
-    return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
-  }
-  // One account carries one role, and a session is delivered to a patient —
-  // the same rule the four purchase routes enforce.
-  if (!(await isPatientProfile(user.id))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // Deliberately open to a signed-out visitor, for a **category-only** quote
+  // and nothing else.
+  //
+  // The wizard shows a price at step 3 before the account exists — a
+  // self-signup patient creates their account, their booking and their
+  // payment with one tap further down the same screen. That visitor is
+  // exactly who a first-session offer is for, so refusing to quote them
+  // meant showing list price and then charging the offer, which is the
+  // quote-versus-charge bug in the one place it matters most.
+  //
+  // An anonymous quote answers for a new patient and carries nothing
+  // patient-specific (see resolveCheckoutQuote). Asking about somebody's
+  // actual booking still requires being them.
+  if (user) {
+    if (!(await isProfileActive(user.id))) {
+      return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
+    }
+    // One account carries one role, and a session is delivered to a patient —
+    // the same rule the four purchase routes enforce.
+    if (!(await isPatientProfile(user.id))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const { data: body, error: parseError } = await parseJsonBody<{
@@ -51,19 +64,23 @@ export async function POST(request: NextRequest) {
   if (!appointmentId && !categoryId) {
     return NextResponse.json({ error: "Missing appointmentId or categoryId" }, { status: 400 });
   }
+  // A real booking belongs to somebody, and only they may ask about it.
+  if (appointmentId && !user) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
 
   let appointment = {
     // A uuid no row can carry, for the "no booking yet" quote. Nothing is
     // excluded from a claim count and no goodwill can be found against it,
     // which is correct: neither exists before the row does.
     id: "00000000-0000-0000-0000-000000000000",
-    patient_id: user.id,
+    patient_id: user?.id ?? null,
     category_id: categoryId ?? null,
     visit_mode: "online" as string | null,
     travel_fee_paise: null as number | null,
   };
 
-  if (appointmentId) {
+  if (appointmentId && user) {
     // RLS already scopes this to the caller's own rows; the patient_id
     // filter is the explicit version, so a mismatch answers 404 rather than
     // a blank.

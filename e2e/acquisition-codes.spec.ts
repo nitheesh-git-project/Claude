@@ -564,6 +564,61 @@ test.describe("Promo codes and invites", () => {
     await ctx.dispose();
   });
 
+  test("FREE-006: a visitor with no account yet is quoted the price they will be charged", async ({
+    request,
+  }) => {
+    // The gap the quote route was built for and then missed. A self-signup
+    // patient creates their account, their booking and their payment with
+    // one tap at step 3 -- so the price on that screen is read before any
+    // account exists, and that visitor is exactly who a first-session offer
+    // is for. Quoting them list price and charging the offer is the
+    // quote-versus-charge bug in the place it matters most.
+    await admin
+      .from("site_settings")
+      .update({
+        first_session_offer_enabled: true,
+        first_session_offer_type: "fixed",
+        first_session_offer_value: 49900,
+      })
+      .not("id", "is", null);
+
+    try {
+      const res = await request.post(`${BASE}/api/appointments/quote`, {
+        headers: { "content-type": "application/json" },
+        data: { categoryId },
+      });
+      expect(res.ok(), await res.text()).toBeTruthy();
+      const quote = await res.json();
+      expect(quote.listPricePaise).toBe(CATEGORY_PRICE_PAISE);
+      expect(quote.totalPaise, JSON.stringify(quote)).toBe(49900);
+      expect(String(quote.discountLabel)).toContain("First session offer");
+
+      // ...but an anonymous caller may not ask about somebody's booking.
+      const appointmentId = await freshBooking(patientId);
+      const named = await request.post(`${BASE}/api/appointments/quote`, {
+        headers: { "content-type": "application/json" },
+        data: { appointmentId },
+      });
+      expect(named.status(), "anonymous, naming a real booking").toBe(401);
+
+      // The same door on the promo preview, for the same reason: a code a
+      // patient cannot check until after they have paid is a code they will
+      // not use.
+      const { code } = await seedCode("ANON");
+      const preview = await request.post(`${BASE}/api/patient/promo-code/preview`, {
+        headers: { "content-type": "application/json" },
+        data: { categoryId, code },
+      });
+      expect(preview.ok(), await preview.text()).toBeTruthy();
+      expect((await preview.json()).applies).toBe(true);
+    } finally {
+      await admin
+        .from("site_settings")
+        .update({ first_session_offer_enabled: false })
+        .not("id", "is", null);
+    }
+  });
+
   test("FREE-005: neither route is open to anyone but the booking's own patient", async ({
     request,
   }) => {

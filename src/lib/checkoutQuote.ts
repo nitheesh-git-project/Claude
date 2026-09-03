@@ -41,7 +41,9 @@ type AdminClient = SupabaseClient;
 
 export type QuotedAppointment = {
   id: string;
-  patient_id: string;
+  /** Null for a visitor who has not signed up yet -- see the "unidentified"
+   *  note on `resolveCheckoutQuote`. */
+  patient_id: string | null;
   category_id: string | null;
   visit_mode: string | null;
   travel_fee_paise: number | null;
@@ -69,6 +71,25 @@ export type CheckoutQuote = {
   promoCodesEnabled: boolean;
 };
 
+/**
+ * **Unidentified quotes.** `patient_id` may be null, because the booking
+ * wizard shows a price to a visitor who has not signed up yet — the account,
+ * the booking and the payment are all created by one tap further down the
+ * screen. That is exactly the patient a first-session offer exists for, so
+ * quoting them list price and then charging the offer would be the same
+ * quote-versus-charge bug in the one place it matters most.
+ *
+ * Such a quote answers for a **new** patient, which is what they are about
+ * to be: the first-session offer applies, and the three things that need an
+ * identity — a goodwill adjustment, an invite half, a promo code's
+ * per-patient cap — are simply not part of it. It is never authoritative.
+ * The wizard re-quotes against the real appointment once the account exists,
+ * and `create-order` resolves everything again under a row lock before a
+ * rupee moves.
+ *
+ * `claim: true` requires an identified patient: nothing may be claimed on
+ * behalf of an account that does not exist yet.
+ */
 export async function resolveCheckoutQuote(
   admin: AdminClient,
   args: {
@@ -81,6 +102,9 @@ export async function resolveCheckoutQuote(
   const { appointment } = args;
   const patientId = appointment.patient_id;
   const typedCode = (args.promoCode ?? "").trim();
+  // Claiming needs an account to claim against. A caller asking for one
+  // without a patient is a bug, not a request to invent an identity.
+  const claim = args.claim && Boolean(patientId);
 
   const listPricePaise = await readAppointmentServicePrice(admin, appointment.category_id);
 
@@ -91,12 +115,18 @@ export async function resolveCheckoutQuote(
   const travelFeePaise =
     appointment.visit_mode === "home_visit" ? Math.max(0, appointment.travel_fee_paise ?? 0) : 0;
 
-  const priorPaid = await countPriorPaidSessions(admin, patientId);
+  // A visitor with no account has never paid for a session, so the offer
+  // they are being shown is the one they will actually get.
+  const priorPaid: PriorPaidLookup = patientId
+    ? await countPriorPaidSessions(admin, patientId)
+    : { count: 0, failed: false };
   const [offer, goodwillPaise, promoCodesEnabled, halves] = await Promise.all([
     readFirstSessionOffer(admin),
-    readGoodwillOnAppointment(admin, appointment.id),
+    patientId ? readGoodwillOnAppointment(admin, appointment.id) : Promise.resolve(null),
     readPromoCodesEnabled(admin),
-    readInviteHalves(admin, patientId),
+    patientId
+      ? readInviteHalves(admin, patientId)
+      : Promise.resolve({ welcomePaise: 0, rewardPaise: 0 }),
   ]);
 
   // An unspent invite half is honoured whether or not invites are still
@@ -117,7 +147,7 @@ export async function resolveCheckoutQuote(
   if (typedCode) {
     if (!promoCodesEnabled) {
       promoError = "That code isn't recognised.";
-    } else if (args.claim) {
+    } else if (claim && patientId) {
       const claimResult = await claimPromoCode(admin, {
         code: typedCode,
         patientId,
@@ -157,7 +187,7 @@ export async function resolveCheckoutQuote(
 
   let discount = resolveWith(candidates);
 
-  if (args.claim) {
+  if (claim && patientId) {
     // Claim whichever invite half won, and fall back if another open
     // checkout is holding it. The loop terminates because each pass removes
     // one candidate.

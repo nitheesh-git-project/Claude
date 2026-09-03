@@ -434,7 +434,15 @@ export default function BookingWizard({
     }
 
     setAppointmentId(newAppointmentId);
-    if (quote?.free) {
+
+    // Re-quoted against the real account and the real booking before
+    // anything is charged. The quote on screen a moment ago may have been
+    // the anonymous one -- a self-signup patient reads a price before their
+    // account exists, so that quote answers for "a new patient" and knows
+    // nothing of a goodwill adjustment or an invite half. This one knows
+    // both, and create-order resolves it all again under a row lock anyway.
+    const identified = await refreshQuote(newAppointmentId, promoCode);
+    if (identified?.free) {
       await confirmFree(newAppointmentId);
       return;
     }
@@ -476,9 +484,14 @@ export default function BookingWizard({
     }
   }
 
-  /** The one place the payment screen's figures come from. */
-  async function refreshQuote(id: string | null, code: string | null) {
-    if (!categoryId && !id) return;
+  /** The one place the payment screen's figures come from. Returns what it
+   *  fetched as well as storing it, because the moment after signup needs
+   *  the answer before a re-render can deliver it. */
+  async function refreshQuote(
+    id: string | null,
+    code: string | null
+  ): Promise<CheckoutQuoteResponse | null> {
+    if (!categoryId && !id) return null;
     setQuoting(true);
     try {
       const res = await fetch("/api/appointments/quote", {
@@ -494,9 +507,14 @@ export default function BookingWizard({
       // blanking the screen: the order route re-resolves and refuses
       // anything it cannot honour, so a stale quote can only ever be
       // corrected, never charged.
-      if (res.ok && data) setQuote(data as CheckoutQuoteResponse);
+      if (res.ok && data) {
+        setQuote(data as CheckoutQuoteResponse);
+        return data as CheckoutQuoteResponse;
+      }
+      return null;
     } catch {
       // Same reasoning.
+      return null;
     } finally {
       setQuoting(false);
     }

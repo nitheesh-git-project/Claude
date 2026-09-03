@@ -216,6 +216,10 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** As a patient with a first-session offer running (say 25% off), reach step 3 of the booking wizard.
 **Expected Result.** The summary shows the session fee **struck through**, the discount named on its own line, and a **Total**. The button reads **Pay ₹<total> Now** with that same total. If the button quotes the list price while Razorpay opens at the discounted figure — or the reverse — that is a P0 defect: quoting one number and charging another is the one thing a payment screen must never do.
 
+#### `PAT-PAY-FREE-001b` — A brand-new visitor is quoted the offer too · P0
+**Steps.** With a first-session offer running, open `/book` **signed out**, pick a condition and a slot, and reach step 3 without creating an account yet.
+**Expected Result.** The summary already shows the offer — fee struck through, "First session offer — ₹X off", and the discounted **Total** — before any account exists. This is the path the offer is *for*: a self-signup patient makes their account, their booking and their payment with one tap on this screen. Showing list price here and then opening Razorpay at the offer price is a P0 defect.
+
 #### `PAT-PAY-FREE-002` — A 100%-off code books without paying · P0
 **Steps.** Create a promo code at **100%** off. As a patient, apply it at step 3.
 **Expected Result.** Total reads **Free**, the lock line changes to *"Nothing to pay — your discount covers this session in full"*, and the button reads **Confirm booking — free**. Tapping it books the session with **no Razorpay screen at all**. The session appears in the patient's dashboard as confirmed or pending exactly like a paid one. Being charged ₹1 instead is a P0 defect — that was the old behaviour and it charges a figure nobody was quoted.
