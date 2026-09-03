@@ -33,14 +33,14 @@ export default function AdminAccessCard({ note }: { note: AdminAccessNote }) {
           means in sections. */}
       <dl className="space-y-2 text-[11px]">
         <div className="flex gap-2">
-          <dt className="w-16 shrink-0 font-semibold uppercase tracking-wide text-slate-400">
+          <dt className="w-20 shrink-0 font-semibold uppercase tracking-wide text-slate-400">
             You open
           </dt>
           <dd className="text-slate-700">{note.sections.join(" · ")}</dd>
         </div>
         {note.withheld.length > 0 && (
           <div className="flex gap-2">
-            <dt className="w-16 shrink-0 font-semibold uppercase tracking-wide text-slate-400">
+            <dt className="w-20 shrink-0 font-semibold uppercase tracking-wide text-slate-400">
               You don&apos;t
             </dt>
             <dd className="text-slate-500">{note.withheld.join(" · ")}</dd>
