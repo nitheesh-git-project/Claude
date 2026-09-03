@@ -374,6 +374,19 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 #### `ADM-PEOP-008` — Partners · P1
 Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **Update revenue share**, **Set active/inactive**, **Reset password**, **Referral capacity note**, and **Decline referral** (reason mandatory) all work and are audited.
 
+#### `ADM-REF-001` — Contacting a referred patient before the link goes out · P1
+
+**Steps.** Open **People → Partners → Patient Referrals** and read the card for the referral created in `HOS-REF-001`.
+**Expected Result.** Directly under the patient's name: their **phone number as a `tel:` link** and their **preferred language**, before the referring partner's name. That order is deliberate — an admin rings this patient to agree a time *before* the registration link is sent, so the number and the language they want to be spoken to in identify the referral rather than being detail about it. A referral taken before the phone field existed reads `No phone on file`; one with no language reads `Language not stated` — never a blank line.
+**Critical check:** the phone comes from its **own isolated query** (`patient_phone` is the newest column on `patient_referrals`), so a database missing that migration must lose the number on the card and nothing else — the capacity note beside it and the referral list itself must still render.
+
+#### `ADM-REF-002` — Assigning a referral uses the patient's own calendar · P0
+
+**Steps.** On a **Needs triage** referral, pick a therapist and open **Pick a time**.
+**Expected Result.** An inline compact month grid plus hour chips — **the same control and the same 12-hour lead-time rule as `/book` Step 1**, not a `datetime-local` box and not a pop-up. Today (and any hour inside the next 12) is **not clickable**; the picker opens on the earliest eligible slot with a time already chosen. Changing to a date that does not offer the chosen hour falls back to that day's earliest, never to a time the rule has just ruled out. The line under it reads `Earliest bookable time is 12 hours from now — the same rule the patient's own booking screen follows.`
+**Negatives:** `POST /api/admin/assign-referral` with a slot inside the window is refused with `The assigned slot must be at least 12 hours from now.` — the rule is re-checked server-side, not trusted from the browser. A card left open past the boundary is refused in the browser first with `That time is no longer far enough ahead. Pick a later slot.`
+**Unchanged:** therapist conflict detection, the home-visit travel buffer, the concurrent-assignment tiebreak and the registration link are all exactly as before.
+
 #### `ADM-PEOP-009` — Reset a password · P1
 **Steps.** Reset Patient A's password from the detail page.
 **Expected Result.** A new password is generated and shown **once**. **It is never written into the audit log's `details`** — the log is readable by every admin, so who reset what and when is the part with audit value. The patient can sign in with the new password and is prompted to change it.

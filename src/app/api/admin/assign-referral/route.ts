@@ -10,6 +10,7 @@ import {
 } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { BOOKING_LEAD_TIME_HOURS, BOOKING_LEAD_TIME_MS } from "@/lib/bookingSlots";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -25,9 +26,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (new Date(slotDateTime).getTime() <= Date.now()) {
+  // The same lead time the patient's own picker enforces, re-checked here
+  // rather than trusted from the browser. The admin's control offers only
+  // eligible slots, but a card left open while the boundary moved past the
+  // chosen time would otherwise commit the patient to a slot the platform
+  // refuses everywhere else. Compared as absolute instants, so the server's
+  // own timezone does not enter into it.
+  const slotMs = new Date(slotDateTime).getTime();
+  if (!Number.isFinite(slotMs)) {
+    return NextResponse.json({ error: "Invalid slot time" }, { status: 400 });
+  }
+  if (slotMs < Date.now() + BOOKING_LEAD_TIME_MS) {
     return NextResponse.json(
-      { error: "The assigned slot must be in the future" },
+      {
+        error: `The assigned slot must be at least ${BOOKING_LEAD_TIME_HOURS} hours from now.`,
+      },
       { status: 400 }
     );
   }

@@ -1108,7 +1108,13 @@ computed per completed, paid session (`src/lib/therapistEarnings.ts`,
 them (`therapist_payout_batches`) with downloadable receipts.
 
 **Hospital referrals.** Hospitals submit referrals from their dashboard or
-share an invite link / referral code. Referred patients carry
+share a registration link / referral code. A referral carries the patient's
+**phone number and preferred language**, both shown under their name on the
+admin's Patient Referrals list: the clinic rings the patient to agree a time
+*before* the registration link is sent, so the number is required on the
+hospital's form. Assigning the slot uses the same compact calendar and the
+same 12-hour lead-time rule as the patient's own `/book` picker, re-checked
+server-side. Referred patients carry
 `referred_by_hospital_id`, which drives the hospital's revenue share. The
 public `/hospitals` page also captures anonymous B2B leads into `b2b_leads`,
 which only the admin can read back.

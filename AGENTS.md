@@ -464,6 +464,21 @@ client is the only writer and the log is append-only from any session.
 
 - **Booking lead time** is 12 hours, defined once in `src/lib/bookingSlots.ts`
   and shared by the picker and the validator so they cannot drift apart.
+  **An admin screen that sets a session time reads that module too.**
+  `AssignReferralForm` used `<input type="datetime-local">` with a
+  five-minute floor, so an admin could promise a referred patient a slot the
+  platform's own rule refuses — two answers to "when can this be booked", in
+  the one flow where the person choosing is not the person who lives with
+  it. `AdminSlotPicker` (`src/components/admin/`) is the patient's control,
+  inline and compact: the same `BookingCalendar` in its `compact` mode (a
+  mode, never a second calendar — forking it is how the two grow different
+  ideas of which dates are bookable) plus hour chips from
+  `bookableHoursForDate`, and `/api/admin/assign-referral` re-checks the
+  lead time server-side rather than trusting the browser. It is deliberately
+  **not** a dialog: the slot is chosen against the referral it sits inside.
+  `EditBookingForm`'s free datetime field is left as it is on purpose —
+  moving a booking that already exists is the admin override lane, the same
+  reasoning that exempts an admin from `complete-session`'s two gates.
 - **Availability** = weekly template + per-date exceptions + leave flag, then
   a conflict check (`src/lib/therapistAvailability.ts`,
   `src/lib/checkTherapistConflict.ts`). It is the clinic's planning record —
@@ -1812,6 +1827,19 @@ client is the only writer and the log is append-only from any session.
   (expanded, collapsed rail, mobile drawer). It is a plain `<a>`, not
   `next/link`, for the reason the nav entries document: client-side
   transitions into a differently-chromed route were silently not completing.
+
+- **A referral carries a phone number, because the clinic rings before it
+  links.** `patient_referrals.patient_phone` is collected on the hospital's
+  own form (required, validated through `PhoneNumberField` /
+  `isValidStoredPhone` like every other number in the app) and rendered with
+  `preferred_language` directly under the patient's name on Admin → People →
+  Partners → Patient Referrals. A referral is the one flow where the clinic
+  must reach someone who has no account yet: the admin agrees a time with
+  them and only then sends the registration link. The column is nullable —
+  every referral already on file predates it — and is read in its **own
+  isolated query** on the admin dashboard, so a database without the
+  migration loses the number on the card rather than the capacity note
+  beside it or the referral list itself.
 
 - **A therapist chosen on `/team` is a request, not an assignment.**
   `/book?therapist=<id>` resolves the id against `public_therapist_profiles`

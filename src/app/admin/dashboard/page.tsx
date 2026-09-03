@@ -225,6 +225,7 @@ export default async function AdminDashboardPage({
     { data: b2bLeads },
     { data: referrals },
     { data: capacityNoteRows },
+    { data: referralPhoneRows },
     { data: allProfiles },
     { data: roleCodeRows },
     { data: treatmentCategories },
@@ -395,7 +396,7 @@ export default async function AdminDashboardPage({
     admin
       .from("patient_referrals")
       .select(
-        "id, hospital_id, patient_name, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at, visit_mode, pincode"
+        "id, hospital_id, patient_name, preferred_language, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at, visit_mode, pincode"
       )
       .order("created_at", { ascending: false }),
 
@@ -403,6 +404,12 @@ export default async function AdminDashboardPage({
     // reasoning as roleCodeRows/sessionCodeLinks elsewhere on this page) so a
     // missing migration only blanks this one note, not the whole referrals list.
     admin.from("patient_referrals").select("id, capacity_note"),
+
+    // patient_phone is newer still (end of schema.sql) and gets its own call
+    // for the same reason: an unknown-column error must cost the admin the
+    // phone number on the card, not the capacity note beside it and not the
+    // referral list itself.
+    admin.from("patient_referrals").select("id, patient_phone"),
 
     admin
       .from("profiles")
@@ -848,6 +855,9 @@ export default async function AdminDashboardPage({
   const nowForReferrals = nowTimestamp();
 
   const capacityNoteMap = new Map((capacityNoteRows ?? []).map((r) => [r.id, r.capacity_note]));
+  const referralPhoneMap = new Map(
+    (referralPhoneRows ?? []).map((r) => [r.id, r.patient_phone])
+  );
 
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
   const adminProfile = profileMap.get(user.id);
@@ -1419,6 +1429,7 @@ export default async function AdminDashboardPage({
                 (r.status === "invite_sent" || r.status === "converted") &&
                 !!r.assigned_slot_time &&
                 new Date(r.assigned_slot_time).getTime() < nowForReferrals;
+              const referralPhone = referralPhoneMap.get(r.id) ?? null;
               return {
                 id: r.id,
                 node: (
@@ -1427,6 +1438,36 @@ export default async function AdminDashboardPage({
                     <div>
                       <p className="font-bold text-slate-900">
                         {r.patient_name}
+                      </p>
+                      {/* Beside the name, not buried under the medical issue:
+                          an admin rings this patient to agree a time BEFORE
+                          the registration link goes out, so the number and
+                          the language they want to be spoken to in are part
+                          of identifying the referral, not detail about it.
+                          Referrals taken before the hospital form asked for a
+                          number say so rather than rendering an empty line. */}
+                      <p className="flex items-center gap-2 flex-wrap">
+                        {referralPhone ? (
+                          <a
+                            href={`tel:${referralPhone}`}
+                            className="font-semibold text-teal-700 hover:underline"
+                          >
+                            <i
+                              aria-hidden="true"
+                              className="fa-solid fa-phone text-[10px] mr-1"
+                            />
+                            {referralPhone}
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">No phone on file</span>
+                        )}
+                        <span className="text-slate-500">
+                          <i
+                            aria-hidden="true"
+                            className="fa-solid fa-language text-[10px] mr-1"
+                          />
+                          {r.preferred_language?.trim() || "Language not stated"}
+                        </span>
                       </p>
                       <p className="text-slate-500">
                         Referred by:{" "}

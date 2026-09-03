@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import PhoneNumberField from "@/components/PhoneNumberField";
+import { isValidStoredPhone } from "@/lib/phoneNumber";
 
 export default function SubmitReferralForm({
   hospitalId,
@@ -18,6 +20,15 @@ export default function SubmitReferralForm({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [visitMode, setVisitMode] = useState<"online" | "home_visit">("online");
+  // Not a FormData field like the rest: PhoneNumberField owns a country code
+  // and a national number and composes the stored E.164 string, so the value
+  // lives in state and is reset by hand below rather than by form.reset().
+  const [patientPhone, setPatientPhone] = useState("");
+  // PhoneNumberField seeds its country/national state from `value` on first
+  // render only (deliberately -- see its comment), so clearing the string
+  // after a submit does not clear what is on screen. Bumping this key
+  // remounts it, which is what actually empties the field.
+  const [phoneFieldKey, setPhoneFieldKey] = useState(0);
   const router = useRouter();
   const supabase = createClient();
 
@@ -34,10 +45,19 @@ export default function SubmitReferralForm({
       setError("Enter the patient's 6-digit pincode for a home visit referral.");
       return;
     }
+    // Required, because the clinic phones this patient before sending them a
+    // registration link -- a referral with no number means going back to the
+    // hospital to ask for one, which is the delay this field removes.
+    if (!isValidStoredPhone(patientPhone)) {
+      setLoading(false);
+      setError("Enter the patient's phone number so our team can reach them.");
+      return;
+    }
 
     const { error } = await supabase.from("patient_referrals").insert({
       hospital_id: hospitalId,
       patient_name: formData.get("patient_name") as string,
+      patient_phone: patientPhone,
       address: (formData.get("address") as string) || null,
       preferred_language: (formData.get("preferred_language") as string) || null,
       medical_issue: formData.get("medical_issue") as string,
@@ -53,6 +73,8 @@ export default function SubmitReferralForm({
     }
     setSuccess(true);
     setVisitMode("online");
+    setPatientPhone("");
+    setPhoneFieldKey((k) => k + 1);
     (e.target as HTMLFormElement).reset();
     router.refresh();
   }
@@ -78,6 +100,14 @@ export default function SubmitReferralForm({
           className="w-full p-2.5 rounded-lg border border-slate-300"
         />
       </div>
+      <PhoneNumberField
+        key={phoneFieldKey}
+        value={patientPhone}
+        onChange={setPatientPhone}
+        name="patient_phone"
+        label="Patient Phone Number"
+        required
+      />
       {homeVisitEnabled && (
         <div>
           <label className="block font-semibold mb-1">Session Type</label>

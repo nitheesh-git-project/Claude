@@ -2,15 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
-function minDateTimeLocal() {
-  const d = new Date(Date.now() + 5 * 60 * 1000);
-  d.setSeconds(0, 0);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
-}
+import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
+import { BOOKING_LEAD_TIME_MS } from "@/lib/bookingSlots";
 
 export default function AssignReferralForm({
   referralId,
@@ -20,7 +13,11 @@ export default function AssignReferralForm({
   therapists: { id: string; full_name: string }[];
 }) {
   const [therapistId, setTherapistId] = useState(therapists[0]?.id ?? "");
-  const [slotDateTime, setSlotDateTime] = useState("");
+  // One instant for the whole form, read once on mount: the picker offers
+  // dates against it and the check below validates against the same value,
+  // so the two cannot disagree about where the lead-time boundary falls.
+  const [nowMs] = useState(() => Date.now());
+  const [slot, setSlot] = useState(() => earliestSlot(Date.now()));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
@@ -28,9 +25,17 @@ export default function AssignReferralForm({
 
   async function handleAssign(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!therapistId || !slotDateTime) return;
-    if (new Date(slotDateTime).getTime() <= Date.now()) {
-      setError("Please pick a slot time in the future.");
+    const slotMs = slotToMs(slot.dateKey, slot.hour);
+    if (!therapistId || slotMs === null) {
+      setError("Pick a date and time for the session.");
+      return;
+    }
+    // The picker cannot offer a slot inside the lead time, so this only fires
+    // when a card has been left open long enough for the boundary to move
+    // past the chosen slot -- which is exactly when a silent submit would
+    // hand the patient a time the platform would refuse.
+    if (slotMs < nowMs + BOOKING_LEAD_TIME_MS) {
+      setError("That time is no longer far enough ahead. Pick a later slot.");
       return;
     }
     setLoading(true);
@@ -41,7 +46,7 @@ export default function AssignReferralForm({
       body: JSON.stringify({
         referralId,
         therapistId,
-        slotDateTime: new Date(slotDateTime).toISOString(),
+        slotDateTime: new Date(slotMs).toISOString(),
       }),
     });
     const data = await res.json();
@@ -91,34 +96,38 @@ export default function AssignReferralForm({
   }
 
   return (
-    <form onSubmit={handleAssign} className="flex items-center gap-2 flex-wrap">
-      <select
-        value={therapistId}
-        onChange={(e) => setTherapistId(e.target.value)}
-        className="text-xs p-2 rounded-lg border border-slate-300"
-      >
-        {therapists.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.full_name}
-          </option>
-        ))}
-      </select>
-      <input
-        type="datetime-local"
-        value={slotDateTime}
-        min={minDateTimeLocal()}
-        onChange={(e) => setSlotDateTime(e.target.value)}
-        required
-        className="text-xs p-2 rounded-lg border border-slate-300"
-      />
-      <button
-        type="submit"
+    <form onSubmit={handleAssign} className="w-full space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <select
+          value={therapistId}
+          onChange={(e) => setTherapistId(e.target.value)}
+          className="text-xs p-2 rounded-lg border border-slate-300"
+        >
+          {therapists.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.full_name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-semibold px-3 py-2 rounded-lg transition"
+        >
+          {loading ? "Assigning..." : "Assign & Create Registration Link"}
+        </button>
+        {error && <span className="text-[11px] text-red-600">{error}</span>}
+      </div>
+      {/* Inline rather than a dialog: the slot is being chosen for the
+          referral this form sits inside, and a pop-up would cover the
+          medical issue and the patient's number it is chosen against. */}
+      <AdminSlotPicker
+        dateKey={slot.dateKey}
+        hour={slot.hour}
+        onChange={setSlot}
+        nowMs={nowMs}
         disabled={loading}
-        className="bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-semibold px-3 py-2 rounded-lg transition"
-      >
-        {loading ? "Assigning..." : "Assign & Create Registration Link"}
-      </button>
-      {error && <span className="text-[11px] text-red-600">{error}</span>}
+      />
     </form>
   );
 }

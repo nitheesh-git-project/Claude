@@ -59,3 +59,15 @@ export const BOOKING_OPTION_CELL = "min-h-12 px-3 py-3 text-xs sm:text-sm";
 // there is no layout that yields a 44px-wide cell in a 7-column month grid
 // at that width -- so the extra height buys back touch area instead.
 export const BOOKING_DAY_CELL = "h-12 sm:h-12 w-full text-xs sm:text-sm";
+
+// Compact variants of the two sizes above, for the admin back office. The
+// patient's picker is sized for one decision on a phone, with 48px cells and
+// generous grids; an admin assigning a referral is on a desktop card
+// alongside a therapist dropdown and a button, and the full-size control
+// dominated the row it sat in. Same colours and same states -- only the
+// dimensions differ, so the two cannot drift into looking like different
+// controls.
+export const BOOKING_DAY_CELL_COMPACT = "h-8 w-full text-[11px]";
+export const BOOKING_OPTION_GRID_COMPACT =
+  "grid grid-cols-3 sm:grid-cols-4 gap-1.5 auto-rows-fr";
+export const BOOKING_OPTION_CELL_COMPACT = "min-h-8 px-2 py-1.5 text-[11px]";

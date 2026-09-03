@@ -66,14 +66,16 @@ A hospital is a **referral source**, never a clinical actor. It is **provisioned
 **Steps**
 1. Open `/hospital/dashboard/refer`.
 2. Tap **Patient Full Name**. Enter `QA Referred Patient C`.
-3. Under **Session Type**, select `Online`.
-4. Tap **Address**. Enter `8, 100 Feet Road, Indiranagar, Bengaluru`.
-5. Tap **Preferred Language**. Enter `English`.
-6. Tap **Medical Issue**. Enter `Right-sided weakness following a stroke six weeks ago`.
-7. Tap **Treatment Needed**. Enter `Gait and balance retraining, twice weekly`.
-8. Submit.
+3. Tap **Patient Phone Number**. Pick the country and enter `9876543210`.
+4. Under **Session Type**, select `Online`.
+5. Tap **Address**. Enter `8, 100 Feet Road, Indiranagar, Bengaluru`.
+6. Tap **Preferred Language**. Enter `English`.
+7. Tap **Medical Issue**. Enter `Right-sided weakness following a stroke six weeks ago`.
+8. Tap **Treatment Needed**. Enter `Gait and balance retraining, twice weekly`.
+9. Submit.
 
-**Expected Result.** A teal confirmation: *"Referral submitted — our team will review and reach out."* The form resets and the Session Type returns to `Online`. The referral appears under **Your Referrals** with status **Pending Review**. It appears in Admin → People → Partners and raises the badge. **The Pincode field is not required for an online referral.**
+**Expected Result.** A teal confirmation: *"Referral submitted — our team will review and reach out."* The form resets and the Session Type returns to `Online`. The referral appears under **Your Referrals** with status **Pending Review**. It appears in Admin → People → Partners and raises the badge. **The Pincode field is not required for an online referral.** The phone field clears with the rest of the form.
+**Negative:** submitting with the phone blank or malformed is refused with `Enter the patient's phone number so our team can reach them.` The number is required because the clinic **rings this patient before sending the registration link** — see `ADM-REF-001`.
 
 #### `HOS-REF-002` — A home-visit referral requires a pincode · P1
 

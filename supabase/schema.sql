@@ -8490,3 +8490,19 @@ revoke all on function public.set_treatment_category_order(uuid[]) from authenti
 -- that silently does nothing on tied orders is exactly the kind of thing a
 -- later change reaches for again.
 drop function if exists swap_treatment_category_order(uuid, uuid);
+
+-- ---------------------------------------------------------------------------
+-- A referred patient's phone number
+-- ---------------------------------------------------------------------------
+--
+-- A referral is the one flow where the clinic has to reach the patient
+-- *before* they have an account: an admin triages the referral, assigns a
+-- therapist and a slot, and then sends a registration link. Until now the
+-- referring hospital supplied a name, an address and a preferred language and
+-- no way to phone anybody -- so the admin either sent the link cold or went
+-- back to the hospital to ask for a number.
+--
+-- Nullable, because every referral already on file was written without it and
+-- a NOT NULL here would fail the migration. The hospital's own form requires
+-- it going forward; existing rows read as "not on file" on the admin card.
+alter table patient_referrals add column if not exists patient_phone text;

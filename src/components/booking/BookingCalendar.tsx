@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { BOOKING_DAY_CELL, bookingCellClass } from "@/lib/bookingCellStyles";
+import {
+  BOOKING_DAY_CELL,
+  BOOKING_DAY_CELL_COMPACT,
+  bookingCellClass,
+} from "@/lib/bookingCellStyles";
 import {
   WEEKDAY_HEADERS,
   buildCalendarMonth,
@@ -21,6 +25,7 @@ export default function BookingCalendar({
   nowMs,
   autoSelected,
   leadTimeMs,
+  compact = false,
 }: {
   selectedDateKey: string;
   onSelect: (dateKey: string) => void;
@@ -31,6 +36,12 @@ export default function BookingCalendar({
   // Home visits use a longer lead time than online sessions. Omitted by the
   // online wizard, which keeps the 12-hour default.
   leadTimeMs?: number;
+  // A mode, not a second calendar. The admin back office needs this control
+  // inline inside a referral card rather than as the main event of a booking
+  // step, and the patient-sized version filled that card on its own. Same
+  // component, same lead-time rule, smaller cells -- forking it would be how
+  // the two quietly grow different ideas of which dates are bookable.
+  compact?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   // Open on the selected date's month so the preselection is on screen
@@ -64,38 +75,51 @@ export default function BookingCalendar({
     // Tight padding on phones: a 7-column month grid only has ~55px of
     // viewport per column at 390px, so every px of chrome comes straight
     // out of the day cells' width.
-    <div className="rounded-2xl border border-slate-200 bg-white p-2 sm:p-4">
-      <div className="flex items-center justify-between mb-3">
+    <div
+      className={`rounded-2xl border border-slate-200 bg-white ${
+        compact ? "p-2" : "p-2 sm:p-4"
+      }`}
+    >
+      <div className={`flex items-center justify-between ${compact ? "mb-1.5" : "mb-3"}`}>
         <button
           type="button"
           onClick={() => shiftMonth(-1)}
           disabled={!canGoBack}
           aria-label="Previous month"
-          className="w-11 h-11 rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+          className={`${
+            compact ? "w-7 h-7 text-xs" : "w-11 h-11"
+          } rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600`}
         >
           <i className="fa-solid fa-chevron-left" aria-hidden="true"></i>
         </button>
         {/* aria-live so keyboard/screen-reader users hear the month change,
             which is otherwise a silent repaint of the grid below. */}
-        <span aria-live="polite" className="text-sm font-bold text-slate-900">
+        <span
+          aria-live="polite"
+          className={`font-bold text-slate-900 ${compact ? "text-xs" : "text-sm"}`}
+        >
           {calendar.label}
         </span>
         <button
           type="button"
           onClick={() => shiftMonth(1)}
           aria-label="Next month"
-          className="w-11 h-11 rounded-xl text-slate-600 hover:bg-slate-100 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+          className={`${
+            compact ? "w-7 h-7 text-xs" : "w-11 h-11"
+          } rounded-xl text-slate-600 hover:bg-slate-100 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600`}
         >
           <i className="fa-solid fa-chevron-right" aria-hidden="true"></i>
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-1">
+      <div className={`grid grid-cols-7 mb-1 ${compact ? "gap-1" : "gap-1.5 sm:gap-2"}`}>
         {WEEKDAY_HEADERS.map((day) => (
           <div
             key={day}
             aria-hidden="true"
-            className="text-center text-[10px] font-bold uppercase tracking-wide text-slate-400 py-1"
+            className={`text-center font-bold uppercase tracking-wide text-slate-400 ${
+              compact ? "text-[9px]" : "text-[10px] py-1"
+            }`}
           >
             {day}
           </div>
@@ -106,7 +130,11 @@ export default function BookingCalendar({
           is ever selected, so a 6px gap on phones is enough for the ring to
           sit in clear space without stealing width from the cells; desktop
           has room for a full 8px. */}
-      <div role="grid" aria-label="Choose a date" className="grid grid-cols-7 gap-1.5 sm:gap-2">
+      <div
+        role="grid"
+        aria-label="Choose a date"
+        className={`grid grid-cols-7 ${compact ? "gap-1" : "gap-1.5 sm:gap-2"}`}
+      >
         {calendar.cells.map((cell, index) => {
           if (!cell) return <div key={`pad-${index}`} aria-hidden="true" />;
 
@@ -130,7 +158,7 @@ export default function BookingCalendar({
               className={`relative ${bookingCellClass({
                 selected,
                 disabled: !cell.bookable,
-              })} ${BOOKING_DAY_CELL}`}
+              })} ${compact ? BOOKING_DAY_CELL_COMPACT : BOOKING_DAY_CELL}`}
               initial={showCue ? { scale: 0.85 } : false}
               animate={showCue ? { scale: 1 } : undefined}
               whileTap={cell.bookable && !reduceMotion ? { scale: 0.94 } : undefined}
