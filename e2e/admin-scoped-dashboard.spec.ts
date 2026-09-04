@@ -53,9 +53,14 @@ async function quickActionSections(page: Page): Promise<string[]> {
   return hrefs.map(sectionOf).filter((s): s is string => s !== null);
 }
 
+// What each scope's sidebar offers. Finance carries Sessions at `view`:
+// they open it and read it, and every mutating control is absent while the
+// routes refuse them regardless -- so it belongs in this list (the sidebar
+// does show it) even though S-004 below proves they cannot change anything
+// in it.
 const SECTIONS_BY_SCOPE: Record<string, string[]> = {
   operations: ["today", "sessions", "people", "catalog"],
-  finance: ["today", "people", "money"],
+  finance: ["today", "sessions", "people", "money"],
   clinical: ["today", "sessions", "people"],
 };
 
@@ -254,6 +259,60 @@ test.describe("Suite S: scoped admin dashboards", () => {
     } finally {
       await context.close();
       await admin.from("profiles").update({ admin_scope: "full" }).eq("id", adminId);
+    }
+  });
+
+  test("S-007: finance reads Sessions and cannot change one", async ({ browser }) => {
+    // The one grant that is neither all nor nothing. Two halves have to hold
+    // together: the screen opens (or the level is a lie), and every route
+    // under it refuses (or the level is decoration that a forgotten button
+    // could undo). requireAdminScope asks for `manage`, which is what makes
+    // the second half true at every route rather than only the ones a screen
+    // remembered to gate.
+    test.setTimeout(120_000);
+    const admin = adminClient();
+    const adminId = await profileIdFor(admin, QA_EMAILS.admin);
+    const context = await browser.newContext();
+
+    try {
+      await admin.from("profiles").update({ admin_scope: "finance" }).eq("id", adminId);
+      await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+      const page = await context.newPage();
+      await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all`);
+
+      // It opens and stays open: a section this scope could not reach would
+      // fall back to Today rather than render.
+      await expect(onScreen(page, "All Sessions").first()).toBeVisible({ timeout: 60_000 });
+
+      // The screens that are nothing but actions are not offered at all --
+      // hiding every control on those leaves a heading over an empty page.
+      const hrefs = await page
+        .locator('[href*="section=sessions"]')
+        .evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""));
+      for (const href of hrefs) {
+        expect(href, "finance was offered an action-only Sessions screen").not.toContain("tab=new");
+        expect(href, "finance was offered an action-only Sessions screen").not.toContain(
+          "tab=recommendations"
+        );
+      }
+
+      // And the routes refuse regardless of what any screen shows.
+      const cookie = await cookieHeaderFor(QA_EMAILS.admin);
+      for (const route of [
+        "/api/admin/assign-appointment",
+        "/api/admin/update-appointment",
+        "/api/admin/create-booking",
+      ]) {
+        const res = await fetch(`${BASE}${route}`, {
+          method: "POST",
+          headers: { Cookie: cookie, "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        expect(res.status, `${route} let a view-only finance admin through`).toBe(403);
+      }
+    } finally {
+      await admin.from("profiles").update({ admin_scope: "full" }).eq("id", adminId);
+      await context.close();
     }
   });
 
