@@ -94,6 +94,8 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `brand` | Brand & Contact | `ADM-SET-001` |
 | Settings | `public` | Public Site | `ADM-SET-004` |
 | Settings | `booking` | Booking Rules | `ADM-SET-010` |
+| Settings | `offers` | Offers & Discounts | `ADM-SET-016` |
+| Settings | `programmes` | Programmes & Home Visits | `ADM-SET-018` |
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
 | Settings | `team` | Team & Access | `ADM-SET-025` |
 | Settings | `health` | System Health | `ADM-SET-030` |

@@ -410,8 +410,8 @@ client is the only writer and the log is append-only from any session.
      change any history.
 
   **Which number the app believes is a switch, not a deploy.**
-  `site_settings.entitlement_ledger_authoritative` (Settings → Booking
-  Rules, off by default) decides whether a balance shown and offered comes
+  `site_settings.entitlement_ledger_authoritative` (Settings → Programmes
+  & Home Visits, off by default) decides whether a balance shown and offered comes
   from the ledger or from `sessions_used` / `visits_used`. Flipping it is
   reversible in a second, because both are still written either way.
 
@@ -916,8 +916,8 @@ client is the only writer and the log is append-only from any session.
   where something the patient sends is involved — which is why each of them
   sends a **name**, never a figure.
   1. **The first-session offer** is standing configuration
-     (`first_session_offer_enabled` / `_type` / `_value`, Settings → Booking
-     Rules, off by default). Eligibility is `has this patient ever paid for
+     (`first_session_offer_enabled` / `_type` / `_value`, Settings → Offers
+     & Discounts, off by default). Eligibility is `has this patient ever paid for
      a session`, asked of the database in `/api/razorpay/create-order` —
      so it cannot be claimed twice, asked for, or sent from a browser, and a
      patient is only new once. It fails **closed**: an unreadable answer
@@ -1638,6 +1638,30 @@ client is the only writer and the log is append-only from any session.
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
   runs.
+- **A settings screen says what it is and gives an example.** `AdminTabDef`
+  carries an optional `blurb` and `example`, and `AdminShell` prints them
+  under the page heading in place of the section's own line. Every Settings
+  screen has both, because a section blurb cannot do this job: eight screens
+  all sat under "How the product behaves", so the header explained nothing
+  on the section people open least often and therefore remember least well,
+  and a label alone ("Brand & Contact", "System Health") names a category
+  rather than an action. The blurb is what the screen is, in a clinic
+  owner's words -- no jargon, no column names, no feature names; if a
+  sentence needs one, the screen is doing too many things and wants
+  splitting. The example is one concrete thing you would come here to do,
+  which is the half that makes an unfamiliar screen usable.
+  **Booking Rules was that "too many things" case**, and splitting it is
+  what the field was added alongside. It had grown six unrelated stacks with
+  no heading between them -- when a single session may be booked, cancelled
+  and joined; the two acquisition discounts; the recommendation rules; the
+  programme rules; the nine home-visit settings -- so an owner opening it to
+  change a refund window scrolled past the discount that decides what every
+  new patient pays. It is three screens now: **Booking Rules** (one video
+  session), **Offers & Discounts** (money off, to win a patient), and
+  **Programmes & Home Visits** (more than one appointment, arranged in
+  advance). Offers carries a note saying where promo codes and goodwill
+  live, because "where did the promo screen go" is the question a split
+  otherwise creates.
 - **A count links to the rows it counted, never to the whole table.** A
   Today figure or queue row that opened an unfiltered list made the reader
   redo the filtering by hand and, worse, made the number look wrong.
@@ -2243,7 +2267,8 @@ client is the only writer and the log is append-only from any session.
   booking languages, the online booking lead time and cancellation refund
   window, the package-wide settings — default
   validity, therapist-lock switch, bulk-scheduler limit, expiry reminder
-  window — the three recommendation settings on Settings → Booking Rules —
+  window — the three recommendation settings on Settings → Programmes &
+  Home Visits —
   whether the clinic approves one before the patient sees it
   (`care_plan_requires_approval`, on by default), how long an approved one
   holds, and the ceiling on sessions a week a clinician may ask for — the nine `home_visit_*` settings — master switch, cash on/off,
@@ -2260,7 +2285,7 @@ client is the only writer and the log is append-only from any session.
   Access, and `risk_signals_enabled` with the per-detector thresholds in
   `risk_rules`, on Today → Risk — and `enabled_intake_specialties`, which
   condition types triage offers — and the four invite settings on Settings →
-  Booking Rules (on/off, what the friend gets, what the inviter gets, and the
+  Offers & Discounts (on/off, what the friend gets, what the inviter gets, and the
   ceiling on rewards one patient may earn) plus `promo_codes_enabled`, whose
   switch sits on Money → Costs beside the campaigns it governs rather than in
   Settings, because an admin who has just written a code and cannot see why

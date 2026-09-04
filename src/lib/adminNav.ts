@@ -19,7 +19,28 @@ export type AdminSectionKey =
   | "catalog"
   | "settings";
 
-export type AdminTabDef = { key: string; label: string };
+export type AdminTabDef = {
+  key: string;
+  label: string;
+  /**
+   * What this screen does, in the words a clinic owner would use. Rendered
+   * under the page heading, in place of the section's own line.
+   *
+   * A section blurb cannot do this job: eight Settings screens all sat under
+   * "How the product behaves", so the header told an admin nothing about the
+   * screen they had just opened, and the labels alone ("Brand & Contact",
+   * "System Health") name a category rather than an action. No jargon, no
+   * column names, no feature names -- if the sentence needs one, the screen
+   * is doing too many things and wants splitting.
+   */
+  blurb?: string;
+  /**
+   * One concrete thing you would come to this screen to do. The blurb says
+   * what the screen is; this says why you are on it, which is the half that
+   * makes an unfamiliar screen usable.
+   */
+  example?: string;
+};
 
 export type AdminSectionDef = {
   key: AdminSectionKey;
@@ -116,15 +137,75 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     label: "Settings",
     icon: "fa-sliders",
     blurb: "How the product behaves.",
+    // Every screen here says what it is and gives one example, because a
+    // settings list is the part of a back office people open least often and
+    // therefore remember least well. Two of them are also new: "Booking
+    // Rules" had grown into six unrelated stacks -- when a patient may book,
+    // what money comes off, how a programme works, how a home visit works --
+    // with no heading between them, so the one screen an owner opened to
+    // change a refund window also held the discount that decides revenue.
     tabs: [
-      { key: "brand", label: "Brand & Contact" },
-      { key: "public", label: "Public Site" },
-      { key: "booking", label: "Booking Rules" },
-      { key: "clinical", label: "Clinical Questions" },
-      { key: "team", label: "Team & Access" },
-      { key: "health", label: "System Health" },
-      { key: "activity", label: "Activity Log" },
-      { key: "security", label: "Account Security" },
+      {
+        key: "brand",
+        label: "Brand & Contact",
+        blurb: "Your clinic's name and the contact details patients see.",
+        example: "Change the WhatsApp number shown in the website footer.",
+      },
+      {
+        key: "public",
+        label: "Public Site",
+        blurb: "What visitors read on your website.",
+        example: "Add a patient's story to the home page, or answer a new question on the FAQ page.",
+      },
+      {
+        key: "booking",
+        label: "Booking Rules",
+        blurb: "When a patient may book, cancel, and join a video session.",
+        example: "Stop patients booking a slot that is less than 12 hours away.",
+      },
+      {
+        key: "offers",
+        label: "Offers & Discounts",
+        blurb: "Money off, to bring new patients in.",
+        example: "Give every new patient \u20b9200 off their first session.",
+      },
+      {
+        key: "programmes",
+        label: "Programmes & Home Visits",
+        blurb:
+          "Rules for a course of sessions a therapist recommends, and for visits to a patient's home.",
+        example: "Make a therapist's recommendation wait for your approval before the patient sees it.",
+      },
+      {
+        key: "clinical",
+        label: "Clinical Questions",
+        blurb: "The questions a patient answers about their condition, and the ones a therapist fills in after an exam.",
+        example: "Reword the question that asks how long the pain has lasted.",
+      },
+      {
+        key: "team",
+        label: "Team & Access",
+        blurb: "Who works in the back office, what each of them can open, and how much of a patient's phone number a therapist is shown.",
+        example: "Add a new Operations admin who can see sessions but not money.",
+      },
+      {
+        key: "health",
+        label: "System Health",
+        blurb: "Warnings when something behind the scenes has failed. Nothing here is set by you \u2014 it is the app reporting on itself.",
+        example: "Find a booked session whose Google Meet link was never created, and try again.",
+      },
+      {
+        key: "activity",
+        label: "Activity Log",
+        blurb: "Every change an admin has made, newest first.",
+        example: "Check who refunded a session last Tuesday, and what reason they gave.",
+      },
+      {
+        key: "security",
+        label: "Account Security",
+        blurb: "Your own login. Nothing here affects patients or the website.",
+        example: "Send yourself a password reset email.",
+      },
     ],
   },
 ];

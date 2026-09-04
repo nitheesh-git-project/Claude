@@ -65,9 +65,29 @@ Every setting below is read through one shared settings module with defaults. **
 
 ---
 
-### 15.3 Settings → Booking Rules
+### 15.3 Settings → Booking Rules, Offers & Discounts, Programmes & Home Visits
 
-This tab holds three groups: **Platform Rules**, **Package settings**, and **Home Visit settings**. They were on three different tabs before, which is how the online lead time ended up hardcoded while its home-visit twin was already a setting.
+**These were one tab and are now three.** "Booking Rules" had grown six unrelated stacks with no heading between them, so an admin opening it to change a refund window scrolled past the discount that decides what every new patient pays. What lives where now:
+
+| Screen | What it covers |
+| --- | --- |
+| **Booking Rules** | One video session, start to finish: when it may be booked, when it may be cancelled with a refund, when the Join button works, and the Google Meet / Calendar switches. Plus the two platform-wide odds and ends (idle timeout, sign-out message). |
+| **Offers & Discounts** | Money off, to win a patient: the first-session offer and patient invites. A note on the screen points at Money → Costs for promo codes and at the session itself for a goodwill discount. |
+| **Programmes & Home Visits** | More than one appointment, arranged in advance: the recommendation settings, the package settings, and the nine home-visit settings. |
+
+**Every Settings screen also states what it is and gives one example**, under its heading — check that line renders and matches the screen you are on. The cases below keep their original IDs; the **Where** line on each says which of the three screens it is now on.
+
+Where a case below still says "Settings → Booking Rules", that is correct — it did not move.
+
+#### `ADM-SET-009` — Every Settings screen says what it is · P2
+
+**Steps.** Open each of the ten Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, Team & Access, System Health, Activity Log, Account Security.
+
+**Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen — none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
+
+**Spot checks.** Offers & Discounts ends with a **"Looking for promo codes?"** note pointing at **Money → Costs**, and saying a goodwill discount is applied to a session rather than set up here. Booking Rules holds **only** the single-session rules and the Google Meet block — no discount, no package and no home-visit settings on it any more.
+
+**Critical check:** these are the same ten screens the sidebar lists and the same ten `?tab=` values. A screen reachable from the sidebar with no sentence under its heading, or a sentence on a screen that is not in the sidebar, means `adminNav.ts` and the shell have drifted.
 
 #### `ADM-SET-010` — Online Booking Lead Time → the booking wizard · P0
 
@@ -148,7 +168,7 @@ This tab holds three groups: **Platform Rules**, **Package settings**, and **Hom
 
 #### `ADM-SET-022` — Recommendation settings · P0
 
-At **Settings → Booking Rules**, above the package settings.
+At **Settings → Programmes & Home Visits**, above the package settings.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
@@ -160,7 +180,7 @@ Note there is no longer a **Show programme prices publicly** switch. Programmes 
 
 #### `ADM-SET-023` — First session offer · P0
 
-At **Settings → Booking Rules**, above the recommendation settings.
+At **Settings → Offers & Discounts**, above Patient invites.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
@@ -335,18 +355,18 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 8 | Package price | Catalog → Packages | The patient's offer card and what is charged | Card and charge both move — **for new plans only** | `PAT-CARE-002` |
 | 9 | Package edited after purchase | Catalog → Packages | An existing purchase | **Nothing changes** — snapshot frozen | `ADM-CAT-006` |
 | 10 | Package min gap / max per week | Catalog → Packages | The bulk scheduler | Violating slots are refused | `ADM-CAT-007` |
-| 11 | Package default validity | Settings → Booking Rules | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
-| 12 | Bulk scheduler limit | Settings → Booking Rules | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
-| 13 | Therapist lock switch | Settings → Booking Rules | Auto-assignment of later package sessions | Off → later sessions are not auto-assigned | `ADM-SET-018` |
-| 14 | Therapist suggestions switch | Settings → Booking Rules | The suggest control and its route | Off → control absent, route 403 | `THR-SUGG-001` |
-| 15 | Ledger authority | Settings → Booking Rules | Six balance surfaces | All six follow together | `ADM-SET-019` |
+| 11 | Package default validity | Settings → Programmes & Home Visits | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
+| 12 | Bulk scheduler limit | Settings → Programmes & Home Visits | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
+| 13 | Therapist lock switch | Settings → Programmes & Home Visits | Auto-assignment of later package sessions | Off → later sessions are not auto-assigned | `ADM-SET-018` |
+| 14 | Therapist suggestions switch | Settings → Programmes & Home Visits | The suggest control and its route | Off → control absent, route 403 | `THR-SUGG-001` |
+| 15 | Ledger authority | Settings → Programmes & Home Visits | Six balance surfaces | All six follow together | `ADM-SET-019` |
 | 16 | Service area created/deleted | Catalog → Service Areas | `/book-home-visit` check; every purchase route | Serviceable ↔ waitlist | `ADM-CAT-010` |
 | 17 | Travel fee per area | Catalog → Service Areas | The quoted total and the therapist's payout | Total = programme + fee × visits | `PAT-CARE-003` |
-| 18 | Home visit master switch | Settings → Booking Rules | Seven surfaces + care-plan purchase | 404 / entries dropped / purchase refused | `ADM-SET-013` |
-| 19 | Cash on visit | Settings → Booking Rules | Step 4 option; `book-cash` | Option absent; route refuses | `PAT-HV-007` |
-| 20 | Home visit lead time | Settings → Booking Rules | The home-visit picker only | Online picker unchanged | `ADM-SET-014` |
-| 21 | Travel buffer minutes | Settings → Booking Rules | The locked therapist's conflict check | Padded both sides for visits, 0 for online | `ADM-SET-014` |
-| 22 | Home visit refund window | Settings → Booking Rules | The home-visit cancel dialog only | Online dialog unchanged | `PAT-CANCEL-003` |
+| 18 | Home visit master switch | Settings → Programmes & Home Visits | Seven surfaces + care-plan purchase | 404 / entries dropped / purchase refused | `ADM-SET-013` |
+| 19 | Cash on visit | Settings → Programmes & Home Visits | Step 4 option; `book-cash` | Option absent; route refuses | `PAT-HV-007` |
+| 20 | Home visit lead time | Settings → Programmes & Home Visits | The home-visit picker only | Online picker unchanged | `ADM-SET-014` |
+| 21 | Travel buffer minutes | Settings → Programmes & Home Visits | The locked therapist's conflict check | Padded both sides for visits, 0 for online | `ADM-SET-014` |
+| 22 | Home visit refund window | Settings → Programmes & Home Visits | The home-visit cancel dialog only | Online dialog unchanged | `PAT-CANCEL-003` |
 | 23 | Join window before/after | Settings → Booking Rules | Every join control | Goes live earlier/later everywhere | `ADM-SET-017` |
 | 24 | Session Completed cutoff | Settings → Booking Rules | Every join control on every role | All three read **Session Completed** together | `XR-CUTOFF-001` |
 | 25 | Google Meet toggle | Settings → Booking Rules | New online sessions' Meet link | No link; **home visit still gets an event** | `ADM-SET-017` |

@@ -516,7 +516,29 @@ export default function AdminShell({
                     );
                   })()}
               </h1>
-              <p className="text-xs text-slate-500 mt-1">{activeSection.blurb}</p>
+              {/* The screen's own sentence when it has one, the section's
+                  otherwise. Eight Settings screens sharing "How the product
+                  behaves" meant the header explained nothing on the one
+                  section people open least often and remember least well;
+                  the example is the half that says why you are here rather
+                  than what the screen is called. */}
+              {(() => {
+                const activeTab = activeSection.tabs.find((t) => t.key === tabKey);
+                if (!activeTab?.blurb) {
+                  return <p className="text-xs text-slate-500 mt-1">{activeSection.blurb}</p>;
+                }
+                return (
+                  <div className="mt-1 max-w-2xl">
+                    <p className="text-xs text-slate-600">{activeTab.blurb}</p>
+                    {activeTab.example && (
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        <span className="font-semibold text-slate-500">For example:</span>{" "}
+                        {activeTab.example}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             <AdminGlobalSearch entities={searchEntities} />
           </div>

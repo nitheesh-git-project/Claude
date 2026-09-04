@@ -305,7 +305,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 
 #### `PAT-HV-001` — The public home-visit page appears only when enabled · P1
 
-**Steps.** With the master switch **off**, open `/home-visit`. Then switch it on in Settings → Booking Rules → Home Visit and reload.
+**Steps.** With the master switch **off**, open `/home-visit`. Then switch it on in Settings → Programmes & Home Visits → Home Visit and reload.
 **Expected Result.** Off: a **404** page, and the **Home visit** entry is absent from the header nav, the footer Explore column, the home page connector grid and every "Where to go next" strip. On: the page renders with the admin-configured heading and subheading, and the entry reappears everywhere.
 
 #### `PAT-HV-002` — Serviceable pincode → address → book and pay · P0

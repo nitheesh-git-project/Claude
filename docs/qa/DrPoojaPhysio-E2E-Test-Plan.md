@@ -174,6 +174,8 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `brand` | Brand & Contact | `ADM-SET-001` |
 | Settings | `public` | Public Site | `ADM-SET-004` |
 | Settings | `booking` | Booking Rules | `ADM-SET-010` |
+| Settings | `offers` | Offers & Discounts | `ADM-SET-016` |
+| Settings | `programmes` | Programmes & Home Visits | `ADM-SET-018` |
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
 | Settings | `team` | Team & Access | `ADM-SET-025` |
 | Settings | `health` | System Health | `ADM-SET-030` |
@@ -1406,7 +1408,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 
 #### `PAT-HV-001` — The public home-visit page appears only when enabled · P1
 
-**Steps.** With the master switch **off**, open `/home-visit`. Then switch it on in Settings → Booking Rules → Home Visit and reload.
+**Steps.** With the master switch **off**, open `/home-visit`. Then switch it on in Settings → Programmes & Home Visits → Home Visit and reload.
 **Expected Result.** Off: a **404** page, and the **Home visit** entry is absent from the header nav, the footer Explore column, the home page connector grid and every "Where to go next" strip. On: the page renders with the admin-configured heading and subheading, and the entry reappears everywhere.
 
 #### `PAT-HV-002` — Serviceable pincode → address → book and pay · P0
@@ -2009,7 +2011,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 #### `THR-SUGG-001` — Suggest a session · P0
 
-**Preconditions.** `therapist_suggestions_enabled` is **on** (it is on by default now; confirm in Settings → Booking Rules). A programme locked to this therapist with credits remaining.
+**Preconditions.** `therapist_suggestions_enabled` is **on** (it is on by default now; confirm in Settings → Programmes & Home Visits). A programme locked to this therapist with credits remaining.
 
 **Steps**
 1. On the programme's card, tap the suggest control.
@@ -2512,7 +2514,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Expected Result.** The booking records the full price as list price, the whole of it as the discount, and `promo_code` as the source — so **What discounting cost** includes it. Amount paid is **₹0** and there is no payment/transaction row, because no money moved. A free session that recorded nothing would make the giveaway invisible, which is the figure that decides whether the campaign continues.
 
 #### `ADM-INVITE-001` — Invites: the two halves · P1
-**Steps.** As a **Full** admin, open **Settings → Booking Rules → Patient invites**. Switch on, set the friend's welcome to ₹300 and the reward to ₹200, and save. Open a patient's dashboard.
+**Steps.** As a **Full** admin, open **Settings → Offers & Discounts → Patient invites**. Switch on, set the friend's welcome to ₹300 and the reward to ₹200, and save. Open a patient's dashboard.
 **Expected Result.** The panel previews the exact sentence the patient will read, and it says the reward arrives **once their friend has had a session** — not on a signup. The patient's dashboard shows their own code, formatted in two halves, with a copy button.
 
 #### `ADM-INVITE-002` — What an invite refuses · P0
@@ -2536,7 +2538,7 @@ The first band **renders even when empty**, saying so. A section that disappears
 
 **Feature.** A therapist's recommendation is a bill as well as a clinical note, and the clinic that carries it sees one before the patient is asked to pay it.
 
-**Preconditions.** `care_plan_requires_approval` is **on** (default, at Settings → Booking Rules). `THR-CARE-001` has been submitted.
+**Preconditions.** `care_plan_requires_approval` is **on** (default, at Settings → Programmes & Home Visits). `THR-CARE-001` has been submitted.
 
 **Steps**
 1. Open **Today → Overview** and read the Clinical group of the action inbox.
@@ -2582,7 +2584,7 @@ The first band **renders even when empty**, saying so. A section that disappears
 * The programmes offered in the change panel are **narrowed to that session's own condition**, exactly as on the therapist's own dialog.
 
 #### `ADM-CARE-007` — The switch · P1
-**Steps.** At **Settings → Booking Rules**, turn **Approve recommendations before the patient sees them** off. Have a therapist submit a recommendation.
+**Steps.** At **Settings → Programmes & Home Visits**, turn **Approve recommendations before the patient sees them** off. Have a therapist submit a recommendation.
 **Expected Result.** It publishes on save and the patient sees it immediately, exactly as before the review step existed. The therapist's panel copy changes to match. Turn it back on afterwards — the rest of the suite assumes the default.
 The setting **fails closed**: with the column unreadable, a submission is held rather than published. That is the opposite direction from `contact_scan_mode`, and deliberately so.
 
@@ -2808,9 +2810,29 @@ Every setting below is read through one shared settings module with defaults. **
 
 ---
 
-### 15.3 Settings → Booking Rules
+### 15.3 Settings → Booking Rules, Offers & Discounts, Programmes & Home Visits
 
-This tab holds three groups: **Platform Rules**, **Package settings**, and **Home Visit settings**. They were on three different tabs before, which is how the online lead time ended up hardcoded while its home-visit twin was already a setting.
+**These were one tab and are now three.** "Booking Rules" had grown six unrelated stacks with no heading between them, so an admin opening it to change a refund window scrolled past the discount that decides what every new patient pays. What lives where now:
+
+| Screen | What it covers |
+| --- | --- |
+| **Booking Rules** | One video session, start to finish: when it may be booked, when it may be cancelled with a refund, when the Join button works, and the Google Meet / Calendar switches. Plus the two platform-wide odds and ends (idle timeout, sign-out message). |
+| **Offers & Discounts** | Money off, to win a patient: the first-session offer and patient invites. A note on the screen points at Money → Costs for promo codes and at the session itself for a goodwill discount. |
+| **Programmes & Home Visits** | More than one appointment, arranged in advance: the recommendation settings, the package settings, and the nine home-visit settings. |
+
+**Every Settings screen also states what it is and gives one example**, under its heading — check that line renders and matches the screen you are on. The cases below keep their original IDs; the **Where** line on each says which of the three screens it is now on.
+
+Where a case below still says "Settings → Booking Rules", that is correct — it did not move.
+
+#### `ADM-SET-009` — Every Settings screen says what it is · P2
+
+**Steps.** Open each of the ten Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, Team & Access, System Health, Activity Log, Account Security.
+
+**Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen — none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
+
+**Spot checks.** Offers & Discounts ends with a **"Looking for promo codes?"** note pointing at **Money → Costs**, and saying a goodwill discount is applied to a session rather than set up here. Booking Rules holds **only** the single-session rules and the Google Meet block — no discount, no package and no home-visit settings on it any more.
+
+**Critical check:** these are the same ten screens the sidebar lists and the same ten `?tab=` values. A screen reachable from the sidebar with no sentence under its heading, or a sentence on a screen that is not in the sidebar, means `adminNav.ts` and the shell have drifted.
 
 #### `ADM-SET-010` — Online Booking Lead Time → the booking wizard · P0
 
@@ -2891,7 +2913,7 @@ This tab holds three groups: **Platform Rules**, **Package settings**, and **Hom
 
 #### `ADM-SET-022` — Recommendation settings · P0
 
-At **Settings → Booking Rules**, above the package settings.
+At **Settings → Programmes & Home Visits**, above the package settings.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
@@ -2903,7 +2925,7 @@ Note there is no longer a **Show programme prices publicly** switch. Programmes 
 
 #### `ADM-SET-023` — First session offer · P0
 
-At **Settings → Booking Rules**, above the recommendation settings.
+At **Settings → Offers & Discounts**, above Patient invites.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
@@ -3078,18 +3100,18 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 8 | Package price | Catalog → Packages | The patient's offer card and what is charged | Card and charge both move — **for new plans only** | `PAT-CARE-002` |
 | 9 | Package edited after purchase | Catalog → Packages | An existing purchase | **Nothing changes** — snapshot frozen | `ADM-CAT-006` |
 | 10 | Package min gap / max per week | Catalog → Packages | The bulk scheduler | Violating slots are refused | `ADM-CAT-007` |
-| 11 | Package default validity | Settings → Booking Rules | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
-| 12 | Bulk scheduler limit | Settings → Booking Rules | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
-| 13 | Therapist lock switch | Settings → Booking Rules | Auto-assignment of later package sessions | Off → later sessions are not auto-assigned | `ADM-SET-018` |
-| 14 | Therapist suggestions switch | Settings → Booking Rules | The suggest control and its route | Off → control absent, route 403 | `THR-SUGG-001` |
-| 15 | Ledger authority | Settings → Booking Rules | Six balance surfaces | All six follow together | `ADM-SET-019` |
+| 11 | Package default validity | Settings → Programmes & Home Visits | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
+| 12 | Bulk scheduler limit | Settings → Programmes & Home Visits | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
+| 13 | Therapist lock switch | Settings → Programmes & Home Visits | Auto-assignment of later package sessions | Off → later sessions are not auto-assigned | `ADM-SET-018` |
+| 14 | Therapist suggestions switch | Settings → Programmes & Home Visits | The suggest control and its route | Off → control absent, route 403 | `THR-SUGG-001` |
+| 15 | Ledger authority | Settings → Programmes & Home Visits | Six balance surfaces | All six follow together | `ADM-SET-019` |
 | 16 | Service area created/deleted | Catalog → Service Areas | `/book-home-visit` check; every purchase route | Serviceable ↔ waitlist | `ADM-CAT-010` |
 | 17 | Travel fee per area | Catalog → Service Areas | The quoted total and the therapist's payout | Total = programme + fee × visits | `PAT-CARE-003` |
-| 18 | Home visit master switch | Settings → Booking Rules | Seven surfaces + care-plan purchase | 404 / entries dropped / purchase refused | `ADM-SET-013` |
-| 19 | Cash on visit | Settings → Booking Rules | Step 4 option; `book-cash` | Option absent; route refuses | `PAT-HV-007` |
-| 20 | Home visit lead time | Settings → Booking Rules | The home-visit picker only | Online picker unchanged | `ADM-SET-014` |
-| 21 | Travel buffer minutes | Settings → Booking Rules | The locked therapist's conflict check | Padded both sides for visits, 0 for online | `ADM-SET-014` |
-| 22 | Home visit refund window | Settings → Booking Rules | The home-visit cancel dialog only | Online dialog unchanged | `PAT-CANCEL-003` |
+| 18 | Home visit master switch | Settings → Programmes & Home Visits | Seven surfaces + care-plan purchase | 404 / entries dropped / purchase refused | `ADM-SET-013` |
+| 19 | Cash on visit | Settings → Programmes & Home Visits | Step 4 option; `book-cash` | Option absent; route refuses | `PAT-HV-007` |
+| 20 | Home visit lead time | Settings → Programmes & Home Visits | The home-visit picker only | Online picker unchanged | `ADM-SET-014` |
+| 21 | Travel buffer minutes | Settings → Programmes & Home Visits | The locked therapist's conflict check | Padded both sides for visits, 0 for online | `ADM-SET-014` |
+| 22 | Home visit refund window | Settings → Programmes & Home Visits | The home-visit cancel dialog only | Online dialog unchanged | `PAT-CANCEL-003` |
 | 23 | Join window before/after | Settings → Booking Rules | Every join control | Goes live earlier/later everywhere | `ADM-SET-017` |
 | 24 | Session Completed cutoff | Settings → Booking Rules | Every join control on every role | All three read **Session Completed** together | `XR-CUTOFF-001` |
 | 25 | Google Meet toggle | Settings → Booking Rules | New online sessions' Meet link | No link; **home visit still gets an event** | `ADM-SET-017` |

@@ -7,7 +7,14 @@ visits), therapist scheduling and payouts, hospital (B2B) referrals, and an
 admin back office. Data, auth, storage, and realtime come from Supabase;
 session video links come from Google Calendar/Meet. The admin back office is
 organised into six sections — Today, Sessions, People, Money, Catalog,
-Settings — defined once in `src/lib/adminNav.ts`.
+Settings — defined once in `src/lib/adminNav.ts`. Each Settings screen
+states in plain words what it is and gives one example, under its own
+heading — a label alone names a category rather than an action, and the
+section's single line ("How the product behaves") explained nothing about
+the screen you had just opened. That is also why the old Booking Rules
+screen is three: **Booking Rules** (one video session), **Offers &
+Discounts** (money off, to win a patient), and **Programmes & Home Visits**
+(more than one appointment, arranged in advance).
 
 An admin carries a scope (`full`, `operations`, `finance`, `clinical`) that
 decides which of those sections they open, and **each scope opens on its own

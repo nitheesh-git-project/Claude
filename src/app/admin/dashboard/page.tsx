@@ -2454,19 +2454,32 @@ export default async function AdminDashboardPage({
     </div>
   );
 
-  // Every rule about how booking behaves, in one place -- the platform-wide
-  // switches, then the two package rule sets. They were on three different
-  // tabs before, which is how the online lead time ended up hardcoded while
-  // its home-visit twin was a setting.
+  // When a single session may be booked, cancelled and joined -- and nothing
+  // else. This screen used to carry six unrelated stacks with no heading
+  // between them: these rules, the two acquisition discounts, the
+  // recommendation rules, the programme rules and the nine home-visit
+  // settings. An owner opening it to change a refund window scrolled past
+  // the discount that decides what every new patient pays, so the other two
+  // groups are their own screens now (Offers & Discounts, Programmes & Home
+  // Visits) and each one says what it is in the header.
   const settingsBookingTab = (
+    <AdminFeatureControlTab
+      settings={adminSettings}
+      syncIssues={googleMeetSyncIssues}
+      waitingRoomIssues={meetWaitingRoomIssues}
+      adminEmail={adminProfile?.email ?? user.email ?? ""}
+      view="booking"
+    />
+  );
+
+  // The two discounts a patient can end up with by themselves. The third and
+  // fourth -- promo codes and a goodwill adjustment -- deliberately are not
+  // here: a promo campaign sits on Money -> Costs beside the figure it costs,
+  // and goodwill is applied to one named session rather than configured. The
+  // note says so, because "where is the promo code screen" is the question
+  // this split otherwise creates.
+  const settingsOffersTab = (
     <div className="space-y-8">
-      <AdminFeatureControlTab
-        settings={adminSettings}
-        syncIssues={googleMeetSyncIssues}
-        waitingRoomIssues={meetWaitingRoomIssues}
-        adminEmail={adminProfile?.email ?? user.email ?? ""}
-        view="booking"
-      />
       <FirstSessionOfferForm
         enabled={firstSessionOffer.enabled}
         type={firstSessionOffer.type}
@@ -2476,6 +2489,27 @@ export default async function AdminDashboardPage({
         }
       />
       <InviteRewardsForm settings={inviteSettings} />
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+        <h2 className="font-display text-sm font-bold text-slate-800">
+          Looking for promo codes?
+        </h2>
+        <p className="mt-1 text-xs text-slate-600">
+          A promo code is a campaign you run for a while, so it lives on{" "}
+          <span className="font-semibold text-slate-700">Money &rarr; Costs</span>, next to
+          the figure showing what your discounts cost. Taking money off one
+          patient&rsquo;s unpaid session is not set up here either &mdash; open that session
+          and apply a goodwill discount to it.
+        </p>
+      </div>
+    </div>
+  );
+
+  // A programme is a course of sessions a therapist recommends; a home visit
+  // is a session delivered at the patient's address. Both are "more than one
+  // appointment, arranged in advance", which is why they read as one screen
+  // and neither belongs beside the rule for a single video booking.
+  const settingsProgrammesTab = (
+    <div className="space-y-8">
       <RecommendationSettingsForm
         settings={adminSettings}
         requiresApproval={carePlanRequiresApproval}
@@ -3566,6 +3600,8 @@ export default async function AdminDashboardPage({
     "settings:brand": settingsBrandTab,
     "settings:public": settingsPublicSiteTab,
     "settings:booking": settingsBookingTab,
+    "settings:offers": settingsOffersTab,
+    "settings:programmes": settingsProgrammesTab,
     "settings:clinical": settingsClinicalTab,
     "settings:team": settingsTeamTab,
     "settings:health": settingsHealthTab,

@@ -328,7 +328,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 #### `THR-SUGG-001` — Suggest a session · P0
 
-**Preconditions.** `therapist_suggestions_enabled` is **on** (it is on by default now; confirm in Settings → Booking Rules). A programme locked to this therapist with credits remaining.
+**Preconditions.** `therapist_suggestions_enabled` is **on** (it is on by default now; confirm in Settings → Programmes & Home Visits). A programme locked to this therapist with credits remaining.
 
 **Steps**
 1. On the programme's card, tap the suggest control.

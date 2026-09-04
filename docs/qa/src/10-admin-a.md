@@ -233,7 +233,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Expected Result.** The booking records the full price as list price, the whole of it as the discount, and `promo_code` as the source — so **What discounting cost** includes it. Amount paid is **₹0** and there is no payment/transaction row, because no money moved. A free session that recorded nothing would make the giveaway invisible, which is the figure that decides whether the campaign continues.
 
 #### `ADM-INVITE-001` — Invites: the two halves · P1
-**Steps.** As a **Full** admin, open **Settings → Booking Rules → Patient invites**. Switch on, set the friend's welcome to ₹300 and the reward to ₹200, and save. Open a patient's dashboard.
+**Steps.** As a **Full** admin, open **Settings → Offers & Discounts → Patient invites**. Switch on, set the friend's welcome to ₹300 and the reward to ₹200, and save. Open a patient's dashboard.
 **Expected Result.** The panel previews the exact sentence the patient will read, and it says the reward arrives **once their friend has had a session** — not on a signup. The patient's dashboard shows their own code, formatted in two halves, with a copy button.
 
 #### `ADM-INVITE-002` — What an invite refuses · P0
@@ -257,7 +257,7 @@ The first band **renders even when empty**, saying so. A section that disappears
 
 **Feature.** A therapist's recommendation is a bill as well as a clinical note, and the clinic that carries it sees one before the patient is asked to pay it.
 
-**Preconditions.** `care_plan_requires_approval` is **on** (default, at Settings → Booking Rules). `THR-CARE-001` has been submitted.
+**Preconditions.** `care_plan_requires_approval` is **on** (default, at Settings → Programmes & Home Visits). `THR-CARE-001` has been submitted.
 
 **Steps**
 1. Open **Today → Overview** and read the Clinical group of the action inbox.
@@ -303,7 +303,7 @@ The first band **renders even when empty**, saying so. A section that disappears
 * The programmes offered in the change panel are **narrowed to that session's own condition**, exactly as on the therapist's own dialog.
 
 #### `ADM-CARE-007` — The switch · P1
-**Steps.** At **Settings → Booking Rules**, turn **Approve recommendations before the patient sees them** off. Have a therapist submit a recommendation.
+**Steps.** At **Settings → Programmes & Home Visits**, turn **Approve recommendations before the patient sees them** off. Have a therapist submit a recommendation.
 **Expected Result.** It publishes on save and the patient sees it immediately, exactly as before the review step existed. The therapist's panel copy changes to match. Turn it back on afterwards — the rest of the suite assumes the default.
 The setting **fails closed**: with the column unreadable, a submission is held rather than published. That is the opposite direction from `contact_scan_mode`, and deliberately so.
 
