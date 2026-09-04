@@ -7,7 +7,7 @@ import {
 } from "@/lib/adminNav";
 import {
   ADMIN_SCOPE_BLURBS,
-  scopeCanOpen,
+  scopeCanManage,
   sectionsForScope,
   type AdminScope,
 } from "@/lib/adminScope";
@@ -101,8 +101,13 @@ export type AdminAccessNote = {
   // on this card would be the third on one screen. What the card says is
   // the part a name cannot: which sections that name comes to.
   blurb: string;
-  /** Section labels this scope can open, in sidebar order. */
+  /** Section labels this scope can open **and change**, in sidebar order. */
   sections: string[];
+  /** Ones it can open and only read. Named separately because "you open
+   *  Sessions" and "you open Sessions and can change nothing in it" are
+   *  different answers, and the second is the one that stops a finance
+   *  admin reporting the missing buttons as a bug. */
+  readOnly: string[];
   /** The ones it cannot. Named rather than merely absent: "Money is not
    *  yours to open" is an answer, a missing sidebar entry is a mystery. */
   withheld: string[];
@@ -128,7 +133,11 @@ function link(
   tab: string,
   view?: string
 ): string | undefined {
-  return scopeCanOpen(scope, section) ? adminScreenHref(section, tab, view) : undefined;
+  // Manage, not merely open. Every figure this links is a piece of work, and
+  // sending somebody to a screen where the button they came for is absent is
+  // the same dead link as sending them somewhere they cannot open at all --
+  // it just fails one screen later.
+  return scopeCanManage(scope, section) ? adminScreenHref(section, tab, view) : undefined;
 }
 
 /** A queue count reads red when somebody is waiting, green when it is
@@ -450,7 +459,7 @@ export function reachableActions(
   specs: AdminActionSpec[]
 ): AdminHomeAction[] {
   return specs
-    .filter((a) => scopeCanOpen(scope, a.section))
+    .filter((a) => scopeCanManage(scope, a.section))
     .map(({ section, tab, view, ...rest }) => ({
       ...rest,
       href: adminScreenHref(section, tab, view),
@@ -593,7 +602,10 @@ function accessNoteFor(scope: AdminScope): AdminAccessNote | null {
   const allowed = sectionsForScope(scope);
   return {
     blurb: ADMIN_SCOPE_BLURBS[scope],
-    sections: ADMIN_SECTIONS.filter((s) => allowed.includes(s.key)).map((s) => s.label),
+    sections: ADMIN_SECTIONS.filter((s) => scopeCanManage(scope, s.key)).map((s) => s.label),
+    readOnly: ADMIN_SECTIONS.filter(
+      (s) => allowed.includes(s.key) && !scopeCanManage(scope, s.key)
+    ).map((s) => s.label),
     withheld: ADMIN_SECTIONS.filter((s) => !allowed.includes(s.key)).map((s) => s.label),
   };
 }
@@ -614,12 +626,17 @@ export function buildAdminHome(scope: AdminScope, counts: AdminHomeCounts): Admi
 // ---- Queues -----------------------------------------------------------
 
 /** What the queue list actually renders: rows with something in them, whose
- *  destination this scope can open. The strip's "Needs you" figure is this
- *  same number, so the count and the list it sits above cannot disagree. */
-export function visibleQueueTotal(groups: InboxGroup[], allowed: AdminSectionKey[]): number {
+ *  destination this scope can **work**. The strip's "Needs you" figure is
+ *  this same number, so the count and the list it sits above cannot disagree.
+ *
+ *  Workable rather than merely openable, because a queue is a piece of work.
+ *  Finance reads Sessions and cannot assign one, so unassigned sessions are
+ *  not waiting on finance -- counting them there would put a number on their
+ *  Today screen that nothing they can do would ever bring down. */
+export function visibleQueueTotal(groups: InboxGroup[], workable: AdminSectionKey[]): number {
   return groups.reduce(
     (sum, g) =>
-      sum + g.items.reduce((s, i) => s + (allowed.includes(i.section) ? i.count : 0), 0),
+      sum + g.items.reduce((s, i) => s + (workable.includes(i.section) ? i.count : 0), 0),
     0
   );
 }

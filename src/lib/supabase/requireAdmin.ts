@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { parseAdminScope, scopeCanOpen, type AdminScope } from "@/lib/adminScope";
+import { parseAdminScope, scopeCanManage, type AdminScope } from "@/lib/adminScope";
 import type { AdminSectionKey } from "@/lib/adminNav";
 
 export type AdminContext = {
@@ -80,12 +80,20 @@ export async function getAdminContext(): Promise<AdminContext | null> {
  * The sidebar hides sections a scope can't open, but that is presentation
  * only: a session cookie can call any route directly, so this check is what
  * actually enforces it.
+ *
+ * **It asks for `manage`, not merely "can open".** Every route guarded by
+ * this one is a POST that changes something, and that is what makes a
+ * `view` grant real rather than a label: a scope that reads a section is
+ * refused by all 98 of these without one of them being edited, so the level
+ * cannot be widened by a screen forgetting to hide a button. A read-only
+ * route, should this app ever grow one, wants `scopeCanOpen` and its own
+ * guard rather than a looser version of this.
  */
 export async function requireAdminScope(
   section: AdminSectionKey
 ): Promise<AdminContext | null> {
   const context = await getAdminContext();
   if (!context) return null;
-  if (!scopeCanOpen(context.scope, section)) return null;
+  if (!scopeCanManage(context.scope, section)) return null;
   return context;
 }

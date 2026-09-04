@@ -8,7 +8,12 @@ import {
   type AdminActionSpec,
   type AdminHomeCounts,
 } from "@/lib/adminHome";
-import { ADMIN_SCOPES, sectionsForScope, type AdminScope } from "@/lib/adminScope";
+import {
+  ADMIN_SCOPES,
+  scopeCanManage,
+  sectionsForScope,
+  type AdminScope,
+} from "@/lib/adminScope";
 import { ADMIN_SECTIONS, type AdminSectionKey, type InboxGroup } from "@/lib/adminNav";
 
 const ZERO: AdminHomeCounts = {
@@ -167,14 +172,30 @@ const GROUPS: InboxGroup[] = [
   group("health", "settings", 2),
 ];
 
+/** The sections a scope can actually work, which is what a queue count is
+ *  about -- the same list the dashboard page passes in. */
+function workable(scope: Parameters<typeof sectionsForScope>[0]) {
+  return sectionsForScope(scope).filter((s) => scopeCanManage(scope, s));
+}
+
 describe("visibleQueueTotal", () => {
   it("counts only rows whose screen the viewer can open", () => {
     // A clinical admin used to be told 27 things were waiting over a list
     // showing 12 -- the queue list already filtered by scope while the
     // figure above it summed everything.
-    expect(visibleQueueTotal(GROUPS, sectionsForScope("clinical"))).toBe(16);
-    expect(visibleQueueTotal(GROUPS, sectionsForScope("finance"))).toBe(13);
-    expect(visibleQueueTotal(GROUPS, sectionsForScope("full"))).toBe(27);
+    expect(visibleQueueTotal(GROUPS, workable("clinical"))).toBe(16);
+    expect(visibleQueueTotal(GROUPS, workable("finance"))).toBe(13);
+    expect(visibleQueueTotal(GROUPS, workable("full"))).toBe(27);
+  });
+
+  it("leaves out a section the scope can only read", () => {
+    // Finance opens Sessions at `view`, so the 7 clinical and 5 scheduling
+    // rows sitting under it are not waiting on them: nothing finance can do
+    // would ever bring that figure down, and a number you cannot move is
+    // how a Today screen stops being read. Counting by "can open" instead
+    // would put 25 over a list of the same rows they cannot act on.
+    expect(visibleQueueTotal(GROUPS, sectionsForScope("finance"))).toBe(25);
+    expect(visibleQueueTotal(GROUPS, workable("finance"))).toBe(13);
   });
 });
 
@@ -397,7 +418,7 @@ describe("reachableActions", () => {
   });
 
   it("keeps them all for a scope that can open everything", () => {
-    const specs = [spec("Payouts", "money", "payouts"), spec("Settings", "settings", "team")];
+    const specs = [spec("Payouts", "money", "payouts"), spec("Settings", "settings", "access")];
     expect(reachableActions("full", specs)).toHaveLength(2);
   });
 

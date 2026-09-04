@@ -13,7 +13,7 @@ import { buildAdminFeed } from "@/lib/dashboardFeed";
 import AdminInboxQueues from "@/components/admin/AdminInboxQueues";
 import AdminAllSessionsTab from "@/components/admin/AdminAllSessionsTab";
 import AdminNewBookingTab from "@/components/admin/AdminNewBookingTab";
-import AdminTeamAccessTab, { type AdminRow } from "@/components/admin/AdminTeamAccessTab";
+import AdminUserAccessTab, { type AdminRow } from "@/components/admin/AdminUserAccessTab";
 import AdminActivityLogTab, { type ActivityRow } from "@/components/admin/AdminActivityLogTab";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
 import AdminCostsTab from "@/components/admin/AdminCostsTab";
@@ -50,6 +50,7 @@ import AdminAccessCard from "@/components/admin/AdminAccessCard";
 import {
   ADMIN_SCOPE_LABELS,
   parseAdminScope,
+  scopeCanManage,
   scopeCanOpen,
   sectionsForScope,
 } from "@/lib/adminScope";
@@ -593,6 +594,12 @@ export default async function AdminDashboardPage({
   const adminScopeById = new Map((adminScopeRows ?? []).map((r) => [r.id, r.admin_scope]));
   const viewerScope = parseAdminScope(adminScopeById.get(user.id));
   const canSeeMoney = scopeCanOpen(viewerScope, "money");
+  // Sessions is the one section granted at `view` to anybody (finance), so
+  // this is not the same question as "can they open it". Every mutating
+  // control under Sessions keys off this, and requireAdminScope("sessions")
+  // refuses them regardless -- the flag is what stops a 403 being the way
+  // they find out.
+  const canManageSessions = scopeCanManage(viewerScope, "sessions");
 
   // The second batch: everything the migration-tolerance rule keeps OUT of
   // the big Promise.all above.
@@ -1784,6 +1791,7 @@ export default async function AdminDashboardPage({
   const calendarTab = (
     <AdminCalendarTab
       canSeeMoney={canSeeMoney}
+      canManageSessions={canManageSessions}
       appointments={appointmentsWithSessionCode}
       people={allPeople}
       categories={categoriesForReassign}
@@ -1796,6 +1804,7 @@ export default async function AdminDashboardPage({
   const allSessionsTab = (
     <AdminAllSessionsTab
       canSeeMoney={canSeeMoney}
+      canManageSessions={canManageSessions}
       appointments={appointmentsWithSessionCode}
       homeVisits={homeVisitRows}
       people={allPeople}
@@ -2155,7 +2164,7 @@ export default async function AdminDashboardPage({
       // Every scope that can open this section holds both today, but the
       // flags are computed rather than assumed -- a scope table change must
       // hide the control, not produce a 403 with nothing explaining it.
-      canManageSchedule={scopeCanOpen(viewerScope, "sessions")}
+      canManageSchedule={canManageSessions}
       canManageLeave={scopeCanOpen(viewerScope, "people")}
     />
   );
@@ -2572,14 +2581,21 @@ export default async function AdminDashboardPage({
       fullName: p.full_name,
       email: p.email,
       scope: parseAdminScope(adminScopeById.get(p.id)),
+      // `active` is the suspension flag getAdminUser and the proxy already
+      // refuse on; until now nothing in the product could set it for an
+      // admin. Null on an older row means active, same reading every other
+      // role's screens give it.
+      active: p.active !== false,
       isSelf: p.id === user.id,
     }));
 
-  // Who can see what, in one place: which admins hold which scope, and how
-  // much of a patient's contact details a therapist is handed by default.
-  const settingsTeamTab = (
+  // Who can reach this dashboard and what they get when they do, plus the
+  // one access question that is about a therapist rather than an admin: how
+  // much of a patient's contact details they are handed by default. Both are
+  // "who may see what", which is why they read as one screen.
+  const settingsAccessTab = (
     <div className="space-y-8">
-      <AdminTeamAccessTab admins={adminRows} viewerScope={viewerScope} />
+      <AdminUserAccessTab admins={adminRows} viewerScope={viewerScope} />
       <ContactControlsForm settings={adminSettings} />
     </div>
   );
@@ -3319,6 +3335,12 @@ export default async function AdminDashboardPage({
   ];
 
   const allowedSections = sectionsForScope(viewerScope);
+  // The subset they can act in. Queues and quick actions read this rather
+  // than `allowedSections`: a queue is a piece of work, and finance reads
+  // Sessions without being able to assign one, so an unassigned session is
+  // not waiting on them. Counting it there would put a figure on their Today
+  // screen that nothing they can do would ever bring down.
+  const workableSections = allowedSections.filter((sec) => scopeCanManage(viewerScope, sec));
 
   // Read by the global search below, which links into these two sections.
   const canOpenSessionsSection = allowedSections.includes("sessions");
@@ -3331,7 +3353,7 @@ export default async function AdminDashboardPage({
   // "the list disagrees with the number" failure in the first place
   // anybody looks.
   const scopedInboxGroups = orderQueueGroups(inboxGroups, viewerScope);
-  const inboxTotal = visibleQueueTotal(inboxGroups, allowedSections);
+  const inboxTotal = visibleQueueTotal(inboxGroups, workableSections);
 
   const adminFeed = buildAdminFeed({
     activity: activityRows.slice(0, 10).map((r) => ({
@@ -3415,7 +3437,7 @@ export default async function AdminDashboardPage({
       feedEmptyBody="Admin actions and anything waiting on a person appear here."
       aside={
         <>
-          <AdminInboxQueues groups={scopedInboxGroups} allowedSections={allowedSections} />
+          <AdminInboxQueues groups={scopedInboxGroups} allowedSections={workableSections} />
           {home.accessNote && <AdminAccessCard note={home.accessNote} />}
         </>
       }
@@ -3603,7 +3625,7 @@ export default async function AdminDashboardPage({
     "settings:offers": settingsOffersTab,
     "settings:programmes": settingsProgrammesTab,
     "settings:clinical": settingsClinicalTab,
-    "settings:team": settingsTeamTab,
+    "settings:access": settingsAccessTab,
     "settings:health": settingsHealthTab,
     "settings:activity": settingsActivityTab,
     "settings:security": settingsSecurityTab,
@@ -3636,6 +3658,7 @@ export default async function AdminDashboardPage({
         badges={badges}
         searchEntities={searchEntities}
         allowedSections={allowedSections}
+        manageSections={workableSections}
         adminName={adminProfile?.full_name ?? "Admin"}
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         adminAvatarUrl={adminProfile?.avatar_url ?? null}

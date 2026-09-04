@@ -247,7 +247,23 @@ role, an id, or an amount sent from the client — re-derive it server-side.
 
 Admins additionally carry a scope (`profiles.admin_scope`: `full`,
 `operations`, `finance`, `clinical` — see `src/lib/adminScope.ts`), which
-decides which dashboard sections they can open. **Every** admin route guards
+decides which dashboard sections they can open **and at what level**. A
+`(scope, section)` pair is `none`, `view` or `manage`, and the middle value
+is the point: a desk often needs to read something it must never change.
+There is deliberately no "write only" — a dashboard cannot let somebody
+change a row they are not allowed to see, so the third box a permissions
+matrix usually draws is one this product has no honest meaning for.
+**`requireAdminScope(section)` asks for `manage`**, which is what makes
+`view` real rather than a label: every route guarded by it is a POST that
+changes something, so a section granted at `view` is read-only at all 98 of
+them without one being edited, and the level cannot be widened by a screen
+forgetting to hide a button. `scopeCanOpen` (view or manage) decides what
+renders; `scopeCanManage` decides what a control may do. One grant is
+`view` today — **finance reads Sessions** — because the question finance
+actually asks ("what was this ₹1,200 for?") was answerable only by asking
+somebody else, while handing finance the section outright would let the
+person reconciling the books cancel the sessions they are reconciling.
+**Every** admin route guards
 with `requireAdminScope(section)`, not `getAdminUser()`; the sidebar hiding a
 section is presentation only, since a session cookie can call any route
 directly. The section is chosen by the capability, not by where the button
@@ -289,20 +305,26 @@ screen:
 Ordering the queues is emphasis, never permission: `orderQueueGroups()`
 moves a scope's own domains to the top and **removes nothing**, because what
 a scope may work is the routes' decision and a UI that hid a reachable queue
-would be a second permission model to disagree with the first. **Every dashboard names itself**, in the sidebar brand (above "Admin Panel")
+would be a second permission model to disagree with the first. What a queue
+*count* reads, though, is `manage` and not merely open: a queue is a piece of
+work, and finance reads Sessions without being able to assign one, so an
+unassigned session is not waiting on them — counting it there would put a
+figure on their Today screen that nothing they could do would ever bring
+down. `visibleQueueTotal`, the queue list and `reachableActions` all take the
+workable sections, so the three agree. **Every dashboard names itself**, in the sidebar brand (above "Admin Panel")
 and again as the eyebrow over the section heading -- `Master Admin`,
 `Operations`, `Finance`, `Clinical`, from `ADMIN_SCOPE_LABELS`. Twice
 because the sidebar collapses to icons and is a closed drawer on a phone,
 while the header is on every screen at every width. Four dashboards that all
 said "Admin Panel" and differed only in which sidebar entries were missing
 made an admin infer which one they were on from an absence. That label set
-is **one set, doing three jobs** -- the entries in Team & Access's Account
+is **one set, doing three jobs** -- the entries in User Access's Account
 type picker, the access level on an existing admin's row, and the name on
 the dashboard -- which is why `full` reads "Master Admin"
 rather than "Full access": as a permission both work, but only one is the
 name of a desk somebody sits at, and every user-facing string that used to
 say "full-access admin" says Master Admin now (the QA plan quotes those
-verbatim, so it moved in the same change). **Creating one of those admins is one dropdown.** Team & Access's Account
+verbatim, so it moved in the same change). **Creating one of those admins is one dropdown.** User Access's Account
 type picker lists all six in two groups -- Clinic (Patient, Therapist) and
 Back office (the four scope labels) -- rather than an "Admin" entry that
 reveals a second Access level select once chosen. Hiring somebody into
@@ -1638,6 +1660,38 @@ client is the only writer and the log is append-only from any session.
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
   runs.
+- **User Access is where the access model is read, and it is derived.**
+  Settings → User Access is one screen doing what two half-screens did: the
+  back-office directory (who can sign in, at what level, and whether they
+  still can) and the **matrix** — rows are the jobs people describe, columns
+  are the four desks, cells come out of `ADMIN_CAPABILITY_GROUPS` +
+  `sectionAccess` in `adminScope.ts`. Nothing in the product said what a
+  scope *meant* before it: an owner deciding whether to hire somebody into
+  Operations could read four one-line blurbs, or read the source.
+  Three rules hold it.
+  1. **The matrix is derived, never a second list of permissions.** Every
+     cell is answered by the module the routes enforce with, so the screen
+     cannot claim an access nobody has. A hand-maintained copy goes stale the
+     first time a scope changes, and then the screen showing it is lying
+     about the one thing it exists to explain. Add a capability row only when
+     the grid already decides its answer; a capability needing its own rule
+     wants the rule in the grid.
+  2. **The cells are not checkboxes.** A tick that does not change a route is
+     a lie, and making them real means a per-capability check at 98 routes —
+     the fine-grained matrix whose failure mode is one route quietly falling
+     through a gap in it, which is what coarse scopes exist to avoid.
+     Changing what a desk reaches is a code change, reviewed.
+  3. **Suspending is not deleting.** `/api/admin/set-admin-active` mirrors
+     `set-admin-scope`'s two guards (not yourself, not the last Master Admin
+     who can still sign in) and flips `profiles.active`, which `getAdminUser`
+     and the proxy already refused on — the enforcement existed and the
+     control did not, so closing the door on somebody who left needed
+     database access. The account stays because the admin's id is on every
+     audit row they ever wrote.
+  `src/lib/adminScope.test.ts` holds the grid's invariants — every pair has a
+  level, manage never outruns open, every section has a capability group, and
+  every group has at least one read-only row, without which a group cannot
+  show the difference between `view` and `none`.
 - **A settings screen says what it is and gives an example.** `AdminTabDef`
   carries an optional `blurb` and `example`, and `AdminShell` prints them
   under the page heading in place of the section's own line. Every Settings

@@ -129,6 +129,7 @@ export default function AdminShell({
   adminAvatarUrl,
   scopeLabel,
   allowedSections,
+  manageSections,
   offsetTop,
   initialSection,
   initialTab,
@@ -154,6 +155,11 @@ export default function AdminShell({
   // sidebar hides the rest -- but hiding is presentation only; every route
   // re-checks scope server-side, since a hidden button is not a permission.
   allowedSections: AdminSectionKey[];
+  // The subset of those the viewer may change rather than only read. A
+  // section held at `view` keeps its listing screens (rendered read-only)
+  // and loses the ones that are nothing but actions -- hiding every control
+  // on those would leave an empty page with a heading.
+  manageSections: AdminSectionKey[];
   // Whether the dev-only DebugNav bar is showing above everything on this
   // page (same flag the root layout threads into Navbar as its own
   // `offsetTop` prop) -- this page hides the public Navbar entirely, so its
@@ -166,10 +172,14 @@ export default function AdminShell({
   initialSection?: string | null;
   initialTab?: string | null;
 }) {
-  const sections = ADMIN_SECTIONS.filter((s) => allowedSections.includes(s.key));
+  const sections = ADMIN_SECTIONS.filter((s) => allowedSections.includes(s.key)).map((s) =>
+    manageSections.includes(s.key)
+      ? s
+      : { ...s, tabs: s.tabs.filter((t) => !t.requiresManage) }
+  );
   const firstSection = sections[0] ?? ADMIN_SECTIONS[0];
 
-  const initial = findTab(initialSection ?? null, initialTab ?? null, allowedSections);
+  const initial = findTab(initialSection ?? null, initialTab ?? null, allowedSections, manageSections);
   const [sectionKey, setSectionKey] = useState<string>(initial.section);
   const [tabKey, setTabKey] = useState<string>(initial.tab);
   // Desktop full <-> mini collapse. Independent of the mobile drawer below --
@@ -187,14 +197,14 @@ export default function AdminShell({
   useEffect(() => {
     function applyFromLocation() {
       const params = new URLSearchParams(window.location.search);
-      const found = findTab(params.get("section"), params.get("tab"), allowedSections);
+      const found = findTab(params.get("section"), params.get("tab"), allowedSections, manageSections);
       setSectionKey(found.section);
       setTabKey(found.tab);
     }
     applyFromLocation();
     window.addEventListener("popstate", applyFromLocation);
     return () => window.removeEventListener("popstate", applyFromLocation);
-  }, [allowedSections]);
+  }, [allowedSections, manageSections]);
 
   function navigate(nextSection: string, nextTab: string) {
     setSectionKey(nextSection);

@@ -40,6 +40,15 @@ export type AdminTabDef = {
    * makes an unfamiliar screen usable.
    */
   example?: string;
+  /**
+   * The screen is nothing but actions, so a scope holding this section at
+   * `view` must not see it at all. A screen that merely *contains* actions
+   * does not want this -- it takes a manage flag and renders read-only,
+   * which is better, because the reading half is the reason the level
+   * exists. Reach for it only where hiding every control would leave an
+   * empty page.
+   */
+  requiresManage?: boolean;
 };
 
 export type AdminSectionDef = {
@@ -89,8 +98,19 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // the clinic needs to be able to see them and stop a wrong one --
       // under Sessions because a recommendation is about what is being
       // delivered, not about the books.
-      { key: "recommendations", label: "Recommendations" },
-      { key: "new", label: "New Booking" },
+      {
+        key: "recommendations",
+        label: "Recommendations",
+        // Approve, turn down, rewrite, withdraw: there is no reading half
+        // left once the decisions are gone.
+        requiresManage: true,
+      },
+      {
+        key: "new",
+        label: "New Booking",
+        // A form, and nothing else.
+        requiresManage: true,
+      },
     ],
   },
   {
@@ -183,10 +203,10 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         example: "Reword the question that asks how long the pain has lasted.",
       },
       {
-        key: "team",
-        label: "Team & Access",
-        blurb: "Who works in the back office, what each of them can open, and how much of a patient's phone number a therapist is shown.",
-        example: "Add a new Operations admin who can see sessions but not money.",
+        key: "access",
+        label: "User Access",
+        blurb: "Who can sign in to this dashboard, what each of them reaches, and how much of a patient's phone number a therapist is shown.",
+        example: "Hire somebody into Operations, or take away the access of somebody who left.",
       },
       {
         key: "health",
@@ -217,9 +237,18 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
 export function findTab(
   sectionParam: string | null,
   tabParam: string | null,
-  allowed: AdminSectionKey[]
+  allowed: AdminSectionKey[],
+  // Which of those the viewer may change. A section held at `view` drops its
+  // action-only screens, and this is where that has to be applied as well as
+  // in the sidebar: a hand-typed `?tab=new` would otherwise resolve to a
+  // screen the shell does not render, leaving a heading over nothing.
+  // Omitted means every allowed section is manageable, which is the answer
+  // for every caller that predates levels.
+  manageable: AdminSectionKey[] = allowed
 ): { section: string; tab: string } {
-  const usable = ADMIN_SECTIONS.filter((s) => allowed.includes(s.key));
+  const usable = ADMIN_SECTIONS.filter((s) => allowed.includes(s.key)).map((s) =>
+    manageable.includes(s.key) ? s : { ...s, tabs: s.tabs.filter((t) => !t.requiresManage) }
+  );
   const fallback = usable[0] ?? ADMIN_SECTIONS[0];
   const section = usable.find((s) => s.key === sectionParam) ?? fallback;
   const tab = section.tabs.find((t) => t.key === tabParam) ?? section.tabs[0];

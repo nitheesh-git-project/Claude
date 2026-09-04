@@ -141,7 +141,7 @@ This is the regression that guards the whole design. See `XCFG-ROSTER-001`.
 * Outside the window: refused with the route's own explanation (403).
 * Cancelled session: refused.
 * A **home visit** is revealable **any time on the visit's own day**, not merely in a join window — verify this separately.
-* Admin → Settings → Team & Access shows the reveal log. It is **admin-read-only and append-only by trigger**: attempting to update or delete a row raises, even with the service role.
+* Admin → Settings → User Access shows the reveal log. It is **admin-read-only and append-only by trigger**: attempting to update or delete a row raises, even with the service role.
 
 #### `THR-SESS-005` — Completing a session is gated two ways · P0
 
@@ -361,7 +361,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Steps.** In a suggestion note, enter `https://rzp.io/l/abcd1234 pay here`. **Expected Result.** Refused, recorded.
 
 #### `THR-LEAK-003` — A phone number is delivered and recorded · P1
-**Steps.** In a suggestion note, enter `Call me on 9876543210 before the session`. **Expected Result.** The suggestion **is created** and the patient sees the note. A `communication_flags` row exists with tier `flag` and `blocked=false`. Admin → Settings → Team & Access shows it.
+**Steps.** In a suggestion note, enter `Call me on 9876543210 before the session`. **Expected Result.** The suggestion **is created** and the patient sees the note. A `communication_flags` row exists with tier `flag` and `blocked=false`. Admin → Settings → User Access shows it.
 
 #### `THR-LEAK-004` — Clinical text with digits does not fire · P0
 **Steps.** In a session note, enter `Grade III PA mobilisation ×3 sets, 30s hold. 10 reps, 2× daily. Order ref 90210.`

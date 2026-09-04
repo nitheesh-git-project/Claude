@@ -177,7 +177,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `offers` | Offers & Discounts | `ADM-SET-016` |
 | Settings | `programmes` | Programmes & Home Visits | `ADM-SET-018` |
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
-| Settings | `team` | Team & Access | `ADM-SET-025` |
+| Settings | `access` | User Access | `ADM-SET-025` |
 | Settings | `health` | System Health | `ADM-SET-030` |
 | Settings | `activity` | Activity Log | `ADM-SET-033` |
 | Settings | `security` | Account Security | `ADM-SET-035` |
@@ -358,7 +358,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 * Navigating to **Catalog → Conditions** shows no treatment categories.
 * Navigating to **Sessions → All Sessions** shows no sessions.
 * Navigating to **Settings → Activity Log** shows an empty log (the reset itself truncates it).
-* Navigating to **Settings → Team & Access** still lists at least one admin, and your own row is there. **If this list is empty, stop immediately and restore from backup — the reset must never leave the clinic without an admin.**
+* Navigating to **Settings → User Access** still lists at least one admin, and your own row is there. **If this list is empty, stop immediately and restore from backup — the reset must never leave the clinic without an admin.**
 * Navigating to **Today → Risk** shows an **empty** queue. **[SQL]** confirm with `select count(*) from communication_flags;` and `select count(*) from risk_signals;` — both must return `0`. A non-zero count here is the regression described above, and it will silently suppress the detector tests later in this plan.
 * **[SQL]** `select rule_key, enabled from risk_rules;` still returns the eight rules, with `plan_conversion_low` and `post_consultation_dropout` back to **disabled** — thresholds are restored to their seeded defaults, not wiped.
 
@@ -577,7 +577,7 @@ Where a test needs a *second, different* password (a change-password test), use 
 | **Admin Finance** | `qa.admin.finance@example.test` | `finance` | Proves Sessions and Catalog are blocked. |
 | **Admin Clinical** | `qa.admin.clinical@example.test` | `clinical` | Proves Money, Catalog and Settings are blocked. |
 
-Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`). The other three are created from **Settings → Team & Access** in `ADM-SET-026`.
+Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`). The other three are created from **Settings → User Access** in `ADM-SET-026`.
 
 ### 8.3 Patients
 
@@ -1824,7 +1824,7 @@ This is the regression that guards the whole design. See `XCFG-ROSTER-001`.
 * Outside the window: refused with the route's own explanation (403).
 * Cancelled session: refused.
 * A **home visit** is revealable **any time on the visit's own day**, not merely in a join window — verify this separately.
-* Admin → Settings → Team & Access shows the reveal log. It is **admin-read-only and append-only by trigger**: attempting to update or delete a row raises, even with the service role.
+* Admin → Settings → User Access shows the reveal log. It is **admin-read-only and append-only by trigger**: attempting to update or delete a row raises, even with the service role.
 
 #### `THR-SESS-005` — Completing a session is gated two ways · P0
 
@@ -2044,7 +2044,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Steps.** In a suggestion note, enter `https://rzp.io/l/abcd1234 pay here`. **Expected Result.** Refused, recorded.
 
 #### `THR-LEAK-003` — A phone number is delivered and recorded · P1
-**Steps.** In a suggestion note, enter `Call me on 9876543210 before the session`. **Expected Result.** The suggestion **is created** and the patient sees the note. A `communication_flags` row exists with tier `flag` and `blocked=false`. Admin → Settings → Team & Access shows it.
+**Steps.** In a suggestion note, enter `Call me on 9876543210 before the session`. **Expected Result.** The suggestion **is created** and the patient sees the note. A `communication_flags` row exists with tier `flag` and `blocked=false`. Admin → Settings → User Access shows it.
 
 #### `THR-LEAK-004` — Clinical text with digits does not fire · P0
 **Steps.** In a session note, enter `Grade III PA mobilisation ×3 sets, 30s hold. 10 reps, 2× daily. Order ref 90210.`
@@ -2826,7 +2826,7 @@ Where a case below still says "Settings → Booking Rules", that is correct — 
 
 #### `ADM-SET-009` — Every Settings screen says what it is · P2
 
-**Steps.** Open each of the ten Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, Team & Access, System Health, Activity Log, Account Security.
+**Steps.** Open each of the ten Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, User Access, System Health, Activity Log, Account Security.
 
 **Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen — none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
 
@@ -3001,20 +3001,51 @@ The screen warns you to turn it on only once System Health has been clean.
 * `schema_version` is **per specialty**, so changing a neuro question must **not** fire the "we've changed some of these questions" banner at orthopaedic patients.
 * Pain Map templates edit per region and question; unknown values are refused with `Unknown region` / `Unknown questionKey for this region`.
 
-#### `ADM-SET-025` — Team & Access: scopes · P0
+#### `ADM-SET-025` — User Access: scopes · P0
 
 **Steps**
-1. Open **Settings → Team & Access**.
+1. Open **Settings → User Access**.
 2. Read the admin list.
 3. Attempt to change **your own** scope.
 4. Narrow every other `full` admin, then attempt to narrow the last one.
 
 **Expected Result.** Step 3: refused with `You can't change your own access. Ask another Master Admin.` Step 4: the last `full` admin (**Master Admin** in the picker) **cannot be narrowed** — otherwise a single mis-click locks everyone out permanently. Only a `full` admin can change scopes or mint another admin.
 
+#### `ADM-SET-025a` — User Access: what each level can do · P1
+
+**Steps.** On **Settings → User Access**, switch the toggle from **People** to **What each level can do**.
+
+**Expected Result.** A table: rows are jobs in plain words, grouped by section (Today, Sessions, People, Money, Catalog, Settings); columns are **Master Admin · Operations · Finance · Clinical**. A legend names the three levels — **View and edit**, **View only**, **No access**. Each group heading also states the level each desk holds for that whole section.
+
+**Spot checks.**
+* Under **Sessions**, Finance shows a **View only** mark on *"See every session and who is running it"* and **No access** on *"Assign or change a session's therapist"*.
+* Under **Money**, Operations and Clinical show **No access** on every row.
+* Under **Settings**, only Master Admin shows anything.
+
+**Critical checks.**
+* **There are no checkboxes here.** Every cell is a read-only mark. If any cell can be clicked, that is the bug — a tick that does not also change what the server allows is worse than no tick.
+* **It agrees with reality.** Pick any row showing access for a scope, sign in as that scope, and confirm the control is there. Pick any row showing none, and confirm both that the control is absent *and* that calling the route directly returns 403 (see `ADM-SET-027`).
+
+#### `ADM-SET-025b` — Suspend and restore a back-office account · P0
+
+**Steps**
+1. On **Settings → User Access → People**, note each admin's status chip (**Active** / **Suspended**).
+2. Suspend `qa.admin.ops@example.test`. Sign in as them.
+3. Restore them. Sign in again.
+4. Attempt to suspend **yourself**.
+5. Suspend every other Master Admin, then attempt to suspend the last one who can still sign in.
+
+**Expected Result.** Step 2: the row reads **Suspended**, and that account **cannot get in** — `getAdminUser` and the proxy both refuse an inactive admin, so a still-valid session cookie cannot POST an admin route either. Step 3: access returns. Step 4: refused with `You can't suspend your own access. Ask another Master Admin.` Step 5: refused — `This is the only Master Admin who can still sign in. Make someone else a Master Admin first.`
+
+**Critical checks.**
+* **The account is suspended, never deleted.** Their name still appears on every activity-log row they wrote. An account that could be deleted would take the record of what it did with it.
+* A suspended admin **stays listed**, with a note saying how many are suspended.
+* Only a **Master Admin** sees the Suspend button at all, and `POST /api/admin/set-admin-active` answers **403** to any other scope.
+
 #### `ADM-SET-026` — Create the three scoped admins · P0
 **Steps.** Create `qa.admin.ops@example.test` (Operations), `qa.admin.finance@example.test` (Finance), `qa.admin.clinical@example.test` (Clinical).
 **The Account type picker is one control, not two.** It lists six entries in two groups — **Clinic**: Patient, Therapist · **Back office**: Master Admin, Operations, Finance, Clinical — using the same four names the dashboards call themselves. There is no separate **Access level** dropdown; picking a back-office desk shows that desk's one-line description under the picker. As a **non-`full`** admin, the whole Back office group is **absent** (only a Master Admin may mint an admin, and `create-account` enforces that with a full-only check, not a section gate — see §2).
-**Expected Result.** Each is created with a one-time password shown once and **never logged**. Signing in as each shows only their allowed sections in the sidebar — Operations: Today, Sessions, People, Catalog. Finance: Today, People, Money. Clinical: Today, Sessions, People.
+**Expected Result.** Each is created with a one-time password shown once and **never logged**. Signing in as each shows only their allowed sections in the sidebar — Operations: Today, Sessions, People, Catalog. Finance: Today, **Sessions (read-only)**, People, Money. Clinical: Today, Sessions, People.
 
 #### `ADM-SET-026a` — Each scope opens on its own dashboard · P1
 There is one admin login (`/admin/login`) and one dashboard route; the scope decides what it opens on. Sign in as each of the four in turn and read the Today screen without tapping anything.
@@ -3030,8 +3061,8 @@ There is one admin login (`/admin/login`) and one dashboard route; the scope dec
 
 Three further checks, each one a bug this replaced:
 * **Every quick action lands somewhere.** Tap all of them for each scope. None may bounce to a different screen — a link into a section the scope cannot open silently falls back to the first allowed one, which looks like it worked.
-* **"Needs you" agrees with the list below it.** The figure counts only the queues in the **Queues** card beside it. Add up the badges; they must match. It must not count queues this scope cannot open.
-* **A limited scope gets a "Your access" card** under Queues, naming the sections it opens and the ones it does not. **Master Admin gets no such card** — nothing is withheld, so there is nothing to account for.
+* **"Needs you" agrees with the list below it.** The figure counts only the queues in the **Queues** card beside it. Add up the badges; they must match. It must not count queues this scope cannot open **or can only read** — a Finance admin's figure must exclude the session queues under Sessions, since nothing they can do would ever bring that number down.
+* **A limited scope gets a "Your access" card** under Queues, naming the sections it opens, the ones it can only **read** (Finance: Sessions — *nothing to change here*), and the ones it does not open at all. **Master Admin gets no such card** — nothing is withheld, so there is nothing to account for.
 
 #### `ADM-SET-027` — Scope is enforced at the route, not the sidebar · P0
 For each scoped admin, do **both**: navigate to a forbidden section by URL, **and** call a route in that section directly.
@@ -3040,7 +3071,8 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 | --- | --- | --- | --- |
 | Operations | `?section=money&tab=payouts` | `POST /api/admin/settle-therapist-payout` | Page falls back to an allowed screen; route **403** |
 | Operations | `?section=settings&tab=booking` | `POST /api/admin/update-setting` | Same |
-| Finance | `?section=sessions&tab=all` | `POST /api/admin/assign-appointment` | Same |
+| Finance | `?section=sessions&tab=all` — **reachable, read-only** | `POST /api/admin/assign-appointment` | Page **opens** and shows the list with no action buttons; route **403** |
+| Finance | `?section=sessions&tab=new` | `POST /api/admin/create-booking` | Tab is **not in the sidebar** and the URL falls back to an allowed screen; route **403** |
 | Finance | `?section=catalog&tab=packages` | `POST /api/admin/create-package` | Same |
 | Clinical | `?section=money&tab=summary` | `POST /api/admin/refund-package` | Same |
 | Clinical | `?section=settings&tab=team` | `POST /api/admin/set-admin-scope` | Same |
@@ -3055,7 +3087,7 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 **Expected Result.** **The refund control does not render** — a control an admin's scope cannot call must not be shown, or they get a 403 with nothing to explain it. The route returns **403**.
 
 #### `ADM-SET-029` — Contact controls · P1
-**Steps.** On **Settings → Team & Access**, change `contact_scan_mode` through `flag_and_block` → `flag_only` → `off`, and toggle `contact_masking_enabled`.
+**Steps.** On **Settings → User Access**, change `contact_scan_mode` through `flag_and_block` → `flag_only` → `off`, and toggle `contact_masking_enabled`.
 **Expected Result.** As per `THR-LEAK-006` and `THR-SESS-003`. Note the deliberate asymmetry: **`contact_scan_mode` fails open, `contact_masking_enabled` fails closed** — the safe answer to "I don't know" is opposite for the two, on purpose.
 This tab also surfaces the `communication_flags` and `contact_reveal_log` evidence, **read-only**.
 
@@ -3120,9 +3152,9 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 28 | Clinical question wording | Settings → Clinical Questions | The intake wizard | New wording; old answers untouched | `ADM-SET-020` |
 | 29 | Enabled condition types | Settings → Clinical Questions | The triage picker only | Removed from triage; existing charts render | `ADM-SET-020` |
 | 30 | Pain Map templates | Settings → Clinical Questions | The exam dialog | New questions per region | `ADM-SET-020` |
-| 31 | Admin scope | Settings → Team & Access | Every admin route and the sidebar | Route 403 + control hidden | `ADM-SET-027` |
-| 32 | Contact scan mode | Settings → Team & Access | Every cross-role free-text write | block → flag → none | `THR-LEAK-006` |
-| 33 | Contact masking | Settings → Team & Access | Therapist session cards | Masked ↔ plain; **fails closed** | `THR-SESS-003` |
+| 31 | Admin scope | Settings → User Access | Every admin route and the sidebar | Route 403 + control hidden | `ADM-SET-027` |
+| 32 | Contact scan mode | Settings → User Access | Every cross-role free-text write | block → flag → none | `THR-LEAK-006` |
+| 33 | Contact masking | Settings → User Access | Therapist session cards | Masked ↔ plain; **fails closed** | `THR-SESS-003` |
 | 34 | Risk signals on/off + thresholds | Today → Risk | The detector sweep | Sweep stops; thresholds change what fires | `ADM-RISK-003` |
 | 35 | Brand & contact details | Settings → Brand & Contact | Navbar, Footer, page metadata, splash fallback | All update | `ADM-SET-001` |
 | 36 | Walkthrough seconds | Settings → Public Site | The home page walkthrough | Pace changes; 0 = static | `ADM-SET-005` |

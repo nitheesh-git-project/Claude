@@ -229,7 +229,7 @@ link points here so no client bundle has to know the four paths; see
 | **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
 | **Money** | Summary · Transactions · Payouts · Costs · Breakdown | What came in, what goes out, what it costs, what is still owed |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
-| **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · Team & Access · System Health · Activity Log · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
+| **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Activity Log · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
 
 **How the Money screens divide a rupee.** Every figure on Money → Summary
 comes out of one function, `moneyByBucketFor` in `src/lib/adminMetrics.ts`,
@@ -875,7 +875,7 @@ share payable. An admin keeps both unrestricted paths for backfills.
 Treatment is paid for through this app, so a patient should never be asked
 to pay another way. Two controls make that hard to do by accident and
 visible when it isn't, and both are admin switches on
-**Settings → Team & Access**.
+**Settings → User Access**.
 
 **Message checking.** Everything one role writes and another reads goes
 through `src/lib/contactLeakScan.ts` before it is stored: a therapist's
@@ -1188,7 +1188,7 @@ the figure and the list beneath it agree. Every dashboard also **names itself** 
 `Operations`, `Finance`, `Clinical` — in the sidebar brand and again as the
 eyebrow above the section heading, so which of the four you are on is never
 something to infer from a missing sidebar entry. (Those are the same names
-the scope picker on Settings → Team & Access uses; `full` reads "Master
+the scope picker on Settings → User Access uses; `full` reads "Master
 Admin" rather than "Full access" because the one label has to work both as
 a permission and as the name of a desk.) A limited scope additionally gets a
 **Your access** card naming the sections its name covers and the ones it
@@ -1197,9 +1197,31 @@ policy. Nothing here is a second permission
 model: the queue list still shows every queue the routes let that scope
 work, in their order rather than a full admin's. Only a `full` admin can change scopes or
 create another admin, nobody can change their own, and the last `full` admin
-cannot be narrowed. Admins are created from **Settings → Team & Access**
+cannot be narrowed. Admins are created from **Settings → User Access**
 (`/api/admin/create-account`, which also creates patients and therapists by
-hand), so the database no longer has to be edited to add one.
+hand), so the database no longer has to be edited to add one — and their
+access is taken away there too (`/api/admin/set-admin-active`), which
+suspends rather than deletes, because their id is on every audit row they
+ever wrote.
+
+**A scope is three levels per section, not a yes or no.** A `(scope,
+section)` pair is `none`, `view` or `manage`. `view` means they open it and
+read it and every button is gone; it is enforced by `requireAdminScope`
+asking for `manage`, so a read-only section is read-only at all 98 admin
+routes rather than only on the screens that remembered to hide a control.
+There is no "write only" — nobody can honestly change a row they are not
+allowed to see. One grant is `view` today: **finance reads Sessions**, so
+the person reconciling the books can see what a payment bought without
+being able to cancel or reassign it.
+
+**Settings → User Access** is where that model is read: the back-office
+directory (who can sign in, at what level, and whether they still can) and a
+matrix of what each of the four desks can do, rows in plain words and
+columns per desk. The matrix is **derived from the same module the routes
+enforce with**, so it cannot claim access nobody has, and its cells are
+deliberately not checkboxes — a tick that did not also change what the
+server allows would be worse than no tick at all, so changing what a desk
+reaches stays a code change.
 `admin_activity_log` records every mutating admin action — actor, action,
 subject, amount, timestamp — readable at **Settings → Activity Log** and
 append-only by construction: the table has a select policy and no insert
