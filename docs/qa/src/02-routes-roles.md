@@ -66,7 +66,7 @@ Every route below is covered by at least one test. The rightmost column names th
 
 ### 3.6 Admin back office
 
-`/admin/login` and `/admin/dashboard`. The dashboard is one page; the screen is chosen by `?section=&tab=`. All 28 screens:
+`/admin/login` and `/admin/dashboard`. The dashboard is one page; the screen is chosen by `?section=&tab=`. All 31 screens:
 
 | Section | Tab key | Screen | Covered by |
 | --- | --- | --- | --- |
@@ -94,7 +94,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `brand` | Brand & Contact | `ADM-SET-001` |
 | Settings | `public` | Public Site | `ADM-SET-004` |
 | Settings | `booking` | Booking Rules | `ADM-SET-010` |
-| Settings | `offers` | Offers & Discounts | `ADM-SET-016` |
+| Settings | `offers` | Offers & Discounts | `ADM-SET-023`, `ADM-INVITE-001` |
 | Settings | `programmes` | Programmes & Home Visits | `ADM-SET-018` |
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
 | Settings | `access` | User Access | `ADM-SET-025` |
@@ -121,7 +121,7 @@ Detail routes (open as an overlay from the dashboard, and as a full page on dire
 
 ### 3.8 API routes
 
-The application exposes 150+ POST route handlers under `/api`, grouped by audience: `admin/`, `appointments/`, `patient/`, `therapist/`, `hospital/`, `packages/`, `home-visit/`, `care-plan/`, `razorpay/`, and `medical-documents/`. Individual routes are named inside the tests that exercise them. The security section (`SEC-API-*`) tests them directly with `curl`.
+The application exposes 150+ POST route handlers under `/api`, grouped by audience: `admin/`, `appointments/`, `patient/`, `therapist/`, `hospital/`, `packages/`, `home-visit/`, `care-plan/`, `razorpay/`, and `medical-documents/`. Individual routes are named inside the tests that exercise them. The security section tests them directly with `curl` — `SEC-ROUTE-002` (anonymous), `SEC-ADMIN-002` (wrong role) and `SEC-TAMPER-*` (manipulated bodies).
 
 ---
 
@@ -157,7 +157,7 @@ It does **not** apply to:
 
 ### 4.4 Admin scopes
 
-`profiles.admin_scope` is one of four values. It decides which **sections** an admin may open. **Every** admin route guards on scope — 92 of the 95 with `requireAdminScope(section)`, and three (`set-admin-scope`, `debug-reset`, `create-account`) with an explicit **full-only** check instead, because a section check would be too weak: a `finance` admin passing a section gate could otherwise widen its own access or mint a full admin. The sidebar hiding a section is presentation only.
+`profiles.admin_scope` is one of four values. It decides which **sections** an admin may open. **Every** admin route guards on scope — 99 of the 102 with `requireAdminScope(section)`, and three (`set-admin-scope`, `debug-reset`, `create-account`) with an explicit **full-only** check instead, because a section check would be too weak: a `finance` admin passing a section gate could otherwise widen its own access or mint a full admin. The sidebar hiding a section is presentation only.
 
 | Scope | Sections it can open | Cannot |
 | --- | --- | --- |

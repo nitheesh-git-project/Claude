@@ -364,8 +364,19 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 **Expected Result.** Results are grouped by entity type and link to the right detail surface.
 
 #### `ADM-PEOP-003` — Patient detail · P1
-**Steps.** Tap a patient row. Then open `/admin/dashboard/patients/<id>` directly.
-**Expected Result.** Tapping opens an **overlay modal**; the direct URL renders the **same content as a full page**. The detail shows sessions, purchases, notes, ratings, contact edit and password reset. `ProfileSessionList` and the purchase modals take `canSeeMoney` / `canManageSessions` — **a control an admin's scope cannot call must not render**, or they get a 403 with nothing to explain it.
+**Steps**
+1. On **People → Patients**, tap the row for `QA Patient A`.
+2. Read the section headings down the panel.
+3. Under **Admin Notes**, tap the notes box. Enter `Prefers early evening slots. Referred by QA Partner Hospital.`
+4. Tap **Save Notes**.
+5. Close the overlay, reopen the same row, and confirm the note survived.
+6. Copy the id out of the URL and open `/admin/dashboard/patients/<id>` directly in a new tab.
+7. Sign in as the **finance** admin and open the same URL.
+
+**Expected Result.** Tapping opens an **overlay modal**; the direct URL at step 6 renders the **same content as a full page** (a real route, not only an intercepted one). The panel carries **Personal Details**, **Contact Info**, **Admin Notes**, **Therapist Ratings of This Patient**, **Session Performance**, **Booking History**, **Payment History**, **Profit Breakdown** and **Profile Change Request History**, plus contact edit and password reset.
+The notes box is placeheld `Private notes about this patient — never shown to them.` and reads `No notes saved yet.` when empty; the button reads `Saving...` then `Save Notes`. **The note must never appear on any patient-facing screen** — check the patient's own dashboard and their exported PDF.
+`ProfileSessionList` and the purchase modals take `canSeeMoney` / `canManageSessions` — **a control an admin's scope cannot call must not render**, or they get a 403 with nothing to explain it. At step 7 the finance admin reads the money sections and has **no** control that changes a session.
+The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Save Notes** there posts `update-therapist-notes`).
 
 #### `ADM-PEOP-004` — Condition access grants and change requests · P0
 **Steps.** Approve a therapist's access-grant request. Then approve a patient's condition change request. Then approve a **therapist-submitted** edit for a re-triaged patient.
@@ -428,6 +439,7 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 **Reorder, in detail.** The up/down arrows rearrange the list **in the browser only** — nothing is written until **Save order** is tapped. That button is **always visible** and is **disabled until something has actually moved**; while there are unsaved moves the screen reads `Not saved yet — the public pages still show the old order.` beside an **Undo changes** link. Saving posts the whole list, renumbers it `1..n`, and shows `Order saved — live on the site.`
 **Critical check:** reload the tab after saving and confirm the new order **survives**, then open `/` and `/conditions` and confirm they show the same order **immediately** (the pages are ISR-cached, and the save invalidates them). A reorder that reverts on reload, or one the public pages ignore, is the P1 defect this case exists for — it was caused by a pairwise `display_order` swap that did nothing whenever two categories held the same number, which every category created without typing an **Order** did.
 **Negatives:** with two browser tabs open, add or delete a category in tab B, then Save order in tab A — refused with `The condition list changed while you were reordering it. Refresh and try again.`
+**[SQL] the same refusal one level down.** The route's completeness check is true only for as long as every caller remembers it, and the function is reachable by the service-role client and by hand in the SQL editor. Against a scratch database with `schema.sql` applied, call it with a subset — `select set_treatment_category_order(array[(select id from treatment_categories limit 1)]);` — and confirm it **raises** `set_treatment_category_order needs every category (1 given, 3 exist)` rather than renumbering one row. Renumbering a subset collides with the rows it never saw, which is how two categories end up sharing an order again — the exact tie the whole change removes.
 **Also:** creating a category now defaults **Order** to one past the last existing category, so a new condition appends rather than appearing first. Deactivating removes it from public surfaces and refuses new bookings against it (`That concern isn't available any more. Please pick another one.`) while **leaving existing appointments untouched**. Deleting a category referenced by a live purchase must not silently break that purchase.
 
 #### `ADM-CAT-005` — Create a session package · P0

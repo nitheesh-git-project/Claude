@@ -183,11 +183,11 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 
 ### 24.2 Route coverage
 
-Every route in §3 is mapped to at least one test in its own table's rightmost column. **All 9 public pages, 2 booking routes, 11 patient routes, 8 therapist routes, 6 hospital routes, 2 admin routes + 28 admin screens + 3 admin detail routes, and 4 system routes are covered.** API routes are covered by the tests that drive them plus §18's direct calls.
+Every route in §3 is mapped to at least one test in its own table's rightmost column. **All 9 public pages, 2 booking routes, 10 patient routes, 8 therapist routes, 6 hospital routes, 2 admin routes + 31 admin screens + 3 admin detail routes, and 4 system routes are covered.** API routes are covered by the tests that drive them plus §18's direct calls.
 
 ### 24.3 Admin screen coverage
 
-All **28** screens have at least one dedicated test — see the §3.6 table. Every screen with a mutating control also has a negative and an authorization test.
+All **31** screens have at least one dedicated test — see the §3.6 table. Every screen with a mutating control also has a negative and an authorization test.
 
 ### 24.4 Configuration coverage
 

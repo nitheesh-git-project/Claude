@@ -255,7 +255,7 @@ change a row they are not allowed to see, so the third box a permissions
 matrix usually draws is one this product has no honest meaning for.
 **`requireAdminScope(section)` asks for `manage`**, which is what makes
 `view` real rather than a label: every route guarded by it is a POST that
-changes something, so a section granted at `view` is read-only at all 98 of
+changes something, so a section granted at `view` is read-only at all 99 of
 them without one being edited, and the level cannot be widened by a screen
 forgetting to hide a button. `scopeCanOpen` (view or manage) decides what
 renders; `scopeCanManage` decides what a control may do. One grant is
@@ -1677,7 +1677,7 @@ client is the only writer and the log is append-only from any session.
      the grid already decides its answer; a capability needing its own rule
      wants the rule in the grid.
   2. **The cells are not checkboxes.** A tick that does not change a route is
-     a lie, and making them real means a per-capability check at 98 routes —
+     a lie, and making them real means a per-capability check at 99 routes —
      the fine-grained matrix whose failure mode is one route quietly falling
      through a gap in it, which is what coarse scopes exist to avoid.
      Changing what a desk reaches is a code change, reviewed.

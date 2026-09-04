@@ -146,7 +146,7 @@ Every route below is covered by at least one test. The rightmost column names th
 
 ### 3.6 Admin back office
 
-`/admin/login` and `/admin/dashboard`. The dashboard is one page; the screen is chosen by `?section=&tab=`. All 28 screens:
+`/admin/login` and `/admin/dashboard`. The dashboard is one page; the screen is chosen by `?section=&tab=`. All 31 screens:
 
 | Section | Tab key | Screen | Covered by |
 | --- | --- | --- | --- |
@@ -174,7 +174,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `brand` | Brand & Contact | `ADM-SET-001` |
 | Settings | `public` | Public Site | `ADM-SET-004` |
 | Settings | `booking` | Booking Rules | `ADM-SET-010` |
-| Settings | `offers` | Offers & Discounts | `ADM-SET-016` |
+| Settings | `offers` | Offers & Discounts | `ADM-SET-023`, `ADM-INVITE-001` |
 | Settings | `programmes` | Programmes & Home Visits | `ADM-SET-018` |
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
 | Settings | `access` | User Access | `ADM-SET-025` |
@@ -201,7 +201,7 @@ Detail routes (open as an overlay from the dashboard, and as a full page on dire
 
 ### 3.8 API routes
 
-The application exposes 150+ POST route handlers under `/api`, grouped by audience: `admin/`, `appointments/`, `patient/`, `therapist/`, `hospital/`, `packages/`, `home-visit/`, `care-plan/`, `razorpay/`, and `medical-documents/`. Individual routes are named inside the tests that exercise them. The security section (`SEC-API-*`) tests them directly with `curl`.
+The application exposes 150+ POST route handlers under `/api`, grouped by audience: `admin/`, `appointments/`, `patient/`, `therapist/`, `hospital/`, `packages/`, `home-visit/`, `care-plan/`, `razorpay/`, and `medical-documents/`. Individual routes are named inside the tests that exercise them. The security section tests them directly with `curl` — `SEC-ROUTE-002` (anonymous), `SEC-ADMIN-002` (wrong role) and `SEC-TAMPER-*` (manipulated bodies).
 
 ---
 
@@ -237,7 +237,7 @@ It does **not** apply to:
 
 ### 4.4 Admin scopes
 
-`profiles.admin_scope` is one of four values. It decides which **sections** an admin may open. **Every** admin route guards on scope — 92 of the 95 with `requireAdminScope(section)`, and three (`set-admin-scope`, `debug-reset`, `create-account`) with an explicit **full-only** check instead, because a section check would be too weak: a `finance` admin passing a section gate could otherwise widen its own access or mint a full admin. The sidebar hiding a section is presentation only.
+`profiles.admin_scope` is one of four values. It decides which **sections** an admin may open. **Every** admin route guards on scope — 99 of the 102 with `requireAdminScope(section)`, and three (`set-admin-scope`, `debug-reset`, `create-account`) with an explicit **full-only** check instead, because a section check would be too weak: a `finance` admin passing a section gate could otherwise widen its own access or mint a full admin. The sidebar hiding a section is presentation only.
 
 | Scope | Sections it can open | Cannot |
 | --- | --- | --- |
@@ -454,7 +454,7 @@ This is the single most misunderstood part of the application, and mis-reading i
 | The therapist's own suggestion picker | `/api/therapist/suggest-session`'s lead-time check |
 | | Payout maths, `completed_at` stamping, audit timestamps, `paid_at` |
 
-**The practical consequence, stated plainly:** you can use the simulated clock to make the *UI offer* a slot or a button. You cannot use it to make the *server accept* a time-gated write. If you simulate a date far in the future and then try to complete a session, the client will show you the **Tap to Join** control and the server will still answer `409` with *"You can mark this done once the session's join window has opened."* **That is correct behaviour, not a defect.** Tests that need a server-side time gate to pass say so explicitly and tell you to use a real near-future slot instead.
+**The practical consequence, stated plainly:** you can use the simulated clock to make the *UI offer* a slot or a button. You cannot use it to make the *server accept* a time-gated write. If you simulate a date far in the future and then try to complete a session, the client will show you the **Tap to Join** control and the server will still answer `409` with *"This session hasn't started yet. You can mark it done once it's under way."* **That is correct behaviour, not a defect.** Tests that need a server-side time gate to pass say so explicitly and tell you to use a real near-future slot instead.
 
 Because the storage key is `localStorage`, the simulation is **per browser profile**, and it survives navigation and reload until you reset it. Applying it triggers a **full page reload** — soft re-renders would not pick it up, because every consumer reads the clock once in a lazy initializer.
 
@@ -490,7 +490,7 @@ These are referenced by ID throughout the plan.
 | **TIME-B** | `2026-09-12 18:00` | Same rules, different day-of-week and a later hour, so the boundary lands on the *next* day. Proves the boundary is computed, not hardcoded. | `PAT-BOOK-004` |
 | **TIME-C** | `2026-09-10 23:30` | Late-night boundary: no slot remains today, so the calendar's earliest bookable date must roll to 11 September. | `PAT-BOOK-005` |
 | **TIME-D** | Real clock + 24h ahead of a home-visit slot | Home-visit lead time defaults to 24h — longer than online. Proves the two lead times are separate settings. | `PAT-HV-003` |
-| **TIME-E** | 10 minutes **before** a confirmed session's slot | The join window opens `join_window_minutes` (default 15) before the slot. **Tap to Join** must be live. | `THR-SESS-004`, `PAT-SESS-005` |
+| **TIME-E** | 10 minutes **before** a confirmed session's slot | The join window opens `join_window_minutes` (default 15) before the slot. **Tap to Join** must be live. | `THR-SESS-004`, `PAT-SESS-003` |
 | **TIME-F** | 90 minutes **after** a confirmed session's slot | Past `session_completed_after_minutes` (default 60). Every join control on every surface must read **Session Completed**. | `XR-CUTOFF-001` |
 | **TIME-G** | 30 hours before a paid session's slot | Outside the 24h cancellation window → full refund path. | `PAT-CANCEL-001` |
 | **TIME-H** | 2 hours before a paid session's slot | Inside the 24h window → no refund, and the confirm dialog must say so. | `PAT-CANCEL-002` |
@@ -1188,6 +1188,68 @@ Two rules shape almost everything on the patient's screens:
 
 ---
 
+### 11.1a The dashboard landing screens
+
+The patient portal's Overview is the screen a patient lands on after every sign-in, and the one that answers "how am I doing / what needs me / what do I do next" in that order — a strip of four figures, the activity feed, then quick actions. It is assembled by `loadPatientDashboard()`, so every figure on it is derived from rows the same loader already read: none of it can disagree with the screen it links to. The booking hub under **Book a Session** is the portal's own front door to the two things a patient may buy directly — **one** video consultation, or **one** visit at home.
+
+#### `PAT-DASH-001` — The patient Overview · P1
+
+**Feature.** Patient dashboard Overview (`/patient/dashboard`). **Role.** Patient.
+**Purpose.** Confirm the four figures, the feed, the quick actions and the conditional banners render, that every figure links to rows that agree with it, and that the first-visit tour appears exactly once.
+**Preconditions.** Signed in as Patient A (`PAT-AUTH-001`). Run this **twice**: once immediately after `PAT-AUTH-002`/`PAT-BOOK-003` (nothing completed yet) and once after `THR-SESS-005` has completed a session, so both the empty and the populated shapes are seen.
+**Test Data.** None entered.
+
+**Steps**
+1. Open `/patient/dashboard`.
+2. On a brand-new account only: read the welcome tour that opens over the screen. Confirm it reads `1 of N`, has **Skip**, **Next** and (from step 2) **Back**, and that the highlighted ring sits over the sidebar entry each step names.
+3. Tap **Next** until the last step, then tap **Done**.
+4. Reload the page.
+5. Read the header: `Welcome back, QA Patient A` with `Your virtual physical therapy dashboard` under it.
+6. Read the four figures across the strip, left to right.
+7. Tap the **Next session** figure.
+8. Tap the browser's Back button, then tap the **Package sessions left** figure.
+9. Tap Back again. Read the activity feed under the strip.
+10. Read the four quick actions at the foot: **Book a session**, the health-profile action, **Your sessions**, **Your payments**.
+
+**Expected Result.**
+* The tour appears **only on the first visit**. Step 3 writes `profiles.onboarding_seen_at` through `/api/patient/dismiss-onboarding`, so the reload at step 4 shows no tour, and it never returns. **Skip** does the same thing as **Done** — both dismiss it permanently.
+* The strip reads: **Next session** (date + time and the therapist's name, or `—` with `Nothing booked yet`), **Sessions done** (count, `Your history builds up here` at zero), **Package sessions left** (count, `You don't own a package yet` when there are none), and **Health profile**.
+* **Health profile before the therapist's first record reads `—` on a slate accent** with `Your therapist fills this in at your first session` — **not** `0%` on amber. An amber zero here is the `PAT-HP-001` defect: it asserts the patient is behind on something nobody has asked them for.
+* Step 7 navigates to `/patient/dashboard/sessions`; step 8 to `/patient/dashboard/packages`. Every figure is a link and lands on the rows it counted.
+* With no history the feed reads `Bookings, payments and health-profile updates show up here as they happen.` Once there is history, items still waiting on the patient (`needsYou`) are **pinned above** everything else regardless of date, and no single title repeats more than the cap allows.
+* The health-profile quick action changes wording with state: `See your health profile` / `Your therapist fills this in at your first session` while locked, `Finish your health profile` / `N questions left, about 2 minutes` while partly answered, `Review your health profile` while complete.
+* **Conditional banners.** While the profile is the patient's to write and unfinished, an amber banner reads `You're N of M questions into your health profile.` (or the `Add to your health profile…` wording at zero) with a progress bar and `Finish it →`. While a recommendation or a proposed time is waiting, a teal card reads `Your therapist has recommended a programme` or `Your therapist has proposed a time` and links to `/patient/dashboard/suggested` — the cards themselves live there, never duplicated here.
+* If invites are enabled (`ADM-SET-023`'s neighbour, `invite_rewards_enabled`), the invite card renders **below** the overview, never as a banner over it, and its claim field is gone once any session has been paid for.
+* No console error. No horizontal scroll at 390 × 844.
+**Cleanup.** None. Stay signed in.
+
+#### `PAT-DASH-002` — The booking hub inside the portal · P1
+
+**Feature.** `/patient/dashboard/book`. **Role.** Patient.
+**Purpose.** Prove the portal's booking hub offers exactly the two things a patient may buy directly, and nothing that must come from a recommendation.
+**Preconditions.** `SETUP-CAT-001` has created the three categories. For the home-visit half: `ADM-SET-013` on, `SETUP-AREA-001` and `SETUP-HVPKG-001` done (HV1 = 1 visit, HV2 = 4 visits).
+**Test Data.** None entered.
+
+**Steps**
+1. In the sidebar tap **Book a Session**.
+2. Read the two group headings and their blurbs.
+3. Read every card under **Single online consultation**.
+4. Read every card under **Home visits**.
+5. Tap the card titled `QA Back & Spine Care`.
+6. Tap the browser's Back button, then tap the HV1 card.
+7. Return to `/patient/dashboard/book`. Ask an admin to switch **Home Visit** off (`ADM-SET-013`), then reload this screen.
+
+**Expected Result.**
+* Heading **Book a Session**, subtitle `Video consultations and home visits, in one place.`
+* Group 1 is `Single online consultation` — `One video session with a therapist, booked for a specific concern.` One card per **active** treatment category, each showing its title, description, `N min · online` and its consultation price.
+* Group 2 is `Home visits` — `A therapist comes to you. We'll check your pincode before anything is charged.` **HV1 (1 visit) appears. HV2 (4 visits) does not.** A multi-visit home package is a programme and comes from a care plan; if HV2 is on this screen that is the P0 `PAT-HV-005` defect. Each card carries `Single visit · N min at home` and either `Travel included` or `Travel charged separately, by area`.
+* **No session package (programme) appears anywhere on this screen**, at any price, with or without a Buy control.
+* Step 5 navigates to `/book?category=<id>` with that category preselected. Step 6 navigates to `/book-home-visit?package=<id>`.
+* After step 7 the **Home visits** group is **absent** entirely and the sidebar's home-visit affordances go with it. With no categories **and** no home-visit packages the whole card reads `Nothing is available to book right now — please check back shortly.`
+**Cleanup.** Switch **Home Visit** back on if later home-visit tests follow.
+
+---
+
 ### 11.2 The booking wizard — happy paths
 
 #### `PAT-BOOK-001` — Reach the wizard from the public site · P1
@@ -1728,6 +1790,73 @@ Five rules shape almost every screen:
 #### `THR-AUTH-003` — Sign in after approval · P0
 **Preconditions.** `ADM-APPR-002` approved Therapist A.
 **Expected Result.** Sign-in lands on `/therapist/dashboard`. The sidebar shows **Overview**, **Availability**, **Sessions**, **Earnings**, **My Patients**, **Edit Profile**, with **Back to Home** at the foot of the nav directly above Collapse (with children Photo / Public Details / Credentials / Account Security).
+
+---
+
+### 12.1a The dashboard landing screens
+
+The therapist Overview is where a clinician starts every shift: what is on today, what is owed, and what they have not written up yet. Edit Profile is the screen that draws the line between a detail they own outright and a credential a patient relies on.
+
+#### `THR-DASH-001` — The therapist Overview · P1
+
+**Feature.** `/therapist/dashboard`. **Role.** Therapist.
+**Purpose.** Confirm the header states what this therapist is paid and rated, that the four figures agree with the screens they link to, and that every quick action lands somewhere real.
+**Preconditions.** `THR-AUTH-003`. Best read after `THR-SESS-005` has completed at least one session, so **Notes to write** and **Owed to you** are non-zero.
+
+**Steps**
+1. Open `/therapist/dashboard`.
+2. Read the header block: name, credentials, `Your Revenue Share: N%`, `Your Rating: …`.
+3. Read the four figures: **Today**, **Upcoming**, **Notes to write**, **Owed to you**.
+4. Tap **Notes to write**.
+5. Tap Back, then tap **Owed to you**.
+6. Tap Back. Read the activity feed.
+7. Tap the quick action **Set your availability**.
+8. Tap Back, then tap each of **Your assigned sessions**, **Patient health profiles** and **Earnings and payouts** in turn, returning each time.
+
+**Expected Result.**
+* Header: `Welcome, QA Therapist A`, the credentials string, `Your Revenue Share: 60%` (whatever `ADM-PEOP-006` set), and `Your Rating: No ratings yet` until a patient has rated one — then `4.0 (1 rating)`. If an admin has hidden this therapist's rating, the line ends ` — hidden from public pages`.
+* Greeting `Your practice today`. The headline names the next session and its patient, or reads `No sessions booked yet — keep your availability open and the clinic assigns work to it.`
+* **Today** counts today's sessions with `Next at H:MM` beneath, **Upcoming** counts confirmed and awaiting-assignment work, **Notes to write** counts delivered sessions with nothing recorded (amber above zero, emerald at zero with `Every delivered session is written up`), **Owed to you** is a rupee figure with `Not yet requested` / `Payout request under review` / `Payout request sent`.
+* Steps 4 and 5 land on `/therapist/dashboard/sessions` and `/therapist/dashboard/earnings`. The counts there match the figures exactly.
+* Empty feed reads `Assignments, completed sessions and payouts show up here as they happen.` A session delivered with no note written is a `needsYou` item pinned above dated items.
+* **Step 7 must land on `/therapist/dashboard/availability`, with the weekly schedule editor on screen.** Availability is its own route; a quick action that reloads the Overview and changes nothing is a defect — report it against this test ID.
+* Step 8's three links land on `/therapist/dashboard/sessions`, `/therapist/dashboard/health-profile` and `/therapist/dashboard/earnings`.
+* No figure on this screen exposes a patient's phone number or email — see `THR-SESS-003`.
+**Cleanup.** None.
+
+#### `THR-PROF-001` — Edit Profile: what saves instantly and what needs approval · P1
+
+**Feature.** `/therapist/dashboard/profile`. **Role.** Therapist.
+**Purpose.** Prove the line between a detail a therapist owns and a credential patients rely on: the first saves on the spot, the second becomes an admin review request and locks the field until it is decided.
+**Preconditions.** `THR-AUTH-003`. An admin is available to decide the request in `ADM-APPR-004`.
+**Test Data.** Bio `Works with desk-based patients on posture-driven back pain.` · Languages `English, Kannada, Hindi` · Years of Experience `15` (a deliberate wrong value — it is declined, never approved, so Therapist A stays at the §8.8 value of `9`) · Specialist In `Spine, hip and knee rehabilitation`.
+
+**Steps**
+1. In the sidebar tap **Edit Profile**.
+2. Under **Public Details**, tap **Short Bio**. Replace it with `Works with desk-based patients on posture-driven back pain.`
+3. Tap **Languages Spoken**. Enter `English, Kannada, Hindi`.
+4. Tap **Save**.
+5. Reload the page and confirm both values survived.
+6. Under **Credentials & Specialization**, tap **Years of Experience**. Enter `15`.
+7. Tap **Specialist In**. Enter `Spine, hip and knee rehabilitation`.
+8. Tap **Request Changes**.
+9. Read the two fields you just changed.
+10. Tap **Withdraw** beside **Specialist In**.
+11. Repeat steps 7–8 for **Specialist In** only. Leave it pending.
+12. Sign in as a full admin and open **Today → Approvals**. Decline **both** requested fields with the note `Send the council registration number first.`
+13. Sign back in as the therapist and reopen **Edit Profile**.
+14. Under **Account Security**, tap **Send password reset email**.
+
+**Expected Result.**
+* **Public Details save instantly.** The button reads `Saving...` then `Save`; the values survive the reload at step 5. No admin sees anything.
+* **Credentials do not.** Step 8 shows `Your request has been submitted for admin review.` Each requested field is replaced by its **new** value on a slate panel with an amber `Pending Review` chip and a **Withdraw** link, and **cannot be edited again** until the request is decided. The live public profile still shows the **old** value — `/team` and the patient's therapist card must not change yet.
+* Step 10's **Withdraw** returns the field to an editable input immediately, with the old value.
+* After step 12's decline the field is editable again and carries `Last request declined: Send the council registration number first.` in red. Nothing on the public profile ever changed.
+* The note under the credential fields reads `Changes to these fields need admin approval before they take effect.`
+* **Profile photo** uploads on the spot (no review) and appears on `/team` once the therapist is visible there.
+* Step 14 sends the reset by email and says so; the password is never typed on this screen.
+* Negative: a **negative** Years of Experience is refused by the field's `min=0`; an empty **Full Name** submits nothing.
+**Cleanup.** Leave the bio and languages as set — §8.8 quotes them. **No credential request may be left pending**, or `ADM-APPR-004` starts with rows it did not create and Therapist A's experience drifts from `9`.
 
 ---
 
@@ -2645,8 +2774,19 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 **Expected Result.** Results are grouped by entity type and link to the right detail surface.
 
 #### `ADM-PEOP-003` — Patient detail · P1
-**Steps.** Tap a patient row. Then open `/admin/dashboard/patients/<id>` directly.
-**Expected Result.** Tapping opens an **overlay modal**; the direct URL renders the **same content as a full page**. The detail shows sessions, purchases, notes, ratings, contact edit and password reset. `ProfileSessionList` and the purchase modals take `canSeeMoney` / `canManageSessions` — **a control an admin's scope cannot call must not render**, or they get a 403 with nothing to explain it.
+**Steps**
+1. On **People → Patients**, tap the row for `QA Patient A`.
+2. Read the section headings down the panel.
+3. Under **Admin Notes**, tap the notes box. Enter `Prefers early evening slots. Referred by QA Partner Hospital.`
+4. Tap **Save Notes**.
+5. Close the overlay, reopen the same row, and confirm the note survived.
+6. Copy the id out of the URL and open `/admin/dashboard/patients/<id>` directly in a new tab.
+7. Sign in as the **finance** admin and open the same URL.
+
+**Expected Result.** Tapping opens an **overlay modal**; the direct URL at step 6 renders the **same content as a full page** (a real route, not only an intercepted one). The panel carries **Personal Details**, **Contact Info**, **Admin Notes**, **Therapist Ratings of This Patient**, **Session Performance**, **Booking History**, **Payment History**, **Profit Breakdown** and **Profile Change Request History**, plus contact edit and password reset.
+The notes box is placeheld `Private notes about this patient — never shown to them.` and reads `No notes saved yet.` when empty; the button reads `Saving...` then `Save Notes`. **The note must never appear on any patient-facing screen** — check the patient's own dashboard and their exported PDF.
+`ProfileSessionList` and the purchase modals take `canSeeMoney` / `canManageSessions` — **a control an admin's scope cannot call must not render**, or they get a 403 with nothing to explain it. At step 7 the finance admin reads the money sections and has **no** control that changes a session.
+The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Save Notes** there posts `update-therapist-notes`).
 
 #### `ADM-PEOP-004` — Condition access grants and change requests · P0
 **Steps.** Approve a therapist's access-grant request. Then approve a patient's condition change request. Then approve a **therapist-submitted** edit for a re-triaged patient.
@@ -2709,6 +2849,7 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 **Reorder, in detail.** The up/down arrows rearrange the list **in the browser only** — nothing is written until **Save order** is tapped. That button is **always visible** and is **disabled until something has actually moved**; while there are unsaved moves the screen reads `Not saved yet — the public pages still show the old order.` beside an **Undo changes** link. Saving posts the whole list, renumbers it `1..n`, and shows `Order saved — live on the site.`
 **Critical check:** reload the tab after saving and confirm the new order **survives**, then open `/` and `/conditions` and confirm they show the same order **immediately** (the pages are ISR-cached, and the save invalidates them). A reorder that reverts on reload, or one the public pages ignore, is the P1 defect this case exists for — it was caused by a pairwise `display_order` swap that did nothing whenever two categories held the same number, which every category created without typing an **Order** did.
 **Negatives:** with two browser tabs open, add or delete a category in tab B, then Save order in tab A — refused with `The condition list changed while you were reordering it. Refresh and try again.`
+**[SQL] the same refusal one level down.** The route's completeness check is true only for as long as every caller remembers it, and the function is reachable by the service-role client and by hand in the SQL editor. Against a scratch database with `schema.sql` applied, call it with a subset — `select set_treatment_category_order(array[(select id from treatment_categories limit 1)]);` — and confirm it **raises** `set_treatment_category_order needs every category (1 given, 3 exist)` rather than renumbering one row. Renumbering a subset collides with the rows it never saw, which is how two categories end up sharing an order again — the exact tie the whole change removes.
 **Also:** creating a category now defaults **Order** to one past the last existing category, so a new condition appends rather than appearing first. Deactivating removes it from public surfaces and refuses new bookings against it (`That concern isn't available any more. Please pick another one.`) while **leaving existing appointments untouched**. Deleting a category referenced by a live purchase must not silently break that purchase.
 
 #### `ADM-CAT-005` — Create a session package · P0
@@ -3987,11 +4128,11 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 
 ### 24.2 Route coverage
 
-Every route in §3 is mapped to at least one test in its own table's rightmost column. **All 9 public pages, 2 booking routes, 11 patient routes, 8 therapist routes, 6 hospital routes, 2 admin routes + 28 admin screens + 3 admin detail routes, and 4 system routes are covered.** API routes are covered by the tests that drive them plus §18's direct calls.
+Every route in §3 is mapped to at least one test in its own table's rightmost column. **All 9 public pages, 2 booking routes, 10 patient routes, 8 therapist routes, 6 hospital routes, 2 admin routes + 31 admin screens + 3 admin detail routes, and 4 system routes are covered.** API routes are covered by the tests that drive them plus §18's direct calls.
 
 ### 24.3 Admin screen coverage
 
-All **28** screens have at least one dedicated test — see the §3.6 table. Every screen with a mutating control also has a negative and an authorization test.
+All **31** screens have at least one dedicated test — see the §3.6 table. Every screen with a mutating control also has a negative and an authorization test.
 
 ### 24.4 Configuration coverage
 
