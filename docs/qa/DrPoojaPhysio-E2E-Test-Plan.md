@@ -3375,6 +3375,14 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 2. **Every photograph shows a face, and the face is glad to be there.** The one exception is the clinician reading a scan, who is concentrating — a physiotherapist grinning at an X-ray is the opposite of reassuring.
 3. Photos are **static imports**, never `/photos/x.jpg` strings and never remote URLs, so a missing file is a compile error.
 
+#### `PUB-CTA-001` — The closing band asks for the sale · P1
+
+**Steps.** Open each of `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq` and read the very last band. (`/hospitals` deliberately ends on its referral form instead.)
+**Expected Result.** A teal band with the copy on the left — headline, one line, one or two buttons — and a **photograph on the right**: a patient at home, smiling, booking on her phone. The same photograph on all seven; only the headline, body and buttons change per page. Over the photo, a white chip reading **Session confirmed / Tuesday, 6:00 PM / Calendar invite on its way.** and, underneath it, **Example of what you get** — the chip must always say it is an example, on every page.
+**Assurances.** Three lines under the buttons: *One-to-one, never a group*, *Reports read before your session*, *Secure UPI payment*.
+**Critical check:** none of those three states a **number**. A session's length is set per treatment category and the cancellation window is an admin setting, so a fixed "60 minutes" or "free cancellation up to 24 hours" printed here would be a promise the settings can contradict. If you see a number in this band, that is a bug.
+**Layout.** Narrow to a phone width: the copy and buttons come **first**, the photograph below them — nobody should have to scroll past a picture to reach the button. The image keeps the same landscape crop at every width; it must never go tall and leave the band mostly empty beside the text.
+
 #### `PUB-HOME-001` — The home page · P1
 **Steps.** Open `/`. Scroll to the bottom.
 **Expected Result.** Hero → trust bar → care-area showcase → walkthrough → programmes → testimonials → mission band → connector grid. The **mission band gives the mission and vision in full** (they are two sentences; paraphrasing would make the home page a weaker version of the same claim) while the **four promises appear as titles only**, each linking to the mission page's promises anchor. The connector grid shows the other seven pages **plus booking** — the index of the site always ends on the one action the site exists for.

@@ -1990,6 +1990,28 @@ client is the only writer and the log is append-only from any session.
   whether a `Section` plus `PhotoTile`/`IconCard`/`SplitFeature` already says
   it; the old pages each grew their own hero and their own closing block,
   and the result read as seven different sites.
+- **The closing band asks for the sale, so it shows the sale.** `ClosingCta`
+  is the last thing on seven of the eight pages (`/hospitals` ends on its
+  referral form instead), and it was the only band made of nothing but text
+  on a dark panel — a wall of words at the exact moment somebody is deciding
+  whether to spend money. It carries a photograph like every other band, and
+  the photograph is deliberately **not** of treatment: it is of the thing
+  being asked for, someone at home smiling as she books on her phone. What a
+  visitor is being asked to do is two minutes on a screen, and showing that
+  argues better than another sentence saying it. The confirmation chip over
+  it is the same argument once more — it shows what the next screen gives
+  back rather than asking anyone to imagine it, and it labels itself an
+  example **in the component**, so no page can render it as a real booking.
+  Three rules keep it honest. The photo defaults rather than being passed
+  per page, because a visitor who reads three pages should meet one
+  invitation, not three. The image gets a **fixed** aspect
+  (`4/3`, `5/4` at lg) rather than the photograph's own, or a portrait crop
+  leaves the band mostly empty teal beside four lines of copy. And the
+  assurance lines under the buttons are the **non-numeric** trust points
+  only: a session's length is per-category and the cancellation window is an
+  admin setting, so printing either as a fixed number in the one band that
+  reads as a promise is the "don't hardcode admin-configurable behaviour"
+  rule broken where it costs most.
 - **One idea per band, and a hard word budget.** The rewrite exists because
   visitors could not tell what the site was, and the second round of feedback
   was that there was still too much to read. So the budgets are numbers, not
