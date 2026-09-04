@@ -2,7 +2,7 @@
 
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import Spinner from "@/components/system/Spinner";
@@ -205,8 +205,11 @@ function AccessMatrix() {
         </thead>
         <tbody>
           {ADMIN_CAPABILITY_GROUPS.map((group) => (
-            <>
-              <tr key={group.section} className="bg-slate-50">
+            // A real Fragment, not `<>`: the shorthand cannot take a key, so
+            // each group's two-part output (its heading row plus its rows)
+            // went into the list unkeyed.
+            <Fragment key={group.section}>
+              <tr className="bg-slate-50">
                 <td
                   colSpan={ADMIN_SCOPES.length + 1}
                   className="px-2 py-1.5 text-[11px] font-bold text-slate-700"
@@ -250,7 +253,7 @@ function AccessMatrix() {
                   })}
                 </tr>
               ))}
-            </>
+            </Fragment>
           ))}
         </tbody>
       </table>
