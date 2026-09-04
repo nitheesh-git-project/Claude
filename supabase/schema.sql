@@ -8492,6 +8492,58 @@ revoke all on function public.set_treatment_category_order(uuid[]) from authenti
 drop function if exists swap_treatment_category_order(uuid, uuid);
 
 -- ---------------------------------------------------------------------------
+-- The reorder function refuses a partial list
+-- ---------------------------------------------------------------------------
+--
+-- /api/admin/reorder-treatment-categories already answers 409 for a list that
+-- does not cover every row, and that check is correct and true only for as
+-- long as every caller remembers it. This function is reachable by the
+-- service-role client and by hand in the SQL editor, and a partial list there
+-- puts back the exact bug the whole change removes: renumbering a subset from
+-- 1 collides with the rows it never saw, so two categories end up tied again
+-- and the arrows stop working. Proven on a scratch database -- reordering
+-- [B] alone left A and B both at 1.
+--
+-- Same rule as the sessions_used CHECK: an invariant the app enforces belongs
+-- in the database too.
+create or replace function set_treatment_category_order(ordered_ids uuid[])
+returns void
+language plpgsql
+as $$
+declare
+  v_total integer;
+  v_given integer;
+begin
+  select count(*) into v_total from treatment_categories;
+  -- distinct, because a duplicated id would pass a plain length check while
+  -- leaving one row unnumbered.
+  select count(distinct id) into v_given
+  from unnest(ordered_ids) as u(id)
+  where exists (select 1 from treatment_categories t where t.id = u.id);
+
+  if v_given <> v_total then
+    raise exception
+      'set_treatment_category_order needs every category (% given, % exist)',
+      v_given, v_total
+      using errcode = 'check_violation';
+  end if;
+
+  update treatment_categories t
+  set display_order = pos.ord
+  from (
+    select u.id, u.ord::integer as ord
+    from unnest(ordered_ids) with ordinality as u(id, ord)
+  ) as pos
+  where t.id = pos.id
+    and t.display_order is distinct from pos.ord;
+end;
+$$;
+
+revoke all on function public.set_treatment_category_order(uuid[]) from public;
+revoke all on function public.set_treatment_category_order(uuid[]) from anon;
+revoke all on function public.set_treatment_category_order(uuid[]) from authenticated;
+
+-- ---------------------------------------------------------------------------
 -- A referred patient's phone number
 -- ---------------------------------------------------------------------------
 --

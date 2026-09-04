@@ -2251,7 +2251,12 @@ client is the only writer and the log is append-only from any session.
   express. Three rules came out of it: the button is **always rendered and
   only enabled when something moved**, so saving is visibly the step that
   publishes; the route **refuses a list that does not cover every row**
-  (409), since renumbering a subset collides with the rows it never saw; and
+  (409), since renumbering a subset collides with the rows it never saw --
+  and so does `set_treatment_category_order()` itself, because that route
+  check is true only for as long as every caller remembers it and the
+  function is reachable by the service-role client and by hand in the SQL
+  editor; reordering one of two categories left both at 1 on a scratch
+  database, which is the tie the whole change removes, put back; and
   a new category is created at `max(display_order) + 1` rather than `0`, so
   it appends instead of landing on top of everything at the same number.
   Build a future reorder control the same way rather than reintroducing a
