@@ -8558,3 +8558,190 @@ revoke all on function public.set_treatment_category_order(uuid[]) from authenti
 -- a NOT NULL here would fail the migration. The hospital's own form requires
 -- it going forward; existing rows read as "not on file" on the admin card.
 alter table patient_referrals add column if not exists patient_phone text;
+
+-- ---------------------------------------------------------------------------
+-- debug_reset_all_data: the conditions catalogue survives the wipe
+-- ---------------------------------------------------------------------------
+--
+-- `treatment_categories` and `treatment_category_packages` are no longer
+-- truncated. They are the one thing in this list an admin builds by hand
+-- rather than generates by testing: the conditions the public pages show and
+-- the programmes a therapist may recommend under each. Emptying them meant
+-- retyping the catalogue after every reset, which is the friction the reset
+-- exists to remove -- and, worse, the public site came back with nothing on
+-- it, so a wipe of test data looked like the clinic had shut.
+--
+-- Safe to keep with everything else going, because TRUNCATE ... CASCADE
+-- reaches tables that *reference* the truncated ones, never the other way
+-- round: appointments, care plan versions and purchases all point AT a
+-- category or a package, so truncating them cannot take these two with
+-- them. A purchase reads its frozen `package_snapshot` rather than the live
+-- row anyway, so nothing surviving here can rewrite what somebody bought.
+--
+-- Still cleared, and deliberately: home-visit packages, service areas, FAQs,
+-- testimonials and the question templates. Those are hand-built too, so if
+-- retyping them is the same friction, take them out of the list the same
+-- way -- one at a time, each with a reason, rather than by keeping "the
+-- catalogue" as a category nobody can check.
+create or replace function public.debug_reset_all_data()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  deleted_accounts integer;
+  admin_count integer;
+begin
+  select count(*) into admin_count from profiles where role = 'admin';
+  if admin_count = 0 then
+    raise exception 'refusing to reset: no admin account would be left behind';
+  end if;
+
+  truncate table
+    session_credit_ledger,
+    session_entitlements,
+    payment_webhook_events,
+    payments,
+    business_expenses,
+    admin_activity_log,
+    session_suggestions,
+    appointment_reassignment_log,
+    payment_failure_log,
+    package_purchase_events,
+    home_visit_purchase_events,
+    appointments,
+    patient_package_purchases,
+    home_visit_package_purchases,
+    therapist_payout_requests,
+    therapist_payout_batches,
+    session_note_revisions,
+    session_notes,
+    patient_medical_documents,
+    pain_assessments,
+    condition_change_requests,
+    condition_access_grants,
+    patient_condition_profiles,
+    patient_addresses,
+    patient_admin_notes,
+    therapist_admin_notes,
+    hospital_admin_notes,
+    profile_change_requests,
+    therapist_availability_override,
+    therapist_availability_template,
+    therapist_schedule_state,
+    patient_referrals,
+    b2b_leads,
+    home_visit_waitlist,
+    home_visit_areas,
+    home_visit_packages,
+    testimonials,
+    faqs,
+    intake_question_templates,
+    pain_map_question_templates,
+    -- The four the previous definition missed. care_plans and
+    -- care_plan_versions were already reached by CASCADE; naming them is
+    -- belt and braces, and means a future change to their foreign keys
+    -- cannot quietly take them back out of the reset.
+    care_plan_versions,
+    care_plans,
+    communication_flags,
+    contact_reveal_log,
+    risk_reviews,
+    risk_signals,
+    -- Added with the review step. A reset that left the clinic's decisions
+    -- behind would leave a record of approvals for recommendations that no
+    -- longer exist.
+    care_plan_reviews,
+    -- Adding a table means adding it here, or a reset silently leaves its
+    -- rows behind. patient_invites first: it references appointments, and
+    -- a reset that kept it would leave rewards pointing at bookings that no
+    -- longer exist. promo_codes after, since appointments reference it.
+    patient_invites,
+    promo_codes
+  cascade;
+
+  with removed as (
+    delete from auth.users
+    where id not in (select id from profiles where role = 'admin')
+    returning 1
+  )
+  select count(*) into deleted_accounts from removed;
+
+  -- Detector thresholds back to what the seed set. Not truncated, because
+  -- an empty risk_rules would silently disable every detector rather than
+  -- restoring it -- risk_signals.rule_key references this table.
+  update risk_rules set
+    enabled = default,
+    config = default,
+    updated_at = now();
+
+  update site_settings set
+    site_name = default,
+    site_tagline = default,
+    site_description = default,
+    contact_email = default,
+    whatsapp_number = default,
+    contact_phone = default,
+    footer_copyright_text = default,
+    home_visit_page_heading = null,
+    home_visit_page_subheading = null,
+    ratings_visible_publicly = default,
+    session_packages_visible = default,
+    session_timeout_minutes = default,
+    google_meet_enabled = default,
+    join_window_minutes = default,
+    join_window_after_minutes = default,
+    session_completed_after_minutes = default,
+    booking_languages = default,
+    package_default_validity_days = default,
+    package_therapist_lock_enabled = default,
+    package_bulk_schedule_max = default,
+    package_expiry_reminder_days = default,
+    home_visit_enabled = default,
+    home_visit_cash_enabled = default,
+    home_visit_lead_time_hours = default,
+    home_visit_cancellation_refund_hours = default,
+    home_visit_default_validity_days = default,
+    home_visit_bulk_schedule_max = default,
+    home_visit_travel_buffer_minutes = default,
+    online_booking_lead_time_hours = default,
+    online_cancellation_refund_hours = default,
+    payment_gateway_fee_percent = default,
+    farewell_banner_seconds = default,
+    journey_step_seconds = default,
+    splash_enabled = default,
+    splash_brand_line = default,
+    splash_phrase = default,
+    splash_hold_seconds = default,
+    splash_revisit_minutes = default,
+    enabled_intake_specialties = default,
+    entitlement_ledger_authoritative = default,
+    care_plan_default_expiry_days = default,
+    care_plan_max_frequency_per_week = default,
+    contact_scan_mode = default,
+    contact_masking_enabled = default,
+    risk_signals_enabled = default,
+    therapist_suggestions_enabled = default,
+    auto_assign_therapist_enabled = default,
+    care_plan_requires_approval = default,
+    first_session_offer_enabled = default,
+    first_session_offer_type = default,
+    first_session_offer_value = default,
+    promo_codes_enabled = default,
+    invite_rewards_enabled = default,
+    invite_reward_paise = default,
+    invite_welcome_paise = default,
+    invite_max_rewards_per_patient = default
+  where id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'deleted_accounts', deleted_accounts
+  );
+end;
+$$;
+
+revoke all on function public.debug_reset_all_data() from public;
+revoke all on function public.debug_reset_all_data() from anon;
+revoke all on function public.debug_reset_all_data() from authenticated;

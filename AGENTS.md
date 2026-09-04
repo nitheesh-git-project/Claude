@@ -2383,6 +2383,29 @@ filtered delete. The function refuses to run if it would leave no admin
 behind. `EXECUTE` is revoked from `anon` and `authenticated`, so only the
 service-role key can call it.
 
+**`treatment_categories` and `treatment_category_packages` are kept.** They
+are the one part of that list an admin builds by hand rather than generates
+by testing -- the conditions the public pages show and the programmes a
+therapist may recommend under each -- so emptying them meant retyping the
+catalogue after every reset, and the public site came back with nothing on
+it, which reads as the clinic having shut rather than as test data being
+cleared. Keeping them is safe alongside the rest going, because
+`TRUNCATE ... CASCADE` reaches tables that *reference* the truncated ones
+and never the reverse: appointments, care plan versions and purchases all
+point **at** a category or a package. A purchase reads its frozen
+`package_snapshot` rather than the live row, so a surviving package cannot
+rewrite what somebody already bought. Home-visit packages, service areas,
+FAQs, testimonials and the question templates are still cleared; take one
+out of the list the same way, one at a time with its own reason, rather
+than exempting "the catalogue" as a category nobody can check.
+
+**The route reports what the function returned.** It read
+`accounts_deleted` where the function returns `deleted_accounts`, and asked
+for an `admins_kept` it never returned, so a wipe that had just emptied
+every table answered "0 accounts deleted, 0 admins kept" -- indistinguishable
+from a reset that did nothing, on the one control whose result cannot be
+checked by looking at the screen behind it.
+
 **Adding a table means adding it to that `TRUNCATE` list**, or a reset
 silently leaves its rows behind. Before real patients exist, remove
 `ALLOW_DEBUG_DATA_RESET` and drop the function.
