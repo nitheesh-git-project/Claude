@@ -70,8 +70,9 @@ export default function DebugResetButton() {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-red-800 bg-red-950/60 px-2.5 py-1.5">
       <span className="text-[11px] text-red-200">
-        Deletes <strong>everything</strong> — people, sessions, purchases, catalog, settings.
-        Admin logins survive. No undo.
+        Deletes people, sessions, purchases, money and settings. Admin logins
+        and your <strong>conditions</strong> (with their programmes) survive —
+        the rest of the catalog does not. No undo.
       </span>
       <input
         value={typed}

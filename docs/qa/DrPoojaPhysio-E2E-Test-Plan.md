@@ -301,11 +301,12 @@ Testing this application means filling it with throwaway patients, bookings, pur
 
 The Reset data button calls `/api/admin/debug-reset`, which calls the database function `debug_reset_all_data()`. It is **one atomic `TRUNCATE`**, not a list of deletes.
 
-**Removed:** every appointment, package purchase, home-visit purchase, payment, payment webhook event, payment failure log, entitlement and credit ledger row, session note and revision, pain assessment, condition profile, condition change request and access grant, patient address, medical-document metadata row, admin notes, profile change request, availability template and override, referral, B2B lead, home-visit waitlist, service area, both package catalogs, treatment categories, testimonials, FAQs, intake question templates, payout requests and batches, business expenses, session suggestions, care plans, their versions and the clinic's reviews of them, risk signals and reviews, communication flags, contact reveal log, and the admin activity log. `site_settings` is put back to its defaults. **Every non-admin account is deleted.**
+**Removed:** every appointment, package purchase, home-visit purchase, payment, payment webhook event, payment failure log, entitlement and credit ledger row, session note and revision, pain assessment, condition profile, condition change request and access grant, patient address, medical-document metadata row, admin notes, profile change request, availability template and override, referral, B2B lead, home-visit waitlist, service area, the home-visit package catalog, testimonials, FAQs, intake question templates, payout requests and batches, business expenses, session suggestions, care plans, their versions and the clinic's reviews of them, risk signals and reviews, communication flags, contact reveal log, and the admin activity log. `site_settings` is put back to its defaults. **Every non-admin account is deleted.**
 
 **Kept:**
 * **Admin logins** — the function refuses to run if it would leave no admin behind.
 * **Detector thresholds** (`risk_rules`) — configuration, like `site_settings`, so it is **reset to its seeded defaults** rather than emptied. Emptying it would silently disable every detector instead of restoring it.
+* **The conditions catalogue** — `treatment_categories` and their `treatment_category_packages`. They are the one part of the list an admin builds by hand rather than generates by testing, so emptying them meant retyping the catalogue after every reset and left the public pages showing nothing, which reads as the clinic having shut rather than as test data being cleared. Home-visit packages, service areas, FAQs and testimonials are **not** kept.
 * **Objects in the private `medical-reports` Storage bucket.** The metadata rows go; the files do not. Storage is not reachable from SQL. Clear that bucket from the Supabase dashboard if you need the space back.
 
 > **Regression worth knowing about.** An earlier version of this function predated the care-plan, evidence and risk tables and cleared none of them; three were saved by CASCADE, but `communication_flags`, `risk_signals` and `risk_reviews` survived a "delete everything". The one that actually bit a tester was `risk_signals`: it carries a partial unique index allowing at most one **open or reviewing** signal per `(rule, subject)`, so a leftover open signal held the slot and the same rule firing again wrote nothing — an empty Risk queue on a supposedly clean database, which reads exactly like a broken detector. All three are now named in the TRUNCATE list. `SETUP-RESET-001` asserts it.
@@ -341,7 +342,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 4. Tap **Sign In**.
 5. Confirm the black **Debug** bar is pinned across the top of the page.
 6. In the Debug bar, tap **Reset data**.
-7. Read the red warning that appears: *"Deletes everything — people, sessions, purchases, catalog, settings. Admin logins survive. No undo."*
+7. Read the red warning that appears: *"Deletes people, sessions, purchases, money and settings. Admin logins and your **conditions** (with their programmes) survive — the rest of the catalog does not. No undo."*
 8. Tap the confirmation text field (its placeholder reads `RESET ALL DATA`). Enter `reset all data` (lower case, deliberately wrong).
 9. Observe the **Reset** button.
 10. Clear the field. Enter `RESET ALL DATA` exactly.
@@ -350,9 +351,10 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 **Expected Result**
 
-* Step 7: the warning text is present and names admin survival explicitly.
+* Step 7: the warning text is present and names both survivals explicitly — admin logins and the conditions catalogue.
 * Step 9: the **Reset** button is **disabled** (visibly faded) while the typed phrase does not match exactly. A wrong-case phrase never arms the button.
-* Step 12: the button returns to normal and a teal confirmation message appears in the bar. No error message.
+* Step 12: the button returns to normal and a teal confirmation message appears in the bar. No error message. **It states real figures** — *"N accounts deleted, M admins kept"* with N and M non-zero where accounts existed. Two zeroes on a wipe that emptied the database is the bug where the route read `accounts_deleted` for a function returning `deleted_accounts`; it reads as a reset that did nothing.
+* **Open `/conditions` afterwards.** Every condition you created is still there, at its price, in its order. The public site must not come back empty.
 * The page refreshes. The admin remains signed in — the session is not destroyed.
 * Navigating to **People → Patients** shows an empty-state message, not a table of rows.
 * Navigating to **Catalog → Conditions** shows no treatment categories.
