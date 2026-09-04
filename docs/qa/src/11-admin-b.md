@@ -248,6 +248,7 @@ The screen warns you to turn it on only once System Health has been clean.
 
 #### `ADM-SET-026` — Create the three scoped admins · P0
 **Steps.** Create `qa.admin.ops@example.test` (Operations), `qa.admin.finance@example.test` (Finance), `qa.admin.clinical@example.test` (Clinical).
+**The Account type picker is one control, not two.** It lists six entries in two groups — **Clinic**: Patient, Therapist · **Back office**: Master Admin, Operations, Finance, Clinical — using the same four names the dashboards call themselves. There is no separate **Access level** dropdown; picking a back-office desk shows that desk's one-line description under the picker. As a **non-`full`** admin, the whole Back office group is **absent** (only a Master Admin may mint an admin, and `create-account` enforces that with a full-only check, not a section gate — see §2).
 **Expected Result.** Each is created with a one-time password shown once and **never logged**. Signing in as each shows only their allowed sections in the sidebar — Operations: Today, Sessions, People, Catalog. Finance: Today, People, Money. Clinical: Today, Sessions, People.
 
 #### `ADM-SET-026a` — Each scope opens on its own dashboard · P1

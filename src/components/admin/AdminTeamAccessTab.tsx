@@ -88,13 +88,44 @@ function ScopePicker({ row, canManage }: { row: AdminRow; canManage: boolean }) 
   );
 }
 
+/**
+ * What the Account type picker offers, as one flat list.
+ *
+ * The four admin desks used to be behind a second dropdown that only
+ * appeared after "Admin" was chosen, so creating the Operations account
+ * somebody had just been hired into meant picking a word nobody uses
+ * ("Admin") and then finding a control that was not on screen a moment
+ * earlier. The dashboards are already named Master Admin / Operations /
+ * Finance / Clinical everywhere else -- the sidebar brand, the page header,
+ * the access note -- so the picker naming them too is the same rule the
+ * label set was written for: an admin should not have to work out that the
+ * Operations on this screen is the Operations on theirs.
+ *
+ * The value carries both halves (`admin:operations`) because the request
+ * body still wants a role and a scope: this is one control over two fields,
+ * never a new concept in the database.
+ */
+type AccountTypeValue = "patient" | "therapist" | `admin:${AdminScope}`;
+
+function parseAccountType(value: AccountTypeValue): {
+  role: "patient" | "therapist" | "admin";
+  adminScope: AdminScope;
+} {
+  if (value === "patient" || value === "therapist") {
+    // The scope is ignored by the route for a non-admin, but it is sent
+    // rather than omitted so the body shape never varies by branch.
+    return { role: value, adminScope: "operations" };
+  }
+  return { role: "admin", adminScope: value.slice("admin:".length) as AdminScope };
+}
+
 function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
-  const [role, setRole] = useState<"patient" | "therapist" | "admin">("patient");
+  const [accountType, setAccountType] = useState<AccountTypeValue>("patient");
+  const { role, adminScope } = parseAccountType(accountType);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [credentials, setCredentials] = useState("");
-  const [adminScope, setAdminScope] = useState<AdminScope>("operations");
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -148,14 +179,34 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
         </label>
         <select
           id="new-account-role"
-          value={role}
-          onChange={(e) => setRole(e.target.value as typeof role)}
+          value={accountType}
+          onChange={(e) => setAccountType(e.target.value as AccountTypeValue)}
           className={fieldCls}
         >
-          <option value="patient">Patient</option>
-          <option value="therapist">Therapist</option>
-          {canCreateAdmin && <option value="admin">Admin</option>}
+          {/* Grouped rather than six flat entries: the first two are people
+              the clinic treats or employs to treat, the rest are desks in
+              the back office, and the labels alone do not say which is
+              which. */}
+          <optgroup label="Clinic">
+            <option value="patient">Patient</option>
+            <option value="therapist">Therapist</option>
+          </optgroup>
+          {canCreateAdmin && (
+            <optgroup label="Back office">
+              {ADMIN_SCOPES.map((s) => (
+                <option key={s} value={`admin:${s}`}>
+                  {ADMIN_SCOPE_LABELS[s]}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
+        {/* The blurb moved up here with the choice it describes. It used to
+            sit under the second dropdown, which is where it was needed
+            then; the picker is the only place it belongs now. */}
+        {role === "admin" && (
+          <p className="mt-1 text-[11px] text-slate-400">{ADMIN_SCOPE_BLURBS[adminScope]}</p>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -211,27 +262,6 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
           )}
         </div>
       )}
-      {role === "admin" && (
-        <div>
-          <label className={labelCls} htmlFor="new-account-scope">
-            Access level
-          </label>
-          <select
-            id="new-account-scope"
-            value={adminScope}
-            onChange={(e) => setAdminScope(e.target.value as AdminScope)}
-            className={fieldCls}
-          >
-            {ADMIN_SCOPES.map((s) => (
-              <option key={s} value={s}>
-                {ADMIN_SCOPE_LABELS[s]}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-[11px] text-slate-400">{ADMIN_SCOPE_BLURBS[adminScope]}</p>
-        </div>
-      )}
-
       <p className="text-[11px] text-slate-400">
         The account is created already approved — you vetted it by creating it — and a one-time
         password is shown here once. This platform sends no email, so read it out yourself.

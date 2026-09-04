@@ -296,12 +296,24 @@ because the sidebar collapses to icons and is a closed drawer on a phone,
 while the header is on every screen at every width. Four dashboards that all
 said "Admin Panel" and differed only in which sidebar entries were missing
 made an admin infer which one they were on from an absence. That label set
-is **one set, doing both jobs** -- the access level in Team & Access's picker
-and the name on the dashboard -- which is why `full` reads "Master Admin"
+is **one set, doing three jobs** -- the entries in Team & Access's Account
+type picker, the access level on an existing admin's row, and the name on
+the dashboard -- which is why `full` reads "Master Admin"
 rather than "Full access": as a permission both work, but only one is the
 name of a desk somebody sits at, and every user-facing string that used to
 say "full-access admin" says Master Admin now (the QA plan quotes those
-verbatim, so it moved in the same change). A limited scope additionally gets
+verbatim, so it moved in the same change). **Creating one of those admins is one dropdown.** Team & Access's Account
+type picker lists all six in two groups -- Clinic (Patient, Therapist) and
+Back office (the four scope labels) -- rather than an "Admin" entry that
+reveals a second Access level select once chosen. Hiring somebody into
+Operations meant picking a word nobody uses and then finding a control that
+was not on screen a moment earlier, in the one place where the four desks
+are otherwise named consistently. The option value carries both halves
+(`admin:operations`) because the route still takes a role and a scope: one
+control over two fields, never a new concept in the database, and the
+full-only check in `create-account` is what actually stops a limited scope
+minting an admin -- the group being absent from the picker is presentation.
+A limited scope additionally gets
 an access note (`AdminAccessCard`) naming which sections its name comes to
 -- the sections are correctly hidden already, and this is the sentence
 saying they were hidden on purpose. The note carries no scope name of its
