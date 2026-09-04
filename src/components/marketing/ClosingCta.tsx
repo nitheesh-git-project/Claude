@@ -17,15 +17,18 @@ import { photo, type PhotoId } from "@/lib/marketingPhotos";
  * minutes on a screen, and showing that is more persuasive than another
  * sentence saying it.
  *
- * **Each page names its own photograph, and it is never one already on that
- * page.** The band's shape is identical everywhere — same layout, same chip,
- * same assurances — so the invitation is still one invitation; only the face
- * changes. Repeating a single image across seven pages made the band read as
- * a template stamped on the end of each of them, which is exactly what a
- * visitor is being asked *not* to feel at a payment decision. The picture
- * also gets to answer that page's own question: the team page shows the
- * clinician on the screen, the home-visit page shows a visit, the mission
- * page shows who this is for.
+ * **Each page names its own photograph, and the band has its own set.** The
+ * shape is identical everywhere — same layout, same chip, same assurances —
+ * so the invitation is still one invitation; only the face changes.
+ * Repeating a single image across seven pages made the band read as a
+ * template stamped on the end of each of them, which is exactly what a
+ * visitor is being asked *not* to feel at a payment decision. Reusing the
+ * *existing* photographs instead was no better: they were shot for the heroes
+ * and the care bands, so a closing band met a face the visitor had already
+ * scrolled past, on the same page or the one before. So the seven `cta-*`
+ * files exist only for this band, one per page, and each answers that page's
+ * own question — `/team` a clinician opening a session, `/home-visit` a
+ * couple booking from their front room, `/faq` a patient reading her phone.
  *
  * The default below is the fallback for a page that names nothing, not the
  * house style — a page added later should pick its own.
@@ -59,7 +62,7 @@ export default function ClosingCta({
   body,
   primary,
   secondary,
-  photoId = "step-book",
+  photoId = "cta-book",
   photoAlt = "A patient at home, smiling as she books her session on her phone",
   assurances = DEFAULT_ASSURANCES,
 }: {

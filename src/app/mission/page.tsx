@@ -174,8 +174,8 @@ export default async function MissionPage() {
         body="An hour, one-to-one. If it is not right for you, we say so."
         primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
         secondary={{ href: "/how-it-works", label: "See how it works" }}
-        photoId="care-mobility"
-        photoAlt="An older couple sitting together at home, smiling at the tablet their session is on"
+        photoId="cta-mission"
+        photoAlt="Two people on a sofa in a bright room, one following a session on a laptop"
       />
     </>
   );

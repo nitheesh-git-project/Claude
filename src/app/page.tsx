@@ -327,8 +327,8 @@ export default async function Home() {
         body="One 60-minute session. Leave with a plan."
         primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
         secondary={{ href: "/get-started", label: "Explore all options" }}
-        photoId="step-book"
-        photoAlt="A patient at home, smiling as she books her session on her phone"
+        photoId="cta-book"
+        photoAlt="A patient on her sofa, laptop on her knees, smiling as she books her session on her phone"
       />
     </>
   );

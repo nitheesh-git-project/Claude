@@ -189,8 +189,8 @@ export default async function HowItWorksPage() {
             ? { href: "/book-home-visit", label: "Book a home visit" }
             : undefined
         }
-        photoId="hero-therapy"
-        photoAlt="A patient smiling on her mat at home, reaching for the laptop her session is on"
+        photoId="cta-start"
+        photoAlt="A patient at his kitchen table waving hello as his video session opens on the laptop"
       />
     </>
   );
