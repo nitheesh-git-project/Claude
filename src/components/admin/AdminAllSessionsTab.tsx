@@ -109,6 +109,7 @@ export default function AdminAllSessionsTab({
   therapists,
   reassignmentLogs,
   canSeeMoney,
+  canManageSessions,
 }: {
   appointments: SessionDetailAppointment[];
   // Keyed by appointment id on the way in. Only home-visit rows appear here,
@@ -122,6 +123,12 @@ export default function AdminAllSessionsTab({
   // route guarded by requireAdminScope("money") -- a clinical admin can
   // open Sessions but not Money, so the form must not render for them.
   canSeeMoney: boolean;
+  // Finance opens Sessions at `view`: they reconcile against what a session
+  // was, and must not be able to cancel or reassign the sessions they are
+  // reconciling. Every mutating control in the drawer already keys off this
+  // flag, and requireAdminScope refuses them regardless -- this is the half
+  // that stops them meeting a 403 with nothing explaining it.
+  canManageSessions: boolean;
 }) {
   const peopleMap = useMemo(
     () => new Map(people.map((p) => [p.id, p.full_name ?? "Unknown"])),
@@ -757,6 +764,7 @@ export default function AdminAllSessionsTab({
       {selected && (
         <SessionDetailDrawer
           canSeeMoney={canSeeMoney}
+          canManageSessions={canManageSessions}
           appointment={selected}
           peopleMap={peopleMap}
           categoryMap={categoryMap}

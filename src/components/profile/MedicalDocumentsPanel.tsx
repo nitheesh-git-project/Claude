@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { compressImage } from "@/lib/compressImage";
 import {
   DOCUMENT_FILE_ACCEPT,

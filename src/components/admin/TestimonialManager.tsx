@@ -4,7 +4,7 @@ import FilterChips from "@/components/dashboard/FilterChips";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import { useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import TestimonialForm from "./TestimonialForm";
 import { useConfirm } from "@/lib/useConfirm";
 

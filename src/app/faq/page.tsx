@@ -69,6 +69,8 @@ export default async function FaqPage() {
         title="Still unsure whether this will help?"
         body="That is what the assessment answers. If it is not right, we say so."
         primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
+        photoId="cta-faq"
+        photoAlt="A patient by her window, smiling as she reads on her phone"
       />
     </>
   );

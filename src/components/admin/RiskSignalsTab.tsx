@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import PagedList from "@/components/dashboard/PagedList";
 import {

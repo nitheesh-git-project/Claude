@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
+import Spinner from "@/components/system/Spinner";
 
 export default function RequestPayoutButton({
   owedPaise,
@@ -51,7 +52,13 @@ export default function RequestPayoutButton({
         disabled={loading || owedPaise <= 0}
         className="text-xs font-semibold px-4 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 disabled:opacity-60 disabled:cursor-not-allowed text-white transition"
       >
-        {loading ? "Sending..." : "Request Payout"}
+        {loading ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Spinner /> Sending…
+          </span>
+        ) : (
+          "Request Payout"
+        )}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
     </div>

@@ -9,6 +9,7 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
 import { normalizePincode } from "@/lib/homeVisitAreas";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
+import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
 
 const MAX_NOTES_LENGTH = 1000;
 
@@ -63,6 +64,11 @@ export async function POST(request: NextRequest) {
     }
     if (slotTimestamp <= Date.now()) {
       return NextResponse.json({ error: "The slot must be in the future" }, { status: 400 });
+    }
+    // Slots start on the hour, everywhere -- checked in the zone the visit
+    // is being booked in, since 6 PM IST is 12:30 UTC.
+    if (!isWholeHourSlot(slotDateTime, body.timezone)) {
+      return NextResponse.json({ error: NOT_WHOLE_HOUR_ERROR }, { status: 400 });
     }
   }
 

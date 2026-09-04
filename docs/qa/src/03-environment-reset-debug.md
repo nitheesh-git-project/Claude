@@ -103,7 +103,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 * Navigating to **Catalog → Conditions** shows no treatment categories.
 * Navigating to **Sessions → All Sessions** shows no sessions.
 * Navigating to **Settings → Activity Log** shows an empty log (the reset itself truncates it).
-* Navigating to **Settings → Team & Access** still lists at least one admin, and your own row is there. **If this list is empty, stop immediately and restore from backup — the reset must never leave the clinic without an admin.**
+* Navigating to **Settings → User Access** still lists at least one admin, and your own row is there. **If this list is empty, stop immediately and restore from backup — the reset must never leave the clinic without an admin.**
 * Navigating to **Today → Risk** shows an **empty** queue. **[SQL]** confirm with `select count(*) from communication_flags;` and `select count(*) from risk_signals;` — both must return `0`. A non-zero count here is the regression described above, and it will silently suppress the detector tests later in this plan.
 * **[SQL]** `select rule_key, enabled from risk_rules;` still returns the eight rules, with `plan_conversion_low` and `post_consultation_dropout` back to **disabled** — thresholds are restored to their seeded defaults, not wiped.
 

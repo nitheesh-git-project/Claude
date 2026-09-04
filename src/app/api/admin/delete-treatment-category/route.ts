@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
@@ -41,6 +42,14 @@ export async function POST(request: NextRequest) {
     targetId: id,
     targetLabel: "Treatment category",
   });
+
+  // The public pages reading this table are ISR-cached
+  // (revalidate = 300), so an admin edit was invisible on the live site for
+  // up to five minutes -- long enough to read as a save that did not work,
+  // and long enough for someone to make the edit a second time.
+  revalidatePath("/");
+  revalidatePath("/conditions");
+  revalidatePath("/book");
 
   return NextResponse.json({ success: true });
 }

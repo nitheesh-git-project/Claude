@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 
 export default function FarewellBanner({
   /** Seconds to stay up before clearing itself. 0 means "until dismissed",

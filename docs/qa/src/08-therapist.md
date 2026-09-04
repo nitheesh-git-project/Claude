@@ -44,7 +44,7 @@ Five rules shape almost every screen:
 
 #### `THR-AUTH-003` — Sign in after approval · P0
 **Preconditions.** `ADM-APPR-002` approved Therapist A.
-**Expected Result.** Sign-in lands on `/therapist/dashboard`. The sidebar shows **Back to Home**, **Overview**, **Availability**, **Sessions**, **Earnings**, **My Patients**, **Edit Profile** (with children Photo / Public Details / Credentials / Account Security).
+**Expected Result.** Sign-in lands on `/therapist/dashboard`. The sidebar shows **Overview**, **Availability**, **Sessions**, **Earnings**, **My Patients**, **Edit Profile**, with **Back to Home** at the foot of the nav directly above Collapse (with children Photo / Public Details / Credentials / Account Security).
 
 ---
 
@@ -141,7 +141,7 @@ This is the regression that guards the whole design. See `XCFG-ROSTER-001`.
 * Outside the window: refused with the route's own explanation (403).
 * Cancelled session: refused.
 * A **home visit** is revealable **any time on the visit's own day**, not merely in a join window — verify this separately.
-* Admin → Settings → Team & Access shows the reveal log. It is **admin-read-only and append-only by trigger**: attempting to update or delete a row raises, even with the service role.
+* Admin → Settings → User Access shows the reveal log. It is **admin-read-only and append-only by trigger**: attempting to update or delete a row raises, even with the service role.
 
 #### `THR-SESS-005` — Completing a session is gated two ways · P0
 
@@ -328,7 +328,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 #### `THR-SUGG-001` — Suggest a session · P0
 
-**Preconditions.** `therapist_suggestions_enabled` is **on** (it is on by default now; confirm in Settings → Booking Rules). A programme locked to this therapist with credits remaining.
+**Preconditions.** `therapist_suggestions_enabled` is **on** (it is on by default now; confirm in Settings → Programmes & Home Visits). A programme locked to this therapist with credits remaining.
 
 **Steps**
 1. On the programme's card, tap the suggest control.
@@ -361,7 +361,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Steps.** In a suggestion note, enter `https://rzp.io/l/abcd1234 pay here`. **Expected Result.** Refused, recorded.
 
 #### `THR-LEAK-003` — A phone number is delivered and recorded · P1
-**Steps.** In a suggestion note, enter `Call me on 9876543210 before the session`. **Expected Result.** The suggestion **is created** and the patient sees the note. A `communication_flags` row exists with tier `flag` and `blocked=false`. Admin → Settings → Team & Access shows it.
+**Steps.** In a suggestion note, enter `Call me on 9876543210 before the session`. **Expected Result.** The suggestion **is created** and the patient sees the note. A `communication_flags` row exists with tier `flag` and `blocked=false`. Admin → Settings → User Access shows it.
 
 #### `THR-LEAK-004` — Clinical text with digits does not fire · P0
 **Steps.** In a session note, enter `Grade III PA mobilisation ×3 sets, 30s hold. 10 reps, 2× daily. Order ref 90210.`

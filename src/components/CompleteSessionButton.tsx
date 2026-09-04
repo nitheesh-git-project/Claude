@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Spinner from "@/components/system/Spinner";
 
 export default function CompleteSessionButton({
   appointmentId,
@@ -57,7 +58,13 @@ export default function CompleteSessionButton({
         disabled={loading}
         className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition"
       >
-        {loading ? "Saving..." : "Done"}
+        {loading ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Spinner /> Saving…
+          </span>
+        ) : (
+          "Done"
+        )}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
       {confirmMessage !== null && (

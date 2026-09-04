@@ -8,7 +8,7 @@
 // rendered from the shared session drawer instead.
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 
 
 export type HomeVisitRow = {

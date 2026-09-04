@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import type { AdminSettings, ContactScanMode } from "@/lib/adminSettings";
 
 async function saveSetting(key: string, value: string | boolean) {

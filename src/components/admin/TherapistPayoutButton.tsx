@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { useConfirm } from "@/lib/useConfirm";
+import Spinner from "@/components/system/Spinner";
 
 type PayoutMethod = "cash" | "online";
 type View = "closed" | "choose" | "confirm";
@@ -176,7 +177,13 @@ export default function TherapistPayoutButton({
           disabled={loading}
           className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-semibold px-3 py-1.5 rounded-lg transition"
         >
-          {loading ? "Recording..." : `Confirm ${method === "cash" ? "Cash" : "Online"} Payment`}
+          {loading ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Spinner /> Recording…
+          </span>
+        ) : (
+          `Confirm ${method === "cash" ? "Cash" : "Online"} Payment`
+        )}
         </button>
       </div>
       {dialog}

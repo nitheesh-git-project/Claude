@@ -5,7 +5,11 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isPatientProfile, isProfileActive } from "@/lib/supabase/requireActiveProfile";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
-import { leadTimeMsFromHours } from "@/lib/bookingSlots";
+import {
+  leadTimeMsFromHours,
+  isWholeHourSlot,
+  NOT_WHOLE_HOUR_ERROR,
+} from "@/lib/bookingSlots";
 import { guardCommunication } from "@/lib/communicationFlags";
 
 // Creates the pre-payment appointment row for a single online session --
@@ -107,6 +111,14 @@ export async function POST(request: NextRequest) {
       },
       { status: 409 }
     );
+  }
+
+  // Slots start on the hour, everywhere. The pickers only offer whole hours,
+  // so this is the same rule stated where a request cannot get round it --
+  // checked in the booking's own timezone, since 6 PM IST is 12:30 UTC and
+  // reading the minute off the instant would refuse every correct booking.
+  if (!isWholeHourSlot(new Date(slotMs).toISOString(), body.timezone)) {
+    return NextResponse.json({ error: NOT_WHOLE_HOUR_ERROR }, { status: 400 });
   }
 
   // Duration and concern come from the category row, never from the

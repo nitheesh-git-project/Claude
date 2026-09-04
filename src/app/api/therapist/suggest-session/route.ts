@@ -4,7 +4,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
-import { leadTimeMsFromHours } from "@/lib/bookingSlots";
+import {
+  leadTimeMsFromHours,
+  isWholeHourSlot,
+  NOT_WHOLE_HOUR_ERROR,
+} from "@/lib/bookingSlots";
 import { sessionsRemaining } from "@/lib/sessionSuggestions";
 import { guardCommunication } from "@/lib/communicationFlags";
 
@@ -92,6 +96,13 @@ export async function POST(request: NextRequest) {
   if (Number.isNaN(slotMs)) {
     return NextResponse.json({ error: "That date and time isn't valid." }, { status: 400 });
   }
+  // Slots start on the hour, everywhere. A therapist proposing 6:52 would
+  // hand the patient a time their own acceptance screen cannot render --
+  // checked in the zone the suggestion is recorded in.
+  if (!isWholeHourSlot(new Date(slotMs).toISOString(), body.timezone)) {
+    return NextResponse.json({ error: NOT_WHOLE_HOUR_ERROR }, { status: 400 });
+  }
+
   const leadMs = leadTimeMsFromHours(settings.onlineBookingLeadTimeHours);
   if (slotMs - leadMs <= Date.now()) {
     return NextResponse.json(

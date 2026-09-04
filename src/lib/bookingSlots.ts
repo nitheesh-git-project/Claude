@@ -185,3 +185,57 @@ export function isMonthEntirelyUnbookable(
 ): boolean {
   return !buildCalendarMonth(year, month, nowMs, leadTimeMs).cells.some((c) => c?.bookable);
 }
+
+// Every slot in this app starts on the hour: AVAILABILITY_HOURS is whole
+// hours, and every picker builds its time from that list. Two admin screens
+// used to offer a raw <input type="time"> / datetime-local instead, so a
+// booking at 6:52 was reachable through the UI; they now share the picker,
+// and this is the same rule stated where a request cannot get round it.
+//
+// **It is checked in the booking's own timezone, not the server's.** India is
+// UTC+05:30, so 6 PM IST is 12:30 UTC -- reading the minute off the instant
+// (or off a server that happens to run in UTC) would fail every correct
+// booking in the clinic and pass an incorrect one 30 minutes out. The wizard
+// builds slots in the *patient's* local time and records which timezone that
+// was, so the answer to "is this a whole hour" is only meaningful against
+// that same zone.
+export const CLINIC_TIMEZONE = "Asia/Kolkata";
+
+/**
+ * The minute-past-the-hour an instant falls on, in `timeZone`. Null when the
+ * instant or the zone is unusable, which the caller treats as a refusal
+ * rather than as zero.
+ */
+export function slotMinuteInZone(iso: string, timeZone?: string | null): number | null {
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return null;
+  const zone = timeZone?.trim() || CLINIC_TIMEZONE;
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      minute: "numeric",
+      hour12: false,
+    }).formatToParts(new Date(ms));
+    const minute = parts.find((p) => p.type === "minute")?.value;
+    return minute === undefined ? null : Number(minute);
+  } catch {
+    // An unknown IANA zone: fall back to the clinic's rather than accepting
+    // anything, so a bad timezone string cannot be a way past this check.
+    if (zone === CLINIC_TIMEZONE) return null;
+    return slotMinuteInZone(iso, CLINIC_TIMEZONE);
+  }
+}
+
+/** Whether an instant is exactly on the hour in the booking's own timezone. */
+export function isWholeHourSlot(iso: string, timeZone?: string | null): boolean {
+  const ms = new Date(iso).getTime();
+  // Whole minutes first: this catches stray seconds and milliseconds, which
+  // the zone-aware minute below cannot see.
+  if (!Number.isFinite(ms) || ms % 60_000 !== 0) return false;
+  return slotMinuteInZone(iso, timeZone) === 0;
+}
+
+/** The refusal every route gives for a slot that is not on the hour, so the
+ *  message a patient or an admin reads is the same wherever it comes from. */
+export const NOT_WHOLE_HOUR_ERROR =
+  "Sessions start on the hour. Pick a time like 6:00 or 7:00.";

@@ -7,10 +7,26 @@ visits), therapist scheduling and payouts, hospital (B2B) referrals, and an
 admin back office. Data, auth, storage, and realtime come from Supabase;
 session video links come from Google Calendar/Meet. The admin back office is
 organised into six sections — Today, Sessions, People, Money, Catalog,
-Settings — defined once in `src/lib/adminNav.ts`.
+Settings — defined once in `src/lib/adminNav.ts`. Each Settings screen
+states in plain words what it is and gives one example, under its own
+heading — a label alone names a category rather than an action, and the
+section's single line ("How the product behaves") explained nothing about
+the screen you had just opened. That is also why the old Booking Rules
+screen is three: **Booking Rules** (one video session), **Offers &
+Discounts** (money off, to win a patient), and **Programmes & Home Visits**
+(more than one appointment, arranged in advance).
 
 An admin carries a scope (`full`, `operations`, `finance`, `clinical`) that
-decides which of those sections they open, and **each scope opens on its own
+decides which of those sections they open **and at what level** — `none`,
+`view` or `manage`, with `requireAdminScope` asking for `manage`, so a
+section granted at `view` is read-only at every admin route rather than only
+where a screen remembered to hide a button. Finance reads Sessions on
+exactly that basis. Settings → User Access is where the model is read: the
+back-office directory plus a matrix of what each desk can do, derived from
+`src/lib/adminScope.ts` so it can never claim access nobody has, and
+deliberately not a set of switches. It is also where access is taken away —
+suspending, never deleting, because an admin's id is on every audit row they
+wrote. **Each scope opens on its own
 Today screen** — decided once in `src/lib/adminHome.ts`, never in the page,
 so four dashboards cannot grow four answers to "what needs me today".
 Operations leads with unassigned sessions, finance with what is owed to
@@ -19,7 +35,8 @@ full admin's screen is unchanged. Every link that module produces is built
 through the scope check, so an action for a section this admin cannot open
 is dropped rather than rendered — `findTab` would redirect the tap somewhere
 else and the dead link would look like it worked. "Needs you" counts only
-the queues the viewer can open, so it agrees with the list beneath it, and
+the queues the viewer can **work** — a section they can only read holds no
+work for them — so it agrees with the list beneath it, and
 ordering those queues by role is emphasis, never permission: nothing
 reachable is hidden. Every dashboard names itself — `Master Admin`,
 `Operations`, `Finance`, `Clinical` — in the sidebar brand and again above

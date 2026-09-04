@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { CONDITION_SPECIALTIES, type ConditionSpecialty } from "@/lib/conditionSpecialty";
 
 // Which condition types the therapist's triage picker offers.

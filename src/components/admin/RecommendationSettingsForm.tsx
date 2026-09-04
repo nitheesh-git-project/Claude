@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import type { AdminSettings } from "@/lib/adminSettings";
 
 async function saveSetting(key: string, value: boolean | number) {

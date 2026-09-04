@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 
 // Feature Control → Booking Languages. Whatever is saved here becomes the
 // language chips on /book Step 1 -- nothing in the booking UI carries its

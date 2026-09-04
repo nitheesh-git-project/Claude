@@ -8441,3 +8441,120 @@ $$;
 revoke all on function public.debug_reset_all_data() from public;
 revoke all on function public.debug_reset_all_data() from anon;
 revoke all on function public.debug_reset_all_data() from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Condition (treatment category) ordering: one write for the whole list
+-- ---------------------------------------------------------------------------
+--
+-- Replaces swap_treatment_category_order, which swapped two rows'
+-- display_order values pairwise. That is a silent no-op whenever the two rows
+-- already hold the SAME display_order -- and they routinely do, because the
+-- admin create form defaults Order to 0, so every condition added without
+-- someone typing a number sits at 0. Setting a = b's order and b = a's order
+-- then writes 0 and 0, the `order by display_order, id` tiebreaker keeps the
+-- list exactly as it was, and the admin watches their reorder revert on the
+-- next render. The bug was invisible on the seeded rows (1, 2, 999) and
+-- appeared the moment a real catalogue was entered.
+--
+-- Taking the whole ordered list instead of a pair makes ties unrepresentable:
+-- every row is assigned its 1-based position, so the result is always a
+-- strict total order regardless of what the column held before. One
+-- statement, one transaction -- a failure leaves the previous order intact
+-- rather than half-renumbered.
+--
+-- Rows whose id is not in the array are left alone. The caller
+-- (/api/admin/reorder-treatment-categories) refuses a list that does not
+-- cover every row for exactly that reason, so a stale browser cannot
+-- renumber a subset into a collision with a row it never saw.
+create or replace function set_treatment_category_order(ordered_ids uuid[])
+returns void
+language plpgsql
+as $$
+begin
+  update treatment_categories t
+  set display_order = pos.ord
+  from (
+    select u.id, u.ord::integer as ord
+    from unnest(ordered_ids) with ordinality as u(id, ord)
+  ) as pos
+  where t.id = pos.id
+    and t.display_order is distinct from pos.ord;
+end;
+$$;
+
+revoke all on function public.set_treatment_category_order(uuid[]) from public;
+revoke all on function public.set_treatment_category_order(uuid[]) from anon;
+revoke all on function public.set_treatment_category_order(uuid[]) from authenticated;
+
+-- Dropped rather than left in place: its only caller is gone, and a function
+-- that silently does nothing on tied orders is exactly the kind of thing a
+-- later change reaches for again.
+drop function if exists swap_treatment_category_order(uuid, uuid);
+
+-- ---------------------------------------------------------------------------
+-- The reorder function refuses a partial list
+-- ---------------------------------------------------------------------------
+--
+-- /api/admin/reorder-treatment-categories already answers 409 for a list that
+-- does not cover every row, and that check is correct and true only for as
+-- long as every caller remembers it. This function is reachable by the
+-- service-role client and by hand in the SQL editor, and a partial list there
+-- puts back the exact bug the whole change removes: renumbering a subset from
+-- 1 collides with the rows it never saw, so two categories end up tied again
+-- and the arrows stop working. Proven on a scratch database -- reordering
+-- [B] alone left A and B both at 1.
+--
+-- Same rule as the sessions_used CHECK: an invariant the app enforces belongs
+-- in the database too.
+create or replace function set_treatment_category_order(ordered_ids uuid[])
+returns void
+language plpgsql
+as $$
+declare
+  v_total integer;
+  v_given integer;
+begin
+  select count(*) into v_total from treatment_categories;
+  -- distinct, because a duplicated id would pass a plain length check while
+  -- leaving one row unnumbered.
+  select count(distinct id) into v_given
+  from unnest(ordered_ids) as u(id)
+  where exists (select 1 from treatment_categories t where t.id = u.id);
+
+  if v_given <> v_total then
+    raise exception
+      'set_treatment_category_order needs every category (% given, % exist)',
+      v_given, v_total
+      using errcode = 'check_violation';
+  end if;
+
+  update treatment_categories t
+  set display_order = pos.ord
+  from (
+    select u.id, u.ord::integer as ord
+    from unnest(ordered_ids) with ordinality as u(id, ord)
+  ) as pos
+  where t.id = pos.id
+    and t.display_order is distinct from pos.ord;
+end;
+$$;
+
+revoke all on function public.set_treatment_category_order(uuid[]) from public;
+revoke all on function public.set_treatment_category_order(uuid[]) from anon;
+revoke all on function public.set_treatment_category_order(uuid[]) from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- A referred patient's phone number
+-- ---------------------------------------------------------------------------
+--
+-- A referral is the one flow where the clinic has to reach the patient
+-- *before* they have an account: an admin triages the referral, assigns a
+-- therapist and a slot, and then sends a registration link. Until now the
+-- referring hospital supplied a name, an address and a preferred language and
+-- no way to phone anybody -- so the admin either sent the link cold or went
+-- back to the hospital to ask for a number.
+--
+-- Nullable, because every referral already on file was written without it and
+-- a NOT NULL here would fail the migration. The hospital's own form requires
+-- it going forward; existing rows read as "not on file" on the admin card.
+alter table patient_referrals add column if not exists patient_phone text;

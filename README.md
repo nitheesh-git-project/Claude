@@ -229,7 +229,7 @@ link points here so no client bundle has to know the four paths; see
 | **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
 | **Money** | Summary · Transactions · Payouts · Costs · Breakdown | What came in, what goes out, what it costs, what is still owed |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
-| **Settings** | Brand & Contact · Public Site · Booking Rules · Clinical Questions · Team & Access · System Health · Activity Log · Account Security | How the product behaves |
+| **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Activity Log · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
 
 **How the Money screens divide a rupee.** Every figure on Money → Summary
 comes out of one function, `moneyByBucketFor` in `src/lib/adminMetrics.ts`,
@@ -514,7 +514,7 @@ closed.
 The queue is ordered **oldest first** and each card says how long it has been
 waiting rather than the date it arrived, plus how many sessions that patient
 already has unused — the commonest reason to turn a recommendation down, and
-one an admin previously had to leave the queue to find out. The switch is **Settings → Booking Rules →
+one an admin previously had to leave the queue to find out. The switch is **Settings → Programmes & Home Visits →
 Approve recommendations before the patient sees them**, on by default; with
 it off a submission publishes on save, as it did before. An admin writing a
 recommendation on a therapist's behalf publishes directly — they are the
@@ -583,11 +583,12 @@ in each one's own voice. The patient's copy drops any thread still waiting
 on the clinic or turned down by it; the clinician's shows both, because a
 recommendation of theirs sitting in a queue is exactly what they need to
 see. `care_plan_requires_approval`, `care_plan_default_expiry_days` and
-`care_plan_max_frequency_per_week` are all editable on Settings → Booking
-Rules.
+`care_plan_max_frequency_per_week` are all editable on Settings →
+Programmes & Home Visits.
 
-Which of the two the app believes is an admin switch — **Settings → Booking
-Rules → Session Balances From The Ledger**, off by default. While it is off,
+Which of the two the app believes is an admin switch — **Settings →
+Programmes & Home Visits → Session Balances From The Ledger**, off by
+default. While it is off,
 every balance comes from the older `sessions_used` / `visits_used` counters
 and the ledger is written beside them as a shadow, so the two can be
 reconciled before anything depends on the ledger. Turned on, the balance
@@ -644,7 +645,7 @@ in the activity log.
 Four, and deliberately no more.
 
 **The first session offer** is how a stranger is bought through the door.
-Configured at **Settings → Booking Rules** — off by default, either a set
+Configured at **Settings → Offers & Discounts** — off by default, either a set
 price ("first session ₹499") or a percentage off — and it applies to a video
 consultation only. Eligibility is decided by the server asking *has this
 patient ever paid for a session*, so it cannot be claimed twice, cannot be
@@ -690,8 +691,8 @@ price is treated as a typo and refused.
 dashboard shows a code to share; their friend gets something off their first
 session, and they get something off their next one — once that friend has
 actually had and paid for a session, never on a signup. Set both amounts and
-a ceiling on how many rewards one patient may earn at **Settings → Booking
-Rules**; it is off by default. A code cannot be used by its owner, cannot be
+a ceiling on how many rewards one patient may earn at **Settings → Offers &
+Discounts**; it is off by default. A code cannot be used by its owner, cannot be
 used twice, and cannot be used by somebody who has already paid for a
 session — you are new exactly once. An amount already promised is honoured
 even if you change the figures or switch the feature off later.
@@ -805,8 +806,8 @@ Assigning the wrong clinician is far worse than the wait this removes, so the
 tie-break is deliberately "don't". It never throws — a booking must not fail
 because an optional convenience could not be computed.
 
-It is one admin switch, **Settings → Booking Rules → Assign a Therapist
-Automatically** (`auto_assign_therapist_enabled`), off for its first release
+It is one admin switch, **Settings → Programmes & Home Visits → Assign a
+Therapist Automatically** (`auto_assign_therapist_enabled`), off for its first release
 and read failing-closed. **It does not change what times a patient is
 offered:** the roster still deliberately does not filter the booking picker.
 
@@ -874,7 +875,7 @@ share payable. An admin keeps both unrestricted paths for backfills.
 Treatment is paid for through this app, so a patient should never be asked
 to pay another way. Two controls make that hard to do by accident and
 visible when it isn't, and both are admin switches on
-**Settings → Team & Access**.
+**Settings → User Access**.
 
 **Message checking.** Everything one role writes and another reads goes
 through `src/lib/contactLeakScan.ts` before it is stored: a therapist's
@@ -1108,7 +1109,13 @@ computed per completed, paid session (`src/lib/therapistEarnings.ts`,
 them (`therapist_payout_batches`) with downloadable receipts.
 
 **Hospital referrals.** Hospitals submit referrals from their dashboard or
-share an invite link / referral code. Referred patients carry
+share a registration link / referral code. A referral carries the patient's
+**phone number and preferred language**, both shown under their name on the
+admin's Patient Referrals list: the clinic rings the patient to agree a time
+*before* the registration link is sent, so the number is required on the
+hospital's form. Assigning the slot uses the same compact calendar and the
+same 12-hour lead-time rule as the patient's own `/book` picker, re-checked
+server-side. Referred patients carry
 `referred_by_hospital_id`, which drives the hospital's revenue share. The
 public `/hospitals` page also captures anonymous B2B leads into `b2b_leads`,
 which only the admin can read back.
@@ -1155,8 +1162,8 @@ just on the admin page. Session packages live under **Catalog → Packages**
 (beside the home-visit packages) and **Catalog → Purchases**; their
 package-wide settings — visibility, default validity, the therapist-lock
 switch, the bulk-scheduler limit, the expiry reminder window — sit with
-every other rule under **Settings → Booking Rules**; see "Session packages"
-above.
+every other rule under **Settings → Programmes & Home Visits**; see
+"Session packages" above.
 
 **Admin scopes, activity log, and admin-created bookings.** `profiles.
 admin_scope` is one of `full`, `operations`, `finance`, `clinical` (see
@@ -1181,7 +1188,7 @@ the figure and the list beneath it agree. Every dashboard also **names itself** 
 `Operations`, `Finance`, `Clinical` — in the sidebar brand and again as the
 eyebrow above the section heading, so which of the four you are on is never
 something to infer from a missing sidebar entry. (Those are the same names
-the scope picker on Settings → Team & Access uses; `full` reads "Master
+the scope picker on Settings → User Access uses; `full` reads "Master
 Admin" rather than "Full access" because the one label has to work both as
 a permission and as the name of a desk.) A limited scope additionally gets a
 **Your access** card naming the sections its name covers and the ones it
@@ -1190,9 +1197,31 @@ policy. Nothing here is a second permission
 model: the queue list still shows every queue the routes let that scope
 work, in their order rather than a full admin's. Only a `full` admin can change scopes or
 create another admin, nobody can change their own, and the last `full` admin
-cannot be narrowed. Admins are created from **Settings → Team & Access**
+cannot be narrowed. Admins are created from **Settings → User Access**
 (`/api/admin/create-account`, which also creates patients and therapists by
-hand), so the database no longer has to be edited to add one.
+hand), so the database no longer has to be edited to add one — and their
+access is taken away there too (`/api/admin/set-admin-active`), which
+suspends rather than deletes, because their id is on every audit row they
+ever wrote.
+
+**A scope is three levels per section, not a yes or no.** A `(scope,
+section)` pair is `none`, `view` or `manage`. `view` means they open it and
+read it and every button is gone; it is enforced by `requireAdminScope`
+asking for `manage`, so a read-only section is read-only at all 98 admin
+routes rather than only on the screens that remembered to hide a control.
+There is no "write only" — nobody can honestly change a row they are not
+allowed to see. One grant is `view` today: **finance reads Sessions**, so
+the person reconciling the books can see what a payment bought without
+being able to cancel or reassign it.
+
+**Settings → User Access** is where that model is read: the back-office
+directory (who can sign in, at what level, and whether they still can) and a
+matrix of what each of the four desks can do, rows in plain words and
+columns per desk. The matrix is **derived from the same module the routes
+enforce with**, so it cannot claim access nobody has, and its cells are
+deliberately not checkboxes — a tick that did not also change what the
+server allows would be worse than no tick at all, so changing what a desk
+reaches stays a code change.
 `admin_activity_log` records every mutating admin action — actor, action,
 subject, amount, timestamp — readable at **Settings → Activity Log** and
 append-only by construction: the table has a select policy and no insert

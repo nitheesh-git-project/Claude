@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 
 export default function ConditionRequestActions({ requestId }: { requestId: string }) {
   const [declining, setDeclining] = useState(false);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import PhoneNumberField from "@/components/PhoneNumberField";
 
 export default function TherapistContactEditForm({

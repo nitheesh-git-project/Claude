@@ -8,6 +8,15 @@ The eight public pages are **one template, not eight layouts**. Every page assem
 
 The site's own index lives in **one array**, which the header nav, the footer's Explore column, the home page's connector grid and every "Where to go next" strip all read. So a page cannot exist in the header and be missing from the index, and a renamed page cannot leave a stale description behind.
 
+**Every Explore band ends on Book a session**, on all eight pages, in the same full-width photo-beside-text tile — booking was on the home page's grid alone, so the six inner pages ended their index on another page to read. And **the page tiles above it square up**: the count varies (the page you are on is always missing, and Home Visit drops out when the clinic switches it off), so a row that would end short stretches its leftover tiles across it rather than leaving dead cells on the right.
+
+#### `PUB-EXP-001` — The Explore band, on every public page · P1
+
+**Steps.** Open each of `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals` and read the Explore band at the foot.
+**Expected Result.** Every one ends with **Book a session** → `/book`, as the last tile, full width, photo beside the text. Above it: every other page, never the one you are on, and never Home Visit while the master switch is off.
+**Alignment.** With the usual **seven** page tiles: two rows of three, then the seventh **stretched across the whole row** in the same wide layout — no empty cells to the right of it. Switch Home Visit off and reload: **six** tiles, two clean rows of three, nothing stretched. Narrow the window to the two-column breakpoint and repeat both: the last row must still be full.
+**Critical check:** this is arithmetic, not a hand-placed exception (`src/lib/exploreGridSpans.ts`, unit-tested). A tile that is full width on a tablet and half width on a desktop must **not** switch to the photo-beside-text layout — that would read as two designs rather than one stretched tile.
+
 **Word budgets are numbers, not a vibe** — the rewrite exists because visitors could not tell what the site was, and the second round of feedback was that there was still too much to read:
 
 | Slot | Budget |
@@ -25,6 +34,14 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 1. **Every photograph shows a screen** — a laptop, tablet or phone in frame — **except the two home-visit images**, which show hands-on treatment. This clinic sells video consultations; a site of clinic photography reads as a walk-in practice.
 2. **Every photograph shows a face, and the face is glad to be there.** The one exception is the clinician reading a scan, who is concentrating — a physiotherapist grinning at an X-ray is the opposite of reassuring.
 3. Photos are **static imports**, never `/photos/x.jpg` strings and never remote URLs, so a missing file is a compile error.
+
+#### `PUB-CTA-001` — The closing band asks for the sale · P1
+
+**Steps.** Open each of `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq` and read the very last band. (`/hospitals` deliberately ends on its referral form instead.)
+**Expected Result.** A teal band with the copy on the left — headline, one line, one or two buttons — and a **photograph on the right**. The band's shape is identical on all seven, but **each page shows a different photograph**, and it is one this band alone uses — never a photograph that appears anywhere else on the site: home a patient booking on her phone with a laptop on her knees, Conditions Treated a patient laughing as she books, How It Works a patient waving as his video session opens, Home Visit an older couple booking on a tablet in their front room, Our Team a physiotherapist smiling at her laptop, Mission two people on a sofa with a session on a laptop, FAQ a patient reading her phone by a window. Over the photo, a white chip reading **Session confirmed / Tuesday, 6:00 PM / Calendar invite on its way.** and, underneath it, **Example of what you get** — the chip must always say it is an example, on every page.
+**Assurances.** Three lines under the buttons: *One-to-one, never a group*, *Reports read before your session*, *Secure UPI payment*.
+**Critical check:** none of those three states a **number**. A session's length is set per treatment category and the cancellation window is an admin setting, so a fixed "60 minutes" or "free cancellation up to 24 hours" printed here would be a promise the settings can contradict. If you see a number in this band, that is a bug.
+**Layout.** Narrow to a phone width: the copy and buttons come **first**, the photograph below them — nobody should have to scroll past a picture to reach the button. The image keeps the same landscape crop at every width; it must never go tall and leave the band mostly empty beside the text.
 
 #### `PUB-HOME-001` — The home page · P1
 **Steps.** Open `/`. Scroll to the bottom.

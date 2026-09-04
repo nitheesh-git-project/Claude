@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -27,6 +28,14 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // The rating summary renders on three ISR-cached public pages
+  // (revalidate = 300). Switching ratings off is the one direction where
+  // waiting out the cache is not merely confusing -- it keeps publishing
+  // figures the clinic has just decided not to show.
+  revalidatePath("/");
+  revalidatePath("/mission");
+  revalidatePath("/team");
 
   return NextResponse.json({ success: true, visible });
 }

@@ -129,6 +129,7 @@ export default function AdminShell({
   adminAvatarUrl,
   scopeLabel,
   allowedSections,
+  manageSections,
   offsetTop,
   initialSection,
   initialTab,
@@ -154,6 +155,11 @@ export default function AdminShell({
   // sidebar hides the rest -- but hiding is presentation only; every route
   // re-checks scope server-side, since a hidden button is not a permission.
   allowedSections: AdminSectionKey[];
+  // The subset of those the viewer may change rather than only read. A
+  // section held at `view` keeps its listing screens (rendered read-only)
+  // and loses the ones that are nothing but actions -- hiding every control
+  // on those would leave an empty page with a heading.
+  manageSections: AdminSectionKey[];
   // Whether the dev-only DebugNav bar is showing above everything on this
   // page (same flag the root layout threads into Navbar as its own
   // `offsetTop` prop) -- this page hides the public Navbar entirely, so its
@@ -166,10 +172,14 @@ export default function AdminShell({
   initialSection?: string | null;
   initialTab?: string | null;
 }) {
-  const sections = ADMIN_SECTIONS.filter((s) => allowedSections.includes(s.key));
+  const sections = ADMIN_SECTIONS.filter((s) => allowedSections.includes(s.key)).map((s) =>
+    manageSections.includes(s.key)
+      ? s
+      : { ...s, tabs: s.tabs.filter((t) => !t.requiresManage) }
+  );
   const firstSection = sections[0] ?? ADMIN_SECTIONS[0];
 
-  const initial = findTab(initialSection ?? null, initialTab ?? null, allowedSections);
+  const initial = findTab(initialSection ?? null, initialTab ?? null, allowedSections, manageSections);
   const [sectionKey, setSectionKey] = useState<string>(initial.section);
   const [tabKey, setTabKey] = useState<string>(initial.tab);
   // Desktop full <-> mini collapse. Independent of the mobile drawer below --
@@ -187,14 +197,14 @@ export default function AdminShell({
   useEffect(() => {
     function applyFromLocation() {
       const params = new URLSearchParams(window.location.search);
-      const found = findTab(params.get("section"), params.get("tab"), allowedSections);
+      const found = findTab(params.get("section"), params.get("tab"), allowedSections, manageSections);
       setSectionKey(found.section);
       setTabKey(found.tab);
     }
     applyFromLocation();
     window.addEventListener("popstate", applyFromLocation);
     return () => window.removeEventListener("popstate", applyFromLocation);
-  }, [allowedSections]);
+  }, [allowedSections, manageSections]);
 
   function navigate(nextSection: string, nextTab: string) {
     setSectionKey(nextSection);
@@ -351,7 +361,7 @@ export default function AdminShell({
         href="/"
         onClick={onNavigate}
         title={mini ? "Back to Home" : undefined}
-        className={`mt-1 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
+        className={`mt-2 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
           mini ? "justify-center px-0" : ""
         }`}
       >
@@ -443,10 +453,13 @@ export default function AdminShell({
                 <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
-            {renderHomeLink(false, () => setMobileOpen(false))}
             <div className="mt-1 flex-1 space-y-1">
               {sections.map((s) => renderNavItem(s, false, () => setMobileOpen(false)))}
             </div>
+            {/* The drawer has no Collapse button, so it lands directly above
+                the profile/Log Out footer -- the same place relative to the
+                list as on the desktop rail. */}
+            {renderHomeLink(false, () => setMobileOpen(false))}
             {renderFooter(false)}
           </nav>
         </div>
@@ -464,10 +477,14 @@ export default function AdminShell({
         } ${offsetTop ? "top-[41px] h-[calc(100vh-41px)]" : "top-0 h-screen"}`}
       >
         {renderBrand(collapsed)}
-        {renderHomeLink(collapsed)}
         <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
           {sections.map((s) => renderNavItem(s, collapsed))}
         </div>
+        {/* Below the sections rather than above them, and directly above
+            Collapse -- same placement as the other three shells. Leaving the
+            back office is not one of this admin's screens, so it belongs
+            with the controls that act on the sidebar itself. */}
+        {renderHomeLink(collapsed)}
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
@@ -509,7 +526,29 @@ export default function AdminShell({
                     );
                   })()}
               </h1>
-              <p className="text-xs text-slate-500 mt-1">{activeSection.blurb}</p>
+              {/* The screen's own sentence when it has one, the section's
+                  otherwise. Eight Settings screens sharing "How the product
+                  behaves" meant the header explained nothing on the one
+                  section people open least often and remember least well;
+                  the example is the half that says why you are here rather
+                  than what the screen is called. */}
+              {(() => {
+                const activeTab = activeSection.tabs.find((t) => t.key === tabKey);
+                if (!activeTab?.blurb) {
+                  return <p className="text-xs text-slate-500 mt-1">{activeSection.blurb}</p>;
+                }
+                return (
+                  <div className="mt-1 max-w-2xl">
+                    <p className="text-xs text-slate-600">{activeTab.blurb}</p>
+                    {activeTab.example && (
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        <span className="font-semibold text-slate-500">For example:</span>{" "}
+                        {activeTab.example}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             <AdminGlobalSearch entities={searchEntities} />
           </div>

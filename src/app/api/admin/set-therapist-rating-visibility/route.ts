@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -31,6 +32,10 @@ export async function POST(request: NextRequest) {
   if (!updated) {
     return NextResponse.json({ error: "Therapist not found" }, { status: 404 });
   }
+
+  // /team is ISR-cached (revalidate = 300), so a therapist's rating stayed
+  // on the public page after it was hidden until the window expired.
+  revalidatePath("/team");
 
   return NextResponse.json({ success: true, visible });
 }

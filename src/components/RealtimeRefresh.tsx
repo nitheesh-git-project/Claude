@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { createClient } from "@/lib/supabase/client";
 
 // Keeps an already-open dashboard in sync with other users' actions (a

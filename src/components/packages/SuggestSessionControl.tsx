@@ -1,13 +1,19 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import {
   bookableHoursForDate,
   earliestBookableDateKey,
   leadTimeMsFromHours,
 } from "@/lib/bookingSlots";
-import { formatHourLabel } from "@/lib/therapistAvailability";
+import BookingCalendar from "@/components/booking/BookingCalendar";
+import {
+  BOOKING_OPTION_CELL_COMPACT,
+  BOOKING_OPTION_GRID_COMPACT,
+  bookingCellClass,
+} from "@/lib/bookingCellStyles";
+import { formatHourRange } from "@/lib/therapistAvailability";
 import { debugNow } from "@/lib/debugNow";
 import { suggestionState } from "@/lib/sessionSuggestions";
 
@@ -197,35 +203,55 @@ export default function SuggestSessionControl({
         anything is booked.
       </p>
 
-      <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-[11px] font-semibold text-slate-700">Date</span>
-          <input
-            type="date"
-            value={date}
-            min={earliestBookableDateKey(nowMs, leadMs) ?? undefined}
-            onChange={(e) => {
-              setDate(e.target.value);
-              setHour(bookableHoursForDate(e.target.value, nowMs, leadMs)[0] ?? "");
-            }}
-            className="w-full rounded-lg border border-slate-300 bg-white p-2 text-xs"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-[11px] font-semibold text-slate-700">Time</span>
-          <select
-            value={hour}
-            onChange={(e) => setHour(e.target.value === "" ? "" : Number(e.target.value))}
-            className="w-full rounded-lg border border-slate-300 bg-white p-2 text-xs"
-          >
-            {hours.length === 0 && <option value="">No times left that day</option>}
-            {hours.map((h) => (
-              <option key={h} value={h}>
-                {formatHourLabel(h)}
-              </option>
-            ))}
-          </select>
-        </label>
+      {/* The patient's own calendar and hour cells, compact. A therapist
+          proposing a time and a patient accepting it must be looking at the
+          same control -- a native date box beside a dropdown offered dates
+          the patient's screen would then refuse, and read as a different
+          product besides. */}
+      <div className="mt-2.5 space-y-2">
+        <BookingCalendar
+          compact
+          selectedDateKey={date}
+          onSelect={(nextDate) => {
+            setDate(nextDate);
+            const nextHours = bookableHoursForDate(nextDate, nowMs, leadMs);
+            // Keep the hour when the new day still offers it, so moving a
+            // proposal a week later does not silently change the time too.
+            setHour((prev) =>
+              prev !== "" && nextHours.includes(prev) ? prev : (nextHours[0] ?? "")
+            );
+          }}
+          nowMs={nowMs}
+          leadTimeMs={leadMs}
+          autoSelected={false}
+        />
+        <div>
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            Time
+          </p>
+          {hours.length === 0 ? (
+            <p className="text-[11px] text-slate-500">
+              No times left on this date — pick another day.
+            </p>
+          ) : (
+            <div className={BOOKING_OPTION_GRID_COMPACT}>
+              {hours.map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => setHour(h)}
+                  aria-pressed={h === hour}
+                  className={`${bookingCellClass({
+                    selected: h === hour,
+                    disabled: false,
+                  })} ${BOOKING_OPTION_CELL_COMPACT}`}
+                >
+                  {formatHourRange(h)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <label className="mt-2 block">

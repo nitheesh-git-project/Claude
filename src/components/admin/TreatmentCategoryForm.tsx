@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 
 type Category = {
   id: string;
@@ -25,11 +25,20 @@ type NewCategoryValues = Omit<Category, "id">;
 export default function TreatmentCategoryForm({
   category,
   initialValues,
+  nextDisplayOrder,
   onCancel,
 }: {
   category?: Category;
   /** Prefills a new (non-edit) form, e.g. when duplicating an existing category. */
   initialValues?: NewCategoryValues;
+  /**
+   * Where a brand-new category lands: one past the last existing one, so it
+   * appends. It defaulted to 0, which put every new condition at the top of
+   * the list AND gave every one of them the same order -- and equal orders
+   * are what made the old pairwise reorder a silent no-op. The list save
+   * renumbers 1..n, so this only has to be right at the moment of creation.
+   */
+  nextDisplayOrder?: number;
   onCancel?: () => void;
 }) {
   const isEdit = !!category;
@@ -46,8 +55,9 @@ export default function TreatmentCategoryForm({
   );
   const [ctaLabel, setCtaLabel] = useState(defaults?.cta_label ?? "Book Assessment");
   const [specialty, setSpecialty] = useState(defaults?.specialty ?? "");
+  const newOrderDefault = String(nextDisplayOrder ?? 0);
   const [displayOrder, setDisplayOrder] = useState(
-    defaults ? String(defaults.display_order) : "0"
+    defaults ? String(defaults.display_order) : newOrderDefault
   );
   const [active, setActive] = useState(defaults?.active ?? true);
   const [loading, setLoading] = useState(false);
@@ -102,7 +112,7 @@ export default function TreatmentCategoryForm({
       setPriceInr("");
       setDurationMinutes("60");
       setCtaLabel("Book Assessment");
-      setDisplayOrder("0");
+      setDisplayOrder(newOrderDefault);
     }
     onCancel?.();
     router.refresh();

@@ -3,7 +3,7 @@
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import StatStrip from "@/components/dashboard/StatStrip";
 import {

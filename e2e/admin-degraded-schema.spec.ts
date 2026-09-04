@@ -77,7 +77,7 @@ test.describe("Suite J: degraded schema", () => {
       // parseAdminScope() treats absent as 'full', which is how every admin
       // behaved before scopes existed -- a migration must never lock the
       // only admin out of their own dashboard.
-      await page.goto(`${BASE}/admin/dashboard?section=settings&tab=team`);
+      await page.goto(`${BASE}/admin/dashboard?section=settings&tab=access`);
       await expect(page.getByRole("heading", { name: "Admins" })).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText("Create an account")).toBeVisible();
     } finally {

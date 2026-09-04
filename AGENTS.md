@@ -203,6 +203,7 @@ src/lib/inviteRewards.ts one patient inviting another, and both halves of it
 src/lib/checkoutQuote.ts what a booking costs, resolved once for three callers
 src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
 src/lib/adminScope.ts    admin scopes and which sections each one may open
+src/lib/listOrdering.ts  moving a row up or down a hand-ordered admin list
 src/lib/availabilityRanges.ts the roster's range layer over its hour rows
 src/lib/availabilityRequest.ts server-side validation both save doors share
 src/lib/conditionSpecialty.ts the three condition specialties, the triage
@@ -246,7 +247,23 @@ role, an id, or an amount sent from the client — re-derive it server-side.
 
 Admins additionally carry a scope (`profiles.admin_scope`: `full`,
 `operations`, `finance`, `clinical` — see `src/lib/adminScope.ts`), which
-decides which dashboard sections they can open. **Every** admin route guards
+decides which dashboard sections they can open **and at what level**. A
+`(scope, section)` pair is `none`, `view` or `manage`, and the middle value
+is the point: a desk often needs to read something it must never change.
+There is deliberately no "write only" — a dashboard cannot let somebody
+change a row they are not allowed to see, so the third box a permissions
+matrix usually draws is one this product has no honest meaning for.
+**`requireAdminScope(section)` asks for `manage`**, which is what makes
+`view` real rather than a label: every route guarded by it is a POST that
+changes something, so a section granted at `view` is read-only at all 98 of
+them without one being edited, and the level cannot be widened by a screen
+forgetting to hide a button. `scopeCanOpen` (view or manage) decides what
+renders; `scopeCanManage` decides what a control may do. One grant is
+`view` today — **finance reads Sessions** — because the question finance
+actually asks ("what was this ₹1,200 for?") was answerable only by asking
+somebody else, while handing finance the section outright would let the
+person reconciling the books cancel the sessions they are reconciling.
+**Every** admin route guards
 with `requireAdminScope(section)`, not `getAdminUser()`; the sidebar hiding a
 section is presentation only, since a session cookie can call any route
 directly. The section is chosen by the capability, not by where the button
@@ -288,19 +305,37 @@ screen:
 Ordering the queues is emphasis, never permission: `orderQueueGroups()`
 moves a scope's own domains to the top and **removes nothing**, because what
 a scope may work is the routes' decision and a UI that hid a reachable queue
-would be a second permission model to disagree with the first. **Every dashboard names itself**, in the sidebar brand (above "Admin Panel")
+would be a second permission model to disagree with the first. What a queue
+*count* reads, though, is `manage` and not merely open: a queue is a piece of
+work, and finance reads Sessions without being able to assign one, so an
+unassigned session is not waiting on them — counting it there would put a
+figure on their Today screen that nothing they could do would ever bring
+down. `visibleQueueTotal`, the queue list and `reachableActions` all take the
+workable sections, so the three agree. **Every dashboard names itself**, in the sidebar brand (above "Admin Panel")
 and again as the eyebrow over the section heading -- `Master Admin`,
 `Operations`, `Finance`, `Clinical`, from `ADMIN_SCOPE_LABELS`. Twice
 because the sidebar collapses to icons and is a closed drawer on a phone,
 while the header is on every screen at every width. Four dashboards that all
 said "Admin Panel" and differed only in which sidebar entries were missing
 made an admin infer which one they were on from an absence. That label set
-is **one set, doing both jobs** -- the access level in Team & Access's picker
-and the name on the dashboard -- which is why `full` reads "Master Admin"
+is **one set, doing three jobs** -- the entries in User Access's Account
+type picker, the access level on an existing admin's row, and the name on
+the dashboard -- which is why `full` reads "Master Admin"
 rather than "Full access": as a permission both work, but only one is the
 name of a desk somebody sits at, and every user-facing string that used to
 say "full-access admin" says Master Admin now (the QA plan quotes those
-verbatim, so it moved in the same change). A limited scope additionally gets
+verbatim, so it moved in the same change). **Creating one of those admins is one dropdown.** User Access's Account
+type picker lists all six in two groups -- Clinic (Patient, Therapist) and
+Back office (the four scope labels) -- rather than an "Admin" entry that
+reveals a second Access level select once chosen. Hiring somebody into
+Operations meant picking a word nobody uses and then finding a control that
+was not on screen a moment earlier, in the one place where the four desks
+are otherwise named consistently. The option value carries both halves
+(`admin:operations`) because the route still takes a role and a scope: one
+control over two fields, never a new concept in the database, and the
+full-only check in `create-account` is what actually stops a limited scope
+minting an admin -- the group being absent from the picker is presentation.
+A limited scope additionally gets
 an access note (`AdminAccessCard`) naming which sections its name comes to
 -- the sections are correctly hidden already, and this is the sentence
 saying they were hidden on purpose. The note carries no scope name of its
@@ -397,8 +432,8 @@ client is the only writer and the log is append-only from any session.
      change any history.
 
   **Which number the app believes is a switch, not a deploy.**
-  `site_settings.entitlement_ledger_authoritative` (Settings → Booking
-  Rules, off by default) decides whether a balance shown and offered comes
+  `site_settings.entitlement_ledger_authoritative` (Settings → Programmes
+  & Home Visits, off by default) decides whether a balance shown and offered comes
   from the ledger or from `sessions_used` / `visits_used`. Flipping it is
   reversible in a second, because both are still written either way.
 
@@ -463,6 +498,59 @@ client is the only writer and the log is append-only from any session.
 
 - **Booking lead time** is 12 hours, defined once in `src/lib/bookingSlots.ts`
   and shared by the picker and the validator so they cannot drift apart.
+  **An admin screen that sets a session time reads that module too.**
+  `AssignReferralForm` used `<input type="datetime-local">` with a
+  five-minute floor, so an admin could promise a referred patient a slot the
+  platform's own rule refuses — two answers to "when can this be booked", in
+  the one flow where the person choosing is not the person who lives with
+  it. `AdminSlotPicker` (`src/components/admin/`) is the patient's control,
+  inline and compact: the same `BookingCalendar` in its `compact` mode (a
+  mode, never a second calendar — forking it is how the two grow different
+  ideas of which dates are bookable) plus hour chips from
+  `bookableHoursForDate`, and `/api/admin/assign-referral` re-checks the
+  lead time server-side rather than trusting the browser. It is deliberately
+  **not** a dialog: the slot is chosen against the referral it sits inside.
+  **Every screen that picks a session slot now renders that one control**,
+  and `BookingCalendar` is the only month grid in the app: the two bulk
+  schedulers kept private copies of it for one difference — a dot on days
+  already holding a chosen slot — which is a `markedDateKeys` prop now;
+  `AdminNewBookingTab` and `EditBookingForm` dropped their native
+  date/time/datetime-local inputs; and the therapist's `SuggestSessionControl`
+  dropped a date box beside an hour dropdown that could offer a time the
+  patient's own screen would then refuse.
+  **The lead time is a prop, and zero is the override lane.** `leadTimeMs` on
+  `AdminSlotPicker` defaults to the patient's 12 hours; `EditBookingForm`
+  passes 0 (moving a session that already exists is not a booking) and
+  `AdminNewBookingTab` passes 0 only while its existing
+  "book inside the window anyway" box is ticked, so the grid opens up exactly
+  when the route would accept it. Zero still cannot reach into the past.
+  **A slot starts on the hour, and the routes say so.** `isWholeHourSlot()` in
+  `bookingSlots.ts` refuses anything else at all nine doors that write a slot
+  time — `/api/appointments/create`, `book-package-sessions`,
+  `/api/admin/create-booking`, `update-appointment`, `assign-referral`,
+  `/api/therapist/suggest-session`, `/api/home-visit/book-visits`,
+  `book-cash` and `verify` — with one shared message
+  (`NOT_WHOLE_HOUR_ERROR`). Two admin screens used to reach `6:52` through a
+  raw `type="time"` / `datetime-local`; they share the picker now, and this
+  is the same rule where a request cannot get round it. **It is checked in
+  the booking's own timezone, never the server's**: India is UTC+05:30, so 6
+  PM IST is 12:30 UTC and reading the minute off the instant would refuse
+  every correct booking in the clinic while passing one half an hour out.
+  The wizard builds slots in the *patient's* local time and records which
+  zone that was, so that column is the one to judge against — `update-
+  appointment` reads it off the appointment row, which is why its check sits
+  below the fetch rather than beside the other argument validation. An
+  unknown IANA zone falls back to `CLINIC_TIMEZONE` rather than passing.
+  The rule is enforced where a human *picks* a time, never where one is
+  *consumed*: `/api/patient/respond-suggestion` and `register-via-referral`
+  book a slot somebody already agreed to, so a legacy row carrying minutes
+  is still honoured rather than stranded.
+  A **date that is not a session slot** keeps its native input, deliberately:
+  a report's date, a leave range, a promo campaign's window and every
+  from/to filter (Metrics, Costs, Activity Log, All Sessions, Payment
+  History, Earnings, the Calendar tab's day) have no hours and no lead time,
+  and a control whose disabled state means "too soon to book" would be
+  lying on all of them.
 - **Availability** = weekly template + per-date exceptions + leave flag, then
   a conflict check (`src/lib/therapistAvailability.ts`,
   `src/lib/checkTherapistConflict.ts`). It is the clinic's planning record —
@@ -850,8 +938,8 @@ client is the only writer and the log is append-only from any session.
   where something the patient sends is involved — which is why each of them
   sends a **name**, never a figure.
   1. **The first-session offer** is standing configuration
-     (`first_session_offer_enabled` / `_type` / `_value`, Settings → Booking
-     Rules, off by default). Eligibility is `has this patient ever paid for
+     (`first_session_offer_enabled` / `_type` / `_value`, Settings → Offers
+     & Discounts, off by default). Eligibility is `has this patient ever paid for
      a session`, asked of the database in `/api/razorpay/create-order` —
      so it cannot be claimed twice, asked for, or sent from a browser, and a
      patient is only new once. It fails **closed**: an unreadable answer
@@ -1572,6 +1660,62 @@ client is the only writer and the log is append-only from any session.
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
   runs.
+- **User Access is where the access model is read, and it is derived.**
+  Settings → User Access is one screen doing what two half-screens did: the
+  back-office directory (who can sign in, at what level, and whether they
+  still can) and the **matrix** — rows are the jobs people describe, columns
+  are the four desks, cells come out of `ADMIN_CAPABILITY_GROUPS` +
+  `sectionAccess` in `adminScope.ts`. Nothing in the product said what a
+  scope *meant* before it: an owner deciding whether to hire somebody into
+  Operations could read four one-line blurbs, or read the source.
+  Three rules hold it.
+  1. **The matrix is derived, never a second list of permissions.** Every
+     cell is answered by the module the routes enforce with, so the screen
+     cannot claim an access nobody has. A hand-maintained copy goes stale the
+     first time a scope changes, and then the screen showing it is lying
+     about the one thing it exists to explain. Add a capability row only when
+     the grid already decides its answer; a capability needing its own rule
+     wants the rule in the grid.
+  2. **The cells are not checkboxes.** A tick that does not change a route is
+     a lie, and making them real means a per-capability check at 98 routes —
+     the fine-grained matrix whose failure mode is one route quietly falling
+     through a gap in it, which is what coarse scopes exist to avoid.
+     Changing what a desk reaches is a code change, reviewed.
+  3. **Suspending is not deleting.** `/api/admin/set-admin-active` mirrors
+     `set-admin-scope`'s two guards (not yourself, not the last Master Admin
+     who can still sign in) and flips `profiles.active`, which `getAdminUser`
+     and the proxy already refused on — the enforcement existed and the
+     control did not, so closing the door on somebody who left needed
+     database access. The account stays because the admin's id is on every
+     audit row they ever wrote.
+  `src/lib/adminScope.test.ts` holds the grid's invariants — every pair has a
+  level, manage never outruns open, every section has a capability group, and
+  every group has at least one read-only row, without which a group cannot
+  show the difference between `view` and `none`.
+- **A settings screen says what it is and gives an example.** `AdminTabDef`
+  carries an optional `blurb` and `example`, and `AdminShell` prints them
+  under the page heading in place of the section's own line. Every Settings
+  screen has both, because a section blurb cannot do this job: eight screens
+  all sat under "How the product behaves", so the header explained nothing
+  on the section people open least often and therefore remember least well,
+  and a label alone ("Brand & Contact", "System Health") names a category
+  rather than an action. The blurb is what the screen is, in a clinic
+  owner's words -- no jargon, no column names, no feature names; if a
+  sentence needs one, the screen is doing too many things and wants
+  splitting. The example is one concrete thing you would come here to do,
+  which is the half that makes an unfamiliar screen usable.
+  **Booking Rules was that "too many things" case**, and splitting it is
+  what the field was added alongside. It had grown six unrelated stacks with
+  no heading between them -- when a single session may be booked, cancelled
+  and joined; the two acquisition discounts; the recommendation rules; the
+  programme rules; the nine home-visit settings -- so an owner opening it to
+  change a refund window scrolled past the discount that decides what every
+  new patient pays. It is three screens now: **Booking Rules** (one video
+  session), **Offers & Discounts** (money off, to win a patient), and
+  **Programmes & Home Visits** (more than one appointment, arranged in
+  advance). Offers carries a note saying where promo codes and goodwill
+  live, because "where did the promo screen go" is the question a split
+  otherwise creates.
 - **A count links to the rows it counted, never to the whole table.** A
   Today figure or queue row that opened an unfiltered list made the reader
   redo the filtering by hand and, worse, made the number look wrong.
@@ -1661,6 +1805,46 @@ client is the only writer and the log is append-only from any session.
   behind them -- a filter nobody can act on is noise. Don't cap a list at
   an arbitrary number with a "Show all" escape hatch: that was what All
   Sessions did, and "Show all" then painted every row anyway.
+- **The wait has to be visible, and it outlives the button.** Every mutating
+  control had its own `loading` flag, and that flag was the problem: the
+  shape was `setLoading(false); router.refresh();`, so the button went back
+  to looking idle and *then* the expensive half started. On the admin
+  dashboard a refresh re-runs the whole Server Component -- every screen's
+  markup, not only the visible one -- with nothing on screen saying so, which
+  is what gets reported as a freeze. A per-button flag cannot cover it: the
+  work outlives the control (the row it sat in is refreshed away), and a
+  navigation has no button left at all. So the signal is one counter at the
+  root (`PendingWorkProvider`, `src/lib/pendingWork.tsx`) and one teal bar
+  above every piece of chrome (`RouteProgress`). Three rules:
+  1. **`useRouter` comes from `src/lib/useRouter.ts`, not `next/navigation`.**
+     It is a drop-in with the same shape whose `refresh`/`push`/`replace`
+     run inside a React transition -- the only thing that knows when a
+     navigation has actually landed -- and reports that to the counter. That
+     is why 100-odd client components changed one import line and nothing
+     else: adopting it at the source covers every call site, including the
+     ones that will be written next.
+  2. **No percentage, ever.** Nothing in the client knows how far along a
+     server render is. The bar eases toward a ceiling it never reaches and
+     completes in one movement when the work lands; a bar that sits at 90%
+     is a lie people learn to ignore.
+  3. **It waits `APPEAR_AFTER_MS` before drawing.** Most actions finish well
+     inside it, and a bar that flashes on every tap makes a fast app feel
+     busy. Reduced motion keeps the bar and drops the travel -- someone who
+     asked for less movement still needs to know the app is thinking.
+  `Spinner` (`src/components/system/Spinner.tsx`) is the app's only spinner,
+  inheriting `currentColor` so one component works on the filled, outlined
+  and text buttons alike. Before it, every busy state was a text swap, which
+  reads as a label change rather than as motion.
+- **Isolated is not the same as sequential.** The admin dashboard keeps its
+  migration-dependent reads out of the big `Promise.all` so one
+  unknown-column error costs its own panel rather than the dashboard -- and
+  eleven of them had become a chain of `await`s, one round trip after
+  another, paid on page load *and* on every `router.refresh()` any admin
+  button fires. They are one second `Promise.all` now, each entry still
+  swallowing its own error (through a `guard()` wrapper or its own helper),
+  so the isolation is unchanged and only the waiting is gone. Add a new
+  migration-dependent read to that batch rather than as another `await`
+  below it.
 - **A dashboard refresh is expensive; debounce accordingly.**
   `RealtimeRefresh` turns a `postgres_changes` event into `router.refresh()`,
   which on the admin dashboard re-runs the whole Server Component — ~40
@@ -1807,10 +1991,23 @@ client is the only writer and the log is append-only from any session.
   `NAV_HIDDEN_ROUTES`, so the public `Navbar` never renders there; without an
   explicit link the only exit is Log Out, which also ends the session. Both
   shells (`dashboard/DashboardShell.tsx`, `admin/AdminShell.tsx`) carry a
-  **Back to Home** entry at the top of the sidebar, in all three renders
+  **Back to Home** entry in all three renders
   (expanded, collapsed rail, mobile drawer). It is a plain `<a>`, not
   `next/link`, for the reason the nav entries document: client-side
   transitions into a differently-chromed route were silently not completing.
+
+- **A referral carries a phone number, because the clinic rings before it
+  links.** `patient_referrals.patient_phone` is collected on the hospital's
+  own form (required, validated through `PhoneNumberField` /
+  `isValidStoredPhone` like every other number in the app) and rendered with
+  `preferred_language` directly under the patient's name on Admin → People →
+  Partners → Patient Referrals. A referral is the one flow where the clinic
+  must reach someone who has no account yet: the admin agrees a time with
+  them and only then sends the registration link. The column is nullable —
+  every referral already on file predates it — and is read in its **own
+  isolated query** on the admin dashboard, so a database without the
+  migration loses the number on the card rather than the capacity note
+  beside it or the referral list itself.
 
 - **A therapist chosen on `/team` is a request, not an assignment.**
   `/book?therapist=<id>` resolves the id against `public_therapist_profiles`
@@ -1871,6 +2068,37 @@ client is the only writer and the log is append-only from any session.
   whether a `Section` plus `PhotoTile`/`IconCard`/`SplitFeature` already says
   it; the old pages each grew their own hero and their own closing block,
   and the result read as seven different sites.
+- **The closing band asks for the sale, so it shows the sale.** `ClosingCta`
+  is the last thing on seven of the eight pages (`/hospitals` ends on its
+  referral form instead), and it was the only band made of nothing but text
+  on a dark panel — a wall of words at the exact moment somebody is deciding
+  whether to spend money. It carries a photograph like every other band, and
+  the photograph is deliberately **not** of treatment: it is of the thing
+  being asked for, someone at home smiling as she books on her phone. What a
+  visitor is being asked to do is two minutes on a screen, and showing that
+  argues better than another sentence saying it. The confirmation chip over
+  it is the same argument once more — it shows what the next screen gives
+  back rather than asking anyone to imagine it, and it labels itself an
+  example **in the component**, so no page can render it as a real booking.
+  Three rules keep it honest. **Each page names its own photograph, and the
+  band has its own set of them** — the seven `cta-*` files in
+  `marketingPhotos.ts`, which nothing else uses. The band's shape is
+  identical everywhere, so the invitation is still one invitation and only
+  the face changes; one image repeated seven times read as a template
+  stamped on the end of each page, and reusing the *existing* photographs
+  instead was no better, since those were shot for the heroes and the care
+  bands and a visitor met a face they had already scrolled past. Each one
+  answers that page's own question: `/team` a clinician opening a session,
+  `/home-visit` a couple booking from their front room, `/faq` a patient
+  reading her phone. The component's default is the fallback for a page that
+  names nothing, not the house style. The image gets a **fixed** aspect
+  (`4/3`, `5/4` at lg) rather than the photograph's own, or a portrait crop
+  leaves the band mostly empty teal beside four lines of copy. And the
+  assurance lines under the buttons are the **non-numeric** trust points
+  only: a session's length is per-category and the cancellation window is an
+  admin setting, so printing either as a fixed number in the one band that
+  reads as a promise is the "don't hardcode admin-configurable behaviour"
+  rule broken where it costs most.
 - **One idea per band, and a hard word budget.** The rewrite exists because
   visitors could not tell what the site was, and the second round of feedback
   was that there was still too much to read. So the budgets are numbers, not
@@ -1930,6 +2158,25 @@ client is the only writer and the log is append-only from any session.
   `MarketingPage` and `CareArea` carry the two separately because the grids
   used to pass the blurb as `alt`, which announced the same sentence twice to
   a screen reader and said nothing about the image itself.
+- **Every Explore band ends on booking, and its rows square up.**
+  `BOOK_CONNECTOR` was on the home page's grid alone, so the six inner pages
+  ended their index on another page to read -- the one band still answering
+  "what now?" with "here is more to look at", on a site whose whole shape is
+  that the next step is always in the same place. `exploreConnectors()` is
+  the one list both use now.
+  The tiles above it are squared up by arithmetic rather than by a
+  hand-placed exception (`src/lib/exploreGridSpans.ts`), because the count
+  moves: the page being read is always missing and Home Visit drops out when
+  the switch is off, so which row ends short is not something a fixed rule
+  can know. Seven tiles in three columns left the seventh alone beside two
+  dead cells. Two details are load-bearing. The large breakpoint is a
+  **six**-column grid with tiles spanning two -- the same three-across
+  layout, but two leftover tiles can then take half the row each, where a
+  literal three-column grid would need 1.5 columns and could only offer a
+  gap. And `wide` (photo beside text) is applied only when a tile fills the
+  row at **every** multi-column breakpoint: one that is full width on a
+  tablet and half width on a desktop would change shape between them and
+  read as two designs.
 - **The site's own index lives in `src/lib/marketingNav.ts`.** The header
   nav, the footer's Explore column, the home page's connector grid and the
   "Where to go next" strip on the other six pages all read that one array, so
@@ -1991,6 +2238,40 @@ client is the only writer and the log is append-only from any session.
   with nothing to sign, and a bucket would mean an upload pipeline to
   maintain. Rendered through a plain `<img>`, since optimising it would need a
   `remotePatterns` allowlist for every host an admin might paste from.
+- **Ordering a list is one save of the whole list, never a pairwise swap.**
+  The Conditions screen moved a category by swapping two rows'
+  `display_order` values. Two rows holding the *same* order swapped to the
+  same two numbers, so the write succeeded and changed nothing — and the
+  admin create form defaulted Order to `0`, which made equal orders the norm
+  rather than the exception. The optimistic list showed the move, the next
+  render put it back, and the public pages never changed. The arrows now
+  rearrange client-side only and **Save order** posts the whole id list to
+  `/api/admin/reorder-treatment-categories`, which renumbers `1..n` by array
+  position in `set_treatment_category_order()` — a total order ties cannot
+  express. Three rules came out of it: the button is **always rendered and
+  only enabled when something moved**, so saving is visibly the step that
+  publishes; the route **refuses a list that does not cover every row**
+  (409), since renumbering a subset collides with the rows it never saw --
+  and so does `set_treatment_category_order()` itself, because that route
+  check is true only for as long as every caller remembers it and the
+  function is reachable by the service-role client and by hand in the SQL
+  editor; reordering one of two categories left both at 1 on a scratch
+  database, which is the tie the whole change removes, put back; and
+  a new category is created at `max(display_order) + 1` rather than `0`, so
+  it appends instead of landing on top of everything at the same number.
+  Build a future reorder control the same way rather than reintroducing a
+  swap.
+- **An admin write that a public page renders must invalidate that page.**
+  `/`, `/conditions`, `/book`, `/faq`, `/mission` and `/team` are ISR-cached
+  (`export const revalidate = 300`), so a catalog or content edit was
+  invisible on the live site for up to five minutes — which reads as a save
+  that silently failed, and is how the same edit gets made twice. Every
+  admin route writing `treatment_categories`, `faqs`, `testimonials` or the
+  rating-visibility settings now calls `revalidatePath` for each page that
+  reads it, the way the home-visit routes always have. Adding a public
+  surface for an admin-editable table means adding its path to those routes
+  in the same change; the ISR window is a cache, not a publishing delay
+  anyone chose.
 - **A connector shows the whole of what is short and the headline of what is
   long.** The home page's mission band gives the mission and vision in full —
   they are two sentences, and paraphrasing them into a teaser would leave the
@@ -2045,7 +2326,8 @@ client is the only writer and the log is append-only from any session.
   booking languages, the online booking lead time and cancellation refund
   window, the package-wide settings — default
   validity, therapist-lock switch, bulk-scheduler limit, expiry reminder
-  window — the three recommendation settings on Settings → Booking Rules —
+  window — the three recommendation settings on Settings → Programmes &
+  Home Visits —
   whether the clinic approves one before the patient sees it
   (`care_plan_requires_approval`, on by default), how long an approved one
   holds, and the ceiling on sessions a week a clinician may ask for — the nine `home_visit_*` settings — master switch, cash on/off,
@@ -2062,7 +2344,7 @@ client is the only writer and the log is append-only from any session.
   Access, and `risk_signals_enabled` with the per-detector thresholds in
   `risk_rules`, on Today → Risk — and `enabled_intake_specialties`, which
   condition types triage offers — and the four invite settings on Settings →
-  Booking Rules (on/off, what the friend gets, what the inviter gets, and the
+  Offers & Discounts (on/off, what the friend gets, what the inviter gets, and the
   ceiling on rewards one patient may earn) plus `promo_codes_enabled`, whose
   switch sits on Money → Costs beside the campaigns it governs rather than in
   Settings, because an admin who has just written a code and cannot see why

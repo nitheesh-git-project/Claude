@@ -19,7 +19,37 @@ export type AdminSectionKey =
   | "catalog"
   | "settings";
 
-export type AdminTabDef = { key: string; label: string };
+export type AdminTabDef = {
+  key: string;
+  label: string;
+  /**
+   * What this screen does, in the words a clinic owner would use. Rendered
+   * under the page heading, in place of the section's own line.
+   *
+   * A section blurb cannot do this job: eight Settings screens all sat under
+   * "How the product behaves", so the header told an admin nothing about the
+   * screen they had just opened, and the labels alone ("Brand & Contact",
+   * "System Health") name a category rather than an action. No jargon, no
+   * column names, no feature names -- if the sentence needs one, the screen
+   * is doing too many things and wants splitting.
+   */
+  blurb?: string;
+  /**
+   * One concrete thing you would come to this screen to do. The blurb says
+   * what the screen is; this says why you are on it, which is the half that
+   * makes an unfamiliar screen usable.
+   */
+  example?: string;
+  /**
+   * The screen is nothing but actions, so a scope holding this section at
+   * `view` must not see it at all. A screen that merely *contains* actions
+   * does not want this -- it takes a manage flag and renders read-only,
+   * which is better, because the reading half is the reason the level
+   * exists. Reach for it only where hiding every control would leave an
+   * empty page.
+   */
+  requiresManage?: boolean;
+};
 
 export type AdminSectionDef = {
   key: AdminSectionKey;
@@ -68,8 +98,19 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // the clinic needs to be able to see them and stop a wrong one --
       // under Sessions because a recommendation is about what is being
       // delivered, not about the books.
-      { key: "recommendations", label: "Recommendations" },
-      { key: "new", label: "New Booking" },
+      {
+        key: "recommendations",
+        label: "Recommendations",
+        // Approve, turn down, rewrite, withdraw: there is no reading half
+        // left once the decisions are gone.
+        requiresManage: true,
+      },
+      {
+        key: "new",
+        label: "New Booking",
+        // A form, and nothing else.
+        requiresManage: true,
+      },
     ],
   },
   {
@@ -116,15 +157,75 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     label: "Settings",
     icon: "fa-sliders",
     blurb: "How the product behaves.",
+    // Every screen here says what it is and gives one example, because a
+    // settings list is the part of a back office people open least often and
+    // therefore remember least well. Two of them are also new: "Booking
+    // Rules" had grown into six unrelated stacks -- when a patient may book,
+    // what money comes off, how a programme works, how a home visit works --
+    // with no heading between them, so the one screen an owner opened to
+    // change a refund window also held the discount that decides revenue.
     tabs: [
-      { key: "brand", label: "Brand & Contact" },
-      { key: "public", label: "Public Site" },
-      { key: "booking", label: "Booking Rules" },
-      { key: "clinical", label: "Clinical Questions" },
-      { key: "team", label: "Team & Access" },
-      { key: "health", label: "System Health" },
-      { key: "activity", label: "Activity Log" },
-      { key: "security", label: "Account Security" },
+      {
+        key: "brand",
+        label: "Brand & Contact",
+        blurb: "Your clinic's name and the contact details patients see.",
+        example: "Change the WhatsApp number shown in the website footer.",
+      },
+      {
+        key: "public",
+        label: "Public Site",
+        blurb: "What visitors read on your website.",
+        example: "Add a patient's story to the home page, or answer a new question on the FAQ page.",
+      },
+      {
+        key: "booking",
+        label: "Booking Rules",
+        blurb: "When a patient may book, cancel, and join a video session.",
+        example: "Stop patients booking a slot that is less than 12 hours away.",
+      },
+      {
+        key: "offers",
+        label: "Offers & Discounts",
+        blurb: "Money off, to bring new patients in.",
+        example: "Give every new patient \u20b9200 off their first session.",
+      },
+      {
+        key: "programmes",
+        label: "Programmes & Home Visits",
+        blurb:
+          "Rules for a course of sessions a therapist recommends, and for visits to a patient's home.",
+        example: "Make a therapist's recommendation wait for your approval before the patient sees it.",
+      },
+      {
+        key: "clinical",
+        label: "Clinical Questions",
+        blurb: "The questions a patient answers about their condition, and the ones a therapist fills in after an exam.",
+        example: "Reword the question that asks how long the pain has lasted.",
+      },
+      {
+        key: "access",
+        label: "User Access",
+        blurb: "Who can sign in to this dashboard, what each of them reaches, and how much of a patient's phone number a therapist is shown.",
+        example: "Hire somebody into Operations, or take away the access of somebody who left.",
+      },
+      {
+        key: "health",
+        label: "System Health",
+        blurb: "Warnings when something behind the scenes has failed. Nothing here is set by you \u2014 it is the app reporting on itself.",
+        example: "Find a booked session whose Google Meet link was never created, and try again.",
+      },
+      {
+        key: "activity",
+        label: "Activity Log",
+        blurb: "Every change an admin has made, newest first.",
+        example: "Check who refunded a session last Tuesday, and what reason they gave.",
+      },
+      {
+        key: "security",
+        label: "Account Security",
+        blurb: "Your own login. Nothing here affects patients or the website.",
+        example: "Send yourself a password reset email.",
+      },
     ],
   },
 ];
@@ -136,9 +237,18 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
 export function findTab(
   sectionParam: string | null,
   tabParam: string | null,
-  allowed: AdminSectionKey[]
+  allowed: AdminSectionKey[],
+  // Which of those the viewer may change. A section held at `view` drops its
+  // action-only screens, and this is where that has to be applied as well as
+  // in the sidebar: a hand-typed `?tab=new` would otherwise resolve to a
+  // screen the shell does not render, leaving a heading over nothing.
+  // Omitted means every allowed section is manageable, which is the answer
+  // for every caller that predates levels.
+  manageable: AdminSectionKey[] = allowed
 ): { section: string; tab: string } {
-  const usable = ADMIN_SECTIONS.filter((s) => allowed.includes(s.key));
+  const usable = ADMIN_SECTIONS.filter((s) => allowed.includes(s.key)).map((s) =>
+    manageable.includes(s.key) ? s : { ...s, tabs: s.tabs.filter((t) => !t.requiresManage) }
+  );
   const fallback = usable[0] ?? ADMIN_SECTIONS[0];
   const section = usable.find((s) => s.key === sectionParam) ?? fallback;
   const tab = section.tabs.find((t) => t.key === tabParam) ?? section.tabs[0];

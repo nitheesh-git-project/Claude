@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { payForCarePlan } from "@/lib/carePlanPayment";
 import AddressForm from "@/components/booking/AddressForm";
 import PackageBulkScheduler from "@/components/packages/PackageBulkScheduler";

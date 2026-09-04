@@ -12,6 +12,8 @@ import { createPublicClient } from "@/lib/supabase/public";
 import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
+import RouteProgress from "@/components/system/RouteProgress";
+import { PendingWorkProvider } from "@/lib/pendingWork";
 import {
   DEFAULT_SPLASH_CONFIG,
   splashBootScript,
@@ -165,6 +167,13 @@ export default async function RootLayout({
             keeping the markup constant is what stops this being a
             hydration mismatch on every page. */}
         {splash.enabled && <SplashScreen config={splash} />}
+        {/* Wraps everything, because the work being waited on outlives the
+            control that started it: a button's own spinner is unmounted the
+            moment its row is refreshed away, and a navigation has no button
+            left at all. One counter at the root is the only place that can
+            still be watching when the new HTML lands. */}
+        <PendingWorkProvider>
+          <RouteProgress />
         {showDebugNav && <DebugNav />}
         <Navbar
           offsetTop={showDebugNav}
@@ -191,6 +200,7 @@ export default async function RootLayout({
           />
           <ScrollHint />
         </SectionNavProvider>
+        </PendingWorkProvider>
       </body>
     </html>
   );

@@ -1,9 +1,10 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import TreatmentCategoryForm from "./TreatmentCategoryForm";
 import { useConfirm } from "@/lib/useConfirm";
+import { isOrderChanged, moveIdOnePlace } from "@/lib/listOrdering";
 
 type Category = {
   id: string;
@@ -111,36 +112,79 @@ export default function TreatmentCategoryManager({
   const [addingNew, setAddingNew] = useState(false);
   const [duplicateFrom, setDuplicateFrom] = useState<Category | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
+  const [savedNotice, setSavedNotice] = useState(false);
   const router = useRouter();
 
-  // Prop-derived base: swapping two adjacent rows' positions is fully known
-  // client-side the moment the button is clicked, so the list reorders
-  // instantly instead of waiting on the fetch + router.refresh() round trip.
-  // Reverts to the real prop order on failure (no refresh happens); matches
-  // the new prop order on success once router.refresh() lands.
-  const [optimisticCategories, setOptimisticCategories] = useOptimistic(categories);
-  const [isMovePending, startMoveTransition] = useTransition();
+  // The arrows rearrange this list and nothing else; the order reaches the
+  // database only when Save order is tapped. It used to save one move per
+  // tap, which made every intermediate arrangement -- the ones an admin
+  // passes through on the way to the one they want -- a write that the
+  // public pages would have had to publish.
+  const [orderedIds, setOrderedIds] = useState<string[]>(() =>
+    categories.map((c) => c.id)
+  );
+  const [isSavePending, startSaveTransition] = useTransition();
+
+  const serverIds = categories.map((c) => c.id);
+
+  // Adjust-state-while-rendering rather than an effect, same pattern as
+  // Navbar's navigating reset. Resync only when the SET of rows changes (a
+  // category added, deleted or deactivated elsewhere) -- resyncing on any
+  // prop change would let the catalog realtime channel's refresh silently
+  // throw away an arrangement the admin has not saved yet.
+  const [prevIdSetKey, setPrevIdSetKey] = useState(() =>
+    [...serverIds].sort().join(",")
+  );
+  const idSetKey = [...serverIds].sort().join(",");
+  if (idSetKey !== prevIdSetKey) {
+    setPrevIdSetKey(idSetKey);
+    setOrderedIds(serverIds);
+    setMoveError(null);
+    setSavedNotice(false);
+  }
+
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  // Falls back to the server order for any id the map has lost, so a render
+  // between the two states above can never drop a row off the screen.
+  const orderedCategories = orderedIds
+    .map((id) => byId.get(id))
+    .filter((c): c is Category => Boolean(c));
+  const visibleCategories =
+    orderedCategories.length === categories.length ? orderedCategories : categories;
+
+  const visibleIds = visibleCategories.map((c) => c.id);
+  const isDirty = isOrderChanged(visibleIds, serverIds);
 
   function handleMove(id: string, direction: "up" | "down") {
-    const idx = optimisticCategories.findIndex((c) => c.id === id);
-    if (idx === -1) return;
-    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= optimisticCategories.length) return;
-    const reordered = [...optimisticCategories];
-    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
-
+    setOrderedIds(moveIdOnePlace(visibleIds, id, direction));
     setMoveError(null);
-    startMoveTransition(async () => {
-      setOptimisticCategories(reordered);
-      const res = await fetch("/api/admin/reorder-treatment-category", {
+    setSavedNotice(false);
+  }
+
+  function discardOrder() {
+    setOrderedIds(serverIds);
+    setMoveError(null);
+    setSavedNotice(false);
+  }
+
+  function saveOrder() {
+    if (!isDirty || isSavePending) return;
+    setMoveError(null);
+    setSavedNotice(false);
+    startSaveTransition(async () => {
+      const res = await fetch("/api/admin/reorder-treatment-categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, direction }),
+        body: JSON.stringify({ ids: visibleIds }),
       });
       if (res.ok) {
+        setSavedNotice(true);
+        // The server order now matches what is on screen, so the resync
+        // above is a no-op and the list does not jump.
         router.refresh();
       } else {
-        setMoveError("Could not reorder. Please try again.");
+        const data = await res.json().catch(() => ({}));
+        setMoveError(data.error ?? "Could not save the order. Please try again.");
       }
     });
   }
@@ -150,12 +194,14 @@ export default function TreatmentCategoryManager({
     setAddingNew(true);
   }
 
+  // Always append at the very end (max existing order + 1) rather than
+  // source.display_order + 1 — the latter can collide with whatever category
+  // already occupies that number.
+  const nextDisplayOrder =
+    categories.reduce((max, c) => Math.max(max, c.display_order), 0) + 1;
+
   function startDuplicate(cat: Category) {
-    // Always append at the very end (max existing order + 1) rather than
-    // source.display_order + 1 — the latter can collide with whatever
-    // category already occupies that number.
-    const maxOrder = categories.reduce((max, c) => Math.max(max, c.display_order), 0);
-    setDuplicateFrom({ ...cat, display_order: maxOrder + 1 });
+    setDuplicateFrom({ ...cat, display_order: nextDisplayOrder });
     setAddingNew(true);
   }
 
@@ -171,13 +217,13 @@ export default function TreatmentCategoryManager({
           {moveError}
         </p>
       )}
-      {optimisticCategories.length === 0 && !addingNew ? (
+      {visibleCategories.length === 0 && !addingNew ? (
         <p className="text-xs text-slate-500 py-4 text-center">
           No condition categories yet — add one below.
         </p>
       ) : (
         <ul className="space-y-3">
-          {optimisticCategories.map((cat, i) =>
+          {visibleCategories.map((cat, i) =>
             editingId === cat.id ? (
               <li key={cat.id}>
                 <TreatmentCategoryForm
@@ -194,8 +240,8 @@ export default function TreatmentCategoryManager({
                   <div className="flex items-center gap-2">
                     <MoveButtons
                       isFirst={i === 0}
-                      isLast={i === optimisticCategories.length - 1}
-                      isPending={isMovePending}
+                      isLast={i === visibleCategories.length - 1}
+                      isPending={isSavePending}
                       onMove={(direction) => handleMove(cat.id, direction)}
                     />
                     <div>
@@ -249,9 +295,45 @@ export default function TreatmentCategoryManager({
         </ul>
       )}
 
+      {visibleCategories.length > 0 && (
+        // Always on screen, and only tappable once the arrows have actually
+        // changed something -- an admin who has moved nothing should still be
+        // able to see that saving is the step that publishes an order, rather
+        // than discovering the control only after making a change.
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <button
+            onClick={saveOrder}
+            disabled={!isDirty || isSavePending}
+            aria-disabled={!isDirty || isSavePending}
+            className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed"
+          >
+            {isSavePending ? "Saving order..." : "Save order"}
+          </button>
+          {isDirty && !isSavePending && (
+            <>
+              <span className="text-[11px] font-semibold text-amber-700">
+                Not saved yet — the public pages still show the old order.
+              </span>
+              <button
+                onClick={discardOrder}
+                className="text-[11px] text-slate-600 font-semibold hover:underline"
+              >
+                Undo changes
+              </button>
+            </>
+          )}
+          {savedNotice && !isDirty && !isSavePending && (
+            <span className="text-[11px] font-semibold text-teal-700">
+              Order saved — live on the site.
+            </span>
+          )}
+        </div>
+      )}
+
       {addingNew ? (
         <TreatmentCategoryForm
           onCancel={closeAddNew}
+          nextDisplayOrder={nextDisplayOrder}
           initialValues={
             duplicateFrom
               ? {

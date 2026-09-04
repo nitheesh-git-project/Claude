@@ -174,8 +174,10 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `brand` | Brand & Contact | `ADM-SET-001` |
 | Settings | `public` | Public Site | `ADM-SET-004` |
 | Settings | `booking` | Booking Rules | `ADM-SET-010` |
+| Settings | `offers` | Offers & Discounts | `ADM-SET-016` |
+| Settings | `programmes` | Programmes & Home Visits | `ADM-SET-018` |
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
-| Settings | `team` | Team & Access | `ADM-SET-025` |
+| Settings | `access` | User Access | `ADM-SET-025` |
 | Settings | `health` | System Health | `ADM-SET-030` |
 | Settings | `activity` | Activity Log | `ADM-SET-033` |
 | Settings | `security` | Account Security | `ADM-SET-035` |
@@ -356,7 +358,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 * Navigating to **Catalog → Conditions** shows no treatment categories.
 * Navigating to **Sessions → All Sessions** shows no sessions.
 * Navigating to **Settings → Activity Log** shows an empty log (the reset itself truncates it).
-* Navigating to **Settings → Team & Access** still lists at least one admin, and your own row is there. **If this list is empty, stop immediately and restore from backup — the reset must never leave the clinic without an admin.**
+* Navigating to **Settings → User Access** still lists at least one admin, and your own row is there. **If this list is empty, stop immediately and restore from backup — the reset must never leave the clinic without an admin.**
 * Navigating to **Today → Risk** shows an **empty** queue. **[SQL]** confirm with `select count(*) from communication_flags;` and `select count(*) from risk_signals;` — both must return `0`. A non-zero count here is the regression described above, and it will silently suppress the detector tests later in this plan.
 * **[SQL]** `select rule_key, enabled from risk_rules;` still returns the eight rules, with `plan_conversion_low` and `post_consultation_dropout` back to **disabled** — thresholds are restored to their seeded defaults, not wiped.
 
@@ -575,7 +577,7 @@ Where a test needs a *second, different* password (a change-password test), use 
 | **Admin Finance** | `qa.admin.finance@example.test` | `finance` | Proves Sessions and Catalog are blocked. |
 | **Admin Clinical** | `qa.admin.clinical@example.test` | `clinical` | Proves Money, Catalog and Settings are blocked. |
 
-Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`). The other three are created from **Settings → Team & Access** in `ADM-SET-026`.
+Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`). The other three are created from **Settings → User Access** in `ADM-SET-026`.
 
 ### 8.3 Patients
 
@@ -1130,7 +1132,7 @@ Two rules shape almost everything on the patient's screens:
 4. Tap the **Password** field. Enter `QaTest!2024pass`.
 5. Tap **Sign In**.
 
-**Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Back to Home**, **Overview**, **Book a Session**, **Health Profile** and **Edit Profile** at minimum. The public `Navbar` is **not** rendered on the dashboard. No error banner.
+**Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Overview**, **Book a Session**, **Health Profile** and **Edit Profile** at minimum, with **Back to Home** at the **foot of the nav, directly above Collapse** (above the profile footer in the mobile drawer, which has no Collapse). The public `Navbar` is **not** rendered on the dashboard. No error banner.
 **Cleanup.** Stay signed in for `PAT-DASH-001`.
 
 #### `PAT-AUTH-002` — Register a patient account from `/patient/register` · P0
@@ -1406,7 +1408,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 
 #### `PAT-HV-001` — The public home-visit page appears only when enabled · P1
 
-**Steps.** With the master switch **off**, open `/home-visit`. Then switch it on in Settings → Booking Rules → Home Visit and reload.
+**Steps.** With the master switch **off**, open `/home-visit`. Then switch it on in Settings → Programmes & Home Visits → Home Visit and reload.
 **Expected Result.** Off: a **404** page, and the **Home visit** entry is absent from the header nav, the footer Explore column, the home page connector grid and every "Where to go next" strip. On: the page renders with the admin-configured heading and subheading, and the entry reappears everywhere.
 
 #### `PAT-HV-002` — Serviceable pincode → address → book and pay · P0
@@ -1677,7 +1679,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 #### `PAT-EMPTY-001` — Empty states across the patient portal · P2
 **Preconditions.** A freshly approved patient with nothing at all.
-**Expected Result.** The sidebar shows only **Back to Home**, **Overview**, **Book a Session**, **Health Profile**, **Edit Profile**. Sessions, Packages, Payments and Suggested Sessions are **absent**. The Overview shows a friendly empty feed and quick actions, not a blank panel or a zero-filled table.
+**Expected Result.** The sidebar shows only **Overview**, **Book a Session**, **Health Profile**, **Edit Profile**, plus **Back to Home** at the foot of the nav. Sessions, Packages, Payments and Suggested Sessions are **absent**. The Overview shows a friendly empty feed and quick actions, not a blank panel or a zero-filled table.
 
 ---
 
@@ -1725,7 +1727,7 @@ Five rules shape almost every screen:
 
 #### `THR-AUTH-003` — Sign in after approval · P0
 **Preconditions.** `ADM-APPR-002` approved Therapist A.
-**Expected Result.** Sign-in lands on `/therapist/dashboard`. The sidebar shows **Back to Home**, **Overview**, **Availability**, **Sessions**, **Earnings**, **My Patients**, **Edit Profile** (with children Photo / Public Details / Credentials / Account Security).
+**Expected Result.** Sign-in lands on `/therapist/dashboard`. The sidebar shows **Overview**, **Availability**, **Sessions**, **Earnings**, **My Patients**, **Edit Profile**, with **Back to Home** at the foot of the nav directly above Collapse (with children Photo / Public Details / Credentials / Account Security).
 
 ---
 
@@ -1822,7 +1824,7 @@ This is the regression that guards the whole design. See `XCFG-ROSTER-001`.
 * Outside the window: refused with the route's own explanation (403).
 * Cancelled session: refused.
 * A **home visit** is revealable **any time on the visit's own day**, not merely in a join window — verify this separately.
-* Admin → Settings → Team & Access shows the reveal log. It is **admin-read-only and append-only by trigger**: attempting to update or delete a row raises, even with the service role.
+* Admin → Settings → User Access shows the reveal log. It is **admin-read-only and append-only by trigger**: attempting to update or delete a row raises, even with the service role.
 
 #### `THR-SESS-005` — Completing a session is gated two ways · P0
 
@@ -2009,7 +2011,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 #### `THR-SUGG-001` — Suggest a session · P0
 
-**Preconditions.** `therapist_suggestions_enabled` is **on** (it is on by default now; confirm in Settings → Booking Rules). A programme locked to this therapist with credits remaining.
+**Preconditions.** `therapist_suggestions_enabled` is **on** (it is on by default now; confirm in Settings → Programmes & Home Visits). A programme locked to this therapist with credits remaining.
 
 **Steps**
 1. On the programme's card, tap the suggest control.
@@ -2042,7 +2044,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Steps.** In a suggestion note, enter `https://rzp.io/l/abcd1234 pay here`. **Expected Result.** Refused, recorded.
 
 #### `THR-LEAK-003` — A phone number is delivered and recorded · P1
-**Steps.** In a suggestion note, enter `Call me on 9876543210 before the session`. **Expected Result.** The suggestion **is created** and the patient sees the note. A `communication_flags` row exists with tier `flag` and `blocked=false`. Admin → Settings → Team & Access shows it.
+**Steps.** In a suggestion note, enter `Call me on 9876543210 before the session`. **Expected Result.** The suggestion **is created** and the patient sees the note. A `communication_flags` row exists with tier `flag` and `blocked=false`. Admin → Settings → User Access shows it.
 
 #### `THR-LEAK-004` — Clinical text with digits does not fire · P0
 **Steps.** In a session note, enter `Grade III PA mobilisation ×3 sets, 30s hold. 10 reps, 2× daily. Order ref 90210.`
@@ -2159,7 +2161,7 @@ A hospital is a **referral source**, never a clinical actor. It is **provisioned
 
 #### `HOS-AUTH-001` — Hospital sign-in · P0
 **Steps.** Open `/hospital/login`, sign in with `qa.hospital@example.test` and the generated password.
-**Expected Result.** Lands on `/hospital/dashboard`. The sidebar reads **Back to Home**, **Overview**, **Refer a Patient**, **Your Referrals**, **Earnings**, **Edit Profile** (children: Logo, Organisation Details, Contact Preferences, Account Security). The money word on this sidebar is **Earnings** — matching the therapist. It must not read "Revenue & Payouts" or any third name for the same thing.
+**Expected Result.** Lands on `/hospital/dashboard`. The sidebar reads **Overview**, **Refer a Patient**, **Your Referrals**, **Earnings**, **Edit Profile**, with **Back to Home** at the foot of the nav directly above Collapse (children: Logo, Organisation Details, Contact Preferences, Account Security). The money word on this sidebar is **Earnings** — matching the therapist. It must not read "Revenue & Payouts" or any third name for the same thing.
 
 #### `HOS-AUTH-003` — A suspended hospital is locked out · P1
 **Steps.** Admin toggles the hospital inactive. With the hospital's cookie, load the dashboard, then call `POST /api/hospital/withdraw-referral`.
@@ -2174,14 +2176,16 @@ A hospital is a **referral source**, never a clinical actor. It is **provisioned
 **Steps**
 1. Open `/hospital/dashboard/refer`.
 2. Tap **Patient Full Name**. Enter `QA Referred Patient C`.
-3. Under **Session Type**, select `Online`.
-4. Tap **Address**. Enter `8, 100 Feet Road, Indiranagar, Bengaluru`.
-5. Tap **Preferred Language**. Enter `English`.
-6. Tap **Medical Issue**. Enter `Right-sided weakness following a stroke six weeks ago`.
-7. Tap **Treatment Needed**. Enter `Gait and balance retraining, twice weekly`.
-8. Submit.
+3. Tap **Patient Phone Number**. Pick the country and enter `9876543210`.
+4. Under **Session Type**, select `Online`.
+5. Tap **Address**. Enter `8, 100 Feet Road, Indiranagar, Bengaluru`.
+6. Tap **Preferred Language**. Enter `English`.
+7. Tap **Medical Issue**. Enter `Right-sided weakness following a stroke six weeks ago`.
+8. Tap **Treatment Needed**. Enter `Gait and balance retraining, twice weekly`.
+9. Submit.
 
-**Expected Result.** A teal confirmation: *"Referral submitted — our team will review and reach out."* The form resets and the Session Type returns to `Online`. The referral appears under **Your Referrals** with status **Pending Review**. It appears in Admin → People → Partners and raises the badge. **The Pincode field is not required for an online referral.**
+**Expected Result.** A teal confirmation: *"Referral submitted — our team will review and reach out."* The form resets and the Session Type returns to `Online`. The referral appears under **Your Referrals** with status **Pending Review**. It appears in Admin → People → Partners and raises the badge. **The Pincode field is not required for an online referral.** The phone field clears with the rest of the form.
+**Negative:** submitting with the phone blank or malformed is refused with `Enter the patient's phone number so our team can reach them.` The number is required because the clinic **rings this patient before sending the registration link** — see `ADM-REF-001`.
 
 #### `HOS-REF-002` — A home-visit referral requires a pincode · P1
 
@@ -2510,7 +2514,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Expected Result.** The booking records the full price as list price, the whole of it as the discount, and `promo_code` as the source — so **What discounting cost** includes it. Amount paid is **₹0** and there is no payment/transaction row, because no money moved. A free session that recorded nothing would make the giveaway invisible, which is the figure that decides whether the campaign continues.
 
 #### `ADM-INVITE-001` — Invites: the two halves · P1
-**Steps.** As a **Full** admin, open **Settings → Booking Rules → Patient invites**. Switch on, set the friend's welcome to ₹300 and the reward to ₹200, and save. Open a patient's dashboard.
+**Steps.** As a **Full** admin, open **Settings → Offers & Discounts → Patient invites**. Switch on, set the friend's welcome to ₹300 and the reward to ₹200, and save. Open a patient's dashboard.
 **Expected Result.** The panel previews the exact sentence the patient will read, and it says the reward arrives **once their friend has had a session** — not on a signup. The patient's dashboard shows their own code, formatted in two halves, with a copy button.
 
 #### `ADM-INVITE-002` — What an invite refuses · P0
@@ -2534,7 +2538,7 @@ The first band **renders even when empty**, saying so. A section that disappears
 
 **Feature.** A therapist's recommendation is a bill as well as a clinical note, and the clinic that carries it sees one before the patient is asked to pay it.
 
-**Preconditions.** `care_plan_requires_approval` is **on** (default, at Settings → Booking Rules). `THR-CARE-001` has been submitted.
+**Preconditions.** `care_plan_requires_approval` is **on** (default, at Settings → Programmes & Home Visits). `THR-CARE-001` has been submitted.
 
 **Steps**
 1. Open **Today → Overview** and read the Clinical group of the action inbox.
@@ -2580,7 +2584,7 @@ The first band **renders even when empty**, saying so. A section that disappears
 * The programmes offered in the change panel are **narrowed to that session's own condition**, exactly as on the therapist's own dialog.
 
 #### `ADM-CARE-007` — The switch · P1
-**Steps.** At **Settings → Booking Rules**, turn **Approve recommendations before the patient sees them** off. Have a therapist submit a recommendation.
+**Steps.** At **Settings → Programmes & Home Visits**, turn **Approve recommendations before the patient sees them** off. Have a therapist submit a recommendation.
 **Expected Result.** It publishes on save and the patient sees it immediately, exactly as before the review step existed. The therapist's panel copy changes to match. Turn it back on afterwards — the rest of the suite assumes the default.
 The setting **fails closed**: with the column unreadable, a submission is held rather than published. That is the opposite direction from `contact_scan_mode`, and deliberately so.
 
@@ -2615,6 +2619,17 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 #### `ADM-NEWB-001` — New Booking · P1
 **Steps.** Open **Sessions → New Booking**. Create a booking for `QA Patient A` with `QA Therapist A` at a chosen slot.
 **Expected Result.** The booking is created server-side with the same re-derivation as the patient route. **An admin has a lead-time override** (there is somebody on the phone arranging the exception) where the patient route has none. Missing fields are refused with `Missing appointmentId, therapistId, or slotDateTime` / `Choose a patient.` / `Choose a treatment category.` The booking is audited.
+**The date and time are the patient's own calendar**, not native date/time boxes: a month grid plus hour cells, opened on the earliest eligible slot. Ticking **Book inside the N-hour window anyway** re-opens the grid down to the current hour — the one thing this screen may do that `/book` may not — and the caption under it changes to say the lead-time rule does not apply. It still never offers a past slot.
+
+#### `ADM-CAL-001` — One calendar, everywhere a session time is chosen · P1
+
+**Steps.** Open each of these and compare the date grid and the hour cells: `/book` Step 1; the patient's package **bulk scheduler**; the home-visit bulk scheduler; the therapist's **Suggest next session**; admin **Sessions → New Booking**; admin **Reschedule / Reassign** on a session; admin **People → Partners → Patient Referrals → Pick a time**.
+**Expected Result.** All seven render the **same** control — same month grid, same weekday headers, same cell colours and states (available / selected / struck-through), same hour cells. Nothing on this list is a native `date`, `time` or `datetime-local` box, and nothing opens in a pop-up on the admin screens. The bulk schedulers additionally dot any day already holding a chosen slot; that dot outranks the today marker.
+**Where the lead time differs, and why:** `/book`, both bulk schedulers, Suggest and Assign-a-referral use the platform's 12-hour rule (home visits use their own, longer, setting). **Reschedule** uses zero — it moves a session that already exists, which is the admin override lane — and **New Booking** uses zero only while its override box is ticked. Zero never means "the past": no screen offers a slot before now.
+**The hour rule is enforced server-side too.** POST any of these with a slot carrying minutes (e.g. `…T18:52:00+05:30`) and it is refused **400** with `Sessions start on the hour. Pick a time like 6:00 or 7:00.`: `/api/appointments/create`, `/api/appointments/book-package-sessions`, `/api/admin/create-booking` (**including with the lead-time override ticked** — the override is about the lead time, never about landing between hours), `/api/admin/update-appointment`, `/api/admin/assign-referral`, `/api/therapist/suggest-session`, `/api/home-visit/book-visits`, `/api/home-visit/book-cash`, `/api/home-visit/verify`.
+**Critical check — the timezone:** the minute is read in the **booking's own** timezone, not the server's. 6 PM IST is 12:30 UTC, so a correct IST booking arrives as `…T12:30:00Z`; if that is refused, the check is reading UTC and every booking in the clinic is broken. Conversely `…T13:00:00Z` (6:30 PM IST) must be refused.
+**Deliberately not enforced at the consuming end:** `/api/patient/respond-suggestion` and `/api/patient/register-via-referral` book a slot somebody already agreed to, so a row created before this rule still books rather than being stranded.
+**Deliberately unchanged:** dates that are not session slots keep their native inputs — a report's date, a leave range, a schedule exception, a promo campaign's window, and every from/to range filter (Metrics, Costs, Activity Log, All Sessions, Payment History, Earnings, the Calendar tab's day). They have no hours and no lead time, and a grid whose greyed-out cells mean "too soon to book" would be lying on all of them.
 
 ---
 
@@ -2651,6 +2666,19 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 #### `ADM-PEOP-008` — Partners · P1
 Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **Update revenue share**, **Set active/inactive**, **Reset password**, **Referral capacity note**, and **Decline referral** (reason mandatory) all work and are audited.
 
+#### `ADM-REF-001` — Contacting a referred patient before the link goes out · P1
+
+**Steps.** Open **People → Partners → Patient Referrals** and read the card for the referral created in `HOS-REF-001`.
+**Expected Result.** Directly under the patient's name: their **phone number as a `tel:` link** and their **preferred language**, before the referring partner's name. That order is deliberate — an admin rings this patient to agree a time *before* the registration link is sent, so the number and the language they want to be spoken to in identify the referral rather than being detail about it. A referral taken before the phone field existed reads `No phone on file`; one with no language reads `Language not stated` — never a blank line.
+**Critical check:** the phone comes from its **own isolated query** (`patient_phone` is the newest column on `patient_referrals`), so a database missing that migration must lose the number on the card and nothing else — the capacity note beside it and the referral list itself must still render.
+
+#### `ADM-REF-002` — Assigning a referral uses the patient's own calendar · P0
+
+**Steps.** On a **Needs triage** referral, pick a therapist and open **Pick a time**.
+**Expected Result.** An inline compact month grid plus hour chips — **the same control and the same 12-hour lead-time rule as `/book` Step 1**, not a `datetime-local` box and not a pop-up. Today (and any hour inside the next 12) is **not clickable**; the picker opens on the earliest eligible slot with a time already chosen. Changing to a date that does not offer the chosen hour falls back to that day's earliest, never to a time the rule has just ruled out. The line under it reads `Earliest bookable time is 12 hours from now — the same rule the patient's own booking screen follows.`
+**Negatives:** `POST /api/admin/assign-referral` with a slot inside the window is refused with `The assigned slot must be at least 12 hours from now.` — the rule is re-checked server-side, not trusted from the browser. A card left open past the boundary is refused in the browser first with `That time is no longer far enough ahead. Pick a later slot.`
+**Unchanged:** therapist conflict detection, the home-visit travel buffer, the concurrent-assignment tiebreak and the registration link are all exactly as before.
+
 #### `ADM-PEOP-009` — Reset a password · P1
 **Steps.** Reset Patient A's password from the detail page.
 **Expected Result.** A new password is generated and shown **once**. **It is never written into the audit log's `details`** — the log is readable by every admin, so who reset what and when is the part with audit value. The patient can sign in with the new password and is prompted to change it.
@@ -2672,11 +2700,16 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 8. Optionally paste a **Cover Image URL**.
 9. Save.
 
-**Expected Result.** The category is created and appears on `/` and `/conditions` (allow for ISR if not on `next dev`), in the `/book` concern dropdown as `QA Back & Spine Care — ₹1,999 / 60 min`, and as an option when creating a package. The cover image is a **plain URL an admin pastes**, not a Storage upload, rendered through a plain `<img>`; a row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
+**Expected Result.** The category is created and appears **immediately** on `/` and `/conditions` — the create route invalidates both ISR-cached pages, so a five-minute wait is now a defect, not expected behaviour — in the `/book` concern dropdown as `QA Back & Spine Care — ₹1,999 / 60 min`, and as an option when creating a package. The cover image is a **plain URL an admin pastes**, not a Storage upload, rendered through a plain `<img>`; a row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
 **Negatives:** `Missing title, priceInr, or durationMinutes`; `Price must be a positive number`; `Session length must be a positive number of minutes`; `Order must be a number`.
 
 #### `ADM-CAT-002` — Edit, reorder, deactivate, delete a category · P1
-**Expected Result.** Editing the price changes what `/book` charges **for new bookings** and is re-derived server-side at booking time. Reordering changes the display order everywhere. Deactivating removes it from public surfaces and refuses new bookings against it (`That concern isn't available any more. Please pick another one.`) while **leaving existing appointments untouched**. Deleting a category referenced by a live purchase must not silently break that purchase.
+**Expected Result.** Editing the price changes what `/book` charges **for new bookings** and is re-derived server-side at booking time. Reordering changes the display order everywhere.
+
+**Reorder, in detail.** The up/down arrows rearrange the list **in the browser only** — nothing is written until **Save order** is tapped. That button is **always visible** and is **disabled until something has actually moved**; while there are unsaved moves the screen reads `Not saved yet — the public pages still show the old order.` beside an **Undo changes** link. Saving posts the whole list, renumbers it `1..n`, and shows `Order saved — live on the site.`
+**Critical check:** reload the tab after saving and confirm the new order **survives**, then open `/` and `/conditions` and confirm they show the same order **immediately** (the pages are ISR-cached, and the save invalidates them). A reorder that reverts on reload, or one the public pages ignore, is the P1 defect this case exists for — it was caused by a pairwise `display_order` swap that did nothing whenever two categories held the same number, which every category created without typing an **Order** did.
+**Negatives:** with two browser tabs open, add or delete a category in tab B, then Save order in tab A — refused with `The condition list changed while you were reordering it. Refresh and try again.`
+**Also:** creating a category now defaults **Order** to one past the last existing category, so a new condition appends rather than appearing first. Deactivating removes it from public surfaces and refuses new bookings against it (`That concern isn't available any more. Please pick another one.`) while **leaving existing appointments untouched**. Deleting a category referenced by a live purchase must not silently break that purchase.
 
 #### `ADM-CAT-005` — Create a session package · P0
 **Steps.** Create Package P1 exactly as specified in §8.11.
@@ -2767,19 +2800,39 @@ Every setting below is read through one shared settings module with defaults. **
 
 #### `ADM-SET-007` — Testimonials · P1
 **Steps.** Create a testimonial with patient name `QA Story` and quote `The exercises made a real difference in six weeks.` Save. Open `/` and `/mission`.
-**Expected Result.** It appears in the same band on **both** pages — one component serves both, because the two bands make the same claim and a visitor may see both in one session. The avatar is optional; with none, the **patient's initial** is shown, never a generic silhouette.
+**Expected Result.** It appears **immediately** in the same band on **both** pages (the route invalidates `/` and `/mission`, both ISR-cached) — one component serves both, because the two bands make the same claim and a visitor may see both in one session. The avatar is optional; with none, the **patient's initial** is shown, never a generic silhouette.
 **Critical check:** the five rows the schema seeds are **illustrative copy, not real patients**, and the admin form must **say so at the point of entry**. Never present a seeded testimonial as real. The only place a **real** number is quoted is the public rating summary.
 **Negatives:** `Missing patientName or quote`; editing requires `Missing id, patientName, or quote`.
 
 #### `ADM-SET-008` — FAQ · P2
 **Steps.** Create, edit, reorder and delete an FAQ. Open `/faq`.
-**Expected Result.** The public accordion reflects each change. Negatives: `Missing question or answer`, `Missing id, question, or answer`.
+**Expected Result.** The public accordion reflects each change **immediately** — `/faq` is ISR-cached and every FAQ route invalidates it. Negatives: `Missing question or answer`, `Missing id, question, or answer`.
 
 ---
 
-### 15.3 Settings → Booking Rules
+### 15.3 Settings → Booking Rules, Offers & Discounts, Programmes & Home Visits
 
-This tab holds three groups: **Platform Rules**, **Package settings**, and **Home Visit settings**. They were on three different tabs before, which is how the online lead time ended up hardcoded while its home-visit twin was already a setting.
+**These were one tab and are now three.** "Booking Rules" had grown six unrelated stacks with no heading between them, so an admin opening it to change a refund window scrolled past the discount that decides what every new patient pays. What lives where now:
+
+| Screen | What it covers |
+| --- | --- |
+| **Booking Rules** | One video session, start to finish: when it may be booked, when it may be cancelled with a refund, when the Join button works, and the Google Meet / Calendar switches. Plus the two platform-wide odds and ends (idle timeout, sign-out message). |
+| **Offers & Discounts** | Money off, to win a patient: the first-session offer and patient invites. A note on the screen points at Money → Costs for promo codes and at the session itself for a goodwill discount. |
+| **Programmes & Home Visits** | More than one appointment, arranged in advance: the recommendation settings, the package settings, and the nine home-visit settings. |
+
+**Every Settings screen also states what it is and gives one example**, under its heading — check that line renders and matches the screen you are on. The cases below keep their original IDs; the **Where** line on each says which of the three screens it is now on.
+
+Where a case below still says "Settings → Booking Rules", that is correct — it did not move.
+
+#### `ADM-SET-009` — Every Settings screen says what it is · P2
+
+**Steps.** Open each of the ten Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, User Access, System Health, Activity Log, Account Security.
+
+**Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen — none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
+
+**Spot checks.** Offers & Discounts ends with a **"Looking for promo codes?"** note pointing at **Money → Costs**, and saying a goodwill discount is applied to a session rather than set up here. Booking Rules holds **only** the single-session rules and the Google Meet block — no discount, no package and no home-visit settings on it any more.
+
+**Critical check:** these are the same ten screens the sidebar lists and the same ten `?tab=` values. A screen reachable from the sidebar with no sentence under its heading, or a sentence on a screen that is not in the sidebar, means `adminNav.ts` and the shell have drifted.
 
 #### `ADM-SET-010` — Online Booking Lead Time → the booking wizard · P0
 
@@ -2860,7 +2913,7 @@ This tab holds three groups: **Platform Rules**, **Package settings**, and **Hom
 
 #### `ADM-SET-022` — Recommendation settings · P0
 
-At **Settings → Booking Rules**, above the package settings.
+At **Settings → Programmes & Home Visits**, above the package settings.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
@@ -2872,7 +2925,7 @@ Note there is no longer a **Show programme prices publicly** switch. Programmes 
 
 #### `ADM-SET-023` — First session offer · P0
 
-At **Settings → Booking Rules**, above the recommendation settings.
+At **Settings → Offers & Discounts**, above Patient invites.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
@@ -2948,19 +3001,51 @@ The screen warns you to turn it on only once System Health has been clean.
 * `schema_version` is **per specialty**, so changing a neuro question must **not** fire the "we've changed some of these questions" banner at orthopaedic patients.
 * Pain Map templates edit per region and question; unknown values are refused with `Unknown region` / `Unknown questionKey for this region`.
 
-#### `ADM-SET-025` — Team & Access: scopes · P0
+#### `ADM-SET-025` — User Access: scopes · P0
 
 **Steps**
-1. Open **Settings → Team & Access**.
+1. Open **Settings → User Access**.
 2. Read the admin list.
 3. Attempt to change **your own** scope.
 4. Narrow every other `full` admin, then attempt to narrow the last one.
 
 **Expected Result.** Step 3: refused with `You can't change your own access. Ask another Master Admin.` Step 4: the last `full` admin (**Master Admin** in the picker) **cannot be narrowed** — otherwise a single mis-click locks everyone out permanently. Only a `full` admin can change scopes or mint another admin.
 
+#### `ADM-SET-025a` — User Access: what each level can do · P1
+
+**Steps.** On **Settings → User Access**, switch the toggle from **People** to **What each level can do**.
+
+**Expected Result.** A table: rows are jobs in plain words, grouped by section (Today, Sessions, People, Money, Catalog, Settings); columns are **Master Admin · Operations · Finance · Clinical**. A legend names the three levels — **View and edit**, **View only**, **No access**. Each group heading also states the level each desk holds for that whole section.
+
+**Spot checks.**
+* Under **Sessions**, Finance shows a **View only** mark on *"See every session and who is running it"* and **No access** on *"Assign or change a session's therapist"*.
+* Under **Money**, Operations and Clinical show **No access** on every row.
+* Under **Settings**, only Master Admin shows anything.
+
+**Critical checks.**
+* **There are no checkboxes here.** Every cell is a read-only mark. If any cell can be clicked, that is the bug — a tick that does not also change what the server allows is worse than no tick.
+* **It agrees with reality.** Pick any row showing access for a scope, sign in as that scope, and confirm the control is there. Pick any row showing none, and confirm both that the control is absent *and* that calling the route directly returns 403 (see `ADM-SET-027`).
+
+#### `ADM-SET-025b` — Suspend and restore a back-office account · P0
+
+**Steps**
+1. On **Settings → User Access → People**, note each admin's status chip (**Active** / **Suspended**).
+2. Suspend `qa.admin.ops@example.test`. Sign in as them.
+3. Restore them. Sign in again.
+4. Attempt to suspend **yourself**.
+5. Suspend every other Master Admin, then attempt to suspend the last one who can still sign in.
+
+**Expected Result.** Step 2: the row reads **Suspended**, and that account **cannot get in** — `getAdminUser` and the proxy both refuse an inactive admin, so a still-valid session cookie cannot POST an admin route either. Step 3: access returns. Step 4: refused with `You can't suspend your own access. Ask another Master Admin.` Step 5: refused — `This is the only Master Admin who can still sign in. Make someone else a Master Admin first.`
+
+**Critical checks.**
+* **The account is suspended, never deleted.** Their name still appears on every activity-log row they wrote. An account that could be deleted would take the record of what it did with it.
+* A suspended admin **stays listed**, with a note saying how many are suspended.
+* Only a **Master Admin** sees the Suspend button at all, and `POST /api/admin/set-admin-active` answers **403** to any other scope.
+
 #### `ADM-SET-026` — Create the three scoped admins · P0
 **Steps.** Create `qa.admin.ops@example.test` (Operations), `qa.admin.finance@example.test` (Finance), `qa.admin.clinical@example.test` (Clinical).
-**Expected Result.** Each is created with a one-time password shown once and **never logged**. Signing in as each shows only their allowed sections in the sidebar — Operations: Today, Sessions, People, Catalog. Finance: Today, People, Money. Clinical: Today, Sessions, People.
+**The Account type picker is one control, not two.** It lists six entries in two groups — **Clinic**: Patient, Therapist · **Back office**: Master Admin, Operations, Finance, Clinical — using the same four names the dashboards call themselves. There is no separate **Access level** dropdown; picking a back-office desk shows that desk's one-line description under the picker. As a **non-`full`** admin, the whole Back office group is **absent** (only a Master Admin may mint an admin, and `create-account` enforces that with a full-only check, not a section gate — see §2).
+**Expected Result.** Each is created with a one-time password shown once and **never logged**. Signing in as each shows only their allowed sections in the sidebar — Operations: Today, Sessions, People, Catalog. Finance: Today, **Sessions (read-only)**, People, Money. Clinical: Today, Sessions, People.
 
 #### `ADM-SET-026a` — Each scope opens on its own dashboard · P1
 There is one admin login (`/admin/login`) and one dashboard route; the scope decides what it opens on. Sign in as each of the four in turn and read the Today screen without tapping anything.
@@ -2976,8 +3061,8 @@ There is one admin login (`/admin/login`) and one dashboard route; the scope dec
 
 Three further checks, each one a bug this replaced:
 * **Every quick action lands somewhere.** Tap all of them for each scope. None may bounce to a different screen — a link into a section the scope cannot open silently falls back to the first allowed one, which looks like it worked.
-* **"Needs you" agrees with the list below it.** The figure counts only the queues in the **Queues** card beside it. Add up the badges; they must match. It must not count queues this scope cannot open.
-* **A limited scope gets a "Your access" card** under Queues, naming the sections it opens and the ones it does not. **Master Admin gets no such card** — nothing is withheld, so there is nothing to account for.
+* **"Needs you" agrees with the list below it.** The figure counts only the queues in the **Queues** card beside it. Add up the badges; they must match. It must not count queues this scope cannot open **or can only read** — a Finance admin's figure must exclude the session queues under Sessions, since nothing they can do would ever bring that number down.
+* **A limited scope gets a "Your access" card** under Queues, naming the sections it opens, the ones it can only **read** (Finance: Sessions — *nothing to change here*), and the ones it does not open at all. **Master Admin gets no such card** — nothing is withheld, so there is nothing to account for.
 
 #### `ADM-SET-027` — Scope is enforced at the route, not the sidebar · P0
 For each scoped admin, do **both**: navigate to a forbidden section by URL, **and** call a route in that section directly.
@@ -2986,7 +3071,8 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 | --- | --- | --- | --- |
 | Operations | `?section=money&tab=payouts` | `POST /api/admin/settle-therapist-payout` | Page falls back to an allowed screen; route **403** |
 | Operations | `?section=settings&tab=booking` | `POST /api/admin/update-setting` | Same |
-| Finance | `?section=sessions&tab=all` | `POST /api/admin/assign-appointment` | Same |
+| Finance | `?section=sessions&tab=all` — **reachable, read-only** | `POST /api/admin/assign-appointment` | Page **opens** and shows the list with no action buttons; route **403** |
+| Finance | `?section=sessions&tab=new` | `POST /api/admin/create-booking` | Tab is **not in the sidebar** and the URL falls back to an allowed screen; route **403** |
 | Finance | `?section=catalog&tab=packages` | `POST /api/admin/create-package` | Same |
 | Clinical | `?section=money&tab=summary` | `POST /api/admin/refund-package` | Same |
 | Clinical | `?section=settings&tab=team` | `POST /api/admin/set-admin-scope` | Same |
@@ -3001,7 +3087,7 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 **Expected Result.** **The refund control does not render** — a control an admin's scope cannot call must not be shown, or they get a 403 with nothing to explain it. The route returns **403**.
 
 #### `ADM-SET-029` — Contact controls · P1
-**Steps.** On **Settings → Team & Access**, change `contact_scan_mode` through `flag_and_block` → `flag_only` → `off`, and toggle `contact_masking_enabled`.
+**Steps.** On **Settings → User Access**, change `contact_scan_mode` through `flag_and_block` → `flag_only` → `off`, and toggle `contact_masking_enabled`.
 **Expected Result.** As per `THR-LEAK-006` and `THR-SESS-003`. Note the deliberate asymmetry: **`contact_scan_mode` fails open, `contact_masking_enabled` fails closed** — the safe answer to "I don't know" is opposite for the two, on purpose.
 This tab also surfaces the `communication_flags` and `contact_reveal_log` evidence, **read-only**.
 
@@ -3046,18 +3132,18 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 8 | Package price | Catalog → Packages | The patient's offer card and what is charged | Card and charge both move — **for new plans only** | `PAT-CARE-002` |
 | 9 | Package edited after purchase | Catalog → Packages | An existing purchase | **Nothing changes** — snapshot frozen | `ADM-CAT-006` |
 | 10 | Package min gap / max per week | Catalog → Packages | The bulk scheduler | Violating slots are refused | `ADM-CAT-007` |
-| 11 | Package default validity | Settings → Booking Rules | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
-| 12 | Bulk scheduler limit | Settings → Booking Rules | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
-| 13 | Therapist lock switch | Settings → Booking Rules | Auto-assignment of later package sessions | Off → later sessions are not auto-assigned | `ADM-SET-018` |
-| 14 | Therapist suggestions switch | Settings → Booking Rules | The suggest control and its route | Off → control absent, route 403 | `THR-SUGG-001` |
-| 15 | Ledger authority | Settings → Booking Rules | Six balance surfaces | All six follow together | `ADM-SET-019` |
+| 11 | Package default validity | Settings → Programmes & Home Visits | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
+| 12 | Bulk scheduler limit | Settings → Programmes & Home Visits | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
+| 13 | Therapist lock switch | Settings → Programmes & Home Visits | Auto-assignment of later package sessions | Off → later sessions are not auto-assigned | `ADM-SET-018` |
+| 14 | Therapist suggestions switch | Settings → Programmes & Home Visits | The suggest control and its route | Off → control absent, route 403 | `THR-SUGG-001` |
+| 15 | Ledger authority | Settings → Programmes & Home Visits | Six balance surfaces | All six follow together | `ADM-SET-019` |
 | 16 | Service area created/deleted | Catalog → Service Areas | `/book-home-visit` check; every purchase route | Serviceable ↔ waitlist | `ADM-CAT-010` |
 | 17 | Travel fee per area | Catalog → Service Areas | The quoted total and the therapist's payout | Total = programme + fee × visits | `PAT-CARE-003` |
-| 18 | Home visit master switch | Settings → Booking Rules | Seven surfaces + care-plan purchase | 404 / entries dropped / purchase refused | `ADM-SET-013` |
-| 19 | Cash on visit | Settings → Booking Rules | Step 4 option; `book-cash` | Option absent; route refuses | `PAT-HV-007` |
-| 20 | Home visit lead time | Settings → Booking Rules | The home-visit picker only | Online picker unchanged | `ADM-SET-014` |
-| 21 | Travel buffer minutes | Settings → Booking Rules | The locked therapist's conflict check | Padded both sides for visits, 0 for online | `ADM-SET-014` |
-| 22 | Home visit refund window | Settings → Booking Rules | The home-visit cancel dialog only | Online dialog unchanged | `PAT-CANCEL-003` |
+| 18 | Home visit master switch | Settings → Programmes & Home Visits | Seven surfaces + care-plan purchase | 404 / entries dropped / purchase refused | `ADM-SET-013` |
+| 19 | Cash on visit | Settings → Programmes & Home Visits | Step 4 option; `book-cash` | Option absent; route refuses | `PAT-HV-007` |
+| 20 | Home visit lead time | Settings → Programmes & Home Visits | The home-visit picker only | Online picker unchanged | `ADM-SET-014` |
+| 21 | Travel buffer minutes | Settings → Programmes & Home Visits | The locked therapist's conflict check | Padded both sides for visits, 0 for online | `ADM-SET-014` |
+| 22 | Home visit refund window | Settings → Programmes & Home Visits | The home-visit cancel dialog only | Online dialog unchanged | `PAT-CANCEL-003` |
 | 23 | Join window before/after | Settings → Booking Rules | Every join control | Goes live earlier/later everywhere | `ADM-SET-017` |
 | 24 | Session Completed cutoff | Settings → Booking Rules | Every join control on every role | All three read **Session Completed** together | `XR-CUTOFF-001` |
 | 25 | Google Meet toggle | Settings → Booking Rules | New online sessions' Meet link | No link; **home visit still gets an event** | `ADM-SET-017` |
@@ -3066,9 +3152,9 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 28 | Clinical question wording | Settings → Clinical Questions | The intake wizard | New wording; old answers untouched | `ADM-SET-020` |
 | 29 | Enabled condition types | Settings → Clinical Questions | The triage picker only | Removed from triage; existing charts render | `ADM-SET-020` |
 | 30 | Pain Map templates | Settings → Clinical Questions | The exam dialog | New questions per region | `ADM-SET-020` |
-| 31 | Admin scope | Settings → Team & Access | Every admin route and the sidebar | Route 403 + control hidden | `ADM-SET-027` |
-| 32 | Contact scan mode | Settings → Team & Access | Every cross-role free-text write | block → flag → none | `THR-LEAK-006` |
-| 33 | Contact masking | Settings → Team & Access | Therapist session cards | Masked ↔ plain; **fails closed** | `THR-SESS-003` |
+| 31 | Admin scope | Settings → User Access | Every admin route and the sidebar | Route 403 + control hidden | `ADM-SET-027` |
+| 32 | Contact scan mode | Settings → User Access | Every cross-role free-text write | block → flag → none | `THR-LEAK-006` |
+| 33 | Contact masking | Settings → User Access | Therapist session cards | Masked ↔ plain; **fails closed** | `THR-SESS-003` |
 | 34 | Risk signals on/off + thresholds | Today → Risk | The detector sweep | Sweep stops; thresholds change what fires | `ADM-RISK-003` |
 | 35 | Brand & contact details | Settings → Brand & Contact | Navbar, Footer, page metadata, splash fallback | All update | `ADM-SET-001` |
 | 36 | Walkthrough seconds | Settings → Public Site | The home page walkthrough | Pace changes; 0 = static | `ADM-SET-005` |
@@ -3316,6 +3402,15 @@ The eight public pages are **one template, not eight layouts**. Every page assem
 
 The site's own index lives in **one array**, which the header nav, the footer's Explore column, the home page's connector grid and every "Where to go next" strip all read. So a page cannot exist in the header and be missing from the index, and a renamed page cannot leave a stale description behind.
 
+**Every Explore band ends on Book a session**, on all eight pages, in the same full-width photo-beside-text tile — booking was on the home page's grid alone, so the six inner pages ended their index on another page to read. And **the page tiles above it square up**: the count varies (the page you are on is always missing, and Home Visit drops out when the clinic switches it off), so a row that would end short stretches its leftover tiles across it rather than leaving dead cells on the right.
+
+#### `PUB-EXP-001` — The Explore band, on every public page · P1
+
+**Steps.** Open each of `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals` and read the Explore band at the foot.
+**Expected Result.** Every one ends with **Book a session** → `/book`, as the last tile, full width, photo beside the text. Above it: every other page, never the one you are on, and never Home Visit while the master switch is off.
+**Alignment.** With the usual **seven** page tiles: two rows of three, then the seventh **stretched across the whole row** in the same wide layout — no empty cells to the right of it. Switch Home Visit off and reload: **six** tiles, two clean rows of three, nothing stretched. Narrow the window to the two-column breakpoint and repeat both: the last row must still be full.
+**Critical check:** this is arithmetic, not a hand-placed exception (`src/lib/exploreGridSpans.ts`, unit-tested). A tile that is full width on a tablet and half width on a desktop must **not** switch to the photo-beside-text layout — that would read as two designs rather than one stretched tile.
+
 **Word budgets are numbers, not a vibe** — the rewrite exists because visitors could not tell what the site was, and the second round of feedback was that there was still too much to read:
 
 | Slot | Budget |
@@ -3333,6 +3428,14 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 1. **Every photograph shows a screen** — a laptop, tablet or phone in frame — **except the two home-visit images**, which show hands-on treatment. This clinic sells video consultations; a site of clinic photography reads as a walk-in practice.
 2. **Every photograph shows a face, and the face is glad to be there.** The one exception is the clinician reading a scan, who is concentrating — a physiotherapist grinning at an X-ray is the opposite of reassuring.
 3. Photos are **static imports**, never `/photos/x.jpg` strings and never remote URLs, so a missing file is a compile error.
+
+#### `PUB-CTA-001` — The closing band asks for the sale · P1
+
+**Steps.** Open each of `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq` and read the very last band. (`/hospitals` deliberately ends on its referral form instead.)
+**Expected Result.** A teal band with the copy on the left — headline, one line, one or two buttons — and a **photograph on the right**. The band's shape is identical on all seven, but **each page shows a different photograph**, and it is one this band alone uses — never a photograph that appears anywhere else on the site: home a patient booking on her phone with a laptop on her knees, Conditions Treated a patient laughing as she books, How It Works a patient waving as his video session opens, Home Visit an older couple booking on a tablet in their front room, Our Team a physiotherapist smiling at her laptop, Mission two people on a sofa with a session on a laptop, FAQ a patient reading her phone by a window. Over the photo, a white chip reading **Session confirmed / Tuesday, 6:00 PM / Calendar invite on its way.** and, underneath it, **Example of what you get** — the chip must always say it is an example, on every page.
+**Assurances.** Three lines under the buttons: *One-to-one, never a group*, *Reports read before your session*, *Secure UPI payment*.
+**Critical check:** none of those three states a **number**. A session's length is set per treatment category and the cancellation window is an admin setting, so a fixed "60 minutes" or "free cancellation up to 24 hours" printed here would be a promise the settings can contradict. If you see a number in this band, that is a bug.
+**Layout.** Narrow to a phone width: the copy and buttons come **first**, the photograph below them — nobody should have to scroll past a picture to reach the button. The image keeps the same landscape crop at every width; it must never go tall and leave the band mostly empty beside the text.
 
 #### `PUB-HOME-001` — The home page · P1
 **Steps.** Open `/`. Scroll to the bottom.
@@ -3524,7 +3627,23 @@ Covered by `PAT-BOOK-017`, `PAT-SUGG-004`, `THR-AVAIL-004`, `FIN-PAY-002`, `PAY-
 
 #### `UX-MOB-002` — Dashboards on mobile · P1
 **Steps.** At 390 × 844, open each of the four dashboards.
-**Expected Result.** Each shell offers a **mobile drawer** for the sidebar. **Back to Home is present in all three renders** — expanded sidebar, collapsed rail, and mobile drawer. Without it the only exit from a dashboard is Log Out, which also ends the session. It is a plain link, not a client-side transition, because transitions into a differently-chromed route were silently not completing.
+#### `UX-BUSY-001` — The app says it is working · P1
+
+**Steps.** Tap anything that saves, creates or navigates — a Save on a settings form, **Done** on a session, a payout, a sidebar entry — and watch the very top of the viewport.
+**Expected Result.** A thin teal bar appears across the top for the whole time between the tap and the page answering, then completes and fades. It covers the part a button cannot: after `router.refresh()` the button is idle (and often unmounted with its row), while the server is still re-rendering — the gap that reads as a freeze.
+**Details that are the design, not decoration:**
+* **No percentage.** The bar eases toward a ceiling and only completes when the work lands. A bar sitting at 90% is a defect, not a slow server.
+* **It waits ~220ms before drawing.** An action that finishes faster must show **nothing at all** — a flash on every tap is the failure this delay prevents.
+* **Reduced motion** (`prefers-reduced-motion: reduce`) keeps the bar and drops the travel: a static full-width band that fades. It must not disappear entirely — that setting means less movement, not less information.
+* **Two overlapping actions**: start a second before the first finishes; the bar must stay up until **both** are done, not vanish with the first.
+* The five money buttons (**Done**, **Collect ₹…**, **Request Payout**, **Confirm … Payment**, **Assign & Confirm**) show a spinning ring beside their busy label rather than only swapping the text.
+
+#### `UX-BUSY-002` — The admin dashboard's second batch · P2
+**Steps.** Load **/admin/dashboard**, then tap any button that saves.
+**Expected Result.** Noticeably quicker than before: eleven migration-dependent reads that used to run one after another (accounting health, the suggestion and recommendation switches, discounts, the first-session offer, promo and invite settings, category covers and condition types, testimonial avatars, hospital notes) now run as one parallel batch, and both ledger-balance passes run together.
+**Critical check — the isolation is unchanged:** drop one of those columns (see `admin-degraded-schema.spec.ts`) and only that panel degrades. If the whole dashboard blanks, the batch has lost a `guard()` and that is a P0.
+
+**Expected Result.** Each shell offers a **mobile drawer** for the sidebar. **Back to Home is present in all three renders** — expanded sidebar, collapsed rail, and mobile drawer. On all four shells it sits at the **foot of the nav, directly above Collapse** (above the profile/Log Out footer in the mobile drawer, which has no Collapse). Without it the only exit from a dashboard is Log Out, which also ends the session. It is a plain link, not a client-side transition, because transitions into a differently-chromed route were silently not completing.
 
 #### `UX-MOB-003` — Modals and drawers fit · P1
 **Steps.** At 390 × 844 open: a catalog detail dialog, the admin session drawer, the intake wizard, the pain-exam dialog, the confirm dialog.

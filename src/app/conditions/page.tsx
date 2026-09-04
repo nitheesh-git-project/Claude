@@ -121,6 +121,8 @@ export default async function ConditionsPage() {
         body="Book the standard assessment. Your therapist picks the protocol."
         primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
         secondary={{ href: "/faq", label: "Read the FAQ" }}
+        photoId="cta-conditions"
+        photoAlt="A patient sitting at home, laughing as she books on her phone"
       />
     </>
   );

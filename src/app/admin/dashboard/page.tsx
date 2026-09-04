@@ -13,7 +13,7 @@ import { buildAdminFeed } from "@/lib/dashboardFeed";
 import AdminInboxQueues from "@/components/admin/AdminInboxQueues";
 import AdminAllSessionsTab from "@/components/admin/AdminAllSessionsTab";
 import AdminNewBookingTab from "@/components/admin/AdminNewBookingTab";
-import AdminTeamAccessTab, { type AdminRow } from "@/components/admin/AdminTeamAccessTab";
+import AdminUserAccessTab, { type AdminRow } from "@/components/admin/AdminUserAccessTab";
 import AdminActivityLogTab, { type ActivityRow } from "@/components/admin/AdminActivityLogTab";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
 import AdminCostsTab from "@/components/admin/AdminCostsTab";
@@ -50,6 +50,7 @@ import AdminAccessCard from "@/components/admin/AdminAccessCard";
 import {
   ADMIN_SCOPE_LABELS,
   parseAdminScope,
+  scopeCanManage,
   scopeCanOpen,
   sectionsForScope,
 } from "@/lib/adminScope";
@@ -225,6 +226,7 @@ export default async function AdminDashboardPage({
     { data: b2bLeads },
     { data: referrals },
     { data: capacityNoteRows },
+    { data: referralPhoneRows },
     { data: allProfiles },
     { data: roleCodeRows },
     { data: treatmentCategories },
@@ -395,7 +397,7 @@ export default async function AdminDashboardPage({
     admin
       .from("patient_referrals")
       .select(
-        "id, hospital_id, patient_name, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at, visit_mode, pincode"
+        "id, hospital_id, patient_name, preferred_language, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at, visit_mode, pincode"
       )
       .order("created_at", { ascending: false }),
 
@@ -403,6 +405,12 @@ export default async function AdminDashboardPage({
     // reasoning as roleCodeRows/sessionCodeLinks elsewhere on this page) so a
     // missing migration only blanks this one note, not the whole referrals list.
     admin.from("patient_referrals").select("id, capacity_note"),
+
+    // patient_phone is newer still (end of schema.sql) and gets its own call
+    // for the same reason: an unknown-column error must cost the admin the
+    // phone number on the card, not the capacity note beside it and not the
+    // referral list itself.
+    admin.from("patient_referrals").select("id, patient_phone"),
 
     admin
       .from("profiles")
@@ -586,15 +594,106 @@ export default async function AdminDashboardPage({
   const adminScopeById = new Map((adminScopeRows ?? []).map((r) => [r.id, r.admin_scope]));
   const viewerScope = parseAdminScope(adminScopeById.get(user.id));
   const canSeeMoney = scopeCanOpen(viewerScope, "money");
+  // Sessions is the one section granted at `view` to anybody (finance), so
+  // this is not the same question as "can they open it". Every mutating
+  // control under Sessions keys off this, and requireAdminScope("sessions")
+  // refuses them regardless -- the flag is what stops a 403 being the way
+  // they find out.
+  const canManageSessions = scopeCanManage(viewerScope, "sessions");
 
-  // Read after the main Promise.all rather than inside it: every query in
-  // there is against a table that has existed for a while, and these are
-  // against three that are brand new. loadAccountingHealth swallows its own
-  // errors and reports `available: false`, so a database that has not
-  // re-run schema.sql shows one panel saying so instead of blanking the
-  // whole dashboard -- the failure mode the migration-tolerance rule exists
-  // to prevent.
-  const accountingHealth = await loadAccountingHealth(admin);
+  // The second batch: everything the migration-tolerance rule keeps OUT of
+  // the big Promise.all above.
+  //
+  // Each of these is an isolated read because it touches a column or a table
+  // a live database may not have yet, so one unknown-column error costs its
+  // own panel rather than blanking the dashboard. Isolated is not the same
+  // as sequential, and they were sequential -- eleven round trips, one after
+  // another, on page load AND on every router.refresh() any admin button
+  // fires. That is the wait this dashboard was being blamed for.
+  //
+  // Isolation is kept exactly as it was: every entry either swallows its own
+  // errors already (the read* helpers, loadAccountingHealth) or is wrapped
+  // here, so this Promise.all cannot reject and one missing column still
+  // costs only its own value.
+  const guard = <T,>(run: () => Promise<T>, fallback: T): Promise<T> =>
+    run().catch(() => fallback);
+
+  const hospitalIds = (allProfiles ?? [])
+    .filter((p) => p.role === "hospital")
+    .map((h) => h.id);
+
+  const [
+    accountingHealth,
+    suggestionsToggleRow,
+    carePlanRequiresApproval,
+    discountRows,
+    offerRow,
+    promoCodesEnabled,
+    inviteSettings,
+    categoryImageRows,
+    categorySpecialtyRows,
+    testimonialAvatarRows,
+    hospitalNotes,
+  ] = await Promise.all([
+    loadAccountingHealth(admin),
+    guard(
+      async () =>
+        (
+          await supabase
+            .from("site_settings")
+            .select("therapist_suggestions_enabled")
+            .maybeSingle()
+        ).data,
+      null as { therapist_suggestions_enabled: boolean | null } | null
+    ),
+    readCarePlanRequiresApproval(admin),
+    guard(
+      async () =>
+        (
+          await admin
+            .from("appointments")
+            .select("id, list_price_paise, discount_paise, discount_source, discount_reason")
+            .gt("discount_paise", 0)
+        ).data,
+      null as Record<string, unknown>[] | null
+    ),
+    guard(
+      async () =>
+        (
+          await admin
+            .from("site_settings")
+            .select(
+              "first_session_offer_enabled, first_session_offer_type, first_session_offer_value"
+            )
+            .maybeSingle()
+        ).data,
+      null as Record<string, unknown> | null
+    ),
+    readPromoCodesEnabled(admin),
+    readInviteSettings(admin),
+    guard(
+      async () => (await admin.from("treatment_categories").select("id, image_url")).data,
+      null as { id: string; image_url: string | null }[] | null
+    ),
+    guard(
+      async () => (await admin.from("treatment_categories").select("id, specialty")).data,
+      null as { id: string; specialty: string | null }[] | null
+    ),
+    guard(
+      async () => (await admin.from("testimonials").select("id, avatar_url")).data,
+      null as { id: string; avatar_url: string | null }[] | null
+    ),
+    guard(
+      async () =>
+        (
+          await admin
+            .from("hospital_admin_notes")
+            .select("hospital_id, temp_password, temp_password_set_at")
+            .in("hospital_id", hospitalIds)
+        ).data,
+      null as { hospital_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
+    ),
+  ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
     (t) => t.active !== false
@@ -615,31 +714,29 @@ export default async function AdminDashboardPage({
   // consume the same `session_count` / `sessions_used` shape, so replacing
   // the number on the row flips all of them at once. A no-op while the flag
   // is off.
+  // Both at once: they read different tables and neither needs the other's
+  // answer, so running them one after the other was a round trip of pure
+  // waiting on every admin render.
   const ledgerAuthoritative = adminSettings.entitlementLedgerAuthoritative;
-  const packagePurchasesForDisplay = await applyLedgerSessionBalances(
-    admin,
-    packagePurchaseSummaries ?? [],
-    { authoritative: ledgerAuthoritative }
-  );
-  const homeVisitPurchasesForDisplay = await applyLedgerVisitBalances(
-    admin,
-    homeVisitPurchases ?? [],
-    { authoritative: ledgerAuthoritative }
-  );
+  const [packagePurchasesForDisplay, homeVisitPurchasesForDisplay] = await Promise.all([
+    applyLedgerSessionBalances(admin, packagePurchaseSummaries ?? [], {
+      authoritative: ledgerAuthoritative,
+    }),
+    applyLedgerVisitBalances(admin, homeVisitPurchases ?? [], {
+      authoritative: ledgerAuthoritative,
+    }),
+  ]);
 
-  // Its own call, not part of SITE_SETTINGS_SELECT: this column is newer
-  // than the rest, and a database that hasn't run the latest schema.sql
-  // should leave the feature off rather than blank every other setting.
-  const { data: suggestionsToggleRow } = await supabase
-    .from("site_settings")
-    .select("therapist_suggestions_enabled")
-    .maybeSingle();
+  // Read in the batch above, not as part of SITE_SETTINGS_SELECT: this
+  // column is newer than the rest, and a database that hasn't run the latest
+  // schema.sql should leave the feature off rather than blank every other
+  // setting.
   const therapistSuggestionsEnabled =
     suggestionsToggleRow?.therapist_suggestions_enabled === true;
 
   // Same reasoning again, and through the same helper the submit route uses
-  // so the screen and the rule cannot disagree about what the switch says.
-  const carePlanRequiresApproval = await readCarePlanRequiresApproval(admin);
+  // so the screen and the rule cannot disagree about what the switch says --
+  // read in the batch above.
 
   // The discount columns, in their own call for the same reason: they are
   // the newest columns on `appointments`, and an unknown-column error must
@@ -648,11 +745,7 @@ export default async function AdminDashboardPage({
     string,
     { listPricePaise: number | null; discountPaise: number; source: string | null; reason: string | null }
   >();
-  try {
-    const { data: discountRows } = await admin
-      .from("appointments")
-      .select("id, list_price_paise, discount_paise, discount_source, discount_reason")
-      .gt("discount_paise", 0);
+  {
     for (const row of discountRows ?? []) {
       const r = row as {
         id: string;
@@ -668,8 +761,6 @@ export default async function AdminDashboardPage({
         reason: r.discount_reason,
       });
     }
-  } catch {
-    // The control still renders; it simply cannot show an existing one.
   }
 
   // What discounting has cost, summed from the same isolated read the
@@ -689,33 +780,28 @@ export default async function AdminDashboardPage({
     type: "fixed",
     value: 0,
   };
-  try {
-    const { data: offerRow } = await admin
-      .from("site_settings")
-      .select(
-        "first_session_offer_enabled, first_session_offer_type, first_session_offer_value"
-      )
-      .maybeSingle();
+  {
     if (offerRow) {
+      const row = offerRow as {
+        first_session_offer_enabled?: unknown;
+        first_session_offer_type?: unknown;
+        first_session_offer_value?: unknown;
+      };
       firstSessionOffer = {
-        enabled: offerRow.first_session_offer_enabled === true,
-        type: offerRow.first_session_offer_type === "percent" ? "percent" : "fixed",
+        enabled: row.first_session_offer_enabled === true,
+        type: row.first_session_offer_type === "percent" ? "percent" : "fixed",
         value:
-          typeof offerRow.first_session_offer_value === "number"
-            ? offerRow.first_session_offer_value
+          typeof row.first_session_offer_value === "number"
+            ? row.first_session_offer_value
             : 0,
       };
     }
-  } catch {
-    // Off, which is the safe direction: no accidental discounting.
   }
 
   // Promo codes and invites, in their own calls for the same reason -- the
   // newest columns on site_settings and a table a database one apply behind
   // does not have at all. Both fail to "off" and an empty list, which costs
   // these two controls and nothing else on the page.
-  const promoCodesEnabled = await readPromoCodesEnabled(admin);
-  const inviteSettings = await readInviteSettings(admin);
 
   let promoCodeRows: PromoCodeRow[] = [];
   try {
@@ -777,9 +863,6 @@ export default async function AdminDashboardPage({
   // newest column on that table, and the batch it would otherwise join is one
   // Promise.all of ~40 queries -- an unknown-column error there would blank
   // the whole dashboard rather than one cover photo.
-  const { data: categoryImageRows } = await admin
-    .from("treatment_categories")
-    .select("id, image_url");
   const categoryImageById = new Map(
     (categoryImageRows ?? []).map((row) => [row.id, row.image_url as string | null])
   );
@@ -787,23 +870,12 @@ export default async function AdminDashboardPage({
   // And the condition type, newer still, in its own call for the same
   // reason -- losing it costs the therapist's picker its grouping, never the
   // dashboard.
-  let categorySpecialtyById = new Map<string, string | null>();
-  try {
-    const { data: rows } = await admin
-      .from("treatment_categories")
-      .select("id, specialty");
-    categorySpecialtyById = new Map(
-      (rows ?? []).map((row) => [row.id, (row as { specialty: string | null }).specialty ?? null])
-    );
-  } catch {
-    // Untagged database. Every condition reads as "Not set".
-  }
+  const categorySpecialtyById = new Map<string, string | null>(
+    (categorySpecialtyRows ?? []).map((row) => [row.id, row.specialty ?? null])
+  );
 
   // testimonials.avatar_url is migration-dependent too, so it stays out of
   // the ~40-query Promise.all above for the reason the category covers do.
-  const { data: testimonialAvatarRows } = await admin
-    .from("testimonials")
-    .select("id, avatar_url");
   const testimonialAvatarById = new Map(
     (testimonialAvatarRows ?? []).map((row) => [row.id, row.avatar_url as string | null])
   );
@@ -848,6 +920,9 @@ export default async function AdminDashboardPage({
   const nowForReferrals = nowTimestamp();
 
   const capacityNoteMap = new Map((capacityNoteRows ?? []).map((r) => [r.id, r.capacity_note]));
+  const referralPhoneMap = new Map(
+    (referralPhoneRows ?? []).map((r) => [r.id, r.patient_phone])
+  );
 
   const profileMap = new Map((allProfiles ?? []).map((p) => [p.id, p]));
   const adminProfile = profileMap.get(user.id);
@@ -913,10 +988,6 @@ export default async function AdminDashboardPage({
     }));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
-  const { data: hospitalNotes } = await admin
-    .from("hospital_admin_notes")
-    .select("hospital_id, temp_password, temp_password_set_at")
-    .in("hospital_id", hospitals.map((h) => h.id));
   const hospitalNoteMap = new Map(
     (hospitalNotes ?? []).map((n) => [n.hospital_id, n])
   );
@@ -1419,6 +1490,7 @@ export default async function AdminDashboardPage({
                 (r.status === "invite_sent" || r.status === "converted") &&
                 !!r.assigned_slot_time &&
                 new Date(r.assigned_slot_time).getTime() < nowForReferrals;
+              const referralPhone = referralPhoneMap.get(r.id) ?? null;
               return {
                 id: r.id,
                 node: (
@@ -1427,6 +1499,36 @@ export default async function AdminDashboardPage({
                     <div>
                       <p className="font-bold text-slate-900">
                         {r.patient_name}
+                      </p>
+                      {/* Beside the name, not buried under the medical issue:
+                          an admin rings this patient to agree a time BEFORE
+                          the registration link goes out, so the number and
+                          the language they want to be spoken to in are part
+                          of identifying the referral, not detail about it.
+                          Referrals taken before the hospital form asked for a
+                          number say so rather than rendering an empty line. */}
+                      <p className="flex items-center gap-2 flex-wrap">
+                        {referralPhone ? (
+                          <a
+                            href={`tel:${referralPhone}`}
+                            className="font-semibold text-teal-700 hover:underline"
+                          >
+                            <i
+                              aria-hidden="true"
+                              className="fa-solid fa-phone text-[10px] mr-1"
+                            />
+                            {referralPhone}
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">No phone on file</span>
+                        )}
+                        <span className="text-slate-500">
+                          <i
+                            aria-hidden="true"
+                            className="fa-solid fa-language text-[10px] mr-1"
+                          />
+                          {r.preferred_language?.trim() || "Language not stated"}
+                        </span>
                       </p>
                       <p className="text-slate-500">
                         Referred by:{" "}
@@ -1689,6 +1791,7 @@ export default async function AdminDashboardPage({
   const calendarTab = (
     <AdminCalendarTab
       canSeeMoney={canSeeMoney}
+      canManageSessions={canManageSessions}
       appointments={appointmentsWithSessionCode}
       people={allPeople}
       categories={categoriesForReassign}
@@ -1701,6 +1804,7 @@ export default async function AdminDashboardPage({
   const allSessionsTab = (
     <AdminAllSessionsTab
       canSeeMoney={canSeeMoney}
+      canManageSessions={canManageSessions}
       appointments={appointmentsWithSessionCode}
       homeVisits={homeVisitRows}
       people={allPeople}
@@ -2060,7 +2164,7 @@ export default async function AdminDashboardPage({
       // Every scope that can open this section holds both today, but the
       // flags are computed rather than assumed -- a scope table change must
       // hide the control, not produce a 403 with nothing explaining it.
-      canManageSchedule={scopeCanOpen(viewerScope, "sessions")}
+      canManageSchedule={canManageSessions}
       canManageLeave={scopeCanOpen(viewerScope, "people")}
     />
   );
@@ -2359,19 +2463,32 @@ export default async function AdminDashboardPage({
     </div>
   );
 
-  // Every rule about how booking behaves, in one place -- the platform-wide
-  // switches, then the two package rule sets. They were on three different
-  // tabs before, which is how the online lead time ended up hardcoded while
-  // its home-visit twin was a setting.
+  // When a single session may be booked, cancelled and joined -- and nothing
+  // else. This screen used to carry six unrelated stacks with no heading
+  // between them: these rules, the two acquisition discounts, the
+  // recommendation rules, the programme rules and the nine home-visit
+  // settings. An owner opening it to change a refund window scrolled past
+  // the discount that decides what every new patient pays, so the other two
+  // groups are their own screens now (Offers & Discounts, Programmes & Home
+  // Visits) and each one says what it is in the header.
   const settingsBookingTab = (
+    <AdminFeatureControlTab
+      settings={adminSettings}
+      syncIssues={googleMeetSyncIssues}
+      waitingRoomIssues={meetWaitingRoomIssues}
+      adminEmail={adminProfile?.email ?? user.email ?? ""}
+      view="booking"
+    />
+  );
+
+  // The two discounts a patient can end up with by themselves. The third and
+  // fourth -- promo codes and a goodwill adjustment -- deliberately are not
+  // here: a promo campaign sits on Money -> Costs beside the figure it costs,
+  // and goodwill is applied to one named session rather than configured. The
+  // note says so, because "where is the promo code screen" is the question
+  // this split otherwise creates.
+  const settingsOffersTab = (
     <div className="space-y-8">
-      <AdminFeatureControlTab
-        settings={adminSettings}
-        syncIssues={googleMeetSyncIssues}
-        waitingRoomIssues={meetWaitingRoomIssues}
-        adminEmail={adminProfile?.email ?? user.email ?? ""}
-        view="booking"
-      />
       <FirstSessionOfferForm
         enabled={firstSessionOffer.enabled}
         type={firstSessionOffer.type}
@@ -2381,6 +2498,27 @@ export default async function AdminDashboardPage({
         }
       />
       <InviteRewardsForm settings={inviteSettings} />
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+        <h2 className="font-display text-sm font-bold text-slate-800">
+          Looking for promo codes?
+        </h2>
+        <p className="mt-1 text-xs text-slate-600">
+          A promo code is a campaign you run for a while, so it lives on{" "}
+          <span className="font-semibold text-slate-700">Money &rarr; Costs</span>, next to
+          the figure showing what your discounts cost. Taking money off one
+          patient&rsquo;s unpaid session is not set up here either &mdash; open that session
+          and apply a goodwill discount to it.
+        </p>
+      </div>
+    </div>
+  );
+
+  // A programme is a course of sessions a therapist recommends; a home visit
+  // is a session delivered at the patient's address. Both are "more than one
+  // appointment, arranged in advance", which is why they read as one screen
+  // and neither belongs beside the rule for a single video booking.
+  const settingsProgrammesTab = (
+    <div className="space-y-8">
       <RecommendationSettingsForm
         settings={adminSettings}
         requiresApproval={carePlanRequiresApproval}
@@ -2443,14 +2581,21 @@ export default async function AdminDashboardPage({
       fullName: p.full_name,
       email: p.email,
       scope: parseAdminScope(adminScopeById.get(p.id)),
+      // `active` is the suspension flag getAdminUser and the proxy already
+      // refuse on; until now nothing in the product could set it for an
+      // admin. Null on an older row means active, same reading every other
+      // role's screens give it.
+      active: p.active !== false,
       isSelf: p.id === user.id,
     }));
 
-  // Who can see what, in one place: which admins hold which scope, and how
-  // much of a patient's contact details a therapist is handed by default.
-  const settingsTeamTab = (
+  // Who can reach this dashboard and what they get when they do, plus the
+  // one access question that is about a therapist rather than an admin: how
+  // much of a patient's contact details they are handed by default. Both are
+  // "who may see what", which is why they read as one screen.
+  const settingsAccessTab = (
     <div className="space-y-8">
-      <AdminTeamAccessTab admins={adminRows} viewerScope={viewerScope} />
+      <AdminUserAccessTab admins={adminRows} viewerScope={viewerScope} />
       <ContactControlsForm settings={adminSettings} />
     </div>
   );
@@ -3190,6 +3335,12 @@ export default async function AdminDashboardPage({
   ];
 
   const allowedSections = sectionsForScope(viewerScope);
+  // The subset they can act in. Queues and quick actions read this rather
+  // than `allowedSections`: a queue is a piece of work, and finance reads
+  // Sessions without being able to assign one, so an unassigned session is
+  // not waiting on them. Counting it there would put a figure on their Today
+  // screen that nothing they can do would ever bring down.
+  const workableSections = allowedSections.filter((sec) => scopeCanManage(viewerScope, sec));
 
   // Read by the global search below, which links into these two sections.
   const canOpenSessionsSection = allowedSections.includes("sessions");
@@ -3202,7 +3353,7 @@ export default async function AdminDashboardPage({
   // "the list disagrees with the number" failure in the first place
   // anybody looks.
   const scopedInboxGroups = orderQueueGroups(inboxGroups, viewerScope);
-  const inboxTotal = visibleQueueTotal(inboxGroups, allowedSections);
+  const inboxTotal = visibleQueueTotal(inboxGroups, workableSections);
 
   const adminFeed = buildAdminFeed({
     activity: activityRows.slice(0, 10).map((r) => ({
@@ -3286,7 +3437,7 @@ export default async function AdminDashboardPage({
       feedEmptyBody="Admin actions and anything waiting on a person appear here."
       aside={
         <>
-          <AdminInboxQueues groups={scopedInboxGroups} allowedSections={allowedSections} />
+          <AdminInboxQueues groups={scopedInboxGroups} allowedSections={workableSections} />
           {home.accessNote && <AdminAccessCard note={home.accessNote} />}
         </>
       }
@@ -3471,8 +3622,10 @@ export default async function AdminDashboardPage({
     "settings:brand": settingsBrandTab,
     "settings:public": settingsPublicSiteTab,
     "settings:booking": settingsBookingTab,
+    "settings:offers": settingsOffersTab,
+    "settings:programmes": settingsProgrammesTab,
     "settings:clinical": settingsClinicalTab,
-    "settings:team": settingsTeamTab,
+    "settings:access": settingsAccessTab,
     "settings:health": settingsHealthTab,
     "settings:activity": settingsActivityTab,
     "settings:security": settingsSecurityTab,
@@ -3505,6 +3658,7 @@ export default async function AdminDashboardPage({
         badges={badges}
         searchEntities={searchEntities}
         allowedSections={allowedSections}
+        manageSections={workableSections}
         adminName={adminProfile?.full_name ?? "Admin"}
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         adminAvatarUrl={adminProfile?.avatar_url ?? null}

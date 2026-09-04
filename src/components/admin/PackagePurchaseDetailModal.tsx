@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import Modal from "@/components/admin/Modal";
 import { useConfirm } from "@/lib/useConfirm";
 import { usePrompt } from "@/lib/usePrompt";

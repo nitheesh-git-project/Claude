@@ -13,7 +13,7 @@ import type { AdminAccessNote } from "@/lib/adminHome";
  *
  * It is deliberately a statement, not a request form. There is no "ask for
  * more access" button, because scope is changed by a `full` admin on
- * Settings -> Team & Access after a conversation, and a button that raises
+ * Settings -> User Access after a conversation, and a button that raises
  * an unanswerable request is worse than a sentence naming who to ask.
  *
  * Rendered only for a limited scope -- `full` gets no card, since
@@ -38,6 +38,17 @@ export default function AdminAccessCard({ note }: { note: AdminAccessNote }) {
           </dt>
           <dd className="text-slate-700">{note.sections.join(" · ")}</dd>
         </div>
+        {note.readOnly.length > 0 && (
+          <div className="flex gap-2">
+            <dt className="w-20 shrink-0 font-semibold uppercase tracking-wide text-slate-400">
+              You read
+            </dt>
+            <dd className="text-slate-700">
+              {note.readOnly.join(" · ")}{" "}
+              <span className="text-slate-400">— nothing to change here</span>
+            </dd>
+          </div>
+        )}
         {note.withheld.length > 0 && (
           <div className="flex gap-2">
             <dt className="w-20 shrink-0 font-semibold uppercase tracking-wide text-slate-400">
@@ -49,7 +60,7 @@ export default function AdminAccessCard({ note }: { note: AdminAccessNote }) {
       </dl>
 
       <p className="mt-3 border-t border-slate-100 pt-3 text-[11px] leading-relaxed text-slate-500">
-        A Master Admin can change this on Settings → Team &amp; Access.
+        A Master Admin can change this on Settings → User Access.
       </p>
     </SurfaceCard>
   );

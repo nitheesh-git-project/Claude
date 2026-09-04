@@ -223,6 +223,8 @@ export default async function HomeVisitPage() {
         body="Enter your pincode. Nothing is charged until we confirm we can reach you."
         primary={{ href: "/book-home-visit", label: "Check my pincode", icon: "fa-map-pin" }}
         secondary={{ href: "/book", label: "Book a video session instead" }}
+        photoId="cta-home-visit"
+        photoAlt="An older couple side by side in their front room, smiling at the tablet they are booking on"
       />
     </>
   );

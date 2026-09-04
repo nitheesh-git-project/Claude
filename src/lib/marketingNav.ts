@@ -181,6 +181,26 @@ export const BOOK_CONNECTOR: MarketingConnector = {
   action: "Book now",
 };
 
+/**
+ * What an Explore band shows on any public page: every other page, then
+ * booking.
+ *
+ * Booking used to be on the home page's grid alone, so the six inner pages
+ * ended their index on another page to read. Wherever a visitor stops
+ * reading, the next step has to be in the same place -- that is the rule the
+ * shared ClosingCta exists for, and the index above it was the one band
+ * still answering "what now?" with "here is more to look at".
+ *
+ * `homeConnectors` is this function for the home page; both go through here
+ * so the two bands cannot end differently.
+ */
+export function exploreConnectors(
+  current: MarketingPageKey,
+  homeVisitEnabled: boolean
+): MarketingConnector[] {
+  return [...otherMarketingPages(current, homeVisitEnabled), BOOK_CONNECTOR];
+}
+
 export function homeConnectors(homeVisitEnabled: boolean): MarketingConnector[] {
-  return [...otherMarketingPages("home", homeVisitEnabled), BOOK_CONNECTOR];
+  return exploreConnectors("home", homeVisitEnabled);
 }

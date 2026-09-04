@@ -1,5 +1,12 @@
 import type { StaticImageData } from "next/image";
 
+import ctaBook from "../../public/photos/cta-book.jpg";
+import ctaConditions from "../../public/photos/cta-conditions.jpg";
+import ctaFaq from "../../public/photos/cta-faq.jpg";
+import ctaHomeVisit from "../../public/photos/cta-home-visit.jpg";
+import ctaMission from "../../public/photos/cta-mission.jpg";
+import ctaStart from "../../public/photos/cta-start.jpg";
+import ctaTeam from "../../public/photos/cta-team.jpg";
 import careBack from "../../public/photos/care-back.jpg";
 import careKnee from "../../public/photos/care-knee.jpg";
 import careMobility from "../../public/photos/care-mobility.jpg";
@@ -57,6 +64,15 @@ export const MARKETING_PHOTOS = {
   "care-posture": carePosture,
   "care-sports": careSports,
   "care-mobility": careMobility,
+  // The closing band's own set: one per page, never a photograph that page
+  // already shows above. See ClosingCta.
+  "cta-book": ctaBook,
+  "cta-conditions": ctaConditions,
+  "cta-start": ctaStart,
+  "cta-home-visit": ctaHomeVisit,
+  "cta-team": ctaTeam,
+  "cta-mission": ctaMission,
+  "cta-faq": ctaFaq,
   "step-book": stepBook,
   "step-assess": stepAssess,
   "step-progress": stepProgress,

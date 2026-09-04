@@ -55,19 +55,39 @@ Every setting below is read through one shared settings module with defaults. **
 
 #### `ADM-SET-007` — Testimonials · P1
 **Steps.** Create a testimonial with patient name `QA Story` and quote `The exercises made a real difference in six weeks.` Save. Open `/` and `/mission`.
-**Expected Result.** It appears in the same band on **both** pages — one component serves both, because the two bands make the same claim and a visitor may see both in one session. The avatar is optional; with none, the **patient's initial** is shown, never a generic silhouette.
+**Expected Result.** It appears **immediately** in the same band on **both** pages (the route invalidates `/` and `/mission`, both ISR-cached) — one component serves both, because the two bands make the same claim and a visitor may see both in one session. The avatar is optional; with none, the **patient's initial** is shown, never a generic silhouette.
 **Critical check:** the five rows the schema seeds are **illustrative copy, not real patients**, and the admin form must **say so at the point of entry**. Never present a seeded testimonial as real. The only place a **real** number is quoted is the public rating summary.
 **Negatives:** `Missing patientName or quote`; editing requires `Missing id, patientName, or quote`.
 
 #### `ADM-SET-008` — FAQ · P2
 **Steps.** Create, edit, reorder and delete an FAQ. Open `/faq`.
-**Expected Result.** The public accordion reflects each change. Negatives: `Missing question or answer`, `Missing id, question, or answer`.
+**Expected Result.** The public accordion reflects each change **immediately** — `/faq` is ISR-cached and every FAQ route invalidates it. Negatives: `Missing question or answer`, `Missing id, question, or answer`.
 
 ---
 
-### 15.3 Settings → Booking Rules
+### 15.3 Settings → Booking Rules, Offers & Discounts, Programmes & Home Visits
 
-This tab holds three groups: **Platform Rules**, **Package settings**, and **Home Visit settings**. They were on three different tabs before, which is how the online lead time ended up hardcoded while its home-visit twin was already a setting.
+**These were one tab and are now three.** "Booking Rules" had grown six unrelated stacks with no heading between them, so an admin opening it to change a refund window scrolled past the discount that decides what every new patient pays. What lives where now:
+
+| Screen | What it covers |
+| --- | --- |
+| **Booking Rules** | One video session, start to finish: when it may be booked, when it may be cancelled with a refund, when the Join button works, and the Google Meet / Calendar switches. Plus the two platform-wide odds and ends (idle timeout, sign-out message). |
+| **Offers & Discounts** | Money off, to win a patient: the first-session offer and patient invites. A note on the screen points at Money → Costs for promo codes and at the session itself for a goodwill discount. |
+| **Programmes & Home Visits** | More than one appointment, arranged in advance: the recommendation settings, the package settings, and the nine home-visit settings. |
+
+**Every Settings screen also states what it is and gives one example**, under its heading — check that line renders and matches the screen you are on. The cases below keep their original IDs; the **Where** line on each says which of the three screens it is now on.
+
+Where a case below still says "Settings → Booking Rules", that is correct — it did not move.
+
+#### `ADM-SET-009` — Every Settings screen says what it is · P2
+
+**Steps.** Open each of the ten Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, User Access, System Health, Activity Log, Account Security.
+
+**Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen — none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
+
+**Spot checks.** Offers & Discounts ends with a **"Looking for promo codes?"** note pointing at **Money → Costs**, and saying a goodwill discount is applied to a session rather than set up here. Booking Rules holds **only** the single-session rules and the Google Meet block — no discount, no package and no home-visit settings on it any more.
+
+**Critical check:** these are the same ten screens the sidebar lists and the same ten `?tab=` values. A screen reachable from the sidebar with no sentence under its heading, or a sentence on a screen that is not in the sidebar, means `adminNav.ts` and the shell have drifted.
 
 #### `ADM-SET-010` — Online Booking Lead Time → the booking wizard · P0
 
@@ -148,7 +168,7 @@ This tab holds three groups: **Platform Rules**, **Package settings**, and **Hom
 
 #### `ADM-SET-022` — Recommendation settings · P0
 
-At **Settings → Booking Rules**, above the package settings.
+At **Settings → Programmes & Home Visits**, above the package settings.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
@@ -160,7 +180,7 @@ Note there is no longer a **Show programme prices publicly** switch. Programmes 
 
 #### `ADM-SET-023` — First session offer · P0
 
-At **Settings → Booking Rules**, above the recommendation settings.
+At **Settings → Offers & Discounts**, above Patient invites.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
@@ -236,19 +256,51 @@ The screen warns you to turn it on only once System Health has been clean.
 * `schema_version` is **per specialty**, so changing a neuro question must **not** fire the "we've changed some of these questions" banner at orthopaedic patients.
 * Pain Map templates edit per region and question; unknown values are refused with `Unknown region` / `Unknown questionKey for this region`.
 
-#### `ADM-SET-025` — Team & Access: scopes · P0
+#### `ADM-SET-025` — User Access: scopes · P0
 
 **Steps**
-1. Open **Settings → Team & Access**.
+1. Open **Settings → User Access**.
 2. Read the admin list.
 3. Attempt to change **your own** scope.
 4. Narrow every other `full` admin, then attempt to narrow the last one.
 
 **Expected Result.** Step 3: refused with `You can't change your own access. Ask another Master Admin.` Step 4: the last `full` admin (**Master Admin** in the picker) **cannot be narrowed** — otherwise a single mis-click locks everyone out permanently. Only a `full` admin can change scopes or mint another admin.
 
+#### `ADM-SET-025a` — User Access: what each level can do · P1
+
+**Steps.** On **Settings → User Access**, switch the toggle from **People** to **What each level can do**.
+
+**Expected Result.** A table: rows are jobs in plain words, grouped by section (Today, Sessions, People, Money, Catalog, Settings); columns are **Master Admin · Operations · Finance · Clinical**. A legend names the three levels — **View and edit**, **View only**, **No access**. Each group heading also states the level each desk holds for that whole section.
+
+**Spot checks.**
+* Under **Sessions**, Finance shows a **View only** mark on *"See every session and who is running it"* and **No access** on *"Assign or change a session's therapist"*.
+* Under **Money**, Operations and Clinical show **No access** on every row.
+* Under **Settings**, only Master Admin shows anything.
+
+**Critical checks.**
+* **There are no checkboxes here.** Every cell is a read-only mark. If any cell can be clicked, that is the bug — a tick that does not also change what the server allows is worse than no tick.
+* **It agrees with reality.** Pick any row showing access for a scope, sign in as that scope, and confirm the control is there. Pick any row showing none, and confirm both that the control is absent *and* that calling the route directly returns 403 (see `ADM-SET-027`).
+
+#### `ADM-SET-025b` — Suspend and restore a back-office account · P0
+
+**Steps**
+1. On **Settings → User Access → People**, note each admin's status chip (**Active** / **Suspended**).
+2. Suspend `qa.admin.ops@example.test`. Sign in as them.
+3. Restore them. Sign in again.
+4. Attempt to suspend **yourself**.
+5. Suspend every other Master Admin, then attempt to suspend the last one who can still sign in.
+
+**Expected Result.** Step 2: the row reads **Suspended**, and that account **cannot get in** — `getAdminUser` and the proxy both refuse an inactive admin, so a still-valid session cookie cannot POST an admin route either. Step 3: access returns. Step 4: refused with `You can't suspend your own access. Ask another Master Admin.` Step 5: refused — `This is the only Master Admin who can still sign in. Make someone else a Master Admin first.`
+
+**Critical checks.**
+* **The account is suspended, never deleted.** Their name still appears on every activity-log row they wrote. An account that could be deleted would take the record of what it did with it.
+* A suspended admin **stays listed**, with a note saying how many are suspended.
+* Only a **Master Admin** sees the Suspend button at all, and `POST /api/admin/set-admin-active` answers **403** to any other scope.
+
 #### `ADM-SET-026` — Create the three scoped admins · P0
 **Steps.** Create `qa.admin.ops@example.test` (Operations), `qa.admin.finance@example.test` (Finance), `qa.admin.clinical@example.test` (Clinical).
-**Expected Result.** Each is created with a one-time password shown once and **never logged**. Signing in as each shows only their allowed sections in the sidebar — Operations: Today, Sessions, People, Catalog. Finance: Today, People, Money. Clinical: Today, Sessions, People.
+**The Account type picker is one control, not two.** It lists six entries in two groups — **Clinic**: Patient, Therapist · **Back office**: Master Admin, Operations, Finance, Clinical — using the same four names the dashboards call themselves. There is no separate **Access level** dropdown; picking a back-office desk shows that desk's one-line description under the picker. As a **non-`full`** admin, the whole Back office group is **absent** (only a Master Admin may mint an admin, and `create-account` enforces that with a full-only check, not a section gate — see §2).
+**Expected Result.** Each is created with a one-time password shown once and **never logged**. Signing in as each shows only their allowed sections in the sidebar — Operations: Today, Sessions, People, Catalog. Finance: Today, **Sessions (read-only)**, People, Money. Clinical: Today, Sessions, People.
 
 #### `ADM-SET-026a` — Each scope opens on its own dashboard · P1
 There is one admin login (`/admin/login`) and one dashboard route; the scope decides what it opens on. Sign in as each of the four in turn and read the Today screen without tapping anything.
@@ -264,8 +316,8 @@ There is one admin login (`/admin/login`) and one dashboard route; the scope dec
 
 Three further checks, each one a bug this replaced:
 * **Every quick action lands somewhere.** Tap all of them for each scope. None may bounce to a different screen — a link into a section the scope cannot open silently falls back to the first allowed one, which looks like it worked.
-* **"Needs you" agrees with the list below it.** The figure counts only the queues in the **Queues** card beside it. Add up the badges; they must match. It must not count queues this scope cannot open.
-* **A limited scope gets a "Your access" card** under Queues, naming the sections it opens and the ones it does not. **Master Admin gets no such card** — nothing is withheld, so there is nothing to account for.
+* **"Needs you" agrees with the list below it.** The figure counts only the queues in the **Queues** card beside it. Add up the badges; they must match. It must not count queues this scope cannot open **or can only read** — a Finance admin's figure must exclude the session queues under Sessions, since nothing they can do would ever bring that number down.
+* **A limited scope gets a "Your access" card** under Queues, naming the sections it opens, the ones it can only **read** (Finance: Sessions — *nothing to change here*), and the ones it does not open at all. **Master Admin gets no such card** — nothing is withheld, so there is nothing to account for.
 
 #### `ADM-SET-027` — Scope is enforced at the route, not the sidebar · P0
 For each scoped admin, do **both**: navigate to a forbidden section by URL, **and** call a route in that section directly.
@@ -274,7 +326,8 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 | --- | --- | --- | --- |
 | Operations | `?section=money&tab=payouts` | `POST /api/admin/settle-therapist-payout` | Page falls back to an allowed screen; route **403** |
 | Operations | `?section=settings&tab=booking` | `POST /api/admin/update-setting` | Same |
-| Finance | `?section=sessions&tab=all` | `POST /api/admin/assign-appointment` | Same |
+| Finance | `?section=sessions&tab=all` — **reachable, read-only** | `POST /api/admin/assign-appointment` | Page **opens** and shows the list with no action buttons; route **403** |
+| Finance | `?section=sessions&tab=new` | `POST /api/admin/create-booking` | Tab is **not in the sidebar** and the URL falls back to an allowed screen; route **403** |
 | Finance | `?section=catalog&tab=packages` | `POST /api/admin/create-package` | Same |
 | Clinical | `?section=money&tab=summary` | `POST /api/admin/refund-package` | Same |
 | Clinical | `?section=settings&tab=team` | `POST /api/admin/set-admin-scope` | Same |
@@ -289,7 +342,7 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 **Expected Result.** **The refund control does not render** — a control an admin's scope cannot call must not be shown, or they get a 403 with nothing to explain it. The route returns **403**.
 
 #### `ADM-SET-029` — Contact controls · P1
-**Steps.** On **Settings → Team & Access**, change `contact_scan_mode` through `flag_and_block` → `flag_only` → `off`, and toggle `contact_masking_enabled`.
+**Steps.** On **Settings → User Access**, change `contact_scan_mode` through `flag_and_block` → `flag_only` → `off`, and toggle `contact_masking_enabled`.
 **Expected Result.** As per `THR-LEAK-006` and `THR-SESS-003`. Note the deliberate asymmetry: **`contact_scan_mode` fails open, `contact_masking_enabled` fails closed** — the safe answer to "I don't know" is opposite for the two, on purpose.
 This tab also surfaces the `communication_flags` and `contact_reveal_log` evidence, **read-only**.
 
@@ -334,18 +387,18 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 8 | Package price | Catalog → Packages | The patient's offer card and what is charged | Card and charge both move — **for new plans only** | `PAT-CARE-002` |
 | 9 | Package edited after purchase | Catalog → Packages | An existing purchase | **Nothing changes** — snapshot frozen | `ADM-CAT-006` |
 | 10 | Package min gap / max per week | Catalog → Packages | The bulk scheduler | Violating slots are refused | `ADM-CAT-007` |
-| 11 | Package default validity | Settings → Booking Rules | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
-| 12 | Bulk scheduler limit | Settings → Booking Rules | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
-| 13 | Therapist lock switch | Settings → Booking Rules | Auto-assignment of later package sessions | Off → later sessions are not auto-assigned | `ADM-SET-018` |
-| 14 | Therapist suggestions switch | Settings → Booking Rules | The suggest control and its route | Off → control absent, route 403 | `THR-SUGG-001` |
-| 15 | Ledger authority | Settings → Booking Rules | Six balance surfaces | All six follow together | `ADM-SET-019` |
+| 11 | Package default validity | Settings → Programmes & Home Visits | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
+| 12 | Bulk scheduler limit | Settings → Programmes & Home Visits | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
+| 13 | Therapist lock switch | Settings → Programmes & Home Visits | Auto-assignment of later package sessions | Off → later sessions are not auto-assigned | `ADM-SET-018` |
+| 14 | Therapist suggestions switch | Settings → Programmes & Home Visits | The suggest control and its route | Off → control absent, route 403 | `THR-SUGG-001` |
+| 15 | Ledger authority | Settings → Programmes & Home Visits | Six balance surfaces | All six follow together | `ADM-SET-019` |
 | 16 | Service area created/deleted | Catalog → Service Areas | `/book-home-visit` check; every purchase route | Serviceable ↔ waitlist | `ADM-CAT-010` |
 | 17 | Travel fee per area | Catalog → Service Areas | The quoted total and the therapist's payout | Total = programme + fee × visits | `PAT-CARE-003` |
-| 18 | Home visit master switch | Settings → Booking Rules | Seven surfaces + care-plan purchase | 404 / entries dropped / purchase refused | `ADM-SET-013` |
-| 19 | Cash on visit | Settings → Booking Rules | Step 4 option; `book-cash` | Option absent; route refuses | `PAT-HV-007` |
-| 20 | Home visit lead time | Settings → Booking Rules | The home-visit picker only | Online picker unchanged | `ADM-SET-014` |
-| 21 | Travel buffer minutes | Settings → Booking Rules | The locked therapist's conflict check | Padded both sides for visits, 0 for online | `ADM-SET-014` |
-| 22 | Home visit refund window | Settings → Booking Rules | The home-visit cancel dialog only | Online dialog unchanged | `PAT-CANCEL-003` |
+| 18 | Home visit master switch | Settings → Programmes & Home Visits | Seven surfaces + care-plan purchase | 404 / entries dropped / purchase refused | `ADM-SET-013` |
+| 19 | Cash on visit | Settings → Programmes & Home Visits | Step 4 option; `book-cash` | Option absent; route refuses | `PAT-HV-007` |
+| 20 | Home visit lead time | Settings → Programmes & Home Visits | The home-visit picker only | Online picker unchanged | `ADM-SET-014` |
+| 21 | Travel buffer minutes | Settings → Programmes & Home Visits | The locked therapist's conflict check | Padded both sides for visits, 0 for online | `ADM-SET-014` |
+| 22 | Home visit refund window | Settings → Programmes & Home Visits | The home-visit cancel dialog only | Online dialog unchanged | `PAT-CANCEL-003` |
 | 23 | Join window before/after | Settings → Booking Rules | Every join control | Goes live earlier/later everywhere | `ADM-SET-017` |
 | 24 | Session Completed cutoff | Settings → Booking Rules | Every join control on every role | All three read **Session Completed** together | `XR-CUTOFF-001` |
 | 25 | Google Meet toggle | Settings → Booking Rules | New online sessions' Meet link | No link; **home visit still gets an event** | `ADM-SET-017` |
@@ -354,9 +407,9 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 28 | Clinical question wording | Settings → Clinical Questions | The intake wizard | New wording; old answers untouched | `ADM-SET-020` |
 | 29 | Enabled condition types | Settings → Clinical Questions | The triage picker only | Removed from triage; existing charts render | `ADM-SET-020` |
 | 30 | Pain Map templates | Settings → Clinical Questions | The exam dialog | New questions per region | `ADM-SET-020` |
-| 31 | Admin scope | Settings → Team & Access | Every admin route and the sidebar | Route 403 + control hidden | `ADM-SET-027` |
-| 32 | Contact scan mode | Settings → Team & Access | Every cross-role free-text write | block → flag → none | `THR-LEAK-006` |
-| 33 | Contact masking | Settings → Team & Access | Therapist session cards | Masked ↔ plain; **fails closed** | `THR-SESS-003` |
+| 31 | Admin scope | Settings → User Access | Every admin route and the sidebar | Route 403 + control hidden | `ADM-SET-027` |
+| 32 | Contact scan mode | Settings → User Access | Every cross-role free-text write | block → flag → none | `THR-LEAK-006` |
+| 33 | Contact masking | Settings → User Access | Therapist session cards | Masked ↔ plain; **fails closed** | `THR-SESS-003` |
 | 34 | Risk signals on/off + thresholds | Today → Risk | The detector sweep | Sweep stops; thresholds change what fires | `ADM-RISK-003` |
 | 35 | Brand & contact details | Settings → Brand & Contact | Navbar, Footer, page metadata, splash fallback | All update | `ADM-SET-001` |
 | 36 | Walkthrough seconds | Settings → Public Site | The home page walkthrough | Pace changes; 0 = static | `ADM-SET-005` |

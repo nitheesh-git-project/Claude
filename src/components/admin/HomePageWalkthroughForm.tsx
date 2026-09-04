@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 
 // Mirrors the bounds /api/admin/update-setting enforces (and the check
 // constraint on the column). Stated here too so a bad value is caught

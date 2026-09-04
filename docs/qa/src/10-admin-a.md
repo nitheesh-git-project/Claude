@@ -233,7 +233,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Expected Result.** The booking records the full price as list price, the whole of it as the discount, and `promo_code` as the source — so **What discounting cost** includes it. Amount paid is **₹0** and there is no payment/transaction row, because no money moved. A free session that recorded nothing would make the giveaway invisible, which is the figure that decides whether the campaign continues.
 
 #### `ADM-INVITE-001` — Invites: the two halves · P1
-**Steps.** As a **Full** admin, open **Settings → Booking Rules → Patient invites**. Switch on, set the friend's welcome to ₹300 and the reward to ₹200, and save. Open a patient's dashboard.
+**Steps.** As a **Full** admin, open **Settings → Offers & Discounts → Patient invites**. Switch on, set the friend's welcome to ₹300 and the reward to ₹200, and save. Open a patient's dashboard.
 **Expected Result.** The panel previews the exact sentence the patient will read, and it says the reward arrives **once their friend has had a session** — not on a signup. The patient's dashboard shows their own code, formatted in two halves, with a copy button.
 
 #### `ADM-INVITE-002` — What an invite refuses · P0
@@ -257,7 +257,7 @@ The first band **renders even when empty**, saying so. A section that disappears
 
 **Feature.** A therapist's recommendation is a bill as well as a clinical note, and the clinic that carries it sees one before the patient is asked to pay it.
 
-**Preconditions.** `care_plan_requires_approval` is **on** (default, at Settings → Booking Rules). `THR-CARE-001` has been submitted.
+**Preconditions.** `care_plan_requires_approval` is **on** (default, at Settings → Programmes & Home Visits). `THR-CARE-001` has been submitted.
 
 **Steps**
 1. Open **Today → Overview** and read the Clinical group of the action inbox.
@@ -303,7 +303,7 @@ The first band **renders even when empty**, saying so. A section that disappears
 * The programmes offered in the change panel are **narrowed to that session's own condition**, exactly as on the therapist's own dialog.
 
 #### `ADM-CARE-007` — The switch · P1
-**Steps.** At **Settings → Booking Rules**, turn **Approve recommendations before the patient sees them** off. Have a therapist submit a recommendation.
+**Steps.** At **Settings → Programmes & Home Visits**, turn **Approve recommendations before the patient sees them** off. Have a therapist submit a recommendation.
 **Expected Result.** It publishes on save and the patient sees it immediately, exactly as before the review step existed. The therapist's panel copy changes to match. Turn it back on afterwards — the rest of the suite assumes the default.
 The setting **fails closed**: with the column unreadable, a submission is held rather than published. That is the opposite direction from `contact_scan_mode`, and deliberately so.
 
@@ -338,6 +338,17 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 #### `ADM-NEWB-001` — New Booking · P1
 **Steps.** Open **Sessions → New Booking**. Create a booking for `QA Patient A` with `QA Therapist A` at a chosen slot.
 **Expected Result.** The booking is created server-side with the same re-derivation as the patient route. **An admin has a lead-time override** (there is somebody on the phone arranging the exception) where the patient route has none. Missing fields are refused with `Missing appointmentId, therapistId, or slotDateTime` / `Choose a patient.` / `Choose a treatment category.` The booking is audited.
+**The date and time are the patient's own calendar**, not native date/time boxes: a month grid plus hour cells, opened on the earliest eligible slot. Ticking **Book inside the N-hour window anyway** re-opens the grid down to the current hour — the one thing this screen may do that `/book` may not — and the caption under it changes to say the lead-time rule does not apply. It still never offers a past slot.
+
+#### `ADM-CAL-001` — One calendar, everywhere a session time is chosen · P1
+
+**Steps.** Open each of these and compare the date grid and the hour cells: `/book` Step 1; the patient's package **bulk scheduler**; the home-visit bulk scheduler; the therapist's **Suggest next session**; admin **Sessions → New Booking**; admin **Reschedule / Reassign** on a session; admin **People → Partners → Patient Referrals → Pick a time**.
+**Expected Result.** All seven render the **same** control — same month grid, same weekday headers, same cell colours and states (available / selected / struck-through), same hour cells. Nothing on this list is a native `date`, `time` or `datetime-local` box, and nothing opens in a pop-up on the admin screens. The bulk schedulers additionally dot any day already holding a chosen slot; that dot outranks the today marker.
+**Where the lead time differs, and why:** `/book`, both bulk schedulers, Suggest and Assign-a-referral use the platform's 12-hour rule (home visits use their own, longer, setting). **Reschedule** uses zero — it moves a session that already exists, which is the admin override lane — and **New Booking** uses zero only while its override box is ticked. Zero never means "the past": no screen offers a slot before now.
+**The hour rule is enforced server-side too.** POST any of these with a slot carrying minutes (e.g. `…T18:52:00+05:30`) and it is refused **400** with `Sessions start on the hour. Pick a time like 6:00 or 7:00.`: `/api/appointments/create`, `/api/appointments/book-package-sessions`, `/api/admin/create-booking` (**including with the lead-time override ticked** — the override is about the lead time, never about landing between hours), `/api/admin/update-appointment`, `/api/admin/assign-referral`, `/api/therapist/suggest-session`, `/api/home-visit/book-visits`, `/api/home-visit/book-cash`, `/api/home-visit/verify`.
+**Critical check — the timezone:** the minute is read in the **booking's own** timezone, not the server's. 6 PM IST is 12:30 UTC, so a correct IST booking arrives as `…T12:30:00Z`; if that is refused, the check is reading UTC and every booking in the clinic is broken. Conversely `…T13:00:00Z` (6:30 PM IST) must be refused.
+**Deliberately not enforced at the consuming end:** `/api/patient/respond-suggestion` and `/api/patient/register-via-referral` book a slot somebody already agreed to, so a row created before this rule still books rather than being stranded.
+**Deliberately unchanged:** dates that are not session slots keep their native inputs — a report's date, a leave range, a schedule exception, a promo campaign's window, and every from/to range filter (Metrics, Costs, Activity Log, All Sessions, Payment History, Earnings, the Calendar tab's day). They have no hours and no lead time, and a grid whose greyed-out cells mean "too soon to book" would be lying on all of them.
 
 ---
 
@@ -374,6 +385,19 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 #### `ADM-PEOP-008` — Partners · P1
 Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **Update revenue share**, **Set active/inactive**, **Reset password**, **Referral capacity note**, and **Decline referral** (reason mandatory) all work and are audited.
 
+#### `ADM-REF-001` — Contacting a referred patient before the link goes out · P1
+
+**Steps.** Open **People → Partners → Patient Referrals** and read the card for the referral created in `HOS-REF-001`.
+**Expected Result.** Directly under the patient's name: their **phone number as a `tel:` link** and their **preferred language**, before the referring partner's name. That order is deliberate — an admin rings this patient to agree a time *before* the registration link is sent, so the number and the language they want to be spoken to in identify the referral rather than being detail about it. A referral taken before the phone field existed reads `No phone on file`; one with no language reads `Language not stated` — never a blank line.
+**Critical check:** the phone comes from its **own isolated query** (`patient_phone` is the newest column on `patient_referrals`), so a database missing that migration must lose the number on the card and nothing else — the capacity note beside it and the referral list itself must still render.
+
+#### `ADM-REF-002` — Assigning a referral uses the patient's own calendar · P0
+
+**Steps.** On a **Needs triage** referral, pick a therapist and open **Pick a time**.
+**Expected Result.** An inline compact month grid plus hour chips — **the same control and the same 12-hour lead-time rule as `/book` Step 1**, not a `datetime-local` box and not a pop-up. Today (and any hour inside the next 12) is **not clickable**; the picker opens on the earliest eligible slot with a time already chosen. Changing to a date that does not offer the chosen hour falls back to that day's earliest, never to a time the rule has just ruled out. The line under it reads `Earliest bookable time is 12 hours from now — the same rule the patient's own booking screen follows.`
+**Negatives:** `POST /api/admin/assign-referral` with a slot inside the window is refused with `The assigned slot must be at least 12 hours from now.` — the rule is re-checked server-side, not trusted from the browser. A card left open past the boundary is refused in the browser first with `That time is no longer far enough ahead. Pick a later slot.`
+**Unchanged:** therapist conflict detection, the home-visit travel buffer, the concurrent-assignment tiebreak and the registration link are all exactly as before.
+
 #### `ADM-PEOP-009` — Reset a password · P1
 **Steps.** Reset Patient A's password from the detail page.
 **Expected Result.** A new password is generated and shown **once**. **It is never written into the audit log's `details`** — the log is readable by every admin, so who reset what and when is the part with audit value. The patient can sign in with the new password and is prompted to change it.
@@ -395,11 +419,16 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 8. Optionally paste a **Cover Image URL**.
 9. Save.
 
-**Expected Result.** The category is created and appears on `/` and `/conditions` (allow for ISR if not on `next dev`), in the `/book` concern dropdown as `QA Back & Spine Care — ₹1,999 / 60 min`, and as an option when creating a package. The cover image is a **plain URL an admin pastes**, not a Storage upload, rendered through a plain `<img>`; a row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
+**Expected Result.** The category is created and appears **immediately** on `/` and `/conditions` — the create route invalidates both ISR-cached pages, so a five-minute wait is now a defect, not expected behaviour — in the `/book` concern dropdown as `QA Back & Spine Care — ₹1,999 / 60 min`, and as an option when creating a package. The cover image is a **plain URL an admin pastes**, not a Storage upload, rendered through a plain `<img>`; a row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
 **Negatives:** `Missing title, priceInr, or durationMinutes`; `Price must be a positive number`; `Session length must be a positive number of minutes`; `Order must be a number`.
 
 #### `ADM-CAT-002` — Edit, reorder, deactivate, delete a category · P1
-**Expected Result.** Editing the price changes what `/book` charges **for new bookings** and is re-derived server-side at booking time. Reordering changes the display order everywhere. Deactivating removes it from public surfaces and refuses new bookings against it (`That concern isn't available any more. Please pick another one.`) while **leaving existing appointments untouched**. Deleting a category referenced by a live purchase must not silently break that purchase.
+**Expected Result.** Editing the price changes what `/book` charges **for new bookings** and is re-derived server-side at booking time. Reordering changes the display order everywhere.
+
+**Reorder, in detail.** The up/down arrows rearrange the list **in the browser only** — nothing is written until **Save order** is tapped. That button is **always visible** and is **disabled until something has actually moved**; while there are unsaved moves the screen reads `Not saved yet — the public pages still show the old order.` beside an **Undo changes** link. Saving posts the whole list, renumbers it `1..n`, and shows `Order saved — live on the site.`
+**Critical check:** reload the tab after saving and confirm the new order **survives**, then open `/` and `/conditions` and confirm they show the same order **immediately** (the pages are ISR-cached, and the save invalidates them). A reorder that reverts on reload, or one the public pages ignore, is the P1 defect this case exists for — it was caused by a pairwise `display_order` swap that did nothing whenever two categories held the same number, which every category created without typing an **Order** did.
+**Negatives:** with two browser tabs open, add or delete a category in tab B, then Save order in tab A — refused with `The condition list changed while you were reordering it. Refresh and try again.`
+**Also:** creating a category now defaults **Order** to one past the last existing category, so a new condition appends rather than appearing first. Deactivating removes it from public surfaces and refuses new bookings against it (`That concern isn't available any more. Please pick another one.`) while **leaving existing appointments untouched**. Deleting a category referenced by a live purchase must not silently break that purchase.
 
 #### `ADM-CAT-005` — Create a session package · P0
 **Steps.** Create Package P1 exactly as specified in §8.11.

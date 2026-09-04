@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/useRouter";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { usePrompt } from "@/lib/usePrompt";
 
