@@ -2,17 +2,21 @@
 
 | | |
 | --- | --- |
-| **Report type** | Senior QA audit against the manual E2E test plan v1.0 |
-| **Subject** | Dr. Pooja's Physio — branch `claude/complete-e2e-testing-plan-910y5z` |
-| **Method** | Static source verification, then a **live run** against a disposable Supabase project with Razorpay test keys |
-| **Date** | 2 September 2026 |
-| **Verdict** | **Pass, after remediation.** **Eight** findings, all fixed — two of them found only by running the suite. `npm run verify` green (187 unit tests in 11 files, up from 153 in 9), **230 e2e cases executed**, and F-01 confirmed by measurement rather than inference. |
+| **Report type** | Senior QA audit against the manual E2E test plan — **second pass** |
+| **Subject** | Dr. Pooja's Physio — branch `claude/complete-e2e-testing-plan-ll8qet` |
+| **Method** | Pass 1 (2 Sep 2026): static verification plus a live run against a disposable Supabase project. Pass 2 (4 Sep 2026): re-verification against the current branch head, **static and executed only — no live environment was available**, and §2A is retained as the record of the earlier run |
+| **Date** | 4 September 2026 (first issued 2 September 2026) |
+| **Verdict** | **Pass, after remediation.** The eight findings of pass 1 were re-checked and all eight hold. Pass 2 raised **five** more — one of them the first pass's own fix applied too narrowly — and all five are fixed. `npm run verify` green: **384 unit tests in 23 files**, lint (including the realtime check) and a full production build. |
 
 ---
 
 ## 1. Scope — read this before anything else
 
-**This report began as a static audit, and became a partial live run.** The first pass had no running application and said so. The owner then confirmed a Supabase project as disposable, and §2A records what happened when the plan was actually executed against it: Step 0, 230 automated cases, the webhook suite and the anonymous-API sweep. **It is still not a complete execution of the plan** — the sections needing a browser with outbound network, a human at a payment widget, or a schema-apply token remain unrun, and §5 says which. Nothing here is reported as passing on the strength of reading code: every claim is either an EXECUTED result with its output, or a VERIFIED-SOURCE trace, or is marked NOT-VERIFIABLE.
+**This report has been through two passes, and the second one had no database.** Pass 1 began as a static audit and became a partial live run: the owner confirmed a Supabase project as disposable, and §2A records what happened when the plan was executed against it — Step 0, 230 automated cases, the webhook suite and the anonymous-API sweep.
+
+**Pass 2 (this issue) re-audited the current branch head with no live environment at all.** What it could do, it did: the four commands ran and their real output is quoted below; every pass-1 finding was re-checked against the code and schema that fix it; and the areas that changed since pass 1 — the Settings split, three access levels, the four scoped dashboards, the whole-hour slot rule, the category reorder, the promo/invite/free-booking paths — were traced afresh. **§2A is not re-run**, and nothing in it should be read as evidence about this branch's runtime behaviour; it stands as the record of what a live run established on 2 September.
+
+**It is still not a complete execution of the plan** — the sections needing a browser with outbound network, a human at a payment widget, or a schema-apply token remain unrun, and §5 says which. Nothing here is reported as passing on the strength of reading code: every claim is either an EXECUTED result with its output, or a VERIFIED-SOURCE trace, or is marked NOT-VERIFIABLE.
 
 What this report **is**: an audit of the same surface area by the two means that *are* available.
 
@@ -42,9 +46,10 @@ All four commands ran in this environment against the branch head.
 
 | Command | Result | Detail |
 | --- | --- | --- |
-| `npm install` | **PASS** | Dependencies resolved |
-| `npm run test` | **PASS** | **187 tests, 11 files, 0 failures** after remediation (153 in 9 before) |
-| `npm run lint` | **PASS** | Includes `check:realtime` |
+| `npm ci` | **PASS** | 507 packages, clean install |
+| `npm run test` | **PASS** | **384 tests, 23 files, 0 failures** (pass 1 ended at 187 in 11) |
+| `npm run lint` | **PASS** | Includes `check:realtime` — 40 subscribed tables, all published |
+| `npx tsc --noEmit` | **PASS** | No type errors, run after every change this pass made |
 | `npm run build` | **PASS** | Full production build; every route in the plan's route map appears in the build output |
 
 ### 2.1 Unit test detail
@@ -61,8 +66,10 @@ All four commands ran in this environment against the branch head.
 ✓ src/lib/adminSettings.test.ts           8 tests
 ✓ src/lib/riskSignals.test.ts             7 tests
 ✓ src/lib/consultationFirst.test.ts       4 tests
-Test Files  11 passed (11)     Tests  187 passed (187)
+Test Files  23 passed (23)     Tests  384 passed (384)
 ```
+
+The list above is pass 1's. Pass 2 re-ran the suite as it stands today: **23 files, 384 tests, 0 failures**, in 2.6 seconds. The growth from 187 is the work merged between the two passes — the discounts, promo-code, invite, checkout-quote, care-plan-review, admin-home and admin-scope modules all arrived with their own tests, which is the pattern the first pass asked for when it raised F-06.
 
 **What this covers, and what it does not.** These are the dependency-free modules in `src/lib` — the roster's range↔hour conversion, the home-visit price and payout maths, the contact-leak scanner's two tiers, phone/email masking, the settings parser, the care-plan rules and the consultation-first rule. That is genuine coverage of the business arithmetic the finance and clinical sections of the plan depend on.
 
@@ -71,7 +78,7 @@ It did **not** cover `adminMetrics.ts` — the module holding `moneyByBucketFor`
 ### 2.2 Realtime coverage check
 
 ```
-Realtime coverage OK — 38 subscribed table(s), all published.
+Realtime coverage OK — 40 subscribed table(s), all published.
 (1 published but unsubscribed: home_visit_purchase_events)
 ```
 
@@ -96,7 +103,7 @@ Each row names the plan section, the rule under audit, the evidence class, and w
 | One account, one role — a therapist cannot book | VERIFIED-SOURCE | `isPatientProfile` present in **exactly** the 5 routes the plan names: `appointments/create`, `razorpay/create-order`, `home-visit/create-order`, `home-visit/book-cash`, `care-plan/create-order` |
 | A payment **attempt** auto-approves a patient; home visits and standalone registration do not | VERIFIED-SOURCE | `approvePatientForGenuinePaymentAttempt` called in `razorpay/create-order` only |
 | `/api/appointments/create` gates on active, not approved | VERIFIED-SOURCE | Route uses `isProfileActive`, with the reasoning in its own header comment |
-| Every admin route guards with `requireAdminScope(section)` | **VERIFIED-SOURCE — with a correction** | **92 of 95** admin routes call `requireAdminScope`. Three use `getAdminContext` plus a **stricter** explicit check. See F-04 |
+| Every admin route guards with `requireAdminScope(section)` | **VERIFIED-SOURCE — with a correction** | Re-counted in pass 2: **99 of 102** admin routes call `requireAdminScope`, which asks for `manage`. The other three (`create-account`, `debug-reset`, `set-admin-scope`) use `getAdminContext` plus a **stricter** full-only check. See F-04 |
 | Only `full` may change scopes; nobody changes their own; the last `full` cannot be narrowed | VERIFIED-SOURCE | `set-admin-scope/route.ts` — all three guards present |
 | A generated password never reaches the audit log's `details` | VERIFIED-SOURCE | No password variable is passed into `recordAdminActivity` in any create/reset route |
 | Suspension is enforced against a live cookie | NOT-VERIFIABLE | Mechanism present; behaviour needs a session |
@@ -215,16 +222,50 @@ Each row names the plan section, the rule under audit, the evidence class, and w
 
 | Rule | Class | Evidence |
 | --- | --- | --- |
-| Six sections, 28 screens, one definition | VERIFIED-SOURCE | `adminNav.ts` and the page's `screens` map agree; all 28 keys present in both |
-| Every `AdminActivityAction` has a caller | **VERIFIED-SOURCE — clean** | All **46** actions traced to at least one calling route. `payout.settle` included |
+| Six sections, one definition | VERIFIED-SOURCE | `adminNav.ts` and the page's `screens` map agree. Pass 2 re-counted after the Settings split: **31 screens**, not the 28 of pass 1, and the plan said 28 in three places — see F-12 |
+| Every `AdminActivityAction` has a caller | **VERIFIED-SOURCE — clean** | All **76** actions traced to at least one calling route (53 before this pass added 23). `payout.settle` included |
+| Every **mutating admin route** records one | **WAS FALSE — now true** | 24 of the 99 mutating routes wrote nothing, including the route that changes a patient's sign-in email. See F-11 |
 | Audit log has a select policy and no insert policy | VERIFIED-SOURCE | `admin_activity_log_select_admin` only |
 | Every dashboard page selects the shared settings column list | VERIFIED-SOURCE | All seven dashboard pages plus the three role loaders use `SITE_SETTINGS_SELECT` |
 | The Session Completed cutoff reaches every role | VERIFIED-SOURCE | `completedAfterMinutes` passed by all four shells **and** both admin detail contents — 8 call sites |
 | All Sessions row cap | **PLAN WAS WRONG — corrected** | No cap; `usePagedList` with `DEFAULT_PAGE_SIZE = 10`. See F-05 |
 
+
+### 3.12 Surfaces that arrived after pass 1
+
+Everything in this table was traced for the first time in pass 2, because it did not exist — or did not have this shape — when the first audit ran.
+
+| Rule the plan asserts | Class | Evidence |
+| --- | --- | --- |
+| Access has **three** levels per `(scope, section)`, and `requireAdminScope` asks for `manage` | VERIFIED-SOURCE | `requireAdmin.ts:97` — `if (!scopeCanManage(context.scope, section)) return null`. So a section granted at `view` is read-only at all 99 guarded routes without one of them being edited |
+| Finance reads Sessions and cannot change one | VERIFIED-SOURCE | `adminScope.ts:98` — `sessions: "view"` under the finance scope; the only `view` grant in the table |
+| The User Access matrix is **derived**, never a second list | VERIFIED-SOURCE | `AdminUserAccessTab` renders `ADMIN_CAPABILITY_GROUPS` against `sectionAccess`; `adminScope.test.ts` holds the grid's four invariants |
+| Each scope opens on its own Today screen, decided in one module | VERIFIED-SOURCE | `adminHome.ts` returns greeting, figures, actions, queue order and access note; `adminHome.test.ts` asserts the two invariants over all four scopes |
+| A slot starts on the hour, refused at every door that writes one | VERIFIED-SOURCE | `isWholeHourSlot` imported by exactly **9** route handlers — the nine the plan names — and by no component that could be bypassed |
+| Ordering a list is one save of the whole list | VERIFIED-SOURCE | `/api/admin/reorder-treatment-categories` refuses a partial list, **and** `set_treatment_category_order()` raises `check_violation` on one itself, so the SQL editor and the service-role client cannot renumber a subset either |
+| One resolution, three callers, and zero is free | VERIFIED-SOURCE | `checkoutQuote.ts` is imported by `appointments/quote`, `razorpay/create-order` and `appointments/confirm-free`, and by nothing else that prices a booking |
+| A promo code is an identifier; the cap holds under a row lock | VERIFIED-SOURCE | `claim_promo_code()` opens `select … for update`; the claim lives on `appointments.promo_code_id`, with no second redemptions table to disagree with it |
+| The capture path is still single | VERIFIED-SOURCE | `record_payment_capture` reached through `recordPaymentCapture.ts` from the three verify routes and the webhook — 9 references, no fourth fulfilment path |
+| The webhook verifies the **raw** body | VERIFIED-SOURCE | `webhook/route.ts:50` — `await request.text()`, never a re-serialised parse |
+
+### 3.13 Structural sweeps run this pass
+
+Cheap whole-repository checks, each one a rule this codebase states somewhere and each one re-runnable.
+
+| Sweep | Result |
+| --- | --- |
+| Every table has RLS enabled | **53 / 53.** Four (`appointment_reassignment_log`, and the three `*_admin_notes`) have RLS on and **no policy at all** — deny-all to any browser session, reachable only by the service role. That is the intended shape for a server-only table, not a gap |
+| Every `alter publication … add table` is wrapped in the duplicate-object `do` block | **42 / 42.** A re-run of `schema.sql` cannot fail on a publication line |
+| Every table created after the last `debug_reset_all_data` is in its `TRUNCATE` | **Clean.** The only tables outside the list are `profiles`, `site_settings` and `risk_rules`, all three deliberate — the first is what the reset preserves, the other two are reset to defaults rather than emptied |
+| No route parses the request body before authenticating | **0 of the 160 route handlers**, after F-10 |
+| No mutating admin route is unaudited | **0 of 99**, after F-11 |
+| Every test ID the plan references is defined | **Clean**, after F-12 — the four remaining `SETUP-*` names are documented aliases, not test cases |
+
 ---
 
 ## 2A. Live run against a real environment
+
+> **This section is pass 1's record, dated 2 September 2026, and was not re-run in pass 2.** No live environment was available for the second pass, so nothing below is evidence about the current branch head — read it as what a live run established about the product on that date, against a database that did **not** have this branch's schema applied. The pass-2 re-verification is in §3 and §4.
 
 The audit above was written without a running application. It has since been **executed** against a disposable Supabase project the owner confirmed as throwaway, with a `next dev` server, Razorpay test-mode keys and a locally-signed webhook secret. This section records what actually happened.
 
@@ -320,9 +361,26 @@ The dedup key falls back to `<event type>:<payment id>` when the header is absen
 
 ## 4. Findings
 
-Six findings. Severity is the impact on the product or on the ability to trust a test run, not on how hard it is to fix.
+Thirteen findings across two passes. Severity is the impact on the product or on the ability to trust a test run, not on how hard it is to fix.
 
-**All six are fixed.** Each entry below keeps the finding as written, and ends with what was changed. The unit suite went from **153 tests in 9 files to 187 in 11**, and `npm run verify` (lint + tests + build) is green on the result.
+**All thirteen are fixed.** Each entry keeps the finding as written and ends with what was changed. Pass 1 took the unit suite from **153 tests in 9 files to 187 in 11**; the branch now stands at **384 in 23**, and `npm run verify` (lint + tests + build) is green.
+
+### 4.0 Pass-2 regression check on the pass-1 findings
+
+Every fix from 2 September was re-checked against the current head. **All eight hold**, and the two that could regress silently were re-checked by sweep rather than by eye.
+
+| # | Fix | Still in place? | How it was re-checked |
+| --- | --- | --- | --- |
+| F-01 | Reset clears the care-plan, evidence and risk tables | **Yes** | The `TRUNCATE` list at the last `debug_reset_all_data` names 50 tables; a sweep of every `create table` in the file found **no table created after that definition missing from the list**. `risk_rules` is still reset-to-defaults rather than emptied |
+| F-02 | `risk_reviews.reviewer_id` nullable | **Yes** | `alter table risk_reviews alter column reviewer_id drop not null` present — **but the same mistake reappeared in a newer table.** See F-09 |
+| F-03 | `pain_assessments` append-only by trigger | **Yes** | `pain_assessments_no_change` still attached `before update or delete` |
+| F-04 | Plan corrected on the scope guard | **Yes, but the numbers moved** | 99 of 102 now, not 92 of 95; corrected in this issue and in the plan |
+| F-05 | Plan corrected on the All Sessions row cap | **Yes** | The plan describes `ListPager`, not a cap |
+| F-06 | `adminMetrics.test.ts` | **Yes** | 24 tests, re-run this pass and passing |
+| F-07 | `therapist_schedule_state` subscribed and published | **Yes** | `check:realtime` passes: 40 subscribed tables, all published |
+| F-08 | Auth hoisted above body validation | **Only in the eleven routes the probe hit.** See F-10 | A static sweep of all 160 handlers found **28** still parsing before authenticating |
+
+The last row is the finding worth reading twice: a fix applied to the instances a probe happened to reach, rather than to the class, leaves the rule looking enforced.
 
 | # | Finding | Severity | Status |
 | --- | --- | --- | --- |
@@ -334,6 +392,11 @@ Six findings. Severity is the impact on the product or on the ability to trust a
 | F-06 | The revenue split had no unit test | P1 (risk) | **Fixed** — `adminMetrics.test.ts`, 24 tests |
 | F-07 | A table the dashboard reads was never subscribed or published | P2 | **Fixed** — found by the repo's own test during the live run |
 | F-08 | 11 routes validated the body before checking authentication | P3 | **Fixed** — auth hoisted above validation |
+| F-09 | `care_plan_reviews.reviewer_id` repeats the F-02 contradiction | P3 | **Fixed** — column made nullable |
+| F-10 | F-08 was fixed in 11 routes, not in the class; 28 still parsed before authenticating | P3 | **Fixed** — hoisted in all 28, sweep now returns 0 |
+| F-11 | 24 mutating admin routes wrote no audit row at all | P2 | **Fixed** — 23 new actions, one per route, sweep now returns 0 |
+| F-12 | The test plan referenced five test IDs that were never written, quoted one error string that had changed, and miscounted the admin screens | P2 | **Fixed** — cases written, quotes and counts corrected |
+| F-13 | The therapist Overview's primary quick action was a dead anchor | P2 | **Fixed** — points at the route |
 
 ---
 
@@ -500,6 +563,107 @@ That makes this an **ordering** defect, not a hole — which is why it is P3 and
 
 ---
 
+### F-09 — `care_plan_reviews.reviewer_id` repeats the contradiction F-02 removed · **P3** · **Fixed**
+
+**Area.** Plan §14.2, `ADM-CARE-004`. **Class.** VERIFIED-SOURCE.
+
+**Evidence.** `schema.sql:7309`, in a table written **after** F-02 was fixed:
+
+```
+reviewer_id uuid not null references profiles(id) on delete set null,
+```
+
+Pass 1 said of the identical line in `risk_reviews`: *"A scan of the whole schema found this is the only occurrence of the pattern."* It was, on 2 September. The care-plan review step then shipped, its table was written from the older one, and the pattern came back — which is the ordinary way a fixed defect returns: not by being undone, but by being copied from something that predates the fix.
+
+**Why it matters.** The two clauses cannot both hold. Deleting the referenced profile makes Postgres attempt a null write the `NOT NULL` refuses, so the **delete raises** and the reference is never cleared. The failure surfaces far from here — as an unrelated account deletion aborting with a message naming a table the person deleting has never heard of.
+
+**Reachability is narrower than F-02's**, which is why this is P3 rather than P2: `care_plan_reviews` **is** in the reset's `TRUNCATE` list and is emptied before `delete from auth.users` runs, so the standard reset path cannot hit it. It needs an admin profile deleted outside a reset — and this product suspends rather than deletes, deliberately, so that is a hand-run statement rather than a screen.
+
+**Fix.** `alter table care_plan_reviews alter column reviewer_id drop not null`, appended at the end of `schema.sql` in the file's own guarded, append-only style, with the reasoning in a comment above it. Nullable is the intended reading, exactly as for `risk_reviews` and `communication_flags.author_id`: a decision outlives the person who made it, the reviewer's name is resolved at render time, and the row itself is still unrewritable because `care_plan_reviews_no_change` refuses every update and delete.
+
+**Retest.** `ADM-CARE-004` is unchanged in behaviour. The storage-layer check is a scratch-database `alter`, then `delete from profiles where id = '<a reviewer>'` — it must not raise.
+
+---
+
+### F-10 — F-08 was fixed in the eleven routes a probe reached, not in the class · **P3** · **Fixed**
+
+**Area.** Plan §18.2, `SEC-ROUTE-002`. **Class.** VERIFIED-SOURCE (pass 1's evidence was EXECUTED; no server was available this pass).
+
+**What was found.** Pass 1 called 25 routes with no cookie, found 11 that answered a body-validation `400` instead of a refusal, and hoisted the auth check above validation in those eleven. A static sweep of **all 160** route handlers this pass — comparing the line at which the body is first parsed against the line of the first authentication call — found **28** routes still parsing first, of which **23** return a `400` before anyone has been identified. Among them: `therapist/set-on-leave`, `therapist/session-notes/submit`, `therapist/pain-assessments/submit`, `patient/medical-documents/delete`, `home-visit/verify` and `care-plan/verify`.
+
+**Severity is unchanged from F-08, and for the same reason.** Authentication was still enforced before anything was written in every one of the 28; nothing could be done anonymously and nothing leaked beyond the shape of the request. It is an ordering defect. What makes it worth its own entry is not the severity but the **shape of the pass-1 fix**: the eleven were the instances the probe happened to reach, and fixing instances rather than the class leaves a rule that looks enforced — the sweep, not the probe, is what says whether it is.
+
+**Fix.** The `createClient` / `getUser` / `if (!user)` block hoisted to the first statement of the handler in all 28, each carrying the same comment pass 1 wrote for the first eleven. `npx tsc --noEmit`, `npm run lint`, 384 unit tests and a full production build are green on the result, and the sweep now returns **0 of 160**.
+
+**Retest.** `SEC-ROUTE-002`, extended: call **every** POST handler with no cookie and an empty body, and assert none answers `400`. That sweep is cheap enough to be the regression test this finding needs.
+
+---
+
+### F-11 — A quarter of the mutating admin routes wrote no audit row, including the one that changes a patient's sign-in email · **P2** · **Fixed**
+
+**Area.** Plan §15.3, `ADM-SET-033`. **Class.** VERIFIED-SOURCE.
+
+**What the codebase promises.** `AGENTS.md` states it without qualification: *"Every mutating admin route records what happened via `recordAdminActivity()` … Adding an action without a caller, or a mutating route without a call, puts the log back where it was."* Pass 1 checked one half of that rule — every declared action has a caller — and found it clean. It did not check the other half.
+
+**What was found.** Of the 102 admin route handlers, three are reads (`export-pdf`, `package-purchase-detail`, `home-visit-purchase-detail`). Of the 99 that write, **24 recorded nothing at all**:
+
+| Route | What it changes with no trace |
+| --- | --- |
+| `update-patient-contact`, `update-therapist-contact` | The email that **gates sign-in** — the route updates `auth.users` as well as `profiles` |
+| `update-patient-notes`, `update-therapist-notes`, `update-therapist-display-content` | Internal notes and public write-ups |
+| `set-therapist-team-visibility`, `set-therapist-rating-visibility`, `set-ratings-visible-publicly` | Whether a clinician and the clinic's ratings appear on the public site |
+| `clear-session-rating`, `exclude-session-rating` | A rating, and therefore the public average |
+| `update-home-visit-address` | **Where a therapist is sent** |
+| `condition-access/decide`, `condition-requests/decide`, `condition-requests/direct-edit` | Who may read a patient's record, and what it says |
+| `pain-assessments/submit` | A clinical exam, written by an admin |
+| `intake-questions/update`, `pain-map-questions/update` | The wording of the clinical instruments themselves |
+| `review-risk-signal` | A decision about a colleague |
+| `open-meet-access`, `retry-meet-sync` | A session's meeting |
+| `update-lead-status`, `update-home-visit-waitlist-status`, `set-referral-capacity-note` | Queue state |
+| `debug-reset` | **The whole database** |
+
+Several have a private trail of their own — `condition_change_requests` records its reviewer, `risk_reviews` is append-only — but none of them reaches the one log an admin can read across every screen, which is exactly what "who changed this?" is asked of.
+
+**Why P2.** No money moves through any of these, which is why it is not higher. But the audit log exists because *"a refund, a payout settlement or a cash-remittance confirmation was unattributable the moment more than one person had admin access"* — and by that reasoning, a patient's sign-in email being changed by one of four admins with no record is the same failure in a place that decides whether somebody can get into their own account.
+
+**Fix.** 23 new actions on `AdminActivityAction`, one `recordAdminActivity` call per route, placed after the write and after any compare-and-swap, best-effort as the rule requires. `ADMIN_ACTIVITY_LABELS` is a `Record<AdminActivityAction, string>`, so the compiler refused the change until every new action had a human label — the mechanism the file's own comment describes, working. Two placements are deliberate rather than mechanical: `retry-meet-sync` logs only on the branch that actually created an event, not on the no-op return for an appointment that already had a link; and `debug-reset` logs **after** the wipe, because the wipe truncates `admin_activity_log` and a row written before it would be erased by the action it describes. The sweep now returns **0 of 99**.
+
+**Retest.** `ADM-SET-033`, which gained a step 2a naming ten of the newly-logged actions, and an assertion that a freshly reset database's log holds exactly one row: `Reset all data`.
+
+---
+
+### F-12 — The plan referenced five test cases that were never written · **P2** · **Fixed**
+
+**Area.** The plan itself (§3, §7.4, §24). **Class.** VERIFIED-SOURCE.
+
+**What was found.** Cross-referencing every test ID the plan *cites* against every ID it *defines*: `PAT-DASH-001`, `PAT-DASH-002`, `THR-DASH-001` and `THR-PROF-001` are named as the coverage for four routes in the §3 route map and are defined nowhere, and `PAT-SESS-005` is named in the simulated-clock scenario table. A route map whose rightmost column names a test that does not exist is worse than a blank cell: **it reads as covered**, and the four routes in question are the landing screens every signed-in session starts on.
+
+Three smaller documentation defects came out of the same pass:
+
+* The plan quoted `complete-session`'s refusal as *"You can mark this done once the session's join window has opened."* The route says *"This session hasn't started yet. You can mark it done once it's under way."* A tester matching the quoted string would file a defect against correct behaviour.
+* The Settings split and the User Access rename took the admin dashboard to **31** screens. The §3.6 table lists all 31; its heading and both coverage lines in §24 still said 28, and the Offers & Discounts row pointed at `ADM-SET-016`, which is the sign-out banner.
+* `SEC-API-*` was cited as a family of API-level security tests. No such family exists; those calls live in `SEC-ROUTE-002`, `SEC-ADMIN-002` and `SEC-TAMPER-*`.
+
+**Fix.** The four missing cases written click-by-click — the patient Overview and booking hub, the therapist Overview and Edit Profile — `PAT-SESS-005` repointed at `PAT-SESS-003`, the error string corrected, the counts and the mapping fixed, and `ADM-PEOP-003` rewritten at step level while its screen was open. The plan now defines **358** cases and every ID it references resolves.
+
+**Retest.** The cross-reference itself: extract every `` `XXX-YYY-NNN` `` the sources cite and every one they define; the difference must be empty but for the four documented `SETUP-*` aliases.
+
+---
+
+### F-13 — The therapist Overview's primary quick action was a dead link · **P2** · **Fixed**
+
+**Area.** Plan §12.1a, `THR-DASH-001`. **Class.** VERIFIED-SOURCE.
+
+**What was found.** Writing the missing `THR-DASH-001` found what it exists to catch. The therapist Overview's first and only `primary` quick action, **Set your availability**, pointed at `/therapist/dashboard#availability` — an anchor from when the dashboard was one long scrolled page. Availability became its own route when the dashboards were split, and `dashboardNavItems.ts` has pointed at `/therapist/dashboard/availability` ever since. The action reloaded Overview and did nothing.
+
+**Why P2 for a one-line fix.** It is the primary call to action on the screen a therapist lands on, for the one task the clinic most needs them to do — an empty roster is why sessions sit unassigned. It also fails silently: the page reloads, so it reads as a slow app rather than a broken link, which is why it survived. `AGENTS.md` names this exact failure mode for admin `?section=&tab=` links (*"a stale link looks like it works — it just quietly lands somewhere else"*); the same hazard applies to any hand-written dashboard href, and this is the only one left in the four dashboards.
+
+**Fix.** The href points at the route, with a comment saying why the anchor form is wrong here. A sweep for `href: "/<role>/dashboard#…"` across all four dashboards returns nothing else.
+
+**Retest.** `THR-DASH-001` step 7: the tap must land on `/therapist/dashboard/availability` with the weekly schedule editor on screen.
+
+---
+
 ## 5. What only a live run can establish
 
 The following are **NOT-VERIFIABLE** here and carry real residual risk. They are the areas to run first when an environment exists.
@@ -514,14 +678,18 @@ The following are **NOT-VERIFIABLE** here and carry real residual risk. They are
 | **Copy fidelity** | The plan quotes route-handler strings verbatim; where a component re-words one before display, only a browser will show which the user sees |
 | **RLS behaving as written** | Policies exist in the file. Whether the live project has them applied is a different question — and the schema-apply workflow is the only thing that closes it |
 | **The reset actually running** | F-01 was found by reading the function. It should be confirmed by running it and counting rows |
+| **The audit rows F-11 adds** | The 23 new `recordAdminActivity` calls compile and are placed after their writes. Whether each one lands a readable row is `ADM-SET-033` step 2a, and needs a database |
+| **The 28 hoisted routes still behaving** | Type-checked, linted, built and unit-tested. The five spec files covering them were **not** re-run this pass — there was no server to run them against — so `SEC-ROUTE-002` and the therapist/patient specs are the first thing to run when one exists |
 
 ---
 
 ## 6. Verdict and recommended sequence
 
-**Pass, after remediation.** The invariants the plan cares most about — the capture path, the ledger constraints, the append-only triggers, the split identities, the scope guards, the audit-log coverage — are all genuinely implemented where the plan says they are. **All six findings are fixed**, including the two documentation defects in the plan itself, and `npm run verify` is green on the result.
+**Pass, after remediation, on both passes.** The invariants the plan cares most about — the capture path, the ledger constraints, the append-only triggers, the split identities, the scope guards, the whole-hour rule, the single checkout quote — are all genuinely implemented where the plan says they are. **All thirteen findings are fixed**, including the three documentation defects in the plan itself, and `npm run verify` is green: 384 unit tests in 23 files, lint, and a full production build.
 
-**One thing still needs a person, not a commit.** The schema changes here — the redefined reset function, the nullable `reviewer_id`, the new trigger, and the `auto_assign_therapist_enabled` column — reach a live database only when `supabase/schema.sql` is applied, either by hand with `node scripts/run-schema.mjs` or by the schema-apply workflow on a push to `main`. **Until that runs, the fixes exist in the file and not in the database**, which is the exact failure mode the schema conventions warn about: the app looks fixed in review and still behaves the old way in production. Apply it, then re-run `SETUP-RESET-001` and confirm the two counts come back zero.
+**What pass 2 changes about how to read this report.** Two of its five findings are the same shape: a rule that *was* fixed, in the instances somebody looked at. F-08's ordering fix reached the eleven routes a probe called, and 28 others kept the old order; F-02's schema fix was correct and a table written afterwards copied the pre-fix pattern. Neither was a regression in the ordinary sense — nothing was undone — and neither would have been caught by re-running the check that found it the first time. **The sweeps in §3.13 are the answer to that**, and they are cheap: each one is a few lines of static analysis over the whole repository, and each is worth re-running before every release rather than once per audit.
+
+**One thing still needs a person, not a commit.** The schema changes across both passes — the redefined reset function, the two nullable `reviewer_id` columns, the `pain_assessments` trigger, the `auto_assign_therapist_enabled` column and everything the branch has added since — reach a live database only when `supabase/schema.sql` is applied, either by hand with `node scripts/run-schema.mjs` or by the schema-apply workflow on a push to `main`. **Until that runs, the fixes exist in the file and not in the database**, which is the exact failure mode the schema conventions warn about: the app looks fixed in review and still behaves the old way in production. Apply it, then re-run `SETUP-RESET-001` and confirm the two counts come back zero.
 
 **Then run, in this order:** the §16.3 payment-integrity sweep (highest value per hour, and entirely unverifiable statically), the §21 cross-role checks (they catch disagreements no single-role test can), then the §18 security sweep at the route level, then everything else in the plan's own recommended order.
 
@@ -639,3 +807,20 @@ A product review that only lists changes misrepresents the system. These are loa
 * **Evidence tables append-only by trigger, not RLS.** Every route writes with the service role, which bypasses RLS entirely; a record the evidenced party could edit is not evidence. The distinction is subtle and correct.
 * **A flag is never an accusation.** The risk queue deliberately carries no action buttons, and stores the row ids behind a finding rather than a score. That is what makes running heuristics over clinical data defensible at all.
 * **The roster does not filter the patient's picker.** It reads like an omission and is a decision. Anyone proposing to "fix" it is proposing a product change with a deploy-sized blast radius.
+
+
+---
+
+### 7.10 Where the pass-1 recommendations stand (checked 4 September 2026)
+
+| Item | Then | Now |
+| --- | --- | --- |
+| 7.1 The funnel stalls on a manual admin step | Every paid session waited for an admin to assign a therapist | **Shipped.** `autoAssignTherapist.ts` assigns when exactly one rostered, approved, un-clashing therapist is free — or when the patient's own requested therapist is among them — from both payment-confirmation paths, gated by `auto_assign_therapist_enabled` and failing closed. **Still off by default**, which is right for its first release and is now the thing to put a date on |
+| 7.2 Conversion depends on a therapist remembering | Nothing prompted a recommendation after a session | **Partly shipped.** The therapist's Overview counts notes owed and the feed carries a `needsYou` item; the clinic's review queue ages in words and colours anything past four hours. There is still no prompt that says "this patient finished a consultation and has no recommendation" |
+| 7.3 Payment reassurance two failures late | Reassurance at three failures | **Shipped**, at the first |
+| 7.4 A missing webhook secret loses money silently | Nothing reported it | **Shipped** — the Payment Confirmations panel on System Health |
+| 7.5 Time-based work happens only when an admin looks | Lazy sweeps at render | **Unchanged, and still correct for this deployment.** Worth revisiting only if a scheduler ever exists |
+| 7.6 Patient approval may no longer earn its keep | A queue in front of every new patient | **Still open** — a product decision |
+| 7.7 Two features built and dark | Suggestions and the ledger both defaulted off | **Half resolved.** `therapist_suggestions_enabled` now defaults **true** on a fresh database (an established clinic keeps its stored value until an admin toggles it). `entitlement_ledger_authoritative` is **still false**, and the parallel-write period is still the risky state rather than the destination — this is the one item on the list that has been waiting longest and costs the most to keep waiting |
+
+**The one new item this pass adds** is not a feature: it is that two of the five findings were fixed-then-recurred (F-09, F-10), and the cheapest defence is the sweep set in §3.13 run before a release rather than a rule written in a document. A rule catches the people who read it; a sweep catches the code.

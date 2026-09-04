@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // The global kill-switch: off means no rating numbers show on /team or the
 // homepage for ANY therapist, regardless of that therapist's own
@@ -36,6 +37,13 @@ export async function POST(request: NextRequest) {
   revalidatePath("/");
   revalidatePath("/mission");
   revalidatePath("/team");
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "setting.update",
+    details: { setting: "ratings_visible_publicly", visible },
+  });
 
   return NextResponse.json({ success: true, visible });
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Wipes the database back to "a fresh install with your admin accounts".
 //
@@ -72,6 +73,14 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Written *after* the wipe on purpose: the reset truncates
+  // admin_activity_log, so a row recorded before it would be erased by the
+  // very action it describes. Who emptied the database, and when, is the
+  // one fact that has to survive it.
+  await recordAdminActivity(admin, context.id, {
+    action: "data.reset",
+  });
 
   const result = (data ?? {}) as { admins_kept?: number; accounts_deleted?: number };
   return NextResponse.json({

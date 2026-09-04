@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isPainMapRegion, getDefaultQuestionsForRegion } from "@/lib/painMap";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Admin overrides one Pain Map question's wording for a region. Only
 // question_text is editable — input type and display order stay
@@ -50,6 +51,13 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "clinical_questions.update_pain_map",
+    details: { region, questionKey },
+  });
 
   return NextResponse.json({ success: true });
 }

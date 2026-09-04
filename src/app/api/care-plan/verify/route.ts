@@ -19,6 +19,18 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 // their advice opens a NEW plan rather than editing this one, because
 // editing it would change the description of something already paid for.
 export async function POST(request: NextRequest) {
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+
   const { data: body, error: parseError } = await parseJsonBody<{
     purchaseId?: string;
     offerKind?: string;
@@ -33,14 +45,6 @@ export async function POST(request: NextRequest) {
 
   if (!purchaseId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
     return NextResponse.json({ error: "Missing payment details" }, { status: 400 });
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
   const admin = createAdminClient();

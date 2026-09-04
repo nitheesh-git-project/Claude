@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { questionKeysForSpecialty } from "@/lib/conditionIntake";
 import { isConditionSpecialty } from "@/lib/conditionSpecialty";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Admin overrides one Patient Care Intake question's wording and/or
 // required-ness. Both are saved together per question (one editor row =
@@ -56,6 +57,13 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "clinical_questions.update_intake",
+    details: { specialty, questionKey },
+  });
 
   return NextResponse.json({ success: true });
 }

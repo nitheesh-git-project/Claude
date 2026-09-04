@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { openMeetAccessForAppointment } from "@/lib/googleCalendarSync";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Turns the waiting room off on one session whose Meet space is still
 // TRUSTED -- the Fix button beside the Waiting Room panel on Settings ->
@@ -68,6 +69,13 @@ export async function POST(request: NextRequest) {
   });
 
   if (opened) {
+    // Who reopened the door on this session. Best-effort and after the
+    // write, per the audit-log rule in AGENTS.md.
+    await recordAdminActivity(admin, adminUser.id, {
+      action: "session.open_meet_access",
+      targetId: appointmentId,
+    });
+
     return NextResponse.json({ success: true });
   }
 

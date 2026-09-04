@@ -13,7 +13,7 @@ Each row names the plan section, the rule under audit, the evidence class, and w
 | One account, one role — a therapist cannot book | VERIFIED-SOURCE | `isPatientProfile` present in **exactly** the 5 routes the plan names: `appointments/create`, `razorpay/create-order`, `home-visit/create-order`, `home-visit/book-cash`, `care-plan/create-order` |
 | A payment **attempt** auto-approves a patient; home visits and standalone registration do not | VERIFIED-SOURCE | `approvePatientForGenuinePaymentAttempt` called in `razorpay/create-order` only |
 | `/api/appointments/create` gates on active, not approved | VERIFIED-SOURCE | Route uses `isProfileActive`, with the reasoning in its own header comment |
-| Every admin route guards with `requireAdminScope(section)` | **VERIFIED-SOURCE — with a correction** | **92 of 95** admin routes call `requireAdminScope`. Three use `getAdminContext` plus a **stricter** explicit check. See F-04 |
+| Every admin route guards with `requireAdminScope(section)` | **VERIFIED-SOURCE — with a correction** | Re-counted in pass 2: **99 of 102** admin routes call `requireAdminScope`, which asks for `manage`. The other three (`create-account`, `debug-reset`, `set-admin-scope`) use `getAdminContext` plus a **stricter** full-only check. See F-04 |
 | Only `full` may change scopes; nobody changes their own; the last `full` cannot be narrowed | VERIFIED-SOURCE | `set-admin-scope/route.ts` — all three guards present |
 | A generated password never reaches the audit log's `details` | VERIFIED-SOURCE | No password variable is passed into `recordAdminActivity` in any create/reset route |
 | Suspension is enforced against a live cookie | NOT-VERIFIABLE | Mechanism present; behaviour needs a session |
@@ -132,9 +132,41 @@ Each row names the plan section, the rule under audit, the evidence class, and w
 
 | Rule | Class | Evidence |
 | --- | --- | --- |
-| Six sections, 28 screens, one definition | VERIFIED-SOURCE | `adminNav.ts` and the page's `screens` map agree; all 28 keys present in both |
-| Every `AdminActivityAction` has a caller | **VERIFIED-SOURCE — clean** | All **46** actions traced to at least one calling route. `payout.settle` included |
+| Six sections, one definition | VERIFIED-SOURCE | `adminNav.ts` and the page's `screens` map agree. Pass 2 re-counted after the Settings split: **31 screens**, not the 28 of pass 1, and the plan said 28 in three places — see F-12 |
+| Every `AdminActivityAction` has a caller | **VERIFIED-SOURCE — clean** | All **76** actions traced to at least one calling route (53 before this pass added 23). `payout.settle` included |
+| Every **mutating admin route** records one | **WAS FALSE — now true** | 24 of the 99 mutating routes wrote nothing, including the route that changes a patient's sign-in email. See F-11 |
 | Audit log has a select policy and no insert policy | VERIFIED-SOURCE | `admin_activity_log_select_admin` only |
 | Every dashboard page selects the shared settings column list | VERIFIED-SOURCE | All seven dashboard pages plus the three role loaders use `SITE_SETTINGS_SELECT` |
 | The Session Completed cutoff reaches every role | VERIFIED-SOURCE | `completedAfterMinutes` passed by all four shells **and** both admin detail contents — 8 call sites |
 | All Sessions row cap | **PLAN WAS WRONG — corrected** | No cap; `usePagedList` with `DEFAULT_PAGE_SIZE = 10`. See F-05 |
+
+
+### 3.12 Surfaces that arrived after pass 1
+
+Everything in this table was traced for the first time in pass 2, because it did not exist — or did not have this shape — when the first audit ran.
+
+| Rule the plan asserts | Class | Evidence |
+| --- | --- | --- |
+| Access has **three** levels per `(scope, section)`, and `requireAdminScope` asks for `manage` | VERIFIED-SOURCE | `requireAdmin.ts:97` — `if (!scopeCanManage(context.scope, section)) return null`. So a section granted at `view` is read-only at all 99 guarded routes without one of them being edited |
+| Finance reads Sessions and cannot change one | VERIFIED-SOURCE | `adminScope.ts:98` — `sessions: "view"` under the finance scope; the only `view` grant in the table |
+| The User Access matrix is **derived**, never a second list | VERIFIED-SOURCE | `AdminUserAccessTab` renders `ADMIN_CAPABILITY_GROUPS` against `sectionAccess`; `adminScope.test.ts` holds the grid's four invariants |
+| Each scope opens on its own Today screen, decided in one module | VERIFIED-SOURCE | `adminHome.ts` returns greeting, figures, actions, queue order and access note; `adminHome.test.ts` asserts the two invariants over all four scopes |
+| A slot starts on the hour, refused at every door that writes one | VERIFIED-SOURCE | `isWholeHourSlot` imported by exactly **9** route handlers — the nine the plan names — and by no component that could be bypassed |
+| Ordering a list is one save of the whole list | VERIFIED-SOURCE | `/api/admin/reorder-treatment-categories` refuses a partial list, **and** `set_treatment_category_order()` raises `check_violation` on one itself, so the SQL editor and the service-role client cannot renumber a subset either |
+| One resolution, three callers, and zero is free | VERIFIED-SOURCE | `checkoutQuote.ts` is imported by `appointments/quote`, `razorpay/create-order` and `appointments/confirm-free`, and by nothing else that prices a booking |
+| A promo code is an identifier; the cap holds under a row lock | VERIFIED-SOURCE | `claim_promo_code()` opens `select … for update`; the claim lives on `appointments.promo_code_id`, with no second redemptions table to disagree with it |
+| The capture path is still single | VERIFIED-SOURCE | `record_payment_capture` reached through `recordPaymentCapture.ts` from the three verify routes and the webhook — 9 references, no fourth fulfilment path |
+| The webhook verifies the **raw** body | VERIFIED-SOURCE | `webhook/route.ts:50` — `await request.text()`, never a re-serialised parse |
+
+### 3.13 Structural sweeps run this pass
+
+Cheap whole-repository checks, each one a rule this codebase states somewhere and each one re-runnable.
+
+| Sweep | Result |
+| --- | --- |
+| Every table has RLS enabled | **53 / 53.** Four (`appointment_reassignment_log`, and the three `*_admin_notes`) have RLS on and **no policy at all** — deny-all to any browser session, reachable only by the service role. That is the intended shape for a server-only table, not a gap |
+| Every `alter publication … add table` is wrapped in the duplicate-object `do` block | **42 / 42.** A re-run of `schema.sql` cannot fail on a publication line |
+| Every table created after the last `debug_reset_all_data` is in its `TRUNCATE` | **Clean.** The only tables outside the list are `profiles`, `site_settings` and `risk_rules`, all three deliberate — the first is what the reset preserves, the other two are reset to defaults rather than emptied |
+| No route parses the request body before authenticating | **0 of the 160 route handlers**, after F-10 |
+| No mutating admin route is unaudited | **0 of 99**, after F-11 |
+| Every test ID the plan references is defined | **Clean**, after F-12 — the four remaining `SETUP-*` names are documented aliases, not test cases |

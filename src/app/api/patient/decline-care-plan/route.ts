@@ -17,6 +17,18 @@ const MAX_REASON_LENGTH = 500;
 // The reason is optional, deliberately. Making someone justify saying no to
 // a purchase is a dark pattern, and an empty answer is still an answer.
 export async function POST(request: NextRequest) {
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+
   const { data: body, error: parseError } = await parseJsonBody<{
     carePlanId?: string;
     reason?: string;
@@ -35,13 +47,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
   if (!(await isProfileActiveAndApproved(user.id))) {
     return NextResponse.json(
       { error: "Your account is not active — it is either awaiting admin approval or has been suspended." },

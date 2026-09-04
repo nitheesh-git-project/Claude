@@ -8558,3 +8558,22 @@ revoke all on function public.set_treatment_category_order(uuid[]) from authenti
 -- a NOT NULL here would fail the migration. The hospital's own form requires
 -- it going forward; existing rows read as "not on file" on the admin card.
 alter table patient_referrals add column if not exists patient_phone text;
+
+-- ---------------------------------------------------------------------------
+-- care_plan_reviews.reviewer_id: NOT NULL and ON DELETE SET NULL, again
+-- ---------------------------------------------------------------------------
+--
+-- The same contradiction the QA audit removed from risk_reviews, reintroduced
+-- by the review step because the new table was written from the old one. The
+-- two clauses cannot both hold: deleting the referenced profile makes Postgres
+-- attempt a null write that the NOT NULL refuses, so the *delete* raises and
+-- the reference is never cleared. What looks like "the reviewer's name may go
+-- away" is in fact "this profile can never be deleted", discovered only when
+-- some unrelated delete aborts.
+--
+-- Nullable is the intended reading, exactly as it is for risk_reviews and for
+-- communication_flags.author_id: a decision outlives the person who made it,
+-- and the reviewer's name is resolved at render time. The audit trail is not
+-- weakened by this -- care_plan_reviews is append-only by trigger, so a row is
+-- still unrewritable, and admins are suspended rather than deleted anyway.
+alter table care_plan_reviews alter column reviewer_id drop not null;

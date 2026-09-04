@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Wipes one side's submitted rating/feedback so they can be prompted to
 // re-rate (e.g. a therapist fat-fingered 5 stars instead of 2). Admin-only —
@@ -58,6 +59,14 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "rating.clear",
+    targetId: appointmentId,
+    details: { role },
+  });
 
   return NextResponse.json({ success: true });
 }

@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { meetSyncUnclaimedFilter } from "@/lib/retryDueMeetSyncs";
 import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Re-attempts Meet event creation for one confirmed appointment from the
 // Feature Control tab's sync health panel -- same helper every original
@@ -136,6 +137,13 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (updated?.meet_link) {
+    // Only here, not on the no-op return above: this is the branch that
+    // actually created a calendar event.
+    await recordAdminActivity(admin, adminUser.id, {
+      action: "session.retry_meet_sync",
+      targetId: appointmentId,
+    });
+
     return NextResponse.json({ success: true, meetLink: updated.meet_link });
   }
   return NextResponse.json(

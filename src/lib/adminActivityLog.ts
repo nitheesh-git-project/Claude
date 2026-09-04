@@ -89,6 +89,39 @@ export type AdminActivityAction =
   | "referral.decline"
   // configuration
   | "setting.update"
+  // Everything below closes a gap the QA re-audit found: the rule above is
+  // "every mutating admin route records what happened", and a quarter of them
+  // did not. None of these moves money, but each one changes something a
+  // patient, a therapist or the public site can see -- an account's sign-in
+  // email most of all -- and an unattributed change to that is exactly what
+  // this table exists to prevent.
+  | "patient.update_contact"
+  | "patient.update_notes"
+  | "therapist.update_contact"
+  | "therapist.update_notes"
+  | "therapist.update_display_content"
+  | "therapist.set_team_visibility"
+  | "therapist.set_rating_visibility"
+  | "rating.clear"
+  | "rating.exclude"
+  | "session.update_visit_address"
+  | "session.open_meet_access"
+  | "session.retry_meet_sync"
+  | "home_visit.waitlist_status"
+  | "lead.update_status"
+  | "referral.set_capacity_note"
+  // The clinical layer: who let a therapist into a patient's record, who
+  // decided a change to it, and who reworded the questions themselves.
+  | "condition_access.decide"
+  | "condition_change.decide"
+  | "condition_change.direct_edit"
+  | "pain_assessment.create"
+  | "clinical_questions.update_intake"
+  | "clinical_questions.update_pain_map"
+  | "risk.review"
+  // The most destructive action in the application. Recorded after the wipe,
+  // because the wipe truncates this table.
+  | "data.reset"
   | "catalog.create"
   | "catalog.update"
   | "catalog.delete"
@@ -184,6 +217,29 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "referral.assign": "Assigned referral",
   "referral.decline": "Declined referral",
   "setting.update": "Changed a setting",
+  "patient.update_contact": "Changed a patient's contact details",
+  "patient.update_notes": "Edited notes on a patient",
+  "therapist.update_contact": "Changed a therapist's contact details",
+  "therapist.update_notes": "Edited notes on a therapist",
+  "therapist.update_display_content": "Edited a therapist's public write-up",
+  "therapist.set_team_visibility": "Changed whether a therapist appears on Team",
+  "therapist.set_rating_visibility": "Changed whether a therapist's rating is public",
+  "rating.clear": "Cleared a session rating",
+  "rating.exclude": "Excluded a session rating from the average",
+  "session.update_visit_address": "Changed a home visit's address",
+  "session.open_meet_access": "Reopened a meeting's access",
+  "session.retry_meet_sync": "Retried a Meet sync",
+  "home_visit.waitlist_status": "Moved a waitlist entry",
+  "lead.update_status": "Moved a lead",
+  "referral.set_capacity_note": "Edited the referral capacity note",
+  "condition_access.decide": "Decided a record-access request",
+  "condition_change.decide": "Decided a health-profile change",
+  "condition_change.direct_edit": "Edited a health profile directly",
+  "pain_assessment.create": "Recorded a Pain Map exam",
+  "clinical_questions.update_intake": "Reworded an intake question",
+  "clinical_questions.update_pain_map": "Reworded a Pain Map question",
+  "risk.review": "Reviewed a risk signal",
+  "data.reset": "Reset all data",
   "catalog.create": "Created catalog item",
   "catalog.update": "Edited catalog item",
   "catalog.delete": "Deleted catalog item",

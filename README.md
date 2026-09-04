@@ -1226,6 +1226,11 @@ reaches stays a code change.
 subject, amount, timestamp — readable at **Settings → Activity Log** and
 append-only by construction: the table has a select policy and no insert
 policy, so the only writer is the service-role client inside the API routes.
+"Every" is literal: as well as the money moves, it covers the changes that
+move no money and are still somebody's to answer for — a patient's sign-in
+email, a home visit's address, who may read a patient's record, the wording
+of the clinical questions, and the data reset itself, whose row is written
+**after** the wipe because the wipe truncates this table.
 **Sessions → New Booking** (`/api/admin/create-booking`) books an online
 session on a patient's behalf, running the same conflict check and Meet sync
 as a patient's own booking, with an explicit payment state and a logged

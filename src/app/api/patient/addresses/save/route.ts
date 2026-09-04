@@ -23,6 +23,18 @@ const MAX_NOTES_LENGTH = 1000;
 // reason home-visit checkout uses it: a patient who paid before approval
 // still needs to manage the address that visit is going to.
 export async function POST(request: NextRequest) {
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+
   const { data: body, error: parseError } = await parseJsonBody<{
     id?: string;
     label?: string | null;
@@ -38,13 +50,6 @@ export async function POST(request: NextRequest) {
   }>(request);
   if (parseError) return parseError;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
   if (!(await isProfileActive(user.id))) {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }

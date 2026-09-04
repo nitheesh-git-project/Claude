@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Writes profiles.public_display_note -- the admin-curated blurb shown in
 // the /team popup (Feature 38), distinct from therapist_admin_notes
@@ -36,6 +37,14 @@ export async function POST(request: NextRequest) {
   // an admin editing this copy would see no change on the public page for
   // up to 5 minutes.
   revalidatePath("/team");
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "therapist.update_display_content",
+    targetId: therapistId,
+    details: { length: String(displayNote ?? "").length },
+  });
 
   return NextResponse.json({ success: true });
 }

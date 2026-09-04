@@ -9,6 +9,7 @@ import {
 } from "@/lib/conditionIntake";
 import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
 import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Approve or decline a Patient Care Intake submission — a patient editing
 // their own record, or a therapist editing it on their behalf with an
@@ -154,6 +155,14 @@ export async function POST(request: NextRequest) {
       .update({ status: fallbackStatus })
       .eq("patient_id", changeRequest.patient_id);
   }
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "condition_change.decide",
+    targetId: requestId,
+    details: { action },
+  });
 
   return NextResponse.json({ success: true });
 }

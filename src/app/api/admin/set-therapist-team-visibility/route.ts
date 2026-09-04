@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -37,6 +38,14 @@ export async function POST(request: NextRequest) {
   // toggling this off/on would see no change on the public page for up to
   // 5 minutes, which reads as the toggle being broken.
   revalidatePath("/team");
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "therapist.set_team_visibility",
+    targetId: therapistId,
+    details: { visibleOnTeam },
+  });
 
   return NextResponse.json({ success: true, visibleOnTeam });
 }

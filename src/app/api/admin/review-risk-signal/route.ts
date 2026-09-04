@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { MIN_REVIEW_NOTE_LENGTH } from "@/lib/riskSignals";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // An admin's conclusion about one signal.
 //
@@ -99,6 +100,14 @@ export async function POST(request: NextRequest) {
   if (reviewError) {
     console.error("Risk signal status moved but the note failed", signalId, reviewError);
   }
+
+  // The review row above is the evidence; this is the same decision in the
+  // one log an admin can read across every screen.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "risk.review",
+    targetId: signalId,
+    details: { outcome },
+  });
 
   return NextResponse.json({ success: true, status: outcome });
 }

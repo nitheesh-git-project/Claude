@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { updateMeetEventForAppointment } from "@/lib/googleCalendarSync";
 import { formatAddressOneLine } from "@/lib/formatAddress";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 const MAX_LINE_LENGTH = 300;
 const MAX_NOTES_LENGTH = 1000;
@@ -154,6 +155,14 @@ export async function POST(request: NextRequest) {
       console.error("Failed to log address_changed event", appointmentId, eventError);
     }
   }
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "session.update_visit_address",
+    targetId: appointmentId,
+    details: { pincode },
+  });
 
   return NextResponse.json({ success: true, serviceable: !!area });
 }

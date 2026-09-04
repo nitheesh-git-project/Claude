@@ -356,7 +356,11 @@ Every mutating admin route records what happened via
 the `AdminActivityAction` union has a caller — that used to be true of only
 16 of them, which left the largest money move in the app (`payout.settle`)
 unattributed. Adding an action without a caller, or a mutating route without
-a call, puts the log back where it was. A generated password never goes in
+a call, puts the log back where it was. A QA sweep found a quarter of them writing nothing —
+including the route that changes a patient's sign-in email — so the rule is
+now checked by counting rather than trusted: every admin route that inserts,
+updates or deletes has a call, and the three that do not (`export-pdf` and
+the two purchase-detail routes) are reads. A generated password never goes in
 `details`: the log is readable by every admin, so who reset what and when is
 the part with audit value. The call goes **after** the route's CAS claim,
 so the log cannot record a settlement or cancellation that lost its race. It is best-effort
