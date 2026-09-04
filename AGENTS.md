@@ -2049,6 +2049,25 @@ client is the only writer and the log is append-only from any session.
   `MarketingPage` and `CareArea` carry the two separately because the grids
   used to pass the blurb as `alt`, which announced the same sentence twice to
   a screen reader and said nothing about the image itself.
+- **Every Explore band ends on booking, and its rows square up.**
+  `BOOK_CONNECTOR` was on the home page's grid alone, so the six inner pages
+  ended their index on another page to read -- the one band still answering
+  "what now?" with "here is more to look at", on a site whose whole shape is
+  that the next step is always in the same place. `exploreConnectors()` is
+  the one list both use now.
+  The tiles above it are squared up by arithmetic rather than by a
+  hand-placed exception (`src/lib/exploreGridSpans.ts`), because the count
+  moves: the page being read is always missing and Home Visit drops out when
+  the switch is off, so which row ends short is not something a fixed rule
+  can know. Seven tiles in three columns left the seventh alone beside two
+  dead cells. Two details are load-bearing. The large breakpoint is a
+  **six**-column grid with tiles spanning two -- the same three-across
+  layout, but two leftover tiles can then take half the row each, where a
+  literal three-column grid would need 1.5 columns and could only offer a
+  gap. And `wide` (photo beside text) is applied only when a tile fills the
+  row at **every** multi-column breakpoint: one that is full width on a
+  tablet and half width on a desktop would change shape between them and
+  read as two designs.
 - **The site's own index lives in `src/lib/marketingNav.ts`.** The header
   nav, the footer's Explore column, the home page's connector grid and the
   "Where to go next" strip on the other six pages all read that one array, so
