@@ -135,6 +135,8 @@ export default async function TeamPage() {
         body="Or book the standard assessment and we will match you."
         primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
         secondary={{ href: "/conditions", label: "See what we treat" }}
+        photoId="step-assess"
+        photoAlt="A physiotherapist smiling to camera at her consultation setup, tablet and phone ready"
       />
     </>
   );

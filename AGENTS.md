@@ -2002,9 +2002,15 @@ client is the only writer and the log is append-only from any session.
   it is the same argument once more — it shows what the next screen gives
   back rather than asking anyone to imagine it, and it labels itself an
   example **in the component**, so no page can render it as a real booking.
-  Three rules keep it honest. The photo defaults rather than being passed
-  per page, because a visitor who reads three pages should meet one
-  invitation, not three. The image gets a **fixed** aspect
+  Three rules keep it honest. **Each page names its own photograph**, and
+  never one that page already shows above — the band's shape is identical
+  everywhere, so the invitation is still one invitation and only the face
+  changes, while one image repeated seven times read as a template stamped
+  on the end of each page. The picture answers that page's own question:
+  `/team` shows the clinician on the screen, `/home-visit` shows a visit,
+  `/mission` shows who this is for. The component's default is the fallback
+  for a page that names nothing, not the house style. The image gets a
+  **fixed** aspect
   (`4/3`, `5/4` at lg) rather than the photograph's own, or a portrait crop
   leaves the band mostly empty teal beside four lines of copy. And the
   assurance lines under the buttons are the **non-numeric** trust points

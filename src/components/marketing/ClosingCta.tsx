@@ -13,10 +13,22 @@ import { photo, type PhotoId } from "@/lib/marketingPhotos";
  * **It carries a photograph for the same reason every other band does.** This
  * is the one band whose job is a purchase, and it was the only one made of
  * nothing but text on a dark panel: a wall of words at the moment somebody is
- * deciding whether to spend money. The photo is deliberately not of treatment
- * — it is of the *thing being asked for*, someone at home, smiling, booking on
- * her phone. What a visitor is being asked to do is two minutes on a screen,
- * and showing that is more persuasive than another sentence saying it.
+ * deciding whether to spend money. What a visitor is being asked to do is two
+ * minutes on a screen, and showing that is more persuasive than another
+ * sentence saying it.
+ *
+ * **Each page names its own photograph, and it is never one already on that
+ * page.** The band's shape is identical everywhere — same layout, same chip,
+ * same assurances — so the invitation is still one invitation; only the face
+ * changes. Repeating a single image across seven pages made the band read as
+ * a template stamped on the end of each of them, which is exactly what a
+ * visitor is being asked *not* to feel at a payment decision. The picture
+ * also gets to answer that page's own question: the team page shows the
+ * clinician on the screen, the home-visit page shows a visit, the mission
+ * page shows who this is for.
+ *
+ * The default below is the fallback for a page that names nothing, not the
+ * house style — a page added later should pick its own.
  *
  * The confirmation chip over the photo is the same argument once more: it
  * shows what the next screen gives back — a slot, a name, a time — rather
@@ -57,9 +69,9 @@ export default function ClosingCta({
   primary: CtaLink;
   secondary?: CtaLink;
   /**
-   * Overridable, but the default is the point: one picture on every page's
-   * closing band means a visitor who lands on three of them meets the same
-   * invitation rather than three different ones.
+   * Pass one per page, chosen so it is not a photograph that page already
+   * shows above — the same image twice on one page reads as a mistake. The
+   * default only covers a page that names nothing.
    */
   photoId?: PhotoId;
   photoAlt?: string;
