@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { meetSyncUnclaimedFilter } from "@/lib/retryDueMeetSyncs";
+import { isSessionCalendarSynced } from "@/lib/meetSyncState";
 import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
 
 // Re-attempts Meet event creation for one confirmed appointment from the
@@ -78,7 +79,11 @@ export async function POST(request: NextRequest) {
       google_calendar_sync_claimed_at: claimedAt,
     })
     .eq("id", appointmentId)
-    .is("meet_link", null)
+    // Deliberately not `.is("meet_link", null)` any more: that is true of
+    // every home visit for ever, so it never narrowed anything for them. The
+    // "already has an event" refusal now lives in
+    // createMeetEventForConfirmedAppointment, where it covers every caller
+    // rather than only this one.
     .or(meetSyncUnclaimedFilter())
     .select("id")
     .maybeSingle();
@@ -131,12 +136,18 @@ export async function POST(request: NextRequest) {
 
   const { data: updated } = await admin
     .from("appointments")
-    .select("meet_link, google_calendar_sync_error")
+    .select("meet_link, google_event_id, visit_mode, google_calendar_sync_error")
     .eq("id", appointmentId)
     .maybeSingle();
 
-  if (updated?.meet_link) {
-    return NextResponse.json({ success: true, meetLink: updated.meet_link });
+  // Judged by what this session's delivery mode actually produces: a home
+  // visit is synced when its *event* exists, since it never gets a Meet link.
+  // Testing meet_link for both meant a home visit was answered 502
+  // "Retry failed" on the runs where everything had in fact worked -- and the
+  // admin, told it had failed, clicked again and minted another duplicate
+  // event. See src/lib/meetSyncState.ts.
+  if (updated && isSessionCalendarSynced(updated)) {
+    return NextResponse.json({ success: true, meetLink: updated.meet_link ?? null });
   }
   return NextResponse.json(
     { error: updated?.google_calendar_sync_error ?? "Retry failed" },

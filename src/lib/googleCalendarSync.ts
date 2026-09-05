@@ -57,6 +57,30 @@ export async function createMeetEventForConfirmedAppointment(
   // transient network blip on the follow-up DB write) must not turn into a
   // 500 for a request whose actual work already completed.
   try {
+    // Refuse to create a second event for a session that already has one.
+    //
+    // createSessionCalendarEvent only ever *creates*, so calling this for a
+    // row whose google_event_id is already set leaves the previous event
+    // orphaned on the clinic's calendar under a link the row no longer points
+    // at -- and Calendar has already emailed the patient and the therapist
+    // about it. That is not hypothetical: a home visit sat permanently in
+    // Sync Health (a home visit has no Meet link by design, and the panel
+    // read that as a failure), and each Retry click minted another duplicate.
+    // Three reached one patient before it was noticed.
+    //
+    // The claim columns could not catch this. They stop two callers racing
+    // over the *same* attempt; they say nothing about an attempt that should
+    // never have been made. Checked here rather than in each caller so every
+    // door -- the sweep, the manual Retry, and the three booking paths --
+    // gets it. Cancellation clears google_event_id, so a legitimate
+    // re-creation after deletion still goes through.
+    const { data: existing } = await admin
+      .from("appointments")
+      .select("google_event_id")
+      .eq("id", appointmentId)
+      .maybeSingle();
+    if (existing?.google_event_id) return;
+
     // Admin master kill switch (Feature Control tab). Selecting a single
     // column, not the whole row, so a still-null result before this
     // migration is applied defaults to enabled -- same

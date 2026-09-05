@@ -102,6 +102,7 @@ import {
   MAX_MEET_ACCESS_AUTO_ATTEMPTS,
 } from "@/lib/retryDueMeetSyncs";
 import { checkGoogleConnection } from "@/lib/googleConnectionHealth";
+import { sessionNeedsCalendarSync } from "@/lib/meetSyncState";
 import { runRiskSweep } from "@/lib/riskDetectors";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -636,6 +637,7 @@ export default async function AdminDashboardPage({
     testimonialAvatarRows,
     hospitalNotes,
     googleConnection,
+    syncModeRows,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -702,6 +704,14 @@ export default async function AdminDashboardPage({
     // panel and never the dashboard, and it must not add a round trip to the
     // chain.
     checkGoogleConnection(),
+    // What Sync Health needs to tell a home visit from an online session, and
+    // an existing event from none. Isolated for the usual reason: without
+    // these the panel falls back to its old meet_link-only test rather than
+    // the whole dashboard failing.
+    guard(
+      async () => (await admin.from("appointments").select("id, visit_mode, google_event_id")).data,
+      null as { id: string; visit_mode: string | null; google_event_id: string | null }[] | null
+    ),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -948,6 +958,11 @@ export default async function AdminDashboardPage({
     (syncAttemptRows ?? []).map((r) => [r.id, r.google_calendar_sync_attempts])
   );
   const meetAccessById = new Map((meetAccessRows ?? []).map((r) => [r.id, r]));
+  // A home visit has no Meet link by design, so the old `!a.meet_link` test
+  // listed every one of them here for ever -- and the Retry button that
+  // offered could only ever mint a duplicate calendar event. See
+  // src/lib/meetSyncState.ts.
+  const syncModeById = new Map((syncModeRows ?? []).map((r) => [r.id, r]));
   const googleMeetSyncIssues = appointmentsWithSessionCode
     .filter((a) => a.status === "confirmed")
     .map((a) => ({
@@ -955,7 +970,16 @@ export default async function AdminDashboardPage({
       google_calendar_sync_error: syncErrorById.get(a.id) ?? null,
       google_calendar_sync_attempts: syncAttemptsById.get(a.id) ?? 0,
     }))
-    .filter((a) => !a.meet_link || a.google_calendar_sync_error)
+    .filter((a) => {
+      const mode = syncModeById.get(a.id);
+      return (
+        sessionNeedsCalendarSync({
+          visit_mode: mode?.visit_mode,
+          meet_link: a.meet_link,
+          google_event_id: mode?.google_event_id,
+        }) || a.google_calendar_sync_error
+      );
+    })
     .map((a) => ({
       id: a.id,
       sessionCode: a.session_code ?? null,
