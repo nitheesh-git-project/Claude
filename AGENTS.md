@@ -2525,6 +2525,21 @@ change that genuinely needs no doc update can ignore it.
   made the workflow fail with a wall of 429s. That failure is now soft --
   the run retries with the key unset and commits a structural graph rather
   than leaving the committed one stale.
+  **It arrives as a pull request, not as a commit on `main`.** The workflow
+  used to push straight to `main`, which the branch-protection ruleset
+  rejects (`GH013`), so it failed on every merge and threw away the graph it
+  had just built. It force-pushes one long-lived `chore/graphify-refresh`
+  branch and opens a PR from it instead -- deliberately not a commit onto the
+  branch that was merged, since sessions here push to their own `claude/*`
+  branches constantly and a CI commit landing underneath one turns their next
+  push into a rejected non-fast-forward. Merging that PR is what keeps
+  `manifest.json` current, so leaving it open has the exact cost the
+  paragraph above describes. Opening the PR is itself refusable, by
+  **Settings -> Actions -> General -> Allow GitHub Actions to create and
+  approve pull requests** (off by default, and off here): that refusal is
+  soft too -- the branch still carries the graph and the job summary links
+  the "open a PR" page -- because failing on it would put the workflow back
+  to red on every merge for a reason the red X could not explain.
 - Secrets (`SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET`, Google
   credentials) are server-only. Never add a `NEXT_PUBLIC_` prefix to them and
   never commit real values.

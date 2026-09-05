@@ -137,8 +137,35 @@ jobs:
           Opened by `.github/workflows/graphify.yml`.
           BODY
 
-          gh pr create \
+          # Opening the PR can be refused by a repository setting --
+          # "Allow GitHub Actions to create and approve pull requests", off by
+          # default, answering
+          # "GitHub Actions is not permitted to create or approve pull
+          # requests". That refusal must not fail the job: the branch above
+          # already carries the refreshed graph, so the work is saved either
+          # way and all that is missing is one click. Failing here would put
+          # this workflow back exactly where it was -- red on every merge, for
+          # a reason no one reading the red X could act on.
+          if gh pr create \
             --base "${{ github.ref_name }}" \
             --head "$BRANCH" \
             --title "chore: refresh graphify knowledge graph" \
             --body-file /tmp/graphify-pr-body.md
+          then
+            exit 0
+          fi
+
+          {
+            echo "### Graph refreshed, pull request not opened"
+            echo
+            echo "The rebuilt graph is pushed to \`$BRANCH\` and nothing is lost,"
+            echo "but this job could not open the pull request for it."
+            echo
+            echo "Open it here:"
+            echo "https://github.com/${{ github.repository }}/pull/new/$BRANCH"
+            echo
+            echo "To let the workflow do this itself, tick **Settings ->"
+            echo "Actions -> General -> Allow GitHub Actions to create and"
+            echo "approve pull requests**."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning::Graph pushed to $BRANCH but the pull request could not be opened -- see the job summary."
