@@ -1074,6 +1074,17 @@ OPEN access (`src/lib/googleMeetSpace.ts`). It needs the
 `scripts/get-google-refresh-token.mjs` now asks for two scopes and the Cloud
 project needs the **Google Meet API** enabled alongside the Calendar one.
 
+**If no session is getting a link at all, look at Settings -> System Health ->
+Google Connection first.** That panel spends the refresh token and says
+whether the account is still connected, because a token that has died fails
+every session identically and used to show up only as a list of per-session
+errors with a Retry button that could not work. The usual cause is the Google
+Cloud project's OAuth consent screen still being set to **Testing**, where
+Google expires refresh tokens after seven days; set it to **In production**
+and re-run `node scripts/get-google-refresh-token.mjs`. While the connection
+is down the automatic retry sweep stands down rather than spending each
+session's capped attempts on a credential that cannot succeed.
+
 A failure here never invalidates anything: the event and the link are
 already created and usable, the meeting simply keeps its waiting room. The
 outcome is recorded per session on `appointments.meet_access_open` /

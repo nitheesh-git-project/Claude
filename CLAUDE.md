@@ -114,7 +114,11 @@ is created (`src/lib/googleMeetSpace.ts`, the Meet REST API's
 `meetings.space.settings` scope). A failure never invalidates the session --
 the link works, the meeting just keeps its waiting room -- and lands on
 Settings -> System Health -> Waiting Room with a Fix button and a bounded
-automatic retry. Open access removes the knock, not the sign-in: a meeting
+automatic retry. Whether the Google account is connected **at all** is its
+own panel on that screen (`src/lib/googleConnectionHealth.ts`), because one
+dead refresh token fails every session identically and used to read as a few
+unlucky ones; the retry sweep stands down while it is down rather than
+spending each session's capped attempts. Open access removes the knock, not the sign-in: a meeting
 organised by a personal Gmail account still requires a Google account to
 join, and only moving the organiser to Workspace changes that. One switch,
 `meet_open_access_enabled`, on by default.

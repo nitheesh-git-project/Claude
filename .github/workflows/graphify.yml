@@ -22,8 +22,10 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     permissions:
-      # Needed to push the refreshed graph back to main.
+      # Needed to push the refresh branch.
       contents: write
+      # Needed to open the pull request that carries it onto main.
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -73,7 +75,24 @@ jobs:
             build
           fi
 
-      - name: Commit the refreshed graph
+      # main is protected by a ruleset requiring every change to go through a
+      # pull request, so the direct push this step used to do was rejected
+      # with "GH013: Repository rule violations found" and failed the job on
+      # every single merge -- while the graph it had just spent two minutes
+      # building was thrown away. The graph is committed on purpose (see
+      # AGENTS.md: manifest.json is the per-file hash record `--update` diffs
+      # against, and without it every run re-extracts the whole corpus and
+      # burns the Gemini free tier), so dropping the commit is not an option.
+      #
+      # So it opens a pull request instead, onto one long-lived branch that is
+      # force-updated each time. One PR exists at a time and it always carries
+      # the current graph; merging it is a click. Deliberately NOT a push to
+      # the branch of whoever merged: sessions in this repo push to their own
+      # claude/* branches constantly, and a CI commit landing underneath one
+      # turns their next push into a rejected non-fast-forward.
+      - name: Open a pull request with the refreshed graph
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -85,4 +104,41 @@ jobs:
             exit 0
           fi
           git commit -m "chore: refresh graphify knowledge graph [skip ci]"
-          git push
+
+          BRANCH=chore/graphify-refresh
+          # Force, because this branch is a snapshot of the latest graph
+          # rather than a history worth keeping -- and because it is rebuilt
+          # from main each run, so it never carries anything else.
+          git push --force origin "HEAD:$BRANCH"
+
+          # `gh pr create` fails if one is already open for this branch, and
+          # that is the ordinary case: the branch was just updated in place,
+          # so the existing PR now points at the new commit and there is
+          # nothing more to do.
+          open_count=$(gh pr list --head "$BRANCH" --state open --json number --jq 'length')
+          if [ "$open_count" != "0" ]; then
+            echo "Refresh PR already open for $BRANCH; it now carries the latest graph."
+            exit 0
+          fi
+
+          # Heredoc rather than an inline --body. A multi-line string passed
+          # straight to --body has to carry this block scalar's indentation on
+          # every continuation line, and a line that loses it stops the whole
+          # workflow file being valid YAML -- which is how the first attempt at
+          # this step broke.
+          cat > /tmp/graphify-pr-body.md <<'BODY'
+          Automated rebuild of `graphify-out/` after the latest merge.
+
+          Merge this to keep `manifest.json` current -- it is the per-file hash
+          record that `graphify --update` diffs against, and while it is stale
+          every run re-extracts the whole corpus and exhausts the Gemini free
+          tier's daily quota.
+
+          Opened by `.github/workflows/graphify.yml`.
+          BODY
+
+          gh pr create \
+            --base "${{ github.ref_name }}" \
+            --head "$BRANCH" \
+            --title "chore: refresh graphify knowledge graph" \
+            --body-file /tmp/graphify-pr-body.md

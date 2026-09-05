@@ -651,6 +651,33 @@ client is the only writer and the log is append-only from any session.
   `src/lib/pricing.ts`; inside it, none. Home visits use their own window
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) —
   see the Home Visit bullet below.
+- **The Google connection says whether it is up, because a dead token looks
+  like a handful of unlucky sessions.** Every Calendar and Meet call
+  authenticates with one refresh token, and when that token dies -- revoked,
+  or, far the commonest cause, the OAuth consent screen left in **Testing**,
+  where Google expires refresh tokens after seven days -- every session fails
+  at once with `invalid_grant`. Nothing said so. Each failure appeared as its
+  own row in Settings -> System Health -> Sync Health with a raw error string
+  and a Retry button that could never succeed, so the screen read "a few
+  sessions failed" when the truth was "no session will get a link again". The
+  one line naming the fix was a `console.error` no clinic owner reads.
+  `src/lib/googleConnectionHealth.ts` answers it by *spending* the token --
+  presence is not the test, since a token can be set and dead -- and three
+  things about it are load-bearing. It **never throws**: it runs inside the
+  admin dashboard's render, in that page's isolated `Promise.all`, so a
+  status panel can cost its own panel and never the screen it sits on. It
+  **distinguishes a dead token from a blip** (`deadToken`), because telling
+  an owner to re-authorize over a network hiccup teaches them to ignore the
+  panel. And a failure is **re-checked far sooner than a success is**
+  (60s against 10 minutes), so an owner who has just re-run the token script
+  watches the panel go green instead of waiting out a cache. `retryDueMeetSyncs`
+  reads the same verdict and returns early while the credential is down:
+  retrying cannot fix it, and each attempt spends one of that appointment's
+  five capped tries, so without the check the sessions that most needed the
+  sweep are already retired to "needs attention" by the time the credential
+  comes back. Checked after the backlog query, not before it, so an empty
+  backlog still costs no outbound call.
+
 - **Nobody is admitted to a session by hand.** Meet's default access type is
   TRUSTED, which admits only signed-in Google users who are *on the invite*
   and knocks for everyone else -- and a patient registers with whatever email
