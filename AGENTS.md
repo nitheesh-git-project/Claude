@@ -2459,6 +2459,23 @@ every table answered "0 accounts deleted, 0 admins kept" -- indistinguishable
 from a reset that did nothing, on the one control whose result cannot be
 checked by looking at the screen behind it.
 
+**Every UPDATE and DELETE in that function needs a WHERE clause, even the
+ones meant to hit every row.** Supabase preloads pg-safeupdate for the
+`authenticator` role -- the one PostgREST connects as -- so a bare
+`update risk_rules set ...` is refused with `UPDATE requires a WHERE clause`,
+and the reset had never once worked from the app. Three things make this
+easy to reintroduce. `security definer` does not get round it: the library is
+preloaded into the *session*, so the hook runs whoever the statement ends up
+executing as. It is invisible to every other way of running the file --
+`scripts/run-schema.mjs` and the schema-apply workflow both connect as
+`postgres`, which has no such preload, so the function installs cleanly and
+only the one caller that matters cannot run it. And it covers UPDATE and
+DELETE only, which is why the `TRUNCATE` at the heart of the wipe was always
+fine. Write the predicate so it still means "every row" and still reads as a
+real one -- `where rule_key is not null` on a NOT NULL key, or `where id` on
+the boolean-keyed `site_settings` singleton, rather than a `where true` that
+reads as a token added to silence a check.
+
 **Adding a table means adding it to that `TRUNCATE` list**, or a reset
 silently leaves its rows behind. Before real patients exist, remove
 `ALLOW_DEBUG_DATA_RESET` and drop the function.
