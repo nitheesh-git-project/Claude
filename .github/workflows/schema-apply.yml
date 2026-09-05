@@ -25,6 +25,16 @@ on:
 jobs:
   apply:
     runs-on: ubuntu-latest
+    # SUPABASE_ACCESS_TOKEN and NEXT_PUBLIC_SUPABASE_URL are stored as
+    # *environment* secrets on "Production" rather than as repository secrets,
+    # and an environment secret is only visible to a job that names its
+    # environment. Without this line the job reads them as empty, which on the
+    # runner is indistinguishable from their not existing at all -- so it
+    # failed with "missing secret" while the secrets sat plainly visible in the
+    # settings UI. Naming the environment here is also the more honest of the
+    # two fixes: this job writes to the live database, so it belongs to that
+    # environment and gets whatever protection rules the environment carries.
+    environment: Production
     steps:
       - uses: actions/checkout@v4
 
