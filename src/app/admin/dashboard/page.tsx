@@ -101,6 +101,7 @@ import {
   MAX_MEET_SYNC_AUTO_ATTEMPTS,
   MAX_MEET_ACCESS_AUTO_ATTEMPTS,
 } from "@/lib/retryDueMeetSyncs";
+import { checkGoogleConnection } from "@/lib/googleConnectionHealth";
 import { runRiskSweep } from "@/lib/riskDetectors";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -634,6 +635,7 @@ export default async function AdminDashboardPage({
     categorySpecialtyRows,
     testimonialAvatarRows,
     hospitalNotes,
+    googleConnection,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -693,6 +695,13 @@ export default async function AdminDashboardPage({
         ).data,
       null as { hospital_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
     ),
+    // One outbound call to Google, memoized for ten minutes, so the System
+    // Health screen can say whether the account is still connected rather
+    // than leaving an owner to infer it from a list of per-session failures.
+    // It sits in this batch for the batch's own reason: it must cost its own
+    // panel and never the dashboard, and it must not add a round trip to the
+    // chain.
+    checkGoogleConnection(),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -2559,6 +2568,7 @@ export default async function AdminDashboardPage({
         // Read here rather than in the component: this is a server-only
         // secret, and only its presence crosses to the browser.
         webhookSecretConfigured={!!process.env.RAZORPAY_WEBHOOK_SECRET}
+        googleConnection={googleConnection}
       />
       <AccountingHealthPanel health={accountingHealth} />
     </div>

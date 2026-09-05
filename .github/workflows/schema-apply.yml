@@ -26,6 +26,39 @@ jobs:
         with:
           node-version: 20
 
+      # Checked here rather than left to the script, because the script's own
+      # error names .env.local -- correct on a laptop, meaningless on a
+      # runner, and this job failed five merges in a row with that message
+      # while nobody could tell from it what to actually do. It still fails
+      # (a merged schema change that never reached the database is exactly
+      # what this workflow exists to catch), but it fails saying where the
+      # missing values go.
+      - name: Check the Supabase secrets are set
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        run: |
+          missing=""
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] || missing="$missing SUPABASE_ACCESS_TOKEN"
+          [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] || missing="$missing NEXT_PUBLIC_SUPABASE_URL"
+          if [ -n "$missing" ]; then
+            {
+              echo "### Schema not applied"
+              echo
+              echo "Missing repository secret(s):$missing"
+              echo
+              echo "Add them under **Settings -> Secrets and variables -> Actions**:"
+              echo "- \`SUPABASE_ACCESS_TOKEN\` — a personal access token from"
+              echo "  https://supabase.com/dashboard/account/tokens (not the service role key)"
+              echo "- \`NEXT_PUBLIC_SUPABASE_URL\` — the project URL"
+              echo
+              echo "Until then every schema change must be applied by hand with"
+              echo "\`node scripts/run-schema.mjs\`, and the database will drift from the repo."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Missing repository secret(s):$missing -- see the job summary. schema.sql was NOT applied."
+            exit 1
+          fi
+
       - name: Run schema.sql against Supabase
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

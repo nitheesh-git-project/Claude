@@ -3,6 +3,7 @@
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import type { AdminSettings } from "@/lib/adminSettings";
+import type { GoogleConnectionStatus } from "@/lib/googleConnectionHealth";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
 import BookingLanguagesSection from "@/components/admin/BookingLanguagesSection";
 
@@ -34,6 +35,7 @@ export default function AdminFeatureControlTab({
   syncIssues,
   waitingRoomIssues,
   webhookSecretConfigured = true,
+  googleConnection,
   adminEmail,
   view,
 }: {
@@ -46,6 +48,10 @@ export default function AdminFeatureControlTab({
   waitingRoomIssues: GoogleMeetSyncIssue[];
   /** Whether RAZORPAY_WEBHOOK_SECRET is set in the server environment. */
   webhookSecretConfigured?: boolean;
+  /** Result of actually spending the Google refresh token (see
+   *  googleConnectionHealth.ts). Undefined only on a render that chose not to
+   *  probe. */
+  googleConnection?: GoogleConnectionStatus;
   adminEmail: string;
   // Which slice of this component to render. It used to be one "Feature
   // Control" tab holding three unrelated jobs at once: the rules that govern
@@ -680,6 +686,71 @@ export default function AdminFeatureControlTab({
           </p>
         )}
       </div>
+
+      {googleConnection && (
+        <div
+          className={`rounded-2xl border shadow-sm p-6 ${
+            googleConnection.state === "connected"
+              ? "border-slate-200 bg-white"
+              : googleConnection.state === "broken"
+                ? "border-red-300 bg-red-50"
+                : "border-amber-300 bg-amber-50"
+          }`}
+        >
+          <h3 className="font-bold text-sm text-slate-800">Google Connection</h3>
+          {googleConnection.state === "connected" ? (
+            <p className="mt-1 max-w-md text-xs text-slate-500">
+              Connected. Sessions get a calendar invite and a Meet link automatically.
+              {googleConnection.meetScope ? (
+                " Meetings are also opened up, so nobody waits to be let in."
+              ) : (
+                <>
+                  {" "}
+                  This account has not granted permission to open meetings up, so patients
+                  and therapists will have to be admitted by hand. Re-run{" "}
+                  <code className="font-mono">scripts/get-google-refresh-token.mjs</code> to
+                  fix that.
+                </>
+              )}
+            </p>
+          ) : googleConnection.state === "not_configured" ? (
+            <p className="mt-1 max-w-md text-xs text-amber-900">
+              <span className="font-bold">Google is not set up.</span> Sessions are booked
+              and paid for normally, but none of them gets a calendar invite or a video
+              link. Set{" "}
+              <code className="font-mono">{googleConnection.missing.join(", ")}</code> in the
+              server environment.
+            </p>
+          ) : (
+            <p className="mt-1 max-w-md text-xs text-red-800">
+              <span className="font-bold">
+                {googleConnection.deadToken
+                  ? "The Google account is no longer connected."
+                  : "Google could not be reached."}
+              </span>{" "}
+              {googleConnection.deadToken ? (
+                <>
+                  Every new session will fail to get a video link until this is fixed, and
+                  the failures listed below cannot be retried into working. The usual cause
+                  is the Google sign-in permission expiring: if the project&apos;s OAuth
+                  consent screen is still set to <span className="font-semibold">Testing</span>,
+                  Google expires it every seven days. Set it to{" "}
+                  <span className="font-semibold">In production</span> in the Google Cloud
+                  console, then re-run{" "}
+                  <code className="font-mono">scripts/get-google-refresh-token.mjs</code> and
+                  save the new <code className="font-mono">GOOGLE_CALENDAR_REFRESH_TOKEN</code>.
+                </>
+              ) : (
+                <>
+                  This may be temporary — the panel re-checks every minute. If it stays red,
+                  check the server&apos;s outbound network access.
+                </>
+              )}{" "}
+              <span className="text-red-700">({googleConnection.detail})</span>
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-sm text-slate-800">Sync Health</h3>
