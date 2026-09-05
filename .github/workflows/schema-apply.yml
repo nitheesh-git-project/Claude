@@ -15,6 +15,12 @@ on:
     branches: [main]
     paths:
       - "supabase/schema.sql"
+  # Run it by hand from the Actions tab. Needed because the push trigger above
+  # only fires on a schema change, so there was no way to check the credentials
+  # were wired up without inventing one -- and "does this workflow work" is a
+  # question you want answered before the merge that depends on it, not by it.
+  # The file is re-runnable by design, so applying it on demand is safe.
+  workflow_dispatch:
 
 jobs:
   apply:
@@ -54,6 +60,12 @@ jobs:
               echo
               echo "Until then every schema change must be applied by hand with"
               echo "\`node scripts/run-schema.mjs\`, and the database will drift from the repo."
+              echo
+              echo "If you believe these are already set, check **where**. They must be"
+              echo "**Actions** secrets on **this** repository -- the Secrets page also has"
+              echo "Codespaces and Dependabot tabs, whose values are invisible here, and an"
+              echo "*Environment* secret is only visible to a job that names that"
+              echo "environment (this one does not)."
             } >> "$GITHUB_STEP_SUMMARY"
             echo "::error::Missing repository secret(s):$missing -- see the job summary. schema.sql was NOT applied."
             exit 1
