@@ -123,12 +123,14 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 **Purpose.** Prove that scope, not merely being an admin, gates the wipe.
 
-**Preconditions.** `ADM-SET-026` has created `qa.admin.ops@example.test` with scope **Operations**.
+**Preconditions.** `ADM-SET-026` has created `qa.admin.ops@example.test` with scope **Operations** — **run it before this test even though it belongs to a later phase.** The account cannot exist before somebody creates it, and the reset does not create it: a fresh database has exactly one admin, the one made by hand in Supabase before Step 0. Attempting this test first is answered `Invalid login credentials`, which is the account being absent rather than anything about the reset.
+
+> **The password is not the standard one.** `create-account` **generates** it — nine random bytes, base64url — and shows it **once**, on the User Access screen, as *"temporary password `<value>`"*. It is deliberately never emailed, never written to the activity log, and never stored anywhere for an admin (the `temp_password` column exists for patients, therapists and hospitals only). **Copy it when it appears.** Lost, it cannot be recovered: set a new one in the Supabase dashboard under **Authentication → Users**, or delete the account there and create it again from User Access.
 
 **Steps**
 
 1. Sign out of the full admin account.
-2. Sign in at `/admin/login` as `qa.admin.ops@example.test` / `QaTest!2024pass`.
+2. Sign in at `/admin/login` as `qa.admin.ops@example.test` with the one-time password `ADM-SET-026` showed you.
 3. In the Debug bar, tap **Reset data**.
 4. Enter `RESET ALL DATA` in the confirmation field.
 5. Tap **Reset**.

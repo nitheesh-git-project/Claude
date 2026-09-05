@@ -378,12 +378,14 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 **Purpose.** Prove that scope, not merely being an admin, gates the wipe.
 
-**Preconditions.** `ADM-SET-026` has created `qa.admin.ops@example.test` with scope **Operations**.
+**Preconditions.** `ADM-SET-026` has created `qa.admin.ops@example.test` with scope **Operations** — **run it before this test even though it belongs to a later phase.** The account cannot exist before somebody creates it, and the reset does not create it: a fresh database has exactly one admin, the one made by hand in Supabase before Step 0. Attempting this test first is answered `Invalid login credentials`, which is the account being absent rather than anything about the reset.
+
+> **The password is not the standard one.** `create-account` **generates** it — nine random bytes, base64url — and shows it **once**, on the User Access screen, as *"temporary password `<value>`"*. It is deliberately never emailed, never written to the activity log, and never stored anywhere for an admin (the `temp_password` column exists for patients, therapists and hospitals only). **Copy it when it appears.** Lost, it cannot be recovered: set a new one in the Supabase dashboard under **Authentication → Users**, or delete the account there and create it again from User Access.
 
 **Steps**
 
 1. Sign out of the full admin account.
-2. Sign in at `/admin/login` as `qa.admin.ops@example.test` / `QaTest!2024pass`.
+2. Sign in at `/admin/login` as `qa.admin.ops@example.test` with the one-time password `ADM-SET-026` showed you.
 3. In the Debug bar, tap **Reset data**.
 4. Enter `RESET ALL DATA` in the confirmation field.
 5. Tap **Reset**.
@@ -579,7 +581,7 @@ Where a test needs a *second, different* password (a change-password test), use 
 | **Admin Finance** | `qa.admin.finance@example.test` | `finance` | Proves Sessions and Catalog are blocked. |
 | **Admin Clinical** | `qa.admin.clinical@example.test` | `clinical` | Proves Money, Catalog and Settings are blocked. |
 
-Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`). The other three are created from **Settings → User Access** in `ADM-SET-026`.
+Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated one-time password shown once on that screen** — not `QaTest!2024pass`. Write all three down as you create them: nothing stores an admin's temporary password, so a lost one is reset from the Supabase dashboard under **Authentication → Users**.
 
 ### 8.3 Patients
 
@@ -4079,8 +4081,9 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 
 | # | Phase | Tests | Notes |
 | --- | --- | --- | --- |
-| 1 | **Reset** | `SETUP-RESET-001..003` | Must be first. Confirm an admin survives. |
-| 2 | **Admin & catalog setup** | `ADM-CAT-001`, `ADM-CAT-005`, `ADM-CAT-010`, `SETUP-HVPKG-001`, `ADM-SET-026` | Nothing downstream works without a catalog. |
+| 1 | **Reset** | `SETUP-RESET-001`, `SETUP-RESET-003` | Must be first. Confirm an admin survives. |
+| 1b | **Reset, scope gate** | `SETUP-RESET-002` | **Runs after `ADM-SET-026` in phase 2**, not here: it signs in as the Operations admin, and a freshly reset database has only the one admin made by hand in Supabase. Run it as soon as that account exists — the wipe it attempts must be refused, so it costs nothing to run late. |
+| 2 | **Admin & catalog setup** | `ADM-CAT-001`, `ADM-CAT-005`, `ADM-CAT-010`, `SETUP-HVPKG-001`, `ADM-SET-026` → then `SETUP-RESET-002` | Nothing downstream works without a catalog. `ADM-SET-026` shows each new admin's password **once** — copy all three before leaving the screen. |
 | 3 | **Create users** | `PAT-AUTH-002`, `THR-AUTH-001`, `HOS-LEAD-001` → `HOS-AUTH-002` | Patient A is created *inside* `PAT-BOOK-003`, deliberately — that is the guest path. |
 | 4 | **Approve users** | `ADM-APPR-001..004` | |
 | 5 | **Configure availability** | `THR-AVAIL-001..007`, `ADM-ROST-001..005` | |
