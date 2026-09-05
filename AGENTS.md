@@ -655,6 +655,33 @@ client is the only writer and the log is append-only from any session.
   `src/lib/pricing.ts`; inside it, none. Home visits use their own window
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) —
   see the Home Visit bullet below.
+- **The Google connection says whether it is up, because a dead token looks
+  like a handful of unlucky sessions.** Every Calendar and Meet call
+  authenticates with one refresh token, and when that token dies -- revoked,
+  or, far the commonest cause, the OAuth consent screen left in **Testing**,
+  where Google expires refresh tokens after seven days -- every session fails
+  at once with `invalid_grant`. Nothing said so. Each failure appeared as its
+  own row in Settings -> System Health -> Sync Health with a raw error string
+  and a Retry button that could never succeed, so the screen read "a few
+  sessions failed" when the truth was "no session will get a link again". The
+  one line naming the fix was a `console.error` no clinic owner reads.
+  `src/lib/googleConnectionHealth.ts` answers it by *spending* the token --
+  presence is not the test, since a token can be set and dead -- and three
+  things about it are load-bearing. It **never throws**: it runs inside the
+  admin dashboard's render, in that page's isolated `Promise.all`, so a
+  status panel can cost its own panel and never the screen it sits on. It
+  **distinguishes a dead token from a blip** (`deadToken`), because telling
+  an owner to re-authorize over a network hiccup teaches them to ignore the
+  panel. And a failure is **re-checked far sooner than a success is**
+  (60s against 10 minutes), so an owner who has just re-run the token script
+  watches the panel go green instead of waiting out a cache. `retryDueMeetSyncs`
+  reads the same verdict and returns early while the credential is down:
+  retrying cannot fix it, and each attempt spends one of that appointment's
+  five capped tries, so without the check the sessions that most needed the
+  sweep are already retired to "needs attention" by the time the credential
+  comes back. Checked after the backlog query, not before it, so an empty
+  backlog still costs no outbound call.
+
 - **Nobody is admitted to a session by hand.** Meet's default access type is
   TRUSTED, which admits only signed-in Google users who are *on the invite*
   and knocks for everyone else -- and a patient registers with whatever email
@@ -690,6 +717,32 @@ client is the only writer and the log is append-only from any session.
   One admin switch (`site_settings.meet_open_access_enabled`, on by
   default), because an owner whose Google account cannot grant the scope
   needs a way to stop the attempt and its recorded errors.
+- **"No Meet link" does not mean "broken" -- a home visit never has one.**
+  `createMeetEventForConfirmedAppointment` passes `withMeet: false` for a home
+  visit on purpose: there is nothing to join, the therapist is coming to the
+  address. Three readers nonetheless used `meet_link is null` as their
+  definition of an unsynced session, and every confirmed home visit therefore
+  (1) sat in Settings -> System Health -> Sync Health for ever, (2) was
+  answered `502 "Retry failed"` by the Retry button -- whose success test was
+  also `meet_link` -- on the runs where the event had in fact been created,
+  and (3) got a **brand new calendar event on every click**, because
+  `createSessionCalendarEvent` only ever creates. Three duplicate invites
+  reached one patient and therapist before it was found.
+  `src/lib/meetSyncState.ts` is the single answer now: a home visit is synced
+  when `google_event_id` exists, an online session when `meet_link` does, and
+  a column that was not *loaded* (`undefined`, as opposed to a loaded `null`)
+  never counts as evidence of failure -- these columns come from isolated
+  migration-tolerant queries, and guessing "absent means empty" restores the
+  false positives. Two rules follow from the duplicate events. The refusal to
+  create a second event lives in `createMeetEventForConfirmedAppointment`
+  itself, keyed on `google_event_id`, so every door gets it -- the sweep, the
+  manual Retry and the three booking paths -- rather than each caller
+  remembering; the claim columns could not do this job, since they stop two
+  callers racing over the same attempt and say nothing about an attempt that
+  should never have been made. And a new surface answering "is this session
+  synced" reads that module rather than testing a column, or it grows a fourth
+  disagreeing opinion.
+
 - **Google Calendar/Meet sync must never block a booking.** Failures are
   recorded on the appointment (`google_calendar_sync_error`), re-attempted
   automatically by `src/lib/retryDueMeetSyncs.ts` (a lazy sweep at the top of
@@ -2387,6 +2440,29 @@ filtered delete. The function refuses to run if it would leave no admin
 behind. `EXECUTE` is revoked from `anon` and `authenticated`, so only the
 service-role key can call it.
 
+**`treatment_categories` and `treatment_category_packages` are kept.** They
+are the one part of that list an admin builds by hand rather than generates
+by testing -- the conditions the public pages show and the programmes a
+therapist may recommend under each -- so emptying them meant retyping the
+catalogue after every reset, and the public site came back with nothing on
+it, which reads as the clinic having shut rather than as test data being
+cleared. Keeping them is safe alongside the rest going, because
+`TRUNCATE ... CASCADE` reaches tables that *reference* the truncated ones
+and never the reverse: appointments, care plan versions and purchases all
+point **at** a category or a package. A purchase reads its frozen
+`package_snapshot` rather than the live row, so a surviving package cannot
+rewrite what somebody already bought. Home-visit packages, service areas,
+FAQs, testimonials and the question templates are still cleared; take one
+out of the list the same way, one at a time with its own reason, rather
+than exempting "the catalogue" as a category nobody can check.
+
+**The route reports what the function returned.** It read
+`accounts_deleted` where the function returns `deleted_accounts`, and asked
+for an `admins_kept` it never returned, so a wipe that had just emptied
+every table answered "0 accounts deleted, 0 admins kept" -- indistinguishable
+from a reset that did nothing, on the one control whose result cannot be
+checked by looking at the screen behind it.
+
 **Adding a table means adding it to that `TRUNCATE` list**, or a reset
 silently leaves its rows behind. Before real patients exist, remove
 `ALLOW_DEBUG_DATA_RESET` and drop the function.
@@ -2479,6 +2555,21 @@ change that genuinely needs no doc update can ignore it.
   made the workflow fail with a wall of 429s. That failure is now soft --
   the run retries with the key unset and commits a structural graph rather
   than leaving the committed one stale.
+  **It arrives as a pull request, not as a commit on `main`.** The workflow
+  used to push straight to `main`, which the branch-protection ruleset
+  rejects (`GH013`), so it failed on every merge and threw away the graph it
+  had just built. It force-pushes one long-lived `chore/graphify-refresh`
+  branch and opens a PR from it instead -- deliberately not a commit onto the
+  branch that was merged, since sessions here push to their own `claude/*`
+  branches constantly and a CI commit landing underneath one turns their next
+  push into a rejected non-fast-forward. Merging that PR is what keeps
+  `manifest.json` current, so leaving it open has the exact cost the
+  paragraph above describes. Opening the PR is itself refusable, by
+  **Settings -> Actions -> General -> Allow GitHub Actions to create and
+  approve pull requests** (off by default, and off here): that refusal is
+  soft too -- the branch still carries the graph and the job summary links
+  the "open a PR" page -- because failing on it would put the workflow back
+  to red on every merge for a reason the red X could not explain.
 - Secrets (`SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET`, Google
   credentials) are server-only. Never add a `NEXT_PUBLIC_` prefix to them and
   never commit real values.

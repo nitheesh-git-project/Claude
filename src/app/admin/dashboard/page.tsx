@@ -101,6 +101,8 @@ import {
   MAX_MEET_SYNC_AUTO_ATTEMPTS,
   MAX_MEET_ACCESS_AUTO_ATTEMPTS,
 } from "@/lib/retryDueMeetSyncs";
+import { checkGoogleConnection } from "@/lib/googleConnectionHealth";
+import { sessionNeedsCalendarSync } from "@/lib/meetSyncState";
 import { runRiskSweep } from "@/lib/riskDetectors";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -634,6 +636,8 @@ export default async function AdminDashboardPage({
     categorySpecialtyRows,
     testimonialAvatarRows,
     hospitalNotes,
+    googleConnection,
+    syncModeRows,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -692,6 +696,21 @@ export default async function AdminDashboardPage({
             .in("hospital_id", hospitalIds)
         ).data,
       null as { hospital_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
+    ),
+    // One outbound call to Google, memoized for ten minutes, so the System
+    // Health screen can say whether the account is still connected rather
+    // than leaving an owner to infer it from a list of per-session failures.
+    // It sits in this batch for the batch's own reason: it must cost its own
+    // panel and never the dashboard, and it must not add a round trip to the
+    // chain.
+    checkGoogleConnection(),
+    // What Sync Health needs to tell a home visit from an online session, and
+    // an existing event from none. Isolated for the usual reason: without
+    // these the panel falls back to its old meet_link-only test rather than
+    // the whole dashboard failing.
+    guard(
+      async () => (await admin.from("appointments").select("id, visit_mode, google_event_id")).data,
+      null as { id: string; visit_mode: string | null; google_event_id: string | null }[] | null
     ),
   ]);
 
@@ -939,6 +958,11 @@ export default async function AdminDashboardPage({
     (syncAttemptRows ?? []).map((r) => [r.id, r.google_calendar_sync_attempts])
   );
   const meetAccessById = new Map((meetAccessRows ?? []).map((r) => [r.id, r]));
+  // A home visit has no Meet link by design, so the old `!a.meet_link` test
+  // listed every one of them here for ever -- and the Retry button that
+  // offered could only ever mint a duplicate calendar event. See
+  // src/lib/meetSyncState.ts.
+  const syncModeById = new Map((syncModeRows ?? []).map((r) => [r.id, r]));
   const googleMeetSyncIssues = appointmentsWithSessionCode
     .filter((a) => a.status === "confirmed")
     .map((a) => ({
@@ -946,7 +970,16 @@ export default async function AdminDashboardPage({
       google_calendar_sync_error: syncErrorById.get(a.id) ?? null,
       google_calendar_sync_attempts: syncAttemptsById.get(a.id) ?? 0,
     }))
-    .filter((a) => !a.meet_link || a.google_calendar_sync_error)
+    .filter((a) => {
+      const mode = syncModeById.get(a.id);
+      return (
+        sessionNeedsCalendarSync({
+          visit_mode: mode?.visit_mode,
+          meet_link: a.meet_link,
+          google_event_id: mode?.google_event_id,
+        }) || a.google_calendar_sync_error
+      );
+    })
     .map((a) => ({
       id: a.id,
       sessionCode: a.session_code ?? null,
@@ -2559,6 +2592,7 @@ export default async function AdminDashboardPage({
         // Read here rather than in the component: this is a server-only
         // secret, and only its presence crosses to the browser.
         webhookSecretConfigured={!!process.env.RAZORPAY_WEBHOOK_SECRET}
+        googleConnection={googleConnection}
       />
       <AccountingHealthPanel health={accountingHealth} />
     </div>

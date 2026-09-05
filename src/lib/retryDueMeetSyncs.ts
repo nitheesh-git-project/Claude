@@ -4,6 +4,7 @@ import {
   openMeetAccessForAppointment,
 } from "@/lib/googleCalendarSync";
 import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
+import { googleCredentialsUsable } from "@/lib/googleConnectionHealth";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -120,6 +121,16 @@ export async function retryDueMeetSyncs(admin: AdminClient): Promise<void> {
     .select("google_meet_enabled")
     .maybeSingle();
   const meetEnabled = settingsRow?.google_meet_enabled !== false;
+
+  // A dead refresh token fails every one of these rows identically, and no
+  // number of retries fixes it -- only a person re-authorizing does. Without
+  // this check the sweep spends each appointment's five capped attempts
+  // during the outage, so the sessions that most needed retrying are already
+  // retired to "needs attention" by the time the credential is restored, and
+  // the owner has to click Retry on every one of them by hand. Checked once
+  // for the batch, after the query rather than before it, so an empty backlog
+  // (the ordinary case) still costs no outbound call at all.
+  if (!(await googleCredentialsUsable())) return;
 
   for (const appointment of due) {
     const isHomeVisit = appointment.visit_mode === "home_visit";
@@ -263,6 +274,13 @@ export async function retryDueMeetAccess(admin: AdminClient): Promise<void> {
     .select("meet_open_access_enabled")
     .maybeSingle();
   if (settingsRow?.meet_open_access_enabled === false) return;
+
+  // Same reason as the sync sweep above: while the refresh token is dead
+  // every patch fails identically, and this pass's cap is the lower of the
+  // two -- so an outage would retire these rows to "needs attention" fastest,
+  // and each one then needs an admin's Open click by hand once the credential
+  // is back.
+  if (!(await googleCredentialsUsable())) return;
 
   for (const appointment of due) {
     if (!appointment.meet_link) continue;

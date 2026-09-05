@@ -82,10 +82,27 @@ export async function POST(request: NextRequest) {
     action: "data.reset",
   });
 
-  const result = (data ?? {}) as { admins_kept?: number; accounts_deleted?: number };
+  // The function returns `deleted_accounts`; this read `accounts_deleted`,
+  // and asked for an `admins_kept` it has never returned at all. Both
+  // resolved to undefined, so a wipe that had just emptied 54 tables
+  // reported "0 accounts deleted, 0 admins kept" -- which reads as a reset
+  // that did nothing, on the one control in this app where "did it work?"
+  // cannot be answered by looking at the screen behind it.
+  const result = (data ?? {}) as { ok?: boolean; deleted_accounts?: number };
+
+  // Counted here rather than added to the function: only admins survive the
+  // wipe, so this is "how many are left", and it needs no second version of
+  // a 160-line TRUNCATE to say so. Best-effort -- the reset itself has
+  // already committed, and failing to count the survivors must not report a
+  // successful wipe as an error.
+  const { count: adminsKept } = await admin
+    .from("profiles")
+    .select("id", { count: "exact", head: true })
+    .eq("role", "admin");
+
   return NextResponse.json({
     success: true,
-    adminsKept: result.admins_kept ?? 0,
-    accountsDeleted: result.accounts_deleted ?? 0,
+    adminsKept: adminsKept ?? 0,
+    accountsDeleted: result.deleted_accounts ?? 0,
   });
 }

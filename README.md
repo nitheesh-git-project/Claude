@@ -98,7 +98,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer, and the account whose Meet permission opens each meeting |
 | `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional kill switch for the pre-launch debug bar. The bar is on in every environment; set to exactly `false` to hide it |
-| `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which empties every table. Never set it on a deployment holding real data |
+| `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which empties every table except the conditions catalogue (`treatment_categories` and their packages) and keeps admin logins. Never set it on a deployment holding real data |
 | `SUPABASE_ACCESS_TOKEN` | Optional. A Supabase Personal Access Token (Account → Access Tokens on supabase.com, **not** the service role key or DB password), only needed to run `node scripts/run-schema.mjs` |
 
 Use Razorpay Test Mode keys (`rzp_test_…`) until the payment flow has been
@@ -1073,6 +1073,17 @@ OPEN access (`src/lib/googleMeetSpace.ts`). It needs the
 `meetings.space.settings` scope, which is why
 `scripts/get-google-refresh-token.mjs` now asks for two scopes and the Cloud
 project needs the **Google Meet API** enabled alongside the Calendar one.
+
+**If no session is getting a link at all, look at Settings -> System Health ->
+Google Connection first.** That panel spends the refresh token and says
+whether the account is still connected, because a token that has died fails
+every session identically and used to show up only as a list of per-session
+errors with a Retry button that could not work. The usual cause is the Google
+Cloud project's OAuth consent screen still being set to **Testing**, where
+Google expires refresh tokens after seven days; set it to **In production**
+and re-run `node scripts/get-google-refresh-token.mjs`. While the connection
+is down the automatic retry sweep stands down rather than spending each
+session's capped attempts on a credential that cannot succeed.
 
 A failure here never invalidates anything: the event and the link are
 already created and usable, the meeting simply keeps its waiting room. The

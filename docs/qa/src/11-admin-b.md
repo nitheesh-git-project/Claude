@@ -224,7 +224,7 @@ At **Settings → Offers & Discounts**, above Patient invites.
 **Feature.** Whether a balance shown and offered is read from the **credit ledger** or from the older `sessions_used` / `visits_used` counters is **one admin switch**, off by default and **reversible in a second** — both are written either way.
 
 **Steps**
-1. Open **Settings → System Health** and confirm the accounting check reports **no disagreements**.
+1. Open **Settings → System Health** and confirm the accounting check reports **no disagreements**, and that **Google Connection** is not red.
 2. Turn **Session Balances From The Ledger** **on**.
 3. Check every surface that shows a balance: the patient's package widget, the therapist's programme list, both purchase detail modals, the admin Purchases table, and the bulk scheduler.
 4. Turn it back off and check them all again.
