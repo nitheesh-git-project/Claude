@@ -713,6 +713,32 @@ client is the only writer and the log is append-only from any session.
   One admin switch (`site_settings.meet_open_access_enabled`, on by
   default), because an owner whose Google account cannot grant the scope
   needs a way to stop the attempt and its recorded errors.
+- **"No Meet link" does not mean "broken" -- a home visit never has one.**
+  `createMeetEventForConfirmedAppointment` passes `withMeet: false` for a home
+  visit on purpose: there is nothing to join, the therapist is coming to the
+  address. Three readers nonetheless used `meet_link is null` as their
+  definition of an unsynced session, and every confirmed home visit therefore
+  (1) sat in Settings -> System Health -> Sync Health for ever, (2) was
+  answered `502 "Retry failed"` by the Retry button -- whose success test was
+  also `meet_link` -- on the runs where the event had in fact been created,
+  and (3) got a **brand new calendar event on every click**, because
+  `createSessionCalendarEvent` only ever creates. Three duplicate invites
+  reached one patient and therapist before it was found.
+  `src/lib/meetSyncState.ts` is the single answer now: a home visit is synced
+  when `google_event_id` exists, an online session when `meet_link` does, and
+  a column that was not *loaded* (`undefined`, as opposed to a loaded `null`)
+  never counts as evidence of failure -- these columns come from isolated
+  migration-tolerant queries, and guessing "absent means empty" restores the
+  false positives. Two rules follow from the duplicate events. The refusal to
+  create a second event lives in `createMeetEventForConfirmedAppointment`
+  itself, keyed on `google_event_id`, so every door gets it -- the sweep, the
+  manual Retry and the three booking paths -- rather than each caller
+  remembering; the claim columns could not do this job, since they stop two
+  callers racing over the same attempt and say nothing about an attempt that
+  should never have been made. And a new surface answering "is this session
+  synced" reads that module rather than testing a column, or it grows a fourth
+  disagreeing opinion.
+
 - **Google Calendar/Meet sync must never block a booking.** Failures are
   recorded on the appointment (`google_calendar_sync_error`), re-attempted
   automatically by `src/lib/retryDueMeetSyncs.ts` (a lazy sweep at the top of

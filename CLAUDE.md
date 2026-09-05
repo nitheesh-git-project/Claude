@@ -118,7 +118,10 @@ automatic retry. Whether the Google account is connected **at all** is its
 own panel on that screen (`src/lib/googleConnectionHealth.ts`), because one
 dead refresh token fails every session identically and used to read as a few
 unlucky ones; the retry sweep stands down while it is down rather than
-spending each session's capped attempts. Open access removes the knock, not the sign-in: a meeting
+spending each session's capped attempts. Whether a given session is synced is
+`src/lib/meetSyncState.ts` -- a home visit has no Meet link by design, so
+judging it by one listed every home visit as broken and made Retry mint a
+duplicate calendar event per click. Open access removes the knock, not the sign-in: a meeting
 organised by a personal Gmail account still requires a Google account to
 join, and only moving the organiser to Workspace changes that. One switch,
 `meet_open_access_enabled`, on by default.
