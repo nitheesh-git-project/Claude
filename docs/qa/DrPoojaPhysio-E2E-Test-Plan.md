@@ -309,6 +309,10 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 * **The conditions catalogue** — `treatment_categories` and their `treatment_category_packages`. They are the one part of the list an admin builds by hand rather than generates by testing, so emptying them meant retyping the catalogue after every reset and left the public pages showing nothing, which reads as the clinic having shut rather than as test data being cleared. Home-visit packages, service areas, FAQs and testimonials are **not** kept.
 * **Objects in the private `medical-reports` Storage bucket.** The metadata rows go; the files do not. Storage is not reachable from SQL. Clear that bucket from the Supabase dashboard if you need the space back.
 
+> **Getting the accounts back in one command.** Every account in §8.2, §8.3, §8.8 and §8.9 is deleted by the reset — that is what "every non-admin account" means, and the full admin is the only login that survives. Rather than recreating twelve of them by hand before testing can start, run **`npm run seed:qa`** (`scripts/seed-qa-accounts.mjs`) from the repository, with `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_URL` in `.env.local`. It creates all four admins, all three patients, all three therapists and both hospitals with the §8.1 password, prints each hospital's referral code, and is safe to re-run: an existing account keeps its id, its history and its code, and only has its password put back. **If a tester reports `Invalid login credentials` on an account this document names, that command is the first thing to try** — it repairs a missing account and a forgotten password alike.
+>
+> It deliberately seeds **accounts only**. Service areas, home-visit packages, therapist rosters and each patient's saved address are created by named tests (§23.2, phases 2 and 5), and seeding them would let those tests pass without running.
+
 > **Regression worth knowing about.** An earlier version of this function predated the care-plan, evidence and risk tables and cleared none of them; three were saved by CASCADE, but `communication_flags`, `risk_signals` and `risk_reviews` survived a "delete everything". The one that actually bit a tester was `risk_signals`: it carries a partial unique index allowing at most one **open or reviewing** signal per `(rule, subject)`, so a leftover open signal held the slot and the same rule firing again wrote nothing — an empty Risk queue on a supposedly clean database, which reads exactly like a broken detector. All three are now named in the TRUNCATE list. `SETUP-RESET-001` asserts it.
 
 ### 6.3 The four gates (all must pass)
@@ -570,6 +574,8 @@ Use these exact values everywhere. Every test in this plan refers to them by lab
 ### 8.1 Standard password
 
 **All test accounts use the same password:** `QaTest!2024pass`
+
+> **Before typing any of §8.2–§8.9 in by hand, read this.** A data reset deletes every non-admin account, so the twelve logins below stop existing the moment `SETUP-RESET-001` runs. `npm run seed:qa` recreates all of them with this password, prints both hospitals' referral codes, and can be re-run safely — see §6.2. The two accounts an admin would otherwise mint from the back office (a scoped admin in `ADM-SET-026`, a hospital in `HOS-AUTH-002`) hand out a **generated** password shown once and stored nowhere; the seeder gives them this one instead, which is why `Invalid login credentials` on any account named here is a seeding question before it is a bug.
 
 Where a test needs a *second, different* password (a change-password test), use `QaTest!2024new`.
 
@@ -4085,7 +4091,7 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | 1 | **Reset** | `SETUP-RESET-001`, `SETUP-RESET-003` | Must be first. Confirm an admin survives. |
 | 1b | **Reset, scope gate** | `SETUP-RESET-002` | **Runs after `ADM-SET-026` in phase 2**, not here: it signs in as the Operations admin, and a freshly reset database has only the one admin made by hand in Supabase. Run it as soon as that account exists — the wipe it attempts must be refused, so it costs nothing to run late. |
 | 2 | **Admin & catalog setup** | `ADM-CAT-001`, `ADM-CAT-005`, `ADM-CAT-010`, `SETUP-HVPKG-001`, `ADM-SET-026` → then `SETUP-RESET-002` | Nothing downstream works without a catalog. `ADM-SET-026` shows each new admin's password **once** — copy all three before leaving the screen. |
-| 3 | **Create users** | `PAT-AUTH-002`, `THR-AUTH-001`, `HOS-LEAD-001` → `HOS-AUTH-002` | Patient A is created *inside* `PAT-BOOK-003`, deliberately — that is the guest path. |
+| 3 | **Create users** | `PAT-AUTH-002`, `THR-AUTH-001`, `HOS-LEAD-001` → `HOS-AUTH-002` | Patient A is created *inside* `PAT-BOOK-003`, deliberately — that is the guest path. **Run these through the UI the first time**: they are the sign-up, application and onboarding flows, and `npm run seed:qa` is not a substitute for testing them. Use the seeder afterwards, to put the same accounts back after every later reset (§6.2). |
 | 4 | **Approve users** | `ADM-APPR-001..004` | |
 | 5 | **Configure availability** | `THR-AVAIL-001..007`, `ADM-ROST-001..005` | |
 | 6 | **Booking** | `PAT-BOOK-001..017`, `PAT-HV-001..007` | Time-simulation scenarios TIME-A…D. |

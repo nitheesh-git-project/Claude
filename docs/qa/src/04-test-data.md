@@ -8,6 +8,8 @@ Use these exact values everywhere. Every test in this plan refers to them by lab
 
 **All test accounts use the same password:** `QaTest!2024pass`
 
+> **Before typing any of §8.2–§8.9 in by hand, read this.** A data reset deletes every non-admin account, so the twelve logins below stop existing the moment `SETUP-RESET-001` runs. `npm run seed:qa` recreates all of them with this password, prints both hospitals' referral codes, and can be re-run safely — see §6.2. The two accounts an admin would otherwise mint from the back office (a scoped admin in `ADM-SET-026`, a hospital in `HOS-AUTH-002`) hand out a **generated** password shown once and stored nowhere; the seeder gives them this one instead, which is why `Invalid login credentials` on any account named here is a seeding question before it is a bug.
+
 Where a test needs a *second, different* password (a change-password test), use `QaTest!2024new`.
 
 ### 8.2 Admin accounts

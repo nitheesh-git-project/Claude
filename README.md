@@ -20,9 +20,31 @@ npm run dev
 Open http://localhost:3000.
 
 Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
-`npm run test`, `npm run check:realtime`, `npm run test:e2e`, and
+`npm run test`, `npm run check:realtime`, `npm run test:e2e`,
+`npm run seed:qa`, and
 `npm run verify` (lint, then unit tests, then build — the one to run before
 pushing).
+
+### Seeding the QA accounts
+
+`npm run seed:qa` (`scripts/seed-qa-accounts.mjs`) creates every account the
+manual test plan names — four admins, three patients, three therapists, two
+hospitals — with the plan's fixture password. It exists because the debug
+**Reset data** button deletes every non-admin account, which is exactly what
+it is for and which leaves the plan's §8 fixtures as a list of logins that no
+longer exist.
+
+It is idempotent. An account that already exists keeps its id, its history and
+its hospital referral code, and only has its password put back to the fixture
+value — a tester reporting "invalid credentials" has usually lost a generated
+password rather than lost the row, and this fixes either. It needs
+`SUPABASE_SERVICE_ROLE_KEY` and writes with the service role, so point it only
+at a throwaway project. `--dry-run` prints what it would do and writes
+nothing.
+
+Rosters, service areas, home-visit packages and each patient's saved address
+are deliberately not seeded: a named test creates each of them, and a fixture
+that arrived already correct would let that test pass without running.
 
 ### Unit tests
 
@@ -1795,8 +1817,10 @@ src/lib/supabase/        client / server / admin / public clients, proxy
                          session refresh, and the auth guards
 src/proxy.ts             Auth proxy; matches the four dashboard route trees
 supabase/schema.sql      Full database schema, RLS policies, views, triggers
-scripts/                 One-off tooling (Google refresh-token helper, and
-                         build-test-plan.py, which builds the manual QA plan)
+scripts/                 One-off tooling (Google refresh-token helper,
+                         build-test-plan.py, which builds the manual QA plan,
+                         and seed-qa-accounts.mjs, which recreates its
+                         fixture accounts after a data reset)
 docs/qa/                 The manual E2E test plan: Markdown sources under
                          src/, plus the generated PDF and DOCX
 public/                  Static assets
