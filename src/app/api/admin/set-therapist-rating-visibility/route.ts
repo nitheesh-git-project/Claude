@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -36,6 +37,14 @@ export async function POST(request: NextRequest) {
   // /team is ISR-cached (revalidate = 300), so a therapist's rating stayed
   // on the public page after it was hidden until the window expired.
   revalidatePath("/team");
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "therapist.set_rating_visibility",
+    targetId: therapistId,
+    details: { visible },
+  });
 
   return NextResponse.json({ success: true, visible });
 }

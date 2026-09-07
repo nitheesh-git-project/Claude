@@ -114,9 +114,10 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 
 | # | Phase | Tests | Notes |
 | --- | --- | --- | --- |
-| 1 | **Reset** | `SETUP-RESET-001..003` | Must be first. Confirm an admin survives. |
-| 2 | **Admin & catalog setup** | `ADM-CAT-001`, `ADM-CAT-005`, `ADM-CAT-010`, `SETUP-HVPKG-001`, `ADM-SET-026` | Nothing downstream works without a catalog. |
-| 3 | **Create users** | `PAT-AUTH-002`, `THR-AUTH-001`, `HOS-LEAD-001` → `HOS-AUTH-002` | Patient A is created *inside* `PAT-BOOK-003`, deliberately — that is the guest path. |
+| 1 | **Reset** | `SETUP-RESET-001`, `SETUP-RESET-003` | Must be first. Confirm an admin survives. |
+| 1b | **Reset, scope gate** | `SETUP-RESET-002` | **Runs after `ADM-SET-026` in phase 2**, not here: it signs in as the Operations admin, and a freshly reset database has only the one admin made by hand in Supabase. Run it as soon as that account exists — the wipe it attempts must be refused, so it costs nothing to run late. |
+| 2 | **Admin & catalog setup** | `ADM-CAT-001`, `ADM-CAT-005`, `ADM-CAT-010`, `SETUP-HVPKG-001`, `ADM-SET-026` → then `SETUP-RESET-002` | Nothing downstream works without a catalog. `ADM-SET-026` shows each new admin's password **once** — copy all three before leaving the screen. |
+| 3 | **Create users** | `PAT-AUTH-002`, `THR-AUTH-001`, `HOS-LEAD-001` → `HOS-AUTH-002` | Patient A is created *inside* `PAT-BOOK-003`, deliberately — that is the guest path. **Run these through the UI the first time**: they are the sign-up, application and onboarding flows, and `npm run seed:qa` is not a substitute for testing them. Use the seeder afterwards, to put the same accounts back after every later reset (§6.2). |
 | 4 | **Approve users** | `ADM-APPR-001..004` | |
 | 5 | **Configure availability** | `THR-AVAIL-001..007`, `ADM-ROST-001..005` | |
 | 6 | **Booking** | `PAT-BOOK-001..017`, `PAT-HV-001..007` | Time-simulation scenarios TIME-A…D. |
@@ -183,11 +184,11 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 
 ### 24.2 Route coverage
 
-Every route in §3 is mapped to at least one test in its own table's rightmost column. **All 9 public pages, 2 booking routes, 11 patient routes, 8 therapist routes, 6 hospital routes, 2 admin routes + 28 admin screens + 3 admin detail routes, and 4 system routes are covered.** API routes are covered by the tests that drive them plus §18's direct calls.
+Every route in §3 is mapped to at least one test in its own table's rightmost column. **All 9 public pages, 2 booking routes, 10 patient routes, 8 therapist routes, 6 hospital routes, 2 admin routes + 31 admin screens + 3 admin detail routes, and 4 system routes are covered.** API routes are covered by the tests that drive them plus §18's direct calls.
 
 ### 24.3 Admin screen coverage
 
-All **28** screens have at least one dedicated test — see the §3.6 table. Every screen with a mutating control also has a negative and an authorization test.
+All **31** screens have at least one dedicated test — see the §3.6 table. Every screen with a mutating control also has a negative and an authorization test.
 
 ### 24.4 Configuration coverage
 

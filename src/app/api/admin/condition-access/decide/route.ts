@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 const VALID_ACTIONS = new Set(["approve", "decline", "revoke"]);
 
@@ -88,6 +89,14 @@ export async function POST(request: NextRequest) {
       .eq("status", "approved")
       .neq("therapist_id", grant.therapist_id);
   }
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "condition_access.decide",
+    targetId: grantId,
+    details: { action },
+  });
 
   return NextResponse.json({ success: true });
 }

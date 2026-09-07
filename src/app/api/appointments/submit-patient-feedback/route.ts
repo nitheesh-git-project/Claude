@@ -7,6 +7,18 @@ import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile"
 const MAX_FEEDBACK_LENGTH = 1000;
 
 export async function POST(request: NextRequest) {
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { data: body, error: parseError } = await parseJsonBody<{
     appointmentId?: string;
     rating?: unknown;
@@ -29,13 +41,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
   if (!(await isProfileActiveAndApproved(user.id))) {
     return NextResponse.json({ error: "Your account is not active — it is either awaiting admin approval or has been suspended." }, { status: 403 });
   }

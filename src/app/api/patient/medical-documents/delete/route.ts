@@ -9,20 +9,24 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 // a row whose file is already gone -- a broken download for the therapist
 // reading the chart.
 export async function POST(request: NextRequest) {
-  const { data: body, error: parseError } = await parseJsonBody<{ documentId?: string }>(request);
-  if (parseError) return parseError;
-
-  const documentId = typeof body.documentId === "string" ? body.documentId : "";
-  if (!documentId) {
-    return NextResponse.json({ error: "Missing document" }, { status: 400 });
-  }
-
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { data: body, error: parseError } = await parseJsonBody<{ documentId?: string }>(request);
+  if (parseError) return parseError;
+
+  const documentId = typeof body.documentId === "string" ? body.documentId : "";
+  if (!documentId) {
+    return NextResponse.json({ error: "Missing document" }, { status: 400 });
   }
 
   // Ownership is the RLS delete policy's job, and a row coming back from

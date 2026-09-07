@@ -14,6 +14,18 @@ import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
 const MAX_NOTES_LENGTH = 1000;
 
 export async function POST(request: NextRequest) {
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+
   const { data: body, error: parseError } = await parseJsonBody<{
     homeVisitPurchaseId?: string;
     razorpay_order_id?: string;
@@ -70,14 +82,6 @@ export async function POST(request: NextRequest) {
     if (!isWholeHourSlot(slotDateTime, body.timezone)) {
       return NextResponse.json({ error: NOT_WHOLE_HOUR_ERROR }, { status: 400 });
     }
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
   const admin = createAdminClient();

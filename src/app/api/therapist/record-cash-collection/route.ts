@@ -12,6 +12,18 @@ import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
 // flow into the same completed+paid pipeline every earnings and payout
 // calculation already reads.
 export async function POST(request: NextRequest) {
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   // The body carries an appointment id and nothing else.
   //
   // It used to accept `amountPaise` as an override, which meant the person
@@ -30,14 +42,6 @@ export async function POST(request: NextRequest) {
   const { appointmentId } = body;
   if (!appointmentId) {
     return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const admin = createAdminClient();

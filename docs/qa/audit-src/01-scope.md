@@ -2,17 +2,21 @@
 
 | | |
 | --- | --- |
-| **Report type** | Senior QA audit against the manual E2E test plan v1.0 |
-| **Subject** | Dr. Pooja's Physio — branch `claude/complete-e2e-testing-plan-910y5z` |
-| **Method** | Static source verification, then a **live run** against a disposable Supabase project with Razorpay test keys |
-| **Date** | 2 September 2026 |
-| **Verdict** | **Pass, after remediation.** **Eight** findings, all fixed — two of them found only by running the suite. `npm run verify` green (187 unit tests in 11 files, up from 153 in 9), **230 e2e cases executed**, and F-01 confirmed by measurement rather than inference. |
+| **Report type** | Senior QA audit against the manual E2E test plan — **second pass** |
+| **Subject** | Dr. Pooja's Physio — branch `claude/complete-e2e-testing-plan-ll8qet` |
+| **Method** | Pass 1 (2 Sep 2026): static verification plus a live run against a disposable Supabase project. Pass 2 (4 Sep 2026): re-verification against the current branch head, **static and executed only — no live environment was available**, and §2A is retained as the record of the earlier run |
+| **Date** | 4 September 2026 (first issued 2 September 2026) |
+| **Verdict** | **Pass, after remediation.** The eight findings of pass 1 were re-checked and all eight hold. Pass 2 raised **five** more — one of them the first pass's own fix applied too narrowly — and all five are fixed. `npm run verify` green: **384 unit tests in 23 files**, lint (including the realtime check) and a full production build. |
 
 ---
 
 ## 1. Scope — read this before anything else
 
-**This report began as a static audit, and became a partial live run.** The first pass had no running application and said so. The owner then confirmed a Supabase project as disposable, and §2A records what happened when the plan was actually executed against it: Step 0, 230 automated cases, the webhook suite and the anonymous-API sweep. **It is still not a complete execution of the plan** — the sections needing a browser with outbound network, a human at a payment widget, or a schema-apply token remain unrun, and §5 says which. Nothing here is reported as passing on the strength of reading code: every claim is either an EXECUTED result with its output, or a VERIFIED-SOURCE trace, or is marked NOT-VERIFIABLE.
+**This report has been through two passes, and the second one had no database.** Pass 1 began as a static audit and became a partial live run: the owner confirmed a Supabase project as disposable, and §2A records what happened when the plan was executed against it — Step 0, 230 automated cases, the webhook suite and the anonymous-API sweep.
+
+**Pass 2 (this issue) re-audited the current branch head with no live environment at all.** What it could do, it did: the four commands ran and their real output is quoted below; every pass-1 finding was re-checked against the code and schema that fix it; and the areas that changed since pass 1 — the Settings split, three access levels, the four scoped dashboards, the whole-hour slot rule, the category reorder, the promo/invite/free-booking paths — were traced afresh. **§2A is not re-run**, and nothing in it should be read as evidence about this branch's runtime behaviour; it stands as the record of what a live run established on 2 September.
+
+**It is still not a complete execution of the plan** — the sections needing a browser with outbound network, a human at a payment widget, or a schema-apply token remain unrun, and §5 says which. Nothing here is reported as passing on the strength of reading code: every claim is either an EXECUTED result with its output, or a VERIFIED-SOURCE trace, or is marked NOT-VERIFIABLE.
 
 What this report **is**: an audit of the same surface area by the two means that *are* available.
 
@@ -42,9 +46,10 @@ All four commands ran in this environment against the branch head.
 
 | Command | Result | Detail |
 | --- | --- | --- |
-| `npm install` | **PASS** | Dependencies resolved |
-| `npm run test` | **PASS** | **187 tests, 11 files, 0 failures** after remediation (153 in 9 before) |
-| `npm run lint` | **PASS** | Includes `check:realtime` |
+| `npm ci` | **PASS** | 507 packages, clean install |
+| `npm run test` | **PASS** | **384 tests, 23 files, 0 failures** (pass 1 ended at 187 in 11) |
+| `npm run lint` | **PASS** | Includes `check:realtime` — 40 subscribed tables, all published |
+| `npx tsc --noEmit` | **PASS** | No type errors, run after every change this pass made |
 | `npm run build` | **PASS** | Full production build; every route in the plan's route map appears in the build output |
 
 ### 2.1 Unit test detail
@@ -61,8 +66,10 @@ All four commands ran in this environment against the branch head.
 ✓ src/lib/adminSettings.test.ts           8 tests
 ✓ src/lib/riskSignals.test.ts             7 tests
 ✓ src/lib/consultationFirst.test.ts       4 tests
-Test Files  11 passed (11)     Tests  187 passed (187)
+Test Files  23 passed (23)     Tests  384 passed (384)
 ```
+
+The list above is pass 1's. Pass 2 re-ran the suite as it stands today: **23 files, 384 tests, 0 failures**, in 2.6 seconds. The growth from 187 is the work merged between the two passes — the discounts, promo-code, invite, checkout-quote, care-plan-review, admin-home and admin-scope modules all arrived with their own tests, which is the pattern the first pass asked for when it raised F-06.
 
 **What this covers, and what it does not.** These are the dependency-free modules in `src/lib` — the roster's range↔hour conversion, the home-visit price and payout maths, the contact-leak scanner's two tiers, phone/email masking, the settings parser, the care-plan rules and the consultation-first rule. That is genuine coverage of the business arithmetic the finance and clinical sections of the plan depend on.
 
@@ -71,7 +78,7 @@ It did **not** cover `adminMetrics.ts` — the module holding `moneyByBucketFor`
 ### 2.2 Realtime coverage check
 
 ```
-Realtime coverage OK — 38 subscribed table(s), all published.
+Realtime coverage OK — 40 subscribed table(s), all published.
 (1 published but unsubscribed: home_visit_purchase_events)
 ```
 

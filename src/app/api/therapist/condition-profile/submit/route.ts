@@ -21,6 +21,18 @@ import { loadConditionProfileCore, loadMergedIntakeQuestions } from "@/lib/condi
 // human to approve it. The specialty cannot be changed through here
 // either; re-triage is a clinical decision and goes through onboard.
 export async function POST(request: NextRequest) {
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { data: body, error: parseError } = await parseJsonBody<{
     patientId?: string;
     data?: unknown;
@@ -32,13 +44,6 @@ export async function POST(request: NextRequest) {
   }
   if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
     return NextResponse.json({ error: "Missing data" }, { status: 400 });
-  }
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (!(await isProfileActiveAndApproved(user.id))) {
     return NextResponse.json(

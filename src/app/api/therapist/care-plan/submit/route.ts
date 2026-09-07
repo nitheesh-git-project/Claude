@@ -30,6 +30,18 @@ import {
 // `care_plan_requires_approval` is the switch, read here and failing closed.
 // With it off the behaviour is exactly what it was.
 export async function POST(request: NextRequest) {
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { data: body, error: parseError } = await parseJsonBody<{
     patientId?: string;
     appointmentId?: string;
@@ -42,14 +54,6 @@ export async function POST(request: NextRequest) {
     instructions?: string;
   }>(request);
   if (parseError) return parseError;
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const admin = createAdminClient();
   const { data: profile } = await admin

@@ -45,10 +45,10 @@ type Body = {
 };
 
 export async function POST(request: NextRequest) {
-  const parsed = await parseJsonBody<Body>(request);
-  if (parsed.error) return parsed.error;
-  const body = parsed.data;
-
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
   const supabase = await createClient();
   const {
     data: { user },
@@ -56,6 +56,10 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+
+  const parsed = await parseJsonBody<Body>(request);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   // isProfileActive, not isProfileActiveAndApproved: a patient who just
   // signed up in the wizard is unapproved by definition, and this row is

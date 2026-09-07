@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 const ALLOWED_STATUSES = ["new", "contacted", "declined"];
 
@@ -46,6 +47,14 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "lead.update_status",
+    targetId: leadId,
+    details: { status },
+  });
 
   return NextResponse.json({ success: true });
 }

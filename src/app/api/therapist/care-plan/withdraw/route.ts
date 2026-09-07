@@ -17,6 +17,18 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 // something -- that is a refund, which is an admin's job and has its own
 // route.
 export async function POST(request: NextRequest) {
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { data: body, error: parseError } = await parseJsonBody<{ carePlanId?: string }>(
     request
   );
@@ -25,14 +37,6 @@ export async function POST(request: NextRequest) {
   const carePlanId = body.carePlanId?.trim();
   if (!carePlanId) {
     return NextResponse.json({ error: "Missing carePlanId" }, { status: 400 });
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const admin = createAdminClient();

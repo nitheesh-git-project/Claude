@@ -6,6 +6,7 @@ import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync
 import { meetSyncUnclaimedFilter } from "@/lib/retryDueMeetSyncs";
 import { isSessionCalendarSynced } from "@/lib/meetSyncState";
 import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Re-attempts Meet event creation for one confirmed appointment from the
 // Feature Control tab's sync health panel -- same helper every original
@@ -147,6 +148,13 @@ export async function POST(request: NextRequest) {
   // admin, told it had failed, clicked again and minted another duplicate
   // event. See src/lib/meetSyncState.ts.
   if (updated && isSessionCalendarSynced(updated)) {
+    // Only here, not on the no-op return above: this is the branch that
+    // actually created a calendar event.
+    await recordAdminActivity(admin, adminUser.id, {
+      action: "session.retry_meet_sync",
+      targetId: appointmentId,
+    });
+
     return NextResponse.json({ success: true, meetLink: updated.meet_link ?? null });
   }
   return NextResponse.json(

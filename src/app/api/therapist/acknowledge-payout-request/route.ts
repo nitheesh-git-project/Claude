@@ -4,19 +4,23 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
-  const { data: body, error: parseError } = await parseJsonBody<{ requestId?: unknown }>(request);
-  if (parseError) return parseError;
-
-  if (typeof body.requestId !== "string") {
-    return NextResponse.json({ error: "Missing requestId" }, { status: 400 });
-  }
-
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { data: body, error: parseError } = await parseJsonBody<{ requestId?: unknown }>(request);
+  if (parseError) return parseError;
+
+  if (typeof body.requestId !== "string") {
+    return NextResponse.json({ error: "Missing requestId" }, { status: 400 });
   }
 
   const admin = createAdminClient();

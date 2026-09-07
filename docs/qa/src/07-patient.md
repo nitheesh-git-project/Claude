@@ -85,6 +85,68 @@ Two rules shape almost everything on the patient's screens:
 
 ---
 
+### 11.1a The dashboard landing screens
+
+The patient portal's Overview is the screen a patient lands on after every sign-in, and the one that answers "how am I doing / what needs me / what do I do next" in that order — a strip of four figures, the activity feed, then quick actions. It is assembled by `loadPatientDashboard()`, so every figure on it is derived from rows the same loader already read: none of it can disagree with the screen it links to. The booking hub under **Book a Session** is the portal's own front door to the two things a patient may buy directly — **one** video consultation, or **one** visit at home.
+
+#### `PAT-DASH-001` — The patient Overview · P1
+
+**Feature.** Patient dashboard Overview (`/patient/dashboard`). **Role.** Patient.
+**Purpose.** Confirm the four figures, the feed, the quick actions and the conditional banners render, that every figure links to rows that agree with it, and that the first-visit tour appears exactly once.
+**Preconditions.** Signed in as Patient A (`PAT-AUTH-001`). Run this **twice**: once immediately after `PAT-AUTH-002`/`PAT-BOOK-003` (nothing completed yet) and once after `THR-SESS-005` has completed a session, so both the empty and the populated shapes are seen.
+**Test Data.** None entered.
+
+**Steps**
+1. Open `/patient/dashboard`.
+2. On a brand-new account only: read the welcome tour that opens over the screen. Confirm it reads `1 of N`, has **Skip**, **Next** and (from step 2) **Back**, and that the highlighted ring sits over the sidebar entry each step names.
+3. Tap **Next** until the last step, then tap **Done**.
+4. Reload the page.
+5. Read the header: `Welcome back, QA Patient A` with `Your virtual physical therapy dashboard` under it.
+6. Read the four figures across the strip, left to right.
+7. Tap the **Next session** figure.
+8. Tap the browser's Back button, then tap the **Package sessions left** figure.
+9. Tap Back again. Read the activity feed under the strip.
+10. Read the four quick actions at the foot: **Book a session**, the health-profile action, **Your sessions**, **Your payments**.
+
+**Expected Result.**
+* The tour appears **only on the first visit**. Step 3 writes `profiles.onboarding_seen_at` through `/api/patient/dismiss-onboarding`, so the reload at step 4 shows no tour, and it never returns. **Skip** does the same thing as **Done** — both dismiss it permanently.
+* The strip reads: **Next session** (date + time and the therapist's name, or `—` with `Nothing booked yet`), **Sessions done** (count, `Your history builds up here` at zero), **Package sessions left** (count, `You don't own a package yet` when there are none), and **Health profile**.
+* **Health profile before the therapist's first record reads `—` on a slate accent** with `Your therapist fills this in at your first session` — **not** `0%` on amber. An amber zero here is the `PAT-HP-001` defect: it asserts the patient is behind on something nobody has asked them for.
+* Step 7 navigates to `/patient/dashboard/sessions`; step 8 to `/patient/dashboard/packages`. Every figure is a link and lands on the rows it counted.
+* With no history the feed reads `Bookings, payments and health-profile updates show up here as they happen.` Once there is history, items still waiting on the patient (`needsYou`) are **pinned above** everything else regardless of date, and no single title repeats more than the cap allows.
+* The health-profile quick action changes wording with state: `See your health profile` / `Your therapist fills this in at your first session` while locked, `Finish your health profile` / `N questions left, about 2 minutes` while partly answered, `Review your health profile` while complete.
+* **Conditional banners.** While the profile is the patient's to write and unfinished, an amber banner reads `You're N of M questions into your health profile.` (or the `Add to your health profile…` wording at zero) with a progress bar and `Finish it →`. While a recommendation or a proposed time is waiting, a teal card reads `Your therapist has recommended a programme` or `Your therapist has proposed a time` and links to `/patient/dashboard/suggested` — the cards themselves live there, never duplicated here.
+* If invites are enabled (`ADM-SET-023`'s neighbour, `invite_rewards_enabled`), the invite card renders **below** the overview, never as a banner over it, and its claim field is gone once any session has been paid for.
+* No console error. No horizontal scroll at 390 × 844.
+**Cleanup.** None. Stay signed in.
+
+#### `PAT-DASH-002` — The booking hub inside the portal · P1
+
+**Feature.** `/patient/dashboard/book`. **Role.** Patient.
+**Purpose.** Prove the portal's booking hub offers exactly the two things a patient may buy directly, and nothing that must come from a recommendation.
+**Preconditions.** `SETUP-CAT-001` has created the three categories. For the home-visit half: `ADM-SET-013` on, `SETUP-AREA-001` and `SETUP-HVPKG-001` done (HV1 = 1 visit, HV2 = 4 visits).
+**Test Data.** None entered.
+
+**Steps**
+1. In the sidebar tap **Book a Session**.
+2. Read the two group headings and their blurbs.
+3. Read every card under **Single online consultation**.
+4. Read every card under **Home visits**.
+5. Tap the card titled `QA Back & Spine Care`.
+6. Tap the browser's Back button, then tap the HV1 card.
+7. Return to `/patient/dashboard/book`. Ask an admin to switch **Home Visit** off (`ADM-SET-013`), then reload this screen.
+
+**Expected Result.**
+* Heading **Book a Session**, subtitle `Video consultations and home visits, in one place.`
+* Group 1 is `Single online consultation` — `One video session with a therapist, booked for a specific concern.` One card per **active** treatment category, each showing its title, description, `N min · online` and its consultation price.
+* Group 2 is `Home visits` — `A therapist comes to you. We'll check your pincode before anything is charged.` **HV1 (1 visit) appears. HV2 (4 visits) does not.** A multi-visit home package is a programme and comes from a care plan; if HV2 is on this screen that is the P0 `PAT-HV-005` defect. Each card carries `Single visit · N min at home` and either `Travel included` or `Travel charged separately, by area`.
+* **No session package (programme) appears anywhere on this screen**, at any price, with or without a Buy control.
+* Step 5 navigates to `/book?category=<id>` with that category preselected. Step 6 navigates to `/book-home-visit?package=<id>`.
+* After step 7 the **Home visits** group is **absent** entirely and the sidebar's home-visit affordances go with it. With no categories **and** no home-visit packages the whole card reads `Nothing is available to book right now — please check back shortly.`
+**Cleanup.** Switch **Home Visit** back on if later home-visit tests follow.
+
+---
+
 ### 11.2 The booking wizard — happy paths
 
 #### `PAT-BOOK-001` — Reach the wizard from the public site · P1

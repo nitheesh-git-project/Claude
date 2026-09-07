@@ -54,6 +54,10 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 * **The conditions catalogue** — `treatment_categories` and their `treatment_category_packages`. They are the one part of the list an admin builds by hand rather than generates by testing, so emptying them meant retyping the catalogue after every reset and left the public pages showing nothing, which reads as the clinic having shut rather than as test data being cleared. Home-visit packages, service areas, FAQs and testimonials are **not** kept.
 * **Objects in the private `medical-reports` Storage bucket.** The metadata rows go; the files do not. Storage is not reachable from SQL. Clear that bucket from the Supabase dashboard if you need the space back.
 
+> **Getting the accounts back in one command.** Every account in §8.2, §8.3, §8.8 and §8.9 is deleted by the reset — that is what "every non-admin account" means, and the full admin is the only login that survives. Rather than recreating twelve of them by hand before testing can start, run **`npm run seed:qa`** (`scripts/seed-qa-accounts.mjs`) from the repository, with `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_URL` in `.env.local`. It creates all four admins, all three patients, all three therapists and both hospitals with the §8.1 password, prints each hospital's referral code, and is safe to re-run: an existing account keeps its id, its history and its code, and only has its password put back. **If a tester reports `Invalid login credentials` on an account this document names, that command is the first thing to try** — it repairs a missing account and a forgotten password alike.
+>
+> It deliberately seeds **accounts only**. Service areas, home-visit packages, therapist rosters and each patient's saved address are created by named tests (§23.2, phases 2 and 5), and seeding them would let those tests pass without running.
+
 > **Regression worth knowing about.** An earlier version of this function predated the care-plan, evidence and risk tables and cleared none of them; three were saved by CASCADE, but `communication_flags`, `risk_signals` and `risk_reviews` survived a "delete everything". The one that actually bit a tester was `risk_signals`: it carries a partial unique index allowing at most one **open or reviewing** signal per `(rule, subject)`, so a leftover open signal held the slot and the same rule firing again wrote nothing — an empty Risk queue on a supposedly clean database, which reads exactly like a broken detector. All three are now named in the TRUNCATE list. `SETUP-RESET-001` asserts it.
 
 ### 6.3 The four gates (all must pass)
@@ -124,12 +128,14 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 **Purpose.** Prove that scope, not merely being an admin, gates the wipe.
 
-**Preconditions.** `ADM-SET-026` has created `qa.admin.ops@example.test` with scope **Operations**.
+**Preconditions.** `ADM-SET-026` has created `qa.admin.ops@example.test` with scope **Operations** — **run it before this test even though it belongs to a later phase.** The account cannot exist before somebody creates it, and the reset does not create it: a fresh database has exactly one admin, the one made by hand in Supabase before Step 0. Attempting this test first is answered `Invalid login credentials`, which is the account being absent rather than anything about the reset.
+
+> **The password is not the standard one.** `create-account` **generates** it — nine random bytes, base64url — and shows it **once**, on the User Access screen, as *"temporary password `<value>`"*. It is deliberately never emailed, never written to the activity log, and never stored anywhere for an admin (the `temp_password` column exists for patients, therapists and hospitals only). **Copy it when it appears.** Lost, it cannot be recovered: set a new one in the Supabase dashboard under **Authentication → Users**, or delete the account there and create it again from User Access.
 
 **Steps**
 
 1. Sign out of the full admin account.
-2. Sign in at `/admin/login` as `qa.admin.ops@example.test` / `QaTest!2024pass`.
+2. Sign in at `/admin/login` as `qa.admin.ops@example.test` with the one-time password `ADM-SET-026` showed you.
 3. In the Debug bar, tap **Reset data**.
 4. Enter `RESET ALL DATA` in the confirmation field.
 5. Tap **Reset**.
@@ -202,7 +208,7 @@ This is the single most misunderstood part of the application, and mis-reading i
 | The therapist's own suggestion picker | `/api/therapist/suggest-session`'s lead-time check |
 | | Payout maths, `completed_at` stamping, audit timestamps, `paid_at` |
 
-**The practical consequence, stated plainly:** you can use the simulated clock to make the *UI offer* a slot or a button. You cannot use it to make the *server accept* a time-gated write. If you simulate a date far in the future and then try to complete a session, the client will show you the **Tap to Join** control and the server will still answer `409` with *"You can mark this done once the session's join window has opened."* **That is correct behaviour, not a defect.** Tests that need a server-side time gate to pass say so explicitly and tell you to use a real near-future slot instead.
+**The practical consequence, stated plainly:** you can use the simulated clock to make the *UI offer* a slot or a button. You cannot use it to make the *server accept* a time-gated write. If you simulate a date far in the future and then try to complete a session, the client will show you the **Tap to Join** control and the server will still answer `409` with *"This session hasn't started yet. You can mark it done once it's under way."* **That is correct behaviour, not a defect.** Tests that need a server-side time gate to pass say so explicitly and tell you to use a real near-future slot instead.
 
 Because the storage key is `localStorage`, the simulation is **per browser profile**, and it survives navigation and reload until you reset it. Applying it triggers a **full page reload** — soft re-renders would not pick it up, because every consumer reads the clock once in a lazy initializer.
 
@@ -238,7 +244,7 @@ These are referenced by ID throughout the plan.
 | **TIME-B** | `2026-09-12 18:00` | Same rules, different day-of-week and a later hour, so the boundary lands on the *next* day. Proves the boundary is computed, not hardcoded. | `PAT-BOOK-004` |
 | **TIME-C** | `2026-09-10 23:30` | Late-night boundary: no slot remains today, so the calendar's earliest bookable date must roll to 11 September. | `PAT-BOOK-005` |
 | **TIME-D** | Real clock + 24h ahead of a home-visit slot | Home-visit lead time defaults to 24h — longer than online. Proves the two lead times are separate settings. | `PAT-HV-003` |
-| **TIME-E** | 10 minutes **before** a confirmed session's slot | The join window opens `join_window_minutes` (default 15) before the slot. **Tap to Join** must be live. | `THR-SESS-004`, `PAT-SESS-005` |
+| **TIME-E** | 10 minutes **before** a confirmed session's slot | The join window opens `join_window_minutes` (default 15) before the slot. **Tap to Join** must be live. | `THR-SESS-004`, `PAT-SESS-003` |
 | **TIME-F** | 90 minutes **after** a confirmed session's slot | Past `session_completed_after_minutes` (default 60). Every join control on every surface must read **Session Completed**. | `XR-CUTOFF-001` |
 | **TIME-G** | 30 hours before a paid session's slot | Outside the 24h cancellation window → full refund path. | `PAT-CANCEL-001` |
 | **TIME-H** | 2 hours before a paid session's slot | Inside the 24h window → no refund, and the confirm dialog must say so. | `PAT-CANCEL-002` |

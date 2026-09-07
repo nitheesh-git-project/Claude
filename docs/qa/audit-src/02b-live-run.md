@@ -2,6 +2,8 @@
 
 ## 2A. Live run against a real environment
 
+> **This section is pass 1's record, dated 2 September 2026, and was not re-run in pass 2.** No live environment was available for the second pass, so nothing below is evidence about the current branch head — read it as what a live run established about the product on that date, against a database that did **not** have this branch's schema applied. The pass-2 re-verification is in §3 and §4.
+
 The audit above was written without a running application. It has since been **executed** against a disposable Supabase project the owner confirmed as throwaway, with a `next dev` server, Razorpay test-mode keys and a locally-signed webhook secret. This section records what actually happened.
 
 ### 2A.1 What the environment turned out to have

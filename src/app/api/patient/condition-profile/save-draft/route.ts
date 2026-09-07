@@ -12,19 +12,24 @@ import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
 // draft_data is purely a resume buffer for whatever's currently open in
 // the form).
 export async function POST(request: NextRequest) {
-  const { data: body, error: parseError } = await parseJsonBody<{ data?: unknown }>(request);
-  if (parseError) return parseError;
-
-  const answers = body.data;
-  if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
-    return NextResponse.json({ error: "Missing data" }, { status: 400 });
-  }
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { data: body, error: parseError } = await parseJsonBody<{ data?: unknown }>(request);
+  if (parseError) return parseError;
+
+  const answers = body.data;
+  if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
+    return NextResponse.json({ error: "Missing data" }, { status: 400 });
   }
 
   const admin = createAdminClient();

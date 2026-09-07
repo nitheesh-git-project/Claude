@@ -48,6 +48,73 @@ Five rules shape almost every screen:
 
 ---
 
+### 12.1a The dashboard landing screens
+
+The therapist Overview is where a clinician starts every shift: what is on today, what is owed, and what they have not written up yet. Edit Profile is the screen that draws the line between a detail they own outright and a credential a patient relies on.
+
+#### `THR-DASH-001` — The therapist Overview · P1
+
+**Feature.** `/therapist/dashboard`. **Role.** Therapist.
+**Purpose.** Confirm the header states what this therapist is paid and rated, that the four figures agree with the screens they link to, and that every quick action lands somewhere real.
+**Preconditions.** `THR-AUTH-003`. Best read after `THR-SESS-005` has completed at least one session, so **Notes to write** and **Owed to you** are non-zero.
+
+**Steps**
+1. Open `/therapist/dashboard`.
+2. Read the header block: name, credentials, `Your Revenue Share: N%`, `Your Rating: …`.
+3. Read the four figures: **Today**, **Upcoming**, **Notes to write**, **Owed to you**.
+4. Tap **Notes to write**.
+5. Tap Back, then tap **Owed to you**.
+6. Tap Back. Read the activity feed.
+7. Tap the quick action **Set your availability**.
+8. Tap Back, then tap each of **Your assigned sessions**, **Patient health profiles** and **Earnings and payouts** in turn, returning each time.
+
+**Expected Result.**
+* Header: `Welcome, QA Therapist A`, the credentials string, `Your Revenue Share: 60%` (whatever `ADM-PEOP-006` set), and `Your Rating: No ratings yet` until a patient has rated one — then `4.0 (1 rating)`. If an admin has hidden this therapist's rating, the line ends ` — hidden from public pages`.
+* Greeting `Your practice today`. The headline names the next session and its patient, or reads `No sessions booked yet — keep your availability open and the clinic assigns work to it.`
+* **Today** counts today's sessions with `Next at H:MM` beneath, **Upcoming** counts confirmed and awaiting-assignment work, **Notes to write** counts delivered sessions with nothing recorded (amber above zero, emerald at zero with `Every delivered session is written up`), **Owed to you** is a rupee figure with `Not yet requested` / `Payout request under review` / `Payout request sent`.
+* Steps 4 and 5 land on `/therapist/dashboard/sessions` and `/therapist/dashboard/earnings`. The counts there match the figures exactly.
+* Empty feed reads `Assignments, completed sessions and payouts show up here as they happen.` A session delivered with no note written is a `needsYou` item pinned above dated items.
+* **Step 7 must land on `/therapist/dashboard/availability`, with the weekly schedule editor on screen.** Availability is its own route; a quick action that reloads the Overview and changes nothing is a defect — report it against this test ID.
+* Step 8's three links land on `/therapist/dashboard/sessions`, `/therapist/dashboard/health-profile` and `/therapist/dashboard/earnings`.
+* No figure on this screen exposes a patient's phone number or email — see `THR-SESS-003`.
+**Cleanup.** None.
+
+#### `THR-PROF-001` — Edit Profile: what saves instantly and what needs approval · P1
+
+**Feature.** `/therapist/dashboard/profile`. **Role.** Therapist.
+**Purpose.** Prove the line between a detail a therapist owns and a credential patients rely on: the first saves on the spot, the second becomes an admin review request and locks the field until it is decided.
+**Preconditions.** `THR-AUTH-003`. An admin is available to decide the request in `ADM-APPR-004`.
+**Test Data.** Bio `Works with desk-based patients on posture-driven back pain.` · Languages `English, Kannada, Hindi` · Years of Experience `15` (a deliberate wrong value — it is declined, never approved, so Therapist A stays at the §8.8 value of `9`) · Specialist In `Spine, hip and knee rehabilitation`.
+
+**Steps**
+1. In the sidebar tap **Edit Profile**.
+2. Under **Public Details**, tap **Short Bio**. Replace it with `Works with desk-based patients on posture-driven back pain.`
+3. Tap **Languages Spoken**. Enter `English, Kannada, Hindi`.
+4. Tap **Save**.
+5. Reload the page and confirm both values survived.
+6. Under **Credentials & Specialization**, tap **Years of Experience**. Enter `15`.
+7. Tap **Specialist In**. Enter `Spine, hip and knee rehabilitation`.
+8. Tap **Request Changes**.
+9. Read the two fields you just changed.
+10. Tap **Withdraw** beside **Specialist In**.
+11. Repeat steps 7–8 for **Specialist In** only. Leave it pending.
+12. Sign in as a full admin and open **Today → Approvals**. Decline **both** requested fields with the note `Send the council registration number first.`
+13. Sign back in as the therapist and reopen **Edit Profile**.
+14. Under **Account Security**, tap **Send password reset email**.
+
+**Expected Result.**
+* **Public Details save instantly.** The button reads `Saving...` then `Save`; the values survive the reload at step 5. No admin sees anything.
+* **Credentials do not.** Step 8 shows `Your request has been submitted for admin review.` Each requested field is replaced by its **new** value on a slate panel with an amber `Pending Review` chip and a **Withdraw** link, and **cannot be edited again** until the request is decided. The live public profile still shows the **old** value — `/team` and the patient's therapist card must not change yet.
+* Step 10's **Withdraw** returns the field to an editable input immediately, with the old value.
+* After step 12's decline the field is editable again and carries `Last request declined: Send the council registration number first.` in red. Nothing on the public profile ever changed.
+* The note under the credential fields reads `Changes to these fields need admin approval before they take effect.`
+* **Profile photo** uploads on the spot (no review) and appears on `/team` once the therapist is visible there.
+* Step 14 sends the reset by email and says so; the password is never typed on this screen.
+* Negative: a **negative** Years of Experience is refused by the field's `min=0`; an empty **Full Name** submits nothing.
+**Cleanup.** Leave the bio and languages as set — §8.8 quotes them. **No credential request may be left pending**, or `ADM-APPR-004` starts with rows it did not create and Therapist A's experience drifts from `9`.
+
+---
+
 ### 12.2 Availability — the roster
 
 > **Feature guide.** The editor is the same component on the therapist's own screen and on the admin's Roster. It edits **periods** ("Monday 9 AM – 1 PM and 2 PM – 6 PM"), and converts them to the hour rows the tables have always stored. Every existing schedule — including a sparse exception written one cell at a time by the old grid — must read back as exactly the same hours. A weekly save is a **compare-and-swap under a real row lock**, versioned by `therapist_schedule_state`.

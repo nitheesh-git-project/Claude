@@ -10,6 +10,7 @@ import {
   mergeQuestionOverrides,
   type PainMapSide,
 } from "@/lib/painMap";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 type AnswerInput = { key: string; value: string };
 
@@ -103,6 +104,14 @@ export async function POST(request: NextRequest) {
   if (insertError) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "pain_assessment.create",
+    targetId: patientId,
+    details: { region, side },
+  });
 
   return NextResponse.json({ success: true });
 }

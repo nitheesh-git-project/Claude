@@ -45,6 +45,18 @@ const TRIAGE_KEYS = new Set(TRIAGE_QUESTIONS.map((q) => q.key));
 // direct edit uses, so the change appears in the ordinary Review History
 // with no new concept and no queue.
 export async function POST(request: NextRequest) {
+  // Who is asking, before anything the caller sent is looked at. An
+  // anonymous request is refused here rather than after body validation,
+  // so an unauthenticated caller never drives this route's parsing and is
+  // never told what shape the request should have been.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { data: body, error: parseError } = await parseJsonBody<{
     patientId?: string;
     specialty?: unknown;
@@ -65,13 +77,6 @@ export async function POST(request: NextRequest) {
   }
   const specialty = body.specialty;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
   if (!(await isProfileActiveAndApproved(user.id))) {
     return NextResponse.json(
       { error: "Your account is not active — it is either awaiting admin approval or has been suspended." },

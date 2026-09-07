@@ -8,6 +8,7 @@ import {
   questionKeysForSpecialty,
 } from "@/lib/conditionIntake";
 import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Admin edits a patient's Patient Care Intake directly. No review queue:
 // admin is the approver of everyone else's edits, so a self-review step
@@ -94,6 +95,13 @@ export async function POST(request: NextRequest) {
     admin_notes: "Direct edit by admin.",
     reviewed_by: adminUser.id,
     reviewed_at: new Date().toISOString(),
+  });
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "condition_change.direct_edit",
+    targetId: patientId,
   });
 
   return NextResponse.json({ success: true });

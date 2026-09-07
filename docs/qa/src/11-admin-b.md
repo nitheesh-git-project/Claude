@@ -359,11 +359,13 @@ Covered by `ADM-SESS-003`.
 **Steps**
 1. Open **Settings → Activity Log**.
 2. Confirm each of these earlier actions appears with actor, action, target and timestamp: account approval, therapist revenue-share change, care-plan withdrawal, care-plan authored on behalf, payout settlement, cash amount correction, credit adjustment, hospital onboarding, password reset.
+2a. Confirm the same for the actions that used to leave no trace at all: `Changed a patient's contact details` (`ADM-PEOP-003`'s contact edit), `Edited notes on a patient`, `Changed whether a therapist appears on Team`, `Excluded a session rating from the average`, `Changed a home visit's address`, `Decided a record-access request` and `Decided a health-profile change` (`ADM-PEOP-004`), `Reworded an intake question` (`ADM-SET-020`), `Reviewed a risk signal` (`ADM-RISK-002`) and `Retried a Meet sync` (`ADM-SET-031`).
 3. Search the log for any of the generated passwords from `ADM-SET-026` or `ADM-PEOP-009`.
 4. **[SQL]** Attempt `insert into admin_activity_log …` as an authenticated (non-service-role) session, and attempt `update`/`delete`.
 
 **Expected Result.** Step 2: **every one is present.** `payout.settle` is the largest money move in the application and must be attributed — if it is missing, that is a P0 defect. Step 3: **no password appears anywhere in the log.** Step 4: the insert is refused (there is a select policy and deliberately **no insert policy**), and the log is append-only from any session.
 **Ordering guarantee:** each log row is written **after** the route's compare-and-swap, so the log can never record a settlement or cancellation that lost its race.
+**The one action logged after the fact on purpose:** `Reset all data` (`SETUP-RESET-001`). The wipe truncates `admin_activity_log`, so the row is written **after** the reset returns — open the log on a freshly reset database and it holds exactly one row, naming who emptied it. A log that is completely empty after a reset means that row is missing, and the most destructive action in the product is unattributed.
 
 #### `ADM-SET-035` — Account Security · P2
 **Steps.** Open **Settings → Account Security** and change the admin's own password.

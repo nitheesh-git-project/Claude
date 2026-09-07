@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Excludes (or re-includes) one side's rating on one session from every
 // computed average, without touching the rating or feedback text itself --
@@ -46,6 +47,14 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "rating.exclude",
+    targetId: appointmentId,
+    details: { role, excluded },
+  });
 
   return NextResponse.json({ success: true, excluded });
 }

@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "npm run check:realtime && eslint",
     "check:realtime": "node scripts/check-realtime-coverage.mjs",
+    "seed:qa": "node scripts/seed-qa-accounts.mjs",
     "test:e2e": "playwright test",
     "test": "vitest run",
     "test:watch": "vitest",

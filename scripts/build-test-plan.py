@@ -47,9 +47,9 @@ DOCS = {
         "title": "Dr. Pooja's Physio — QA Audit Report",
         "subtitle": "Static verification against the manual E2E test plan, plus a product review",
         "meta": [
-            ("Subject", "Branch claude/complete-e2e-testing-plan-910y5z"),
-            ("Method", "Executed checks plus source verification — the plan was NOT executed"),
-            ("Verdict", "Conditional pass — 6 findings, 1 to fix before the first test run"),
+            ("Subject", "Branch claude/complete-e2e-testing-plan-ll8qet"),
+            ("Method", "Two passes — a live run on 2 Sep, re-verification (static + executed) on 4 Sep"),
+            ("Verdict", "Pass after remediation — 13 findings across both passes, all fixed"),
             ("Read first", "Section 1 — Scope, and what this report is not"),
         ],
     },

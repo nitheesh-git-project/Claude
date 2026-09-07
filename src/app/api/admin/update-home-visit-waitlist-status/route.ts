@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Mirrors /api/admin/update-lead-status for the b2b_leads pipeline -- same
 // shape, same reasoning. The waitlist is demand we had to turn away, and
@@ -37,6 +38,14 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Who changed this, and to what. Best-effort and after the write,
+  // per the audit-log rule in AGENTS.md.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "home_visit.waitlist_status",
+    targetId: id,
+    details: { status },
+  });
 
   return NextResponse.json({ success: true });
 }
