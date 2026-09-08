@@ -383,7 +383,13 @@ strong { color: #0f172a; }
 <p><strong>Expected Result.</strong> The button reads <code>Creating account...</code>, then the browser lands on <strong>`/pending-approval`</strong> — <strong>not</strong> the dashboard, and <strong>not</strong> any &quot;check your email&quot; screen. The page explains the account is waiting for approval. In Supabase, the <code>profiles</code> row exists with <code>role=&#x27;patient&#x27;</code>, <code>approved=false</code>, <code>active=true</code>, and a <code>patient_code</code> of the form <code>PT####</code>. <strong>Cleanup.</strong> Leave. <code>ADM-APPR-001</code> approves this account.</p>
 <h4><code>PAT-AUTH-003</code> — An unapproved patient cannot reach the dashboard · P0</h4>
 <p><strong>Preconditions.</strong> <code>PAT-AUTH-002</code> complete; Patient B not yet approved. <strong>Steps</strong></p>
-<ol><li>Signed in as Patient B, type <code>/patient/dashboard</code> directly in the address bar and press Enter.</li><li>Then call the API directly. In a terminal, with Patient B&#x27;s session cookie: <code>curl -i -X POST http://localhost:3000/api/appointments/create -H &#x27;Content-Type: application/json&#x27; -b &#x27;&lt;patient B cookie&gt;&#x27; -d &#x27;{&quot;slotTime&quot;:&quot;2026-12-01T10:00:00.000Z&quot;}&#x27;</code></li></ol>
+<ol><li>Signed in as Patient B, type <code>/patient/dashboard</code> directly in the address bar and press Enter.</li><li>Then call the API directly, still signed in as Patient B. <strong>No terminal and no cookie-copying needed</strong> — the browser&#x27;s own console sends the session cookie for you, because the request is same-origin. Press <strong>F12</strong> (macOS: <strong>Cmd+Option+I</strong>), open the <strong>Console</strong> tab, paste this and press Enter:</li></ol>
+<pre><code>await fetch(&quot;/api/appointments/create&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ slotTime: &quot;2026-12-01T10:30:00.000Z&quot; })
+}).then(async r =&gt; ({ status: r.status, body: await r.json() }))</code></pre>
+<blockquote><strong>Why 10:30Z and not 10:00Z.</strong> A slot must start on the hour <strong>in the booking&#x27;s own timezone</strong>, and with no <code>timezone</code> in the body that is <code>Asia/Kolkata</code>. <code>10:00:00.000Z</code> is 15:30 IST and is refused with <code>400 {&quot;error&quot;:&quot;Sessions start on the hour. Pick a time like 6:00 or 7:00.&quot;}</code> — a real rule firing, not this test&#x27;s subject. <code>10:30:00.000Z</code> is 16:00 IST. The <code>curl</code> equivalent, if you prefer a terminal, is <code>curl -i -X POST http://localhost:3000/api/appointments/create -H &#x27;Content-Type: application/json&#x27; -b &#x27;&lt;patient B cookie&gt;&#x27; -d &#x27;{&quot;slotTime&quot;:&quot;2026-12-01T10:30:00.000Z&quot;}&#x27;</code>, and the cookie is the only reason it is harder.</blockquote>
 <p><strong>Expected Result.</strong> Step 1 redirects to <strong>`/pending-approval`</strong>. Step 2 returns <strong>HTTP 200</strong> and creates a <code>requested</code>/<code>unpaid</code> appointment — this is correct: <code>/api/appointments/create</code> gates on <code>isProfileActive</code>, <strong>not</strong> approval, because an unapproved self-signup patient must be able to hold the row they are about to pay for. It grants nothing on its own. <strong>What must be refused is a suspended account</strong> — see <code>SEC-AUTH-006</code>. <strong>Cleanup.</strong> Delete the stray appointment from Sessions → All Sessions, or leave it as a fixture for <code>ADM-SESS-002</code>.</p>
 <h4><code>PAT-AUTH-004</code> — Registration validation (negative) · P1</h4>
 <p><strong>Steps.</strong> On <code>/patient/login</code> → <strong>Register Account</strong>, attempt <strong>Create Account</strong> once for each row, resetting the form between attempts:</p>
@@ -1297,7 +1303,15 @@ clinic share  = splittable net − therapist share − partner share</code></pre
 <hr>
 <h2>18. Security and authorization test plan</h2>
 <blockquote><strong>The rule for this whole section: do not only verify that the UI hides something.</strong> Every case has a route-level twin. The application enforces its gates in two places — the proxy for navigation, and <code>requireActiveProfile</code> / <code>requireAdmin</code> / <code>requireAdminScope</code> inside the routes — because a valid session cookie can call the API around the UI.</blockquote>
-<p><strong>How to call a route as a given user.</strong> Sign in as that user in a browser, copy the session cookie from DevTools → Application → Cookies, and use it with curl:</p>
+<p><strong>How to call a route as a given user — the easy way, no terminal.</strong> Sign in as that user in a browser, open DevTools (<strong>F12</strong>, macOS <strong>Cmd+Option+I</strong>), go to the <strong>Console</strong> tab, and run:</p>
+<pre><code>await fetch(&quot;/api/&lt;route&gt;&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ /* ...body... */ })
+}).then(async r =&gt; ({ status: r.status, body: await r.json() }))</code></pre>
+<p>The request is same-origin, so the browser attaches that user&#x27;s session cookie itself — there is nothing to copy, and nothing to get stale. Read the <code>status</code> and <code>body</code> it prints.</p>
+<p>*<em>To call a route as </em>nobody*<strong> (`SEC-ROUTE-002`), do the same in a </strong>private/incognito window<strong> where you have not signed in. Do </strong>not** use a normal window with <code>credentials: &quot;omit&quot;</code> unless you check the result: what you are proving is that the server refuses, and a mistake there passes for the wrong reason.</p>
+<p><strong>The terminal equivalent</strong>, if you prefer one — the cookie is the only reason it is more work. Copy it from DevTools → Application → Cookies:</p>
 <pre><code>curl -i -X POST http://localhost:3000/api/&lt;route&gt; \
   -H &#x27;Content-Type: application/json&#x27; \
   -b &#x27;&lt;paste the cookie header&gt;&#x27; \

@@ -1169,7 +1169,17 @@ Two rules shape almost everything on the patient's screens:
 **Preconditions.** `PAT-AUTH-002` complete; Patient B not yet approved.
 **Steps**
 1. Signed in as Patient B, type `/patient/dashboard` directly in the address bar and press Enter.
-2. Then call the API directly. In a terminal, with Patient B's session cookie: `curl -i -X POST http://localhost:3000/api/appointments/create -H 'Content-Type: application/json' -b '<patient B cookie>' -d '{"slotTime":"2026-12-01T10:00:00.000Z"}'`
+2. Then call the API directly, still signed in as Patient B. **No terminal and no cookie-copying needed** — the browser's own console sends the session cookie for you, because the request is same-origin. Press **F12** (macOS: **Cmd+Option+I**), open the **Console** tab, paste this and press Enter:
+
+```js
+await fetch("/api/appointments/create", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ slotTime: "2026-12-01T10:30:00.000Z" })
+}).then(async r => ({ status: r.status, body: await r.json() }))
+```
+
+> **Why 10:30Z and not 10:00Z.** A slot must start on the hour **in the booking's own timezone**, and with no `timezone` in the body that is `Asia/Kolkata`. `10:00:00.000Z` is 15:30 IST and is refused with `400 {"error":"Sessions start on the hour. Pick a time like 6:00 or 7:00."}` — a real rule firing, not this test's subject. `10:30:00.000Z` is 16:00 IST. The `curl` equivalent, if you prefer a terminal, is `curl -i -X POST http://localhost:3000/api/appointments/create -H 'Content-Type: application/json' -b '<patient B cookie>' -d '{"slotTime":"2026-12-01T10:30:00.000Z"}'`, and the cookie is the only reason it is harder.
 
 **Expected Result.** Step 1 redirects to **`/pending-approval`**. Step 2 returns **HTTP 200** and creates a `requested`/`unpaid` appointment — this is correct: `/api/appointments/create` gates on `isProfileActive`, **not** approval, because an unapproved self-signup patient must be able to hold the row they are about to pay for. It grants nothing on its own. **What must be refused is a suspended account** — see `SEC-AUTH-006`.
 **Cleanup.** Delete the stray appointment from Sessions → All Sessions, or leave it as a fixture for `ADM-SESS-002`.
@@ -3652,7 +3662,21 @@ Covered by `PAT-HV-001` and `ADM-SET-013`.
 
 > **The rule for this whole section: do not only verify that the UI hides something.** Every case has a route-level twin. The application enforces its gates in two places — the proxy for navigation, and `requireActiveProfile` / `requireAdmin` / `requireAdminScope` inside the routes — because a valid session cookie can call the API around the UI.
 
-**How to call a route as a given user.** Sign in as that user in a browser, copy the session cookie from DevTools → Application → Cookies, and use it with curl:
+**How to call a route as a given user — the easy way, no terminal.** Sign in as that user in a browser, open DevTools (**F12**, macOS **Cmd+Option+I**), go to the **Console** tab, and run:
+
+```js
+await fetch("/api/<route>", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ /* ...body... */ })
+}).then(async r => ({ status: r.status, body: await r.json() }))
+```
+
+The request is same-origin, so the browser attaches that user's session cookie itself — there is nothing to copy, and nothing to get stale. Read the `status` and `body` it prints.
+
+**To call a route as *nobody*** (`SEC-ROUTE-002`), do the same in a **private/incognito window** where you have not signed in. Do **not** use a normal window with `credentials: "omit"` unless you check the result: what you are proving is that the server refuses, and a mistake there passes for the wrong reason.
+
+**The terminal equivalent**, if you prefer one — the cookie is the only reason it is more work. Copy it from DevTools → Application → Cookies:
 
 ```
 curl -i -X POST http://localhost:3000/api/<route> \

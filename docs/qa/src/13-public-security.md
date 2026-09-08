@@ -88,7 +88,21 @@ Covered by `PAT-HV-001` and `ADM-SET-013`.
 
 > **The rule for this whole section: do not only verify that the UI hides something.** Every case has a route-level twin. The application enforces its gates in two places — the proxy for navigation, and `requireActiveProfile` / `requireAdmin` / `requireAdminScope` inside the routes — because a valid session cookie can call the API around the UI.
 
-**How to call a route as a given user.** Sign in as that user in a browser, copy the session cookie from DevTools → Application → Cookies, and use it with curl:
+**How to call a route as a given user — the easy way, no terminal.** Sign in as that user in a browser, open DevTools (**F12**, macOS **Cmd+Option+I**), go to the **Console** tab, and run:
+
+```js
+await fetch("/api/<route>", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ /* ...body... */ })
+}).then(async r => ({ status: r.status, body: await r.json() }))
+```
+
+The request is same-origin, so the browser attaches that user's session cookie itself — there is nothing to copy, and nothing to get stale. Read the `status` and `body` it prints.
+
+**To call a route as *nobody*** (`SEC-ROUTE-002`), do the same in a **private/incognito window** where you have not signed in. Do **not** use a normal window with `credentials: "omit"` unless you check the result: what you are proving is that the server refuses, and a mistake there passes for the wrong reason.
+
+**The terminal equivalent**, if you prefer one — the cookie is the only reason it is more work. Copy it from DevTools → Application → Cookies:
 
 ```
 curl -i -X POST http://localhost:3000/api/<route> \
