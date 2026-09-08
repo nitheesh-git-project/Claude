@@ -38,7 +38,15 @@ Five rules shape almost every screen:
 
 **Steps**
 1. Sign in at `/therapist/login` as `qa.therapist.a@example.test` before approval.
-2. Then, with that session cookie, call `POST /api/therapist/save-availability` directly with any valid body.
+2. Then call the route directly, still signed in as that unapproved therapist. DevTools (**F12**) → **Console** (§5.1a):
+
+```js
+await fetch("/api/therapist/save-availability", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ slots: [{ dayOfWeek: 1, hour: 10 }] })
+}).then(async r => ({ status: r.status, body: await r.json() }))
+```
 
 **Expected Result.** Step 1 lands on **`/pending-approval`**, not the dashboard. Step 2 returns **403** with `Your account is not active — it is either awaiting admin approval or has been suspended.` **The API refusal is the one that matters** — a valid cookie must not be able to call around the UI.
 

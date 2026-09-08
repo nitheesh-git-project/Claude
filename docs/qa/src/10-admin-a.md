@@ -241,7 +241,15 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Expected Result.** Total reads **Free**, the lock line changes to *"Nothing to pay — your discount covers this session in full"*, and the button reads **Confirm booking — free**. Tapping it books the session with **no Razorpay screen at all**. The session appears in the patient's dashboard as confirmed or pending exactly like a paid one. Being charged ₹1 instead is a P0 defect — that was the old behaviour and it charges a figure nobody was quoted.
 
 #### `PAT-PAY-FREE-003` — Free is decided by the server, never the browser · P0
-**Steps.** With no discount running, POST to `/api/appointments/confirm-free` with a real unpaid appointment id (browser console or curl, signed in as that patient).
+**Steps.** With no discount running, signed in as that patient, run this in DevTools → Console (§5.1a) against a real unpaid appointment id:
+
+```js
+await fetch("/api/appointments/confirm-free", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ appointmentId: "<paste the unpaid appointment id>" })
+}).then(async r => ({ status: r.status, body: await r.json() }))
+```
 **Expected Result.** **409**, *"This booking still has an amount to pay."*, and the booking stays **unpaid**. If a booking can be confirmed free by asking, every session in the app is free.
 
 #### `ADM-MONEY-FREE-001` — A free session still shows in the books · P1

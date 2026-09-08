@@ -65,7 +65,7 @@ await fetch("/api/appointments/create", {
 }).then(async r => ({ status: r.status, body: await r.json() }))
 ```
 
-> **Why 10:30Z and not 10:00Z.** A slot must start on the hour **in the booking's own timezone**, and with no `timezone` in the body that is `Asia/Kolkata`. `10:00:00.000Z` is 15:30 IST and is refused with `400 {"error":"Sessions start on the hour. Pick a time like 6:00 or 7:00."}` — a real rule firing, not this test's subject. `10:30:00.000Z` is 16:00 IST. The `curl` equivalent, if you prefer a terminal, is `curl -i -X POST http://localhost:3000/api/appointments/create -H 'Content-Type: application/json' -b '<patient B cookie>' -d '{"slotTime":"2026-12-01T10:30:00.000Z"}'`, and the cookie is the only reason it is harder.
+> **Why 10:30Z and not 10:00Z.** A slot must start on the hour **in the booking's own timezone**, and with no `timezone` in the body that is `Asia/Kolkata`. `10:00:00.000Z` is 15:30 IST and is refused with `400 {"error":"Sessions start on the hour. Pick a time like 6:00 or 7:00."}` — a real rule firing, not this test's subject. `10:30:00.000Z` is 16:00 IST. See §5.1a for the console recipe and its four gotchas.
 
 **Expected Result.** Step 1 redirects to **`/pending-approval`**. Step 2 returns **HTTP 200** and creates a `requested`/`unpaid` appointment — this is correct: `/api/appointments/create` gates on `isProfileActive`, **not** approval, because an unapproved self-signup patient must be able to hold the row they are about to pay for. It grants nothing on its own. **What must be refused is a suspended account** — see `SEC-AUTH-006`.
 **Cleanup.** Delete the stray appointment from Sessions → All Sessions, or leave it as a fixture for `ADM-SESS-002`.

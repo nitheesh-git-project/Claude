@@ -102,14 +102,7 @@ The request is same-origin, so the browser attaches that user's session cookie i
 
 **To call a route as *nobody*** (`SEC-ROUTE-002`), do the same in a **private/incognito window** where you have not signed in. Do **not** use a normal window with `credentials: "omit"` unless you check the result: what you are proving is that the server refuses, and a mistake there passes for the wrong reason.
 
-**The terminal equivalent**, if you prefer one — the cookie is the only reason it is more work. Copy it from DevTools → Application → Cookies:
-
-```
-curl -i -X POST http://localhost:3000/api/<route> \
-  -H 'Content-Type: application/json' \
-  -b '<paste the cookie header>' \
-  -d '{ ...body... }'
-```
+Nothing in this section needs a terminal. §5.1a has the same recipe with its four gotchas — the private-window rule for an anonymous call chief among them.
 
 ### 18.1 Signed-out access
 
@@ -118,7 +111,32 @@ curl -i -X POST http://localhost:3000/api/<route> \
 **Expected Result.** Each redirects to that role's own login page. **No protected content is rendered even for a frame.**
 
 #### `SEC-ROUTE-002` — Every mutating route refuses an anonymous caller · P0
-**Steps.** Call a representative route from each family with **no cookie**: `/api/appointments/create`, `/api/appointments/cancel`, `/api/patient/condition-profile/submit`, `/api/therapist/save-availability`, `/api/therapist/care-plan/submit`, `/api/hospital/withdraw-referral`, `/api/admin/approve-account`, `/api/admin/settle-therapist-payout`, `/api/medical-documents/view`, `/api/razorpay/create-order`.
+**Steps.** Open a **private/incognito window** — signed into nothing — at `http://localhost:3000`. DevTools (**F12**) → **Console**, and run the whole sweep at once:
+
+```js
+const routes = [
+  "/api/appointments/create",
+  "/api/appointments/cancel",
+  "/api/patient/condition-profile/submit",
+  "/api/therapist/save-availability",
+  "/api/therapist/care-plan/submit",
+  "/api/hospital/withdraw-referral",
+  "/api/admin/approve-account",
+  "/api/admin/settle-therapist-payout",
+  "/api/medical-documents/view",
+  "/api/razorpay/create-order",
+];
+console.table(await Promise.all(routes.map(async (route) => {
+  const r = await fetch(route, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 120) };
+})));
+```
+
+**The private window is the test.** Running this in a window where you are signed in sends that user's cookie and proves nothing about an anonymous caller.
 **Expected Result.** **401 `Not signed in`** or **403 `Forbidden`** on every one. **None returns 200, and none leaks data in the error body.**
 
 ### 18.2 Cross-role access
@@ -166,8 +184,32 @@ Additionally: check the **admin export** of patients — a masked field must mas
 Covered by `ADM-SET-027` and `ADM-SET-028`. Run the whole table.
 
 #### `SEC-ADMIN-002` — A non-admin cannot call an admin route · P0
-**Steps.** With **each** of a patient's, a therapist's and a hospital's cookie, call ten admin routes across different sections.
-**Expected Result.** **403 on every one.**
+**Steps.** Sign in as the patient, and in DevTools → Console run the sweep below. Repeat the whole thing signed in as the therapist, then as the hospital — three runs, one per role.
+
+```js
+const routes = [
+  "/api/admin/approve-account",
+  "/api/admin/assign-therapist",
+  "/api/admin/create-booking",
+  "/api/admin/cancel-appointment",
+  "/api/admin/settle-therapist-payout",
+  "/api/admin/apply-goodwill-discount",
+  "/api/admin/update-treatment-category",
+  "/api/admin/save-promo-code",
+  "/api/admin/review-care-plan",
+  "/api/admin/set-admin-scope",
+];
+console.table(await Promise.all(routes.map(async (route) => {
+  const r = await fetch(route, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 120) };
+})));
+```
+
+**Expected Result.** **403 on every one**, in all three runs. A `400` anywhere in the table is its own finding: it means that route parsed the body before deciding whether the caller was an admin, which is the ordering the audit's F-10 removed.
 
 #### `SEC-ADMIN-003` — Scope changes are self-protecting · P0
 Covered by `ADM-SET-025`: no self-change, and the last `full` admin cannot be narrowed.
@@ -195,7 +237,25 @@ Covered by `PAY-AMT-001` and `PAY-AMT-002`.
 **Expected Result.** All refused or ignored. **Never trust a role, an id, or an amount sent from the client — it is re-derived server-side.**
 
 #### `SEC-TAMPER-005` — Malformed bodies · P1
-**Steps.** POST invalid JSON, an empty body, a deeply nested object, and a 5 MB string field to ten routes.
+**Steps.** Signed in as a patient, run this in DevTools → Console — it sends all four malformed shapes to one route, and you repeat it for ten routes by editing `route`:
+
+```js
+const route = "/api/appointments/create";
+const bodies = {
+  "invalid JSON": "{not json",
+  "empty body": "",
+  "deeply nested": JSON.stringify({ a: JSON.parse("[".repeat(200) + "]".repeat(200)) }),
+  "5 MB string": JSON.stringify({ notes: "x".repeat(5_000_000) }),
+};
+console.table(await Promise.all(Object.entries(bodies).map(async ([name, body]) => {
+  const r = await fetch(route, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
+  return { name, status: r.status, body: (await r.text()).slice(0, 120) };
+})));
+```
 **Expected Result.** `Malformed payload` or a specific field message, always **4xx**, never a 500 and never a crash.
 
 #### `SEC-TAMPER-006` — Duplicate submissions · P0

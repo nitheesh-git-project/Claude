@@ -19,6 +19,36 @@
 | Browsers | Chrome/Edge desktop at 1440×900, plus a mobile viewport at **390 × 844**. |
 | Supabase SQL editor access | Only needed for the handful of tests marked **[SQL]**. |
 
+### 5.1a Calling an API route without a terminal
+
+Several cases ask you to call an API route directly, because **the application enforces its gates twice** — once in the proxy that guards navigation, and again inside the route — and a valid session cookie can call the route around the UI. Testing only the screen tests half of it.
+
+**You need no terminal, no `curl`, and no copying of cookies.** The browser you are already signed in with can do it, and it attaches that user's session cookie itself because the request goes to the same origin.
+
+1. Sign in as the user the test names, on `http://localhost:3000`.
+2. Press **F12** (macOS: **Cmd+Option+I**). Click the **Console** tab.
+3. Paste the snippet, edit the route path and the body, press **Enter**.
+4. Read the `status` and `body` it prints, and compare them with the Expected Result.
+
+```js
+await fetch("/api/<route>", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ /* the test's body, or {} */ })
+}).then(async r => ({ status: r.status, body: await r.json() }))
+```
+
+Four things to know, each of which has made a result read wrong:
+
+* **To call a route as *nobody*, use a private/incognito window** and run the same snippet there. Do not use `credentials: "omit"` in a signed-in window: you are proving the server refuses, and a snippet that never sent a cookie passes whether or not the server checks.
+* **To call it as a different user**, sign in as that user in a second browser or a private window and run it there. Two sessions cannot share one window.
+* **Some routes answer with no JSON body at all** (a redirect, or an empty 204). If `await r.json()` throws, use `await r.text()` instead — the `status` is what those cases assert.
+* **Console is not the same as address bar.** Typing a route path into the address bar sends a **GET**; these are all **POST** handlers, and a GET answers `405`, which is not the refusal any test is about.
+
+**Tests marked [SQL]** run in the **Supabase dashboard → SQL Editor** — also a browser, also no terminal.
+
+**A terminal is needed for exactly three things, and none of them is a test step**: standing the app up (`npm run dev`), applying the schema (`node scripts/run-schema.mjs`), and re-seeding the fixture accounts (`npm run seed:qa`). If you do not have one, those belong to whoever set the environment up for you — ask them, rather than skipping the tests that depend on them.
+
 ### 5.2 Environments
 
 | Environment | May be reset? | Notes |

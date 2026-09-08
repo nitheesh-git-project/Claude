@@ -162,6 +162,30 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 
 ### 16.3 Payment integrity (duplicates, concurrency, webhooks)
 
+> **Posting a webhook without a terminal.** The webhook cases below need a signed request, not a signed-in one: `/api/razorpay/webhook` authenticates the **body**, never a cookie. Sign and send it from DevTools → Console on any page of the app (§5.1a). Paste the raw body you copied from the Razorpay dashboard's webhook log, and the same `RAZORPAY_WEBHOOK_SECRET` the server has:
+>
+> ```js
+> const secret = "<the RAZORPAY_WEBHOOK_SECRET the server is running with>";
+> const raw = '<paste the exact raw JSON body, unmodified>';
+>
+> const key = await crypto.subtle.importKey(
+>   "raw", new TextEncoder().encode(secret),
+>   { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+> );
+> const sig = [...new Uint8Array(
+>   await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(raw))
+> )].map((b) => b.toString(16).padStart(2, "0")).join("");
+>
+> const r = await fetch("/api/razorpay/webhook", {
+>   method: "POST",
+>   headers: { "Content-Type": "application/json", "x-razorpay-signature": sig },
+>   body: raw,
+> });
+> ({ status: r.status, body: await r.text() });
+> ```
+>
+> **`raw` must be the byte-for-byte body.** Do not paste it through `JSON.parse`/`JSON.stringify` to tidy it — that is exactly what `PAY-WH-001` (c) proves must fail, and doing it by accident turns a passing signature into `400 Invalid signature` with nothing to say why. To run the (b) case, change one character of `sig`; for (a), delete the `x-razorpay-signature` header line. To send the **same** webhook twice (`PAY-DUP-004`), re-run the last `fetch` — the body and signature are already in scope.
+
 #### `PAY-DUP-001` — One payment, one appointment · P0
 **Steps.** Complete `PAT-BOOK-003`, then reload and inspect Sessions → All Sessions and the `payments` table.
 **Expected Result.** Exactly one appointment, exactly one `payments` row. **The appointment is created *before* the order, and the order is minted against it**, so there is no path by which one payment creates two appointments.

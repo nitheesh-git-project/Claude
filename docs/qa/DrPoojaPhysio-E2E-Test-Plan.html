@@ -114,7 +114,7 @@ strong { color: #0f172a; }
 <h3>3.7 System routes</h3>
 <table><thead><tr><th>Route</th><th>What it is</th><th>Covered by</th></tr></thead><tbody><tr><td><code>/dashboard</code></td><td>Server-side role router. Sends each role to its own dashboard. The admin path never reaches a public bundle.</td><td><code>SEC-ROUTE-006</code></td></tr><tr><td><code>/pending-approval</code></td><td>Where an unapproved patient/therapist lands</td><td><code>PAT-AUTH-003</code></td></tr><tr><td><code>/account-suspended</code></td><td>Where a suspended account lands</td><td><code>SEC-AUTH-006</code></td></tr><tr><td><code>/reset-password</code></td><td>Password reset landing</td><td><code>PAT-AUTH-006</code></td></tr></tbody></table>
 <h3>3.8 API routes</h3>
-<p>The application exposes 150+ POST route handlers under <code>/api</code>, grouped by audience: <code>admin/</code>, <code>appointments/</code>, <code>patient/</code>, <code>therapist/</code>, <code>hospital/</code>, <code>packages/</code>, <code>home-visit/</code>, <code>care-plan/</code>, <code>razorpay/</code>, and <code>medical-documents/</code>. Individual routes are named inside the tests that exercise them. The security section tests them directly with <code>curl</code> — <code>SEC-ROUTE-002</code> (anonymous), <code>SEC-ADMIN-002</code> (wrong role) and <code>SEC-TAMPER-*</code> (manipulated bodies).</p>
+<p>The application exposes 150+ POST route handlers under <code>/api</code>, grouped by audience: <code>admin/</code>, <code>appointments/</code>, <code>patient/</code>, <code>therapist/</code>, <code>hospital/</code>, <code>packages/</code>, <code>home-visit/</code>, <code>care-plan/</code>, <code>razorpay/</code>, and <code>medical-documents/</code>. Individual routes are named inside the tests that exercise them. The security section calls them directly <strong>from the browser&#x27;s DevTools console</strong> — no terminal, see §5.1a — in <code>SEC-ROUTE-002</code> (anonymous), <code>SEC-ADMIN-002</code> (wrong role) and <code>SEC-TAMPER-*</code> (manipulated bodies).</p>
 <hr>
 <h2>4. Roles, gates and scopes</h2>
 <h3>4.1 The four roles</h3>
@@ -137,6 +137,19 @@ strong { color: #0f172a; }
 <h2>5. Test environment requirements</h2>
 <h3>5.1 What you need before you start</h3>
 <table><thead><tr><th>Requirement</th><th>Value / note</th></tr></thead><tbody><tr><td>A <strong>throwaway Supabase project</strong></td><td>Never a project holding real data. The reset in Step 0 truncates every table.</td></tr><tr><td><code>supabase/schema.sql</code> applied to it</td><td><code>node scripts/run-schema.mjs</code>, or push to <code>main</code> and let <code>.github/workflows/schema-apply.yml</code> run it. Re-apply twice to confirm it is re-runnable.</td></tr><tr><td><strong>Supabase Auth → Confirm email = OFF</strong></td><td>The application assumes this. With it on, every sign-up path fails.</td></tr><tr><td><strong>Razorpay test-mode keys</strong></td><td><code>RAZORPAY_KEY_ID</code> / <code>RAZORPAY_KEY_SECRET</code> from the Razorpay dashboard in <strong>Test Mode</strong>. Never live keys.</td></tr><tr><td><code>RAZORPAY_WEBHOOK_SECRET</code> set</td><td>Without it <code>/api/razorpay/webhook</code> answers <code>503 {&quot;error&quot;:&quot;Webhook not configured&quot;}</code> and a patient who pays and closes the tab leaves a paid order against an unpaid booking. Webhook tests need it.</td></tr><tr><td><code>ALLOW_DEBUG_DATA_RESET=true</code></td><td><strong>Server-side only.</strong> Arms the Reset data button. Never set on a live site.</td></tr><tr><td><code>NEXT_PUBLIC_SHOW_DEBUG_NAV</code></td><td>Leave unset. The Debug Bar must be visible.</td></tr><tr><td>Google Calendar credentials</td><td>Optional. Without them Meet sync fails and is recorded — which is itself a test (<code>ADM-SET-031</code>).</td></tr><tr><td>The app running with <strong>`npm run dev`</strong></td><td>Not <code>next start</code>. The public pages are ISR-cached for 300s, so a production build serves HTML that predates your fixtures.</td></tr><tr><td>At least one <strong>Master Admin</strong> (<code>admin_scope = &#x27;full&#x27;</code>) in <code>profiles</code></td><td>The reset keeps admin logins and refuses to run if it would leave none.</td></tr><tr><td>Browsers</td><td>Chrome/Edge desktop at 1440×900, plus a mobile viewport at <strong>390 × 844</strong>.</td></tr><tr><td>Supabase SQL editor access</td><td>Only needed for the handful of tests marked <strong>[SQL]</strong>.</td></tr></tbody></table>
+<h3>5.1a Calling an API route without a terminal</h3>
+<p>Several cases ask you to call an API route directly, because <strong>the application enforces its gates twice</strong> — once in the proxy that guards navigation, and again inside the route — and a valid session cookie can call the route around the UI. Testing only the screen tests half of it.</p>
+<p><strong>You need no terminal, no `curl`, and no copying of cookies.</strong> The browser you are already signed in with can do it, and it attaches that user&#x27;s session cookie itself because the request goes to the same origin.</p>
+<ol><li>Sign in as the user the test names, on <code>http://localhost:3000</code>.</li><li>Press <strong>F12</strong> (macOS: <strong>Cmd+Option+I</strong>). Click the <strong>Console</strong> tab.</li><li>Paste the snippet, edit the route path and the body, press <strong>Enter</strong>.</li><li>Read the <code>status</code> and <code>body</code> it prints, and compare them with the Expected Result.</li></ol>
+<pre><code>await fetch(&quot;/api/&lt;route&gt;&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ /* the test&#x27;s body, or {} */ })
+}).then(async r =&gt; ({ status: r.status, body: await r.json() }))</code></pre>
+<p>Four things to know, each of which has made a result read wrong:</p>
+<ul><li>*<em>To call a route as </em>nobody<em>, use a private/incognito window</em>* and run the same snippet there. Do not use <code>credentials: &quot;omit&quot;</code> in a signed-in window: you are proving the server refuses, and a snippet that never sent a cookie passes whether or not the server checks.</li><li><strong>To call it as a different user</strong>, sign in as that user in a second browser or a private window and run it there. Two sessions cannot share one window.</li><li><strong>Some routes answer with no JSON body at all</strong> (a redirect, or an empty 204). If <code>await r.json()</code> throws, use <code>await r.text()</code> instead — the <code>status</code> is what those cases assert.</li><li><strong>Console is not the same as address bar.</strong> Typing a route path into the address bar sends a <strong>GET</strong>; these are all <strong>POST</strong> handlers, and a GET answers <code>405</code>, which is not the refusal any test is about.</li></ul>
+<p><strong>Tests marked [SQL]</strong> run in the <strong>Supabase dashboard → SQL Editor</strong> — also a browser, also no terminal.</p>
+<p><strong>A terminal is needed for exactly three things, and none of them is a test step</strong>: standing the app up (<code>npm run dev</code>), applying the schema (<code>node scripts/run-schema.mjs</code>), and re-seeding the fixture accounts (<code>npm run seed:qa</code>). If you do not have one, those belong to whoever set the environment up for you — ask them, rather than skipping the tests that depend on them.</p>
 <h3>5.2 Environments</h3>
 <table><thead><tr><th>Environment</th><th>May be reset?</th><th>Notes</th></tr></thead><tbody><tr><td>Local <code>npm run dev</code> against a throwaway Supabase project</td><td><strong>Yes</strong></td><td>The default target for this plan.</td></tr><tr><td>Staging/preview deployment against a throwaway project</td><td><strong>Yes</strong>, if <code>ALLOW_DEBUG_DATA_RESET=true</code> is set there</td><td>Public pages are cached; expect ISR delays.</td></tr><tr><td><strong>Production / any project with real patients</strong></td><td><strong>NEVER</strong></td><td><code>ALLOW_DEBUG_DATA_RESET</code> must be unset there, which makes the reset route answer <code>404</code>.</td></tr></tbody></table>
 <hr>
@@ -389,7 +402,7 @@ strong { color: #0f172a; }
   headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
   body: JSON.stringify({ slotTime: &quot;2026-12-01T10:30:00.000Z&quot; })
 }).then(async r =&gt; ({ status: r.status, body: await r.json() }))</code></pre>
-<blockquote><strong>Why 10:30Z and not 10:00Z.</strong> A slot must start on the hour <strong>in the booking&#x27;s own timezone</strong>, and with no <code>timezone</code> in the body that is <code>Asia/Kolkata</code>. <code>10:00:00.000Z</code> is 15:30 IST and is refused with <code>400 {&quot;error&quot;:&quot;Sessions start on the hour. Pick a time like 6:00 or 7:00.&quot;}</code> — a real rule firing, not this test&#x27;s subject. <code>10:30:00.000Z</code> is 16:00 IST. The <code>curl</code> equivalent, if you prefer a terminal, is <code>curl -i -X POST http://localhost:3000/api/appointments/create -H &#x27;Content-Type: application/json&#x27; -b &#x27;&lt;patient B cookie&gt;&#x27; -d &#x27;{&quot;slotTime&quot;:&quot;2026-12-01T10:30:00.000Z&quot;}&#x27;</code>, and the cookie is the only reason it is harder.</blockquote>
+<blockquote><strong>Why 10:30Z and not 10:00Z.</strong> A slot must start on the hour <strong>in the booking&#x27;s own timezone</strong>, and with no <code>timezone</code> in the body that is <code>Asia/Kolkata</code>. <code>10:00:00.000Z</code> is 15:30 IST and is refused with <code>400 {&quot;error&quot;:&quot;Sessions start on the hour. Pick a time like 6:00 or 7:00.&quot;}</code> — a real rule firing, not this test&#x27;s subject. <code>10:30:00.000Z</code> is 16:00 IST. See §5.1a for the console recipe and its four gotchas.</blockquote>
 <p><strong>Expected Result.</strong> Step 1 redirects to <strong>`/pending-approval`</strong>. Step 2 returns <strong>HTTP 200</strong> and creates a <code>requested</code>/<code>unpaid</code> appointment — this is correct: <code>/api/appointments/create</code> gates on <code>isProfileActive</code>, <strong>not</strong> approval, because an unapproved self-signup patient must be able to hold the row they are about to pay for. It grants nothing on its own. <strong>What must be refused is a suspended account</strong> — see <code>SEC-AUTH-006</code>. <strong>Cleanup.</strong> Delete the stray appointment from Sessions → All Sessions, or leave it as a fixture for <code>ADM-SESS-002</code>.</p>
 <h4><code>PAT-AUTH-004</code> — Registration validation (negative) · P1</h4>
 <p><strong>Steps.</strong> On <code>/patient/login</code> → <strong>Register Account</strong>, attempt <strong>Create Account</strong> once for each row, resetting the form between attempts:</p>
@@ -608,7 +621,12 @@ strong { color: #0f172a; }
 <p><strong>Expected Result.</strong> The button reads <code>Submitting...</code>, then the form returns to the <strong>Sign In</strong> tab with a confirmation that the application is with the clinic. The <code>profiles</code> row exists with <code>role=&#x27;therapist&#x27;</code>, <code>approved=false</code>, <code>active=true</code>. <strong>No &quot;check your email&quot; step appears anywhere.</strong> The application shows in Admin → Today → Approvals and raises that tab&#x27;s badge. <strong>Cleanup.</strong> Leave for <code>ADM-APPR-002</code>.</p>
 <h4><code>THR-AUTH-002</code> — An unapproved therapist is held at the door · P0</h4>
 <p><strong>Steps</strong></p>
-<ol><li>Sign in at <code>/therapist/login</code> as <code>qa.therapist.a@example.test</code> before approval.</li><li>Then, with that session cookie, call <code>POST /api/therapist/save-availability</code> directly with any valid body.</li></ol>
+<ol><li>Sign in at <code>/therapist/login</code> as <code>qa.therapist.a@example.test</code> before approval.</li><li>Then call the route directly, still signed in as that unapproved therapist. DevTools (<strong>F12</strong>) → <strong>Console</strong> (§5.1a):</li></ol>
+<pre><code>await fetch(&quot;/api/therapist/save-availability&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ slots: [{ dayOfWeek: 1, hour: 10 }] })
+}).then(async r =&gt; ({ status: r.status, body: await r.json() }))</code></pre>
 <p><strong>Expected Result.</strong> Step 1 lands on <strong>`/pending-approval`</strong>, not the dashboard. Step 2 returns <strong>403</strong> with <code>Your account is not active — it is either awaiting admin approval or has been suspended.</code> <strong>The API refusal is the one that matters</strong> — a valid cookie must not be able to call around the UI.</p>
 <h4><code>THR-AUTH-003</code> — Sign in after approval · P0</h4>
 <p><strong>Preconditions.</strong> <code>ADM-APPR-002</code> approved Therapist A. <strong>Expected Result.</strong> Sign-in lands on <code>/therapist/dashboard</code>. The sidebar shows <strong>Overview</strong>, <strong>Availability</strong>, <strong>Sessions</strong>, <strong>Earnings</strong>, <strong>My Patients</strong>, <strong>Edit Profile</strong>, with <strong>Back to Home</strong> at the foot of the nav directly above Collapse (with children Photo / Public Details / Credentials / Account Security).</p>
@@ -954,7 +972,13 @@ strong { color: #0f172a; }
 <h4><code>PAT-PAY-FREE-002</code> — A 100%-off code books without paying · P0</h4>
 <p><strong>Steps.</strong> Create a promo code at <strong>100%</strong> off. As a patient, apply it at step 3. <strong>Expected Result.</strong> Total reads <strong>Free</strong>, the lock line changes to <em>&quot;Nothing to pay — your discount covers this session in full&quot;</em>, and the button reads <strong>Confirm booking — free</strong>. Tapping it books the session with <strong>no Razorpay screen at all</strong>. The session appears in the patient&#x27;s dashboard as confirmed or pending exactly like a paid one. Being charged ₹1 instead is a P0 defect — that was the old behaviour and it charges a figure nobody was quoted.</p>
 <h4><code>PAT-PAY-FREE-003</code> — Free is decided by the server, never the browser · P0</h4>
-<p><strong>Steps.</strong> With no discount running, POST to <code>/api/appointments/confirm-free</code> with a real unpaid appointment id (browser console or curl, signed in as that patient). <strong>Expected Result.</strong> <strong>409</strong>, <em>&quot;This booking still has an amount to pay.&quot;</em>, and the booking stays <strong>unpaid</strong>. If a booking can be confirmed free by asking, every session in the app is free.</p>
+<p><strong>Steps.</strong> With no discount running, signed in as that patient, run this in DevTools → Console (§5.1a) against a real unpaid appointment id:</p>
+<pre><code>await fetch(&quot;/api/appointments/confirm-free&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ appointmentId: &quot;&lt;paste the unpaid appointment id&gt;&quot; })
+}).then(async r =&gt; ({ status: r.status, body: await r.json() }))</code></pre>
+<p><strong>Expected Result.</strong> <strong>409</strong>, <em>&quot;This booking still has an amount to pay.&quot;</em>, and the booking stays <strong>unpaid</strong>. If a booking can be confirmed free by asking, every session in the app is free.</p>
 <h4><code>ADM-MONEY-FREE-001</code> — A free session still shows in the books · P1</h4>
 <p><strong>Steps.</strong> After <code>PAT-PAY-FREE-002</code>, open <strong>Money → Costs</strong> and the session&#x27;s own drawer. <strong>Expected Result.</strong> The booking records the full price as list price, the whole of it as the discount, and <code>promo_code</code> as the source — so <strong>What discounting cost</strong> includes it. Amount paid is <strong>₹0</strong> and there is no payment/transaction row, because no money moved. A free session that recorded nothing would make the giveaway invisible, which is the figure that decides whether the campaign continues.</p>
 <h4><code>ADM-INVITE-001</code> — Invites: the two halves · P1</h4>
@@ -1237,6 +1261,7 @@ clinic share  = splittable net − therapist share − partner share</code></pre
 <p><strong>Preconditions.</strong> A 6-session purchase with 2 sessions <strong>completed</strong> and 4 available. <strong>Steps.</strong> Refund the package. <strong>Expected Result.</strong> The <strong>4 available</strong> credits are voided; the <strong>2 delivered stay delivered</strong>. The ledger records a <code>void</code> for exactly 4. The patient&#x27;s widget shows the programme as refunded with nothing available. <strong>A delivered session is never un-delivered.</strong></p>
 <hr>
 <h3>16.3 Payment integrity (duplicates, concurrency, webhooks)</h3>
+<blockquote><strong>Posting a webhook without a terminal.</strong> The webhook cases below need a signed request, not a signed-in one: <code>/api/razorpay/webhook</code> authenticates the <strong>body</strong>, never a cookie. Sign and send it from DevTools → Console on any page of the app (§5.1a). Paste the raw body you copied from the Razorpay dashboard&#x27;s webhook log, and the same <code>RAZORPAY_WEBHOOK_SECRET</code> the server has: ``<code>js const secret = &quot;&lt;the RAZORPAY_WEBHOOK_SECRET the server is running with&gt;&quot;; const raw = &#x27;&lt;paste the exact raw JSON body, unmodified&gt;&#x27;; const key = await crypto.subtle.importKey( &quot;raw&quot;, new TextEncoder().encode(secret), { name: &quot;HMAC&quot;, hash: &quot;SHA-256&quot; }, false, [&quot;sign&quot;] ); const sig = [...new Uint8Array( await crypto.subtle.sign(&quot;HMAC&quot;, key, new TextEncoder().encode(raw)) )].map((b) =&gt; b.toString(16).padStart(2, &quot;0&quot;)).join(&quot;&quot;); const r = await fetch(&quot;/api/razorpay/webhook&quot;, { method: &quot;POST&quot;, headers: { &quot;Content-Type&quot;: &quot;application/json&quot;, &quot;x-razorpay-signature&quot;: sig }, body: raw, }); ({ status: r.status, body: await r.text() }); </code>`<code> **</code>raw<code> must be the byte-for-byte body.** Do not paste it through </code>JSON.parse<code>/</code>JSON.stringify<code> to tidy it — that is exactly what </code>PAY-WH-001<code> (c) proves must fail, and doing it by accident turns a passing signature into </code>400 Invalid signature<code> with nothing to say why. To run the (b) case, change one character of </code>sig<code>; for (a), delete the </code>x-razorpay-signature<code> header line. To send the **same** webhook twice (</code>PAY-DUP-004<code>), re-run the last </code>fetch` — the body and signature are already in scope.</blockquote>
 <h4><code>PAY-DUP-001</code> — One payment, one appointment · P0</h4>
 <p><strong>Steps.</strong> Complete <code>PAT-BOOK-003</code>, then reload and inspect Sessions → All Sessions and the <code>payments</code> table. <strong>Expected Result.</strong> Exactly one appointment, exactly one <code>payments</code> row. *<em>The appointment is created </em>before<em> the order, and the order is minted against it</em>*, so there is no path by which one payment creates two appointments.</p>
 <h4><code>PAY-DUP-002</code> — One order, one purchase · P0 <strong>[SQL]</strong></h4>
@@ -1311,16 +1336,33 @@ clinic share  = splittable net − therapist share − partner share</code></pre
 }).then(async r =&gt; ({ status: r.status, body: await r.json() }))</code></pre>
 <p>The request is same-origin, so the browser attaches that user&#x27;s session cookie itself — there is nothing to copy, and nothing to get stale. Read the <code>status</code> and <code>body</code> it prints.</p>
 <p>*<em>To call a route as </em>nobody*<strong> (`SEC-ROUTE-002`), do the same in a </strong>private/incognito window<strong> where you have not signed in. Do </strong>not** use a normal window with <code>credentials: &quot;omit&quot;</code> unless you check the result: what you are proving is that the server refuses, and a mistake there passes for the wrong reason.</p>
-<p><strong>The terminal equivalent</strong>, if you prefer one — the cookie is the only reason it is more work. Copy it from DevTools → Application → Cookies:</p>
-<pre><code>curl -i -X POST http://localhost:3000/api/&lt;route&gt; \
-  -H &#x27;Content-Type: application/json&#x27; \
-  -b &#x27;&lt;paste the cookie header&gt;&#x27; \
-  -d &#x27;{ ...body... }&#x27;</code></pre>
+<p>Nothing in this section needs a terminal. §5.1a has the same recipe with its four gotchas — the private-window rule for an anonymous call chief among them.</p>
 <h3>18.1 Signed-out access</h3>
 <h4><code>SEC-ROUTE-001</code> — Every protected route redirects a signed-out visitor · P0</h4>
 <p><strong>Steps.</strong> In a private window, navigate to <code>/patient/dashboard</code>, <code>/patient/dashboard/health-profile</code>, <code>/therapist/dashboard</code>, <code>/therapist/dashboard/earnings</code>, <code>/hospital/dashboard</code>, <code>/hospital/dashboard/revenue</code>, <code>/admin/dashboard</code>, <code>/admin/dashboard/patients/&lt;id&gt;</code>. <strong>Expected Result.</strong> Each redirects to that role&#x27;s own login page. <strong>No protected content is rendered even for a frame.</strong></p>
 <h4><code>SEC-ROUTE-002</code> — Every mutating route refuses an anonymous caller · P0</h4>
-<p><strong>Steps.</strong> Call a representative route from each family with <strong>no cookie</strong>: <code>/api/appointments/create</code>, <code>/api/appointments/cancel</code>, <code>/api/patient/condition-profile/submit</code>, <code>/api/therapist/save-availability</code>, <code>/api/therapist/care-plan/submit</code>, <code>/api/hospital/withdraw-referral</code>, <code>/api/admin/approve-account</code>, <code>/api/admin/settle-therapist-payout</code>, <code>/api/medical-documents/view</code>, <code>/api/razorpay/create-order</code>. <strong>Expected Result.</strong> <strong>401 `Not signed in`</strong> or <strong>403 `Forbidden`</strong> on every one. <strong>None returns 200, and none leaks data in the error body.</strong></p>
+<p><strong>Steps.</strong> Open a <strong>private/incognito window</strong> — signed into nothing — at <code>http://localhost:3000</code>. DevTools (<strong>F12</strong>) → <strong>Console</strong>, and run the whole sweep at once:</p>
+<pre><code>const routes = [
+  &quot;/api/appointments/create&quot;,
+  &quot;/api/appointments/cancel&quot;,
+  &quot;/api/patient/condition-profile/submit&quot;,
+  &quot;/api/therapist/save-availability&quot;,
+  &quot;/api/therapist/care-plan/submit&quot;,
+  &quot;/api/hospital/withdraw-referral&quot;,
+  &quot;/api/admin/approve-account&quot;,
+  &quot;/api/admin/settle-therapist-payout&quot;,
+  &quot;/api/medical-documents/view&quot;,
+  &quot;/api/razorpay/create-order&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 120) };
+})));</code></pre>
+<p><strong>The private window is the test.</strong> Running this in a window where you are signed in sends that user&#x27;s cookie and proves nothing about an anonymous caller. <strong>Expected Result.</strong> <strong>401 `Not signed in`</strong> or <strong>403 `Forbidden`</strong> on every one. <strong>None returns 200, and none leaks data in the error body.</strong></p>
 <h3>18.2 Cross-role access</h3>
 <h4><code>SEC-ROUTE-003</code> — A signed-in user of the wrong role is sent to Get Started · P0</h4>
 <p><strong>Steps.</strong> As each of patient / therapist / hospital, navigate to each of the other three dashboards. <strong>Expected Result.</strong> Every one redirects to <strong>`/get-started`</strong>.</p>
@@ -1345,7 +1387,28 @@ clinic share  = splittable net − therapist share − partner share</code></pre
 <h4><code>SEC-ADMIN-001</code> — Scoped admins · P0</h4>
 <p>Covered by <code>ADM-SET-027</code> and <code>ADM-SET-028</code>. Run the whole table.</p>
 <h4><code>SEC-ADMIN-002</code> — A non-admin cannot call an admin route · P0</h4>
-<p><strong>Steps.</strong> With <strong>each</strong> of a patient&#x27;s, a therapist&#x27;s and a hospital&#x27;s cookie, call ten admin routes across different sections. <strong>Expected Result.</strong> <strong>403 on every one.</strong></p>
+<p><strong>Steps.</strong> Sign in as the patient, and in DevTools → Console run the sweep below. Repeat the whole thing signed in as the therapist, then as the hospital — three runs, one per role.</p>
+<pre><code>const routes = [
+  &quot;/api/admin/approve-account&quot;,
+  &quot;/api/admin/assign-therapist&quot;,
+  &quot;/api/admin/create-booking&quot;,
+  &quot;/api/admin/cancel-appointment&quot;,
+  &quot;/api/admin/settle-therapist-payout&quot;,
+  &quot;/api/admin/apply-goodwill-discount&quot;,
+  &quot;/api/admin/update-treatment-category&quot;,
+  &quot;/api/admin/save-promo-code&quot;,
+  &quot;/api/admin/review-care-plan&quot;,
+  &quot;/api/admin/set-admin-scope&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 120) };
+})));</code></pre>
+<p><strong>Expected Result.</strong> <strong>403 on every one</strong>, in all three runs. A <code>400</code> anywhere in the table is its own finding: it means that route parsed the body before deciding whether the caller was an admin, which is the ordering the audit&#x27;s F-10 removed.</p>
 <h4><code>SEC-ADMIN-003</code> — Scope changes are self-protecting · P0</h4>
 <p>Covered by <code>ADM-SET-025</code>: no self-change, and the last <code>full</code> admin cannot be narrowed.</p>
 <h4><code>SEC-AUTH-006</code> — A suspended account is locked out everywhere · P0</h4>
@@ -1360,7 +1423,23 @@ clinic share  = splittable net − therapist share − partner share</code></pre
 <h4><code>SEC-TAMPER-004</code> — Manipulated permissions · P0</h4>
 <p><strong>Steps.</strong> As a patient, send <code>{&quot;role&quot;:&quot;admin&quot;}</code> and <code>{&quot;admin_scope&quot;:&quot;full&quot;}</code> in the body of a profile-update route. As a scoped admin, call <code>set-admin-scope</code> on yourself. <strong>Expected Result.</strong> All refused or ignored. <strong>Never trust a role, an id, or an amount sent from the client — it is re-derived server-side.</strong></p>
 <h4><code>SEC-TAMPER-005</code> — Malformed bodies · P1</h4>
-<p><strong>Steps.</strong> POST invalid JSON, an empty body, a deeply nested object, and a 5 MB string field to ten routes. <strong>Expected Result.</strong> <code>Malformed payload</code> or a specific field message, always <strong>4xx</strong>, never a 500 and never a crash.</p>
+<p><strong>Steps.</strong> Signed in as a patient, run this in DevTools → Console — it sends all four malformed shapes to one route, and you repeat it for ten routes by editing <code>route</code>:</p>
+<pre><code>const route = &quot;/api/appointments/create&quot;;
+const bodies = {
+  &quot;invalid JSON&quot;: &quot;{not json&quot;,
+  &quot;empty body&quot;: &quot;&quot;,
+  &quot;deeply nested&quot;: JSON.stringify({ a: JSON.parse(&quot;[&quot;.repeat(200) + &quot;]&quot;.repeat(200)) }),
+  &quot;5 MB string&quot;: JSON.stringify({ notes: &quot;x&quot;.repeat(5_000_000) }),
+};
+console.table(await Promise.all(Object.entries(bodies).map(async ([name, body]) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body,
+  });
+  return { name, status: r.status, body: (await r.text()).slice(0, 120) };
+})));</code></pre>
+<p><strong>Expected Result.</strong> <code>Malformed payload</code> or a specific field message, always <strong>4xx</strong>, never a 500 and never a crash.</p>
 <h4><code>SEC-TAMPER-006</code> — Duplicate submissions · P0</h4>
 <p>Covered by <code>PAT-BOOK-017</code>, <code>PAT-SUGG-004</code>, <code>THR-AVAIL-004</code>, <code>FIN-PAY-002</code>, <code>PAY-DUP-004</code>.</p>
 <h3>18.6 Authentication behaviour</h3>
