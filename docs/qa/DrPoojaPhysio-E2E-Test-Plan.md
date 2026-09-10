@@ -162,7 +162,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001` |
 | People | `therapists` | Therapists | `ADM-PEOP-005` |
 | People | `partners` | Partners | `ADM-PEOP-008` |
-| Money | `summary` | Summary | `FIN-SUM-001`, `FIN-SUM-004`, `FIN-NAV-001` |
+| Money | `summary` | Summary | `FIN-SUM-001`, `FIN-SUM-004`, `FIN-SUM-005`, `FIN-NAV-001` |
 | Money | `transactions` | Transactions | `FIN-TXN-001` |
 | Money | `payouts` | Payouts + payout requests + Cash Ledger | `FIN-PAY-001` |
 | Money | `costs` | Costs + promo codes | `FIN-COST-001`, `ADM-PROMO-001` |
@@ -3454,6 +3454,12 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 #### `FIN-SUM-003` — Date filtering, and what is never filtered · P0
 **Steps.** Narrow the range to one day containing only S1. Read every figure on Summary. Then read **Owed to therapists**.
 **Expected Result.** Gross, refunds, net, and the split all narrow to S1. **"Owed to therapists" does not change** — it is an all-time balance, net of cash held, matching what the Pay button transfers. Its label says so. If it moves with the range, that is a P0: an admin could read "nothing owed" off a quiet week while a real debt sat outside the window.
+
+#### `FIN-SUM-005` — Opening a figure, and what needs you · P1
+
+**Steps.** On **Money → Summary**, tap **See the sessions** on Net revenue, then on Therapists' share, Partners' share and Clinic share. Add up the last column by hand in each. Then leave S7's cash un-remitted and a payout request pending, and open each of the five Money screens.
+**Expected Result.** The modal lists exactly the sessions behind that figure and its footer **equals the card**, to the rupee — both come from `moneyLineFor`, which the totals themselves accumulate. A session paid for but **not delivered** appears under Therapists' share with **nothing** against it rather than being hidden. A session left out of the split is not counted in the two share modals. Partners' share offers no link when nothing was referred in range.
+Every Money screen opens with a **needs-you strip**: `N things need you` over one row per item — payout requests waiting, cash a therapist is holding, refunds to hand back by hand, payments attached to nothing — each linking to the rows it counted. With nothing outstanding it reads `Nothing in Money needs you`. A **Finance** admin (no `settings`) sees the first three and **not** payments-attached-to-nothing, whose fix is on a screen they cannot open.
 
 #### `FIN-BRK-001` — Breakdown agrees with Summary · P0
 **Steps.** Open **Money → Breakdown** for the same range.

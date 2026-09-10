@@ -2026,6 +2026,24 @@ client is the only writer and the log is append-only from any session.
   in a strip, `ScopeChip` on a card -- wherever the two kinds sit together,
   because an admin narrowing the range and watching one figure fall while
   the one beside it holds still is reading a screen that looks half-broken.
+  **A total can be opened.** Each of Summary's four split figures has a "See
+  the sessions" link listing exactly the rows behind it (`explainMoneyLines`
+  in `adminMetrics.ts`, rendered by one modal for all four -- four modals
+  would be four chances to filter differently from the card that opened
+  them). It is derived from `moneyLineFor`, which `moneyByBucketFor` itself
+  calls, so the drill-down and the total are the same arithmetic rather than
+  two implementations that agree today; `adminMetrics.test.ts` asserts the
+  lines sum to the buckets. A drill-down that can disagree with its own total
+  is worse than none, because it makes a correct figure look wrong.
+  **Money answers "is anything wrong?" too.** `src/lib/moneyAlerts.ts` +
+  `MoneyAlertsStrip` sit at the top of all five Money screens: payout
+  requests waiting, cash a therapist is holding, refunds to hand back by
+  hand, payments attached to nothing. Cash collected a month ago and never
+  handed over is not a wrong number on any screen -- it is money that is
+  simply not there -- so no figure could have surfaced it. Same rules as the
+  admin home's actions: a zero row is dropped, an item whose section this
+  scope cannot open is dropped rather than linked into `findTab`'s fallback,
+  and every item links to the rows it counted.
   **A figure appears once per screen.** Summary printed Net revenue twice,
   Clinic share three times and Operating profit twice, because its strip
   repeated the chain below it. The strip is the answers now (net revenue,

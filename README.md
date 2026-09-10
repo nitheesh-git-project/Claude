@@ -297,6 +297,19 @@ balance, already net of cash therapists are holding from home visits, and is
 the same number the Payouts screen and the Pay button use. Everything beside
 it (revenue, refunds, what was settled) is scoped to the dates in view.
 
+Every Money screen opens with **what needs you** — payout requests waiting,
+cash a therapist collected and has not handed over, refunds that have to be
+given back by hand, payments the app cannot attach to anything. Each links to
+the rows it counted, and an item whose screen this admin cannot open is
+dropped rather than linked. Cash sitting in somebody's pocket is not a wrong
+number anywhere; it is money that is simply not there, so no figure could
+have surfaced it.
+
+Summary's four split figures can each be **opened**: "See the sessions" lists
+every session behind the number, with a footer that sums to the card. The
+rows come from the same per-session function the totals are accumulated from,
+so a drill-down cannot disagree with what opened it.
+
 Every figure says which it is, with a chip: **These dates** for a flow,
 **Right now** for a balance, **A setting** for a rate. An admin narrowing the
 range and watching one number fall while the one beside it holds still is

@@ -11,7 +11,9 @@ import {
   filterBySlotRange,
   buildBuckets,
   bookingsByBucketFor,
+  explainMoneyLines,
   moneyByBucketFor,
+  type MoneyLine,
   packageRevenueInRange,
   computeNoShowRate,
   computeCancellationRate,
@@ -35,6 +37,7 @@ import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import StatStrip from "@/components/dashboard/StatStrip";
 import MoneyFigure, { MoneyTermInfo } from "@/components/admin/MoneyFigure";
+import { MONEY_TERMS } from "@/lib/moneyTerms";
 
 export type { MetricsAppointment };
 
@@ -355,6 +358,11 @@ export default function AdminMetricsTab({
   const [patientFilter, setPatientFilter] = useState<string>("all");
   const [selectedTherapistId, setSelectedTherapistId] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  // Which figure's sessions are being read. One modal, four callers -- the
+  // rows are the same rows, only the column being explained changes.
+  const [explainTerm, setExplainTerm] = useState<
+    "net_revenue" | "therapist_share" | "partner_share" | "clinic_share" | null
+  >(null);
 
   // The earliest session there is, so "All Time" means the clinic's actual
   // history rather than a fixed epoch. It used to jump to 2000-01-01, which
@@ -430,6 +438,28 @@ export default function AdminMetricsTab({
         hospitalReferredPatientIds,
         therapistHomeVisitSharePercent
       ),
+    [
+      inRangeBySlot,
+      buckets,
+      therapistSharePercent,
+      patientHospitalSharePercent,
+      hospitalReferredPatientIds,
+      therapistHomeVisitSharePercent,
+    ]
+  );
+
+  // The sessions behind the four figures, from the same per-session function
+  // moneyByBucketFor accumulates -- so a drill-down cannot disagree with the
+  // card that opened it. A figure an admin cannot check is a figure they
+  // cannot trust, and this is the one section where that costs the most.
+  const moneyLines = useMemo(
+    () =>
+      explainMoneyLines(inRangeBySlot, buckets, {
+        therapistSharePercent,
+        patientHospitalSharePercent,
+        hospitalReferredPatientIds,
+        therapistHomeVisitSharePercent,
+      }),
     [
       inRangeBySlot,
       buckets,
@@ -855,6 +885,8 @@ export default function AdminMetricsTab({
                 ? `${formatInr(totalGrossRevenuePaise)} charged · ${formatInr(totalRefundedPaise)} refunded`
                 : `${formatInr(totalGrossRevenuePaise)} charged`
             }
+            onExplain={() => setExplainTerm("net_revenue")}
+            explainLabel={`See ${moneyLines.length} session${moneyLines.length === 1 ? "" : "s"}`}
           />
           <MoneyFigure
             term="therapist_share"
@@ -868,6 +900,7 @@ export default function AdminMetricsTab({
             valueClass=""
             valueStyle={{ color: THERAPIST_CUT_COLOR }}
             note="Earned on delivered sessions, travel included"
+            onExplain={() => setExplainTerm("therapist_share")}
           />
           <MoneyFigure
             term="partner_share"
@@ -883,6 +916,9 @@ export default function AdminMetricsTab({
                 ? "Referral commission on what was kept"
                 : "No hospital-referred sessions in range"
             }
+            onExplain={
+              totalHospitalCutPaise > 0 ? () => setExplainTerm("partner_share") : undefined
+            }
           />
           <MoneyFigure
             term="clinic_share"
@@ -896,6 +932,7 @@ export default function AdminMetricsTab({
                 : `${clinicSharePercent.toFixed(1)}% of net revenue · before running costs`
             }
             highlight
+            onExplain={() => setExplainTerm("clinic_share")}
           />
         </div>
 
@@ -1152,6 +1189,16 @@ export default function AdminMetricsTab({
           )}
         </div>
       </div>
+
+      {explainTerm && (
+        <MoneyExplainModal
+          term={explainTerm}
+          lines={moneyLines}
+          patients={patients}
+          therapists={therapists}
+          onClose={() => setExplainTerm(null)}
+        />
+      )}
 
       {selectedTherapistRow && (
         <Modal
@@ -1427,5 +1474,141 @@ export default function AdminMetricsTab({
       </div>
       )}
     </div>
+  );
+}
+
+// The sessions behind one Money figure.
+//
+// One modal for all four cards, because they are the same rows read down a
+// different column -- four modals would be four chances for one of them to
+// filter differently from the card that opened it. The footer sums the
+// column being explained, so a reader can check the card against it, and
+// the rows come from explainMoneyLines, which shares its arithmetic with
+// the totals themselves.
+const EXPLAIN_COLUMN: Record<
+  "net_revenue" | "therapist_share" | "partner_share" | "clinic_share",
+  {
+    heading: string;
+    blurb: string;
+    amount: (line: MoneyLine) => number;
+    include: (line: MoneyLine) => boolean;
+  }
+> = {
+  net_revenue: {
+    heading: "Kept",
+    blurb: "Every paid session in this range, after any refund on it.",
+    amount: (l) => l.netPaise,
+    include: () => true,
+  },
+  therapist_share: {
+    heading: "Therapist",
+    blurb:
+      "Only sessions actually delivered earn a share. A session booked and paid for but not completed is listed with nothing against it.",
+    amount: (l) => l.therapistCutPaise,
+    include: (l) => !l.excluded,
+  },
+  partner_share: {
+    heading: "Partner",
+    blurb: "Sessions with a referring hospital's commission on them.",
+    amount: (l) => l.hospitalCutPaise,
+    include: (l) => l.hospitalCutPaise > 0,
+  },
+  clinic_share: {
+    heading: "Clinic",
+    blurb: "What each session left the clinic after both shares came out of it.",
+    amount: (l) => l.clinicSharePaise,
+    include: (l) => !l.excluded,
+  },
+};
+
+function MoneyExplainModal({
+  term,
+  lines,
+  patients,
+  therapists,
+  onClose,
+}: {
+  term: keyof typeof EXPLAIN_COLUMN;
+  lines: MoneyLine[];
+  patients: Person[];
+  therapists: Person[];
+  onClose: () => void;
+}) {
+  const column = EXPLAIN_COLUMN[term];
+  const entry = MONEY_TERMS[term];
+  const patientNameById = new Map(patients.map((p) => [p.id, p.full_name ?? "Unknown"]));
+  const therapistNameById = new Map(therapists.map((t) => [t.id, t.full_name ?? "Unknown"]));
+  const rows = lines.filter(column.include);
+  const total = rows.reduce((sum, l) => sum + column.amount(l), 0);
+
+  return (
+    <Modal title={`${entry.term}: the sessions behind it`} subtitle={column.blurb} onClose={onClose}>
+      {rows.length === 0 ? (
+        <EmptyState
+          icon="fa-receipt"
+          title="No sessions in this range"
+          body="Widen the dates, or clear the category and therapist filters above."
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-slate-500">
+                <th className="py-2 pr-3 font-semibold">Session</th>
+                <th className="py-2 pr-3 font-semibold">Patient</th>
+                <th className="py-2 pr-3 font-semibold">Therapist</th>
+                <th className="py-2 pr-3 text-right font-semibold">Paid</th>
+                <th className="py-2 text-right font-semibold">{column.heading}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((line) => (
+                <tr key={line.appointmentId} className="border-b border-slate-100">
+                  <td className="py-2 pr-3 text-slate-600">
+                    {new Date(line.slotTime).toLocaleDateString()}
+                    {line.visitMode === "home_visit" && (
+                      <span className="ml-1.5 text-[10px] text-slate-400">home visit</span>
+                    )}
+                    {line.status !== "completed" && (
+                      <span className="ml-1.5 text-[10px] text-amber-600">
+                        {line.status ?? "—"}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3 text-slate-700">
+                    {patientNameById.get(line.patientId) ?? "Unknown"}
+                  </td>
+                  <td className="py-2 pr-3 text-slate-700">
+                    {line.therapistId
+                      ? therapistNameById.get(line.therapistId) ?? "Unknown"
+                      : "Unassigned"}
+                  </td>
+                  <td className="py-2 pr-3 text-right text-slate-600">
+                    {formatInr(line.paidPaise)}
+                    {line.refundPaise > 0 && (
+                      <span className="ml-1 text-[10px] text-red-500">
+                        −{formatInr(line.refundPaise)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 text-right font-semibold text-slate-800">
+                    {formatInr(column.amount(line))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-slate-300">
+                <td className="py-2 pr-3 font-bold text-slate-700" colSpan={4}>
+                  {rows.length} session{rows.length === 1 ? "" : "s"} — this is the figure on the
+                  card
+                </td>
+                <td className="py-2 text-right font-bold text-slate-900">{formatInr(total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </Modal>
   );
 }

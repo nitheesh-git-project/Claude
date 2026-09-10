@@ -78,6 +78,8 @@ export default function MoneyFigure({
   note,
   showScope = false,
   highlight = false,
+  onExplain,
+  explainLabel = "See the sessions",
 }: {
   term: MoneyTermKey;
   /** Font Awesome class, e.g. "fa-sack-dollar". */
@@ -90,6 +92,11 @@ export default function MoneyFigure({
   /** Print the "These dates" / "Right now" chip. */
   showScope?: boolean;
   highlight?: boolean;
+  /** Opens the sessions this figure is made of. Given one, the card grows a
+   *  link saying so -- a total with no way to see its rows is a number an
+   *  admin has to take on faith. */
+  onExplain?: () => void;
+  explainLabel?: string;
 }) {
   const entry = MONEY_TERMS[term];
   return (
@@ -109,6 +116,16 @@ export default function MoneyFigure({
         {value}
       </p>
       {note && <p className="mt-1 text-[11px] text-slate-400">{note}</p>}
+      {onExplain && (
+        <button
+          type="button"
+          onClick={onExplain}
+          className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-teal-700 transition hover:text-teal-900"
+        >
+          {explainLabel}
+          <i aria-hidden className="fa-solid fa-arrow-right text-[9px]" />
+        </button>
+      )}
     </div>
   );
 }

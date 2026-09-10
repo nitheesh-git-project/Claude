@@ -285,45 +285,30 @@ export function moneyByBucketFor(
   let excludedRevenuePaise = 0;
 
   for (const a of dimFiltered) {
-    if (a.payment_status !== "paid" || !a.slot_time) continue;
-    const ms = new Date(a.slot_time).getTime();
-    const idx = buckets.findIndex((b) => ms >= b.startMs && ms < b.endMs);
+    const line = moneyLineFor(a, {
+      therapistSharePercent,
+      patientHospitalSharePercent,
+      hospitalReferredPatientIds,
+      therapistHomeVisitSharePercent,
+    });
+    if (!line) continue;
+    const idx = buckets.findIndex((b) => line.slotMs >= b.startMs && line.slotMs < b.endMs);
     if (idx < 0) continue;
-
-    const paidPaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
-    const refundPaise =
-      a.refund_status === "processed" ? Math.max(0, a.refund_amount_paise ?? 0) : 0;
-    const netPaise = Math.max(0, paidPaise - refundPaise);
 
     // Revenue first, unconditionally -- it does not depend on anyone having
     // configured a split.
-    grossRevenuePaise[idx] += paidPaise;
-    refundedPaise[idx] += refundPaise;
+    grossRevenuePaise[idx] += line.paidPaise;
+    refundedPaise[idx] += line.refundPaise;
 
-    const onlineShare = a.therapist_id ? therapistSharePercent[a.therapist_id] : undefined;
-    const hShare = patientHospitalSharePercent[a.patient_id];
-    const hospitalShareUnknown = hShare === undefined && !!hospitalReferredPatientIds[a.patient_id];
-    if (onlineShare === undefined || hospitalShareUnknown) {
+    if (line.excluded) {
       excludedCount += 1;
-      excludedRevenuePaise += paidPaise;
+      excludedRevenuePaise += line.paidPaise;
       continue;
     }
 
-    splittableNetPaise[idx] += netPaise;
-
-    if (a.status === "completed") {
-      const isHomeVisit = a.visit_mode === "home_visit";
-      const homeShare = a.therapist_id
-        ? therapistHomeVisitSharePercent[a.therapist_id]
-        : undefined;
-      const effectiveShare = isHomeVisit ? homeShare ?? onlineShare : onlineShare;
-      const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
-      therapistCutPaise[idx] += Math.round((paidPaise * effectiveShare) / 100) + travelPaise;
-    }
-
-    if (hShare !== undefined) {
-      hospitalCutPaise[idx] += Math.round((netPaise * hShare) / 100);
-    }
+    splittableNetPaise[idx] += line.netPaise;
+    therapistCutPaise[idx] += line.therapistCutPaise;
+    hospitalCutPaise[idx] += line.hospitalCutPaise;
   }
 
   const netRevenuePaise = buckets.map((_, i) => grossRevenuePaise[i] - refundedPaise[i]);
@@ -342,6 +327,130 @@ export function moneyByBucketFor(
     excludedCount,
     excludedRevenuePaise,
   };
+}
+
+export type MoneyRates = {
+  therapistSharePercent: Record<string, number>;
+  patientHospitalSharePercent: Record<string, number>;
+  hospitalReferredPatientIds: Record<string, true>;
+  therapistHomeVisitSharePercent?: Record<string, number>;
+};
+
+/** One session's contribution to every figure on the Money screens. */
+export type MoneyLine = {
+  appointmentId: string;
+  patientId: string;
+  therapistId: string | null;
+  slotMs: number;
+  slotTime: string;
+  visitMode: string | null;
+  status: string | null;
+  paidPaise: number;
+  refundPaise: number;
+  netPaise: number;
+  therapistCutPaise: number;
+  hospitalCutPaise: number;
+  clinicSharePaise: number;
+  /** Counted in revenue but left out of the three shares, because the split
+   *  cannot be known. Its cut figures are all zero. */
+  excluded: boolean;
+};
+
+/**
+ * What one session contributed, or null when it contributed nothing (unpaid,
+ * or with no slot to date it by).
+ *
+ * Extracted from moneyByBucketFor rather than written beside it, and then
+ * called *by* it, so "what is this figure made of" is answered by the same
+ * arithmetic that produced the figure. A second implementation of the split
+ * would be a second answer, and the one place a drill-down must never
+ * disagree with its own total is the books.
+ */
+export function moneyLineFor(
+  a: MetricsAppointment,
+  rates: MoneyRates
+): MoneyLine | null {
+  if (a.payment_status !== "paid" || !a.slot_time) return null;
+
+  const paidPaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
+  const refundPaise =
+    a.refund_status === "processed" ? Math.max(0, a.refund_amount_paise ?? 0) : 0;
+  const netPaise = Math.max(0, paidPaise - refundPaise);
+
+  const base = {
+    appointmentId: a.id,
+    patientId: a.patient_id,
+    therapistId: a.therapist_id ?? null,
+    slotMs: new Date(a.slot_time).getTime(),
+    slotTime: a.slot_time,
+    visitMode: a.visit_mode ?? null,
+    status: a.status ?? null,
+    paidPaise,
+    refundPaise,
+    netPaise,
+  };
+
+  const onlineShare = a.therapist_id
+    ? rates.therapistSharePercent[a.therapist_id]
+    : undefined;
+  const hShare = rates.patientHospitalSharePercent[a.patient_id];
+  const hospitalShareUnknown =
+    hShare === undefined && !!rates.hospitalReferredPatientIds[a.patient_id];
+  if (onlineShare === undefined || hospitalShareUnknown) {
+    return {
+      ...base,
+      therapistCutPaise: 0,
+      hospitalCutPaise: 0,
+      clinicSharePaise: 0,
+      excluded: true,
+    };
+  }
+
+  let therapistCutPaise = 0;
+  if (a.status === "completed") {
+    const isHomeVisit = a.visit_mode === "home_visit";
+    const homeShare = a.therapist_id
+      ? (rates.therapistHomeVisitSharePercent ?? {})[a.therapist_id]
+      : undefined;
+    const effectiveShare = isHomeVisit ? homeShare ?? onlineShare : onlineShare;
+    const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
+    therapistCutPaise = Math.round((paidPaise * effectiveShare) / 100) + travelPaise;
+  }
+
+  const hospitalCutPaise =
+    hShare !== undefined ? Math.round((netPaise * hShare) / 100) : 0;
+
+  return {
+    ...base,
+    therapistCutPaise,
+    hospitalCutPaise,
+    clinicSharePaise: netPaise - therapistCutPaise - hospitalCutPaise,
+    excluded: false,
+  };
+}
+
+/**
+ * Every session behind the Money summary's figures, newest first.
+ *
+ * This is what the drill-down on each figure lists: a number an admin cannot
+ * check is a number they cannot trust, and Money is the one section where
+ * that matters most. Sessions outside the buckets are dropped here exactly as
+ * they are in the totals, so a modal's footer and the card that opened it are
+ * arithmetically the same sum.
+ */
+export function explainMoneyLines(
+  dimFiltered: MetricsAppointment[],
+  buckets: PeriodBucket[],
+  rates: MoneyRates
+): MoneyLine[] {
+  if (buckets.length === 0) return [];
+  const fromMs = buckets[0].startMs;
+  const toMs = buckets[buckets.length - 1].endMs;
+  return dimFiltered
+    .map((a) => moneyLineFor(a, rates))
+    .filter((line): line is MoneyLine => !!line)
+    .filter((line) => line.slotMs >= fromMs && line.slotMs < toMs)
+    .sort((a, b) => b.slotMs - a.slotMs);
 }
 
 // Narrowed to exactly the fields these two read (rather than the full

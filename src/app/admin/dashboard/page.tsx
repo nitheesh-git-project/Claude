@@ -34,6 +34,7 @@ import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
+import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
 import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
 import { buildSystemHealth, summarizeHealth } from "@/lib/systemHealth";
 import { googleConnectionCheckedAt } from "@/lib/googleConnectionHealth";
@@ -3442,6 +3443,22 @@ export default async function AdminDashboardPage({
   // dashboards cannot drift into four different answers to "what needs me
   // today", and so every link on this screen lands somewhere the viewer may
   // actually go. See src/lib/adminHome.ts.
+  // The one "is anything wrong with the money" answer, at the top of all
+  // five Money screens -- an admin should not have to open each of them and
+  // know what a wrong figure looks like. Built once here for the same reason
+  // the health checks are: five copies would be five answers.
+  const moneyAlerts = (
+    <MoneyAlertsStrip
+      counts={{
+        payoutRequestsOpen: payoutRequestsBadgeCount,
+        cashToRemitVisits: cashOwedByTherapists,
+        manualRefundsPending,
+        unmatchedPayments: accountingHealth.unmatchedPayments.length,
+      }}
+      reachableSections={allowedSections}
+    />
+  );
+
   // One derivation, three readers: the System Health screen, that tab's
   // sidebar badge, and the red line Today carries. Three copies of this
   // would be three answers to "is the clinic healthy".
@@ -3591,6 +3608,7 @@ export default async function AdminDashboardPage({
     // Performance is the one who needs it.
     "money:summary": (
       <>
+        {moneyAlerts}
         {moneySummaryTab}
         <div className="mt-8">
           <MoneyGlossary />
@@ -3599,6 +3617,7 @@ export default async function AdminDashboardPage({
     ),
     "money:transactions": (
       <>
+        {moneyAlerts}
         {paymentHistoryTab}
         <div className="mt-8">
           <MoneyGlossary />
@@ -3607,6 +3626,7 @@ export default async function AdminDashboardPage({
     ),
     "money:payouts": (
       <div className="space-y-8">
+        {moneyAlerts}
         {payoutsTab}
         {payoutRequestsTab}
         <HomeVisitCashLedger visits={homeVisitRows} nowMs={nowTimestamp()} />
@@ -3615,6 +3635,7 @@ export default async function AdminDashboardPage({
     ),
     "money:costs": (
       <>
+        {moneyAlerts}
         {/* Promo codes sit beside the figure they cost, which is the whole
             reason this screen exists -- and is what Settings -> Offers, the
             README and the QA plan have always said. They were rendered on
@@ -3645,6 +3666,7 @@ export default async function AdminDashboardPage({
     ),
     "money:breakdown": (
       <>
+        {moneyAlerts}
         {moneyBreakdownTab}
         <div className="mt-8">
           <MoneyGlossary />
