@@ -80,8 +80,8 @@ Every route below is covered by at least one test. The rightmost column names th
 | Sessions | `recommendations` | Recommendations — the clinic's review queue, plus every plan | `ADM-CARE-001`, `ADM-CARE-004` |
 | Sessions | `new` | New Booking | `ADM-NEWB-001` |
 | People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001`, `ADM-PEOP-010` |
-| People | `therapists` | Therapists | `ADM-PEOP-005` |
-| People | `partners` | Partners | `ADM-PEOP-008` |
+| People | `therapists` | Therapists | `ADM-PEOP-005`, `ADM-PEOP-010` |
+| People | `partners` | Partners | `ADM-PEOP-008`, `ADM-PEOP-010` |
 | Money | `summary` | Summary | `FIN-SUM-001`, `FIN-SUM-004`, `FIN-SUM-005`, `FIN-NAV-001` |
 | Money | `transactions` | Transactions | `FIN-TXN-001` |
 | Money | `payouts` | Payouts + payout requests + Cash Ledger | `FIN-PAY-001` |

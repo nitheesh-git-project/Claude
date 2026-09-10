@@ -384,7 +384,7 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 **Feature.** A Master Admin can sign in as a patient or therapist from their profile page, to see exactly what they see. It is a **real session swap**, not a preview: the browser becomes that account, every control works, and every write is recorded as theirs. That is the cost of being able to reproduce a bug that only shows on submit, and everything below is what fences it.
 
 **Steps**
-1. As **Admin Full**, open **People → Patients → QA Patient A** and tap **Open their dashboard**.
+1. As **Admin Full**, open **People → Patients → QA Patient A** and tap **Open their dashboard**. (The same control sits on a therapist's profile, and on a hospital's card on **People → Partners** — a hospital has no detail page of its own, and its card is where its record lives.)
 2. Try to confirm with the reason `test`. Then enter `Patient says her session link is missing.` and confirm.
 3. Read the bar at the top of the patient dashboard. Walk to Sessions, Programmes and Health Profile.
 4. Tap **Exit and go back to admin**.
@@ -400,6 +400,7 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 * Every dashboard screen carries an **amber bar** naming the patient, saying the actions are real, counting the window down, and offering Exit. It is the **only** difference from what she sees.
 * Exit restores the admin's own session and lands on `/admin/dashboard` — no re-login.
 * The Activity Log carries **`Signed in as a user`** and **`Stopped signing in as a user`**, both naming the patient, the first carrying the reason.
+* All three roles work the same way: a therapist lands on `/therapist/dashboard`, a hospital on `/hospital/dashboard`, each with the same bar. A hospital's own dashboard is where its referrals and earnings read from, so "the referral I sent is not showing" is a question about that screen rather than about the Partners card.
 * The three scoped admins have **no such button**, and calling `/api/admin/start-impersonation` directly answers **403** — the button's absence is presentation, the route is the rule.
 * Another admin is refused (*"You cannot sign in as another admin"*) whether active or suspended; a suspended patient is refused with what to do about it.
 * Past 30 minutes the session is **signed out by the proxy**, not merely un-bannered — a marker left to lapse on its own would drop the bar while the swap ran on underneath it. The admin lands on `/admin/login?expired=impersonation`.

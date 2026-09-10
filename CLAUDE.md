@@ -286,8 +286,8 @@ through the ordinary screens. Thresholds are `risk_rules` and the two that
 need a clinic baseline ship disabled. Reviews are append-only and need a real
 note.
 
-A Master Admin can open a patient's or therapist's dashboard from their
-profile and see exactly what they see. It is a real session swap, not a
+A Master Admin can open a patient's, therapist's or partner hospital's
+dashboard and see exactly what they see. It is a real session swap, not a
 preview -- the browser becomes that account, so every control works and every
 write is recorded as theirs, which is what makes a bug that only appears on
 submit reproducible. Fenced accordingly (`src/lib/impersonation.ts`): full

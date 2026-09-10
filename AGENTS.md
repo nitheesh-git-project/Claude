@@ -2145,8 +2145,10 @@ client is the only writer and the log is append-only from any session.
   all three.
 
 - **An admin can sign in as somebody, and that is a session swap rather than
-  a preview.** A Master Admin opens a patient's or therapist's dashboard from
-  their profile page and the browser genuinely becomes that account: same
+  a preview.** A Master Admin opens a patient's, therapist's or partner hospital's
+  dashboard -- the first two from their profile page, a hospital from its card
+  on People -> Partners, which is where a hospital's record lives -- and the
+  browser genuinely becomes that account: same
   routes, same data, same controls, every write real. It exists because "the
   app is broken for me" is unanswerable from the back office, which shows an
   admin's view of a patient rather than the patient's own.

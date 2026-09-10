@@ -221,8 +221,8 @@ so a still-valid session cookie can't call the API around the UI gate.
 
 ### Opening somebody's dashboard
 
-A **Master Admin** can open a patient's or therapist's dashboard from their
-profile page and see exactly what they see. It answers the question the back
+A **Master Admin** can open a patient's, therapist's or partner hospital's
+dashboard from their profile and see exactly what they see. It answers the question the back
 office cannot: "the app is broken for me" is about their screen, and every
 admin screen shows an admin's view of them instead.
 
@@ -233,6 +233,8 @@ being able to reproduce a bug that only appears on submit, and the reason it
 is fenced:
 
 - **Master Admin only.** Never another admin, never a suspended account.
+- **Patients and therapists from their profile page; a hospital from its card
+  on People → Partners**, which is where a hospital's own record lives.
 - **A reason is required** (ten characters) and is stored where the admin who
   typed it cannot edit it, alongside who, whom and how long.
 - **Thirty minutes**, ended by the proxy rather than by the browser — a

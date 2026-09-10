@@ -20,6 +20,7 @@ import AdminCostsTab from "@/components/admin/AdminCostsTab";
 import { istDateKey } from "@/lib/formatSlotRange";
 import { sumDiscountsGiven } from "@/lib/discounts";
 import HospitalActiveToggle from "@/components/admin/HospitalActiveToggle";
+import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
 import PackageCatalogManager from "@/components/admin/PackageCatalogManager";
 import PackagePurchasesTable from "@/components/admin/PackagePurchasesTable";
 import PackageSettingsForm from "@/components/admin/PackageSettingsForm";
@@ -1465,6 +1466,17 @@ export default async function AdminDashboardPage({
                     )}
                   </div>
                   <div className="flex flex-wrap items-start justify-between gap-3 pt-2 border-t border-slate-100">
+                    {/* A hospital's own dashboard is where their referrals
+                        and their earnings read from, so "the referral I sent
+                        is not showing" is a question about this screen and
+                        not about the Partners card. Master Admin only, and
+                        the route checks that again. */}
+                    {viewerScope === "full" && (
+                      <ViewAsUserButton
+                        userId={h.id}
+                        userName={h.full_name ?? "this hospital"}
+                      />
+                    )}
                     <ResetHospitalPasswordButton
                       hospitalId={h.id}
                       currentPassword={hospitalNoteMap.get(h.id)?.temp_password}
