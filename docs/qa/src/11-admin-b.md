@@ -224,7 +224,7 @@ At **Settings → Offers & Discounts**, above Patient invites.
 **Feature.** Whether a balance shown and offered is read from the **credit ledger** or from the older `sessions_used` / `visits_used` counters is **one admin switch**, off by default and **reversible in a second** — both are written either way.
 
 **Steps**
-1. Open **Settings → System Health** and confirm the accounting check reports **no disagreements**, and that **Google Connection** is not red.
+1. Open **Settings → System Health** and confirm **Books & Sessions Agree** is `Healthy`, and that **Google Connection** is not red.
 2. Turn **Session Balances From The Ledger** **on**.
 3. Check every surface that shows a balance: the patient's package widget, the therapist's programme list, both purchase detail modals, the admin Purchases table, and the bulk scheduler.
 4. Turn it back off and check them all again.
@@ -348,10 +348,11 @@ This tab also surfaces the `communication_flags` and `contact_reveal_log` eviden
 
 #### `ADM-SET-030` — System Health · P0
 
-**Steps.** Open **Settings → System Health**.
-**Expected Result.** Two panels: **Sync Health** (failed Meet syncs, with Retry) and the **accounting check**. The accounting check reports where the entitlement **cache**, the **ledger** and the **legacy counter** disagree. **It reports and never repairs** — a silent auto-fix on a money record is how a discrepancy becomes permanent. The badge on this tab is the sum of sync issues and accounting problems.
+**Steps.** Open **Settings → System Health**. Read the verdict strip at the top, then tap the **i** button on each check.
+**Expected Result.** A verdict strip naming how many checks need a person (`All 5 checks healthy`, `2 checks need you`, or `Nothing is broken` when a check is switched off or could not be run), with a jump chip per failing check, followed by five cards in a fixed shape: **Payment Confirmations**, **Google Connection**, **Session Links**, **Waiting Room**, **Books & Sessions Agree**. Every card carries a status **word** as well as a colour — `Healthy`, `Needs a look`, `Needs you now`, `Not set up`, `Not checked` — a one-line plain-words headline, and, whenever it is not healthy, a numbered **How to fix it yourself**. The **i** button expands *What this watches* and *For example* inside the same card and nothing else moves. **Books & Sessions Agree** reports where the entitlement **cache**, the **ledger** and the **legacy counter** disagree, plus captured payments attached to nothing and delivered sessions with nothing behind them. **It reports and never repairs** — a silent auto-fix on a money record is how a discrepancy becomes permanent, and that card deliberately has no fix button. The badge on this tab is the number of **checks** needing a person, and it matches the strip's own count and its chips exactly.
+**Negative:** a missing `RAZORPAY_WEBHOOK_SECRET` and a dead Google credential both badged **0** before this, because the badge counted rows and those two failures have no rows.
 
-#### `ADM-SET-031` — Sync Health retry · P1
+#### `ADM-SET-031` — Session Links retry · P1
 Covered by `ADM-SESS-003`.
 
 #### `ADM-SET-033` — Activity Log · P0

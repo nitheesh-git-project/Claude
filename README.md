@@ -414,10 +414,41 @@ credit cannot both succeed. Each is idempotent on a key derived from the
 appointment or payment that caused it, so a retried request moves the
 balance once. `verify_entitlement_balances()` reports where the cache, the
 ledger and the older `sessions_used` counter disagree; it is shown on
-**Settings → System Health** alongside captured payments nothing is attached
-to and delivered sessions with no payment, package or cash behind them.
+**Settings → System Health** under **Books & Sessions Agree**, alongside
+captured payments nothing is attached to and delivered sessions with no
+payment, package or cash behind them.
 Nothing there is repaired automatically — each finding is either a data
 problem or someone working outside the normal flow, and both want a person.
+
+### System Health
+
+**Settings → System Health** is the app reporting on itself: nothing there is
+a setting. It answers five questions, and every one of them answers in the
+same shape, so the screen can be read without learning five layouts:
+
+| Check | Asks |
+| --- | --- |
+| **Payment Confirmations** | Can a patient who pays and closes the tab still be confirmed? (`RAZORPAY_WEBHOOK_SECRET`) |
+| **Google Connection** | Is the Google account this app books calendars with still signed in? |
+| **Session Links** | Does every confirmed session have its calendar event and video link? |
+| **Waiting Room** | Do patients and therapists walk into their sessions, or knock? |
+| **Books & Sessions Agree** | Do the programme balances, the payments and the delivered sessions all add up? |
+
+A verdict strip at the top says how many checks need a person, with a chip
+per failing check that jumps straight to it — so "is anything wrong?" is
+answered before any card is read, and the sidebar badge is that same number
+of **checks** rather than a row count. Each card carries a status **word** as
+well as a colour (`Healthy`, `Needs a look`, `Needs you now`, `Not set up`,
+`Not checked`), a one-line headline in plain words, and — whenever it is not
+healthy — numbered steps the owner can follow themselves. The **i** button on
+a card expands what that check watches and one example of what goes wrong
+without it, so the explanation is there the first time somebody opens the
+screen and costs nothing every time after.
+
+`Not set up` and `Not checked` are deliberately **not** faults: an owner who
+has not wired Google up has not got a problem, and colouring that red is how
+red stops meaning anything. What each check says, and what fixes it, lives in
+`src/lib/systemHealth.ts` (unit-tested) rather than in the screen.
 
 ### Therapist roster and availability
 
@@ -1073,7 +1104,7 @@ a few failed syncs at the top of each admin dashboard render (there is no
 cron in this deployment), bounded by a per-attempt timeout, a per-sweep row
 limit, and `appointments.google_calendar_sync_attempts`, which stops retrying
 a session that has failed too many times rather than calling Google forever.
-Those exhausted sessions stay in the admin's Sync Health panel marked as
+Those exhausted sessions stay in the admin's Session Links panel marked as
 needing attention, where a manual retry (`/api/admin/retry-meet-sync`) both
 re-attempts the event and re-arms the automatic attempts. Both paths claim
 the session (`appointments.google_calendar_sync_claimed_at`) before calling
@@ -1118,7 +1149,7 @@ Waiting Room**, retried a couple of times by a second pass of the same lazy
 sweep (bounded by `appointments.meet_access_attempts`), and fixable by hand
 with `/api/admin/open-meet-access`. The commonest failure is a 403 because
 the stored refresh token predates the Meet scope: re-run the token script
-once and click Open.
+once and click **Open the door**.
 
 The one thing no code can fix: a meeting organized by a **personal Gmail**
 account still requires every participant to be signed in to *some* Google

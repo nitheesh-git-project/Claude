@@ -3,7 +3,6 @@
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import type { AdminSettings } from "@/lib/adminSettings";
-import type { GoogleConnectionStatus } from "@/lib/googleConnectionHealth";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
 import BookingLanguagesSection from "@/components/admin/BookingLanguagesSection";
 
@@ -17,48 +16,21 @@ async function saveSetting(key: string, value: boolean | number | string[]) {
   if (!res.ok) throw new Error(data.error ?? "Could not save. Please try again.");
 }
 
-export type GoogleMeetSyncIssue = {
-  id: string;
-  sessionCode: string | null;
-  slotTime: string | null;
-  patientName: string;
-  therapistName: string | null;
-  error: string | null;
-  // How many times the automatic sweep (src/lib/retryDueMeetSyncs.ts) has
-  // already tried this one, and whether it has hit its cap and stopped.
-  autoRetryAttempts: number;
-  autoRetryExhausted: boolean;
-};
-
 export default function AdminFeatureControlTab({
   settings,
-  syncIssues,
-  waitingRoomIssues,
-  webhookSecretConfigured = true,
-  googleConnection,
   adminEmail,
   view,
 }: {
   settings: AdminSettings;
-  syncIssues: GoogleMeetSyncIssue[];
-  /** Confirmed sessions whose Meet space is still holding both parties in a
-   *  waiting room. Same row shape as a sync issue -- deliberately, since the
-   *  two panels say the same things about a session -- but a different fix
-   *  (see /api/admin/open-meet-access). */
-  waitingRoomIssues: GoogleMeetSyncIssue[];
-  /** Whether RAZORPAY_WEBHOOK_SECRET is set in the server environment. */
-  webhookSecretConfigured?: boolean;
-  /** Result of actually spending the Google refresh token (see
-   *  googleConnectionHealth.ts). Undefined only on a render that chose not to
-   *  probe. */
-  googleConnection?: GoogleConnectionStatus;
   adminEmail: string;
   // Which slice of this component to render. It used to be one "Feature
   // Control" tab holding three unrelated jobs at once: the rules that govern
   // booking, the health of the Calendar sync, and the admin's own password.
   // Splitting the render (rather than the file) keeps the save handlers and
-  // their optimistic/error state in one place.
-  view: "booking" | "health" | "security";
+  // their optimistic/error state in one place. The health slice has since
+  // moved out altogether -- it reports rather than sets, shares none of this
+  // state, and reads as its own screen (AdminSystemHealthTab).
+  view: "booking" | "security";
 }) {
   const router = useRouter();
 
@@ -114,17 +86,11 @@ export default function AdminFeatureControlTab({
   const [completedAfterError, setCompletedAfterError] = useState<string | null>(null);
   const [completedAfterSaved, setCompletedAfterSaved] = useState(false);
 
-  const [retryingId, setRetryingId] = useState<string | null>(null);
-  const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
-
   const [optimisticOpenAccess, setOptimisticOpenAccess] = useOptimistic(
     settings.meetOpenAccessEnabled
   );
   const [isOpenAccessPending, startOpenAccessTransition] = useTransition();
   const [openAccessError, setOpenAccessError] = useState<string | null>(null);
-
-  const [fixingId, setFixingId] = useState<string | null>(null);
-  const [fixErrors, setFixErrors] = useState<Record<string, string>>({});
 
   function handleToggleOpenAccess() {
     const next = !optimisticOpenAccess;
@@ -138,32 +104,6 @@ export default function AdminFeatureControlTab({
         setOpenAccessError(e instanceof Error ? e.message : "Could not save. Please try again.");
       }
     });
-  }
-
-  async function handleOpenAccess(appointmentId: string) {
-    setFixingId(appointmentId);
-    setFixErrors((prev) => {
-      const next = { ...prev };
-      delete next[appointmentId];
-      return next;
-    });
-    try {
-      const res = await fetch("/api/admin/open-meet-access", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appointmentId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Could not open the meeting.");
-      router.refresh();
-    } catch (e) {
-      setFixErrors((prev) => ({
-        ...prev,
-        [appointmentId]: e instanceof Error ? e.message : "Could not open the meeting.",
-      }));
-    } finally {
-      setFixingId(null);
-    }
   }
 
   function handleSaveTimeout() {
@@ -296,32 +236,6 @@ export default function AdminFeatureControlTab({
         );
       }
     });
-  }
-
-  async function handleRetry(appointmentId: string) {
-    setRetryingId(appointmentId);
-    setRetryErrors((prev) => {
-      const next = { ...prev };
-      delete next[appointmentId];
-      return next;
-    });
-    try {
-      const res = await fetch("/api/admin/retry-meet-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appointmentId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Retry failed. Please try again.");
-      router.refresh();
-    } catch (e) {
-      setRetryErrors((prev) => ({
-        ...prev,
-        [appointmentId]: e instanceof Error ? e.message : "Retry failed. Please try again.",
-      }));
-    } finally {
-      setRetryingId(null);
-    }
   }
 
   if (view === "security") {
@@ -653,233 +567,6 @@ export default function AdminFeatureControlTab({
       </>
       )}
 
-      {view === "health" && (
-      <>
-      {/* The only configuration whose absence silently loses money.
-          Without the webhook secret /api/razorpay/webhook answers 503, so a
-          patient who pays and closes the tab before the browser callback
-          lands leaves a paid Razorpay order sitting against an unpaid
-          booking -- and nothing anywhere says so. It is a one-line check,
-          on the screen that already exists to say what is quietly wrong. */}
-      <div
-        className={`rounded-2xl border p-6 shadow-sm ${
-          webhookSecretConfigured
-            ? "border-slate-200 bg-white"
-            : "border-red-300 bg-red-50"
-        }`}
-      >
-        <h3 className="font-bold text-sm text-slate-800">Payment Confirmations</h3>
-        {webhookSecretConfigured ? (
-          <p className="mt-1 max-w-md text-xs text-slate-500">
-            The Razorpay webhook is configured. A payment is confirmed by whichever arrives
-            first — the patient&apos;s browser or Razorpay&apos;s own server call — so a patient
-            who pays and closes the tab is still confirmed.
-          </p>
-        ) : (
-          <p className="mt-1 max-w-md text-xs text-red-800">
-            <span className="font-bold">The Razorpay webhook is not configured.</span> Payments
-            are being confirmed by the patient&apos;s browser alone. A patient who pays and
-            closes the tab before the page finishes will leave a{" "}
-            <span className="font-semibold">paid order against an unpaid booking</span>, and
-            nothing will flag it. Set <code className="font-mono">RAZORPAY_WEBHOOK_SECRET</code>{" "}
-            in the server environment and add the matching endpoint in the Razorpay dashboard.
-          </p>
-        )}
-      </div>
-
-      {googleConnection && (
-        <div
-          className={`rounded-2xl border shadow-sm p-6 ${
-            googleConnection.state === "connected"
-              ? "border-slate-200 bg-white"
-              : googleConnection.state === "broken"
-                ? "border-red-300 bg-red-50"
-                : "border-amber-300 bg-amber-50"
-          }`}
-        >
-          <h3 className="font-bold text-sm text-slate-800">Google Connection</h3>
-          {googleConnection.state === "connected" ? (
-            <p className="mt-1 max-w-md text-xs text-slate-500">
-              Connected. Sessions get a calendar invite and a Meet link automatically.
-              {googleConnection.meetScope ? (
-                " Meetings are also opened up, so nobody waits to be let in."
-              ) : (
-                <>
-                  {" "}
-                  This account has not granted permission to open meetings up, so patients
-                  and therapists will have to be admitted by hand. Re-run{" "}
-                  <code className="font-mono">scripts/get-google-refresh-token.mjs</code> to
-                  fix that.
-                </>
-              )}
-            </p>
-          ) : googleConnection.state === "not_configured" ? (
-            <p className="mt-1 max-w-md text-xs text-amber-900">
-              <span className="font-bold">Google is not set up.</span> Sessions are booked
-              and paid for normally, but none of them gets a calendar invite or a video
-              link. Set{" "}
-              <code className="font-mono">{googleConnection.missing.join(", ")}</code> in the
-              server environment.
-            </p>
-          ) : (
-            <p className="mt-1 max-w-md text-xs text-red-800">
-              <span className="font-bold">
-                {googleConnection.deadToken
-                  ? "The Google account is no longer connected."
-                  : "Google could not be reached."}
-              </span>{" "}
-              {googleConnection.deadToken ? (
-                <>
-                  Every new session will fail to get a video link until this is fixed, and
-                  the failures listed below cannot be retried into working. The usual cause
-                  is the Google sign-in permission expiring: if the project&apos;s OAuth
-                  consent screen is still set to <span className="font-semibold">Testing</span>,
-                  Google expires it every seven days. Set it to{" "}
-                  <span className="font-semibold">In production</span> in the Google Cloud
-                  console, then re-run{" "}
-                  <code className="font-mono">scripts/get-google-refresh-token.mjs</code> and
-                  save the new <code className="font-mono">GOOGLE_CALENDAR_REFRESH_TOKEN</code>.
-                </>
-              ) : (
-                <>
-                  This may be temporary — the panel re-checks every minute. If it stays red,
-                  check the server&apos;s outbound network access.
-                </>
-              )}{" "}
-              <span className="text-red-700">({googleConnection.detail})</span>
-            </p>
-          )}
-        </div>
-      )}
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-sm text-slate-800">Sync Health</h3>
-        <p className="text-xs text-slate-500 mt-1 max-w-md">
-          Confirmed sessions that don&apos;t have a Meet link yet — either creation hasn&apos;t
-          run, or it failed. These are retried automatically a few times in the background;
-          anything marked <span className="font-semibold">Needs attention</span> has used up
-          those attempts and won&apos;t be retried again on its own. Retry re-attempts event
-          creation for that one session and re-arms the automatic attempts.
-        </p>
-        {syncIssues.length === 0 ? (
-          <p className="text-xs text-slate-400 mt-4">
-            No sync issues right now — every confirmed session has a Meet link.
-          </p>
-        ) : (
-          <div className="mt-4 space-y-2">
-            {syncIssues.map((issue) => (
-              <div
-                key={issue.id}
-                className="flex items-center justify-between flex-wrap gap-2 border border-slate-200 rounded-xl px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-800">
-                    {issue.patientName}
-                    {issue.therapistName ? ` → ${issue.therapistName}` : ""}
-                  </p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    <span className="font-mono text-slate-400">{issue.sessionCode ?? "—"}</span>
-                    {" · "}
-                    {issue.slotTime ? new Date(issue.slotTime).toLocaleString() : "Slot to be confirmed"}
-                  </p>
-                  {issue.error && (
-                    <p className="text-[11px] text-red-600 mt-1 break-words">{issue.error}</p>
-                  )}
-                  {issue.autoRetryExhausted ? (
-                    <p className="text-[11px] font-semibold text-amber-700 mt-1">
-                      Needs attention — {issue.autoRetryAttempts} automatic attempts used, no more
-                      will run
-                    </p>
-                  ) : issue.autoRetryAttempts > 0 ? (
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      {issue.autoRetryAttempts} automatic{" "}
-                      {issue.autoRetryAttempts === 1 ? "attempt" : "attempts"} so far — still
-                      retrying
-                    </p>
-                  ) : null}
-                  {retryErrors[issue.id] && (
-                    <p className="text-[11px] text-red-600 mt-1 break-words">{retryErrors[issue.id]}</p>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleRetry(issue.id)}
-                  disabled={retryingId === issue.id}
-                  className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition shrink-0"
-                >
-                  {retryingId === issue.id ? "Retrying..." : "Retry"}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-sm text-slate-800">Waiting Room</h3>
-        <p className="text-xs text-slate-500 mt-1 max-w-md">
-          Confirmed sessions whose meeting could not be opened, so the patient and the
-          therapist will have to be admitted by hand. The link and the invite are fine —
-          only the door is. These are retried automatically a couple of times; anything
-          marked <span className="font-semibold">Needs attention</span> has used those up.
-          The usual cause is the Google account&apos;s saved permission predating this
-          feature, fixed once by re-running{" "}
-          <code className="font-mono">scripts/get-google-refresh-token.mjs</code> and then
-          clicking Open here.
-        </p>
-        {waitingRoomIssues.length === 0 ? (
-          <p className="text-xs text-slate-400 mt-4">
-            No sessions are holding anyone in a waiting room.
-          </p>
-        ) : (
-          <div className="mt-4 space-y-2">
-            {waitingRoomIssues.map((issue) => (
-              <div
-                key={issue.id}
-                className="flex items-center justify-between flex-wrap gap-2 border border-slate-200 rounded-xl px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-800">
-                    {issue.patientName}
-                    {issue.therapistName ? ` → ${issue.therapistName}` : ""}
-                  </p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    <span className="font-mono text-slate-400">{issue.sessionCode ?? "—"}</span>
-                    {" · "}
-                    {issue.slotTime ? new Date(issue.slotTime).toLocaleString() : "Slot to be confirmed"}
-                  </p>
-                  {issue.error && (
-                    <p className="text-[11px] text-red-600 mt-1 break-words">{issue.error}</p>
-                  )}
-                  {issue.autoRetryExhausted ? (
-                    <p className="text-[11px] font-semibold text-amber-700 mt-1">
-                      Needs attention — {issue.autoRetryAttempts} automatic attempts used, no more
-                      will run
-                    </p>
-                  ) : issue.autoRetryAttempts > 0 ? (
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      {issue.autoRetryAttempts} automatic{" "}
-                      {issue.autoRetryAttempts === 1 ? "attempt" : "attempts"} so far — still
-                      retrying
-                    </p>
-                  ) : null}
-                  {fixErrors[issue.id] && (
-                    <p className="text-[11px] text-red-600 mt-1 break-words">{fixErrors[issue.id]}</p>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleOpenAccess(issue.id)}
-                  disabled={fixingId === issue.id}
-                  className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition shrink-0"
-                >
-                  {fixingId === issue.id ? "Opening..." : "Open"}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      </>
-      )}
     </div>
   );
 }

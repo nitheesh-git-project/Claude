@@ -32,8 +32,9 @@ import HomeVisitPurchasesTable from "@/components/admin/HomeVisitPurchasesTable"
 import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
-import AccountingHealthPanel from "@/components/admin/AccountingHealthPanel";
+import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
+import { buildSystemHealth, summarizeHealth } from "@/lib/systemHealth";
 import {
   applyLedgerSessionBalances,
   applyLedgerVisitBalances,
@@ -2507,8 +2508,6 @@ export default async function AdminDashboardPage({
   const settingsBookingTab = (
     <AdminFeatureControlTab
       settings={adminSettings}
-      syncIssues={googleMeetSyncIssues}
-      waitingRoomIssues={meetWaitingRoomIssues}
       adminEmail={adminProfile?.email ?? user.email ?? ""}
       view="booking"
     />
@@ -2582,27 +2581,21 @@ export default async function AdminDashboardPage({
   );
 
   const settingsHealthTab = (
-    <div className="space-y-8">
-      <AdminFeatureControlTab
-        settings={adminSettings}
-        syncIssues={googleMeetSyncIssues}
-        waitingRoomIssues={meetWaitingRoomIssues}
-        adminEmail={adminProfile?.email ?? user.email ?? ""}
-        view="health"
-        // Read here rather than in the component: this is a server-only
-        // secret, and only its presence crosses to the browser.
-        webhookSecretConfigured={!!process.env.RAZORPAY_WEBHOOK_SECRET}
-        googleConnection={googleConnection}
-      />
-      <AccountingHealthPanel health={accountingHealth} />
-    </div>
+    <AdminSystemHealthTab
+      syncIssues={googleMeetSyncIssues}
+      waitingRoomIssues={meetWaitingRoomIssues}
+      // Read here rather than in the component: this is a server-only
+      // secret, and only its presence crosses to the browser.
+      webhookSecretConfigured={!!process.env.RAZORPAY_WEBHOOK_SECRET}
+      googleConnection={googleConnection}
+      accounting={accountingHealth}
+      openAccessEnabled={adminSettings.meetOpenAccessEnabled}
+    />
   );
 
   const settingsSecurityTab = (
     <AdminFeatureControlTab
       settings={adminSettings}
-      syncIssues={googleMeetSyncIssues}
-      waitingRoomIssues={meetWaitingRoomIssues}
       adminEmail={adminProfile?.email ?? user.email ?? ""}
       view="security"
     />
@@ -3676,7 +3669,21 @@ export default async function AdminDashboardPage({
     "people:partners": b2bBadgeCount,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,
     "catalog:areas": homeVisitWaitlist?.filter((w) => w.status === "new").length ?? 0,
-    "settings:health": googleMeetSyncIssues.length + accountingProblemCount(accountingHealth),
+    // Checks asking for a person, not rows -- so the badge, the verdict at
+    // the top of that screen and the chips under it are all the same number.
+    // Counting rows hid the two failures with no rows behind them at all: a
+    // missing webhook secret (money arriving against unpaid bookings) and a
+    // dead Google credential both badged zero.
+    "settings:health": summarizeHealth(
+      buildSystemHealth({
+        webhookSecretConfigured: !!process.env.RAZORPAY_WEBHOOK_SECRET,
+        google: googleConnection,
+        syncIssues: googleMeetSyncIssues,
+        waitingRoomIssues: meetWaitingRoomIssues,
+        accounting: accountingHealth,
+        openAccessEnabled: adminSettings.meetOpenAccessEnabled,
+      })
+    ).needsPerson,
   };
 
   return (

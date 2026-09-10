@@ -492,7 +492,8 @@ client is the only writer and the log is append-only from any session.
   cash-on-visit booking, which never becomes `paid` and so reaches neither.
 
   `verify_entitlement_balances()` reports where the cache, the ledger and
-  the legacy counter disagree, on Settings → System Health. It reports and
+  the legacy counter disagree, on Settings → System Health → Books &
+  Sessions Agree. It reports and
   never repairs — a silent auto-fix on a money record is how a discrepancy
   becomes permanent. It has already earned itself twice, catching two
   distinct bugs in the backfill it checks.
@@ -677,7 +678,7 @@ client is the only writer and the log is append-only from any session.
   or, far the commonest cause, the OAuth consent screen left in **Testing**,
   where Google expires refresh tokens after seven days -- every session fails
   at once with `invalid_grant`. Nothing said so. Each failure appeared as its
-  own row in Settings -> System Health -> Sync Health with a raw error string
+  own row in Settings -> System Health -> Session Links with a raw error string
   and a Retry button that could never succeed, so the screen read "a few
   sessions failed" when the truth was "no session will get a link again". The
   one line naming the fix was a `console.error` no clinic owner reads.
@@ -738,7 +739,7 @@ client is the only writer and the log is append-only from any session.
   visit on purpose: there is nothing to join, the therapist is coming to the
   address. Three readers nonetheless used `meet_link is null` as their
   definition of an unsynced session, and every confirmed home visit therefore
-  (1) sat in Settings -> System Health -> Sync Health for ever, (2) was
+  (1) sat in Settings -> System Health -> Session Links for ever, (2) was
   answered `502 "Retry failed"` by the Retry button -- whose success test was
   also `meet_link` -- on the runs where the event had in fact been created,
   and (3) got a **brand new calendar event on every click**, because
@@ -776,7 +777,7 @@ client is the only writer and the log is append-only from any session.
   `createSessionCalendarEvent` only ever creates, so two overlapping
   attempts leave an orphaned event on the calendar under a link the
   appointment no longer points at. At the cap the row stays in the admin's
-  Sync Health panel flagged as needing a person; a manual Retry resets the
+  Session Links panel flagged as needing a person; a manual Retry resets the
   counter. A home visit still gets a
   calendar event even when `google_meet_enabled` is off — that toggle only
   gates the Meet conferencing, not event creation, since the invite email is
@@ -1789,6 +1790,32 @@ client is the only writer and the log is append-only from any session.
   advance). Offers carries a note saying where promo codes and goodwill
   live, because "where did the promo screen go" is the question a split
   otherwise creates.
+- **System Health is five checks in one shape, and every unhealthy one says
+  how to fix it.** The screen reports rather than sets, so it is not an
+  `AdminFeatureControlTab` view -- `src/lib/systemHealth.ts` decides each
+  check's status, its one-line headline, the numbered steps that fix it, and
+  the *what this watches* / *for example* pair behind its (i) button, and
+  `AdminSystemHealthTab` draws what that module returns. It replaced five
+  panels that each explained a subsystem in its own words and its own layout:
+  an owner had to read all of them to learn nothing was wrong, and the one
+  sentence naming the fix was buried mid-paragraph. Four rules hold it:
+  1. **A status is a word as well as a colour** (`Healthy`, `Needs a look`,
+     `Needs you now`, `Not set up`, `Not checked`), and **`off` and
+     `unknown` are not faults**. An owner who never wired Google up has not
+     got a problem, and painting that red is how red stops meaning anything
+     -- `needsPerson()` is the one test for "this is asking for somebody".
+  2. **Anything not healthy carries steps the owner can follow alone.** A
+     red card with no way out is the screen this replaced. `systemHealth.test.ts`
+     asserts it over every check.
+  3. **The teaching text lives behind the (i), never on the card.** It is
+     what somebody needs the first time they open the screen and never
+     again; inline, it is the wall of text that made the old one unreadable.
+  4. **The sidebar badge counts checks, not rows**, so it equals the verdict
+     strip's own count and its chips. Counting rows badged **0** for the two
+     failures with no rows behind them -- a missing `RAZORPAY_WEBHOOK_SECRET`
+     (money arriving against unpaid bookings) and a dead Google credential.
+  A sixth check is an entry in that module plus, if it has rows, a card body
+  in the tab -- never a new panel with its own shape.
 - **A count links to the rows it counted, never to the whole table.** A
   Today figure or queue row that opened an unfiltered list made the reader
   redo the filtering by hand and, worse, made the number look wrong.

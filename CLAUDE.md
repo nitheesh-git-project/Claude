@@ -113,8 +113,8 @@ session's meeting is switched to open access right after its Calendar event
 is created (`src/lib/googleMeetSpace.ts`, the Meet REST API's
 `meetings.space.settings` scope). A failure never invalidates the session --
 the link works, the meeting just keeps its waiting room -- and lands on
-Settings -> System Health -> Waiting Room with a Fix button and a bounded
-automatic retry. Whether the Google account is connected **at all** is its
+Settings -> System Health -> Waiting Room with an "Open the door" button and
+a bounded automatic retry. Whether the Google account is connected **at all** is its
 own panel on that screen (`src/lib/googleConnectionHealth.ts`), because one
 dead refresh token fails every session identically and used to read as a few
 unlucky ones; the retry sweep stands down while it is down rather than
@@ -141,7 +141,7 @@ over `session_entitlements`, not in a mutable counter. Every movement goes
 through a database function holding a real row lock, keyed for idempotency
 on the appointment or payment that caused it, and
 `verify_entitlement_balances()` reports any disagreement on Settings →
-System Health. Whether balances are read from the ledger or from the older
+System Health → Books & Sessions Agree. Whether balances are read from the ledger or from the older
 counters is one admin switch (`entitlement_ledger_authoritative`), off by
 default and reversible without a release. Admins can change any balance — grant, reverse, revive, all
 with a mandatory reason — and cannot change any history.
