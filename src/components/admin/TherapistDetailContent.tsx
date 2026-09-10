@@ -6,6 +6,7 @@ import { scopeCanOpen } from "@/lib/adminScope";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import TherapistActiveToggle from "@/components/admin/TherapistActiveToggle";
+import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
 import TherapistTeamVisibilityToggle from "@/components/admin/TherapistTeamVisibilityToggle";
 import TherapistNotAvailableToggle from "@/components/admin/TherapistNotAvailableToggle";
 import TherapistContactEditForm from "@/components/admin/TherapistContactEditForm";
@@ -268,7 +269,15 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Master Admin only, re-checked by the route -- see the same
+                control on the patient page. */}
+            {viewer?.scope === "full" && (
+              <ViewAsUserButton
+                userId={therapist.id}
+                userName={therapist.full_name ?? "this therapist"}
+              />
+            )}
             {!therapist.approved && <ApproveAccountButton userId={therapist.id} />}
             <TherapistTeamVisibilityToggle
               therapistId={therapist.id}

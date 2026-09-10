@@ -286,6 +286,16 @@ through the ordinary screens. Thresholds are `risk_rules` and the two that
 need a clinic baseline ship disabled. Reviews are append-only and need a real
 note.
 
+A Master Admin can open a patient's or therapist's dashboard from their
+profile and see exactly what they see. It is a real session swap, not a
+preview -- the browser becomes that account, so every control works and every
+write is recorded as theirs, which is what makes a bug that only appears on
+submit reproducible. Fenced accordingly (`src/lib/impersonation.ts`): full
+scope only, never another admin, a ten-character reason on a row the admin
+cannot rewrite, written before the swap, a thirty-minute window the proxy
+ends rather than the browser, and an amber bar on every screen naming the
+account and carrying Exit. See the impersonation rule in `AGENTS.md`.
+
 Payments are recorded in `payments` (one row per Razorpay order, unique on
 both the order id and the payment id) and confirmed by whichever of the
 browser callback or `/api/razorpay/webhook` arrives first — both go through

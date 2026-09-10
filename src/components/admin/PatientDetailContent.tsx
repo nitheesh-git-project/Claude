@@ -6,6 +6,7 @@ import { scopeCanOpen } from "@/lib/adminScope";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import PatientActiveToggle from "@/components/admin/PatientActiveToggle";
+import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
 import PatientContactEditForm from "@/components/admin/PatientContactEditForm";
 import PatientNotesForm from "@/components/admin/PatientNotesForm";
 import ResetPatientPasswordButton from "@/components/admin/ResetPatientPasswordButton";
@@ -301,7 +302,16 @@ export default async function PatientDetailContent({ id }: { id: string }) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Master Admin only, and the route checks that again -- a
+                session cookie can call it directly, so the button's absence
+                is presentation rather than the rule. */}
+            {viewer?.scope === "full" && (
+              <ViewAsUserButton
+                userId={patient.id}
+                userName={patient.full_name ?? "this patient"}
+              />
+            )}
             {!patient.approved && <ApproveAccountButton userId={patient.id} />}
             <PatientActiveToggle
               patientId={patient.id}

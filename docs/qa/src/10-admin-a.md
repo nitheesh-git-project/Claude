@@ -379,6 +379,33 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 **Steps.** Use the admin search to find `QA Patient A` and `QA Sunrise Hospital`.
 **Expected Result.** Results are grouped by entity type and link to the right detail surface.
 
+#### `ADM-PEOP-010` — Opening somebody's dashboard · P0
+
+**Feature.** A Master Admin can sign in as a patient or therapist from their profile page, to see exactly what they see. It is a **real session swap**, not a preview: the browser becomes that account, every control works, and every write is recorded as theirs. That is the cost of being able to reproduce a bug that only shows on submit, and everything below is what fences it.
+
+**Steps**
+1. As **Admin Full**, open **People → Patients → QA Patient A** and tap **Open their dashboard**.
+2. Try to confirm with the reason `test`. Then enter `Patient says her session link is missing.` and confirm.
+3. Read the bar at the top of the patient dashboard. Walk to Sessions, Programmes and Health Profile.
+4. Tap **Exit and go back to admin**.
+5. Open **Settings → Activity Log**.
+6. Repeat step 1 as an **Operations**, **Finance** and **Clinical** admin.
+7. Open another **admin's** profile, and a **suspended** patient's.
+8. Start a swap, then leave the tab for over 30 minutes and reload.
+9. **[SQL]** `update admin_impersonation_sessions set reason = 'x'` on the row your swap wrote, and `delete` it.
+
+**Expected Result**
+* `test` is refused — at least ten characters, the same floor an admin credit adjustment uses. A log full of "test" answers nothing six months later.
+* The dialog says in advance that this is the real account, that anything tapped happens for real and is recorded as theirs, that it ends after 30 minutes, and how to get back.
+* Every dashboard screen carries an **amber bar** naming the patient, saying the actions are real, counting the window down, and offering Exit. It is the **only** difference from what she sees.
+* Exit restores the admin's own session and lands on `/admin/dashboard` — no re-login.
+* The Activity Log carries **`Signed in as a user`** and **`Stopped signing in as a user`**, both naming the patient, the first carrying the reason.
+* The three scoped admins have **no such button**, and calling `/api/admin/start-impersonation` directly answers **403** — the button's absence is presentation, the route is the rule.
+* Another admin is refused (*"You cannot sign in as another admin"*) whether active or suspended; a suspended patient is refused with what to do about it.
+* Past 30 minutes the session is **signed out by the proxy**, not merely un-bannered — a marker left to lapse on its own would drop the bar while the swap ran on underneath it. The admin lands on `/admin/login?expired=impersonation`.
+* **[SQL]** Both the update and the delete **raise**: the row is append-only apart from being closed once, so the admin it names cannot rewrite the record of it.
+**Negative:** if the row cannot be written, **no session is opened at all** — an impersonation nobody can trace to a person is the one outcome this route must not produce.
+
 #### `ADM-PEOP-003` — Patient detail · P1
 **Steps**
 1. On **People → Patients**, tap the row for `QA Patient A`.

@@ -8965,3 +8965,272 @@ revoke all on function public.debug_reset_all_data() from authenticated;
 -- weakened by this -- care_plan_reviews is append-only by trigger, so a row is
 -- still unrewritable, and admins are suspended rather than deleted anyway.
 alter table care_plan_reviews alter column reviewer_id drop not null;
+
+-- ---------------------------------------------------------------------------
+-- Impersonation: an admin signing in as somebody, and the record of it
+-- ---------------------------------------------------------------------------
+--
+-- A Master Admin can open a patient's, therapist's or hospital's dashboard as
+-- that user, to see exactly what they see when they report a problem. It is a
+-- real session swap rather than a read-only mirror: the browser genuinely
+-- becomes that account, so every screen renders from their own data and every
+-- control works.
+--
+-- That is the most dangerous capability in this codebase, and the reason this
+-- table exists rather than an audit line alone. Three things follow from the
+-- swap and are enforced here rather than only in the route:
+--
+--   1. Actions taken during a swap are written as the impersonated user,
+--      because there is no column on appointments (or anywhere else) that can
+--      say "an admin was at the keyboard". This table is the only place that
+--      records it, so the window it stores -- started_at to ended_at -- is
+--      what a later reader intersects an action against.
+--   2. A reason is mandatory and real (ten characters, same floor as an
+--      admin credit adjustment or a withdrawn recommendation). "test" tells a
+--      future reader nothing about why somebody opened a patient's record.
+--   3. It expires. A forgotten tab is an open window into a health record, so
+--      expires_at is stamped at the start and the proxy signs the session out
+--      past it.
+--
+-- Append-only apart from the ending: the trigger below permits stamping
+-- ended_at/ended_reason exactly once and refuses every other update, the same
+-- shape care_plan_versions uses for its offer window.
+
+create table if not exists admin_impersonation_sessions (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid not null references profiles(id) on delete cascade,
+  -- Nullable for the same reason care_plan_reviews.reviewer_id is: the record
+  -- outlives the account, and a NOT NULL beside ON DELETE SET NULL makes the
+  -- referenced profile undeletable rather than protecting anything.
+  target_id uuid references profiles(id) on delete set null,
+  target_role text not null check (target_role in ('patient', 'therapist', 'hospital')),
+  reason text not null check (char_length(btrim(reason)) >= 10),
+  started_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  ended_at timestamptz,
+  ended_reason text check (ended_reason in ('admin_exited', 'expired'))
+);
+
+create index if not exists admin_impersonation_sessions_admin_idx
+  on admin_impersonation_sessions (admin_id, started_at desc);
+create index if not exists admin_impersonation_sessions_target_idx
+  on admin_impersonation_sessions (target_id, started_at desc);
+
+alter table admin_impersonation_sessions enable row level security;
+
+-- Admins read; nobody writes through a browser session. Every write here is
+-- the service-role client from the two impersonation routes, exactly like
+-- admin_activity_log -- and deliberately so: a record of who looked at whose
+-- health data must not be editable by the person it names.
+drop policy if exists admin_impersonation_sessions_select_admin on admin_impersonation_sessions;
+create policy admin_impersonation_sessions_select_admin on admin_impersonation_sessions
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+create or replace function admin_impersonation_sessions_append_only()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'admin_impersonation_sessions is append-only';
+  end if;
+
+  -- The one permitted transition: an open session being closed, once.
+  if old.ended_at is not null then
+    raise exception 'This impersonation session is already closed';
+  end if;
+
+  if new.admin_id is distinct from old.admin_id
+     or new.target_id is distinct from old.target_id
+     or new.target_role is distinct from old.target_role
+     or new.reason is distinct from old.reason
+     or new.started_at is distinct from old.started_at
+     or new.expires_at is distinct from old.expires_at then
+    raise exception 'Only ended_at and ended_reason may be set on an impersonation session';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists admin_impersonation_sessions_append_only on admin_impersonation_sessions;
+create trigger admin_impersonation_sessions_append_only
+  before update or delete on admin_impersonation_sessions
+  for each row execute function admin_impersonation_sessions_append_only();
+
+-- ---------------------------------------------------------------------------
+-- debug_reset_all_data: clear the impersonation record too
+-- ---------------------------------------------------------------------------
+--
+-- Adding a table means adding it to this TRUNCATE list, or a reset silently
+-- leaves its rows behind -- and a record of who signed in as whom is exactly
+-- the sort of row that would then outlive the accounts it names. Re-appended
+-- in full rather than edited in place, the way every earlier revision of this
+-- function was, so the file stays re-runnable top to bottom.
+
+create or replace function public.debug_reset_all_data()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  deleted_accounts integer;
+  admin_count integer;
+begin
+  select count(*) into admin_count from profiles where role = 'admin';
+  if admin_count = 0 then
+    raise exception 'refusing to reset: no admin account would be left behind';
+  end if;
+
+  truncate table
+    session_credit_ledger,
+    session_entitlements,
+    payment_webhook_events,
+    payments,
+    business_expenses,
+    admin_activity_log,
+    admin_impersonation_sessions,
+    session_suggestions,
+    appointment_reassignment_log,
+    payment_failure_log,
+    package_purchase_events,
+    home_visit_purchase_events,
+    appointments,
+    patient_package_purchases,
+    home_visit_package_purchases,
+    therapist_payout_requests,
+    therapist_payout_batches,
+    session_note_revisions,
+    session_notes,
+    patient_medical_documents,
+    pain_assessments,
+    condition_change_requests,
+    condition_access_grants,
+    patient_condition_profiles,
+    patient_addresses,
+    patient_admin_notes,
+    therapist_admin_notes,
+    hospital_admin_notes,
+    profile_change_requests,
+    therapist_availability_override,
+    therapist_availability_template,
+    therapist_schedule_state,
+    patient_referrals,
+    b2b_leads,
+    home_visit_waitlist,
+    home_visit_areas,
+    home_visit_packages,
+    testimonials,
+    faqs,
+    intake_question_templates,
+    pain_map_question_templates,
+    -- The four the previous definition missed. care_plans and
+    -- care_plan_versions were already reached by CASCADE; naming them is
+    -- belt and braces, and means a future change to their foreign keys
+    -- cannot quietly take them back out of the reset.
+    care_plan_versions,
+    care_plans,
+    communication_flags,
+    contact_reveal_log,
+    risk_reviews,
+    risk_signals,
+    -- Added with the review step. A reset that left the clinic's decisions
+    -- behind would leave a record of approvals for recommendations that no
+    -- longer exist.
+    care_plan_reviews,
+    -- Adding a table means adding it here, or a reset silently leaves its
+    -- rows behind. patient_invites first: it references appointments, and
+    -- a reset that kept it would leave rewards pointing at bookings that no
+    -- longer exist. promo_codes after, since appointments reference it.
+    patient_invites,
+    promo_codes
+  cascade;
+
+  with removed as (
+    delete from auth.users
+    where id not in (select id from profiles where role = 'admin')
+    returning 1
+  )
+  select count(*) into deleted_accounts from removed;
+
+  -- Detector thresholds back to what the seed set. Not truncated, because
+  -- an empty risk_rules would silently disable every detector rather than
+  -- restoring it -- risk_signals.rule_key references this table.
+  update risk_rules set
+    enabled = default,
+    config = default,
+    updated_at = now()
+  where rule_key is not null;
+
+  update site_settings set
+    site_name = default,
+    site_tagline = default,
+    site_description = default,
+    contact_email = default,
+    whatsapp_number = default,
+    contact_phone = default,
+    footer_copyright_text = default,
+    home_visit_page_heading = null,
+    home_visit_page_subheading = null,
+    ratings_visible_publicly = default,
+    session_packages_visible = default,
+    session_timeout_minutes = default,
+    google_meet_enabled = default,
+    join_window_minutes = default,
+    join_window_after_minutes = default,
+    session_completed_after_minutes = default,
+    booking_languages = default,
+    package_default_validity_days = default,
+    package_therapist_lock_enabled = default,
+    package_bulk_schedule_max = default,
+    package_expiry_reminder_days = default,
+    home_visit_enabled = default,
+    home_visit_cash_enabled = default,
+    home_visit_lead_time_hours = default,
+    home_visit_cancellation_refund_hours = default,
+    home_visit_default_validity_days = default,
+    home_visit_bulk_schedule_max = default,
+    home_visit_travel_buffer_minutes = default,
+    online_booking_lead_time_hours = default,
+    online_cancellation_refund_hours = default,
+    payment_gateway_fee_percent = default,
+    farewell_banner_seconds = default,
+    journey_step_seconds = default,
+    splash_enabled = default,
+    splash_brand_line = default,
+    splash_phrase = default,
+    splash_hold_seconds = default,
+    splash_revisit_minutes = default,
+    enabled_intake_specialties = default,
+    entitlement_ledger_authoritative = default,
+    care_plan_default_expiry_days = default,
+    care_plan_max_frequency_per_week = default,
+    contact_scan_mode = default,
+    contact_masking_enabled = default,
+    risk_signals_enabled = default,
+    therapist_suggestions_enabled = default,
+    auto_assign_therapist_enabled = default,
+    care_plan_requires_approval = default,
+    first_session_offer_enabled = default,
+    first_session_offer_type = default,
+    first_session_offer_value = default,
+    promo_codes_enabled = default,
+    invite_rewards_enabled = default,
+    invite_reward_paise = default,
+    invite_welcome_paise = default,
+    invite_max_rewards_per_patient = default
+  where id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'deleted_accounts', deleted_accounts
+  );
+end;
+$$;
+
+revoke all on function public.debug_reset_all_data() from public;
+revoke all on function public.debug_reset_all_data() from anon;
+revoke all on function public.debug_reset_all_data() from authenticated;

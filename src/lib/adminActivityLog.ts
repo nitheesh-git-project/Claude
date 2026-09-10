@@ -18,6 +18,12 @@ export type AdminActivityAction =
   | "account.decline"
   | "account.create"
   | "account.set_active"
+  // Signing in as somebody, and signing back out. The deepest capability in
+  // the app: everything done during the window is written as that user, so
+  // these two rows plus admin_impersonation_sessions are the only record
+  // that an admin was at the keyboard at all.
+  | "impersonation.start"
+  | "impersonation.end"
   | "account.reset_password"
   | "profile_change.approve"
   | "profile_change.decline"
@@ -172,6 +178,8 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "account.decline": "Declined account",
   "account.create": "Created account",
   "account.set_active": "Changed account status",
+  "impersonation.start": "Signed in as a user",
+  "impersonation.end": "Stopped signing in as a user",
   "account.reset_password": "Reset password",
   "profile_change.approve": "Approved profile change",
   "profile_change.decline": "Declined profile change",

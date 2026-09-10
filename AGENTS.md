@@ -2144,6 +2144,51 @@ client is the only writer and the log is append-only from any session.
   check moved with the insert. Don't add a fifth booking entry point without
   all three.
 
+- **An admin can sign in as somebody, and that is a session swap rather than
+  a preview.** A Master Admin opens a patient's or therapist's dashboard from
+  their profile page and the browser genuinely becomes that account: same
+  routes, same data, same controls, every write real. It exists because "the
+  app is broken for me" is unanswerable from the back office, which shows an
+  admin's view of a patient rather than the patient's own.
+  It is the most dangerous capability in this codebase, so the rules live in
+  `src/lib/impersonation.ts` -- dependency-free and unit-tested rather than
+  only clicked -- and there are five:
+  1. **`full` scope only, checked directly.** Not
+     `requireAdminScope("people")`: a section scope would hand this to
+     whoever can edit a phone number. Never another admin (that is one admin
+     using another's authority, and an admin in trouble can be asked what
+     they see), never a suspended account, never yourself.
+  2. **A real reason, ten characters** -- the floor an admin credit
+     adjustment uses -- stored on `admin_impersonation_sessions`, which is
+     append-only by trigger apart from being closed once, so the admin it
+     names cannot rewrite it. **The row is written before the swap**, so a
+     session with no record behind it cannot exist; a failed insert refuses
+     the whole thing, the same posture as `/api/therapist/reveal-contact`.
+  3. **Everything done during the window is written as that user.** No column
+     on `appointments` -- or anywhere else -- can say an admin was at the
+     keyboard, so that row's `started_at`/`ended_at` window is the only thing
+     a later reader can intersect an action against. That is a real cost of
+     the swap, accepted deliberately: a read-only mirror cannot reproduce a
+     bug that only appears on submit.
+  4. **It expires, and the proxy is what ends it.** The marker cookie and the
+     Supabase session cookies are separate things, so letting the marker
+     lapse on its own max-age would drop the banner while the swap ran on
+     underneath it. `updateSession` checks the window on every dashboard
+     request and signs out past it -- a forgotten tab is an open window into
+     a health record, and the safe direction for one is closed.
+  5. **The banner is the only thing that differs from what they see**, so it
+     sits above every dashboard screen (`ImpersonationGate`, a layout on each
+     of the three trees -- never the root layout, which is shared with the
+     ISR-cached public pages and would be forced dynamic by reading a
+     cookie). It names the account, says the actions are real, counts the
+     window down and carries Exit.
+  The admin's own session is parked in a second httpOnly cookie so Exit puts
+  them back; losing it costs a re-login and nothing else, which is the right
+  direction for a failure here. `/api/admin/stop-impersonation` is authorized
+  by the marker cookie rather than an admin check, deliberately: the caller
+  is signed in as the patient at that point, so `getAdminContext()` would
+  refuse the one person entitled to call it.
+
 - **Don't name the back office to anyone outside it.** Non-admin roles are
   already locked out (`src/proxy.ts`, `requireAdmin`, `requireAdminScope`);
   keep it out of what they can *see* too. A signed-in non-admin reaching

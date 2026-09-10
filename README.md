@@ -219,6 +219,32 @@ are enforced twice — in the proxy for dashboard navigation, and again in
 `src/lib/supabase/requireActiveProfile.ts` for the self-service API routes,
 so a still-valid session cookie can't call the API around the UI gate.
 
+### Opening somebody's dashboard
+
+A **Master Admin** can open a patient's or therapist's dashboard from their
+profile page and see exactly what they see. It answers the question the back
+office cannot: "the app is broken for me" is about their screen, and every
+admin screen shows an admin's view of them instead.
+
+It is a **real session swap**, not a preview. The browser genuinely becomes
+that account — same routes, same data, same buttons — so anything tapped
+happens for real and their history records it as theirs. That is the cost of
+being able to reproduce a bug that only appears on submit, and the reason it
+is fenced:
+
+- **Master Admin only.** Never another admin, never a suspended account.
+- **A reason is required** (ten characters) and is stored where the admin who
+  typed it cannot edit it, alongside who, whom and how long.
+- **Thirty minutes**, ended by the proxy rather than by the browser — a
+  forgotten tab would otherwise be an open window into a health record.
+- **An amber bar on every screen** naming the account, saying the actions are
+  real, counting the window down, and offering Exit. Exit restores the
+  admin's own session.
+
+Both ends write to the Activity Log (`Signed in as a user` / `Stopped signing
+in as a user`), so the fact that it happened is readable beside every other
+admin action.
+
 ## Routes
 
 **Public marketing:** `/` (home), `/conditions`, `/how-it-works`, `/team`,
