@@ -1778,6 +1778,15 @@ client is the only writer and the log is append-only from any session.
   sentence needs one, the screen is doing too many things and wants
   splitting. The example is one concrete thing you would come here to do,
   which is the half that makes an unfamiliar screen usable.
+  **Every Money screen carries both too**, for a sharper version of the same
+  reason: five screens named with abstract nouns ("Summary", "Breakdown",
+  "Costs") make an owner open three of them to find the one answering the
+  question they arrived with. The worst case of that was a dead end rather
+  than a detour -- promo codes rendered on Money -> Summary while Settings ->
+  Offers, the README and the QA plan all said Money -> Costs, so following
+  that note landed on a screen with no promo codes anywhere on it. A campaign
+  belongs beside the figure it costs (*Discounts given*), which is where it
+  is now.
   **Booking Rules was that "too many things" case**, and splitting it is
   what the field was added alongside. It had grown six unrelated stacks with
   no heading between them -- when a single session may be booked, cancelled

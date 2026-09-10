@@ -249,7 +249,7 @@ link points here so no client bundle has to know the four paths; see
 | **Today** | Today · Approvals | What is waiting on me right now |
 | **Sessions** | Schedule · All Sessions · Roster · Delivery · New Booking | What is being delivered, and by whom |
 | **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
-| **Money** | Summary · Transactions · Payouts · Costs · Breakdown | What came in, what goes out, what it costs, what is still owed |
+| **Money** | Summary · Transactions · Payouts · Costs · Breakdown | What came in, what goes out, what it costs, what is still owed. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
 | **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Activity Log · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
 

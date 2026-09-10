@@ -3593,13 +3593,6 @@ export default async function AdminDashboardPage({
       <>
         {moneySummaryTab}
         <div className="mt-8">
-          <PromoCodeManager
-            codes={promoCodeRows}
-            enabled={promoCodesEnabled}
-            nowIso={new Date(nowTimestamp()).toISOString()}
-          />
-        </div>
-        <div className="mt-8">
           <MoneyGlossary />
         </div>
       </>
@@ -3622,6 +3615,19 @@ export default async function AdminDashboardPage({
     ),
     "money:costs": (
       <>
+        {/* Promo codes sit beside the figure they cost, which is the whole
+            reason this screen exists -- and is what Settings -> Offers, the
+            README and the QA plan have always said. They were rendered on
+            Summary instead, so an admin following that note arrived at a
+            screen with no promo codes on it and no way to tell whether the
+            feature existed. */}
+        <div className="mb-8">
+          <PromoCodeManager
+            codes={promoCodeRows}
+            enabled={promoCodesEnabled}
+            nowIso={new Date(nowTimestamp()).toISOString()}
+          />
+        </div>
         <AdminCostsTab
           discountsGiven={{
             totalPaise: discountsGivenTotals.totalPaise,

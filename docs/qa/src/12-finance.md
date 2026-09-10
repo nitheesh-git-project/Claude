@@ -82,6 +82,12 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 
 ### 16.2 Money screens
 
+#### `FIN-NAV-001` — Each Money screen says what it is, and holds what it claims · P1
+
+**Steps.** Open each of the five Money screens in turn: Summary, Transactions, Payouts, Costs, Breakdown. Read the line under each heading. Then open **Settings → Offers & Discounts**, read its "Looking for promo codes?" note, and follow it.
+**Expected Result.** Every screen prints its own one-line description plus a **For example:** line under the heading, in place of the section's own blurb — the same treatment the Settings screens get, and for a sharper reason: five screens named with abstract nouns ("Summary", "Breakdown") make an owner open three to find the one answering their question. **Promo codes are on Costs**, beside the *Discounts given* figure they produce — which is where the Offers note, the README and `ADM-PROMO-001` have always sent people.
+**Negative:** they used to render on **Summary**, so following that note landed on a screen with no promo codes anywhere on it and no way to tell whether the feature existed at all.
+
 #### `FIN-SUM-001` — Summary and the two identities · P0
 
 **Steps.** Open **Money → Summary**. Set the date range to cover the dataset. Read every figure. Compute the two identities by hand.

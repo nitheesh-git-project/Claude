@@ -162,10 +162,10 @@ Every route below is covered by at least one test. The rightmost column names th
 | People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001` |
 | People | `therapists` | Therapists | `ADM-PEOP-005` |
 | People | `partners` | Partners | `ADM-PEOP-008` |
-| Money | `summary` | Summary | `FIN-SUM-001` |
+| Money | `summary` | Summary | `FIN-SUM-001`, `FIN-NAV-001` |
 | Money | `transactions` | Transactions | `FIN-TXN-001` |
 | Money | `payouts` | Payouts + payout requests + Cash Ledger | `FIN-PAY-001` |
-| Money | `costs` | Costs | `FIN-COST-001` |
+| Money | `costs` | Costs + promo codes | `FIN-COST-001`, `ADM-PROMO-001` |
 | Money | `breakdown` | Breakdown | `FIN-BRK-001` |
 | Catalog | `conditions` | Conditions | `ADM-CAT-001` |
 | Catalog | `packages` | Packages | `ADM-CAT-005` |
@@ -3428,6 +3428,12 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 ---
 
 ### 16.2 Money screens
+
+#### `FIN-NAV-001` — Each Money screen says what it is, and holds what it claims · P1
+
+**Steps.** Open each of the five Money screens in turn: Summary, Transactions, Payouts, Costs, Breakdown. Read the line under each heading. Then open **Settings → Offers & Discounts**, read its "Looking for promo codes?" note, and follow it.
+**Expected Result.** Every screen prints its own one-line description plus a **For example:** line under the heading, in place of the section's own blurb — the same treatment the Settings screens get, and for a sharper reason: five screens named with abstract nouns ("Summary", "Breakdown") make an owner open three to find the one answering their question. **Promo codes are on Costs**, beside the *Discounts given* figure they produce — which is where the Offers note, the README and `ADM-PROMO-001` have always sent people.
+**Negative:** they used to render on **Summary**, so following that note landed on a screen with no promo codes anywhere on it and no way to tell whether the feature existed at all.
 
 #### `FIN-SUM-001` — Summary and the two identities · P0
 
