@@ -3461,6 +3461,11 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 **Expected Result.** The modal lists exactly the sessions behind that figure and its footer **equals the card**, to the rupee — both come from `moneyLineFor`, which the totals themselves accumulate. A session paid for but **not delivered** appears under Therapists' share with **nothing** against it rather than being hidden. A session left out of the split is not counted in the two share modals. Partners' share offers no link when nothing was referred in range.
 Every Money screen opens with a **needs-you strip**: `N things need you` over one row per item — payout requests waiting, cash a therapist is holding, refunds to hand back by hand, payments attached to nothing — each linking to the rows it counted. With nothing outstanding it reads `Nothing in Money needs you`. A **Finance** admin (no `settings`) sees the first three and **not** payments-attached-to-nothing, whose fix is on a screen they cannot open.
 
+#### `FIN-SUM-006` — Exporting a figure's sessions, and last period's comparison · P1
+
+**Steps.** Open **See the sessions** on Clinic share and export both CSV and PDF. Then set the range to September, read the line under **Net revenue**, and re-run with an August that has no paid sessions in it.
+**Expected Result.** The export covers the **same rows the modal listed** and both formats come from one column definition, so they describe the same table; the PDF's subtitle names the date range. The strip's Net revenue carries a comparison against **the same number of days immediately before** the range in view — never a calendar month against a 30-day window, which would move the figure by the number of days rather than by the business. Up is green, down is red, and a move under half a percent reads **Level with the N days before** rather than drawing an arrow over noise. With nothing in the previous period it reads **Nothing in the N days before** — it must **never** print `+100%` or `∞` from a zero baseline.
+
 #### `FIN-BRK-001` — Breakdown agrees with Summary · P0
 **Steps.** Open **Money → Breakdown** for the same range.
 **Expected Result.** Every figure and every chart segment matches Summary **exactly** — both come from **one pass** of the same maths. A discrepancy of any size is a P0.

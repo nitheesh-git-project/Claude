@@ -2035,6 +2035,14 @@ client is the only writer and the log is append-only from any session.
   two implementations that agree today; `adminMetrics.test.ts` asserts the
   lines sum to the buckets. A drill-down that can disagree with its own total
   is worse than none, because it makes a correct figure look wrong.
+  The drill-down exports like every other table (one `CsvColumn[]`, both
+  formats), and Net revenue carries `comparePeriod()` against `previousRange()`
+  -- the same number of days immediately before, never a calendar month
+  against a 30-day window, which would move the figure by the number of days
+  rather than by the business. Two refusals in that helper are the point of
+  it: a zero baseline yields **no** percentage (`+100%` and `∞` are both
+  lies), and a move under half a percent reads "level" rather than drawing an
+  arrow over noise an owner will learn to ignore.
   **Money answers "is anything wrong?" too.** `src/lib/moneyAlerts.ts` +
   `MoneyAlertsStrip` sit at the top of all five Money screens: payout
   requests waiting, cash a therapist is holding, refunds to hand back by

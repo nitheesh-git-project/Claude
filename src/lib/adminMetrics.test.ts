@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   computeCancellationRate,
   computeNoShowRate,
+  comparePeriod,
   computeRepeatBookingRate,
   explainMoneyLines,
   moneyByBucketFor,
+  previousRange,
   type MetricsAppointment,
   type PeriodBucket,
 } from "@/lib/adminMetrics";
@@ -532,5 +534,46 @@ describe("explainMoneyLines", () => {
       RATES
     );
     expect(lines.map((l) => l.appointmentId)).toEqual(["new", "old"]);
+  });
+});
+
+describe("comparePeriod", () => {
+  it("compares against the same length of time immediately before", () => {
+    const range = previousRange(Date.UTC(2026, 8, 1), Date.UTC(2026, 9, 1));
+    expect(range.toMs).toBe(Date.UTC(2026, 8, 1));
+    expect(range.toMs - range.fromMs).toBe(Date.UTC(2026, 9, 1) - Date.UTC(2026, 8, 1));
+  });
+
+  it("says which way and by how much, in words", () => {
+    expect(comparePeriod(120000, 100000, "30 days").label).toBe("20% more than the 30 days before");
+    expect(comparePeriod(80000, 100000, "30 days").label).toBe("20% less than the 30 days before");
+    expect(comparePeriod(120000, 100000, "30 days").direction).toBe("up");
+    expect(comparePeriod(80000, 100000, "30 days").direction).toBe("down");
+  });
+
+  // A percentage against nothing is not a percentage, and "+100%" or "∞" is
+  // worse than saying there is no comparison to make.
+  it("refuses to invent a percentage from a zero baseline", () => {
+    const change = comparePeriod(50000, 0, "week");
+    expect(change.percent).toBeNull();
+    expect(change.label).toBe("Nothing in the week before");
+    expect(comparePeriod(0, 0, "week").direction).toBe("flat");
+  });
+
+  // An arrow over noise is an arrow an owner stops reading.
+  it("calls a fraction of a percent level rather than a move", () => {
+    expect(comparePeriod(100200, 100000, "month").direction).toBe("flat");
+    expect(comparePeriod(100200, 100000, "month").label).toBe("Level with the month before");
+  });
+
+  it("keeps one decimal for a small move and drops it for a big one", () => {
+    expect(comparePeriod(101500, 100000, "month").label).toBe("1.5% more than the month before");
+    expect(comparePeriod(212000, 100000, "month").label).toBe("112% more than the month before");
+  });
+
+  it("handles a fall to nothing without dividing by zero", () => {
+    const change = comparePeriod(0, 100000, "month");
+    expect(change.percent).toBe(-100);
+    expect(change.label).toBe("100% less than the month before");
   });
 });

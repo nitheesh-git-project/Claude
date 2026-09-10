@@ -11,8 +11,10 @@ import {
   filterBySlotRange,
   buildBuckets,
   bookingsByBucketFor,
+  comparePeriod,
   explainMoneyLines,
   moneyByBucketFor,
+  previousRange,
   type MoneyLine,
   packageRevenueInRange,
   computeNoShowRate,
@@ -470,6 +472,39 @@ export default function AdminMetricsTab({
     ]
   );
 
+  // The same length of time immediately before the range in view. "₹43,200
+  // in September" is only good or bad next to August, and an owner should
+  // not have to change the dates, write the figure down and change them back
+  // to find out. Costs are excluded on purpose: operating profit's previous
+  // period would need the previous period's expenses, and this is the
+  // revenue comparison, not a second P&L.
+  const previous = useMemo(() => {
+    const range = previousRange(fromMs, toMs);
+    const prevBuckets = buildBuckets(range.fromMs, range.toMs);
+    const prevInRange = filterBySlotRange(dimFiltered, range.fromMs, range.toMs);
+    const prevMoney = moneyByBucketFor(
+      prevInRange,
+      prevBuckets,
+      therapistSharePercent,
+      patientHospitalSharePercent,
+      hospitalReferredPatientIds,
+      therapistHomeVisitSharePercent
+    );
+    const days = Math.max(1, Math.round((toMs - fromMs) / 86_400_000));
+    return {
+      netRevenuePaise: prevMoney.netRevenuePaise.reduce((sum, v) => sum + v, 0),
+      periodNoun: `${days} day${days === 1 ? "" : "s"}`,
+    };
+  }, [
+    dimFiltered,
+    fromMs,
+    toMs,
+    therapistSharePercent,
+    patientHospitalSharePercent,
+    hospitalReferredPatientIds,
+    therapistHomeVisitSharePercent,
+  ]);
+
   const totalBookings = bookingsByBucket.reduce((s: number, v: number) => s + v, 0);
 
   const packageRevenuePaise = useMemo(
@@ -831,6 +866,14 @@ export default function AdminMetricsTab({
                     : `${formatInr(totalGrossRevenuePaise)} charged, nothing refunded`,
                 accent: "bg-teal-500",
                 scopeNote: "These dates",
+                trend: (() => {
+                  const change = comparePeriod(
+                    totalNetRevenuePaise,
+                    previous.netRevenuePaise,
+                    previous.periodNoun
+                  );
+                  return { direction: change.direction, label: change.label };
+                })(),
               },
               {
                 label: "Operating profit",
@@ -1196,6 +1239,7 @@ export default function AdminMetricsTab({
           lines={moneyLines}
           patients={patients}
           therapists={therapists}
+          rangeSubtitle={rangeSubtitle}
           onClose={() => setExplainTerm(null)}
         />
       )}
@@ -1526,12 +1570,14 @@ function MoneyExplainModal({
   lines,
   patients,
   therapists,
+  rangeSubtitle,
   onClose,
 }: {
   term: keyof typeof EXPLAIN_COLUMN;
   lines: MoneyLine[];
   patients: Person[];
   therapists: Person[];
+  rangeSubtitle: string;
   onClose: () => void;
 }) {
   const column = EXPLAIN_COLUMN[term];
@@ -1541,8 +1587,37 @@ function MoneyExplainModal({
   const rows = lines.filter(column.include);
   const total = rows.reduce((sum, l) => sum + column.amount(l), 0);
 
+  // The same rows the table renders, through the same column definition the
+  // spreadsheet and the printed page share -- an accountant asking what makes
+  // up a month's figure should not be sent a screenshot, and the two formats
+  // cannot describe different tables when they are built from one list.
+  const exportColumns: CsvColumn<MoneyLine>[] = [
+    { header: "Session date", value: (l) => new Date(l.slotTime).toLocaleDateString() },
+    { header: "Delivery", value: (l) => (l.visitMode === "home_visit" ? "Home visit" : "Video") },
+    { header: "Status", value: (l) => l.status ?? "" },
+    { header: "Patient", value: (l) => patientNameById.get(l.patientId) ?? "Unknown" },
+    {
+      header: "Therapist",
+      value: (l) =>
+        l.therapistId ? therapistNameById.get(l.therapistId) ?? "Unknown" : "Unassigned",
+    },
+    { header: "Paid (INR)", value: (l) => (l.paidPaise / 100).toFixed(2) },
+    { header: "Refunded (INR)", value: (l) => (l.refundPaise / 100).toFixed(2) },
+    { header: `${column.heading} (INR)`, value: (l) => (column.amount(l) / 100).toFixed(2) },
+  ];
+
   return (
     <Modal title={`${entry.term}: the sessions behind it`} subtitle={column.blurb} onClose={onClose}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] text-slate-500">{rangeSubtitle}</p>
+        <DataExportButtons
+          filename={`money-${term.replace(/_/g, "-")}`}
+          title={`${entry.term}: the sessions behind it`}
+          subtitle={rangeSubtitle}
+          rows={rows}
+          columns={exportColumns}
+        />
+      </div>
       {rows.length === 0 ? (
         <EmptyState
           icon="fa-receipt"

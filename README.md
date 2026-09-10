@@ -306,9 +306,16 @@ number anywhere; it is money that is simply not there, so no figure could
 have surfaced it.
 
 Summary's four split figures can each be **opened**: "See the sessions" lists
-every session behind the number, with a footer that sums to the card. The
-rows come from the same per-session function the totals are accumulated from,
-so a drill-down cannot disagree with what opened it.
+every session behind the number, with a footer that sums to the card, and
+exports to CSV or PDF like every other table in the back office. The rows come
+from the same per-session function the totals are accumulated from, so a
+drill-down cannot disagree with what opened it.
+
+Net revenue also carries **how it compares with the period before** — the same
+number of days immediately preceding the range, never a calendar month against
+a 30-day window. A move under half a percent reads "level" rather than drawing
+an arrow over noise, and a zero baseline says there is nothing to compare with
+rather than inventing a percentage.
 
 Every figure says which it is, with a chip: **These dates** for a flow,
 **Right now** for a balance, **A setting** for a rate. An admin narrowing the

@@ -30,6 +30,10 @@ export type StatCell = {
    *  sits beside a month's revenue and an admin narrowing the range watches
    *  one move and the other not. */
   scopeNote?: string;
+  /** How this figure compares with the period before it. Only for a flow --
+   *  a balance has no previous period, and an arrow on one would be a claim
+   *  about time that the figure does not make. */
+  trend?: { direction: "up" | "down" | "flat"; label: string; goodWhenUp?: boolean };
 };
 
 function Cell({ cell }: { cell: StatCell }) {
@@ -63,6 +67,29 @@ function Cell({ cell }: { cell: StatCell }) {
         </span>
         {cell.unit && <span className="text-xs font-semibold text-slate-400">{cell.unit}</span>}
       </span>
+      {cell.trend && (
+        <span
+          className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${
+            cell.trend.direction === "flat"
+              ? "text-slate-400"
+              : (cell.trend.direction === "up") === (cell.trend.goodWhenUp ?? true)
+                ? "text-emerald-600"
+                : "text-red-500"
+          }`}
+        >
+          <i
+            aria-hidden
+            className={`fa-solid ${
+              cell.trend.direction === "up"
+                ? "fa-arrow-trend-up"
+                : cell.trend.direction === "down"
+                  ? "fa-arrow-trend-down"
+                  : "fa-minus"
+            } text-[9px]`}
+          />
+          {cell.trend.label}
+        </span>
+      )}
       {cell.note && (
         <span className="mt-1 block text-[11px] leading-snug text-slate-500">{cell.note}</span>
       )}

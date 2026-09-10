@@ -526,3 +526,55 @@ export function computeTherapistUtilization(
     .map(([id, count]) => ({ id, name: nameOf.get(id) ?? "Unknown", count }))
     .sort((a, b) => b.count - a.count);
 }
+
+/**
+ * The same length of time immediately before the range in view.
+ *
+ * A figure with nothing to compare it to is a number an owner cannot judge:
+ * "₹43,200 in September" is only good or bad next to August. Working the
+ * previous window out here rather than in the screen keeps it honest about
+ * length -- comparing a 30-day range against a calendar month would move the
+ * figure by the number of days rather than by the business.
+ */
+export function previousRange(fromMs: number, toMs: number): { fromMs: number; toMs: number } {
+  const span = Math.max(0, toMs - fromMs);
+  return { fromMs: fromMs - span, toMs: fromMs };
+}
+
+export type PeriodChange = {
+  /** Percent change, or null when the previous period had nothing to compare
+   *  against -- a rise from zero is not a percentage, and printing one
+   *  ("+100%", "∞") is worse than saying there is no comparison. */
+  percent: number | null;
+  direction: "up" | "down" | "flat";
+  /** What to print: "12% more than the 30 days before", or the honest
+   *  fallback when there is no basis for a percentage. */
+  label: string;
+};
+
+export function comparePeriod(
+  currentPaise: number,
+  previousPaise: number,
+  periodNoun: string
+): PeriodChange {
+  if (previousPaise === 0) {
+    return {
+      percent: null,
+      direction: currentPaise > 0 ? "up" : "flat",
+      label: currentPaise > 0 ? `Nothing in the ${periodNoun} before` : `Same as the ${periodNoun} before`,
+    };
+  }
+
+  const percent = ((currentPaise - previousPaise) / Math.abs(previousPaise)) * 100;
+  // Under half a percent either way is noise, and an arrow over noise is a
+  // signal an owner learns to ignore.
+  if (Math.abs(percent) < 0.5) {
+    return { percent, direction: "flat", label: `Level with the ${periodNoun} before` };
+  }
+  const rounded = Math.abs(percent) >= 10 ? Math.round(Math.abs(percent)) : Number(Math.abs(percent).toFixed(1));
+  return {
+    percent,
+    direction: percent > 0 ? "up" : "down",
+    label: `${rounded}% ${percent > 0 ? "more" : "less"} than the ${periodNoun} before`,
+  };
+}
