@@ -439,3 +439,74 @@ export function summarizeHealth(checks: HealthCheck[]): HealthSummary {
     attention,
   };
 }
+
+/** The checks that are actually red. Amber is "look at this today"; red is
+ *  "something is being lost while you read this", and only red earns a place
+ *  on a screen the admin did not open to see it. */
+export function criticalChecks(checks: HealthCheck[]): HealthCheck[] {
+  return checks.filter((c) => c.status === "broken");
+}
+
+/** The line Today carries when something is red, or null when it is not.
+ *
+ *  System Health only helps somebody who opens it, and nobody opens it until
+ *  they already suspect trouble -- which is the wrong order for a payment
+ *  safety net that is silently switched off. Today is opened daily, so the
+ *  red ones come to the reader instead. */
+export function healthBannerText(
+  checks: HealthCheck[]
+): { title: string; detail: string } | null {
+  const red = criticalChecks(checks);
+  if (red.length === 0) return null;
+  const names = red.map((c) => c.label);
+  const list =
+    names.length === 1
+      ? names[0]
+      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return {
+    title: names.length === 1 ? `${list} needs you` : `${list} need you`,
+    // The first red check's own headline, because "something is wrong" sends
+    // the reader looking and a sentence saying what is wrong sends them to
+    // the fix.
+    detail: red[0].headline,
+  };
+}
+
+/** How long ago an answer was worked out, in words.
+ *
+ *  Two of these checks are cached (the Google probe is one outbound call, held
+ *  for ten minutes on success and one minute on failure), so a card can be
+ *  showing an answer from before the owner's fix. Without this the screen
+ *  looks broken twice over: once for still being red, and once for being
+ *  green when it is not. */
+export function formatCheckedAgo(ageMs: number): string {
+  if (!Number.isFinite(ageMs) || ageMs < 0) return "just now";
+  const minutes = Math.floor(ageMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes === 1) return "1 minute ago";
+  if (minutes < 60) return `${minutes} minutes ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours === 1) return "over an hour ago";
+  if (hours < 24) return `${hours} hours ago`;
+  return "more than a day ago";
+}
+
+/** What the Copy button hands over.
+ *
+ *  Every fix on this screen names an environment variable, a script or a
+ *  Google console setting, and the owner reading it is often not the person
+ *  who can do those. Retyping a Google error into a message is how the error
+ *  arrives wrong. */
+export function copyTextFor(check: HealthCheck): string {
+  const lines = [
+    `${check.label} — ${STATUS_LABEL[check.status]}`,
+    "",
+    check.headline,
+  ];
+  if (check.fix.length > 0) {
+    lines.push("", "Steps:");
+    check.fix.forEach((step, i) => lines.push(`${i + 1}. ${step}`));
+  }
+  lines.push("", "(From Dr. Pooja's Physio → Settings → System Health)");
+  return lines.join("\n");
+}

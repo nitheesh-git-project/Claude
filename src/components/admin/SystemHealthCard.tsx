@@ -1,8 +1,14 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { StatusPill } from "@/components/dashboard/SurfaceCard";
-import { STATUS_LABEL, type HealthCheck, type HealthStatus } from "@/lib/systemHealth";
+import {
+  copyTextFor,
+  formatCheckedAgo,
+  STATUS_LABEL,
+  type HealthCheck,
+  type HealthStatus,
+} from "@/lib/systemHealth";
 
 // One check, rendered the same way as every other check.
 //
@@ -52,15 +58,42 @@ const TONE: Record<HealthStatus, { pill: string; card: string; icon: string; dot
 
 export default function SystemHealthCard({
   check,
+  checkedAt,
   children,
 }: {
   check: HealthCheck;
+  /** When this answer was worked out, as epoch ms. */
+  checkedAt: number;
   /** The rows behind the count, if this check has any. */
   children?: ReactNode;
 }) {
   const [showInfo, setShowInfo] = useState(false);
+  const [copied, setCopied] = useState(false);
+  // Rendered only after mount: "4 minutes ago" computed on the server is
+  // already wrong by the time it reaches the browser, and rendering it in
+  // both places is a hydration mismatch on every load.
+  const [ago, setAgo] = useState<string | null>(null);
   const infoId = useId();
   const tone = TONE[check.status];
+
+  useEffect(() => {
+    const tick = () => setAgo(formatCheckedAgo(Date.now() - checkedAt));
+    tick();
+    const timer = setInterval(tick, 30_000);
+    return () => clearInterval(timer);
+  }, [checkedAt]);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(copyTextFor(check));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // A browser that refuses the clipboard (an insecure origin, a denied
+      // permission) must not leave the button looking as though it worked.
+      setCopied(false);
+    }
+  }
 
   return (
     <section
@@ -131,6 +164,25 @@ export default function SystemHealthCard({
       )}
 
       {children && <div className="border-t border-slate-200 px-5 py-4 sm:px-6">{children}</div>}
+
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 px-5 py-2.5 sm:px-6">
+        <p className="text-[11px] text-slate-400">
+          {ago ? `Checked ${ago}` : "\u00a0"}
+        </p>
+        {check.status !== "healthy" && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-teal-500 hover:text-teal-700"
+          >
+            <i
+              aria-hidden
+              className={`fa-solid ${copied ? "fa-check text-emerald-600" : "fa-copy"} text-[10px]`}
+            />
+            {copied ? "Copied" : "Copy for my developer"}
+          </button>
+        )}
+      </div>
     </section>
   );
 }

@@ -63,15 +63,29 @@ export default function AdminSystemHealthTab({
   waitingRoomIssues,
   webhookSecretConfigured,
   googleConnection,
+  googleCheckedAt,
   accounting,
   openAccessEnabled,
+  canFix,
+  renderedAt,
 }: {
   syncIssues: GoogleMeetSyncIssue[];
   waitingRoomIssues: GoogleMeetSyncIssue[];
   webhookSecretConfigured: boolean;
   googleConnection?: GoogleConnectionStatus;
+  /** When the Google probe last ran, epoch ms. Null when it never has --
+   *  that check is the one whose answer is cached for minutes at a time, so
+   *  it prints its own age rather than the page's. */
+  googleCheckedAt: number | null;
   accounting: AccountingHealth;
   openAccessEnabled: boolean;
+  /** Whether this admin's scope may call the fix routes. Both are
+   *  requireAdminScope("settings"), so a scope that only reads gets the
+   *  findings without a button that would 403 with nothing to explain it. */
+  canFix: boolean;
+  /** When this page was rendered, epoch ms. Every check but Google is worked
+   *  out fresh at that moment. */
+  renderedAt: number;
 }) {
   const router = useRouter();
   const [retryingId, setRetryingId] = useState<string | null>(null);
@@ -165,11 +179,11 @@ export default function AdminSystemHealthTab({
         </p>
       </div>
 
-      <SystemHealthCard check={byId("payments")} />
+      <SystemHealthCard check={byId("payments")} checkedAt={renderedAt} />
 
-      <SystemHealthCard check={byId("google")} />
+      <SystemHealthCard check={byId("google")} checkedAt={googleCheckedAt ?? renderedAt} />
 
-      <SystemHealthCard check={byId("sync")}>
+      <SystemHealthCard check={byId("sync")} checkedAt={renderedAt}>
         {syncIssues.length === 0 ? (
           <EmptyState
             icon="fa-circle-check"
@@ -184,6 +198,7 @@ export default function AdminSystemHealthTab({
                 issue={issue}
                 error={retryErrors[issue.id]}
                 busy={retryingId === issue.id}
+                canFix={canFix}
                 actionLabel="Retry"
                 busyLabel="Retrying…"
                 onAction={() =>
@@ -201,7 +216,7 @@ export default function AdminSystemHealthTab({
         )}
       </SystemHealthCard>
 
-      <SystemHealthCard check={byId("waiting_room")}>
+      <SystemHealthCard check={byId("waiting_room")} checkedAt={renderedAt}>
         {waitingRoomIssues.length === 0 ? (
           <EmptyState
             icon="fa-circle-check"
@@ -216,6 +231,7 @@ export default function AdminSystemHealthTab({
                 issue={issue}
                 error={fixErrors[issue.id]}
                 busy={fixingId === issue.id}
+                canFix={canFix}
                 actionLabel="Open the door"
                 busyLabel="Opening…"
                 onAction={() =>
@@ -233,7 +249,7 @@ export default function AdminSystemHealthTab({
         )}
       </SystemHealthCard>
 
-      <SystemHealthCard check={byId("accounting")}>
+      <SystemHealthCard check={byId("accounting")} checkedAt={renderedAt}>
         <AccountingFindings health={accounting} />
       </SystemHealthCard>
     </div>
@@ -244,6 +260,7 @@ function IssueRow({
   issue,
   error,
   busy,
+  canFix,
   actionLabel,
   busyLabel,
   onAction,
@@ -251,6 +268,7 @@ function IssueRow({
   issue: GoogleMeetSyncIssue;
   error?: string;
   busy: boolean;
+  canFix: boolean;
   actionLabel: string;
   busyLabel: string;
   onAction: () => void;
@@ -290,13 +308,15 @@ function IssueRow({
         )}
         {error && <p className="mt-1 break-words text-[11px] text-red-600">{error}</p>}
       </div>
-      <button
-        onClick={onAction}
-        disabled={busy}
-        className="shrink-0 rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
-      >
-        {busy ? busyLabel : actionLabel}
-      </button>
+      {canFix && (
+        <button
+          onClick={onAction}
+          disabled={busy}
+          className="shrink-0 rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+        >
+          {busy ? busyLabel : actionLabel}
+        </button>
+      )}
     </div>
   );
 }

@@ -27,6 +27,7 @@ export type QuickAction = {
  * waiting on them.
  */
 export default function DashboardOverview({
+  banner,
   greeting,
   headline,
   cells,
@@ -37,6 +38,10 @@ export default function DashboardOverview({
   actions,
   aside,
 }: {
+  /** Anything that must be read before the dashboard itself -- today only the
+   *  admin's red System Health line. Above the greeting on purpose: a warning
+   *  under the figures is a warning below the fold on a phone. */
+  banner?: ReactNode;
   greeting?: string;
   /** One sentence naming the single most important fact right now — the
    *  next session, the next payout, the queue that is longest. */
@@ -53,6 +58,7 @@ export default function DashboardOverview({
 }) {
   return (
     <section id="overview" className="scroll-mt-24 space-y-5">
+      {banner}
       {(greeting || headline) && (
         <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-teal-50/80 via-white to-white p-5 shadow-sm sm:p-6">
           {greeting && (

@@ -1814,8 +1814,23 @@ client is the only writer and the log is append-only from any session.
      strip's own count and its chips. Counting rows badged **0** for the two
      failures with no rows behind them -- a missing `RAZORPAY_WEBHOOK_SECRET`
      (money arriving against unpaid bookings) and a dead Google credential.
+  5. **A red check leaves the screen; an amber one does not.** `healthBannerText()`
+     puts one red line on the admin's Today screen (`AdminHealthBanner`, via
+     `DashboardOverview`'s `banner` slot, and only for a scope that can open
+     Settings -- the banner is a link, and `findTab` would land a scope that
+     cannot on some other screen entirely). Red only, because the two worst
+     failures are invisible from every other screen and nobody opens System
+     Health until they already suspect trouble -- while a banner that is
+     usually there is a banner nobody reads.
+  6. **A cached answer prints its own age.** Every check but Google is
+     computed at render; the Google probe is held ten minutes on success and
+     one on failure, so it passes `googleConnectionCheckedAt()` and the card
+     says "Checked 4 minutes ago". The relative time is rendered after mount,
+     never on the server -- "4 minutes ago" computed server-side is already
+     wrong in the browser, and rendering it in both is a hydration mismatch.
   A sixth check is an entry in that module plus, if it has rows, a card body
-  in the tab -- never a new panel with its own shape.
+  in the tab -- never a new panel with its own shape. The two fix buttons
+  render only under `scopeCanManage(scope, "settings")`, matching the routes.
 - **A count links to the rows it counted, never to the whole table.** A
   Today figure or queue row that opened an unfiltered list made the reader
   redo the filtering by hand and, worse, made the number look wrong.

@@ -450,6 +450,29 @@ has not wired Google up has not got a problem, and colouring that red is how
 red stops meaning anything. What each check says, and what fixes it, lives in
 `src/lib/systemHealth.ts` (unit-tested) rather than in the screen.
 
+Three things carry it off the screen:
+
+- **A red check appears on Today.** Anything `Needs you now` puts one red
+  line at the top of the admin's Today screen, linking straight here. The two
+  worst failures are silent by nature — a missing webhook secret and a dead
+  Google token both look like a normal day from every other screen — and
+  nobody opens System Health until they already suspect trouble. Amber
+  deliberately does not: a banner that is usually there is a banner nobody
+  reads.
+- **Each card says when it was checked.** Every check but Google is worked
+  out fresh on each render; the Google probe is one outbound call cached for
+  ten minutes on success and one minute on failure, so it prints its own age.
+  Without it, an owner who has just re-run the token script cannot tell a
+  screen that disagrees with them from one that has not looked again.
+- **Copy for my developer.** Every unhealthy card offers one button that
+  copies the check, its status, the headline and the numbered steps as plain
+  text. The fixes name environment variables and scripts, and the owner
+  reading them is often not the person who can run them.
+
+The fix buttons (Retry a session's calendar event, Open the door on a
+meeting) render only for a scope that may call them — both routes are
+`requireAdminScope("settings")`, and a button that 403s explains nothing.
+
 ### Therapist roster and availability
 
 A therapist's availability is three separate things, and the screens say so.

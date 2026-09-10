@@ -33,8 +33,10 @@ import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager"
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
+import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
 import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
 import { buildSystemHealth, summarizeHealth } from "@/lib/systemHealth";
+import { googleConnectionCheckedAt } from "@/lib/googleConnectionHealth";
 import {
   applyLedgerSessionBalances,
   applyLedgerVisitBalances,
@@ -2588,8 +2590,11 @@ export default async function AdminDashboardPage({
       // secret, and only its presence crosses to the browser.
       webhookSecretConfigured={!!process.env.RAZORPAY_WEBHOOK_SECRET}
       googleConnection={googleConnection}
+      googleCheckedAt={googleConnectionCheckedAt()}
       accounting={accountingHealth}
       openAccessEnabled={adminSettings.meetOpenAccessEnabled}
+      canFix={scopeCanManage(viewerScope, "settings")}
+      renderedAt={nowTimestamp()}
     />
   );
 
@@ -3437,6 +3442,18 @@ export default async function AdminDashboardPage({
   // dashboards cannot drift into four different answers to "what needs me
   // today", and so every link on this screen lands somewhere the viewer may
   // actually go. See src/lib/adminHome.ts.
+  // One derivation, three readers: the System Health screen, that tab's
+  // sidebar badge, and the red line Today carries. Three copies of this
+  // would be three answers to "is the clinic healthy".
+  const systemHealthChecks = buildSystemHealth({
+    webhookSecretConfigured: !!process.env.RAZORPAY_WEBHOOK_SECRET,
+    google: googleConnection,
+    syncIssues: googleMeetSyncIssues,
+    waitingRoomIssues: meetWaitingRoomIssues,
+    accounting: accountingHealth,
+    openAccessEnabled: adminSettings.meetOpenAccessEnabled,
+  });
+
   const home = buildAdminHome(viewerScope, {
     sessionsToday: sessionsToday.length,
     unassignedToday,
@@ -3456,6 +3473,14 @@ export default async function AdminDashboardPage({
 
   const adminOverviewTab = (
     <DashboardOverview
+      // Only an admin who can open System Health is shown its warning: the
+      // banner is a link, and an action for a section this scope cannot
+      // reach would land them somewhere else via findTab's fallback.
+      banner={
+        allowedSections.includes("settings") ? (
+          <AdminHealthBanner checks={systemHealthChecks} />
+        ) : null
+      }
       greeting={home.greeting}
       headline={home.headline}
       cells={home.cells}
@@ -3674,16 +3699,7 @@ export default async function AdminDashboardPage({
     // Counting rows hid the two failures with no rows behind them at all: a
     // missing webhook secret (money arriving against unpaid bookings) and a
     // dead Google credential both badged zero.
-    "settings:health": summarizeHealth(
-      buildSystemHealth({
-        webhookSecretConfigured: !!process.env.RAZORPAY_WEBHOOK_SECRET,
-        google: googleConnection,
-        syncIssues: googleMeetSyncIssues,
-        waitingRoomIssues: meetWaitingRoomIssues,
-        accounting: accountingHealth,
-        openAccessEnabled: adminSettings.meetOpenAccessEnabled,
-      })
-    ).needsPerson,
+    "settings:health": summarizeHealth(systemHealthChecks).needsPerson,
   };
 
   return (

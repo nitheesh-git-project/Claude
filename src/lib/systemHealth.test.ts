@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   buildSystemHealth,
+  copyTextFor,
+  formatCheckedAgo,
+  healthBannerText,
   needsPerson,
   summarizeHealth,
   STATUS_LABEL,
@@ -233,5 +236,71 @@ describe("summarizeHealth", () => {
     for (const check of buildSystemHealth(ALL_WELL)) {
       expect(STATUS_LABEL[check.status]).toBeTruthy();
     }
+  });
+});
+
+describe("healthBannerText", () => {
+  it("says nothing when nothing is red", () => {
+    // Amber is "look at this today", and a banner on Today for it is a
+    // banner an admin learns to dismiss without reading.
+    expect(healthBannerText(buildSystemHealth(ALL_WELL))).toBeNull();
+    const amber = buildSystemHealth({
+      ...ALL_WELL,
+      google: { state: "connected", meetScope: false },
+    });
+    expect(healthBannerText(amber)).toBeNull();
+  });
+
+  it("names the red check and carries its own headline", () => {
+    const banner = healthBannerText(
+      buildSystemHealth({ ...ALL_WELL, webhookSecretConfigured: false })
+    )!;
+    expect(banner.title).toBe("Payment Confirmations needs you");
+    expect(banner.detail).toContain("browser alone");
+  });
+
+  it("reads as a list when more than one is red", () => {
+    const banner = healthBannerText(
+      buildSystemHealth({
+        ...ALL_WELL,
+        webhookSecretConfigured: false,
+        google: { state: "broken", deadToken: true, detail: "invalid_grant" },
+      })
+    )!;
+    expect(banner.title).toBe("Payment Confirmations and Google Connection need you");
+  });
+});
+
+describe("formatCheckedAgo", () => {
+  it("rounds down to whole minutes and reads as English", () => {
+    expect(formatCheckedAgo(0)).toBe("just now");
+    expect(formatCheckedAgo(59_000)).toBe("just now");
+    expect(formatCheckedAgo(60_000)).toBe("1 minute ago");
+    expect(formatCheckedAgo(9 * 60_000)).toBe("9 minutes ago");
+    expect(formatCheckedAgo(65 * 60_000)).toBe("over an hour ago");
+    expect(formatCheckedAgo(5 * 3600_000)).toBe("5 hours ago");
+    expect(formatCheckedAgo(48 * 3600_000)).toBe("more than a day ago");
+  });
+
+  it("never reads as the future when clocks disagree", () => {
+    expect(formatCheckedAgo(-5000)).toBe("just now");
+    expect(formatCheckedAgo(Number.NaN)).toBe("just now");
+  });
+});
+
+describe("copyTextFor", () => {
+  it("carries the status, the headline and every step", () => {
+    const check = buildSystemHealth({ ...ALL_WELL, webhookSecretConfigured: false })[0];
+    const text = copyTextFor(check);
+    expect(text).toContain("Payment Confirmations — Needs you now");
+    expect(text).toContain(check.headline);
+    for (const step of check.fix) expect(text).toContain(step);
+    expect(text).toContain("1.");
+  });
+
+  it("still says something useful for a check with no steps", () => {
+    const healthy = buildSystemHealth(ALL_WELL)[0];
+    expect(copyTextFor(healthy)).toContain("Healthy");
+    expect(copyTextFor(healthy)).not.toContain("Steps:");
   });
 });
