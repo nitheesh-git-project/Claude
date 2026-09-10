@@ -2002,13 +2002,36 @@ client is the only writer and the log is append-only from any session.
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.
-- **One word, one money figure.** "Package cash collected" is what came into
-  the bank up front; revenue recognises that same money gradually, one
-  session at a time. Gross/Net Revenue keep their standard meanings.
-  `MoneyGlossary` states each one and renders on **every** Money screen --
-  if a new figure needs a word that is already taken, rename the figure,
-  don't overload the word, and if two figures end up with the same meaning
-  delete one rather than explaining the difference.
+- **One word, one money figure -- and the definition sits beside the
+  figure.** "Package cash collected" is what came into the bank up front;
+  revenue recognises that same money gradually, one session at a time.
+  Gross/Net Revenue keep their standard meanings. If a new figure needs a
+  word that is already taken, rename the figure, don't overload the word,
+  and if two figures end up with the same meaning delete one rather than
+  explaining the difference. (The Costs screen's `Payment fees` was that
+  collision: it printed the gateway *percentage* under the name Summary uses
+  for the resulting *amount*. It is `Gateway fee %` now.)
+  The vocabulary itself lives in `src/lib/moneyTerms.ts`, read by two
+  surfaces that must not disagree: `MoneyGlossary` (still at the foot of
+  every Money screen) and the `(i)` on each figure (`MoneyFigure` /
+  `MoneyTermInfo`). A glossary at the bottom of the screen puts the
+  definition as far as the page allows from the number that needs it, so it
+  is the fallback for reading the whole set, not the answer. Add a figure by
+  adding its term there -- `moneyTerms.test.ts` fails a term with no entry,
+  a duplicate name, or a missing scope.
+  **`scope` is part of a figure's definition, not a sentence somebody
+  remembers to write.** `range` moves with the dates in view, `now` is true
+  this instant (a debt does not stop existing outside a filter), `setting`
+  is a rate rather than an amount. It prints as a chip -- `StatCell.scopeNote`
+  in a strip, `ScopeChip` on a card -- wherever the two kinds sit together,
+  because an admin narrowing the range and watching one figure fall while
+  the one beside it holds still is reading a screen that looks half-broken.
+  **A figure appears once per screen.** Summary printed Net revenue twice,
+  Clinic share three times and Operating profit twice, because its strip
+  repeated the chain below it. The strip is the answers now (net revenue,
+  operating profit, what is owed, cash collected up front); the two blocks
+  under it are the subtraction, where carrying a figure down from the block
+  above is the point rather than a repeat.
 - **The revenue split has one source and two invariants.**
   `moneyByBucketFor` (`src/lib/adminMetrics.ts`) is the only place the
   clinic's money is divided up, so the strip, the tiles and the breakdown

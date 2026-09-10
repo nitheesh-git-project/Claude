@@ -34,6 +34,7 @@ import DataExportButtons from "@/components/admin/DataExportButtons";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import StatStrip from "@/components/dashboard/StatStrip";
+import MoneyFigure, { MoneyTermInfo } from "@/components/admin/MoneyFigure";
 
 export type { MetricsAppointment };
 
@@ -781,6 +782,13 @@ export default function AdminMetricsTab({
             other dashboard opens with. Two flows and two balances: what the
             range earned and what it left the clinic, then what is owed and
             what has gone out. */}
+        {/* Three answers, not three chain members. Clinic share used to sit
+            here as well, which put it on this screen three times over -- once
+            in the strip and once in each of the two blocks below, where it is
+            deliberately carried down as part of the subtraction. Net revenue
+            stays because it is the top line and the strip's first question is
+            "how much came in"; what is gone is the figure that was neither
+            an answer nor the start of one. */}
         <div className="mb-5">
           <StatStrip
             cells={[
@@ -792,15 +800,7 @@ export default function AdminMetricsTab({
                     ? `${formatInr(totalGrossRevenuePaise)} charged, ${formatInr(totalRefundedPaise)} refunded`
                     : `${formatInr(totalGrossRevenuePaise)} charged, nothing refunded`,
                 accent: "bg-teal-500",
-              },
-              {
-                label: "Clinic share",
-                value: formatInr(totalClinicSharePaise),
-                note:
-                  clinicSharePercent === null
-                    ? "After therapist and partner shares"
-                    : `${clinicSharePercent.toFixed(1)}% of what the clinic kept`,
-                accent: "bg-emerald-500",
+                scopeNote: "These dates",
               },
               {
                 label: "Operating profit",
@@ -808,20 +808,32 @@ export default function AdminMetricsTab({
                 note:
                   operating.totalCostsPaise > 0
                     ? `After ${formatInr(operating.totalCostsPaise)} of running costs`
-                    : "No running costs recorded for this range",
+                    : "No running costs recorded — this is a ceiling",
                 accent: operating.operatingProfitPaise >= 0 ? "bg-emerald-500" : "bg-red-500",
                 valueClass:
                   operating.operatingProfitPaise < 0 ? "text-red-600" : "text-slate-800",
+                scopeNote: "These dates",
               },
               {
                 label: "Owed to therapists",
                 value: formatInr(allTimeNetPayablePaise),
                 note:
                   allTimeNetPayablePaise > 0
-                    ? "Balance right now, not just this range"
+                    ? "After netting off cash they hold"
                     : "Everyone is settled up",
                 accent: allTimeNetPayablePaise > 0 ? "bg-amber-500" : "bg-emerald-500",
                 valueClass: allTimeNetPayablePaise > 0 ? "text-amber-600" : "text-slate-800",
+                // The one balance in a strip of flows. Without the chip an
+                // admin narrowing the range watches two figures fall and this
+                // one sit still, which reads as a filter that half-works.
+                scopeNote: "Right now",
+              },
+              {
+                label: "Package cash collected",
+                value: formatInr(packageRevenuePaise),
+                note: "Paid up front — revenue counts it session by session",
+                accent: "bg-slate-300",
+                scopeNote: "These dates",
               },
             ]}
           />
@@ -834,55 +846,57 @@ export default function AdminMetricsTab({
           less any partner hospital&apos;s share, leaves the clinic&apos;s share.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-sack-dollar text-teal-600"></i> Net revenue
-            </p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">
-              {formatInr(totalNetRevenuePaise)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {formatInr(totalGrossRevenuePaise)} charged
-              {totalRefundedPaise > 0 && <> · {formatInr(totalRefundedPaise)} refunded</>}
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-user-doctor text-indigo-600"></i> Therapists&apos; share
-            </p>
-            <p className="text-2xl font-bold mt-2" style={{ color: THERAPIST_CUT_COLOR }}>
-              {totalTherapistCutPaise > 0 ? `−${formatInr(totalTherapistCutPaise)}` : formatInr(0)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Earned on delivered sessions, travel included
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-hospital text-amber-600"></i> Partners&apos; share
-            </p>
-            <p className="text-2xl font-bold mt-2" style={{ color: HOSPITAL_CUT_COLOR }}>
-              {totalHospitalCutPaise > 0 ? `−${formatInr(totalHospitalCutPaise)}` : formatInr(0)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {totalHospitalCutPaise > 0
+          <MoneyFigure
+            term="net_revenue"
+            icon="fa-sack-dollar"
+            value={formatInr(totalNetRevenuePaise)}
+            note={
+              totalRefundedPaise > 0
+                ? `${formatInr(totalGrossRevenuePaise)} charged · ${formatInr(totalRefundedPaise)} refunded`
+                : `${formatInr(totalGrossRevenuePaise)} charged`
+            }
+          />
+          <MoneyFigure
+            term="therapist_share"
+            icon="fa-user-doctor"
+            iconClass="text-indigo-600"
+            value={
+              totalTherapistCutPaise > 0
+                ? `−${formatInr(totalTherapistCutPaise)}`
+                : formatInr(0)
+            }
+            valueClass=""
+            valueStyle={{ color: THERAPIST_CUT_COLOR }}
+            note="Earned on delivered sessions, travel included"
+          />
+          <MoneyFigure
+            term="partner_share"
+            icon="fa-hospital"
+            iconClass="text-amber-600"
+            value={
+              totalHospitalCutPaise > 0 ? `−${formatInr(totalHospitalCutPaise)}` : formatInr(0)
+            }
+            valueClass=""
+            valueStyle={{ color: HOSPITAL_CUT_COLOR }}
+            note={
+              totalHospitalCutPaise > 0
                 ? "Referral commission on what was kept"
-                : "No hospital-referred sessions in range"}
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-teal-200 bg-teal-50/40 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-chart-line text-teal-600"></i> Clinic share
-            </p>
-            <p className="text-2xl font-bold mt-2" style={{ color: PROFIT_COLOR }}>
-              {formatInr(totalClinicSharePaise)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {clinicSharePercent === null
+                : "No hospital-referred sessions in range"
+            }
+          />
+          <MoneyFigure
+            term="clinic_share"
+            icon="fa-chart-line"
+            value={formatInr(totalClinicSharePaise)}
+            valueClass=""
+            valueStyle={{ color: PROFIT_COLOR }}
+            note={
+              clinicSharePercent === null
                 ? "Before running costs"
-                : `${clinicSharePercent.toFixed(1)}% of net revenue · before running costs`}
-            </p>
-          </div>
+                : `${clinicSharePercent.toFixed(1)}% of net revenue · before running costs`
+            }
+            highlight
+          />
         </div>
 
         {/* Named, not hidden. An admin who sees the split not adding up to
@@ -912,46 +926,41 @@ export default function AdminMetricsTab({
           else is what has been recorded under Costs for these dates.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-chart-line text-teal-600"></i> Clinic share
-            </p>
-            <p className="text-2xl font-bold mt-2" style={{ color: PROFIT_COLOR }}>
-              {formatInr(totalClinicSharePaise)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">Carried down from above</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-credit-card text-blue-600"></i> Payment fees
-            </p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">
-              {totalGatewayFeePaise > 0
-                ? `−${formatInr(totalGatewayFeePaise)}`
-                : formatInr(0)}
-            </p>
-            {/* Charged on gross, not net: a processor keeps its fee when a
-                payment is reversed, so a refunded session costs the fee
-                anyway. */}
-            <p className="text-[11px] text-slate-400 mt-1">
-              {gatewayFeePercent}% of everything collected online, refunds included
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-receipt text-amber-600"></i> Running costs
-            </p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">
-              {operating.recordedExpensesPaise > 0
+          <MoneyFigure
+            term="clinic_share"
+            icon="fa-chart-line"
+            value={formatInr(totalClinicSharePaise)}
+            valueClass=""
+            valueStyle={{ color: PROFIT_COLOR }}
+            note="Carried down from above"
+          />
+          <MoneyFigure
+            term="payment_fees"
+            icon="fa-credit-card"
+            iconClass="text-blue-600"
+            value={
+              totalGatewayFeePaise > 0 ? `−${formatInr(totalGatewayFeePaise)}` : formatInr(0)
+            }
+            /* Charged on gross, not net: a processor keeps its fee when a
+               payment is reversed, so a refunded session costs the fee
+               anyway. */
+            note={`${gatewayFeePercent}% of everything collected online, refunds included`}
+          />
+          <MoneyFigure
+            term="running_costs"
+            icon="fa-receipt"
+            iconClass="text-amber-600"
+            value={
+              operating.recordedExpensesPaise > 0
                 ? `−${formatInr(operating.recordedExpensesPaise)}`
-                : formatInr(0)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {rangeExpenses.length > 0
+                : formatInr(0)
+            }
+            note={
+              rangeExpenses.length > 0
                 ? `${rangeExpenses.length} entr${rangeExpenses.length === 1 ? "y" : "ies"} in this range`
-                : "Nothing recorded — add costs under Money → Costs"}
-            </p>
-          </div>
+                : "Nothing recorded — add costs under Money → Costs"
+            }
+          />
           <div
             className={`rounded-2xl border shadow-sm p-5 ${
               operating.operatingProfitPaise >= 0
@@ -959,9 +968,13 @@ export default function AdminMetricsTab({
                 : "border-red-200 bg-red-50/40"
             }`}
           >
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-sack-dollar text-emerald-600"></i> Operating profit
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                <i aria-hidden className="fa-solid fa-sack-dollar text-emerald-600" /> Operating
+                profit
+              </p>
+              <MoneyTermInfo term="operating_profit" />
+            </div>
             <p
               className={`text-2xl font-bold mt-2 ${
                 operating.operatingProfitPaise >= 0 ? "text-emerald-700" : "text-red-600"
@@ -991,36 +1004,26 @@ export default function AdminMetricsTab({
             chain that ends at operating profit, and a balance is not part of
             that chain. */}
         <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-hand-holding-dollar text-blue-600"></i> Paid to therapists
-            </p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">
-              {formatInr(totalPaidToTherapistsPaise)}
-            </p>
-            {/* Not a cost line: a therapist's share was already deducted
-                above when they earned it. This is the cash movement that
-                settles it, shown so an admin can see both. */}
-            <p className="text-[11px] text-slate-400 mt-1">
-              Settled for sessions scheduled in this range — already counted in the
-              therapists&apos; share above
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-clock text-amber-500"></i> Owed to therapists
-            </p>
-            <p
-              className={`text-2xl font-bold mt-2 ${
-                allTimeNetPayablePaise > 0 ? "text-amber-600" : "text-slate-900"
-              }`}
-            >
-              {formatInr(allTimeNetPayablePaise)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Balance right now, all time, after netting off cash therapists hold
-            </p>
-          </div>
+          <MoneyFigure
+            term="paid_to_therapists"
+            icon="fa-hand-holding-dollar"
+            iconClass="text-blue-600"
+            value={formatInr(totalPaidToTherapistsPaise)}
+            showScope
+            /* Not a cost line: a therapist's share was already deducted above
+               when they earned it. This is the cash movement that settles it,
+               shown so an admin can see both. */
+            note="Already counted in the therapists' share above"
+          />
+          <MoneyFigure
+            term="owed_to_therapists"
+            icon="fa-clock"
+            iconClass="text-amber-500"
+            value={formatInr(allTimeNetPayablePaise)}
+            valueClass={allTimeNetPayablePaise > 0 ? "text-amber-600" : "text-slate-900"}
+            showScope
+            note="All time, after netting off cash therapists hold"
+          />
         </div>
       </div>
       )}
@@ -1289,22 +1292,24 @@ export default function AdminMetricsTab({
           "how well did it go" and belong with performance. Same row of
           tiles, split by which question it answers. */}
       {view === "summary" && (
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {/* Was a third figure called "Recognised revenue", which was the
-            same paid-sessions-in-range total the Net revenue card above
-            already shows under a different name -- the exact collision this
-            screen's glossary existed to apologise for. Refunds is the number
-            that was actually missing from the row. */}
-        <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">Refunded</p>
+      <div className="grid grid-cols-2 gap-3">
+        {/* Two figures, not three. "Recognised revenue" went first -- it was
+            the Net revenue card again under a second name, the exact
+            collision the glossary existed to apologise for -- and "Package
+            cash collected" followed it into the strip at the top of the
+            screen, where it answers "how big was this period" beside the
+            other three. A figure that appears twice on one screen is a
+            figure a reader has to check is the same number. */}
+        <div className="rounded-xl bg-slate-50 p-3 text-center">
+          <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
+            Refunded <MoneyTermInfo term="refunded" />
+          </p>
           <p className="text-base font-bold text-slate-900">{formatInr(totalRefundedPaise)}</p>
         </div>
-        <div className="bg-slate-50 rounded-xl p-3 text-center" title="Package purchases paid for in this range -- money in the bank up front. The revenue figures above recognise its value gradually instead, one session at a time as they get scheduled, so the two are deliberately different numbers.">
-          <p className="text-[11px] text-slate-500">Package cash collected</p>
-          <p className="text-base font-bold text-slate-900">{formatInr(packageRevenuePaise)}</p>
-        </div>
-        <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">Bookings</p>
+        <div className="rounded-xl bg-slate-50 p-3 text-center">
+          <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
+            Bookings <MoneyTermInfo term="bookings" />
+          </p>
           <p className="text-base font-bold text-slate-900">{totalBookings}</p>
         </div>
       </div>

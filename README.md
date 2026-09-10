@@ -295,9 +295,17 @@ names how many and how much rather than guessing a percentage.
 **Balances are not date-filtered.** "Owed to therapists" is the all-time
 balance, already net of cash therapists are holding from home visits, and is
 the same number the Payouts screen and the Pay button use. Everything beside
-it (revenue, refunds, what was settled) is scoped to the dates in view. Each
-label says which it is. `MoneyGlossary` sits at the bottom of all four Money
-screens with the full list.
+it (revenue, refunds, what was settled) is scoped to the dates in view.
+
+Every figure says which it is, with a chip: **These dates** for a flow,
+**Right now** for a balance, **A setting** for a rate. An admin narrowing the
+range and watching one number fall while the one beside it holds still is
+otherwise reading a screen that looks half-broken. Every figure also carries
+an **i** giving its meaning in one sentence, right beside the number —
+"Clinic share" says in place that it is not profit. Meanings and scopes live
+in `src/lib/moneyTerms.ts`; the glossary at the foot of each Money screen
+prints the same sentences for reading the whole set at once, so the two can
+never define one figure twice.
 
 The visible screen is in the URL (`?section=&tab=`), written with the
 History API rather than a router navigation — this page is one Server
