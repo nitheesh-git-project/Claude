@@ -167,7 +167,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Money | `payouts` | Payouts + payout requests + Cash Ledger | `FIN-PAY-001` |
 | Money | `costs` | Costs + promo codes | `FIN-COST-001`, `ADM-PROMO-001` |
 | Money | `breakdown` | Breakdown | `FIN-BRK-001` |
-| Catalog | `conditions` | Conditions | `ADM-CAT-001` |
+| Catalog | `conditions` | Conditions | `ADM-CAT-001`, `ADM-CAT-004` |
 | Catalog | `packages` | Packages | `ADM-CAT-005` |
 | Catalog | `areas` | Service Areas + waitlist | `ADM-CAT-010` |
 | Catalog | `purchases` | Purchases | `ADM-CAT-014` |
@@ -2906,6 +2906,27 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 **Negatives:** with two browser tabs open, add or delete a category in tab B, then Save order in tab A — refused with `The condition list changed while you were reordering it. Refresh and try again.`
 **[SQL] the same refusal one level down.** The route's completeness check is true only for as long as every caller remembers it, and the function is reachable by the service-role client and by hand in the SQL editor. Against a scratch database with `schema.sql` applied, call it with a subset — `select set_treatment_category_order(array[(select id from treatment_categories limit 1)]);` — and confirm it **raises** `set_treatment_category_order needs every category (1 given, 3 exist)` rather than renumbering one row. Renumbering a subset collides with the rows it never saw, which is how two categories end up sharing an order again — the exact tie the whole change removes.
 **Also:** creating a category now defaults **Order** to one past the last existing category, so a new condition appends rather than appearing first. Deactivating removes it from public surfaces and refuses new bookings against it (`That concern isn't available any more. Please pick another one.`) while **leaving existing appointments untouched**. Deleting a category referenced by a live purchase must not silently break that purchase.
+
+#### `ADM-CAT-004` — Deleting a condition says what happened · P0
+
+**Feature.** Every outcome of Delete is now reported. It previously answered success whether or not a row had gone — supabase-js reports no error when a DELETE matches nothing — so a refusal, an already-deleted row and a real deletion produced the same response, and the screen refreshed on that success and painted the condition still sitting there. **"Delete does nothing, and nothing says why" is the failure this case exists to catch.**
+
+**Steps**
+1. Create `QA Spare Condition` and, without booking anything under it, delete it.
+2. On a condition with a booked session (`QA Back & Spine Care`), tap **Delete** and read the dialog.
+3. Delete every session under some condition, leave **one home-visit package** filed against it, and delete it again.
+4. In a second tab, delete a condition; in the first tab, tap **Delete** on the same row.
+5. Tap **Delete**, and with the request in flight, drop the network.
+6. Open **Settings → Activity Log**.
+
+**Expected Result**
+* Step 1 deletes, the row leaves the list, and `/` and `/conditions` update immediately.
+* Step 2 opens a **dialog** — not an 11px line clipped beside the button — naming the counts (`2 sessions and 1 programme purchase still use this condition…`) and saying to **turn it off instead**, with what that preserves. HTTP **409**.
+* Step 3 names the **home-visit package** specifically. A refusal that says "it has bookings" sends an admin to delete sessions and be refused a second time by something they were never told about.
+* Step 4 answers **404** with `That condition has already been deleted. Refresh to see the current list.`
+* Step 5 says `Could not reach the server. Nothing has changed.` — previously the thrown request left the transition with nothing on screen at all.
+* The Activity Log's row names the **condition's title**, not "Treatment category": the row is gone by then, so the log is the only thing left that can say which one it was.
+**Never `{ success: true }` on a delete that removed nothing.** If the row is still listed after a success and a refresh, that is a P0 — it is the exact defect this case was written for.
 
 #### `ADM-CAT-005` — Create a session package · P0
 **Steps.** Create Package P1 exactly as specified in §8.11.

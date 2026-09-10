@@ -87,7 +87,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Money | `payouts` | Payouts + payout requests + Cash Ledger | `FIN-PAY-001` |
 | Money | `costs` | Costs + promo codes | `FIN-COST-001`, `ADM-PROMO-001` |
 | Money | `breakdown` | Breakdown | `FIN-BRK-001` |
-| Catalog | `conditions` | Conditions | `ADM-CAT-001` |
+| Catalog | `conditions` | Conditions | `ADM-CAT-001`, `ADM-CAT-004` |
 | Catalog | `packages` | Packages | `ADM-CAT-005` |
 | Catalog | `areas` | Service Areas + waitlist | `ADM-CAT-010` |
 | Catalog | `purchases` | Purchases | `ADM-CAT-014` |

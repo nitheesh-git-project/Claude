@@ -2481,6 +2481,32 @@ client is the only writer and the log is append-only from any session.
   it appends instead of landing on top of everything at the same number.
   Build a future reorder control the same way rather than reintroducing a
   swap.
+- **A delete that removed nothing is not a success.** `supabase-js` reports
+  no error when a DELETE matches zero rows, so
+  `/api/admin/delete-treatment-category` answered `{ success: true }` for a
+  refusal, for a row somebody else had already deleted, and for a real
+  deletion alike -- and the screen, told it had worked, refreshed and painted
+  the condition still sitting there. "Delete does nothing and nothing says
+  why" is the least actionable failure a screen can produce. Three rules,
+  and they apply to any delete of a row other rows point at:
+  1. **Count the blockers first, and name them.** The foreign keys here
+     (`appointments`, `patient_package_purchases`, `home_visit_packages`,
+     `appointment_reassignment_log`) carry no ON DELETE behaviour, so
+     Postgres refuses outright. `describeCategoryBlockers()` in
+     `src/lib/categoryDeletion.ts` turns the counts into the sentence, with
+     the alternative (turn it off) named -- "it has bookings" sends an admin
+     to delete sessions and be refused a second time by a home-visit package
+     they were never told about.
+  2. **Ask for the row back** (`.delete().eq(...).select("id")`), so
+     "removed nothing" is distinguishable from "removed it". Nothing removed
+     and nothing blocking is a 500 saying so, never a success: at that point
+     the app does not know what happened and must not claim it worked.
+  3. **A refusal that is a paragraph belongs in a dialog.** This one was an
+     11px line clipped to 160px beside the button, which is how a refusal
+     that did fire gets reported as a delete that did nothing. The `fetch`
+     is wrapped too -- a request dying on a bad connection threw inside the
+     transition and put nothing on screen at all.
+
 - **An admin write that a public page renders must invalidate that page.**
   `/`, `/conditions`, `/book`, `/faq`, `/mission` and `/team` are ISR-cached
   (`export const revalidate = 300`), so a catalog or content edit was
