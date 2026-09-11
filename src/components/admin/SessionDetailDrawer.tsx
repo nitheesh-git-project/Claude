@@ -1,6 +1,8 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import RefundChip from "@/components/admin/RefundChip";
+import { hasRefund } from "@/lib/refundState";
 import OverlayPortal from "@/components/system/OverlayPortal";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
@@ -55,6 +57,12 @@ export type SessionDetailAppointment = {
   cancellation_reason: string | null;
   refund_status: string | null;
   refund_amount_paise: number | null;
+  // Migration-dependent, like every newer column on this table -- the
+  // screens that load it merge it in separately, so an older deployment
+  // renders the chip without the detail rather than failing the query.
+  refund_reason?: string | null;
+  refund_id?: string | null;
+  refunded_at?: string | null;
   package_purchase_id: string | null;
   // Who the patient asked for at booking (/team's "book this therapist", or
   // the wizard's "same therapist again"). Only a request -- the admin is the
@@ -806,6 +814,37 @@ export default function SessionDetailDrawer({
                 cancelling frees the slot and applies the automatic all-or-
                 nothing rule, while this returns money on a session that may
                 well still be going ahead. */}
+            {/* What has already gone back, above the control that sends
+                more. The form knows the figure -- it needs it to cap the
+                next refund -- but only as an input; nothing here ever said
+                plainly that this session had been refunded, when, or why. */}
+            {canSeeMoney && hasRefund(a) && (
+              <div className="pt-3 border-t border-slate-100">
+                <p className="mb-1.5 font-bold text-slate-700">Refunded</p>
+                <RefundChip row={a} />
+                <dl className="mt-2 space-y-1 text-[11px]">
+                  {a.refunded_at && (
+                    <div className="flex gap-2">
+                      <dt className="text-slate-500">When</dt>
+                      <dd className="text-slate-800">{formatClinicDateTime(a.refunded_at)}</dd>
+                    </div>
+                  )}
+                  {a.refund_reason && (
+                    <div className="flex gap-2">
+                      <dt className="shrink-0 text-slate-500">Reason</dt>
+                      <dd className="text-slate-800">{a.refund_reason}</dd>
+                    </div>
+                  )}
+                  {a.refund_id && (
+                    <div className="flex gap-2">
+                      <dt className="shrink-0 text-slate-500">Gateway ref</dt>
+                      <dd className="font-mono text-slate-600">{a.refund_id}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
+
             {canSeeMoney && a.payment_status === "paid" && (
               <div className="pt-3 border-t border-slate-100">
                 <p className="font-bold text-slate-700 mb-1">Refund</p>

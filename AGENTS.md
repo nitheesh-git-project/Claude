@@ -210,6 +210,7 @@ src/lib/adminNav.ts      the admin dashboard's seven sections + their screens
 src/lib/adminHome.ts     what each admin scope's Today screen opens on
 src/lib/activityLog.ts   the log's search, its categories and its retention floor
 src/lib/formatDateTime.ts every date the app renders, pinned to clinic time
+src/lib/refundState.ts   how a refund reads, wherever a session is shown
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
 src/lib/mission.ts       the mission, vision, promises and stated limits
 src/lib/marketingPhotos.ts every photograph the public pages use
@@ -704,6 +705,34 @@ client is the only writer and the log is append-only from any session.
   registration (`/patient/register`, no booking involved) always waits on a
   human admin — the point of gating on genuine payment intent is to keep a
   bare signup from being a free way to skip that queue.
+- **A refund is shown wherever a payment is.** Money going out was recorded
+  and never displayed: an admin refunded a session from a patient's profile,
+  the route worked, the audit row was written, and the session row went on
+  looking exactly as it had -- `ProfileSessionList` rendered `payment_status`
+  and nothing about `refund_status` at all. The one question that screen
+  could not answer was whether the patient had had their money back.
+  `src/lib/refundState.ts` is the single reading of those columns -- state,
+  label, tone, whether anybody is waiting -- so the chip on a row, the panel
+  in the drawer and the export column cannot describe it four ways. Four
+  states, and the difference is who is waiting for what: `processed` is done,
+  `manual_pending` is cash somebody has to hand over, `failed` is the gateway
+  refusing and is the most urgent precisely because nothing was watching it,
+  and `not_eligible` is a decision that nothing is owed -- recorded rather
+  than left blank, because "no refund due" and "we never looked" read
+  identically when both are empty and mean opposite things. `none` renders
+  **nothing**, not an empty chip on every unrefunded session.
+  **`refunded_at` and `refunded_by` are the other half.** `paid_at` has
+  existed since the first payment shipped; money going out had no equivalent,
+  so "when was this refunded, and by whom" was answerable only from the audit
+  log, which no session screen reads. Every writer stamps them --
+  `cancelAppointmentAndRefund` on all four outcomes, including the failure
+  and the forfeiture, because those are decisions too; `refund-session-
+  partial`; and `mark-cash-refund-returned`, which stamps the moment the cash
+  actually changed hands rather than when it became owed. Neither column is
+  backfilled: a refund issued before they existed has no recorded time, and
+  inferring one from `updated_at` would put a confident wrong date on a money
+  record. They are the newest columns on `appointments`, so they are read in
+  their own isolated query and merged, per the migration-dependent rule.
 - **Cancellation/refund**: full refund only outside the 24-hour window in
   `src/lib/pricing.ts`; inside it, none. Home visits use their own window
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) —

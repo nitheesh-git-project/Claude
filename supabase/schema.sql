@@ -9320,3 +9320,25 @@ create table if not exists admin_account_notes (
 );
 
 alter table admin_account_notes enable row level security;
+
+-- --------------------------------------------------------------------------
+-- appointments.refunded_at / refunded_by: when the money went back, and who
+-- --------------------------------------------------------------------------
+-- A refund recorded its outcome, its amount and its reason, and never when
+-- it happened or who did it. `paid_at` has existed since the first payment
+-- shipped; money going *out* had no equivalent, so "when was this patient
+-- refunded" was answerable only by finding the matching row in the audit log
+-- -- which records the action but is not what any session screen reads.
+--
+-- Both are nullable and neither is backfilled: a refund issued before this
+-- column existed genuinely has no recorded time, and guessing one from
+-- `updated_at` would put a confident wrong date on a money record. The
+-- screens render a dash for it, which is the honest answer.
+alter table appointments add column if not exists refunded_at timestamptz;
+alter table appointments add column if not exists refunded_by uuid references profiles(id);
+
+-- Reading "every refund, newest first" is a Money screen's question, and
+-- without this it is a full scan of a table that grows with every booking.
+create index if not exists appointments_refunded_at_idx
+  on appointments (refunded_at desc)
+  where refunded_at is not null;

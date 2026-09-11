@@ -773,6 +773,22 @@ record (`/api/admin/refund-session-partial`) — it requires a stated reason,
 caps at what is still refundable, sets `refund_is_manual`, and is recorded
 in the activity log.
 
+**A refund is shown wherever a payment is.** Money coming in had a chip on
+every session row and money going back out had none, so an admin who
+refunded a session watched the row go on looking exactly as it had.
+`src/lib/refundState.ts` is the one reading of those columns — four states
+(`processed`, `manual_pending`, `failed`, `not_eligible`, plus "no refund
+here", which renders nothing), each with the wording and the colour it gets
+everywhere — and `RefundChip` draws it beside the payment chip on the
+patient's profile, on **Sessions → All Sessions** and in that screen's CSV
+and PDF exports. The session drawer adds a panel giving when, the reason and
+the gateway reference. `appointments.refunded_at` and `refunded_by` are
+stamped by all three writers (`cancelAppointment`, the partial refund route,
+and marking a cash refund handed back); they are deliberately **not**
+backfilled, so a refund issued before the columns existed shows its state
+and a dash for the date rather than a date nobody recorded. The chip follows
+`canSeeMoney`, the same gate the amount paid already has.
+
 ## Discounts
 
 Four, and deliberately no more.

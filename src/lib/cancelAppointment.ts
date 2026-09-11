@@ -298,24 +298,32 @@ export async function cancelAppointmentAndRefund(
   const isLateWithMoneyAtStake =
     isLateCancellation && (isDirectPayment || isPackagePayment || isPrepaidHomeVisit || cashAlreadyCollected);
 
+  // Stamped on every outcome that records one, including the two that are
+  // not a payout -- a failure and a forfeiture are both decisions, and "when
+  // did we decide this" is the question a money record gets asked months
+  // later. Left null only where nothing is recorded at all.
+  const decidedAt = new Date().toISOString();
+
   const { error: recordError } = await admin
     .from("appointments")
     .update(
       refundFailed
-        ? { refund_status: "failed" }
+        ? { refund_status: "failed", refunded_at: decidedAt }
         : willRefund
         ? {
             refund_id: refundId,
             refund_status: "processed",
             refund_amount_paise: appointment.amount_paid_paise,
+            refunded_at: decidedAt,
           }
         : willRefundCashManually
         ? {
             refund_status: "manual_pending",
             refund_amount_paise: appointment.cash_collected_amount_paise ?? 0,
+            refunded_at: decidedAt,
           }
         : isLateWithMoneyAtStake
-        ? { refund_status: "not_eligible", refund_amount_paise: 0 }
+        ? { refund_status: "not_eligible", refund_amount_paise: 0, refunded_at: decidedAt }
         : {}
     )
     .eq("id", appointmentId);

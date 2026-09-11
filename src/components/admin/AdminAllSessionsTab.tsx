@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import RefundChip from "@/components/admin/RefundChip";
+import { describeRefund } from "@/lib/refundState";
+import { formatClinicDate } from "@/lib/formatDateTime";
 import { useSearchParams } from "next/navigation";
 import SessionDetailDrawer, {
   type SessionDetailAppointment,
@@ -418,6 +421,14 @@ export default function AdminAllSessionsTab({
     { header: "Amount (INR)", value: (r) => (r.price / 100).toFixed(2) },
     { header: "Status", value: (r) => (r.a.no_show ? "no-show" : r.a.status) },
     { header: "Payment", value: (r) => r.a.payment_status },
+    // The exports have to describe the same table -- a refunded session that
+    // reads "paid" in a spreadsheet and "paid · Refunded ₹1,200" on screen is
+    // two answers to one question.
+    { header: "Refund", value: (r) => describeRefund(r.a).label },
+    {
+      header: "Refunded on",
+      value: (r) => (describeRefund(r.a).at ? formatClinicDate(describeRefund(r.a).at) : ""),
+    },
     { header: "Patient rating", value: (r) => r.a.patient_rating ?? "" },
     { header: "Therapist rating", value: (r) => r.a.therapist_rating ?? "" },
   ];
@@ -728,6 +739,12 @@ export default function AdminAllSessionsTab({
                     >
                       {a.payment_status}
                     </span>
+                    {/* Under the payment rather than beside it: this column
+                        is already narrow, and a refund is a second fact
+                        about the same money -- and gated the same way the
+                        amount is, since a desk that cannot read what was
+                        paid must not read what was given back either. */}
+                    {canSeeMoney && <RefundChip row={a} className="mt-1 flex w-fit text-[10px]" />}
                   </td>
                   <td className="py-2 pr-3">
                     {a.patient_rating ? (

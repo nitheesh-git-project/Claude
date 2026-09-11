@@ -653,6 +653,7 @@ export default async function AdminDashboardPage({
     categorySpecialtyRows,
     testimonialAvatarRows,
     hospitalNotes,
+    refundDetailRows,
     adminAccountNotes,
     googleConnection,
     syncModeRows,
@@ -714,6 +715,26 @@ export default async function AdminDashboardPage({
             .in("hospital_id", hospitalIds)
         ).data,
       null as { hospital_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
+    ),
+    // The refund detail the session drawer shows -- when it went back, why,
+    // and the gateway's own reference. Isolated because `refunded_at` and
+    // `refunded_by` are the newest columns on `appointments`: on a database
+    // that has not applied them, this loses the detail line under the refund
+    // chip rather than blanking every session on the page.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("appointments")
+            .select("id, refunded_at, refund_reason, refund_id")
+            .not("refund_status", "is", null)
+        ).data,
+      null as {
+        id: string;
+        refunded_at: string | null;
+        refund_reason: string | null;
+        refund_id: string | null;
+      }[] | null
     ),
     // The password this clinic issued to each back-office account, still
     // outstanding. In this batch rather than the main one because
@@ -931,6 +952,8 @@ export default async function AdminDashboardPage({
     (testimonialAvatarRows ?? []).map((row) => [row.id, row.avatar_url as string | null])
   );
 
+  const refundDetailById = new Map((refundDetailRows ?? []).map((r) => [r.id, r]));
+
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
       appointments ?? [],
@@ -942,15 +965,27 @@ export default async function AdminDashboardPage({
     // row, so a database missing these columns loses the goodwill note and
     // nothing else.
     const discount = discountByAppointment.get(a.id);
-    return discount
+    // Same treatment for the refund detail: `refunded_at` is the newest
+    // column on this table, so it is read separately and merged rather than
+    // selected with the row.
+    const refund = refundDetailById.get(a.id);
+    const withRefund = refund
       ? {
           ...a,
+          refunded_at: refund.refunded_at,
+          refund_reason: refund.refund_reason,
+          refund_id: refund.refund_id,
+        }
+      : a;
+    return discount
+      ? {
+          ...withRefund,
           list_price_paise: discount.listPricePaise,
           discount_paise: discount.discountPaise,
           discount_source: discount.source,
           discount_reason: discount.reason,
         }
-      : a;
+      : withRefund;
   });
 
   const appointmentsWithPayoutBatch = appointmentsWithSessionCode.map((a) => ({

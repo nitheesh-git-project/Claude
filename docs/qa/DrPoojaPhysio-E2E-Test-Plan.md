@@ -3832,6 +3832,19 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 **Steps.** Refund the package.
 **Expected Result.** The **4 available** credits are voided; the **2 delivered stay delivered**. The ledger records a `void` for exactly 4. The patient's widget shows the programme as refunded with nothing available. **A delivered session is never un-delivered.**
 
+#### `FIN-REF-005` — A refunded session says so wherever it is listed · P0
+**Preconditions.** One session refunded in full, one refunded partially, one cash home visit at `manual_pending`, one refund that failed at the gateway, and one cancelled inside the window with no refund due.
+**Steps.** Open **People → Patients → the patient's profile** and read the session rows. Then **Sessions → All Sessions**, then open each session's detail drawer. Export All Sessions as CSV **and** as PDF.
+**Expected Result.** Every one of the five carries a refund chip beside its payment chip, reading `Refunded ₹1,200` / `Refunded ₹500` / `Hand back ₹500` / `Refund failed` / `No refund due` respectively, in that wording and nothing else. A session that was never refunded carries **no chip at all** — an empty refund column reading "—" on every ordinary session is noise. A partial refund states the amount refunded, not the amount paid. The drawer adds a **Refunded** panel above the partial-refund form giving when, the reason, and the gateway reference where there is one. Both exports carry a `Refund` column and a `Refunded on` column agreeing with the chips. **A refund is as visible as a payment on every surface that lists a session** — a refund that happened and left no trace on the session is the failure this case exists to catch.
+
+#### `FIN-REF-006` — A refund issued before the columns existed · P1
+**Steps.** Against a database whose `appointments` rows predate `refunded_at` / `refunded_by`, open a session refunded before the migration.
+**Expected Result.** The chip still reads the refund from `refund_status` and `refund_amount_paise`; **the date reads `—`** rather than guessing one, and the drawer's panel omits the "when" line. The columns are deliberately **not** backfilled — a stamped date nobody recorded is worse than an absent one. Nothing on the screen errors, and `Refunded on` is blank in both exports for that row.
+
+#### `FIN-REF-007` — Finance and the desks that cannot see money · P1
+**Steps.** As **Finance**, open a refunded patient's profile and All Sessions. Then repeat as **Operations** and as **Clinical**.
+**Expected Result.** Finance reads the refund chips everywhere (Money is theirs at `manage`, Sessions at `view`). Operations and Clinical see **no refund chip** on either the patient profile or All Sessions — `canSeeMoney` gates it exactly as it gates the amount paid, so a desk that cannot read what was paid cannot read what was given back either. The `paid` / `unpaid` word itself is unchanged for them: whether a session is paid for is operational, and how much is not.
+
 ---
 
 ### 16.3 Payment integrity (duplicates, concurrency, webhooks)
