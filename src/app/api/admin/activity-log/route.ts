@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
 
   const { data: body, error: parseError } = await parseJsonBody<{
     before?: string;
+    targetId?: string;
   }>(request);
   if (parseError) return parseError;
 
@@ -39,12 +40,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Bad cursor" }, { status: 400 });
   }
 
+  // One subject's whole history, when asked for. Keyed on target_id rather
+  // than the label: the label is snapshotted at write time, so a patient
+  // renamed between two entries carries two names and matching on it would
+  // split their own history in half.
+  const targetId = typeof body.targetId === "string" ? body.targetId.trim() : null;
+
   const admin = createAdminClient();
   let query = admin
     .from("admin_activity_log")
-    .select("id, actor_id, action, target_label, amount_paise, details, created_at")
+    .select("id, actor_id, action, target_id, target_label, amount_paise, details, created_at")
     .order("created_at", { ascending: false })
     .limit(PAGE_SIZE);
+  if (targetId) query = query.eq("target_id", targetId);
   if (before) query = query.lt("created_at", before);
 
   const { data: rows, error } = await query;
@@ -70,6 +78,7 @@ export async function POST(request: NextRequest) {
       id: r.id,
       actorName: names.get(r.actor_id) ?? "Unknown admin",
       action: r.action,
+      targetId: r.target_id,
       targetLabel: r.target_label,
       amountPaise: r.amount_paise,
       details: r.details ?? null,

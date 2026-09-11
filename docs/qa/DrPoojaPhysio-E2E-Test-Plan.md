@@ -171,7 +171,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Catalog | `packages` | Packages | `ADM-CAT-005` |
 | Catalog | `areas` | Service Areas + waitlist | `ADM-CAT-010` |
 | Catalog | `purchases` | Purchases | `ADM-CAT-014` |
-| Logs | `all` | All Activity | `ADM-SET-033`, `ADM-SET-034`, `ADM-LOG-001`, `ADM-LOG-003` |
+| Logs | `all` | All Activity | `ADM-SET-033`, `ADM-SET-034`, `ADM-LOG-001`, `ADM-LOG-003`, `ADM-LOG-003a` |
 | Logs | `retention` | Archive & Clear | `ADM-LOG-002` |
 | Settings | `brand` | Brand & Contact | `ADM-SET-001` |
 | Settings | `public` | Public Site | `ADM-SET-004` |
@@ -3386,6 +3386,24 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Each **Load older entries** press adds up to 200 more and the count rises. No entry is ever listed twice, including one written while the page was open.
 * When the log is exhausted the button is replaced by *"That is the whole log"*.
 * Both exports carry **exactly the filtered rows**, with a Category column, and the note under the button says filters and exports run over what is loaded.
+
+#### `ADM-LOG-003a` — One subject's whole history · P1
+
+**Feature.** The log answers *"what did this admin do"* well and *"what happened to this patient"* badly — and the second is the question asked when somebody complains. Tapping an entry's subject fetches every entry recorded against that record.
+
+**Steps**
+1. Do three different things to one patient as an admin (edit their contact details, refund a session, grant a credit).
+2. Open **Logs → All Activity**, tap the refund row, and press **See everything done to this record**.
+3. Tap another entry inside the timeline.
+4. **Rename the patient**, then do one more action on them, and open the timeline again.
+5. Tap a row whose Subject is a dash, or one whose action recorded no record (`Reset all data`).
+
+**Expected Result**
+* Step 2: a dialog listing all three, newest first, each with the actor, the time, the amount where there is one and its type chip. The entry you came from is marked **This entry**.
+* **The entry dialog closes when the timeline opens** — one dialog at a time, never two stacked over the table.
+* Step 3 opens that entry's own detail, including one **older than anything the screen had loaded** — the timeline is fetched by record, not filtered from the loaded page.
+* Step 4: **all four entries are still one history.** The timeline is keyed on the record's id, not on the name snapshotted into each entry, so a rename does not split one patient into two.
+* Step 5: **no button is offered** — an action that named no record has no history to trace, and the footer says the list is entries recorded against that exact record rather than claiming to be everything.
 
 #### `ADM-LOG-002` — Archive & Clear, and the floor under it · P0
 

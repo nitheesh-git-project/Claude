@@ -1389,7 +1389,12 @@ buried in the screen list an owner opens least often. Two screens:
   dialog on every row saying what changed from what. The dashboard's own
   render carries the newest 200 entries; **Load older entries** pages the
   rest through `/api/admin/activity-log` by cursor, so a table that grows
-  for ever is not a payload every admin downloads on every refresh.
+  for ever is not a payload every admin downloads on every refresh. An
+  entry's subject opens **everything done to that record** — keyed on
+  `target_id`, never on the label, which is a snapshot taken at write time
+  and would split a renamed patient's history in half. The log answers "what
+  did this admin do" well; that is the other question, the one asked when
+  somebody complains.
 - **Archive & Clear** — the only way a row ever leaves the table. Four steps,
   each one closing a particular mistake: pick a cutoff from a fixed set,
   see the count server-side, download a copy (the Clear button stays locked

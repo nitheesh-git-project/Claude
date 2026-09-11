@@ -42,9 +42,14 @@ export function describeAction(action: string) {
 export default function ActivityDetailDialog({
   row,
   onClose,
+  onOpenSubject,
 }: {
   row: ActivityRow;
   onClose: () => void;
+  /** Trace this entry's subject through the whole log. Offered only where
+   *  the reader can actually call for it -- the Logs section -- so the desk
+   *  screens, whose scope the route refuses, get no button that 403s. */
+  onOpenSubject?: (row: ActivityRow) => void;
 }) {
   const [showRaw, setShowRaw] = useState(false);
   const { changes, facts } = readableDetails(row.details);
@@ -60,7 +65,24 @@ export default function ActivityDetailDialog({
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Fact label="Admin" value={row.actorName} />
           <Fact label="When" value={formatWhen(row.createdAt)} />
-          <Fact label="Subject" value={row.targetLabel ?? "—"} />
+          <div>
+            <dt className="text-[11px] font-semibold text-slate-500">Subject</dt>
+            <dd className="mt-0.5 break-words text-xs font-semibold text-slate-800">
+              {row.targetLabel ?? "—"}
+            </dd>
+            {/* Keyed on the id, so a subject the route never named has no
+                history to trace and is not offered one. */}
+            {onOpenSubject && row.targetId && (
+              <button
+                type="button"
+                onClick={() => onOpenSubject(row)}
+                className="mt-1 inline-flex items-center gap-1.5 text-[11px] font-semibold text-teal-700 transition hover:text-teal-900"
+              >
+                <i aria-hidden className="fa-solid fa-clock-rotate-left text-[9px]" />
+                See everything done to this record
+              </button>
+            )}
+          </div>
           <Fact
             label="Amount"
             value={

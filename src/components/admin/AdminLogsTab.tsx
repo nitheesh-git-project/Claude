@@ -11,6 +11,7 @@ import ActivityDetailDialog, {
   describeAction,
   formatWhen,
 } from "@/components/admin/ActivityDetailDialog";
+import SubjectTimelineDialog from "@/components/admin/SubjectTimelineDialog";
 import {
   EMPTY_ACTIVITY_FILTERS,
   activityCategoriesPresent,
@@ -48,6 +49,13 @@ export default function AdminLogsTab({
   // it, and the first press is what settles it.
   const [hasMore, setHasMore] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
+  // The entry whose subject is being traced. Held as a whole row rather than
+  // an id: a timeline can be opened from an entry fetched by the timeline
+  // itself, which the loaded list may not contain.
+  const [subject, setSubject] = useState<ActivityRow | null>(null);
+  // An entry opened *from* a timeline. Same reason -- it may be older than
+  // anything this screen has loaded, so it cannot be looked up by id.
+  const [openRowFromTimeline, setOpenRowFromTimeline] = useState<ActivityRow | null>(null);
   // A synchronous guard, because a `disabled` attribute lands a render too
   // late -- the same rule the suggestion controls follow.
   const loadingRef = useRef(false);
@@ -61,7 +69,12 @@ export default function AdminLogsTab({
   // Resolved from the whole list rather than the current page: a realtime
   // refresh can re-filter the table under an open dialog, and an entry
   // vanishing mid-read would look like the record had been deleted.
-  const openRow = openId ? all.find((r) => r.id === openId) ?? null : null;
+  const openRow = openRowFromTimeline ?? (openId ? all.find((r) => r.id === openId) ?? null : null);
+
+  const closeEntry = () => {
+    setOpenId(null);
+    setOpenRowFromTimeline(null);
+  };
 
   const filtersActive =
     filters.query.trim() !== "" ||
@@ -323,7 +336,32 @@ export default function AdminLogsTab({
         </div>
       </div>
 
-      {openRow && <ActivityDetailDialog row={openRow} onClose={() => setOpenId(null)} />}
+      {/* One dialog at a time: opening a timeline closes the entry behind
+          it, and picking an entry from the timeline closes the timeline.
+          Two stacked modals over a table is a reader who cannot tell which
+          Escape closes what. */}
+      {openRow && !subject && (
+        <ActivityDetailDialog
+          row={openRow}
+          onClose={closeEntry}
+          onOpenSubject={(r) => {
+            closeEntry();
+            setSubject(r);
+          }}
+        />
+      )}
+
+      {subject && (
+        <SubjectTimelineDialog
+          subject={subject}
+          onClose={() => setSubject(null)}
+          onOpenEntry={(r) => {
+            setSubject(null);
+            setOpenId(r.id);
+            setOpenRowFromTimeline(r);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -30,6 +30,11 @@ export type ActivityRow = {
   id: string;
   actorName: string;
   action: string;
+  /** The row this acted on, when the route named one. It is the id rather
+   *  than the label that identifies a subject: the label is a snapshot taken
+   *  at write time, so two entries about one patient can carry two different
+   *  names if it was changed in between. */
+  targetId: string | null;
   targetLabel: string | null;
   amountPaise: number | null;
   details: Record<string, unknown> | null;

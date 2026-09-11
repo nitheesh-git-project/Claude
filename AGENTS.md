@@ -2060,6 +2060,17 @@ client is the only writer and the log is append-only from any session.
   Adding an action means adding it to `ACTION_DOMAIN` as well as the audit
   union: the type filter is derived from that map, so a second grouping of
   the same 80 actions cannot drift from the one the routes enforce.
+  **A subject has a timeline, and it is keyed on the id.** Tapping an entry's
+  subject fetches every entry against that `target_id`
+  (`SubjectTimelineDialog`), because "what happened to this patient" is what
+  gets asked in a dispute and the log was only good at "what did this admin
+  do". Matching on `target_label` instead would split a patient renamed
+  between two entries into two people -- the label is snapshotted at write
+  time on purpose. An entry with no `target_id` is offered no timeline rather
+  than one built by guessing, and the dialog's footer says what it is keyed
+  on rather than claiming to be everything. One dialog is open at a time:
+  opening a timeline closes the entry behind it, since two stacked modals
+  over a table leave a reader unable to tell which Escape closes what.
 - **An audit entry is read months later, so it says what changed from what.**
   Tapping a row in the Logs section -- or on a limited desk's
   Today -> Activity -- opens the whole entry

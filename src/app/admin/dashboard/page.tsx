@@ -577,7 +577,7 @@ export default async function AdminDashboardPage({
     // entries are still in the table; this is what the screen shows.
     admin
       .from("admin_activity_log")
-      .select("id, actor_id, action, target_label, amount_paise, details, created_at")
+      .select("id, actor_id, action, target_id, target_label, amount_paise, details, created_at")
       .order("created_at", { ascending: false })
       .limit(200),
 
@@ -2660,6 +2660,7 @@ export default async function AdminDashboardPage({
     id: r.id,
     actorName: profileMap.get(r.actor_id)?.full_name ?? "Unknown admin",
     action: r.action,
+    targetId: r.target_id,
     targetLabel: r.target_label,
     amountPaise: r.amount_paise,
     details: (r.details ?? null) as Record<string, unknown> | null,
