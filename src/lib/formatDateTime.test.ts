@@ -85,9 +85,18 @@ describe("nothing renders a date in the runtime's own zone", () => {
   const EXEMPT = ["src/lib/bookingSlots.ts", "src/components/profile/ConditionIntakeWizard.tsx"];
 
   it("has no date formatting without an explicit timeZone", async () => {
-    const { globSync } = await import("node:fs");
-    const { readFileSync } = await import("node:fs");
-    const files = globSync("src/**/*.{ts,tsx}").filter(
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+
+    function walk(dir: string): string[] {
+      return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) return walk(path);
+        return /\.(ts|tsx)$/.test(entry.name) ? [path] : [];
+      });
+    }
+
+    const files = walk("src").filter(
       (f) => !f.includes(".test.") && !f.endsWith("formatDateTime.ts") && !EXEMPT.includes(f)
     );
 

@@ -4272,6 +4272,28 @@ Covered by `PAT-BOOK-017`, `PAT-SUGG-004`, `THR-AVAIL-004`, `FIN-PAY-002`, `PAY-
 
 **Expected Result.** Each shell offers a **mobile drawer** for the sidebar. **Back to Home is present in all three renders** — expanded sidebar, collapsed rail, and mobile drawer. On all four shells it sits at the **foot of the nav, directly above Collapse** (above the profile/Log Out footer in the mobile drawer, which has no Collapse). Without it the only exit from a dashboard is Log Out, which also ends the session. It is a plain link, not a client-side transition, because transitions into a differently-chromed route were silently not completing.
 
+#### `UX-MODAL-002` — A dialog opened inside a modal covers the screen · P1
+
+**Feature.** `position: fixed` is relative to the viewport until an ancestor carries `backdrop-filter` — and every modal here sets `backdrop-blur-sm`, so every modal is one. A confirmation opened inside one was therefore measured against that modal's scrolling panel instead of the screen.
+
+**Steps**
+1. **People → Patients → a patient → Profile.** In their sessions list, press **Mark Done** on a session.
+2. Look at the dark sheet: how much of the screen does it cover?
+3. Scroll the page while the prompt is open.
+4. Press **No**, scroll the profile **half way down**, and press Mark Done again.
+5. Repeat from the **session drawer** on All Sessions, and from a **purchase detail** modal.
+6. Do the same on a phone width.
+7. Press **No**, then **Yes**, and confirm the action still works and the confirmation toast appears.
+8. On the patient's own dashboard, open a **programme detail** and the **bulk scheduler**, and check their open/close animation still plays.
+
+**Expected Result**
+* Steps 1–2: the prompt is **centred in the viewport** and the dark sheet covers the **whole screen**, not a band of it.
+* Step 3: it **stays put** as the page scrolls behind it — it follows the reader rather than the document.
+* Step 4: identical wherever the page is scrolled to. Previously it appeared at the top of the scrolled content, often off-screen.
+* Steps 5–6: identical from every modal and at every width.
+* Step 7: **unchanged behaviour.** The dialog moved in the DOM but not in the React tree, so clicks, cancel and confirm all work exactly as before.
+* Step 8: the animated overlays still fade in **and out**. They are deliberately not portalled — a portal between them and their animation wrapper would kill the exit animation, and they are always outermost anyway.
+
 #### `UX-MOB-003` — Modals and drawers fit · P1
 **Steps.** At 390 × 844 open: a catalog detail dialog, the admin session drawer, the intake wizard, the pain-exam dialog, the confirm dialog.
 **Expected Result.** Each fits the viewport, scrolls internally if it must, and its close control is reachable without scrolling.

@@ -3084,6 +3084,35 @@ change that genuinely needs no doc update can ignore it.
   committed file — `ALLOW_DEBUG_DATA_RESET` belongs in a server environment,
   set deliberately, against a project whose data is throwaway. Check the
   hosting dashboard's own env vars too, since a file cannot clear those.
+- **A full-screen overlay opened from inside another one must be portalled.**
+  `position: fixed` is relative to the viewport *until* an ancestor carries
+  `transform`, `filter`, `backdrop-filter`, `perspective`, `contain` or
+  `will-change` -- that ancestor then becomes the containing block, and the
+  overlay is measured against its box instead. Every modal in this app sets
+  `backdrop-blur-sm`, which is a `backdrop-filter`, so **any modal is one of
+  those ancestors**. Mark Done on a patient's profile was the case that
+  showed it: the confirmation renders inside `DetailOverlayModal`, so its
+  dark sheet covered only that modal's scrolling panel, the prompt sat at
+  the top of the scrolled content rather than in front of the reader, and it
+  slid away as they scrolled. Nothing was wrong with the dialog.
+  `OverlayPortal` (`src/components/system/OverlayPortal.tsx`) renders into
+  `document.body`, which has no such ancestor, so `fixed` means the viewport
+  again. Two rules:
+  1. **Portal the ones that can be nested**, which is every dialog opened by
+     a tap -- `ConfirmDialog`, `admin/Modal`, `SessionDetailDrawer`,
+     `PainExamDialog`, `ConditionTriageDialog`. React portals bubble along
+     the **React** tree rather than the DOM one, so a dialog inside a panel
+     that stops propagation behaves exactly as it did: this moves pixels,
+     not clicks.
+  2. **Never portal a server-rendered overlay.** The admin's `@modal` detail
+     routes (`DetailOverlayModal`) are in the initial HTML; portalling them
+     renders nothing on the server and pops the modal in after hydration.
+     They are also always outermost, so they have nothing to escape.
+  The five `motion.div` overlays inside an `AnimatePresence` are left alone
+  deliberately -- a portal between the two stops `AnimatePresence` seeing its
+  child and kills the exit animation, and all five are outermost, with every
+  dialog that can open inside them portalled from the child side, which is
+  the side that matters.
 - **Every route tree has an error boundary, and a thrown message never
   reaches the screen.** `RouteError` / `RouteLoading`
   (`src/components/system/`) back `error.tsx` and `loading.tsx` in each
