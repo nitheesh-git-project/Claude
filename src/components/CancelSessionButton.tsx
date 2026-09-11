@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { usePrompt } from "@/lib/usePrompt";
@@ -26,6 +27,7 @@ export default function CancelSessionButton({
   // optimistic overlay would need to clear on its own -- a failure just
   // reverts to the base `false`. See PatientActiveToggle's comment.
   const [optimisticCancelled, setOptimisticCancelled] = useOptimistic(false);
+  const { show } = useToast();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -68,6 +70,7 @@ export default function CancelSessionButton({
           "Session cancelled, but the automatic refund failed — we'll process it manually. Contact us if you don't see it in a few days."
         );
       }
+      show("Session cancelled. Any refund due is on its way.");
       router.refresh();
     });
   }

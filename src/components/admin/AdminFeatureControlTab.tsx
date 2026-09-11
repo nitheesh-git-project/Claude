@@ -1,20 +1,11 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
 import type { AdminSettings } from "@/lib/adminSettings";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
 import BookingLanguagesSection from "@/components/admin/BookingLanguagesSection";
-
-async function saveSetting(key: string, value: boolean | number | string[]) {
-  const res = await fetch("/api/admin/update-setting", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, value }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Could not save. Please try again.");
-}
 
 export default function AdminFeatureControlTab({
   settings,
@@ -32,6 +23,7 @@ export default function AdminFeatureControlTab({
   // state, and reads as its own screen (AdminSystemHealthTab).
   view: "booking" | "security";
 }) {
+  const saveSetting = useSaveSetting();
   const router = useRouter();
 
   const [timeoutInput, setTimeoutInput] = useState(String(settings.sessionTimeoutMinutes));

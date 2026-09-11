@@ -1,17 +1,8 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
-
-async function saveSetting(key: string, value: boolean | number | string) {
-  const res = await fetch("/api/admin/update-setting", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, value }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Could not save. Please try again.");
-}
 
 /**
  * The one standing discount: what a patient pays for their first session.
@@ -37,6 +28,7 @@ export default function FirstSessionOfferForm({
    *  recognises rather than an invented one. */
   sampleListPricePaise: number | null;
 }) {
+  const saveSetting = useSaveSetting();
   const router = useRouter();
   const [optimisticEnabled, setOptimisticEnabled] = useOptimistic(enabled);
   const [isTogglePending, startToggle] = useTransition();

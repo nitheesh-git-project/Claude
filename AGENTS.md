@@ -2076,6 +2076,35 @@ client is the only writer and the log is append-only from any session.
   who acted had already refreshed deliberately. It is on the 30s channel with
   `contact_reveal_log` and `risk_reviews`, which are there for the same
   reason.
+- **A change that leaves no trace on screen has to say what it was.** Every
+  mutating control ends the same way -- the request lands, `router.refresh()`
+  re-runs the Server Component, and the screen re-renders into a state that
+  looks identical. A toggle that was off is now on and the only evidence is
+  a switch the person has stopped looking at; on a slow render it is
+  indistinguishable from nothing having happened. `ToastProvider` +
+  `useToast()` (`src/lib/toast.tsx`) is the answer, mounted in the **root
+  layout above every route** -- which is what makes the confirmation survive
+  the refresh the control itself fires, with no cookie and no message
+  replayed on the next load. Three rules:
+  1. **It names the thing and its new state.** "Home visits are on", never
+     "Saved" -- a confirmation that does not name the thing tells somebody a
+     request finished, which they could already see. For settings that
+     wording lives in `src/lib/settingMessages.ts`, one vocabulary for the
+     whole section in the owner's words rather than the column's, and
+     `settingMessages.test.ts` fails when a key an admin screen can write
+     has no sentence, reads a column name back to a person, or mis-pluralises
+     a unit.
+  2. **`useToast()` never throws outside a provider.** These controls render
+     in dashboards, in modals and in the booking wizard on a public page, and
+     a missing confirmation must not be the thing that takes a screen down --
+     same posture as the audit log's best-effort write.
+  3. **One `saveSetting`, not eight.** That helper was copy-pasted into every
+     settings surface, which was survivable while it only made a request and
+     stopped being survivable the moment saving needed to *say* something:
+     a confirmation added to one copy is seven screens that do not get one.
+     It is `useSaveSetting()` now, and a failure raises an error toast **and
+     rethrows**, because the callers roll their optimistic switch back on a
+     throw.
   **The bar has to hear about the navigation, and three dashboards were
   silent.** `useRouter` covers every navigation this app starts in code,
   which is why the admin dashboard always had a bar and the other three

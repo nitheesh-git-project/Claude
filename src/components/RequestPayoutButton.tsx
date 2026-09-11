@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import Spinner from "@/components/system/Spinner";
 
@@ -12,6 +13,7 @@ export default function RequestPayoutButton({
   requestStatus: "none" | "pending" | "reviewing";
 }) {
   const [loading, setLoading] = useState(false);
+  const { show } = useToast();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
@@ -31,6 +33,7 @@ export default function RequestPayoutButton({
       }
       return;
     }
+    show("Payout requested. The clinic will review it.");
     router.refresh();
   }
 

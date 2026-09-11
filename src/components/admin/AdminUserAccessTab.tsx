@@ -7,6 +7,7 @@ import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import Spinner from "@/components/system/Spinner";
 import { formatIST } from "@/lib/formatIST";
+import { useToast } from "@/lib/toast";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import {
   ACCESS_LEVEL_LABELS,
@@ -109,6 +110,7 @@ function ScopePicker({ row, canManage }: { row: AdminRow; canManage: boolean }) 
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const router = useRouter();
+  const { show } = useToast();
 
   async function handleChange(next: AdminScope) {
     if (savingRef.current) return;
@@ -141,6 +143,7 @@ function ScopePicker({ row, canManage }: { row: AdminRow; canManage: boolean }) 
       savingRef.current = false;
       setSaving(false);
     }
+    show(`${row.fullName ?? "That admin"} now has ${ADMIN_SCOPE_LABELS[next]} access.`);
     // Deliberately after the control is released. See "Where the waiting
     // belongs" at the top of this file.
     router.refresh();
@@ -188,6 +191,7 @@ function StatusToggle({ row, canManage }: { row: AdminRow; canManage: boolean })
   // a double tap.
   const savingRef = useRef(false);
   const router = useRouter();
+  const { show } = useToast();
 
   async function toggle() {
     if (savingRef.current) return;
@@ -216,6 +220,14 @@ function StatusToggle({ row, canManage }: { row: AdminRow; canManage: boolean })
       savingRef.current = false;
       setSaving(false);
     }
+    // Names the person and what is now true of them -- "Saved" on this
+    // control would leave an admin re-reading the row to check which way it
+    // went.
+    show(
+      row.active
+        ? `${row.fullName ?? "That admin"} can no longer sign in.`
+        : `${row.fullName ?? "That admin"} can sign in again.`
+    );
     router.refresh();
   }
 

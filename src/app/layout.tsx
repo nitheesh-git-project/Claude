@@ -13,6 +13,8 @@ import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings"
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
 import RouteProgress from "@/components/system/RouteProgress";
+import ToastViewport from "@/components/system/ToastViewport";
+import { ToastProvider } from "@/lib/toast";
 import { PendingWorkProvider } from "@/lib/pendingWork";
 import {
   DEFAULT_SPLASH_CONFIG,
@@ -173,7 +175,12 @@ export default async function RootLayout({
             left at all. One counter at the root is the only place that can
             still be watching when the new HTML lands. */}
         <PendingWorkProvider>
+          {/* Above every route, so a confirmation raised by a control
+              survives the router.refresh() that control fires -- the tree
+              underneath re-renders, this does not unmount. */}
+          <ToastProvider>
           <RouteProgress />
+          <ToastViewport />
         {showDebugNav && <DebugNav />}
         <Navbar
           offsetTop={showDebugNav}
@@ -200,6 +207,7 @@ export default async function RootLayout({
           />
           <ScrollHint />
         </SectionNavProvider>
+          </ToastProvider>
         </PendingWorkProvider>
       </body>
     </html>

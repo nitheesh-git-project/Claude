@@ -1,18 +1,9 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
 import type { AdminSettings, ContactScanMode } from "@/lib/adminSettings";
-
-async function saveSetting(key: string, value: string | boolean) {
-  const res = await fetch("/api/admin/update-setting", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, value }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Could not save. Please try again.");
-}
 
 const SCAN_MODE_COPY: Record<ContactScanMode, { label: string; help: string }> = {
   flag_and_block: {
@@ -41,6 +32,7 @@ const SCAN_MODE_COPY: Record<ContactScanMode, { label: string; help: string }> =
  * a deploy.
  */
 export default function ContactControlsForm({ settings }: { settings: AdminSettings }) {
+  const saveSetting = useSaveSetting();
   const router = useRouter();
 
   const [optimisticMode, setOptimisticMode] = useOptimistic(settings.contactScanMode);

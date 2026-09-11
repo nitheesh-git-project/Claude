@@ -1,17 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
-
-async function saveSetting(key: string, value: string) {
-  const res = await fetch("/api/admin/update-setting", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, value }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Could not save. Please try again.");
-}
 
 /**
  * One row of the section below: label, current value, an Edit button that
@@ -33,6 +24,7 @@ function EditableField({
   type?: "text" | "email";
   multiline?: boolean;
 }) {
+  const saveSetting = useSaveSetting();
   const [editing, setEditing] = useState(false);
   const [savedValue, setSavedValue] = useState(value);
   const [draft, setDraft] = useState(value);

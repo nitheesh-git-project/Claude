@@ -1469,6 +1469,13 @@ of its own:
 - Admins see every note on the patient's condition detail screen, which is
   how the clinic can tell whether care is being delivered and documented.
 
+**Nothing changes without saying what changed.** Every mutating control
+raises a confirmation naming the thing and its new state — "Home visits are
+on", not "Saved" — on all four dashboards. It is mounted above every route,
+so it survives the refresh the control itself fires. The wording for all 43
+admin settings lives in `src/lib/settingMessages.ts`, with a test that fails
+when a setting an admin screen can write has no sentence.
+
 **Nothing waits without saying so.** A teal bar runs across the top of the
 viewport for any wait longer than 220ms — a navigation, a refresh, a save —
 and every dynamic route has its own skeleton that streams in before the

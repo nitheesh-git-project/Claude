@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -63,6 +64,7 @@ export default function SessionNoteDialog({
   hoursLeft: number | null;
   onClose: () => void;
 }) {
+  const { show } = useToast();
   const [values, setValues] = useState<SessionNoteData>(() => {
     const initial: SessionNoteData = {};
     for (const f of SESSION_NOTE_FIELDS) initial[f.key] = existing?.data?.[f.key] ?? "";
@@ -150,6 +152,9 @@ export default function SessionNoteDialog({
         }
       }
 
+      // The plan half, when there was one, is named separately -- a
+      // clinician who wrote both wants to know both landed.
+      show(plan ? "Note saved and your recommendation sent." : "Session note saved.");
       router.refresh();
       onClose();
     });

@@ -40,6 +40,37 @@
 * **Two overlapping actions**: start a second before the first finishes; the bar must stay up until **both** are done, not vanish with the first.
 * The five money buttons (**Done**, **Collect ₹…**, **Request Payout**, **Confirm … Payment**, **Assign & Confirm**) show a spinning ring beside their busy label rather than only swapping the text.
 
+#### `UX-SAID-001` — Every change says what it was · P0
+
+**Feature.** A mutating control ends with `router.refresh()`, which re-renders the screen into a state that looks identical to the one before it. Turning home visits on left the admin looking at the same page with no idea whether it had worked. Every control now raises a confirmation naming the thing and its new state.
+
+**Steps**
+1. **Settings → Programmes & Home Visits**: toggle **Home Visit enabled** off, then on. Read the message each time.
+2. Change **online booking lead time** to 12, then to 1. Read both.
+3. Change an **invite reward** amount and read the message.
+4. Set the **home page walkthrough** rotation to 0, and the **splash revisit** minutes to 0.
+5. Disconnect the network and toggle any setting.
+6. Watch the message while the page re-renders behind it — do not click anything.
+7. Toggle the same switch three times quickly.
+8. Wait without touching it. Then raise another and press its **×**.
+9. As an **admin**: suspend a colleague, then change their access level.
+10. As a **patient**: save an address, upload a report, delete it.
+11. As a **therapist**: write a session note, mark a session complete, record a cash collection, request a payout.
+12. As a **hospital**: withdraw a referral.
+13. On a phone width, raise any of them.
+
+**Expected Result**
+* Step 1: **"Home visits are off. The public page and the booking wizard are hidden."** then **"Home visits are on…"**. Never *Saved* or *Updated successfully* — a confirmation that does not name the thing says only that a request finished, which was already visible.
+* Step 2: **"12 hours"** and **"1 hour"** — the unit is spelled out and pluralised on its own count.
+* Step 3: reads **₹** and a rupee figure. The word *paise* must never appear: it is a storage unit.
+* Step 4: both zeroes read as words — *"no longer rotates by itself"* and *"shows on a first load only"* — never "every 0 seconds".
+* Step 5: a **red** message saying nothing was saved, and the toggle **snaps back** to where it was. A switch left showing a value the server refused is the worst outcome here.
+* Step 6: the message **survives the refresh**. It is mounted above every route, so the tree re-renders underneath it.
+* Step 7: **one** message on screen, not three — the same sentence replaces itself rather than stacking. Flipping a switch twice is one fact.
+* Step 8: it clears itself after a few seconds (errors stay longer, since they need acting on), and × dismisses immediately.
+* Steps 9–12: each names what happened and to whom — *"Asha Rao can no longer sign in."*, *"Asha Rao now has Finance access."*, *"Report uploaded."*, *"Session note saved."*, *"Payout requested. The clinic will review it."*, *"Referral withdrawn."* **All four dashboards, not only the admin's.**
+* Step 13: full width at the bottom, with the dismiss in thumb reach, and never covering the control that was just used.
+
 #### `UX-BUSY-003` — Nothing waits in silence, on any dashboard · P0
 
 **Feature.** The teal bar used to appear on the admin dashboard and nowhere else, which read as three dashboards with no loading state at all. The cause was not the bar: `useRouter` reports every navigation the app starts *in code*, and the patient, therapist and hospital dashboards move between sections with **plain anchors** — a hard browser navigation, which never touches the router hook. Nothing in React learned a navigation had started.
