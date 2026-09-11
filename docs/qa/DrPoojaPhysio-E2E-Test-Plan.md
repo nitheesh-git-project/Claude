@@ -4120,6 +4120,31 @@ Covered by `PAT-BOOK-017`, `PAT-SUGG-004`, `THR-AVAIL-004`, `FIN-PAY-002`, `PAY-
 * **Two overlapping actions**: start a second before the first finishes; the bar must stay up until **both** are done, not vanish with the first.
 * The five money buttons (**Done**, **Collect ₹…**, **Request Payout**, **Confirm … Payment**, **Assign & Confirm**) show a spinning ring beside their busy label rather than only swapping the text.
 
+#### `UX-BUSY-003` — Nothing waits in silence, on any dashboard · P0
+
+**Feature.** The teal bar used to appear on the admin dashboard and nowhere else, which read as three dashboards with no loading state at all. The cause was not the bar: `useRouter` reports every navigation the app starts *in code*, and the patient, therapist and hospital dashboards move between sections with **plain anchors** — a hard browser navigation, which never touches the router hook. Nothing in React learned a navigation had started.
+
+**Steps**
+1. As a **patient**, click each sidebar entry in turn — Sessions, Packages, Payments, Health Profile, Book, Edit Profile — and watch the **top edge of the window** the moment you click, before the new page arrives.
+2. Repeat as a **therapist** (Availability, Earnings, My Patients, Sessions, Edit Profile) and a **hospital** (Refer, Your Referrals, Earnings, Edit Profile).
+3. Watch what the **new** page paints first, before its data arrives.
+4. Click the entry for the screen you are **already on**.
+5. Click an in-page anchor (Edit Profile's own sub-sections).
+6. Click **Back to Home** from any of the four dashboards.
+7. Go somewhere, then press the browser's **Back** button, and look at the top edge of the restored page.
+8. On the public site, click between Home, Conditions, How It Works and FAQ.
+9. Throttle the network to Slow 3G and repeat steps 1 and 3.
+
+**Expected Result**
+* Steps 1–2: the **teal bar appears at the top of the page you are leaving** and stays up until the new screen arrives. No sidebar entry on any dashboard may leave the screen silent.
+* Step 3: a **skeleton in the shape of the page** — sidebar rail in place, heading, figure tiles, cards — not a white gap and not a blank content area. Every dashboard sub-route has its own boundary now; before, only the four dashboard roots did.
+* Step 4: **no bar.** Re-navigating to the screen you are on finishes instantly, and a bar for it is the flicker the 220ms delay exists to prevent.
+* Step 5: **no bar** — an in-page scroll is not a navigation.
+* Step 6: the bar shows on the way out to the public site, from all four.
+* Step 7: **no stuck bar** on the restored page. A back/forward-cache restore brings the page back exactly as it was, bar included, so it is cleared on `pageshow`.
+* Step 8: the bar runs for public navigations too.
+* Step 9: both are obvious and neither screen is ever static and unexplained — this is the case the whole mechanism exists for.
+
 #### `UX-REFRESH-001` — One Refresh button, on all four dashboards · P1
 
 **Feature.** Every dashboard carries the same Refresh control in its header. These are Server Components, and the only automatic updates come from the realtime channels — which cover subscribed tables only, and hold a 30-second cooldown on the catalog one. Before this there was no way to ask for the page again except a browser reload, which throws away the state the shells keep on purpose and re-downloads the bundle.

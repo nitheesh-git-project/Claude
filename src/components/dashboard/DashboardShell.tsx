@@ -7,6 +7,7 @@ import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { useIdleTimeout } from "@/lib/useIdleTimeout";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import RefreshButton from "@/components/dashboard/RefreshButton";
+import { useLeavingPage } from "@/lib/useLeavingPage";
 import SessionTimeoutDialog from "@/components/SessionTimeoutDialog";
 import { LOGIN_HREF_BY_BASE_PATH } from "@/lib/dashboardNavItems";
 
@@ -88,6 +89,12 @@ export default function DashboardShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  // Every nav entry below is a hard anchor on purpose (see renderHomeLink),
+  // which means React never learns the navigation happened and the teal bar
+  // never drew on these three dashboards. This marks the page as leaving on
+  // click, so the bar is up for the whole wait on the screen they are still
+  // looking at.
+  const markLeaving = useLeavingPage();
   const onBasePage = pathname === basePath;
   // The nav item (if any) whose own page we're currently on and which has
   // sub-tabs -- e.g. Edit Profile's Personal Details / Contact / Security.
@@ -225,6 +232,12 @@ export default function DashboardShell({
           if (!item.href && onBasePage) {
             e.preventDefault();
             scrollToSection(item.id);
+          } else if (targetHref !== pathname) {
+            // A real navigation, not an in-page scroll and not the screen
+            // they are already on -- both of those finish instantly and a
+            // bar for them would be the flicker the appear delay exists to
+            // prevent.
+            markLeaving();
           }
           onNavigate?.();
         }}
@@ -307,7 +320,10 @@ export default function DashboardShell({
       // eslint-disable-next-line @next/next/no-html-link-for-pages
       <a
         href="/"
-        onClick={onNavigate}
+        onClick={() => {
+          markLeaving();
+          onNavigate?.();
+        }}
         title={mini ? "Back to Home" : undefined}
         className={`mt-2 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
           mini ? "justify-center px-0" : ""

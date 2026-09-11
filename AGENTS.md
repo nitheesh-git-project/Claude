@@ -2076,6 +2076,38 @@ client is the only writer and the log is append-only from any session.
   who acted had already refreshed deliberately. It is on the 30s channel with
   `contact_reveal_log` and `risk_reviews`, which are there for the same
   reason.
+  **The bar has to hear about the navigation, and three dashboards were
+  silent.** `useRouter` covers every navigation this app starts in code,
+  which is why the admin dashboard always had a bar and the other three
+  appeared to have none: patient, therapist and hospital move between
+  sections with **plain anchors** (a deliberate choice -- client-side
+  transitions into a differently-chromed route were silently not completing),
+  and a hard navigation never touches the router hook, `useLinkStatus`, or a
+  client-side `loading.tsx`. Nothing in React learned a navigation had
+  started, so the person sat on the old screen with no acknowledgement at
+  all. Two halves fix it, and both are needed:
+  - `useLeavingPage()` (`src/lib/useLeavingPage.ts`) marks the page as
+    leaving on click. The old document stays on screen until the new one is
+    ready, so a bar drawn then is visible for exactly the wait. It is
+    **never released on that page** -- the document is about to be torn down
+    and the bar goes with it, and releasing on a timer would clear the signal
+    while the person was still waiting -- but it **is** released on
+    `pageshow`, because a bfcache restore brings the page back exactly as it
+    was, bar included.
+  - `ProgressLink` (`src/components/system/ProgressLink.tsx`) does the same
+    for real `<Link>` navigations, which the public Navbar uses. Next's
+    `useLinkStatus` only works *inside* a Link, so the reporter is a child
+    component rendering nothing rather than a hook the wrapper could call.
+  **And every dynamic route has a `loading.tsx`.** A boundary only at each
+  dashboard's root left every sub-route leaning on an ancestor, so the
+  fallback was the wrong shape or absent; all seventeen dashboard
+  sub-routes and the three admin detail routes have their own now, each
+  passing `withSidebar` and a label naming what is coming. On a hard
+  navigation this is what paints first: the server streams the shell and the
+  fallback before the page's own queries resolve, so the new screen arrives
+  as furniture rather than as a wait. The public marketing pages are
+  deliberately left without one -- they are ISR-prerendered, so there is no
+  server wait to cover, and the bar handles the transition.
   **Every dashboard carries one Refresh button**
   (`src/components/dashboard/RefreshButton.tsx`), in the header of both
   shells -- so all four get the same control in the same place. It re-runs

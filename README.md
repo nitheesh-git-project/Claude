@@ -1469,6 +1469,13 @@ of its own:
 - Admins see every note on the patient's condition detail screen, which is
   how the clinic can tell whether care is being delivered and documented.
 
+**Nothing waits without saying so.** A teal bar runs across the top of the
+viewport for any wait longer than 220ms — a navigation, a refresh, a save —
+and every dynamic route has its own skeleton that streams in before the
+page's queries resolve. The three role dashboards navigate with hard
+anchors, so they mark the page as leaving on click; the public site reports
+through its links.
+
 **Every dashboard has a Refresh button** in its header — patient, therapist,
 hospital and admin alike. It re-runs the page's server render and leaves the
 screen's own state alone, unlike a browser reload.

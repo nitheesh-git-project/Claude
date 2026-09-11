@@ -1,6 +1,10 @@
 "use client";
 
-import Link from "next/link";
+// Every public-site navigation goes through the bar. A `<Link>` click never
+// reaches `useRouter`, so nothing told PendingWorkProvider a page change had
+// started -- ProgressLink reports it from inside the link, which is the only
+// place Next's own `useLinkStatus` can be read.
+import Link from "@/components/system/ProgressLink";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";

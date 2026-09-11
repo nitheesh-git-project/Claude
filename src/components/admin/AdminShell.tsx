@@ -6,6 +6,7 @@ import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import AdminGlobalSearch, { type SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import RefreshButton from "@/components/dashboard/RefreshButton";
+import { useLeavingPage } from "@/lib/useLeavingPage";
 import { ADMIN_SECTIONS, findTab, visibleTabs, type AdminSectionKey } from "@/lib/adminNav";
 
 // Every base table this page's Promise.all queries (src/app/admin/dashboard/
@@ -240,6 +241,7 @@ export default function AdminShell({
   );
   // Desktop full <-> mini collapse. Independent of the mobile drawer below --
   // a phone gets an off-canvas drawer instead, never the mini/icon-only rail.
+  const markLeaving = useLeavingPage();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -429,7 +431,12 @@ export default function AdminShell({
       // eslint-disable-next-line @next/next/no-html-link-for-pages
       <a
         href="/"
-        onClick={onNavigate}
+        onClick={() => {
+          // The one hard navigation out of this shell, so the one place the
+          // admin dashboard needs the same treatment the other three do.
+          markLeaving();
+          onNavigate?.();
+        }}
         title={mini ? "Back to Home" : undefined}
         className={`mt-2 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
           mini ? "justify-center px-0" : ""
