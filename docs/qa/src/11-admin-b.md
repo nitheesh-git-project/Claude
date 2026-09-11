@@ -343,6 +343,22 @@ The screen warns you to turn it on only once System Health has been clean.
 * Step 5: an error under the control saying the server could not be reached. Never a button that silently did nothing — an unhandled throw inside the old transition put nothing on screen at all.
 * Step 6: **one** rebuild, not two. `admin_activity_log` sits on the 30-second realtime channel with the other append-only records; while it was on the 2-second one, every admin action anywhere rebuilt every admin's dashboard a second time for the log entry describing it.
 
+#### `ADM-SET-026c` — "Forbidden" means forbidden, and nothing else · P1
+
+**Feature.** Create account intermittently answered **Forbidden** to a Master Admin. The cause was not permissions: this dashboard fires many requests at once, Supabase rotates refresh tokens, and a request carrying one that another request has just rotated comes back with no user — which the guard reported the same way it reports a stranger. A failed profile read did the same.
+
+**Steps**
+1. Create several accounts in a row, quickly, while the dashboard is busy (have a second admin acting at the same time). Watch for any refusal.
+2. As an **Operations** admin, try to create a **Master Admin** from the Account type picker, and POST `/api/admin/create-account` with `{"role":"admin"}` directly.
+3. Signed out entirely, POST the same route.
+4. As an Operations admin, POST it with `{"role":"patient"}`.
+
+**Expected Result**
+* Step 1: **no spurious refusal.** A session blip is answered 401 (*"Your session has expired. Sign in again and retry."*) or 503 (*"Could not check your access just now."*), and the form **retries once by itself** before showing either — both are answered before anything is written, so there is no account to duplicate. What must never appear is *Forbidden* for an admin who is allowed.
+* Step 2: the Back office group is **absent from the picker**, and the direct POST is **403 Forbidden** — flat, with no detail. Only a Master Admin may mint an admin, and the refusal stays opaque so a limited admin cannot map what exists beyond their access.
+* Step 3: **401**, not 403 — being signed out is not a statement about what you may do.
+* Step 4: **succeeds.** Creating a patient is an operations capability.
+
 #### `ADM-SET-026a` — Each scope opens on its own dashboard · P1
 There is one admin login (`/admin/login`) and one dashboard route; the scope decides what it opens on. Sign in as each of the four in turn and read the Today screen without tapping anything.
 

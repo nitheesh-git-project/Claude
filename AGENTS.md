@@ -264,6 +264,24 @@ They are enforced in **two** places and both must stay in place:
 Admin routes go through `src/lib/supabase/requireAdmin.ts`. Never trust a
 role, an id, or an amount sent from the client — re-derive it server-side.
 
+**A check that could not be run is not a check that came back negative.**
+`getAdminUser` collapsed three different outcomes into `null`, and the routes
+turned that into a flat 403: no session, a failed read, and genuinely not
+allowed all said "Forbidden". Two of those are not refusals. The one admins
+actually met is the **session refresh race** — this dashboard fires many
+requests at once, Supabase rotates refresh tokens, and the request carrying
+one another has just rotated comes back with no user — so a Master Admin was
+intermittently told they were not allowed to use a control they use every
+day. `getAdminContextResult()` keeps the reason: `unauthenticated` (401,
+retryable), `unavailable` (the profile read errored — anything but
+`PGRST116`, which is a real "no such row"; 503, retryable), `forbidden`
+(403, and deliberately still opaque so a limited admin cannot map what
+exists beyond their access). `getAdminUser` and `getAdminContext` keep their
+`null` shape, so the 99 routes built on them are unchanged; a route that can
+act on the difference takes the result version instead. A client may retry a
+401 or a 503 **once** — both are answered before anything is written, so
+there is nothing to duplicate — and must not retry anything else.
+
 Admins additionally carry a scope (`profiles.admin_scope`: `full`,
 `operations`, `finance`, `clinical` — see `src/lib/adminScope.ts`), which
 decides which dashboard sections they can open **and at what level**. A

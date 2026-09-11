@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { getAdminContext } from "@/lib/supabase/requireAdmin";
+import { getAdminContextResult } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isValidEmail } from "@/lib/validateEmail";
@@ -53,10 +53,32 @@ type Body = {
 };
 
 export async function POST(request: NextRequest) {
-  const context = await getAdminContext();
-  if (!context) {
+  // Three outcomes, not one. This route answered a flat 403 "Forbidden" for
+  // all of them, and the one an admin actually met was the session refresh
+  // race: the dashboard fires many requests at once, Supabase rotates
+  // refresh tokens, and the one carrying a token another request has just
+  // rotated comes back with no user. Telling a Master Admin they are not
+  // allowed to create an account -- intermittently, on a control they use
+  // every day -- is both false and unactionable. 401 and 503 are retryable
+  // and say so; 403 stays opaque, so a limited admin still cannot map what
+  // exists beyond their access.
+  const guard = await getAdminContextResult();
+  if (!guard.ok) {
+    if (guard.reason === "unauthenticated") {
+      return NextResponse.json(
+        { error: "Your session has expired. Sign in again and retry.", retryable: true },
+        { status: 401 }
+      );
+    }
+    if (guard.reason === "unavailable") {
+      return NextResponse.json(
+        { error: "Could not check your access just now. Please try again.", retryable: true },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const context = guard.context;
 
   const parsed = await parseJsonBody<Body>(request);
   if (parsed.error) return parsed.error;

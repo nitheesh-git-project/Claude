@@ -436,19 +436,32 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
     setError(null);
     setCreated(null);
     try {
-      const res = await fetch("/api/admin/create-account", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        keepalive: true,
-        body: JSON.stringify({
-          role,
-          fullName,
-          email,
-          phone: phone.trim() || null,
-          credentials: credentials.trim() || null,
-          adminScope,
-        }),
+      const body = JSON.stringify({
+        role,
+        fullName,
+        email,
+        phone: phone.trim() || null,
+        credentials: credentials.trim() || null,
+        adminScope,
       });
+      const send = () =>
+        fetch("/api/admin/create-account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          keepalive: true,
+          body,
+        });
+
+      let res = await send();
+      // Retried exactly once, and only on the two statuses the route uses
+      // for "could not check who you are" -- 401 (the session refresh race
+      // this dashboard's own traffic causes) and 503 (the check itself
+      // failed). Both are answered before anything is written, so there is
+      // no account to duplicate; every other failure, including a 500 that
+      // may have written something, is reported as it stands.
+      if (res.status === 401 || res.status === 503) {
+        res = await send();
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? "Could not create the account.");
