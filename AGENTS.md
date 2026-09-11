@@ -2867,6 +2867,27 @@ client is the only writer and the log is append-only from any session.
      is wrapped too -- a request dying on a bad connection threw inside the
      transition and put nothing on screen at all.
 
+- **`/team` is a public page too, and three more routes change it.** The
+  rule below was applied to catalog and content edits and missed the one
+  table whose *account* state decides what the public sees:
+  `public_therapist_profiles` requires `approved and active and
+  visible_on_team`, so suspending a therapist takes them off `/team` -- but
+  `set-therapist-active` never invalidated it, and the page went on serving
+  a suspended clinician until the ISR window happened to lapse. `approve-
+  account` and `create-account` have the same reach in the other direction,
+  since `visible_on_team` defaults to true and a therapist created or
+  approved belongs there at once. All three call `revalidatePath("/team")`
+  now, the two shared routes only when the row is a therapist -- a patient
+  would throw away a cached page for nothing. `decline-account` deliberately
+  does not: a declined account is still unapproved, so it was never on that
+  page to remove.
+  **A control that cannot change what anyone sees says so.** The same three
+  columns mean the "Hide from /team page" button is only the deciding one
+  while the other two hold. It is disabled for a suspended or unapproved
+  therapist and names which of the two is the reason, rather than offering
+  an action that would change nothing. The stored setting is left untouched,
+  so restoring the account brings the therapist back to whatever the admin
+  had chosen rather than to a default.
 - **An admin write that a public page renders must invalidate that page.**
   `/`, `/conditions`, `/book`, `/faq`, `/mission` and `/team` are ISR-cached
   (`export const revalidate = 300`), so a catalog or content edit was

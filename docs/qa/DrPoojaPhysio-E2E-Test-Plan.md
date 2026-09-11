@@ -2904,6 +2904,10 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 **Steps.** Toggle Therapist A inactive, then active.
 **Expected Result.** While inactive: their dashboard redirects to `/account-suspended`, their API routes 403, they disappear from `/team` and from `?therapist=` resolution, and they cannot be assigned. Restoring reverses all of it. **Their existing appointments are unchanged.**
 
+**`/team` must update immediately, not eventually.** Open `/team` in a second tab *before* suspending, suspend, then **reload that tab** — the therapist is gone on the next load, not after the five-minute cache window lapses. The public view already excludes them (`approved and active and visible_on_team`); what was missing was the route telling the cached page. Check the same for **approving** a pending therapist and for **creating** one from User Access — both put a therapist on `/team` at once, since the visibility column defaults to showing. **Declining** a pending signup deliberately does not invalidate anything: an unapproved account was never on that page.
+
+**And the "Hide from /team page" button follows the account.** While the therapist is suspended it is **greyed out and does nothing**, with a line saying they are already off `/team` and that the setting returns as you left it. Same while a therapist is still **pending approval**, worded for that reason instead. Restore them and the button is live again, showing the state it had before — set it to hidden, suspend, restore, and it must still read **Show on /team page**, never reset to the default.
+
 #### `ADM-PEOP-008` — Partners · P1
 Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **Update revenue share**, **Set active/inactive**, **Reset password**, **Referral capacity note**, and **Decline referral** (reason mandatory) all work and are audited.
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import crypto from "crypto";
 import { getAdminContextResult } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -167,6 +168,10 @@ export async function POST(request: NextRequest) {
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
+
+  // A therapist created here arrives approved, active and (by column
+  // default) visible, so they belong on /team from this moment.
+  if (role === "therapist") revalidatePath("/team");
 
   // Best-effort, and deliberately after the profile update: an account that
   // exists with an unreadable password is recoverable by resetting it, while

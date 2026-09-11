@@ -284,6 +284,8 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             <TherapistTeamVisibilityToggle
               therapistId={therapist.id}
               visibleOnTeam={therapist.visible_on_team}
+              active={therapist.active}
+              approved={therapist.approved}
             />
             <TherapistNotAvailableToggle therapistId={therapist.id} onLeave={therapist.on_leave} />
             <TherapistActiveToggle

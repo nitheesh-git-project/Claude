@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: pending } = await admin
     .from("profiles")
-    .select("id")
+    .select("id, role")
     .eq("id", userId)
     .in("role", ["therapist", "patient"])
     .eq("approved", false)
@@ -41,6 +41,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // No /team invalidation here, unlike approve: a declined account is by
+  // definition still unapproved, and the public view requires `approved`, so
+  // it was never on that page to remove.
   await recordAdminActivity(admin, adminUser.id, {
     action: "account.decline",
     targetId: userId,
