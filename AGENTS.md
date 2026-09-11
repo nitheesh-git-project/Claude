@@ -1759,6 +1759,39 @@ client is the only writer and the log is append-only from any session.
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
   runs.
+- **A password this clinic issued is stored; a password the user chose is
+  not, and cannot be.** Supabase keeps a bcrypt hash, so there is no
+  mechanism by which any screen can display a password somebody set
+  themselves -- asking for one is asking for something the database does not
+  contain. What the app does instead is keep the **plaintext it generated**,
+  on four zero-policy tables the service role alone reads
+  (`patient_admin_notes`, `therapist_admin_notes`, `hospital_admin_notes`,
+  `admin_account_notes`), so an admin taking a "it won't let me in" call can
+  read the credential back rather than resetting a working one. Four rules:
+  1. **Every route that generates a password persists it**, the three
+     `reset-*-password` routes and `/api/admin/create-account` alike.
+     Create-account was the one that did not: it returned the password and
+     held it in React state on the User Access screen, so the `profiles`
+     insert it had just made fired a realtime refresh and took the password
+     off the screen mid-sentence. `hospital_admin_notes` exists because the
+     hospital reset button had the identical bug one role earlier -- the
+     shape is known, and a new credential-issuing control must not
+     reintroduce it.
+  2. **It is cleared when they set their own** (`/api/clear-temp-password`,
+     which acts on the caller's own id from their session and never a
+     client-supplied one). That is what makes "still on the password we
+     issued" true rather than stale, and it is why the directory can state
+     which of two states an account is in without ever claiming a third.
+  3. **It never reaches the account owner, and never reaches the log.** The
+     tables carry no RLS policies at all, so a plain column on `profiles`
+     (which `profiles_select_own` would hand straight back) is not an
+     option; and a generated password stays out of `admin_activity_log`,
+     which every admin reads.
+  4. **`admin_account_notes` is deliberately outside the reset's TRUNCATE
+     list**, alone among the four. Notes follow their accounts: the reset
+     deletes every patient, therapist and hospital, and keeps every admin --
+     so emptying this one would strip a working credential off an account
+     the reset had just decided to keep.
 - **User Access is where the access model is read, and it is derived.**
   Settings → User Access is one screen doing what two half-screens did: the
   back-office directory (who can sign in, at what level, and whether they

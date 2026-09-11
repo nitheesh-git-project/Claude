@@ -300,7 +300,30 @@ The screen warns you to turn it on only once System Health has been clean.
 #### `ADM-SET-026` — Create the three scoped admins · P0
 **Steps.** Create `qa.admin.ops@example.test` (Operations), `qa.admin.finance@example.test` (Finance), `qa.admin.clinical@example.test` (Clinical).
 **The Account type picker is one control, not two.** It lists six entries in two groups — **Clinic**: Patient, Therapist · **Back office**: Master Admin, Operations, Finance, Clinical — using the same four names the dashboards call themselves. There is no separate **Access level** dropdown; picking a back-office desk shows that desk's one-line description under the picker. As a **non-`full`** admin, the whole Back office group is **absent** (only a Master Admin may mint an admin, and `create-account` enforces that with a full-only check, not a section gate — see §2).
-**Expected Result.** Each is created with a one-time password shown once and **never logged**. Signing in as each shows only their allowed sections in the sidebar — Operations: Today, Sessions, People, Catalog. Finance: Today, **Sessions (read-only)**, People, Money. Clinical: Today, Sessions, People.
+**Expected Result.** Each is created with a generated password that is shown on the panel **and kept on that admin's own row in Back office** until they set their own, and is **never logged** (`ADM-SET-026b`). Signing in as each shows only their allowed sections in the sidebar — Operations: Today, Sessions, People, Catalog. Finance: Today, **Sessions (read-only)**, People, Money. Clinical: Today, Sessions, People.
+
+#### `ADM-SET-026b` — The issued password survives, and the chosen one is never shown · P0
+
+**Feature.** Every route in this app that generates a password now stores the plaintext on a service-role-only table, so a credential cannot be lost to a re-render. Create-account was the last one that did not: it held the password in React state alone, and the `profiles` row it had just inserted fired a realtime refresh that took it off the screen mid-sentence.
+
+**Steps**
+1. Create a back-office account. **Without touching anything**, wait for the dashboard to refresh (or have a second admin approve something so a realtime event fires).
+2. Reload the page entirely and open **Settings → User Access**.
+3. Press **Copy** on that row.
+4. Create a **patient** and a **therapist** the same way, then open each of their profiles under **People**.
+5. Sign in as the new admin and change the password through the forgot-password flow. Reopen User Access.
+6. Look for anywhere in the product that displays the password they just chose.
+7. **[SQL]** `select * from admin_account_notes;` as an authenticated non-service-role session.
+8. **[SQL]** Search `admin_activity_log` for any generated password.
+
+**Expected Result**
+* Steps 1–2: the password is **still readable** on that admin's row — the panel going away does not lose it. The row reads *Still on the password we issued*, with the date it was issued.
+* Step 3 puts it on the clipboard.
+* Step 4: the same password appears on the patient's and the therapist's profile, in the existing **Current admin-set password** panel beside Reset Password.
+* Step 5: the row now reads **Signing in with their own password** and the password is gone — cleared by `/api/clear-temp-password`, so the screen never offers a credential that no longer works.
+* Step 6: **nowhere, by design.** A password somebody chose is stored by Supabase as a bcrypt hash and cannot be read back by this app or anyone else. The lane for a locked-out account is **Reset Password**, which issues a new one and puts the row back into the first state.
+* Step 7: **no rows** — the table carries no RLS policies at all, so only the service role reads it. A plain column on `profiles` would be handed straight back to the account owner by `profiles_select_own`, which is why these four tables exist.
+* Step 8: **no password anywhere in the log**, which every admin can read.
 
 #### `ADM-SET-026a` — Each scope opens on its own dashboard · P1
 There is one admin login (`/admin/login`) and one dashboard route; the scope decides what it opens on. Sign in as each of the four in turn and read the Today screen without tapping anything.

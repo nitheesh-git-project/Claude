@@ -9284,3 +9284,39 @@ $$;
 revoke all on function public.purge_admin_activity_log(integer) from public;
 revoke all on function public.purge_admin_activity_log(integer) from anon;
 revoke all on function public.purge_admin_activity_log(integer) from authenticated;
+
+-- --------------------------------------------------------------------------
+-- admin_account_notes: the fourth and last of the temp-password tables
+-- --------------------------------------------------------------------------
+-- Same table as patient_admin_notes / therapist_admin_notes /
+-- hospital_admin_notes, for back-office accounts. It exists because
+-- /api/admin/create-account was the one credential-issuing route in this app
+-- that persisted nothing: the generated password lived in React state on the
+-- User Access screen and nothing else, so any re-render took it away -- and
+-- the admin dashboard re-renders on every realtime event, including the
+-- `profiles` insert that route had just made. That is the identical failure
+-- the hospital table above was added for, one role later.
+--
+-- Zero RLS policies on purpose, exactly like its three siblings: the
+-- service-role client is the only reader and writer, so a plaintext
+-- credential cannot reach the account owner's own session. It is cleared the
+-- moment that admin sets their own password (see /api/clear-temp-password),
+-- which is what keeps "still on the password we issued" an honest thing for
+-- the directory to say.
+--
+-- It carries no `note` column -- there is no admin-notes UI for a back-office
+-- account and inventing one here would be a second place to write something
+-- about a colleague.
+--
+-- **Deliberately not in debug_reset_all_data()'s TRUNCATE list**, unlike its
+-- three siblings. Notes follow their accounts: the reset deletes every
+-- patient, therapist and hospital, so their rows here are orphans, while it
+-- keeps every admin login on purpose -- and emptying this table would strip
+-- the working credential off an account the reset had just decided to keep.
+create table if not exists admin_account_notes (
+  admin_id uuid primary key references profiles(id) on delete cascade,
+  temp_password text,
+  temp_password_set_at timestamptz
+);
+
+alter table admin_account_notes enable row level security;

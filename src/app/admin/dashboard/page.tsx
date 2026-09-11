@@ -652,6 +652,7 @@ export default async function AdminDashboardPage({
     categorySpecialtyRows,
     testimonialAvatarRows,
     hospitalNotes,
+    adminAccountNotes,
     googleConnection,
     syncModeRows,
   ] = await Promise.all([
@@ -712,6 +713,20 @@ export default async function AdminDashboardPage({
             .in("hospital_id", hospitalIds)
         ).data,
       null as { hospital_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
+    ),
+    // The password this clinic issued to each back-office account, still
+    // outstanding. In this batch rather than the main one because
+    // admin_account_notes is the newest table in the file: a database that
+    // has not applied it yet loses one column of the directory rather than
+    // every screen on this page.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("admin_account_notes")
+            .select("admin_id, temp_password, temp_password_set_at")
+        ).data,
+      null as { admin_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
     ),
     // One outbound call to Google, memoized for ten minutes, so the System
     // Health screen can say whether the account is still connected rather
@@ -2630,6 +2645,8 @@ export default async function AdminDashboardPage({
     />
   );
 
+  const adminNoteMap = new Map((adminAccountNotes ?? []).map((n) => [n.admin_id, n]));
+
   const adminRows: AdminRow[] = (allProfiles ?? [])
     .filter((p) => p.role === "admin")
     .map((p) => ({
@@ -2643,6 +2660,13 @@ export default async function AdminDashboardPage({
       // role's screens give it.
       active: p.active !== false,
       isSelf: p.id === user.id,
+      // The password this clinic issued them, while it is still the one they
+      // sign in with. Null once they have set their own -- a password a
+      // person chose is a bcrypt hash and can never be read back, so the
+      // directory says which of the two states an account is in rather than
+      // pretending to know a secret it does not have.
+      tempPassword: adminNoteMap.get(p.id)?.temp_password ?? null,
+      tempPasswordSetAt: adminNoteMap.get(p.id)?.temp_password_set_at ?? null,
     }));
 
   // Who can reach this dashboard and what they get when they do, plus the

@@ -20,10 +20,24 @@ import { ADMIN_SCOPES, type AdminScope } from "@/lib/adminScope";
 // trusting user_metadata (the handle_new_user trigger ignores anything but
 // 'therapist' there on purpose).
 //
-// The temporary password is returned once, in this response, and never
-// stored for patients/therapists -- the admin reads it out and the person
-// changes it. Hospitals keep theirs in hospital_admin_notes because that
-// flow needs it re-displayable; nothing here needs that.
+// The temporary password is **persisted**, in the same per-role
+// `*_admin_notes` table the three reset-password routes already write to,
+// and returned in this response as well.
+//
+// It used to be returned and nothing else -- shown once on the User Access
+// screen and held in React state alone. That made losing it a matter of
+// timing rather than of carelessness: this route inserts a `profiles` row,
+// `profiles` is one of the admin dashboard's realtime tables, and the
+// resulting `router.refresh()` lands while the admin is still reading the
+// password out. The hospital table above was added for exactly this failure
+// on exactly this kind of control; this is the same fix for the last role
+// that lacked it.
+//
+// The row is cleared the moment that person sets their own password
+// (/api/clear-temp-password), so "still on the password we issued" stays a
+// true statement rather than a stale one. A password the *user* chose is
+// never recoverable and is never stored: Supabase keeps a bcrypt hash, and
+// the honest answer for an account in that state is to reset it.
 
 function generatePassword() {
   return crypto.randomBytes(9).toString("base64url");
@@ -132,6 +146,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
+  // Best-effort, and deliberately after the profile update: an account that
+  // exists with an unreadable password is recoverable by resetting it, while
+  // failing the whole request here would leave a created auth user behind
+  // with the caller told it had failed. The response still carries the
+  // password, so the admin in front of the screen is not affected either way.
+  const notesTable =
+    role === "patient"
+      ? "patient_admin_notes"
+      : role === "therapist"
+        ? "therapist_admin_notes"
+        : "admin_account_notes";
+  const notesKey =
+    role === "patient" ? "patient_id" : role === "therapist" ? "therapist_id" : "admin_id";
+  const { error: noteError } = await admin.from(notesTable).upsert({
+    [notesKey]: created.user.id,
+    temp_password: password,
+    temp_password_set_at: new Date().toISOString(),
+  });
+  if (noteError) {
+    console.error("create-account: temp password not persisted", noteError.message);
+  }
+
+  // The generated password is deliberately NOT in the log -- it is a live
+  // credential and admin_activity_log is readable by every admin. Who was
+  // created, by whom and when is the part with audit value.
   await recordAdminActivity(admin, context.id, {
     action: "account.create",
     targetId: created.user.id,

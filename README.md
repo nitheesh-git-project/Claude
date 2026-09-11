@@ -1358,6 +1358,14 @@ allowed to see. One grant is `view` today: **finance reads Sessions**, so
 the person reconciling the books can see what a payment bought without
 being able to cancel or reassign it.
 
+**Settings → User Access** also shows, on each row, whether that admin is
+still signing in with the password the clinic issued them — readable there,
+with a Copy button, until they set their own, at which point the row says so
+instead. A password somebody chose themselves is a bcrypt hash and can never
+be displayed; the lane for an account in that state is a reset, which issues
+a new one. The same pair of states is on a patient's and a therapist's
+profile under People, and on a partner hospital's card.
+
 **Settings → User Access** is where that model is read: the back-office
 directory (who can sign in, at what level, and whether they still can) and a
 matrix of what each of the four desks can do, rows in plain words and

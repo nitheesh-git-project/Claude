@@ -6,6 +6,7 @@ import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import Spinner from "@/components/system/Spinner";
+import { formatIST } from "@/lib/formatIST";
 import {
   ACCESS_LEVEL_LABELS,
   ADMIN_CAPABILITY_GROUPS,
@@ -49,6 +50,13 @@ export type AdminRow = {
   scope: AdminScope;
   active: boolean;
   isSelf: boolean;
+  /** The password this clinic issued, while it is still the one they sign in
+   *  with. Null once they have set their own: a password a person chose is
+   *  stored as a bcrypt hash and can never be read back, so the two states
+   *  this pair can be in are "still on ours" and "theirs now" -- never "here
+   *  is the one they picked". */
+  tempPassword?: string | null;
+  tempPasswordSetAt?: string | null;
 };
 
 const LEVEL_STYLE: Record<AccessLevel, { chip: string; mark: string; icon: string }> = {
@@ -261,6 +269,94 @@ function AccessMatrix() {
   );
 }
 
+// What was just created, and where to find the password again.
+//
+// The last line is the point of it: an admin who closes this needs to know
+// the credential is not gone, and where it went depends on the role they
+// picked -- a back-office account carries it on its own row in the directory
+// above, a patient or therapist on their profile page under People.
+function CreatedAccountPanel({
+  created,
+}: {
+  created: { email: string; password: string; role: string };
+}) {
+  const [copied, setCopied] = useState(false);
+  const whereItLives =
+    created.role === "admin"
+      ? "It stays on their row in Back office above until they set their own."
+      : "It stays on their profile under People until they set their own.";
+
+  return (
+    <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900">
+      <p className="font-bold">Account created.</p>
+      <p className="mt-1 flex flex-wrap items-center gap-2">
+        {created.email} · temporary password{" "}
+        <span className="font-mono font-bold">{created.password}</span>
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard.writeText(created.password);
+            setCopied(true);
+          }}
+          className="rounded-lg border border-teal-300 bg-white px-2 py-1 font-semibold text-teal-800 transition hover:bg-teal-100"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </p>
+      <p className="mt-1 text-teal-700">
+        This platform sends no email, so read it out to them. {whereItLives}
+      </p>
+    </div>
+  );
+}
+
+// Which password a back-office account is signing in with.
+//
+// Two states, and the screen says which -- it never claims a third. While
+// the clinic's own issued password is still in use it is readable here, so
+// an admin taking a call about "it won't let me in" can read it back
+// instead of resetting a working credential; once that person sets their
+// own, the row is cleared by /api/clear-temp-password and this says so. A
+// password somebody chose themselves is a bcrypt hash in Supabase's own
+// table and cannot be displayed by anyone, this app included -- the lane for
+// an account in that state is a reset, which issues a new one and puts the
+// row back into the first state.
+function IssuedPassword({ row }: { row: AdminRow }) {
+  const [copied, setCopied] = useState(false);
+
+  if (!row.tempPassword) {
+    return (
+      <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-slate-400">
+        <i aria-hidden className="fa-solid fa-lock text-[9px]" />
+        Signing in with their own password
+      </p>
+    );
+  }
+
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+      <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-amber-900">
+        <i aria-hidden className="fa-solid fa-key text-[9px]" />
+        Still on the password we issued:{" "}
+        <strong className="font-mono font-bold">{row.tempPassword}</strong>
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          navigator.clipboard.writeText(row.tempPassword ?? "");
+          setCopied(true);
+        }}
+        className="rounded-lg border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-600 transition hover:bg-slate-50"
+      >
+        {copied ? "Copied" : "Copy"}
+      </button>
+      {row.tempPasswordSetAt && (
+        <span className="text-slate-400">Issued {formatIST(row.tempPasswordSetAt)}</span>
+      )}
+    </p>
+  );
+}
+
 function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
   const [accountType, setAccountType] = useState<AccountTypeValue>("patient");
   const { role, adminScope } = parseAccountType(accountType);
@@ -269,7 +365,9 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
   const [phone, setPhone] = useState("");
   const [credentials, setCredentials] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
+  const [created, setCreated] = useState<
+    { email: string; password: string; role: string } | null
+  >(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   useUnloadWarning(isPending);
@@ -298,10 +396,15 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
         setError(data.error ?? "Could not create the account.");
         return;
       }
-      // Shown once and never stored for these roles -- read it out, then it
-      // is gone. Kept on screen until the admin navigates away rather than
-      // auto-dismissed, since losing it means resetting the password.
-      setCreated({ email, password: data.password });
+      // The password is stored as well as shown now, so this panel going
+      // away no longer loses it -- a back-office account keeps it on its own
+      // row in the directory above, and a patient or therapist on their
+      // profile page, until they set their own. It used to live here and
+      // nowhere else, which made losing it a matter of timing: this request
+      // inserts a `profiles` row, that table is one the dashboard subscribes
+      // to, and the realtime refresh it triggers arrives while the admin is
+      // still reading the password out.
+      setCreated({ email, password: data.password, role });
       setFullName("");
       setEmail("");
       setPhone("");
@@ -405,8 +508,9 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
         </div>
       )}
       <p className="text-[11px] text-slate-400">
-        The account is created already approved — you vetted it by creating it — and a one-time
-        password is shown here once. This platform sends no email, so read it out yourself.
+        The account is created already approved — you vetted it by creating it — and a
+        temporary password is generated. It stays readable until they set their own, so
+        closing this does not lose it.
       </p>
 
       {error && (
@@ -414,18 +518,7 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
           {error}
         </p>
       )}
-      {created && (
-        <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900">
-          <p className="font-bold">Account created.</p>
-          <p className="mt-1">
-            {created.email} · temporary password{" "}
-            <span className="font-mono font-bold">{created.password}</span>
-          </p>
-          <p className="mt-1 text-teal-700">
-            This is the only time it is shown. Tell them to change it after signing in.
-          </p>
-        </div>
-      )}
+      {created && <CreatedAccountPanel created={created} />}
 
       <button
         type="submit"
@@ -551,6 +644,7 @@ export default function AdminUserAccessTab({
                       </span>
                     </p>
                     <p className="text-slate-500">{a.email}</p>
+                    <IssuedPassword row={a} />
                     <p className="mt-1 text-[11px] text-slate-400">{ADMIN_SCOPE_BLURBS[a.scope]}</p>
                   </div>
                   <div className="flex items-center gap-3">
