@@ -18,6 +18,7 @@ export type MoneyAlertKey =
   | "payout_requests"
   | "cash_to_remit"
   | "manual_refunds"
+  | "refunds_failed"
   | "unmatched_payments";
 
 export type MoneyAlert = {
@@ -28,7 +29,7 @@ export type MoneyAlert = {
   hint: string;
   /** Which admin section the fix lives in, so an unreachable one is dropped
    *  rather than rendered as a link that lands somewhere else. */
-  section: "money" | "settings";
+  section: "money" | "settings" | "sessions";
   tab: string;
   /** Preset the target screen applies to its own filters on arrival. */
   view?: string;
@@ -39,7 +40,15 @@ export type MoneyAlert = {
 export type MoneyAlertCounts = {
   payoutRequestsOpen: number;
   cashToRemitVisits: number;
+  /** Cash visits and sessions alike: both are money a patient is owed and
+   *  does not have, and splitting them into two rows would make an admin
+   *  add up their own total. */
   manualRefundsPending: number;
+  /** Refunds the gateway refused. Counted separately because the work is
+   *  different -- one is "go and hand over cash", the other is "find out
+   *  why Razorpay said no" -- and because nothing else in the app was
+   *  watching them at all. */
+  refundsFailed: number;
   /** Captured payments nothing in the app is attached to. Read from the same
    *  accounting check System Health reports on. */
   unmatchedPayments: number;
@@ -78,6 +87,17 @@ export function buildMoneyAlerts(
       section: "money",
       tab: "payouts",
       // A patient is owed money and does not have it.
+      urgent: true,
+    },
+    {
+      key: "refunds_failed",
+      label: "Refunds that failed",
+      count: counts.refundsFailed,
+      hint: "The gateway refused the refund, so the patient is still out of pocket and is being told to contact you. Open the session and refund it again.",
+      section: "sessions",
+      tab: "all",
+      view: "refund_failed",
+      // Money the clinic has agreed to return and has not returned.
       urgent: true,
     },
     {

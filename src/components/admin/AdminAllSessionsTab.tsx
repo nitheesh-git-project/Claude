@@ -217,6 +217,9 @@ export default function AdminAllSessionsTab({
       else if (viewParam === "completed") setStatusFilter("completed");
       else if (viewParam === "home_visit") setModeFilter("home_visit");
       else if (viewParam === "unpaid") setPaymentFilter("unpaid");
+      else if (viewParam === "refunded") setPaymentFilter("refunded");
+      else if (viewParam === "refund_failed") setPaymentFilter("refund_failed");
+      else if (viewParam === "refund_pending") setPaymentFilter("refund_pending");
       else if (viewParam === "today") {
         const key = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
         setFromDate(key);
@@ -288,7 +291,22 @@ export default function AdminAllSessionsTab({
         if (statusFilter === "no_show") return a.no_show;
         return a.status === statusFilter;
       })
-      .filter((a) => paymentFilter === "all" || a.payment_status === paymentFilter)
+      // The last three are refund states, not payment ones: payment_status
+      // is CHECKed to unpaid/paid/failed and can never hold "refunded", so
+      // the Refunded option matched nothing at all and quietly returned an
+      // empty table. A refund lives on refund_status, which is where the
+      // money column's own chip reads it from.
+      .filter((a) =>
+        paymentFilter === "all"
+          ? true
+          : paymentFilter === "refunded"
+            ? a.refund_status === "processed"
+            : paymentFilter === "refund_failed"
+              ? a.refund_status === "failed"
+              : paymentFilter === "refund_pending"
+                ? a.refund_status === "manual_pending"
+                : a.payment_status === paymentFilter
+      )
       .filter((a) => therapistFilter === "all" || a.therapist_id === therapistFilter)
       .filter((a) => patientFilter === "all" || a.patient_id === patientFilter);
 
@@ -590,6 +608,8 @@ export default function AdminAllSessionsTab({
             <option value="paid">Paid</option>
             <option value="unpaid">Unpaid</option>
             <option value="refunded">Refunded</option>
+            <option value="refund_pending">Refund to hand back</option>
+            <option value="refund_failed">Refund failed</option>
           </select>
           <select
             value={therapistFilter}

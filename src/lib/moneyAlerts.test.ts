@@ -9,12 +9,31 @@ const NONE: MoneyAlertCounts = {
   payoutRequestsOpen: 0,
   cashToRemitVisits: 0,
   manualRefundsPending: 0,
+  refundsFailed: 0,
   unmatchedPayments: 0,
 };
 
 const ALL_SECTIONS = ["today", "sessions", "people", "money", "catalog", "settings"];
 
 describe("buildMoneyAlerts", () => {
+  // A refund the gateway refused is fixed on the session, not on Payouts --
+  // and the patient's own screen is already telling them to ring the clinic
+  // about it, so the clinic has to be able to find the row.
+  it("sends a failed refund to the sessions it happened on", () => {
+    const alerts = buildMoneyAlerts({ ...NONE, refundsFailed: 1 }, ALL_SECTIONS);
+    expect(alerts.map((a) => a.key)).toEqual(["refunds_failed"]);
+    expect(alerts[0].section).toBe("sessions");
+    expect(alerts[0].view).toBe("refund_failed");
+    expect(alerts[0].urgent).toBe(true);
+  });
+
+  // The same rule every other item follows: a link a desk cannot follow is
+  // dropped rather than written carefully.
+  it("drops a failed refund for a desk that cannot work sessions", () => {
+    const alerts = buildMoneyAlerts({ ...NONE, refundsFailed: 3 }, ["today", "money", "people"]);
+    expect(alerts).toHaveLength(0);
+  });
+
   it("says nothing when nothing is waiting", () => {
     const alerts = buildMoneyAlerts(NONE, ALL_SECTIONS);
     expect(alerts).toHaveLength(0);
@@ -49,12 +68,18 @@ describe("buildMoneyAlerts", () => {
         payoutRequestsOpen: 1,
         cashToRemitVisits: 1,
         manualRefundsPending: 1,
+        refundsFailed: 1,
         unmatchedPayments: 1,
       },
       ALL_SECTIONS
     );
     const urgent = alerts.filter((a) => a.urgent).map((a) => a.key);
-    expect(urgent).toEqual(["cash_to_remit", "manual_refunds", "unmatched_payments"]);
+    expect(urgent).toEqual([
+      "cash_to_remit",
+      "manual_refunds",
+      "refunds_failed",
+      "unmatched_payments",
+    ]);
   });
 
   it("counts things, not rows of the list", () => {
@@ -74,6 +99,7 @@ describe("buildMoneyAlerts", () => {
         payoutRequestsOpen: 1,
         cashToRemitVisits: 1,
         manualRefundsPending: 1,
+        refundsFailed: 1,
         unmatchedPayments: 1,
       },
       ALL_SECTIONS

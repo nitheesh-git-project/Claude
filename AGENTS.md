@@ -751,6 +751,24 @@ client is the only writer and the log is append-only from any session.
   session that was partly refunded; the refund is its own field beside the
   stage rather than folded into it, or a delivered session would read
   "Refunded".
+  **A refund that is owed is a queue, and both tables are in it.** Money ->
+  the alerts strip and Today's inbox count `manual_pending` across **cash
+  visits and sessions alike** -- the count was home-visit rows only, so a
+  session refunded by hand was work no screen could see -- and they count
+  `failed` as its own row, which nothing in the app was watching at all. The
+  two are separate because the work is: one is "go and hand over cash", the
+  other is "find out why the gateway said no". A failed refund's row belongs
+  to **Sessions**, not Money, because that is where it is fixed, which is
+  also why `MoneyAlertsStrip` takes `workableSections` rather than
+  `allowedSections`: Finance reads Sessions without being able to change one,
+  so counting a failed session refund on their strip would put a figure on
+  their screen that nothing they could do would bring down -- the same rule
+  `visibleQueueTotal` already follows. `AdminAllSessionsTab` takes
+  `refunded`, `refund_pending` and `refund_failed` presets so each count
+  opens exactly the rows it counted. Its **Refunded** payment-filter option
+  matched nothing at all before this: `payment_status` is CHECKed to
+  `unpaid` / `paid` / `failed` and can never hold `refunded`, so the filter
+  silently returned an empty table. A refund lives on `refund_status`.
 - **Cancellation/refund**: full refund only outside the 24-hour window in
   `src/lib/pricing.ts`; inside it, none. Home visits use their own window
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) —

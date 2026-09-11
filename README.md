@@ -805,6 +805,20 @@ completed appeared on none of these before: the receipt's `stage` has no
 honest value for it, so the refund is its own field beside the stage rather
 than folded into it.
 
+**A refund the clinic still owes is counted.** Money's alerts strip and the
+admin Today inbox carry two refund rows: *Refunds to hand back*
+(`manual_pending`, counted across cash visits **and** sessions — it was
+home-visit rows only, so a session refunded by hand was invisible) and
+*Refunds that failed*, which nothing was watching before. A failed refund
+links to **Sessions → All Sessions** with a `refund_failed` preset, because
+that is where it is fixed; the strip is therefore gated on workable sections
+rather than merely open ones, so Finance — who read Sessions without being
+able to change one — are not shown a figure they cannot bring down. That
+screen's payment filter also gained `refund_pending` and `refund_failed`, and
+its existing **Refunded** option now works: `payment_status` is CHECKed to
+`unpaid`/`paid`/`failed` and can never hold `refunded`, so it had been
+returning an empty table.
+
 ## Discounts
 
 Four, and deliberately no more.

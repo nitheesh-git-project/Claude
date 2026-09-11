@@ -3323,9 +3323,19 @@ export default async function AdminDashboardPage({
   const cashOwedByTherapists = homeVisitRows.filter(
     (v) => v.cash_collected_at && !v.cash_remitted_at
   ).length;
-  const manualRefundsPending = homeVisitRows.filter(
-    (v) => v.refund_status === "manual_pending"
-  ).length;
+  // Both tables, deliberately. A session refunded by hand and a cash visit
+  // refunded by hand are the same job and the same money a patient is owed;
+  // counting only the visits meant a session at manual_pending was work
+  // nobody could see from any screen.
+  const manualRefundsPending =
+    homeVisitRows.filter((v) => v.refund_status === "manual_pending").length +
+    appointmentsWithSessionCode.filter((a) => a.refund_status === "manual_pending").length;
+  // A refund the gateway refused. Nothing in this app was watching these at
+  // all -- the patient's own screen now tells them to contact the clinic,
+  // so the clinic needs the same list.
+  const refundsFailed =
+    homeVisitRows.filter((v) => v.refund_status === "failed").length +
+    appointmentsWithSessionCode.filter((a) => a.refund_status === "failed").length;
 
   const inboxGroups: InboxGroup[] = [
     {
@@ -3443,11 +3453,20 @@ export default async function AdminDashboardPage({
           hint: "A therapist has asked to be paid.",
         },
         {
-          label: "Cash refunds to hand back",
+          label: "Refunds to hand back",
           count: manualRefundsPending,
           section: "money",
           tab: "payouts",
-          hint: "Cash was collected and the visit was cancelled — no Razorpay refund exists.",
+          hint: "Money a patient is owed with no card payment to reverse — hand it over, then confirm it here.",
+          urgent: true,
+        },
+        {
+          label: "Refunds that failed",
+          count: refundsFailed,
+          section: "sessions",
+          tab: "all",
+          view: "refund_failed",
+          hint: "The gateway refused the refund. The patient is still out of pocket and has been told to contact you.",
           urgent: true,
         },
         {
@@ -3590,9 +3609,14 @@ export default async function AdminDashboardPage({
         payoutRequestsOpen: payoutRequestsBadgeCount,
         cashToRemitVisits: cashOwedByTherapists,
         manualRefundsPending,
+        refundsFailed,
         unmatchedPayments: accountingHealth.unmatchedPayments.length,
       }}
-      reachableSections={allowedSections}
+      // Workable, not merely open: every row on this strip is a job, and
+      // Finance reads Sessions without being able to change one -- so a
+      // failed session refund is not theirs to fix and counting it on their
+      // screen would be a figure nothing they could do would bring down.
+      reachableSections={workableSections}
     />
   );
 
