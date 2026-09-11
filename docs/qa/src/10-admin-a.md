@@ -71,6 +71,12 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** Approve one request; decline another with a reason.
 **Expected Result.** Approving writes the new value onto the profile; declining does not. Both are audited. A stale decision on an already-decided request is refused with `This request has already been reviewed`.
 
+#### `ADM-RISK-003` — Each desk reads its own signals; the trails stay closed · P0
+
+**Steps.** With at least one open signal from a money rule (`cash_variance`) and one from a sessions rule (`contact_leak`), open **Today → Risk** as **Finance**, then as **Operations**, then as **Admin Full**.
+**Expected Result.** Finance sees the money signals and **not** `contact_leak`; Operations and Clinical see the sessions signals and **not** `cash_variance`; Admin Full sees both. Each scoped screen carries `Only the signals your desk can act on are shown here.` — a filtered queue that looks complete is worse than one that says what it is. A scoped desk can **review** its own signals (the route is `today`-scoped, which every desk manages).
+**What stays closed:** **Flagged messages**, the **contact-reveal trail** and the **thresholds** render for **Admin Full only**. Those quote what a colleague wrote and name every patient contact a therapist opened — the reading the whole queue used to be shut for — and a threshold is configuration. If a scoped admin can see any of the three, that is a P0.
+
 #### `ADM-RISK-001` — The Risk queue · P1
 
 **Feature.** Suspicious patterns surface here, written by a **bounded lazy sweep after the Today render** — a wall-clock budget checked between rules, and a five-minute minimum interval, because realtime refreshes this page on every booking.

@@ -39,6 +39,7 @@ import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
 import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
 import { buildSystemHealth, summarizeHealth } from "@/lib/systemHealth";
 import { activityScopeNote, filterActivityForViewer } from "@/lib/activityScope";
+import { riskRulesForSections } from "@/lib/riskSignals";
 import { googleConnectionCheckedAt } from "@/lib/googleConnectionHealth";
 import {
   applyLedgerSessionBalances,
@@ -2729,7 +2730,11 @@ export default async function AdminDashboardPage({
     enabled: boolean;
     config: unknown;
   };
-  const viewerCanSeeRisk = viewerScope === "full";
+  // Every desk with at least one rule of its own now reads this queue --
+  // see RISK_RULE_DOMAIN. A desk with none (nobody, today) still pays
+  // nothing: the two queries below are skipped entirely.
+  const viewerRiskRules = riskRulesForSections(workableSections);
+  const viewerCanSeeRisk = viewerScope === "full" || viewerRiskRules.length > 0;
   const { data: riskSignalRows } = viewerCanSeeRisk
     ? await admin
     .from("risk_signals")
@@ -2843,7 +2848,13 @@ export default async function AdminDashboardPage({
     createdAt: r.created_at,
   }));
 
-  const riskSignals: RiskSignalRow[] = (riskSignalRows ?? []).map((r) => ({
+  const readableRuleKeys = new Set<string>(viewerRiskRules);
+  const riskSignals: RiskSignalRow[] = (riskSignalRows ?? [])
+    // A Master Admin reads the whole queue; every other desk reads the rules
+    // it can act on. Filtered here rather than in the query so the rule list
+    // and the signal list are decided by one module.
+    .filter((r) => viewerScope === "full" || readableRuleKeys.has(r.rule_key))
+    .map((r) => ({
     id: r.id,
     ruleKey: r.rule_key,
     subjectKind: r.subject_kind as RiskSubjectKind,
@@ -2865,12 +2876,14 @@ export default async function AdminDashboardPage({
     createdAt: r.created_at,
   }));
 
-  // The whole queue is `full` scope only, not merely the deciding. A signal
-  // names a colleague and quotes what they wrote; an operations admin who
-  // needs the bookings screen has no business reading that. The routes
-  // enforce it and the screen matches, rather than handing a scoped admin a
-  // 403 with nothing to explain it.
+  // The findings are scoped by desk; the *evidence trails* are not. A
+  // flagged message quotes what a therapist wrote and the reveal log names
+  // every patient contact they opened, which is the reading the whole queue
+  // used to be closed for -- so those two panels, and the thresholds that
+  // decide what fires at all, stay with the Master Admin while each desk
+  // works its own signals.
   const canSeeRisk = viewerCanSeeRisk;
+  const canSeeRiskTrails = viewerScope === "full";
   const openRiskCount = canSeeRisk
     ? riskSignals.filter((r) => r.status === "open").length
     : 0;
@@ -2879,8 +2892,8 @@ export default async function AdminDashboardPage({
     <SurfaceCard title="Risk signals" icon="fa-triangle-exclamation">
       <EmptyState
         icon="fa-lock"
-        title="Master Admin only"
-        body="These findings name individual therapists and quote what they wrote, so they are limited to the Master Admin dashboard."
+        title="Nothing here for your desk"
+        body="Risk signals are grouped by the desk that can act on them, and none of the rules belong to yours."
       />
     </SurfaceCard>
   ) : (
@@ -2898,6 +2911,12 @@ export default async function AdminDashboardPage({
       reveals={riskReveals}
       detectorsEnabled={adminSettings.riskSignalsEnabled}
       canReview
+      canSeeTrails={canSeeRiskTrails}
+      scopeNote={
+        viewerScope === "full"
+          ? null
+          : "Only the signals your desk can act on are shown here."
+      }
     />
   );
 

@@ -113,3 +113,45 @@ export function belowRate(
 export function countPhrase(n: number, singular: string, plural?: string): string {
   return `${n} ${n === 1 ? singular : (plural ?? `${singular}s`)}`;
 }
+
+/**
+ * Which desk each rule belongs to.
+ *
+ * The queue was Master-Admin-only, on the reasoning that a signal names a
+ * colleague and quotes what they wrote. That reasoning holds for the
+ * *evidence trails* -- the flagged messages and the contact-reveal log --
+ * and it does not hold for the findings themselves: a cash variance is
+ * finance's work and a session completed with no payment behind it is the
+ * money desk's question, and neither is answerable by somebody who never
+ * sees it.
+ *
+ * So the findings are scoped by domain and the trails stay where they were.
+ * A limited desk sees the rules it can act on, reviews them like any other
+ * queue, and does not get the raw quoted text or the reveal log.
+ */
+export const RISK_RULE_DOMAIN: Record<RiskRuleKey, "sessions" | "money"> = {
+  // A therapist and a patient arranging to carry on privately: clinical and
+  // operations work, on the sessions screens where those two meet.
+  contact_leak: "sessions",
+  contact_reveal_volume: "sessions",
+  // Delivery questions: was this session really run, and was it run early.
+  early_completion: "sessions",
+  post_consultation_dropout: "sessions",
+  plan_conversion_low: "sessions",
+  // Money questions, and the reason finance has a queue at all: a session
+  // marked delivered with nothing behind it, cash that does not reconcile,
+  // and an admin moving balances by hand.
+  completion_without_payment: "money",
+  cash_variance: "money",
+  manual_adjustment_volume: "money",
+};
+
+/** The rules a desk may read, given the sections it can work. A Master
+ *  Admin passes every section and so gets all of them. */
+export function riskRulesForSections(
+  workableSections: readonly string[]
+): RiskRuleKey[] {
+  return RISK_RULE_KEYS.filter((key) =>
+    workableSections.includes(RISK_RULE_DOMAIN[key])
+  );
+}

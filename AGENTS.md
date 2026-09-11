@@ -849,9 +849,18 @@ client is the only writer and the log is append-only from any session.
   and the two rules that need a clinic baseline (`plan_conversion_low`,
   `post_consultation_dropout`) ship **disabled** — a threshold invented
   before anyone knows the normal rate fires on everyone or on nobody, and
-  the first of those is how a queue stops being read. The whole queue is
-  `full` scope only, not merely the deciding: a signal names a colleague and
-  quotes what they wrote, so a scoped admin's render does not fetch it.
+  the first of those is how a queue stops being read.
+  **The findings are scoped by desk; the evidence trails are not.**
+  `RISK_RULE_DOMAIN` gives each rule the section that can act on it -- a cash
+  variance and a session completed with no payment are money questions, a
+  contact leak and an early completion are sessions questions -- and a
+  limited desk reads and reviews its own. The reasoning the whole queue used
+  to be closed for still holds for the two panels it was really about: the
+  flagged messages quote what a colleague wrote and the reveal log names
+  every patient contact they opened, so those, and the thresholds deciding
+  what fires at all, stay Master-Admin-only (`canSeeTrails`). A desk with no
+  rule of its own fetches nothing and is told so, rather than being shown a
+  locked screen for a queue holding nothing for them.
   `appointments.completed_at` was added for the `early_completion` detector
   and is stamped only by `complete-session`; a row closed before that column
   existed carries null and is skipped rather than guessed at.
