@@ -517,10 +517,19 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 5. Tap **Session Length (min)**. Enter `60`.
 6. Tap **Order**. Enter `1`.
 7. Tap **Button Text**. Enter `Book Assessment`.
-8. Optionally paste a **Cover Image URL**.
+8. Optionally upload a **Cover image**.
 9. Save.
 
-**Expected Result.** The category is created and appears **immediately** on `/` and `/conditions` — the create route invalidates both ISR-cached pages, so a five-minute wait is now a defect, not expected behaviour — in the `/book` concern dropdown as `QA Back & Spine Care — ₹1,999 / 60 min`, and as an option when creating a package. The cover image is a **plain URL an admin pastes**, not a Storage upload, rendered through a plain `<img>`; a row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
+**Expected Result.** The category is created and appears **immediately** on `/` and `/conditions` — the create route invalidates both ISR-cached pages, so a five-minute wait is now a defect, not expected behaviour — in the `/book` concern dropdown as `QA Back & Spine Care — ₹1,999 / 60 min`, and as an option when creating a package. The cover is an **upload**, not a pasted URL: there is no URL text box on this form any more. A row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
+
+#### `ADM-CAT-003` — Upload a cover, preview it and position it · P0
+**Steps.** On any condition, package or home-visit form, tap **Upload an image** and choose a landscape photograph whose subject is well off-centre. Then tap **Preview & position**, drag the picture until the subject sits where you want it, and tap **Done**. Save the form.
+**Expected Result.** The drop zone becomes a row naming the file with **Preview & position**, **Replace** and **Remove**, and reads `Centred — not positioned yet` until you move it. In the dialog, the **frame stays still and the picture moves inside it** — dragging right moves the picture right — with a rule-of-thirds guide over it and the live focal point shown as two percentages. The three small frames below (**Card**, **Square**, **Dialog**) all move together: that is the point of the feature, and a position correct on one but not the others is a P0. **Done** only stages it; the public page changes when the **form** is saved, and it changes immediately rather than after the five-minute ISR window.
+**Negatives:** a PDF or SVG is refused with `Please upload a JPG, PNG or WebP image.`; a file over 5 MB with `That image is larger than 5 MB. Please use a smaller file.` Both are refused by the **route**, so the same request sent with a Finance admin's cookie answers **403** regardless of what the form shows.
+
+#### `ADM-CAT-004` — One position, every frame · P0
+**Steps.** After `ADM-CAT-003`, open `/conditions`, then that condition's **View full details** dialog, then `/patient/dashboard/book` signed in as a patient.
+**Expected Result.** The photograph is cropped **the same way** in all three — card 4:3, dialog 16:9, dashboard card 4:3 — with the subject where you placed it. A crop baked into the file would have been right in one and wrong in the others; this is a focal point, so it is right in all of them. The patient's booking screen renders the **same card** as the public pages, with cover, chips, ticks, price and a Book button — it must not be the old text-only list.
 **Negatives:** `Missing title, priceInr, or durationMinutes`; `Price must be a positive number`; `Session length must be a positive number of minutes`; `Order must be a number`.
 
 #### `ADM-CAT-002` — Edit, reorder, deactivate, delete a category · P1

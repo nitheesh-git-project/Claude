@@ -38,7 +38,9 @@ concurrency/CAS guards, bulk limits, admin route authorization for every
 role, input validation, payout/refund maths, the dashboard's own
 navigation in a real browser, the public pages' section rail and scroll
 arrow (`section-nav.spec.ts`), the public catalog's detail dialogs
-(`catalog-detail.spec.ts`), and booking a named specialist from `/team`
+(`catalog-detail.spec.ts`), catalog covers uploaded, positioned and
+rendering the same way on the card, the dialog and the patient's booking
+screen (`catalog-cover-image.spec.ts`), and booking a named specialist from `/team`
 (`therapist-request.spec.ts`), who may book plus the dashboards' way home
 (`booking-account-role.spec.ts`), and therapist-suggested sessions including
 button spam, concurrent answers and a dropped connection
@@ -211,6 +213,7 @@ src/lib/adminHome.ts     what each admin scope's Today screen opens on
 src/lib/activityLog.ts   the log's search, its categories and its retention floor
 src/lib/formatDateTime.ts every date the app renders, pinned to clinic time
 src/lib/refundState.ts   how a refund reads, wherever a session is shown
+src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
 src/lib/mission.ts       the mission, vision, promises and stated limits
 src/lib/marketingPhotos.ts every photograph the public pages use
@@ -2925,6 +2928,75 @@ client is the only writer and the log is append-only from any session.
   with nothing to sign, and a bucket would mean an upload pipeline to
   maintain. Rendered through a plain `<img>`, since optimising it would need a
   `remotePatterns` allowlist for every host an admin might paste from.
+- **A catalog cover is uploaded, and positioned rather than cropped.** The
+  three catalog tables carried `image_url` as a text box an admin pasted a
+  link into, and that cost twice: in practice nobody pastes links, so the live
+  site shipped with no photographs and the cards read as unfinished -- and
+  every cover that did exist depended on a host this clinic does not control,
+  on pages selling medical care. Uploads land in the clinic's own public
+  `catalog-images` bucket through `/api/admin/upload-catalog-image`.
+  Four things are load-bearing:
+  1. **It is a route, not a browser-side upload.** `avatars` is written from
+     the owner's browser because the owner is the only person allowed to write
+     there and a storage policy can say exactly that. A catalog cover has no
+     such owner -- the rule is "an admin who can manage the catalogue", a
+     scope this app enforces in routes and not in RLS. The route is what makes
+     the upload scope-guarded, size- and type-checked against one shared
+     definition (`src/lib/catalogImage.ts`), and audited. The bucket
+     accordingly carries **no insert policy at all**, only a public select.
+  2. **A focal point, never a crop.** `image_focal_x` / `image_focal_y` (0-100,
+     default 50) render as `object-position`. A cover is drawn with
+     `object-fit: cover`, and the card is 4:3 where the detail dialog is 16:9
+     -- so a photograph whose subject was not dead centre lost a head to one
+     of them, which is what "the images look badly aligned" was. Cropping
+     would bake one ratio into the file and make the other wrong, and changing
+     either shape later would mean re-uploading the whole catalogue; two
+     percentages are correct at every ratio, including ratios added after the
+     upload. Default 50/50 is exactly what `object-fit` already does, so the
+     migration moves no existing pixel.
+  3. **`clampFocal` checks null and `""` before `Number()`.** Both become `0`
+     rather than `NaN`, so without that an unset column would not centre a
+     picture -- it would pin it to the top-left corner. That is the precise
+     failure the function exists to prevent, arriving through its commonest
+     input, and its own test is what caught it.
+  4. **The upload clears all three extensions before writing.** Upsert alone
+     overwrites a JPG with a JPG and leaves a stale PNG beside it, and then
+     one row owns two covers with nothing ever removing the loser. There is no
+     sweeper in this deployment to tidy that up later.
+  The focal columns are written through `writeCatalogFocal`'s own isolated
+  call and read in their own queries, **split from `image_url` rather than
+  sharing one**: they are newer, so a single query would lose the photographs
+  as well as their positions on a database mid-migration.
+- **One card for everything the clinic sells, and one dialog header.**
+  `CatalogCard` renders the programme cards on `/` and `/conditions`, the
+  home-visit cards on `/home-visit`, and the patient dashboard's booking
+  screen -- which was a text-only list before, so a patient who had already
+  signed up met a plainer catalogue than a stranger did. The cover is an inset
+  4:3 rather than a 104px full-bleed strip (a strip that shallow cannot hold a
+  photograph of a person, which is why covers looked mis-cropped however they
+  were shot); the meta chips are a **promotion, not an addition**, since
+  duration, visit count, travel and therapist lock already existed on the row
+  and were readable only by opening the dialog; the price sits on `mt-auto` so
+  cards in a row align however long their titles run; and the two actions
+  differ by weight rather than being two similar links. A field a row does not
+  have simply does not render, which is what lets one component serve a
+  treatment category, a multi-visit home package and a dashboard tile with no
+  variants. It links with **`ProgressLink`, not `next/link`** -- the booking
+  hub used it, and a Link click never touches `useRouter`, so plain `next/link`
+  would have left the hub tapping through to the wizard with no teal bar.
+  `CatalogDialogHeader` is the other half and fixes a real gap: the programme
+  dialog never read `image_url` **at all** -- it drew a teal panel and a vector
+  illustration -- so the moment admins could upload photographs, a card would
+  show one and its own dialog a cartoon, one tap apart. The home-visit dialog
+  did show the picture but laid its heading over it, which costs a scrim dark
+  enough for any image and a heading sized to fight it. Now the photograph
+  gets the full 16:9 with **nothing on top** and the heading sits on its own
+  band below, so a bright cover and a dark one are equally safe and an admin
+  can upload whatever they have. The badge moves into that band: it gains
+  contrast and loses a little prominence, which is what the clean picture
+  costs. `e2e/catalog-cover-image.spec.ts` asserts the heading sits below the
+  image **geometrically** rather than by class name, so a restyle that puts
+  text back over the photograph fails even if the markup changes shape.
 - **Ordering a list is one save of the whole list, never a pairwise swap.**
   The Conditions screen moved a category by swapping two rows'
   `display_order` values. Two rows holding the *same* order swapped to the

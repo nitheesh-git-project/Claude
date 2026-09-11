@@ -60,6 +60,10 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 **Expected Result.** The card body is **one tap target that opens a detail dialog** carrying the long description and what the programme covers. The **Book …** link sits **below the card** and again at the foot of the dialog, **outside** the tap-target button (a link nested inside a button is invalid markup and behaves differently per browser). It goes to `/book?category=<id>` — a **first session**, never a course of them.
 **Cover images:** a card with no photo shows the **shared placeholder panel at the same height** as one with a photo. It must never look like an image that failed to load.
 
+#### `PUB-CAT-003` — Nothing sits on the photograph in a detail dialog · P1
+**Steps.** Open a condition's detail dialog on `/conditions` and a package's on `/home-visit`, each with a cover uploaded and each without.
+**Expected Result.** The photograph fills a **16:9 frame with nothing over it** — no scrim, no heading, no badge. The heading, any badge and the summary sit on a **white band below** it, separated by a rule. With no cover, the frame keeps its 16:9 and shows the placeholder, so the dialog does **not** change height depending on whether the catalogue has been filled in. Both dialogs use the same header: the programme one used to ignore the uploaded photograph entirely and draw an illustration, which would pair a photographic card with an illustrated dialog one tap apart.
+
 #### `PUB-CAT-002` — No course of treatment is advertised anywhere public · P0
 
 **Feature.** A course of treatment is a clinical recommendation, so the public site does not carry a price list of them. Removed outright rather than hidden behind a setting: a toggle somebody can flip back on is not the rule being gone.

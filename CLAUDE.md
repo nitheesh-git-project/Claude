@@ -66,8 +66,15 @@ system in `src/components/marketing/`. The home page scrolls down into a
 connector grid linking every other page plus booking; the other six end in
 the same grid minus themselves. Photographs are static imports registered in
 `src/lib/marketingPhotos.ts` and live under `public/photos/`. Catalog
-covers (programmes and packages) are admin-supplied `image_url` values
-instead, falling back to `CatalogImage`'s shared placeholder.
+covers (programmes and packages) are admin **uploads** instead, held in the
+`catalog-images` bucket and positioned by `image_focal_x` / `image_focal_y`
+rather than cropped — one position is correct in the card's 4:3 and the
+dialog's 16:9 alike. They fall back to `CatalogImage`'s shared placeholder.
+One component, `CatalogCard`, renders every offering the clinic sells — the
+public programme and home-visit cards **and** the patient dashboard's booking
+screen, which was a text-only list — and `CatalogDialogHeader` gives both
+detail dialogs the same header, photograph uncovered with the heading on its
+own band below.
 
 - `README.md` — product overview, setup, environment variables, routes, and
   how each flow works.

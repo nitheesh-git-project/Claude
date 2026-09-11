@@ -2001,13 +2001,32 @@ Two sources, and the difference matters when planning a shoot:
 | Slot | Source | Who changes it |
 | --- | --- | --- |
 | Page heroes, delivery modes, the four steps, the six care areas | Files in `public/photos/`, registered in `src/lib/marketingPhotos.ts` | A developer, in a commit |
-| Programme cards, session packages, home-visit packages | `image_url` on `treatment_categories` / `treatment_category_packages` / `home_visit_packages` | An admin, in Site Content — no deploy |
+| Programme cards, session packages, home-visit packages | An upload on the row, in the `catalog-images` bucket, positioned by `image_focal_x` / `image_focal_y` | An admin, in Site Content — no deploy |
 
 The catalog rows are admin-owned on purpose: programmes and packages are
 created and retired without a release, so their imagery has to move at the
 same speed. Every one of them falls back to `CatalogImage`'s placeholder, so
 a new programme is sellable the moment it is created and gets its photograph
 whenever someone has one.
+
+**They are uploaded, not pasted.** `image_url` used to be a text box an admin
+put a link into, which cost twice: nobody pastes links, so the site shipped
+with no photographs at all — and every cover that did exist lived on a host
+this clinic does not control. Uploads go through
+`/api/admin/upload-catalog-image` into the clinic's own public bucket: a route
+rather than a browser-side upload, because "an admin who can manage the
+catalogue" is a scope this app enforces in routes and not in RLS, and the
+route is what makes the upload scope-guarded, size- and type-capped (JPG, PNG
+or WebP up to 5 MB) and audited.
+
+**And positioned rather than cropped.** A cover renders with
+`object-fit: cover`, and the card is 4:3 where the detail dialog is 16:9, so a
+photograph whose subject was not dead centre lost a head to one of them. The
+admin drags the picture inside a fixed card frame and the result is saved as
+two percentages rendered as `object-position` — correct at every ratio,
+including ratios added later, where a crop would have baked one shape into the
+file. The default is dead centre, which is what `object-fit` already does, so
+no existing cover moves.
 
 **Still to shoot** (currently placeholders): a cover per programme, and a
 cover per package. Landscape, at least 1200px wide, same screen-led direction
