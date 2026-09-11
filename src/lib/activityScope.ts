@@ -140,6 +140,8 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
 
   // A Master Admin's alone: no section grants any of these.
   "account.create": "full_only",
+  // Irreversible and Master-Admin-only, like minting one.
+  "account.delete": "full_only",
   "admin.set_scope": "full_only",
   "data.reset": "full_only",
   // The Logs section is Master Admin's alone, so clearing it is too.

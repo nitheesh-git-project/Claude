@@ -60,6 +60,7 @@ describe("ACTION_DOMAIN", () => {
       "impersonation.start",
       "impersonation.end",
       "log.clear",
+      "account.delete",
     ]) {
       expect(ACTION_DOMAIN[action]).toBe("full_only");
       for (const scope of ADMIN_SCOPES.filter((s) => s !== "full")) {

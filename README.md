@@ -1358,6 +1358,16 @@ allowed to see. One grant is `view` today: **finance reads Sessions**, so
 the person reconciling the books can see what a payment bought without
 being able to cancel or reassign it.
 
+Every account also carries a **Delete account** button — on the Back office
+rows here, and on a patient's, therapist's and partner hospital's own screen
+— for a Master Admin only. It works on an account with **no history at all**
+and refuses everything else, naming what is on file (sessions, money
+records, programmes, clinical records, back-office actions, referrals) and
+pointing at Suspend. That is the database's rule rather than a chosen one:
+thirty-five tables reference `profiles(id)` with no delete behaviour, so
+removing an account that has done anything would mean removing the books and
+the audit trail with it.
+
 **Settings → User Access** also shows, on each row, whether that admin is
 still signing in with the password the clinic issued them — readable there,
 with a Copy button, until they set their own, at which point the row says so

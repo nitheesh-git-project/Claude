@@ -10,6 +10,7 @@ import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
 import PatientContactEditForm from "@/components/admin/PatientContactEditForm";
 import PatientNotesForm from "@/components/admin/PatientNotesForm";
 import ResetPatientPasswordButton from "@/components/admin/ResetPatientPasswordButton";
+import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import PatientProfitChart from "@/components/admin/PatientProfitChart";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
@@ -376,12 +377,22 @@ export default async function PatientDetailContent({ id }: { id: string }) {
               <p className="text-slate-400">Not provided by the patient.</p>
             )}
           </div>
-          <div className="mt-4 pt-4 border-t border-slate-100">
+          <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
             <ResetPatientPasswordButton
               patientId={patient.id}
               currentPassword={note?.temp_password}
               currentPasswordSetAt={note?.temp_password_set_at}
             />
+            {/* Master Admin only, and the route checks it again -- deleting
+                an account is irreversible, where every desk that manages
+                People can already suspend. */}
+            {viewer?.scope === "full" && (
+              <DeleteAccountButton
+                userId={patient.id}
+                name={patient.full_name ?? patient.email ?? "this patient"}
+                afterDeleteHref="/admin/dashboard?section=people&tab=patients"
+              />
+            )}
           </div>
         </div>
 

@@ -14,6 +14,7 @@ import TherapistNotesForm from "@/components/admin/TherapistNotesForm";
 import TherapistDisplayContentForm from "@/components/admin/TherapistDisplayContentForm";
 import TherapistRevenueShareForm from "@/components/admin/TherapistRevenueShareForm";
 import ResetTherapistPasswordButton from "@/components/admin/ResetTherapistPasswordButton";
+import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
@@ -317,12 +318,21 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             )}
             {therapist.bio && <p className="text-slate-600">{therapist.bio}</p>}
           </div>
-          <div className="mt-4 pt-4 border-t border-slate-100">
+          <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
             <ResetTherapistPasswordButton
               therapistId={therapist.id}
               currentPassword={note?.temp_password}
               currentPasswordSetAt={note?.temp_password_set_at}
             />
+            {/* See the patient screen's note: Master Admin only, checked
+                again by the route. */}
+            {viewer?.scope === "full" && (
+              <DeleteAccountButton
+                userId={therapist.id}
+                name={therapist.full_name ?? therapist.email ?? "this therapist"}
+                afterDeleteHref="/admin/dashboard?section=people&tab=therapists"
+              />
+            )}
           </div>
         </div>
 

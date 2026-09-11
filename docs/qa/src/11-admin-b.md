@@ -297,6 +297,30 @@ The screen warns you to turn it on only once System Health has been clean.
 * A suspended admin **stays listed**, with a note saying how many are suspended.
 * Only a **Master Admin** sees the Suspend button at all, and `POST /api/admin/set-admin-active` answers **403** to any other scope.
 
+#### `ADM-SET-025d` — Delete an account, and be refused when it has history · P0
+
+**Feature.** Delete account sits on all four roles' screens — the Back office rows, and a patient's, therapist's and partner hospital's own page — for a **Master Admin only**. It can only ever succeed on an account with no history at all. That is the database's rule: thirty-five tables reference `profiles(id)` with no delete behaviour, so removing an account that has done anything would mean removing the books and the audit trail with it.
+
+**Steps**
+1. Create a throwaway patient with a typo'd email and, without doing anything else with it, delete it from their profile.
+2. Delete a patient who has at least one session, one payment and a programme.
+3. Delete a therapist who has run sessions and written notes.
+4. Delete an admin who has performed any action at all.
+5. Try to delete **your own** row in Back office.
+6. Leave exactly one active Master Admin and try to delete it.
+7. Sign in as **Operations**, then **Finance**, then **Clinical**, and look for the button. Then POST `/api/admin/delete-account` directly as each.
+8. Open **Logs → All Activity** after step 1.
+9. After step 1, try to sign in as that deleted account.
+
+**Expected Result**
+* Step 1: a **dialog** first, naming the account and saying this only works with no history, with Suspend named as the alternative. Confirming deletes it; the page returns to the directory it came from.
+* Steps 2–4: **nothing is deleted**, and a dialog names what is on file — *"3 sessions, 2 money records, 1 programme and 12 back-office actions"* — and says to suspend instead. Each group is counted separately and pluralised on its own count. A refusal is never an 11px line beside the button: it is a paragraph and it belongs in a dialog.
+* Step 5: refused — *"You can't delete your own account."* The button does not render on your own row either.
+* Step 6: refused — the last Master Admin who can still sign in cannot be deleted, the same guard suspension carries, and this one has no undo at all.
+* Step 7: **no button** for any of the three, and the direct POST is **403** for all three — deleting is Master Admin's alone even though every one of those desks can manage People.
+* Step 8: an **`Deleted an account`** entry naming who did it, the account's name and role, and the email. It is written **before** the delete runs, because afterwards there is no row left to name.
+* Step 9: the login no longer exists.
+
 #### `ADM-SET-026` — Create the three scoped admins · P0
 **Steps.** Create `qa.admin.ops@example.test` (Operations), `qa.admin.finance@example.test` (Finance), `qa.admin.clinical@example.test` (Clinical).
 **The Account type picker is one control, not two.** It lists six entries in two groups — **Clinic**: Patient, Therapist · **Back office**: Master Admin, Operations, Finance, Clinical — using the same four names the dashboards call themselves. There is no separate **Access level** dropdown; picking a back-office desk shows that desk's one-line description under the picker. As a **non-`full`** admin, the whole Back office group is **absent** (only a Master Admin may mint an admin, and `create-account` enforces that with a full-only check, not a section gate — see §2).

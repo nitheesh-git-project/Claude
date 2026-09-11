@@ -18,6 +18,10 @@ export type AdminActivityAction =
   | "account.decline"
   | "account.create"
   | "account.set_active"
+  // Removing an account outright. Only ever possible for one with no history
+  // at all -- anything else is refused -- and recorded before the delete
+  // runs, since afterwards there is no row left to name.
+  | "account.delete"
   // Signing in as somebody, and signing back out. The deepest capability in
   // the app: everything done during the window is written as that user, so
   // these two rows plus admin_impersonation_sessions are the only record
@@ -183,6 +187,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "account.decline": "Declined account",
   "account.create": "Created account",
   "account.set_active": "Changed account status",
+  "account.delete": "Deleted an account",
   "impersonation.start": "Signed in as a user",
   "impersonation.end": "Stopped signing in as a user",
   "account.reset_password": "Reset password",

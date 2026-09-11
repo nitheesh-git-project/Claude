@@ -222,6 +222,7 @@ src/lib/inviteRewards.ts one patient inviting another, and both halves of it
 src/lib/checkoutQuote.ts what a booking costs, resolved once for three callers
 src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
 src/lib/adminScope.ts    admin scopes and which sections each one may open
+src/lib/accountDeletion.ts what blocks deleting an account, and what to say
 src/lib/listOrdering.ts  moving a row up or down a hand-ordered admin list
 src/lib/availabilityRanges.ts the roster's range layer over its hour rows
 src/lib/availabilityRequest.ts server-side validation both save doors share
@@ -1831,7 +1832,32 @@ client is the only writer and the log is append-only from any session.
      the fine-grained matrix whose failure mode is one route quietly falling
      through a gap in it, which is what coarse scopes exist to avoid.
      Changing what a desk reaches is a code change, reviewed.
-  3. **Suspending is not deleting.** `/api/admin/set-admin-active` mirrors
+  3. **Suspending is not deleting, and delete is the narrow case.**
+     `/api/admin/delete-account` exists on all four roles' screens, and it is
+     a delete that can only ever succeed on an account with **no history at
+     all** -- the typo'd email, the duplicate, the one created against the
+     wrong person. That is not a policy: thirty-five tables carry a foreign
+     key to `profiles(id)` with no ON DELETE behaviour, so Postgres refuses
+     outright for an account that has booked, paid, been paid, been treated
+     or acted in the back office, and deleting one "properly" would mean
+     deleting the money and the clinical record with it. So the route counts
+     what points at the row first, groups it the way a person describes it
+     (`src/lib/accountDeletion.ts` -- six groups, not fifty columns), and
+     refuses with the counts named and **suspension offered beside them**,
+     the same shape `describeCategoryBlockers` uses. Four rules:
+     it is `full` scope only, checked directly rather than through
+     `requireAdminScope("people")`, because every desk that manages People
+     can already suspend and this one is irreversible; it carries suspension's
+     own two guards, never yourself and never the last Master Admin who can
+     still sign in; the audit row is written **before** the delete, since
+     afterwards there is no row left to name and a failed attempt is worth
+     recording on the one action with no undo; and it re-reads the profile
+     afterwards, because GoTrue reporting success is not the same as the row
+     being gone -- "removed nothing" and "removed it" must stay
+     distinguishable. The counted groups are for the human; the database is
+     still the authority, and a foreign key the probes do not cover produces
+     `ACCOUNT_DELETE_REFUSED` rather than a Postgres string.
+  4. **Suspending is not deleting.** `/api/admin/set-admin-active` mirrors
      `set-admin-scope`'s two guards (not yourself, not the last Master Admin
      who can still sign in) and flips `profiles.active`, which `getAdminUser`
      and the proxy already refused on — the enforcement existed and the

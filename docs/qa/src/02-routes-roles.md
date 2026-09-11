@@ -99,7 +99,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `offers` | Offers & Discounts | `ADM-SET-023`, `ADM-INVITE-001` |
 | Settings | `programmes` | Programmes & Home Visits | `ADM-SET-018` |
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
-| Settings | `access` | User Access | `ADM-SET-025`, `ADM-SET-026b` |
+| Settings | `access` | User Access | `ADM-SET-025`, `ADM-SET-025d`, `ADM-SET-026b` |
 | Settings | `health` | System Health | `ADM-SET-030` |
 | Settings | `security` | Account Security | `ADM-SET-035` |
 

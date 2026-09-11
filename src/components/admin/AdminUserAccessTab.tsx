@@ -7,6 +7,7 @@ import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import Spinner from "@/components/system/Spinner";
 import { formatIST } from "@/lib/formatIST";
+import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import {
   ACCESS_LEVEL_LABELS,
   ADMIN_CAPABILITY_GROUPS,
@@ -724,8 +725,21 @@ export default function AdminUserAccessTab({
                     <IssuedPassword row={a} />
                     <p className="mt-1 text-[11px] text-slate-400">{ADMIN_SCOPE_BLURBS[a.scope]}</p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center justify-end gap-3">
                     <StatusToggle row={a} canManage={canManage} />
+                    {/* Never on your own row, and the route refuses it again
+                        along with the last Master Admin who can still sign
+                        in. An admin who has done anything at all is refused
+                        and pointed at Suspend beside it -- which is the
+                        everyday answer, since their id is on every audit row
+                        they wrote. */}
+                    {canManage && !a.isSelf && (
+                      <DeleteAccountButton
+                        userId={a.id}
+                        name={a.fullName ?? a.email ?? "this admin"}
+                        compact
+                      />
+                    )}
                     <ScopePicker row={a} canManage={canManage} />
                   </div>
                 </li>

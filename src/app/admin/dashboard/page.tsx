@@ -16,6 +16,7 @@ import AdminNewBookingTab from "@/components/admin/AdminNewBookingTab";
 import AdminUserAccessTab, { type AdminRow } from "@/components/admin/AdminUserAccessTab";
 import AdminActivityLogTab, { type ActivityRow } from "@/components/admin/AdminActivityLogTab";
 import AdminLogsTab from "@/components/admin/AdminLogsTab";
+import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import AdminLogRetentionTab from "@/components/admin/AdminLogRetentionTab";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
 import AdminCostsTab from "@/components/admin/AdminCostsTab";
@@ -1510,6 +1511,17 @@ export default async function AdminDashboardPage({
                         hospitalNoteMap.get(h.id)?.temp_password_set_at
                       }
                     />
+                    {/* Same rule as the button above: Master Admin only,
+                        re-checked by the route. A partner with referrals on
+                        file is refused and offered the suspend toggle
+                        beside it. */}
+                    {viewerScope === "full" && (
+                      <DeleteAccountButton
+                        userId={h.id}
+                        name={h.full_name ?? "this hospital"}
+                        compact
+                      />
+                    )}
                     <HospitalActiveToggle
                       hospitalId={h.id}
                       active={h.active !== false}
