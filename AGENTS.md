@@ -2013,6 +2013,25 @@ client is the only writer and the log is append-only from any session.
      inside it, and a bar that flashes on every tap makes a fast app feel
      busy. Reduced motion keeps the bar and drops the travel -- someone who
      asked for less movement still needs to know the app is thinking.
+  **The split matters at the call site, not only at the root.** A control
+  that runs its fetch *and* its `router.refresh()` inside one
+  `startTransition(async …)` keeps its own `isPending` true until the refresh
+  lands -- so on the admin dashboard the button stays disabled and spinning
+  through a full Server Component re-render, which is reported as a hang. The
+  shape is: the control is busy for **its request**, releases in a `finally`,
+  and calls `router.refresh()` after, handing the rest to the bar. That is
+  not the `setLoading(false); router.refresh();` mistake above -- the
+  difference is that the bar now exists to carry the half the button cannot.
+  Guard the submit with a synchronous ref as well (a `disabled` attribute
+  lands a render too late), and catch the request: an unhandled throw inside
+  a transition puts nothing on screen at all.
+  **An append-only log does not belong on the operational realtime channel.**
+  Every mutating admin route writes `admin_activity_log`, so while that table
+  sat on the 2s channel each action rebuilt the whole dashboard twice -- once
+  for the row it changed, once for the entry describing it -- and the admin
+  who acted had already refreshed deliberately. It is on the 30s channel with
+  `contact_reveal_log` and `risk_reviews`, which are there for the same
+  reason.
   `Spinner` (`src/components/system/Spinner.tsx`) is the app's only spinner,
   inheriting `currentColor` so one component works on the filled, outlined
   and text buttons alike. Before it, every busy state was a text swap, which

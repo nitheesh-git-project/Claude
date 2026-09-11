@@ -2,7 +2,7 @@
 
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
-import { Fragment, useState, useTransition } from "react";
+import { Fragment, useRef, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import Spinner from "@/components/system/Spinner";
@@ -59,6 +59,31 @@ export type AdminRow = {
   tempPasswordSetAt?: string | null;
 };
 
+// Where the waiting belongs.
+//
+// Every control on this screen used to run its fetch *and* its
+// `router.refresh()` inside one `startTransition(async …)`, which meant the
+// button's own `isPending` stayed true until the refresh landed -- and on
+// this page a refresh is the whole Server Component re-running, every screen
+// and around forty queries, not the one row that changed. Suspending an
+// admin therefore left the button spinning and disabled for as long as that
+// took, which reads as a hang rather than as work.
+//
+// The split is: the control is busy for **its request**, and the refresh is
+// handed to the global teal bar (`useRouter` -> `PendingWorkProvider` ->
+// `RouteProgress`), which exists precisely because that half of the work
+// outlives the button that started it. So each handler releases its own
+// flag in a `finally` and calls `router.refresh()` after -- never the
+// `setLoading(false); router.refresh();` shape this codebase warns about,
+// because the bar is what makes the remaining wait visible rather than
+// hidden.
+//
+// Each also guards with a synchronous ref rather than the `disabled`
+// attribute alone, which lands a render too late for a double tap, and each
+// catches a failed request: an unhandled throw inside the old transition put
+// nothing on screen at all, which is indistinguishable from a button that
+// did nothing.
+
 const LEVEL_STYLE: Record<AccessLevel, { chip: string; mark: string; icon: string }> = {
   manage: {
     chip: "bg-teal-50 text-teal-800 border-teal-200",
@@ -80,14 +105,18 @@ const LEVEL_STYLE: Record<AccessLevel, { chip: string; mark: string; icon: strin
 function ScopePicker({ row, canManage }: { row: AdminRow; canManage: boolean }) {
   const [scope, setScope] = useState<AdminScope>(row.scope);
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const router = useRouter();
 
-  function handleChange(next: AdminScope) {
+  async function handleChange(next: AdminScope) {
+    if (savingRef.current) return;
     const previous = scope;
+    savingRef.current = true;
+    setSaving(true);
     setError(null);
     setScope(next);
-    startTransition(async () => {
+    try {
       const res = await fetch("/api/admin/set-admin-scope", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -103,8 +132,17 @@ function ScopePicker({ row, canManage }: { row: AdminRow; canManage: boolean }) 
         setError(data.error ?? "Could not change access.");
         return;
       }
-      router.refresh();
-    });
+    } catch {
+      setScope(previous);
+      setError("Could not reach the server. Please try again.");
+      return;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+    // Deliberately after the control is released. See "Where the waiting
+    // belongs" at the top of this file.
+    router.refresh();
   }
 
   if (row.isSelf) {
@@ -121,7 +159,7 @@ function ScopePicker({ row, canManage }: { row: AdminRow; canManage: boolean }) 
         aria-label={`Access level for ${row.fullName ?? row.email ?? "this admin"}`}
         value={scope}
         onChange={(e) => handleChange(e.target.value as AdminScope)}
-        disabled={isPending}
+        disabled={saving}
         className="rounded-lg border border-slate-300 p-1.5 text-xs disabled:opacity-60"
       >
         {ADMIN_SCOPES.map((s) => (
@@ -144,13 +182,18 @@ function ScopePicker({ row, canManage }: { row: AdminRow; canManage: boolean }) 
  */
 function StatusToggle({ row, canManage }: { row: AdminRow; canManage: boolean }) {
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [saving, setSaving] = useState(false);
+  // Synchronous, because a `disabled` attribute lands a render too late for
+  // a double tap.
+  const savingRef = useRef(false);
   const router = useRouter();
 
-  function toggle() {
-    if (isPending) return;
+  async function toggle() {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     setError(null);
-    startTransition(async () => {
+    try {
       const res = await fetch("/api/admin/set-admin-active", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -162,8 +205,17 @@ function StatusToggle({ row, canManage }: { row: AdminRow; canManage: boolean })
         setError(data.error ?? "Could not change this.");
         return;
       }
-      router.refresh();
-    });
+    } catch {
+      // A request that dies on a bad connection has to say so. Left
+      // unhandled it threw inside the transition and put nothing on screen,
+      // which reads as a button that did nothing.
+      setError("Could not reach the server. Please try again.");
+      return;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+    router.refresh();
   }
 
   if (!canManage || row.isSelf) return null;
@@ -173,14 +225,14 @@ function StatusToggle({ row, canManage }: { row: AdminRow; canManage: boolean })
       <button
         type="button"
         onClick={toggle}
-        disabled={isPending}
+        disabled={saving}
         className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition disabled:opacity-60 ${
           row.active
             ? "border-slate-300 text-slate-700 hover:bg-slate-50"
             : "border-teal-300 bg-teal-50 text-teal-800 hover:bg-teal-100"
         }`}
       >
-        {isPending && <Spinner size={11} />}
+        {saving && <Spinner size={11} />}
         {row.active ? "Suspend access" : "Restore access"}
       </button>
       {error && <span className="max-w-[16rem] text-right text-[11px] text-red-600">{error}</span>}
@@ -368,16 +420,22 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
   const [created, setCreated] = useState<
     { email: string; password: string; role: string } | null
   >(null);
-  const [isPending, startTransition] = useTransition();
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const router = useRouter();
-  useUnloadWarning(isPending);
+  // Only while the request is in flight. It used to cover the refresh as
+  // well, so leaving the page during a ~40-query dashboard rebuild prompted
+  // a warning about work that was already safely written.
+  useUnloadWarning(saving);
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (isPending) return;
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     setError(null);
     setCreated(null);
-    startTransition(async () => {
+    try {
       const res = await fetch("/api/admin/create-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -409,8 +467,14 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
       setEmail("");
       setPhone("");
       setCredentials("");
-      router.refresh();
-    });
+    } catch {
+      setError("Could not reach the server. Please try again.");
+      return;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+    router.refresh();
   }
 
   const fieldCls = "w-full p-2 rounded-lg border border-slate-300 text-xs";
@@ -522,11 +586,11 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={saving}
         className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
       >
-        {isPending && <Spinner size={12} />}
-        {isPending ? "Creating…" : "Create account"}
+        {saving && <Spinner size={12} />}
+        {saving ? "Creating…" : "Create account"}
       </button>
     </form>
   );

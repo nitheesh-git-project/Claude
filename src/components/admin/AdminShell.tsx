@@ -61,7 +61,6 @@ const ADMIN_REALTIME_TABLES = [
   "home_visit_package_purchases",
   "home_visit_waitlist",
   "patient_addresses",
-  "admin_activity_log",
   "hospital_admin_notes",
   "risk_signals",
   // A therapist writing a recommendation is operational traffic: the
@@ -94,6 +93,14 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   "risk_reviews",
   "communication_flags",
   "contact_reveal_log",
+  // The audit log, for the same reason and more sharply. **Every** mutating
+  // admin route writes a row here, so on the operational channel each of
+  // them rebuilt this whole page a second time -- once for the row the
+  // action changed, once for the log entry describing it -- and the admin
+  // who performed it had already refreshed deliberately. It is an
+  // append-only record nobody watches live; 30s is instant enough for the
+  // Logs screen and stops every tap in the back office costing two rebuilds.
+  "admin_activity_log",
   // Campaigns are admin-edited catalog data like the rest of this list, and
   // the editor already sees their own change -- so the long cooldown is
   // right and the operational one would be wasted rebuilds.

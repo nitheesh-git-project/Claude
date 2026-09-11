@@ -3294,6 +3294,24 @@ The screen warns you to turn it on only once System Health has been clean.
 * Step 7: **no rows** — the table carries no RLS policies at all, so only the service role reads it. A plain column on `profiles` would be handed straight back to the account owner by `profiles_select_own`, which is why these four tables exist.
 * Step 8: **no password anywhere in the log**, which every admin can read.
 
+#### `ADM-SET-025c` — Suspend and Create release the button, not the page · P1
+
+**Feature.** Both controls used to run their request and the dashboard refresh inside one transition, so the button stayed disabled and spinning until the whole Server Component had re-run — every screen, ~40 queries — which reads as a hang rather than as work. The button now owns its request only; the teal bar at the top of the page owns the refresh.
+
+**Steps**
+1. On **Settings → User Access**, tap **Suspend access** on an admin and watch the button and the top of the page.
+2. Do the same for **Restore access**, and for the **Access level** dropdown.
+3. Create an account and watch the **Create account** button.
+4. Double-tap Suspend as fast as you can.
+5. Put the browser offline (devtools) and tap Suspend.
+6. With a second admin signed in on another machine, have them approve something and watch how many times your dashboard rebuilds.
+
+**Expected Result**
+* Steps 1–3: the button returns to its normal label **as soon as the request lands** — a beat, not seconds — and the **teal progress bar** carries the remaining wait. The row's new state appears when the refresh finishes. Neither control sits disabled through the rebuild.
+* Step 4: **one** request. The second tap is refused by a synchronous guard, not by the disabled attribute, which lands a render too late.
+* Step 5: an error under the control saying the server could not be reached. Never a button that silently did nothing — an unhandled throw inside the old transition put nothing on screen at all.
+* Step 6: **one** rebuild, not two. `admin_activity_log` sits on the 30-second realtime channel with the other append-only records; while it was on the 2-second one, every admin action anywhere rebuilt every admin's dashboard a second time for the log entry describing it.
+
 #### `ADM-SET-026a` — Each scope opens on its own dashboard · P1
 There is one admin login (`/admin/login`) and one dashboard route; the scope decides what it opens on. Sign in as each of the four in turn and read the Today screen without tapping anything.
 
