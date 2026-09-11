@@ -1761,6 +1761,23 @@ client is the only writer and the log is append-only from any session.
   a patient with a dozen abandoned checkouts saw "Payment not completed"
   twelve times and never saw that they had sessions already paid for and
   never booked. The twelfth identical line was never information.
+  **A feed item's date is the row's, never the render's.** The three admin
+  queue rollups -- signups waiting, change requests, sessions with no meeting
+  link -- took a bare count and stamped themselves `new Date()`, and this
+  dashboard re-renders on every realtime event, so "5 signups waiting for
+  approval" reset to *just now* on every refresh. A signup that had waited
+  three days read as having just arrived, which is exactly backwards for the
+  one class of item that gets more urgent the longer it is ignored, and it
+  pinned the queue to the top of a date-sorted feed for a reason that had
+  nothing to do with the queue. They take a `QueueRollup` now -- the count
+  **and** the oldest waiting row's own timestamp, built by `queueRollup()`,
+  which takes the oldest rather than the newest because a queue's age is the
+  age of what has waited longest. The two halves travel together in the type
+  precisely so a count can no longer arrive without a date; changing it
+  failed at every call site, which is what a bare count could not do. An
+  empty list yields count 0 and no item is pushed, so an item on screen
+  always has a real date behind it and there is no missing-date case to
+  invent a fallback for.
   The pinning is load-bearing rather than cosmetic: an item dated when it
   arose sinks further the longer it goes unanswered, which is backwards for
   the one class of item that is still owed something — a programme paid for

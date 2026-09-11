@@ -528,17 +528,66 @@ function humaniseAction(action: string): string {
   return `${words(subject).replace(/^./, (c) => c.toUpperCase())} ${words(past)}`;
 }
 
+/**
+ * A queue rollup: how many are waiting, and **since when**.
+ *
+ * The two halves travel together on purpose. These three items used to take
+ * a bare count and stamp themselves `new Date()` at render -- so every
+ * refresh, and the admin dashboard refreshes on every realtime event, reset
+ * "5 signups waiting for approval" to *Just now*. A signup that had been
+ * waiting three days read as having just arrived, which is exactly backwards
+ * for the one class of item that gets worse the longer it is ignored, and it
+ * put the queue at the top of a feed sorted by date for a reason that had
+ * nothing to do with the queue.
+ *
+ * `since` is the **oldest** waiting row's own timestamp -- how long the
+ * clinic has actually been sitting on this, which is the question the feed
+ * is being asked. Build one with `queueRollup()` rather than by hand; a
+ * count with no date is how this regressed in the first place.
+ */
+export type QueueRollup = { count: number; since: string };
+
+const EMPTY_QUEUE: QueueRollup = { count: 0, since: "" };
+
+/**
+ * A rollup from the rows themselves.
+ *
+ * Takes the oldest `created_at` rather than the newest: a queue's age is the
+ * age of the thing that has waited longest, not of the most recent arrival.
+ * An empty list yields count 0, and the callers below never push an item for
+ * that -- so an item on screen always has a real date behind it, and there
+ * is no "unknown date" case to invent a fallback for.
+ */
+export function queueRollup<T>(
+  rows: T[] | null | undefined,
+  // Which column dates the row. `created_at` for a queue of things that
+  // arrived; the failed-sync queue passes its slot time instead, because a
+  // session without a meeting link is urgent by when it is due rather than
+  // by when it was booked.
+  pick: (row: T) => string | null | undefined = (row) =>
+    (row as { created_at?: string | null }).created_at
+): QueueRollup {
+  const dates = (rows ?? []).map(pick).filter((d): d is string => !!d);
+  if ((rows ?? []).length === 0) return EMPTY_QUEUE;
+  return {
+    count: (rows ?? []).length,
+    // A row with no readable date cannot make the queue look newer than it
+    // is: with none readable at all the rollup still renders, sorted oldest.
+    since: dates.length > 0 ? dates.reduce((a, b) => (a < b ? a : b)) : "",
+  };
+}
+
 export function buildAdminFeed({
   activity,
-  pendingApprovals = 0,
-  pendingRequests = 0,
-  failedSyncs = 0,
+  pendingApprovals = EMPTY_QUEUE,
+  pendingRequests = EMPTY_QUEUE,
+  failedSyncs = EMPTY_QUEUE,
   allowedSections,
 }: {
   activity: FeedActivityRow[];
-  pendingApprovals?: number;
-  pendingRequests?: number;
-  failedSyncs?: number;
+  pendingApprovals?: QueueRollup;
+  pendingRequests?: QueueRollup;
+  failedSyncs?: QueueRollup;
   /** The sections this admin's scope may open (adminScope.ts). A feed item
    *  is a link to work, so one pointing at a screen the viewer cannot open
    *  is not a lighter version of the work -- it is a dead end that quietly
@@ -576,25 +625,24 @@ export function buildAdminFeed({
       .join(" · ") || undefined,
   }));
 
-  const now = new Date().toISOString();
-  if (pendingApprovals > 0) {
+  if (pendingApprovals.count > 0) {
     items.push({
       id: "queue-approvals",
-      at: now,
+      at: pendingApprovals.since,
       icon: "fa-user-check",
       tone: "warn",
-      title: `${pendingApprovals} signup${pendingApprovals === 1 ? "" : "s"} waiting for approval`,
+      title: `${pendingApprovals.count} signup${pendingApprovals.count === 1 ? "" : "s"} waiting for approval`,
       href: adminScreenHref("today", "approvals"),
       needsYou: true,
     });
   }
-  if (pendingRequests > 0) {
+  if (pendingRequests.count > 0) {
     items.push({
       id: "queue-requests",
-      at: now,
+      at: pendingRequests.since,
       icon: "fa-file-pen",
       tone: "warn",
-      title: `${pendingRequests} change request${pendingRequests === 1 ? "" : "s"} to review`,
+      title: `${pendingRequests.count} change request${pendingRequests.count === 1 ? "" : "s"} to review`,
       href: adminScreenHref("today", "approvals"),
       needsYou: true,
     });
@@ -602,13 +650,13 @@ export function buildAdminFeed({
   // Sync Health lives under Settings, which only a full admin opens -- and
   // retrying a failed sync is a Settings route too, so for every other
   // scope this is news about something they can neither reach nor fix.
-  if (failedSyncs > 0 && canOpen("settings")) {
+  if (failedSyncs.count > 0 && canOpen("settings")) {
     items.push({
       id: "queue-sync",
-      at: now,
+      at: failedSyncs.since,
       icon: "fa-triangle-exclamation",
       tone: "bad",
-      title: `${failedSyncs} session${failedSyncs === 1 ? "" : "s"} without a meeting link`,
+      title: `${failedSyncs.count} session${failedSyncs.count === 1 ? "" : "s"} without a meeting link`,
       detail: "Google Calendar sync failed — retry from Sync Health.",
       href: adminScreenHref("settings", "health"),
       needsYou: true,

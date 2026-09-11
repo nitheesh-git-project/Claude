@@ -44,6 +44,25 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 * On All Sessions itself, the **No therapist**, **Today** and **Home visits** figures filter the list **in place** (no page navigation) and tapping the applied one clears it.
 * An admin whose scope cannot open the target section sees the figure **without a link** — never a link into a 403.
 
+#### `ADM-TODAY-006` — A queue's age is real, and survives a refresh · P0
+
+**Feature.** The feed items that roll a queue up — signups waiting for approval, change requests to review, sessions with no meeting link — used to stamp themselves with the moment the page rendered. This dashboard re-renders on every realtime event, so they reset to **just now** constantly, and a signup that had been waiting three days read as having just arrived.
+
+**Steps**
+1. Create a patient signup and leave it unapproved. Note the real time.
+2. Wait a few minutes, then open **Today** (or **Today → Activity** on a scoped desk) and read the time under *"1 signup waiting for approval"*.
+3. Press **Refresh**. Read it again. Then have a second admin act so a realtime refresh fires, and read it a third time.
+4. Leave a second signup unapproved a day later, so two are waiting, and read the time again.
+5. Approve them all and let a **change request** and a **failed Meet sync** be the waiting items instead; check both the same way.
+6. Leave the tab open for ten minutes and watch the item.
+
+**Expected Result**
+* Step 2: the age of the **signup**, not of the page — a few minutes, matching step 1.
+* Step 3: **unchanged by both refreshes.** If it reads *just now* after a refresh, this defect is back.
+* Step 4: the time is the **oldest** of the two, not the newest. A queue's age is the age of what has waited longest — that is the whole reason the figure is worth showing.
+* Step 5: both behave identically. The sync queue is dated by the **session's slot time**, since a session without a link is urgent by when it is due.
+* Step 6: it ages normally (`5m ago` → `15m ago`), which is the one way this number is allowed to move.
+
 #### `ADM-TODAY-002` — Inbox counts are live · P1
 **Steps.** In a second browser, have a patient book a session. Watch the admin's Today screen without reloading.
 **Expected Result.** The unassigned count and the badge update within the operational channel's cooldown. The **first** change appears immediately (leading edge); a burst of ten bookings collapses into one refresh.

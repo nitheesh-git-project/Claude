@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { buildAdminFeed, sortFeed, countNeedsYou, type FeedItem } from "@/lib/dashboardFeed";
+import {
+  buildAdminFeed,
+  queueRollup,
+  sortFeed,
+  countNeedsYou,
+  type FeedItem,
+} from "@/lib/dashboardFeed";
 import { sectionsForScope } from "@/lib/adminScope";
 
 function item(id: string, at: string, needsYou = false): FeedItem {
@@ -83,7 +89,11 @@ describe("buildAdminFeed and the viewer's scope", () => {
   // viewer cannot open is not a lighter version of the work -- findTab
   // falls back to the first allowed section, so the tap looks like it
   // worked and lands somewhere else.
-  const queues = { pendingApprovals: 2, pendingRequests: 1, failedSyncs: 3 };
+  const queues = {
+    pendingApprovals: { count: 2, since: "2026-09-01T09:00:00.000Z" },
+    pendingRequests: { count: 1, since: "2026-09-02T09:00:00.000Z" },
+    failedSyncs: { count: 3, since: "2026-09-03T09:00:00.000Z" },
+  };
 
   function titles(items: FeedItem[]) {
     return items.map((i) => i.title);
@@ -129,5 +139,64 @@ describe("buildAdminFeed and the viewer's scope", () => {
         expect(allowed, `${scope} feed item "${item.title}"`).toContain(section);
       }
     }
+  });
+});
+
+
+// The bug: these three items stamped themselves `new Date()` at render, and
+// the admin dashboard re-renders on every realtime event. So a signup that
+// had been waiting three days read as "Just now" after any refresh -- worst
+// possible behaviour for the one class of item that gets more urgent the
+// longer it is ignored.
+describe("a queue's date is the oldest thing in it, not the moment we looked", () => {
+  const rows = [
+    { created_at: "2026-09-03T10:00:00.000Z" },
+    { created_at: "2026-09-01T08:00:00.000Z" },
+    { created_at: "2026-09-02T09:00:00.000Z" },
+  ];
+
+  it("takes the oldest, whatever order the rows arrive in", () => {
+    expect(queueRollup(rows)).toEqual({ count: 3, since: "2026-09-01T08:00:00.000Z" });
+    expect(queueRollup([...rows].reverse()).since).toBe("2026-09-01T08:00:00.000Z");
+  });
+
+  it("counts every row, including one with no readable date", () => {
+    const withGap = [...rows, { created_at: null }];
+    expect(queueRollup(withGap).count).toBe(4);
+    // A row with no date must not make the queue look newer than it is.
+    expect(queueRollup(withGap).since).toBe("2026-09-01T08:00:00.000Z");
+  });
+
+  it("is empty for no rows, so no item is ever pushed with an invented date", () => {
+    expect(queueRollup([])).toEqual({ count: 0, since: "" });
+    expect(queueRollup(null)).toEqual({ count: 0, since: "" });
+  });
+
+  it("can date a queue by another column", () => {
+    const sessions = [{ slotTime: "2026-09-05T06:00:00.000Z" }, { slotTime: "2026-09-04T06:00:00.000Z" }];
+    expect(queueRollup(sessions, (s) => s.slotTime).since).toBe("2026-09-04T06:00:00.000Z");
+  });
+
+  it("puts that date on the feed item, and the same input always gives the same date", () => {
+    const build = () =>
+      buildAdminFeed({
+        activity: [],
+        pendingApprovals: queueRollup(rows),
+      });
+    const first = build().find((i) => i.title.includes("waiting for approval"));
+    expect(first?.at).toBe("2026-09-01T08:00:00.000Z");
+
+    // Built again a moment later -- which is what a refresh is -- it must
+    // not have moved.
+    const second = build().find((i) => i.title.includes("waiting for approval"));
+    expect(second?.at).toBe(first?.at);
+  });
+
+  it("still counts correctly in the sentence", () => {
+    const one = buildAdminFeed({
+      activity: [],
+      pendingApprovals: queueRollup([{ created_at: "2026-09-01T08:00:00.000Z" }]),
+    });
+    expect(one.some((i) => i.title === "1 signup waiting for approval")).toBe(true);
   });
 });

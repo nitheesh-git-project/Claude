@@ -9,7 +9,7 @@ import AssignReferralForm from "@/components/admin/AssignReferralForm";
 import AdminShell, { type AdminScreens } from "@/components/admin/AdminShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import StatStrip from "@/components/dashboard/StatStrip";
-import { buildAdminFeed } from "@/lib/dashboardFeed";
+import { buildAdminFeed, queueRollup } from "@/lib/dashboardFeed";
 import AdminInboxQueues from "@/components/admin/AdminInboxQueues";
 import AdminAllSessionsTab from "@/components/admin/AdminAllSessionsTab";
 import AdminNewBookingTab from "@/components/admin/AdminNewBookingTab";
@@ -3494,9 +3494,13 @@ export default async function AdminDashboardPage({
       actor_name: r.actorName,
       summary: r.targetLabel,
     })),
-    pendingApprovals: pendingAccounts?.length ?? 0,
-    pendingRequests: pendingProfileChanges?.length ?? 0,
-    failedSyncs: googleMeetSyncIssues.length,
+    // Each queue carries the oldest waiting row's own date, not the moment
+    // this page rendered. These three used to stamp themselves `now`, so a
+    // signup that had been waiting three days read as "Just now" after every
+    // realtime refresh -- see queueRollup.
+    pendingApprovals: queueRollup(pendingAccounts),
+    pendingRequests: queueRollup(pendingProfileChanges),
+    failedSyncs: queueRollup(googleMeetSyncIssues, (s) => s.slotTime),
     allowedSections,
   });
 
