@@ -153,6 +153,12 @@ test.describe("Catalog detail dialogs", () => {
     // courses used to sit under "Where this usually leads".
     await page.getByText(CATEGORY_TITLE, { exact: false }).first().click();
     const dialog = page.getByRole("dialog");
+    // Asserted open before anything is asserted absent. Every check below is
+    // a toHaveCount(0), which a dialog that never opened satisfies perfectly
+    // -- and that is not hypothetical: this case stayed green through a card
+    // whose title had stopped opening its dialog at all, while five of its
+    // neighbours failed.
+    await expect(dialog).toBeVisible();
     await expect(dialog.locator(`a[href*="/book?package="]`)).toHaveCount(0);
     await expect(dialog.getByText(PACKAGE_TITLE, { exact: false })).toHaveCount(0);
   });
