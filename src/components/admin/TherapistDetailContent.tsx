@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatClinicDate } from "@/lib/formatDateTime";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
@@ -266,7 +267,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                {therapist.credentials} • Joined {new Date(therapist.created_at).toLocaleDateString()}
+                {therapist.credentials} • Joined {formatClinicDate(therapist.created_at)}
               </p>
             </div>
           </div>
@@ -488,11 +489,11 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                   </div>
                   <p className="text-slate-500">
                     Session fee ₹{(feePaise / 100).toLocaleString("en-IN")} × {sharePercent}% •{" "}
-                    Paid {a.paid_at ? new Date(a.paid_at).toLocaleDateString() : "date unknown"}
+                    Paid {a.paid_at ? formatClinicDate(a.paid_at) : "date unknown"}
                   </p>
                   {isSettled && (
                     <p className="text-slate-400">
-                      Settled {new Date(a.therapist_payout_paid_at as string).toLocaleDateString()}{" "}
+                      Settled {formatClinicDate(a.therapist_payout_paid_at as string)}{" "}
                       via {a.therapist_payout_method}
                       {a.therapist_payout_note && <> — &quot;{a.therapist_payout_note}&quot;</>}
                     </p>
@@ -528,7 +529,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                       {r.status}
                     </span>
                     <span className="text-slate-400">
-                      {new Date(r.created_at).toLocaleDateString()}
+                      {formatClinicDate(r.created_at)}
                     </span>
                   </div>
                   <ul className="text-slate-600 space-y-0.5">

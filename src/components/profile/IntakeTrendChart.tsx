@@ -10,7 +10,7 @@ const PLOT_W = WIDTH - PAD.left - PAD.right;
 const PLOT_H = HEIGHT - PAD.top - PAD.bottom;
 
 const formatDay = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  new Date(iso).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata", day: "numeric", month: "short" });
 
 /**
  * "Am I getting better?" as one line, for the two specialties that have no

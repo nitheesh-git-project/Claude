@@ -616,6 +616,12 @@ export default function ConditionIntakeWizard({
                 // close it", and that has to be answered before the
                 // patient closes it, not after the first autosave.
                 <span className="hidden text-[11px] text-slate-400 sm:inline">
+                  {/* The viewer's own clock, deliberately, and the one date in this
+                      app that is not clinic time. This is "you just saved",
+                      private to the person typing and gone on reload -- not a
+                      stamp on a record two people have to agree about. It is
+                      set in the browser, so there is no server render to
+                      disagree with either. */}
                   {draftSavedAt ? `Saved ${draftSavedAt.toLocaleTimeString()}` : "Saves as you type"}
                 </span>
               )}

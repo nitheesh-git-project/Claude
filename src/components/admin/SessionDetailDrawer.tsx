@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import { formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
@@ -470,7 +471,7 @@ export default function SessionDetailDrawer({
               {a.paid_at && (
                 <span className="text-slate-400 font-normal">
                   {" "}
-                  • paid {new Date(a.paid_at).toLocaleString("en-IN")}
+                  • paid {formatClinicDateTime(a.paid_at)}
                 </span>
               )}
             </p>

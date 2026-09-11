@@ -70,7 +70,7 @@ export default function RegionStandingsList({ assessments }: { assessments: Pain
             {TREND_LABEL[s.trend]}
             <span className="text-slate-400">
               · checked{" "}
-              {new Date(s.assessedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+              {new Date(s.assessedAt).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata", day: "numeric", month: "short" })}
             </span>
           </p>
         </li>

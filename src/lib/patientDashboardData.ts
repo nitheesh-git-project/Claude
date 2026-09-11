@@ -734,10 +734,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     {
       label: "Next session",
       value: nextSession?.slot_time
-        ? new Date(nextSession.slot_time).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+        ? new Date(nextSession.slot_time).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata", day: "numeric", month: "short" })
         : "—",
       note: nextSession?.slot_time
-        ? `${new Date(nextSession.slot_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}${
+        ? `${new Date(nextSession.slot_time).toLocaleTimeString([], { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}${
             nextSession.therapist_id ? ` · ${therapistMap.get(nextSession.therapist_id) ?? "therapist"}` : ""
           }`
         : "Nothing booked yet",

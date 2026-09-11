@@ -209,6 +209,7 @@ src/lib/                 domain logic, formatting, Supabase clients
 src/lib/adminNav.ts      the admin dashboard's seven sections + their screens
 src/lib/adminHome.ts     what each admin scope's Today screen opens on
 src/lib/activityLog.ts   the log's search, its categories and its retention floor
+src/lib/formatDateTime.ts every date the app renders, pinned to clinic time
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
 src/lib/mission.ts       the mission, vision, promises and stated limits
 src/lib/marketingPhotos.ts every photograph the public pages use
@@ -1661,6 +1662,36 @@ client is the only writer and the log is append-only from any session.
   the banner said "Your therapist has your answers" about a record the
   patient never sent. Attribution is not a nicety on a medical record.
 
+- **Every date renders in the clinic's zone, and the zone is never left to
+  the runtime.** `toLocaleString()` with no `timeZone` formats in whatever
+  zone the *runtime* is in -- on the server that is the host's, which is UTC,
+  so a session booked for 6 PM IST printed as "12:30 PM" on the patient's own
+  Overview; inside a client component the same call used the browser's zone
+  instead, which is a different wrong answer and a hydration mismatch between
+  the two. Ninety-one call sites were formatting that way.
+  `src/lib/formatDateTime.ts` is the one answer -- `formatClinicDate`,
+  `formatClinicDateShort`, `formatClinicTime`, `formatClinicDateTime`, all
+  pinned to `Asia/Kolkata` and `en-IN`, all rendering a dash rather than
+  "Invalid Date" for something unreadable. Pinned rather than per-viewer
+  because the alternative is two people reading one screen and disagreeing
+  about when a session is, with nothing on screen to say why.
+  Three exceptions, each real and each documented where it sits:
+  1. **A session slot** is formatted in the zone the patient booked it in
+     (`formatSlotTime`, `appointments.patient_timezone`) -- the booking's own
+     record of what they were looking at when they chose it. Its no-zone
+     fallback for legacy rows is the clinic's zone, not the runtime's.
+  2. **A wall-clock date** -- `new Date(y, m, d)` in `bookingSlots.ts`, which
+     has no instant behind it -- must *not* be pinned: formatting a local
+     midnight in another zone prints the previous day for any viewer east of
+     India.
+  3. **"Saved 3:42 pm"** on the intake wizard is the viewer's own clock,
+     because it is their own draft, set in their browser, and gone on reload
+     -- not a stamp on a record two people have to agree about.
+  `formatDateTime.test.ts` walks every `.toLocale*String(` in `src/` and
+  fails on one without an explicit zone, with those two files exempted by
+  name. The check earns its keep because this failure is invisible locally:
+  a developer's machine is often in the same zone as the clinic, and it only
+  shows on a UTC host.
 - **One pain scale on screen, whatever the column says.** Assessments are
   stored 0–100 and a patient rates their own pain 0–10; both used to be
   printed raw, so "How you rate it 6/10" sat beside "Last exam found 34%"

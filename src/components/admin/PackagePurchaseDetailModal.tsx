@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import Modal from "@/components/admin/Modal";
 import { useConfirm } from "@/lib/useConfirm";
@@ -236,7 +237,7 @@ export default function PackagePurchaseDetailModal({
             <p>
               <span className="text-slate-400">Expires:</span>{" "}
               {data.purchase.expires_at
-                ? `${new Date(data.purchase.expires_at).toLocaleDateString()}${
+                ? `${formatClinicDate(data.purchase.expires_at)}${
                     daysLeft !== null ? ` (${daysLeft}d left)` : ""
                   }`
                 : "No expiry"}
@@ -252,7 +253,7 @@ export default function PackagePurchaseDetailModal({
                 {data.upcoming.map((a) => (
                   <li key={a.id} className="flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2">
                     <span>
-                      {a.slot_time ? new Date(a.slot_time).toLocaleString() : "Time TBD"}{" "}
+                      {a.slot_time ? formatClinicDateTime(a.slot_time) : "Time TBD"}{" "}
                       <span className="font-mono text-slate-400">{a.session_code ?? ""}</span>
                     </span>
                     <span className="capitalize text-slate-500">{a.status}</span>
@@ -271,7 +272,7 @@ export default function PackagePurchaseDetailModal({
                 {data.completed.map((a) => (
                   <li key={a.id} className="flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2">
                     <span>
-                      {a.slot_time ? new Date(a.slot_time).toLocaleDateString() : "—"}{" "}
+                      {a.slot_time ? formatClinicDate(a.slot_time) : "—"}{" "}
                       <span className="font-mono text-slate-400">{a.session_code ?? ""}</span>
                       {a.no_show && <span className="ml-2 text-amber-700 font-semibold">No-show</span>}
                     </span>
@@ -301,7 +302,7 @@ export default function PackagePurchaseDetailModal({
                 {data.restorable.map((a) => (
                   <li key={a.id} className="flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2">
                     <span>
-                      {a.slot_time ? new Date(a.slot_time).toLocaleString() : "—"}{" "}
+                      {a.slot_time ? formatClinicDateTime(a.slot_time) : "—"}{" "}
                       <span className="capitalize text-slate-500">
                         ({a.status === "completed" ? "no-show" : "late cancellation"})
                       </span>
@@ -379,7 +380,7 @@ export default function PackagePurchaseDetailModal({
                       </span>{" "}
                       by {e.actorName}
                     </span>
-                    <span>{new Date(e.created_at).toLocaleString()}</span>
+                    <span>{formatClinicDateTime(e.created_at)}</span>
                   </li>
                 ))}
               </ul>

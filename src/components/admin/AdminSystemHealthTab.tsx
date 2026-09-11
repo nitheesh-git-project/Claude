@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import SystemHealthCard from "@/components/admin/SystemHealthCard";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -284,7 +285,7 @@ function IssueRow({
           <span className="font-mono text-slate-400">{issue.sessionCode ?? "—"}</span>
           {" · "}
           {issue.slotTime
-            ? new Date(issue.slotTime).toLocaleString()
+            ? formatClinicDateTime(issue.slotTime)
             : "Slot to be confirmed"}
         </p>
         {/* Separates "the app has not got to this yet" from "the app has
@@ -369,7 +370,7 @@ function AccountingFindings({ health }: { health: AccountingHealth }) {
           key: p.id,
           left: p.razorpayPaymentId ?? p.id.slice(0, 8),
           right: `${formatInr(p.amountPaise)} · ${
-            p.capturedAt ? new Date(p.capturedAt).toLocaleString() : "no capture time"
+            p.capturedAt ? formatClinicDateTime(p.capturedAt) : "no capture time"
           }`,
         }))}
       />
@@ -378,7 +379,7 @@ function AccountingFindings({ health }: { health: AccountingHealth }) {
         rows={sessionsWithoutBacking.map((s) => ({
           key: s.id,
           left: s.sessionCode ?? s.id.slice(0, 8),
-          right: s.slotTime ? new Date(s.slotTime).toLocaleString() : "no slot time",
+          right: s.slotTime ? formatClinicDateTime(s.slotTime) : "no slot time",
         }))}
       />
     </div>

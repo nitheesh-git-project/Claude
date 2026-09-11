@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { formatClinicDate } from "@/lib/formatDateTime";
 import type { CsvColumn } from "@/lib/csvExport";
 import DataExportButtons from "@/components/admin/DataExportButtons";
 import ListPager from "@/components/dashboard/ListPager";
@@ -100,8 +101,8 @@ export default function PackagePurchasesTable({
         { header: "Amount Paid (INR)", value: (p) => ((p.amountPaidPaise ?? 0) / 100).toFixed(2) },
         { header: "Payment Status", value: (p) => p.paymentStatus },
         { header: "Status", value: (p) => p.status },
-        { header: "Purchased", value: (p) => new Date(p.createdAt).toLocaleDateString() },
-        { header: "Expires", value: (p) => (p.expiresAt ? new Date(p.expiresAt).toLocaleDateString() : "") },
+        { header: "Purchased", value: (p) => formatClinicDate(p.createdAt) },
+        { header: "Expires", value: (p) => (p.expiresAt ? formatClinicDate(p.expiresAt) : "") },
       ],
     []
   );
@@ -185,7 +186,7 @@ export default function PackagePurchasesTable({
                     <span className="text-slate-400"> ({p.pendingCount} pending)</span>
                   </td>
                   <td className="py-2 pr-3 capitalize">{p.status}</td>
-                  <td className="py-2 pr-3">{p.expiresAt ? new Date(p.expiresAt).toLocaleDateString() : "—"}</td>
+                  <td className="py-2 pr-3">{p.expiresAt ? formatClinicDate(p.expiresAt) : "—"}</td>
                 </tr>
               ))
             )}

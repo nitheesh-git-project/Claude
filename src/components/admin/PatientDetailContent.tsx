@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
@@ -296,7 +297,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                 </Link>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Joined {new Date(patient.created_at).toLocaleDateString()}
+                Joined {formatClinicDate(patient.created_at)}
                 {hospital?.organization_name && (
                   <> • Referred by {hospital.organization_name}</>
                 )}
@@ -346,7 +347,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
             <p className="text-slate-600">
               <span className="font-semibold text-slate-500">Date of Birth: </span>
               {patient.date_of_birth
-                ? new Date(patient.date_of_birth).toLocaleDateString("en-IN")
+                ? formatClinicDate(patient.date_of_birth)
                 : "Not set"}
             </p>
             <p className="text-slate-600">
@@ -493,7 +494,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                     </span>
                   </div>
                   <p className="text-slate-500">
-                    Paid {a.paid_at ? new Date(a.paid_at).toLocaleString("en-IN") : "date unknown"}
+                    Paid {a.paid_at ? formatClinicDateTime(a.paid_at) : "date unknown"}
                     {therapist && a.therapist_id && (
                       <>
                         {" "}
@@ -553,7 +554,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                       {r.status}
                     </span>
                     <span className="text-slate-400">
-                      {new Date(r.created_at).toLocaleDateString()}
+                      {formatClinicDate(r.created_at)}
                     </span>
                   </div>
                   <ul className="text-slate-600 space-y-0.5">

@@ -1,4 +1,5 @@
 import { adminScreenHref, type AdminSectionKey } from "@/lib/adminNav";
+import { formatClinicDateTime } from "@/lib/formatDateTime";
 // The notification feed every dashboard shows, derived rather than stored.
 //
 // The admin already had a real audit trail (admin_activity_log); patients,
@@ -198,7 +199,7 @@ export function buildPatientFeed({
         icon: "fa-circle-check",
         tone: "good",
         title: `${mode} confirmed${a.therapist_name ? ` with ${a.therapist_name}` : ""}`,
-        detail: when ? new Date(when).toLocaleString() : undefined,
+        detail: when ? formatClinicDateTime(when) : undefined,
         href: "/patient/dashboard/sessions",
       });
     } else if (a.status === "cancelled") {
@@ -425,7 +426,7 @@ export function buildTherapistFeed({
         title: upcoming
           ? `${mode} booked${a.patient_name ? ` with ${a.patient_name}` : ""}`
           : `${mode} finished — mark it complete`,
-        detail: when ? new Date(when).toLocaleString() : undefined,
+        detail: when ? formatClinicDateTime(when) : undefined,
         href: "/therapist/dashboard/sessions",
         needsYou: !upcoming,
       });

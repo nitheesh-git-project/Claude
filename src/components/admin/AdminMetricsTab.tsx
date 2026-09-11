@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { formatClinicDate } from "@/lib/formatDateTime";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
 import {
   type MetricsAppointment,
@@ -1592,7 +1593,7 @@ function MoneyExplainModal({
   // up a month's figure should not be sent a screenshot, and the two formats
   // cannot describe different tables when they are built from one list.
   const exportColumns: CsvColumn<MoneyLine>[] = [
-    { header: "Session date", value: (l) => new Date(l.slotTime).toLocaleDateString() },
+    { header: "Session date", value: (l) => formatClinicDate(l.slotTime) },
     { header: "Delivery", value: (l) => (l.visitMode === "home_visit" ? "Home visit" : "Video") },
     { header: "Status", value: (l) => l.status ?? "" },
     { header: "Patient", value: (l) => patientNameById.get(l.patientId) ?? "Unknown" },
@@ -1640,7 +1641,7 @@ function MoneyExplainModal({
               {rows.map((line) => (
                 <tr key={line.appointmentId} className="border-b border-slate-100">
                   <td className="py-2 pr-3 text-slate-600">
-                    {new Date(line.slotTime).toLocaleDateString()}
+                    {formatClinicDate(line.slotTime)}
                     {line.visitMode === "home_visit" && (
                       <span className="ml-1.5 text-[10px] text-slate-400">home visit</span>
                     )}

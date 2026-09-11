@@ -4164,6 +4164,29 @@ Covered by `PAT-BOOK-017`, `PAT-SUGG-004`, `THR-AVAIL-004`, `FIN-PAY-002`, `PAY-
 * **Two overlapping actions**: start a second before the first finishes; the bar must stay up until **both** are done, not vanish with the first.
 * The five money buttons (**Done**, **Collect ₹…**, **Request Payout**, **Confirm … Payment**, **Assign & Confirm**) show a spinning ring beside their busy label rather than only swapping the text.
 
+#### `UX-TIME-001` — Every time on screen is clinic time · P0
+
+**Feature.** A date formatted without an explicit timezone renders in whatever zone the *runtime* is in — the host's on the server (UTC), the viewer's in the browser. A 6 PM IST session therefore printed as **12:30 PM** on the patient's own Overview. Every date the app renders is now pinned to `Asia/Kolkata`.
+
+**Steps**
+1. Book a session for **6:00 PM IST**. As that patient, open the dashboard **Overview** and read the **Next session** figure and the line under it.
+2. Read the same session on **Your Sessions**, on the therapist's dashboard, on the admin's All Sessions and in the session drawer.
+3. Change your **device** timezone to something far from IST (London, New York) and reload every one of those screens.
+4. Book a session at **00:30 IST** — the instant that is the *previous* day in UTC — and check the date shown everywhere.
+5. Open a **purchase detail** modal and a **payment receipt**, and read the purchased/expiry dates.
+6. On the admin **Calendar**, read the month title and the selected-day title at a non-IST device timezone.
+7. On the patient's **Book a Session** calendar, page through months at a non-IST device timezone.
+8. Open the health-profile intake wizard, type, and read the **Saved …** line.
+
+**Expected Result**
+* Steps 1–2: **6:00 pm**, everywhere, and the same date on every surface. If any screen says 12:30, that is this defect.
+* Step 3: **unchanged.** The zone is the clinic's, not the reader's — two people looking at one session must not disagree about when it is.
+* Step 4: the **IST date**, on every surface. This is the case a naive formatter gets a full day wrong.
+* Step 5: clinic time, and anything unreadable renders as **—**, never `Invalid Date`.
+* Steps 6–7: the month and day titles are **correct at every device timezone** and must not shift by a day. These are wall-clock dates with no instant behind them, and are deliberately *not* pinned — pinning them is the opposite bug.
+* Step 8: **"Saved 3:42 pm" follows your own clock**, deliberately: it is your own draft, set in your browser, gone on reload — not a stamp on a record anyone else reads.
+* A session slot keeps being shown in the zone the patient **booked** it in, where the booking recorded one.
+
 #### `UX-SAID-001` — Every change says what it was · P0
 
 **Feature.** A mutating control ends with `router.refresh()`, which re-renders the screen into a state that looks identical to the one before it. Turning home visits on left the admin looking at the same page with no idea whether it had worked. Every control now raises a confirmation naming the thing and its new state.

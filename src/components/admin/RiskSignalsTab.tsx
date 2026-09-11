@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import PagedList from "@/components/dashboard/PagedList";
@@ -255,7 +256,7 @@ function SignalCard({
 
       <p className="mt-2 text-slate-700">{signal.summary}</p>
       <p className="mt-1 text-[11px] text-slate-400">
-        Noticed {new Date(signal.detectedAt).toLocaleString()}
+        Noticed {formatClinicDateTime(signal.detectedAt)}
       </p>
 
       <details className="mt-3">
@@ -273,7 +274,7 @@ function SignalCard({
             <li key={r.id} className="text-[11px] text-slate-500">
               <span className="font-semibold text-slate-700">{r.reviewerName}</span>{" "}
               {RISK_STATUS_LABELS[r.outcome as RiskStatus] ?? r.outcome} ·{" "}
-              {new Date(r.createdAt).toLocaleDateString()} — {r.note}
+              {formatClinicDate(r.createdAt)} — {r.note}
             </li>
           ))}
         </ul>
@@ -593,7 +594,7 @@ function FlagCard({ flag }: { flag: CommunicationFlagRow }) {
         </p>
         <span className="text-[11px] text-slate-400">
           {SURFACE_LABELS[flag.surface] ?? flag.surface} ·{" "}
-          {new Date(flag.createdAt).toLocaleDateString()}
+          {formatClinicDate(flag.createdAt)}
         </span>
       </div>
       <p className="mt-1 text-[11px] font-semibold text-slate-600">{flag.summary}</p>
@@ -639,7 +640,7 @@ function RevealTrail({ reveals }: { reveals: ContactRevealRow[] }) {
                 </span>
                 <span className="text-[11px] text-slate-400">
                   {r.reason ? `${r.reason} · ` : ""}
-                  {new Date(r.createdAt).toLocaleString()}
+                  {formatClinicDateTime(r.createdAt)}
                 </span>
               </div>
             ),
