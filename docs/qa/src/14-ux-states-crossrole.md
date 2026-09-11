@@ -312,6 +312,14 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 **Event.** `THR-SUGG-001` → `PAT-SUGG-002`.
 **Expected Result.** While pending: therapist sees **Waiting on the patient**, patient sees the card. After acceptance: therapist sees the booked session, patient sees it under Upcoming, and exactly one credit has moved.
 
+#### `XR-NAV-001` — A signed-in account is never stranded on the public site · P0
+**Steps.** Sign in as a patient and open `/`. Then repeat with the profile lookup failing (block the `profiles` request in devtools, or sign in as an account whose profile row is momentarily unreadable). Repeat as an unapproved patient and as a suspended one.
+**Expected Result.** The navbar never shows **Sign In / Get Started** *and* no destination button at the same time. Approved → **Go to Dashboard**. Unapproved → **Approval pending** → `/pending-approval`. Suspended → **Account suspended** → `/account-suspended`, and suspension wins when an account is both. **A failed lookup falls back to Go to Dashboard**, not to nothing: `/dashboard` resolves the role server-side and the proxy carries the account onward, so the worst case is one extra hop, never a signed-in person with nothing to tap.
+
+#### `XR-LOAD-001` — Every tap says it registered · P1
+**Steps.** From the admin dashboard tap a **patient name**, a **therapist name** and a **condition name** (each opens an intercepted overlay). Then move between dashboard sections on the patient, therapist and hospital dashboards.
+**Expected Result.** Tapping a name paints the overlay's own sheet with **Opening…** and a skeleton straight away, then swaps to the real detail — it must not sit on the unchanged dashboard with no acknowledgement, which is what makes an admin tap a second time. Section moves on the other three dashboards draw the teal bar. No screen in the app waits on a server render with nothing on it saying so.
+
 #### `XCFG-ROSTER-001` — A roster change moves nothing · P0
 
 **Purpose.** This is the guard on the deliberate separation between the roster and the booking picker. It is the single most likely place for a well-intentioned "fix" to break the design.

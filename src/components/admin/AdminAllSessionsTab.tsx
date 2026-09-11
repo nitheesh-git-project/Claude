@@ -425,6 +425,22 @@ export default function AdminAllSessionsTab({
     therapistFilter !== "all" ||
     patientFilter !== "all";
 
+  // The money columns follow canSeeMoney exactly as the screen's own chips
+  // do. The export was the hole in that: the amount and the refund never
+  // render in this table at all, so Operations and Clinical could not read
+  // either one on screen and could download both -- a scope enforced in the
+  // markup and not in the file the markup produces is not enforced.
+  const moneyColumns: CsvColumn<(typeof rows)[number]>[] = canSeeMoney
+    ? [
+        { header: "Amount (INR)", value: (r) => (r.price / 100).toFixed(2) },
+        { header: "Refund", value: (r) => describeRefund(r.a).label },
+        {
+          header: "Refunded on",
+          value: (r) => (describeRefund(r.a).at ? formatClinicDate(describeRefund(r.a).at) : ""),
+        },
+      ]
+    : [];
+
   const exportColumns: CsvColumn<(typeof rows)[number]>[] = [
     { header: "Session ID", value: (r) => r.a.session_code ?? "" },
     { header: "Date", value: (r) => (r.a.slot_time ? istDateKey(r.a.slot_time) : "") },
@@ -436,17 +452,13 @@ export default function AdminAllSessionsTab({
     { header: "Patient", value: (r) => r.patientName },
     { header: "Therapist", value: (r) => r.therapistName },
     { header: "Category", value: (r) => r.categoryTitle },
-    { header: "Amount (INR)", value: (r) => (r.price / 100).toFixed(2) },
-    { header: "Status", value: (r) => (r.a.no_show ? "no-show" : r.a.status) },
-    { header: "Payment", value: (r) => r.a.payment_status },
     // The exports have to describe the same table -- a refunded session that
     // reads "paid" in a spreadsheet and "paid · Refunded ₹1,200" on screen is
-    // two answers to one question.
-    { header: "Refund", value: (r) => describeRefund(r.a).label },
-    {
-      header: "Refunded on",
-      value: (r) => (describeRefund(r.a).at ? formatClinicDate(describeRefund(r.a).at) : ""),
-    },
+    // two answers to one question -- so the money group sits here, where the
+    // amount always was, and is empty for a desk that cannot read it.
+    ...moneyColumns,
+    { header: "Status", value: (r) => (r.a.no_show ? "no-show" : r.a.status) },
+    { header: "Payment", value: (r) => r.a.payment_status },
     { header: "Patient rating", value: (r) => r.a.patient_rating ?? "" },
     { header: "Therapist rating", value: (r) => r.a.therapist_rating ?? "" },
   ];

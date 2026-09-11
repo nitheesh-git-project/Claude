@@ -3323,19 +3323,22 @@ export default async function AdminDashboardPage({
   const cashOwedByTherapists = homeVisitRows.filter(
     (v) => v.cash_collected_at && !v.cash_remitted_at
   ).length;
-  // Both tables, deliberately. A session refunded by hand and a cash visit
-  // refunded by hand are the same job and the same money a patient is owed;
-  // counting only the visits meant a session at manual_pending was work
-  // nobody could see from any screen.
-  const manualRefundsPending =
-    homeVisitRows.filter((v) => v.refund_status === "manual_pending").length +
-    appointmentsWithSessionCode.filter((a) => a.refund_status === "manual_pending").length;
+  // Counted over the appointments read alone, which is every session
+  // including the home visits -- `homeVisitRows` is the *same* table with a
+  // visit_mode filter, so adding the two counted every cash visit twice and
+  // put a figure on the Money strip that the Cash Ledger beneath it
+  // disagreed with. refund_status lives on the appointment for both modes:
+  // a cash home visit reaches manual_pending through cancelAppointment like
+  // any other session, and nothing writes it on a purchase row.
+  const manualRefundsPending = appointmentsWithSessionCode.filter(
+    (a) => a.refund_status === "manual_pending"
+  ).length;
   // A refund the gateway refused. Nothing in this app was watching these at
   // all -- the patient's own screen now tells them to contact the clinic,
   // so the clinic needs the same list.
-  const refundsFailed =
-    homeVisitRows.filter((v) => v.refund_status === "failed").length +
-    appointmentsWithSessionCode.filter((a) => a.refund_status === "failed").length;
+  const refundsFailed = appointmentsWithSessionCode.filter(
+    (a) => a.refund_status === "failed"
+  ).length;
 
   const inboxGroups: InboxGroup[] = [
     {

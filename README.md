@@ -807,8 +807,10 @@ than folded into it.
 
 **A refund the clinic still owes is counted.** Money's alerts strip and the
 admin Today inbox carry two refund rows: *Refunds to hand back*
-(`manual_pending`, counted across cash visits **and** sessions — it was
-home-visit rows only, so a session refunded by hand was invisible) and
+(`manual_pending`, counted over the appointments read, which is **every**
+session including the home visits — it was the home-visit query alone, so a
+session refunded by hand was invisible, and adding the two together counted
+every cash visit twice because they are the same table) and
 *Refunds that failed*, which nothing was watching before. A failed refund
 links to **Sessions → All Sessions** with a `refund_failed` preset, because
 that is where it is fixed; the strip is therefore gated on workable sections
@@ -817,7 +819,9 @@ able to change one — are not shown a figure they cannot bring down. That
 screen's payment filter also gained `refund_pending` and `refund_failed`, and
 its existing **Refunded** option now works: `payment_status` is CHECKed to
 `unpaid`/`paid`/`failed` and can never hold `refunded`, so it had been
-returning an empty table.
+returning an empty table. That screen's export follows `canSeeMoney` as well
+— the amount and the refund never render in the table on screen, so a desk
+that cannot read them there no longer downloads them either.
 
 **Every refund states why.** `refund_reason` used to be written only by the
 partial-refund route, so the commonest refund in the app — a cancellation

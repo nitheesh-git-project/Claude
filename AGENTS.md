@@ -763,9 +763,20 @@ client is the only writer and the log is append-only from any session.
   `allowedSections`: Finance reads Sessions without being able to change one,
   so counting a failed session refund on their strip would put a figure on
   their screen that nothing they could do would bring down -- the same rule
-  `visibleQueueTotal` already follows. `AdminAllSessionsTab` takes
+  `visibleQueueTotal` already follows. Both counts run over the **appointments
+  read alone**: `homeVisitRows` is that same table with a `visit_mode` filter,
+  not a second table, so summing the two counted every cash home visit twice
+  and put a figure on the Money strip that the Cash Ledger beneath it
+  disagreed with -- the "a count agrees with the rows it counted" rule broken
+  by arithmetic rather than by filtering. `refund_status` lives on the
+  appointment for both delivery modes; nothing writes it on a purchase row.
+  `AdminAllSessionsTab` takes
   `refunded`, `refund_pending` and `refund_failed` presets so each count
-  opens exactly the rows it counted. Its **Refunded** payment-filter option
+  opens exactly the rows it counted. **Its export follows `canSeeMoney` too.**
+  The amount and the refund never render in that table at all, so Operations
+  and Clinical could not read either on screen and could download both: a
+  scope enforced in the markup and not in the file the markup produces is not
+  enforced, and an export is the easiest place to forget it. Its **Refunded** payment-filter option
   matched nothing at all before this: `payment_status` is CHECKed to
   `unpaid` / `paid` / `failed` and can never hold `refunded`, so the filter
   silently returned an empty table. A refund lives on `refund_status`.
@@ -2259,7 +2270,16 @@ client is the only writer and the log is append-only from any session.
   dashboard's root left every sub-route leaning on an ancestor, so the
   fallback was the wrong shape or absent; all seventeen dashboard
   sub-routes and the three admin detail routes have their own now, each
-  passing `withSidebar` and a label naming what is coming. On a hard
+  passing `withSidebar` and a label naming what is coming. **The `@modal`
+  slot has one too**, and it is the case both loading signals miss: tapping a
+  patient name is a `<Link>` into a parallel-route slot, which is not a
+  `useRouter` transition (so no bar) and is not covered by an ancestor
+  `loading.tsx` (which wraps the page tree, not a sibling slot) -- so the row
+  was tapped, the server spent its render, and nothing acknowledged it. That
+  fallback mirrors `DetailOverlayModal`'s own sheet rather than reusing
+  `RouteLoading`: what is arriving is an overlay over the dashboard, and a
+  full-page skeleton there would read as the dashboard itself being
+  replaced. On a hard
   navigation this is what paints first: the server streams the shell and the
   fallback before the page's own queries resolve, so the new screen arrives
   as furniture rather than as a wait. The public marketing pages are
@@ -2643,9 +2663,16 @@ client is the only writer and the log is append-only from any session.
   both and the suspension decides where they land. The label names the real
   destination -- a button reading "Go to Dashboard" that opens a waiting
   screen is the "never tell someone they did something they did not do" rule
-  in its navigational form. It still starts **null**, fail-closed, so a slow
-  or failed role lookup offers nothing rather than briefly offering the wrong
-  thing, and `/pending-approval` and `/account-suspended` are in
+  in its navigational form. It starts **null** so a slow lookup offers
+  nothing rather than briefly offering the wrong thing -- but a lookup that
+  *finishes* badly, a read error or a row that is not there, falls back to
+  `/dashboard` rather than staying null. Null forever is the original bug in
+  its failure case: the navbar hides Sign In the moment somebody is signed
+  in, so a dead profile read left them with no Sign In **and** no
+  destination, stranded on the marketing site. `/dashboard` resolves the role
+  server-side and the proxy carries an unapproved or suspended account onward
+  from there, so the fallback is always correct and only ever one hop longer.
+  `/pending-approval` and `/account-suspended` are in
   `AUTH_CTA_HIDDEN_ROUTES` so the button never points at the page it is on.
 - **Every dashboard needs a way back to the public site.** All four are in
   `NAV_HIDDEN_ROUTES`, so the public `Navbar` never renders there; without an

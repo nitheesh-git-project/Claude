@@ -64,7 +64,20 @@ export function useAccountDestination(): AccountState {
         .select("role, approved, active")
         .eq("id", session.user.id)
         .maybeSingle();
-      if (!active || !profile?.role) return;
+      if (!active) return;
+
+      // A read that failed, or a row that is not there, still gets a way
+      // back in -- `/dashboard` resolves the role server-side and the proxy
+      // bounces an unapproved or suspended account onward from there, so the
+      // fallback is always correct and only ever one hop longer. Leaving it
+      // null here was the original bug in its failure case: the navbar hides
+      // Sign In the moment somebody is signed in, so a dead lookup meant no
+      // Sign In *and* no destination, which is a signed-in person on the
+      // marketing site with nothing to tap.
+      if (!profile?.role) {
+        setDestination({ href: "/dashboard", label: "Go to Dashboard" });
+        return;
+      }
 
       // Suspended is checked first: an account can be both suspended and
       // unapproved, and the suspension is the one that decides where they

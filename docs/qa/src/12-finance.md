@@ -191,6 +191,15 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 **Steps.** As **Master Admin**, read the alerts strip at the top of any Money screen and the Today inbox. Tap each refund row. Then repeat as **Finance**, **Operations** and **Clinical**.
 **Expected Result.** *Refunds to hand back* reads **2** — cash visits and sessions together, because both are money a patient is owed with no card payment to reverse; counting only the visits is the bug this case exists to catch. *Refunds that failed* reads **1** and is its own row, because the work is different. Tapping it lands on **Sessions → All Sessions** filtered to exactly that one session, with every other filter cleared. Finance see the hand-back row and **not** the failed one: they read Sessions without being able to change one, so a figure nothing they could do would bring down does not belong on their screen. Operations and Clinical open no Money screen at all. Every row is **urgent** — this is money the clinic has agreed to return and has not returned.
 
+#### `FIN-REF-011` — A cash home visit is counted once, not twice · P0
+**Preconditions.** Exactly **one** cash home visit at `manual_pending` and no other refund owed anywhere.
+**Steps.** Read *Refunds to hand back* on the Money alerts strip and on the Today inbox, then open **Money → Payouts → Cash Ledger** and count the rows.
+**Expected Result.** Every one of them reads **1**. It must not read 2: the dashboard's home-visit query and its main appointments query are the **same table** (`appointments`, one of them filtered to `visit_mode = 'home_visit'`), so a count that adds the two counts every cash visit twice and puts a figure on the strip the ledger underneath it disagrees with. Repeat with one failed refund on a home visit for *Refunds that failed*.
+
+#### `FIN-REF-012` — The All Sessions export carries no money to a desk that cannot see it · P1
+**Steps.** As **Operations**, then as **Clinical**, open **Sessions → All Sessions** and export both CSV and PDF. Repeat as **Master Admin** and as **Finance**.
+**Expected Result.** The limited desks' files contain **no** `Amount (INR)`, `Refund` or `Refunded on` column at all — not a blank one. Those three never render in this table on screen, so a desk that cannot read them there must not be able to download them; every other column is present and the row count is identical. Master Admin and Finance get all three.
+
 #### `FIN-REF-009` — The All Sessions refund filters · P1
 **Steps.** On **Sessions → All Sessions**, take the payment filter through **Refunded**, **Refund to hand back** and **Refund failed**.
 **Expected Result.** Each returns exactly the sessions in that state. **Refunded** in particular must return rows: `payment_status` is CHECKed to `unpaid` / `paid` / `failed` and can never hold `refunded`, so this option previously matched nothing and quietly returned an empty table — a filter that always looks like "no refunds have ever happened". A refund lives on `refund_status`.
