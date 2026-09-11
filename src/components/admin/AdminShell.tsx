@@ -127,6 +127,26 @@ const ADMIN_CATALOG_REALTIME_COOLDOWN_MS = 30000;
 // change here.
 export type AdminScreens = Record<string, ReactNode>;
 
+/**
+ * The label of a screen that was asked for and not rendered, or null.
+ *
+ * Only names a tab that exists in the nav at all: an unknown key is a stale
+ * or hand-typed link rather than an access refusal, and telling somebody
+ * they lack access to a screen that does not exist is worse than the silent
+ * fallback it replaces.
+ */
+function unreachableTabLabel(
+  requestedSection: string | null,
+  requestedTab: string | null,
+  resolved: { section: string; tab: string }
+): string | null {
+  if (!requestedTab) return null;
+  if (requestedSection === resolved.section && requestedTab === resolved.tab) return null;
+  const section = ADMIN_SECTIONS.find((s) => s.key === (requestedSection ?? resolved.section));
+  const tab = section?.tabs.find((t) => t.key === requestedTab);
+  return tab ? tab.label : null;
+}
+
 export default function AdminShell({
   screens,
   badges,
@@ -199,6 +219,24 @@ export default function AdminShell({
   );
   const [sectionKey, setSectionKey] = useState<string>(initial.section);
   const [tabKey, setTabKey] = useState<string>(initial.tab);
+  // A link that asked for a screen this scope cannot open, said out loud.
+  //
+  // `findTab` falls back to the first screen a scope *can* reach, which is
+  // the right behaviour -- a stale bookmark must land somewhere valid -- but
+  // on its own it is silent, and a tap that quietly goes somewhere else is
+  // the failure mode this codebase already names as a bug class. The
+  // clearest case is Finance following "Book for a patient" from the booking
+  // page: they read Sessions and cannot change one, so New Booking is not
+  // theirs, and without this they arrive at the Schedule calendar with
+  // nothing saying why.
+  //
+  // Computed once from the URL this render was given, held in state so it
+  // clears the moment they navigate. Only an *explicitly asked for* screen
+  // counts -- landing on a section's default because no tab was named is not
+  // a refusal.
+  const [missedTab, setMissedTab] = useState<string | null>(() =>
+    unreachableTabLabel(initialSection ?? null, initialTab ?? null, initial)
+  );
   // Desktop full <-> mini collapse. Independent of the mobile drawer below --
   // a phone gets an off-canvas drawer instead, never the mini/icon-only rail.
   const [collapsed, setCollapsed] = useState(false);
@@ -214,18 +252,32 @@ export default function AdminShell({
   useEffect(() => {
     function applyFromLocation() {
       const params = new URLSearchParams(window.location.search);
-      const found = findTab(params.get("section"), params.get("tab"), allowedSections, manageSections);
+      // `limitedScope` passed here too. Without it this defaulted to false
+      // and dropped every `limitedScopesOnly` screen on mount and on Back --
+      // so a limited desk deep-linking to Today -> Activity, or walking back
+      // to it, landed on Today's overview instead, having resolved the URL
+      // differently from the server that had just rendered it.
+      const found = findTab(
+        params.get("section"),
+        params.get("tab"),
+        allowedSections,
+        manageSections,
+        limitedScope
+      );
       setSectionKey(found.section);
       setTabKey(found.tab);
     }
     applyFromLocation();
     window.addEventListener("popstate", applyFromLocation);
     return () => window.removeEventListener("popstate", applyFromLocation);
-  }, [allowedSections, manageSections]);
+  }, [allowedSections, manageSections, limitedScope]);
 
   function navigate(nextSection: string, nextTab: string) {
     setSectionKey(nextSection);
     setTabKey(nextTab);
+    // The notice describes the link they arrived on, not the screen they
+    // chose next.
+    setMissedTab(null);
     const params = new URLSearchParams(window.location.search);
     params.set("section", nextSection);
     params.set("tab", nextTab);
@@ -569,6 +621,24 @@ export default function AdminShell({
             </div>
             <AdminGlobalSearch entities={searchEntities} />
           </div>
+
+          {missedTab && (
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+              <i aria-hidden className="fa-solid fa-circle-info text-[11px]" />
+              <span>
+                <strong className="font-semibold">{missedTab}</strong> is not part of your
+                access, so this is the nearest screen you can open. Ask a Master Admin if
+                you need it.
+              </span>
+              <button
+                type="button"
+                onClick={() => setMissedTab(null)}
+                className="ml-auto rounded-lg border border-amber-300 bg-white px-2 py-1 font-semibold text-amber-800 transition hover:bg-amber-100"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
 
           {/* Every screen stays mounted and is hidden with CSS rather than
               unmounted -- the same trade the old tab shell made. It keeps a

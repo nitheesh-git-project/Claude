@@ -75,6 +75,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Today | `risk` | Risk | `ADM-RISK-001` |
 | Sessions | `schedule` | Schedule (calendar) | `ADM-SCHED-001` |
 | Sessions | `all` | All Sessions | `ADM-SESS-001` |
+| Sessions | `new` | New Booking | `ADM-SESS-NEW-001` |
 | Sessions | `roster` | Roster | `ADM-ROST-001` |
 | Sessions | `delivery` | Delivery (operational rates) | `ADM-DELIV-001` |
 | Sessions | `recommendations` | Recommendations — the clinic's review queue, plus every plan | `ADM-CARE-001`, `ADM-CARE-004` |

@@ -155,6 +155,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Today | `risk` | Risk | `ADM-RISK-001` |
 | Sessions | `schedule` | Schedule (calendar) | `ADM-SCHED-001` |
 | Sessions | `all` | All Sessions | `ADM-SESS-001` |
+| Sessions | `new` | New Booking | `ADM-SESS-NEW-001` |
 | Sessions | `roster` | Roster | `ADM-ROST-001` |
 | Sessions | `delivery` | Delivery (operational rates) | `ADM-DELIV-001` |
 | Sessions | `recommendations` | Recommendations — the clinic's review queue, plus every plan | `ADM-CARE-001`, `ADM-CARE-004` |
@@ -2524,6 +2525,23 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 #### `ADM-SCHED-001` — Schedule (calendar) · P1
 **Steps.** Open **Sessions → Schedule**. Navigate months. Tap a day with sessions. Tap one session.
 **Expected Result.** The calendar shows sessions by day. Tapping a day opens its panel; tapping a session opens the **same `SessionDetailDrawer`** that All Sessions opens. **There is one detail surface, not two.**
+
+#### `ADM-SESS-NEW-001` — "Book for a patient" lands on the booking form · P1
+
+**Feature.** An admin who opens `/book` is shown the wrong-account card rather than the wizard — one account carries one role, so an admin cannot be the patient a booking is for. Its **Book for a patient** button sends them to New Booking under Sessions. It used to carry `?section=sessions` with **no tab**, which resolves to the section's *first* screen, so the one button in the product named "Book for a patient" landed on the Schedule month grid.
+
+**Steps**
+1. Signed in as a **Master Admin**, open `/` then **Book**, and tap **Book for a patient**.
+2. Repeat as **Operations**, then **Clinical**.
+3. Repeat as **Finance**.
+4. On the screen Finance lands on, press **Dismiss**, then move to another screen and back.
+5. As a limited desk, deep-link straight to `?section=today&tab=activity`, then navigate away and press **Back**.
+
+**Expected Result**
+* Steps 1–2: **New Booking**, with the form on screen — not the calendar.
+* Step 3: Finance lands on the nearest Sessions screen they *can* open, with **one amber line** saying *"New Booking is not part of your access, so this is the nearest screen you can open."* Finance reads Sessions and cannot change one, so booking is genuinely not theirs — `/api/admin/create-booking` refuses them too. What must not happen is landing on a different screen with nothing said.
+* Step 4: the line goes and does not come back — it describes the link they arrived on, not the screen they chose next.
+* Step 5: **Today → Activity both times.** The shell's own URL handler resolves with the same scope rules the server used; while it did not, a limited desk's deep link and Back button both fell through to Today's overview.
 
 #### `ADM-SESS-001` — All Sessions is one filterable list · P0
 

@@ -2941,6 +2941,27 @@ change that genuinely needs no doc update can ignore it.
   `assign_session_code` now also loop past a taken code rather than trusting
   the sequence, so a drift from any other cause (a restore, a manual insert)
   cannot break signup again.
+- **A fallback that is silent is half a fix.** `findTab` landing somewhere
+  valid is correct -- a stale bookmark must not produce a blank page -- but
+  on its own the tap just goes somewhere else and looks like it worked.
+  `AdminShell` now compares the screen the URL *asked for* against the one it
+  resolved, and when an admin's scope is why they differ it says so in one
+  amber line with a Dismiss. It names only a tab that exists in the nav: an
+  unknown key is a stale link, and telling somebody they lack access to a
+  screen that was never there is worse than the silence it replaces. The case
+  that produced it: Finance following **Book for a patient** from `/book`
+  reads Sessions and cannot change one, so New Booking is not theirs and they
+  arrived at the Schedule calendar with nothing saying why.
+  Two related bugs came out of the same path and are worth not
+  reintroducing. `WrongAccountForBooking` linked to `?section=sessions` with
+  **no tab**, so every admin scope -- Master Admin included -- landed on the
+  month grid from the one button in the product named "Book for a patient";
+  a `?section=` with no `?tab=` is a link to a section's first screen, not to
+  the screen you meant. And `AdminShell`'s own popstate handler called
+  `findTab` **without `limitedScope`**, so a limited desk deep-linking to
+  Today -> Activity, or pressing Back to it, resolved the URL differently
+  from the server that had just rendered it. Both arguments are easy to omit
+  and neither failure announces itself.
 - **A hardcoded `?section=&tab=` link is a dead link waiting to happen.**
   `findTab` falls back to a section's first screen when the tab key is
   unknown, so a stale link looks like it works — it just quietly lands
