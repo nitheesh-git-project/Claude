@@ -15,6 +15,8 @@ import AdminAllSessionsTab from "@/components/admin/AdminAllSessionsTab";
 import AdminNewBookingTab from "@/components/admin/AdminNewBookingTab";
 import AdminUserAccessTab, { type AdminRow } from "@/components/admin/AdminUserAccessTab";
 import AdminActivityLogTab, { type ActivityRow } from "@/components/admin/AdminActivityLogTab";
+import AdminLogsTab from "@/components/admin/AdminLogsTab";
+import AdminLogRetentionTab from "@/components/admin/AdminLogRetentionTab";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
 import AdminCostsTab from "@/components/admin/AdminCostsTab";
 import { istDateKey } from "@/lib/formatSlotRange";
@@ -3190,6 +3192,17 @@ export default async function AdminDashboardPage({
     />
   );
 
+  // The whole log, for a Master Admin. Fed the same rows as the desk screen
+  // below -- unfiltered, since `filterActivityForViewer` leaves a full
+  // scope's list untouched -- plus a search, a category filter, and older
+  // pages fetched on demand rather than carried in every render.
+  const logsTab = (
+    <AdminLogsTab
+      rows={activityRows}
+      actors={adminRows.map((a) => ({ id: a.id, name: a.fullName ?? "Unnamed admin" }))}
+    />
+  );
+
   const activityLogTab = (
     <AdminActivityLogTab
       rows={activityRows}
@@ -3755,12 +3768,13 @@ export default async function AdminDashboardPage({
     "settings:clinical": settingsClinicalTab,
     "settings:access": settingsAccessTab,
     "settings:health": settingsHealthTab,
-    "settings:activity": activityLogTab,
-    // The same screen over the same (already scope-filtered) rows. It is on
-    // Today because the three limited desks cannot open Settings at all, so
-    // without it their own history is whatever fits in the Today feed --
-    // and it is hidden from a Master Admin, who has it under Settings.
+    // The three limited desks' own history, on Today because they cannot
+    // open the Logs section at all -- without it, their record is whatever
+    // fits in the Today feed. Hidden from a Master Admin, who reads the
+    // whole log under Logs.
     "today:activity": activityLogTab,
+    "logs:all": logsTab,
+    "logs:retention": <AdminLogRetentionTab />,
     "settings:security": settingsSecurityTab,
   };
 

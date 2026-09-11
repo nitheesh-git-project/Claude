@@ -128,6 +128,11 @@ export type AdminActivityAction =
   // The most destructive action in the application. Recorded after the wipe,
   // because the wipe truncates this table.
   | "data.reset"
+  // The only way a row ever leaves this table. Recorded after the purge and
+  // deliberately outside its own reach: the cutoff cannot come within
+  // MIN_RETENTION_DAYS of now, so an entry saying the log was cleared always
+  // survives the clearing it describes.
+  | "log.clear"
   | "catalog.create"
   | "catalog.update"
   | "catalog.delete"
@@ -248,6 +253,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "clinical_questions.update_pain_map": "Reworded a Pain Map question",
   "risk.review": "Reviewed a risk signal",
   "data.reset": "Reset all data",
+  "log.clear": "Cleared older log entries",
   "catalog.create": "Created catalog item",
   "catalog.update": "Edited catalog item",
   "catalog.delete": "Deleted catalog item",

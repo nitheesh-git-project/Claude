@@ -51,14 +51,14 @@ test.describe("Suite J: degraded schema", () => {
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.admin));
   });
 
-  test("J-005: a missing admin_activity_log empties only the Activity Log", async ({ page }) => {
+  test("J-005: a missing admin_activity_log empties only the log screen", async ({ page }) => {
     try {
       sql("drop table if exists admin_activity_log cascade;");
       await dashboardStillWorks(page);
 
-      await page.goto(`${BASE}/admin/dashboard?section=settings&tab=activity`);
+      await page.goto(`${BASE}/admin/dashboard?section=logs&tab=all`);
       await expect(
-        page.getByRole("heading", { level: 2, name: "Activity Log" })
+        page.getByRole("heading", { level: 2, name: "All Activity" })
       ).toBeVisible({ timeout: 30_000 });
       // Empty, and saying so -- not a crash and not a blank panel.
       await expect(page.getByText(/Nothing logged yet/)).toBeVisible();

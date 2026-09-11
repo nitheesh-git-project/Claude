@@ -1,6 +1,6 @@
 // The admin dashboard's information architecture, in one place.
 //
-// Six sections, each one a job an admin actually does, rather than the 16
+// Seven sections, each one a job an admin actually does, rather than the 16
 // feature-shaped tabs this replaced (a session used to be listed on four of
 // them, settings lived on four, and "what needs me now" lived on none). The
 // sidebar, the URL (?section=&tab=), the per-screen content map in
@@ -17,6 +17,7 @@ export type AdminSectionKey =
   | "people"
   | "money"
   | "catalog"
+  | "logs"
   | "settings";
 
 export type AdminTabDef = {
@@ -53,12 +54,12 @@ export type AdminTabDef = {
    * Shown to a limited scope only.
    *
    * One screen needs this: Today -> Activity. A Master Admin reads the whole
-   * log on Settings -> Activity Log, and Operations, Finance and Clinical
-   * cannot open Settings at all -- so without it their own desk's history is
-   * the ten rows that happen to fit in the Today feed. Rendering it for
-   * everybody would put a second list of the same rows in front of the one
-   * reader who already has the first, which is what the "a session is listed
-   * once" rule exists to stop.
+   * log in the Logs section, and Operations, Finance and Clinical cannot
+   * open Logs at all -- so without it their own desk's history is the ten
+   * rows that happen to fit in the Today feed. Rendering it for everybody
+   * would put a second list of the same rows in front of the one reader who
+   * already has the first, which is what the "a session is listed once" rule
+   * exists to stop.
    */
   limitedScopesOnly?: boolean;
 };
@@ -206,6 +207,39 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     ],
   },
   {
+    key: "logs",
+    label: "Logs",
+    icon: "fa-clipboard-list",
+    blurb: "Every action taken in this dashboard, and who took it.",
+    // A section of its own rather than a screen under Settings, where it
+    // used to sit. Settings is where the product is configured; a log is not
+    // a setting, and burying the record of what everybody did inside the
+    // screen list an owner opens least often is how it stops being read.
+    //
+    // Master Admin only (see SECTION_ACCESS in adminScope.ts). The three
+    // limited desks keep their own filtered history on Today -> Activity,
+    // which is their desk's work alone -- the whole log names actions on
+    // screens they cannot open and colleagues whose desks are not theirs.
+    tabs: [
+      {
+        key: "all",
+        label: "All Activity",
+        blurb: "Every change an admin has made, newest first \u2014 who, when, and what it changed from.",
+        example: "Find who refunded a session last Tuesday, and what reason they gave.",
+      },
+      {
+        key: "retention",
+        label: "Archive & Clear",
+        // Nothing to read here: the screen is a download and a destructive
+        // button. A scope holding this section at `view` would open an
+        // empty page.
+        requiresManage: true,
+        blurb: "Download older entries and remove them, once you have a copy.",
+        example: "Take a copy of everything older than a year, then clear it out.",
+      },
+    ],
+  },
+  {
     key: "settings",
     label: "Settings",
     icon: "fa-sliders",
@@ -266,12 +300,6 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         label: "System Health",
         blurb: "Warnings when something behind the scenes has failed. Nothing here is set by you \u2014 it is the app reporting on itself.",
         example: "Find a booked session whose Google Meet link was never created, and try again.",
-      },
-      {
-        key: "activity",
-        label: "Activity Log",
-        blurb: "Every change an admin has made, newest first.",
-        example: "Check who refunded a session last Tuesday, and what reason they gave.",
       },
       {
         key: "security",

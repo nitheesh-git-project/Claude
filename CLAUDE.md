@@ -6,8 +6,8 @@ Razorpay payments across two delivery modes (video consultation and in-home
 visits), therapist scheduling and payouts, hospital (B2B) referrals, and an
 admin back office. Data, auth, storage, and realtime come from Supabase;
 session video links come from Google Calendar/Meet. The admin back office is
-organised into six sections — Today, Sessions, People, Money, Catalog,
-Settings — defined once in `src/lib/adminNav.ts`. Each Settings screen
+organised into seven sections — Today, Sessions, People, Money, Catalog,
+Logs, Settings — defined once in `src/lib/adminNav.ts`. Each Settings screen
 states in plain words what it is and gives one example, under its own
 heading — a label alone names a category rather than an action, and the
 section's single line ("How the product behaves") explained nothing about
@@ -15,6 +15,19 @@ the screen you had just opened. That is also why the old Booking Rules
 screen is three: **Booking Rules** (one video session), **Offers &
 Discounts** (money off, to win a patient), and **Programmes & Home Visits**
 (more than one appointment, arranged in advance).
+
+**Logs is Master Admin's alone.** Every action an admin takes is recorded in
+`admin_activity_log`, and the Logs section is where the whole of it is read:
+All Activity (search, a type filter derived from `ACTION_DOMAIN`, a date
+range, both exports, and a dialog on every row saying what changed from what,
+with older pages fetched by cursor through `/api/admin/activity-log`) and
+Archive & Clear. Clearing is the only way a row has ever left that table, and
+it cannot reach the last `MIN_RETENTION_DAYS` — 30 — at any setting, checked
+in `src/lib/activityLog.ts`, in the route, and inside
+`purge_admin_activity_log()`. It demands a downloaded copy first, a typed
+phrase, and it records itself. Nothing here can be edited, and there is still
+no update path. Operations, Finance and Clinical cannot open Logs; they read
+their own desk's work on Today → Activity. See the log rule in `AGENTS.md`.
 
 An admin carries a scope (`full`, `operations`, `finance`, `clinical`) that
 decides which of those sections they open **and at what level** — `none`,

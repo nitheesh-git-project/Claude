@@ -57,7 +57,7 @@ Dr. Pooja's Physio is a production web application for a physiotherapy practice.
 2. **A patient portal** — book, pay, attend, manage a health profile, answer therapist recommendations.
 3. **A therapist portal** — availability, sessions, clinical records, recommendations, earnings.
 4. **A hospital/partner portal** — refer patients, track referrals, see partner earnings.
-5. **An admin back office** — six sections that run the clinic: Today, Sessions, People, Money, Catalog, Settings.
+5. **An admin back office** — seven sections that run the clinic: Today, Sessions, People, Money, Catalog, Logs, Settings.
 
 ### The business model in one paragraph
 

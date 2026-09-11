@@ -19,10 +19,10 @@ SETUP-RESET-001
   → PAT-PKG-001 (spend 3 credits)     → XR-CREDIT-001
   → THR-SESS-005 ×3 (deliver them)
   → FIN-SUM-001 (identities hold)     → FIN-PAY-002 (settle) → XR-PAYOUT-001
-  → ADM-SET-033 (every action is in the Activity Log)
+  → ADM-SET-033 (every action is in the log)
 ```
 
-**Pass criterion.** Both money identities hold at the end, every cross-role check agrees, and the Activity Log contains every mutating action including `payout.settle`.
+**Pass criterion.** Both money identities hold at the end, every cross-role check agrees, and the log contains every mutating action including `payout.settle`.
 
 ### `REG-J2` — The home-visit and cash journey · P0
 
@@ -177,7 +177,7 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | Catalog | (reads) | (reads) | — | `ADM-CAT-001..015` | `ADM-CAT-006` | `ADM-SET-028` | `UX-MOB-005` |
 | Settings | — | — | — | `ADM-SET-001..035` | `FIN-COST-002` | `ADM-SET-025..028` | — |
 | Contact controls | `THR-LEAK-005` | `THR-LEAK-001..007`, `THR-SESS-003/004` | — | `ADM-SET-029` | — | `SEC-DATA-005` | — |
-| Risk | — | — | — | `ADM-RISK-001..003` | — | `ADM-RISK-003` | — |
+| Risk | — | — | — | `ADM-RISK-001..004` | — | `ADM-RISK-003`, `ADM-RISK-004` | — |
 | Audit log | — | — | — | `ADM-SET-033` | `XR-PAYOUT-001` | `ADM-SET-033` | — |
 | Public site | `PUB-*` | — | `HOS-LEAD-001` | `ADM-SET-004..008` | — | `SEC-ROUTE-004` | `UX-MOB-001` |
 | Debug bar | `DBG-TIME-001` | — | — | `SETUP-RESET-001..003`, `DBG-NAV-001` | — | `SETUP-RESET-002/003` | — |
@@ -314,8 +314,9 @@ Sign off each line before release.
 - [ ] `REG-J1` … `REG-J6` all pass on a fresh database
 - [ ] Both money identities hold on the reference dataset
 - [ ] Settings → System Health reports **no** accounting disagreements and **no** unresolved sync issues
-- [ ] Every action in the audit vocabulary has been observed in the Activity Log, `payout.settle` included
-- [ ] No generated password appears anywhere in the Activity Log
+- [ ] Every action in the audit vocabulary has been observed in **Logs → All Activity**, `payout.settle` included
+- [ ] A clear at the shortest cutoff left the last 30 days intact and recorded itself (`ADM-LOG-002`)
+- [ ] No generated password appears anywhere in the log
 - [ ] `npm run verify` (lint + unit tests + build) passes
 - [ ] `npm run lint` passes, including the Realtime publication coverage check
 - [ ] The Playwright suite passes against a test project (`workers: 1`, against `next dev`)

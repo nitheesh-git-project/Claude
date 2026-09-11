@@ -22,6 +22,7 @@ export default function DataExportButtons<T>({
   rows,
   columns,
   disabled,
+  onExported,
 }: {
   /** Base name, no extension -- each format adds its own, plus the date. */
   filename: string;
@@ -33,6 +34,11 @@ export default function DataExportButtons<T>({
   rows: T[];
   columns: CsvColumn<T>[];
   disabled?: boolean;
+  /** Fired once a download has actually been produced. Only one caller needs
+   *  it -- the log's Archive & Clear screen, where "you have a copy" is the
+   *  condition on a destructive button, and a checkbox saying so would be a
+   *  promise rather than a fact. */
+  onExported?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +48,7 @@ export default function DataExportButtons<T>({
   function handleCsv() {
     const day = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
     downloadCsv(`${filename}-${day}.csv`, toCsv(rows, columns));
+    onExported?.();
   }
 
   async function handlePdf() {
@@ -76,6 +83,7 @@ export default function DataExportButtons<T>({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+      onExported?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not build that PDF.");
     } finally {

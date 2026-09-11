@@ -71,7 +71,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** Approve one request; decline another with a reason.
 **Expected Result.** Approving writes the new value onto the profile; declining does not. Both are audited. A stale decision on an already-decided request is refused with `This request has already been reviewed`.
 
-#### `ADM-RISK-003` — Each desk reads its own signals; the trails stay closed · P0
+#### `ADM-RISK-004` — Each desk reads its own signals; the trails stay closed · P0
 
 **Steps.** With at least one open signal from a money rule (`cash_variance`) and one from a sessions rule (`contact_leak`), open **Today → Risk** as **Finance**, then as **Operations**, then as **Admin Full**.
 **Expected Result.** Finance sees the money signals and **not** `contact_leak`; Operations and Clinical see the sessions signals and **not** `cash_variance`; Admin Full sees both. Each scoped screen carries `Only the signals your desk can act on are shown here.` — a filtered queue that looks complete is worse than one that says what it is. A scoped desk can **review** its own signals (the route is `today`-scoped, which every desk manages).
@@ -91,9 +91,9 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** Review a signal with a note of `ok` (2 characters), then with `Checked the two sessions, both legitimate.`
 **Expected Result.** The short note is refused — the minimum is **ten characters**, enforced by a CHECK, because "dismissed" with no reason reads the same as "not read". Reviews are **append-only**. Closing a signal frees its slot, so a repeat after a dismissal is raised **fresh** — that is correct, it is new information.
 
-#### `ADM-RISK-003` — Thresholds are editable, and the queue is full-scope only · P1
-**Steps.** Edit a rule's threshold on the tab. Then sign in as Admin Ops and open Today.
-**Expected Result.** The threshold saves and the next sweep uses it. As Admin Ops, the **Risk tab is not shown, and the page does not even fetch the signals** — a signal names a colleague and quotes what they wrote.
+#### `ADM-RISK-003` — Thresholds are editable, and the editor is Master Admin's · P1
+**Steps.** Edit a rule's threshold on the tab as a Master Admin. Then sign in as Admin Ops and open Today → Risk.
+**Expected Result.** The threshold saves and the next sweep uses it. As Admin Ops, the **threshold editor is absent** — what fires at all is a clinic-wide decision — and so are the flagged-message and reveal-log trails, which name a colleague and quote what they wrote. The signals that desk can act on are still listed and reviewable (`ADM-RISK-004`).
 
 ---
 
@@ -394,7 +394,7 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 2. Try to confirm with the reason `test`. Then enter `Patient says her session link is missing.` and confirm.
 3. Read the bar at the top of the patient dashboard. Walk to Sessions, Programmes and Health Profile.
 4. Tap **Exit and go back to admin**.
-5. Open **Settings → Activity Log**.
+5. Open **Logs → All Activity**.
 6. Repeat step 1 as an **Operations**, **Finance** and **Clinical** admin.
 7. Open another **admin's** profile, and a **suspended** patient's.
 8. Start a swap, then leave the tab for over 30 minutes and reload.
@@ -405,7 +405,7 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 * The dialog says in advance that this is the real account, that anything tapped happens for real and is recorded as theirs, that it ends after 30 minutes, and how to get back.
 * Every dashboard screen carries an **amber bar** naming the patient, saying the actions are real, counting the window down, and offering Exit. It is the **only** difference from what she sees.
 * Exit restores the admin's own session and lands on `/admin/dashboard` — no re-login.
-* The Activity Log carries **`Signed in as a user`** and **`Stopped signing in as a user`**, both naming the patient, the first carrying the reason.
+* The log carries **`Signed in as a user`** and **`Stopped signing in as a user`**, both naming the patient, the first carrying the reason.
 * All three roles work the same way: a therapist lands on `/therapist/dashboard`, a hospital on `/hospital/dashboard`, each with the same bar. A hospital's own dashboard is where its referrals and earnings read from, so "the referral I sent is not showing" is a question about that screen rather than about the Partners card.
 * The three scoped admins have **no such button**, and calling `/api/admin/start-impersonation` directly answers **403** — the button's absence is presentation, the route is the rule.
 * Another admin is refused (*"You cannot sign in as another admin"*) whether active or suspended; a suspended patient is refused with what to do about it.
@@ -502,7 +502,7 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 3. Delete every session under some condition, leave **one home-visit package** filed against it, and delete it again.
 4. In a second tab, delete a condition; in the first tab, tap **Delete** on the same row.
 5. Tap **Delete**, and with the request in flight, drop the network.
-6. Open **Settings → Activity Log**.
+6. Open **Logs → All Activity**.
 
 **Expected Result**
 * Step 1 deletes, the row leaves the list, and `/` and `/conditions` update immediately.
@@ -510,7 +510,7 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 * Step 3 names the **home-visit package** specifically. A refusal that says "it has bookings" sends an admin to delete sessions and be refused a second time by something they were never told about.
 * Step 4 answers **404** with `That condition has already been deleted. Refresh to see the current list.`
 * Step 5 says `Could not reach the server. Nothing has changed.` — previously the thrown request left the transition with nothing on screen at all.
-* The Activity Log's row names the **condition's title**, not "Treatment category": the row is gone by then, so the log is the only thing left that can say which one it was.
+* The log's row names the **condition's title**, not "Treatment category": the row is gone by then, so the log is the only thing left that can say which one it was.
 **Never `{ success: true }` on a delete that removed nothing.** If the row is still listed after a success and a refresh, that is a P0 — it is the exact defect this case was written for.
 
 #### `ADM-CAT-005` — Create a session package · P0

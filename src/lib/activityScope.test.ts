@@ -39,6 +39,7 @@ describe("ACTION_DOMAIN", () => {
       "people",
       "money",
       "catalog",
+      "logs",
       "settings",
       "full_only",
     ];
@@ -47,9 +48,10 @@ describe("ACTION_DOMAIN", () => {
     }
   });
 
-  // The four capabilities no section grants. A scoped desk reading that an
-  // account was minted, a scope changed, the database reset or somebody
-  // signed in as a patient is reading a Master Admin's own work.
+  // The capabilities no limited desk's section grants. A scoped desk reading
+  // that an account was minted, a scope changed, the database reset, the log
+  // cleared, or somebody signed in as a patient is reading a Master Admin's
+  // own work.
   it("keeps the Master Admin's own capabilities out of every desk", () => {
     for (const action of [
       "account.create",
@@ -57,6 +59,7 @@ describe("ACTION_DOMAIN", () => {
       "data.reset",
       "impersonation.start",
       "impersonation.end",
+      "log.clear",
     ]) {
       expect(ACTION_DOMAIN[action]).toBe("full_only");
       for (const scope of ADMIN_SCOPES.filter((s) => s !== "full")) {

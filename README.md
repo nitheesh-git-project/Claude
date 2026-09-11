@@ -269,7 +269,7 @@ link points here so no client bundle has to know the four paths; see
 **Hospital:** `/hospital/login`, `/hospital/dashboard`,
 `/hospital/dashboard/profile`.
 
-**Admin:** `/admin/login`, `/admin/dashboard`, organised into six sections
+**Admin:** `/admin/login`, `/admin/dashboard`, organised into seven sections
 (defined once in `src/lib/adminNav.ts`):
 
 | Section | Screens | Answers |
@@ -279,7 +279,8 @@ link points here so no client bundle has to know the four paths; see
 | **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
 | **Money** | Summary · Transactions · Payouts · Costs · Breakdown | What came in, what goes out, what it costs, what is still owed. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
-| **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Activity Log · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
+| **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** — the three limited desks read their own desk's history on Today → Activity. |
+| **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
 
 **How the Money screens divide a rupee.** Every figure on Money → Summary
 comes out of one function, `moneyByBucketFor` in `src/lib/adminMetrics.ts`,
@@ -1366,14 +1367,46 @@ deliberately not checkboxes — a tick that did not also change what the
 server allows would be worse than no tick at all, so changing what a desk
 reaches stays a code change.
 `admin_activity_log` records every mutating admin action — actor, action,
-subject, amount, timestamp — readable at **Settings → Activity Log** and
-append-only by construction: the table has a select policy and no insert
-policy, so the only writer is the service-role client inside the API routes.
+subject, amount, timestamp — readable in the **Logs** section and
+append-only by construction: the table has a select policy and no insert or
+update policy, so the only writer is the service-role client inside the API
+routes.
 "Every" is literal: as well as the money moves, it covers the changes that
 move no money and are still somebody's to answer for — a patient's sign-in
 email, a home visit's address, who may read a patient's record, the wording
 of the clinical questions, and the data reset itself, whose row is written
 **after** the wipe because the wipe truncates this table.
+
+**The Logs section is where a Master Admin reads it.** It is a section of its
+own rather than a screen under Settings: Settings is where the product is
+configured, a log is not a setting, and the record of what everybody did was
+buried in the screen list an owner opens least often. Two screens:
+
+- **All Activity** — every entry, newest first, with a search over the words
+  somebody would actually type (an admin's name, a patient's name, "refund"),
+  a **type** filter taken from the section each action's own route guards
+  with, a date range, a money-only switch, CSV and PDF export, and a detail
+  dialog on every row saying what changed from what. The dashboard's own
+  render carries the newest 200 entries; **Load older entries** pages the
+  rest through `/api/admin/activity-log` by cursor, so a table that grows
+  for ever is not a payload every admin downloads on every refresh.
+- **Archive & Clear** — the only way a row ever leaves the table. Four steps,
+  each one closing a particular mistake: pick a cutoff from a fixed set,
+  see the count server-side, download a copy (the Clear button stays locked
+  until a download has actually been produced), and type `CLEAR LOGS`.
+  Nothing inside the last **30 days** can be cleared at any setting — the
+  floor is enforced in `src/lib/activityLog.ts`, again in
+  `/api/admin/clear-activity-log`, and again inside
+  `purge_admin_activity_log()`, which is reachable by the service-role key
+  and by hand in the SQL editor where no route check runs. The clearing is
+  itself logged, with the cutoff and the number removed, and is outside its
+  own reach by construction: the entry is written now, and now is inside the
+  protected window.
+
+Everything else about the table is unchanged — there is no update path at
+all, and a Master Admin can remove old history but cannot rewrite any of it.
+Operations, Finance and Clinical cannot open Logs; they read their own
+desk's actions on **Today → Activity**, filtered by `src/lib/activityScope.ts`.
 **Sessions → New Booking** (`/api/admin/create-booking`) books an online
 session on a patient's behalf, running the same conflict check and Meet sync
 as a patient's own booking, with an explicit payment state and a logged
@@ -1417,7 +1450,7 @@ of its own:
 Your Sessions · Packages · Payments · Health Profile · Edit Profile.
 Therapist: Overview · Availability · Sessions · Earnings · My Patients ·
 Edit Profile. Hospital: Overview · Refer a Patient · Your Referrals ·
-Earnings · Edit Profile. Admin keeps its six sections
+Earnings · Edit Profile. Admin keeps its seven sections
 (`src/lib/adminNav.ts`).
 
 These lists are the result of repeatedly merging entries that answered the

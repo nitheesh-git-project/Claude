@@ -70,6 +70,11 @@ export const ACCESS_LEVEL_LABELS: Record<AccessLevel, string> = {
 // `manage`: every scope needs to know what is waiting on them, and the inbox
 // itself only shows rows whose destination the viewer can reach.
 //
+// Logs is the mirror image: Master Admin alone, at `manage`. The whole log
+// names actions on screens a limited desk cannot open and colleagues whose
+// desks are not theirs, and it carries the one control that removes history.
+// Each of the three reads its own desk's work on Today -> Activity instead.
+//
 // Finance reads Sessions and cannot touch one. It is the one grant that is
 // neither all nor nothing, and it exists because the question finance
 // actually asks -- "what was this 1,200 rupees for?" -- was answerable only
@@ -83,6 +88,7 @@ const SECTION_ACCESS: Record<AdminScope, Record<AdminSectionKey, AccessLevel>> =
     people: "manage",
     money: "manage",
     catalog: "manage",
+    logs: "manage",
     settings: "manage",
   },
   operations: {
@@ -91,6 +97,7 @@ const SECTION_ACCESS: Record<AdminScope, Record<AdminSectionKey, AccessLevel>> =
     people: "manage",
     money: "none",
     catalog: "manage",
+    logs: "none",
     settings: "none",
   },
   finance: {
@@ -99,6 +106,7 @@ const SECTION_ACCESS: Record<AdminScope, Record<AdminSectionKey, AccessLevel>> =
     people: "manage",
     money: "manage",
     catalog: "none",
+    logs: "none",
     settings: "none",
   },
   clinical: {
@@ -107,6 +115,7 @@ const SECTION_ACCESS: Record<AdminScope, Record<AdminSectionKey, AccessLevel>> =
     people: "manage",
     money: "none",
     catalog: "none",
+    logs: "none",
     settings: "none",
   },
 };
@@ -212,6 +221,14 @@ export const ADMIN_CAPABILITY_GROUPS: { section: AdminSectionKey; title: string;
     capabilities: [
       { label: "See what the clinic sells and at what price", section: "catalog", writes: false },
       { label: "Change a price, a programme or a service area", section: "catalog", writes: true },
+    ],
+  },
+  {
+    section: "logs",
+    title: "Logs",
+    capabilities: [
+      { label: "Read everything every admin has done", section: "logs", writes: false },
+      { label: "Download and clear entries older than a cutoff", section: "logs", writes: true },
     ],
   },
   {

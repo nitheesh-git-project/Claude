@@ -5,15 +5,26 @@ import DataExportButtons from "@/components/admin/DataExportButtons";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import type { CsvColumn } from "@/lib/csvExport";
-import { ADMIN_ACTIVITY_LABELS, isMoneyAction } from "@/lib/adminActivityLog";
+import { isMoneyAction } from "@/lib/adminActivityLog";
 import type { AdminScope } from "@/lib/adminScope";
-import Modal from "@/components/admin/Modal";
-import { isFirstValue, readableDetails } from "@/lib/activityDetails";
+import ActivityDetailDialog, {
+  describeAction,
+  formatWhen,
+} from "@/components/admin/ActivityDetailDialog";
 
-// Who did what. Read-only by construction: admin_activity_log has a select
-// policy and no insert/update/delete policy at all, so the only writer is
-// the service-role client inside the API routes -- nothing on this screen,
-// and nothing an admin session could call, can edit history.
+// Who did what, for one desk.
+//
+// A limited scope's own screen, on Today -> Activity: Operations, Finance
+// and Clinical cannot open the Logs section, and the rows reaching this
+// component were already filtered to their desk by activityScope.ts. A
+// Master Admin reads the whole log on Logs -> All Activity instead, which is
+// the same entries with a search, a category filter and older pages behind
+// it.
+//
+// Read-only by construction: admin_activity_log has a select policy and no
+// insert or update policy at all, so the only writer is the service-role
+// client inside the API routes -- nothing on this screen, and nothing an
+// admin session could call, can edit history.
 
 export type ActivityRow = {
   id: string;
@@ -27,21 +38,6 @@ export type ActivityRow = {
    *  before this screen renders; nothing here reads it. */
   actorScope: AdminScope | null;
 };
-
-function formatWhen(iso: string) {
-  return new Date(iso).toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Kolkata",
-  });
-}
-
-function describe(action: string) {
-  return ADMIN_ACTIVITY_LABELS[action as keyof typeof ADMIN_ACTIVITY_LABELS] ?? action;
-}
 
 export default function AdminActivityLogTab({
   rows,
@@ -93,7 +89,7 @@ export default function AdminActivityLogTab({
   const exportColumns: CsvColumn<(typeof filtered)[number]>[] = [
     { header: "When", value: (r) => r.createdAt },
     { header: "Admin", value: (r) => r.actorName },
-    { header: "Action", value: (r) => describe(r.action) },
+    { header: "Action", value: (r) => describeAction(r.action) },
     { header: "Subject", value: (r) => r.targetLabel ?? "" },
     { header: "Amount (INR)", value: (r) => (r.amountPaise ? (r.amountPaise / 100).toFixed(2) : "") },
     { header: "Details", value: (r) => (r.details ? JSON.stringify(r.details) : "") },
@@ -106,8 +102,8 @@ export default function AdminActivityLogTab({
           <h2 className="font-display font-bold text-lg text-slate-800">Activity Log</h2>
           <p className="mt-1 text-xs text-slate-500">
             {scopeNote
-              ? "Every action your desk took from this dashboard. Append-only — nothing here can be edited or deleted from the app."
-              : "Every action an admin took from this dashboard. Append-only — nothing here can be edited or deleted from the app."}
+              ? "Every action your desk took from this dashboard. Append-only — nothing here can be edited."
+              : "Every action an admin took from this dashboard. Append-only — nothing here can be edited."}
           </p>
           {scopeNote && (
             <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
@@ -206,7 +202,7 @@ export default function AdminActivityLogTab({
                   <td className="py-2 pr-3 font-semibold text-slate-800">{r.actorName}</td>
                   <td className="py-2 pr-3 text-slate-700">
                     <span className="flex flex-wrap items-center gap-1.5">
-                      {describe(r.action)}
+                      {describeAction(r.action)}
                       {/* Says the row has more behind it. Without this the
                           table looks like the whole record, and the detail
                           nobody knows about is the detail nobody reads. */}
@@ -235,146 +231,6 @@ export default function AdminActivityLogTab({
       )}
 
       <ListPager pager={pager} noun="entry" nounPlural="entries" />
-    </div>
-  );
-}
-
-// One entry, in full.
-//
-// The table answers "who did what"; this answers "what exactly changed, from
-// what". It used to be the route's raw JSON printed into the cell -- a
-// developer's view of a record whose whole purpose is to be read months
-// later by somebody asking what a colleague altered.
-//
-// Three things it must not do. It must not drop a field it does not
-// recognise: an unfamiliar key is exactly the one somebody is looking for,
-// so anything unpaired is listed plainly and the raw record stays available
-// underneath. It must not claim a change it cannot show -- an entry whose
-// route recorded nothing says so rather than rendering an empty table. And
-// it must not imply the entry can be edited: nothing here is a control,
-// because admin_activity_log has no update policy and never should.
-function ActivityDetailDialog({
-  row,
-  onClose,
-}: {
-  row: ActivityRow;
-  onClose: () => void;
-}) {
-  const [showRaw, setShowRaw] = useState(false);
-  const { changes, facts } = readableDetails(row.details);
-  const hasDetails = !!row.details && Object.keys(row.details).length > 0;
-
-  return (
-    <Modal
-      title={describe(row.action)}
-      subtitle={`${row.actorName} · ${formatWhen(row.createdAt)}`}
-      onClose={onClose}
-    >
-      <div className="space-y-5">
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Fact label="Admin" value={row.actorName} />
-          <Fact label="When" value={formatWhen(row.createdAt)} />
-          <Fact label="Subject" value={row.targetLabel ?? "—"} />
-          <Fact
-            label="Amount"
-            value={
-              row.amountPaise != null
-                ? `₹${(row.amountPaise / 100).toLocaleString("en-IN")}`
-                : "—"
-            }
-          />
-        </dl>
-
-        {changes.length > 0 && (
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              What changed
-            </p>
-            <div className="mt-2 space-y-2">
-              {changes.map((change) => (
-                <div
-                  key={change.label}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"
-                >
-                  <p className="text-[11px] font-semibold text-slate-500">{change.label}</p>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                    {isFirstValue(change) ? (
-                      <span className="text-slate-400">Not set before</span>
-                    ) : (
-                      <span className="rounded-md bg-red-50 px-2 py-1 font-medium text-red-700 line-through decoration-red-300">
-                        {change.from}
-                      </span>
-                    )}
-                    <i aria-hidden className="fa-solid fa-arrow-right text-[9px] text-slate-300" />
-                    <span className="rounded-md bg-emerald-50 px-2 py-1 font-semibold text-emerald-800">
-                      {change.to}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {facts.length > 0 && (
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              {changes.length > 0 ? "Also recorded" : "What was recorded"}
-            </p>
-            <dl className="mt-2 space-y-1.5">
-              {facts.map((fact) => (
-                <div
-                  key={fact.label}
-                  className="grid grid-cols-1 gap-0.5 sm:grid-cols-[160px_1fr] sm:gap-3"
-                >
-                  <dt className="text-[11px] font-semibold text-slate-500">{fact.label}</dt>
-                  <dd className="break-words text-xs text-slate-800">{fact.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        )}
-
-        {!hasDetails && (
-          <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
-            This action recorded no further detail — who, what and when is the
-            whole entry. A plain approval is the usual case: its evidence is
-            the name and the timestamp above.
-          </p>
-        )}
-
-        <div className="border-t border-slate-200 pt-3">
-          {hasDetails && (
-            <button
-              type="button"
-              onClick={() => setShowRaw((v) => !v)}
-              className="text-[11px] font-semibold text-slate-500 transition hover:text-slate-700"
-            >
-              {showRaw ? "Hide" : "Show"} the exact record
-            </button>
-          )}
-          {showRaw && (
-            <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-slate-100 p-3 text-[10px] text-slate-600">
-              {JSON.stringify(row.details, null, 2)}
-            </pre>
-          )}
-          <p className="mt-2 text-[11px] text-slate-400">
-            {/* Said on the screen rather than only in the schema: a reader
-                weighing an entry needs to know it cannot have been edited. */}
-            This entry cannot be edited or deleted by anyone, including the
-            admin who wrote it.
-          </p>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-[11px] font-semibold text-slate-500">{label}</dt>
-      <dd className="mt-0.5 break-words text-xs font-semibold text-slate-800">{value}</dd>
     </div>
   );
 }

@@ -40,9 +40,10 @@ import type { AdminSectionKey } from "@/lib/adminNav";
  * test above covers the other case, since only a Master Admin can suspend
  * an admin.
  *
- * `full_only` marks the four capabilities no section grants: minting an
- * account, changing a scope, resetting the database, and signing in as
- * somebody. They are a Master Admin's alone, so no scoped desk reads them.
+ * `full_only` marks the capabilities no *limited* desk's section grants:
+ * minting an account, changing a scope, resetting the database, signing in
+ * as somebody, and clearing old log entries. They are a Master Admin's
+ * alone, so no scoped desk reads them.
  */
 export type ActionDomain = AdminSectionKey | "full_only";
 
@@ -141,6 +142,8 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "account.create": "full_only",
   "admin.set_scope": "full_only",
   "data.reset": "full_only",
+  // The Logs section is Master Admin's alone, so clearing it is too.
+  "log.clear": "full_only",
   "impersonation.start": "full_only",
   "impersonation.end": "full_only",
 };

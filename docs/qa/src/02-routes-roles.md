@@ -91,6 +91,8 @@ Every route below is covered by at least one test. The rightmost column names th
 | Catalog | `packages` | Packages | `ADM-CAT-005` |
 | Catalog | `areas` | Service Areas + waitlist | `ADM-CAT-010` |
 | Catalog | `purchases` | Purchases | `ADM-CAT-014` |
+| Logs | `all` | All Activity | `ADM-SET-033`, `ADM-SET-034`, `ADM-LOG-001`, `ADM-LOG-003` |
+| Logs | `retention` | Archive & Clear | `ADM-LOG-002` |
 | Settings | `brand` | Brand & Contact | `ADM-SET-001` |
 | Settings | `public` | Public Site | `ADM-SET-004` |
 | Settings | `booking` | Booking Rules | `ADM-SET-010` |
@@ -99,7 +101,6 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
 | Settings | `access` | User Access | `ADM-SET-025` |
 | Settings | `health` | System Health | `ADM-SET-030` |
-| Settings | `activity` | Activity Log | `ADM-SET-033` |
 | Settings | `security` | Account Security | `ADM-SET-035` |
 
 Detail routes (open as an overlay from the dashboard, and as a full page on direct navigation):

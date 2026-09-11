@@ -81,7 +81,7 @@ Where a case below still says "Settings → Booking Rules", that is correct — 
 
 #### `ADM-SET-009` — Every Settings screen says what it is · P2
 
-**Steps.** Open each of the ten Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, User Access, System Health, Activity Log, Account Security.
+**Steps.** Open each of the nine Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, User Access, System Health, Account Security. Then open both Logs screens: All Activity and Archive & Clear.
 
 **Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen — none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
 
@@ -331,7 +331,8 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 | Finance | `?section=catalog&tab=packages` | `POST /api/admin/create-package` | Same |
 | Clinical | `?section=money&tab=summary` | `POST /api/admin/refund-package` | Same |
 | Clinical | `?section=settings&tab=team` | `POST /api/admin/set-admin-scope` | Same |
-| All three | `?section=today&tab=risk` | — | The Risk tab is not rendered and its data is not fetched |
+| All three | `?section=today&tab=risk` | — | The tab opens with **only the signals that desk can act on**, and the flagged-message and reveal-log trails and the threshold editor are absent (`ADM-RISK-004`) |
+| All three | `?section=logs&tab=all` | `POST /api/admin/clear-activity-log` | Logs is **not in the sidebar** and the URL falls back to an allowed screen; route **403** (`ADM-LOG-003`) |
 
 **Expected Result.** **Every** one returns 403 at the route. The sidebar hiding a section is presentation only — a session cookie can call any route directly.
 **Do not report the three full-only routes as violations.** `set-admin-scope`, `debug-reset` and `create-account` guard with an explicit `scope !== "full"` check rather than `requireAdminScope`, deliberately: a section gate would let a scoped admin widen its own access or mint a full admin. They are stricter than the rule, not exceptions to it.
@@ -363,7 +364,7 @@ Covered by `ADM-SESS-003`.
 #### `ADM-SET-033` — Activity Log · P0
 
 **Steps**
-1. Open **Settings → Activity Log**.
+1. Open **Logs → All Activity**.
 2. Confirm each of these earlier actions appears with actor, action, target and timestamp: account approval, therapist revenue-share change, care-plan withdrawal, care-plan authored on behalf, payout settlement, cash amount correction, credit adjustment, hospital onboarding, password reset.
 2a. Confirm the same for the actions that used to leave no trace at all: `Changed a patient's contact details` (`ADM-PEOP-003`'s contact edit), `Edited notes on a patient`, `Changed whether a therapist appears on Team`, `Excluded a session rating from the average`, `Changed a home visit's address`, `Decided a record-access request` and `Decided a health-profile change` (`ADM-PEOP-004`), `Reworded an intake question` (`ADM-SET-020`), `Reviewed a risk signal` (`ADM-RISK-002`) and `Retried a Meet sync` (`ADM-SET-031`).
 3. Search the log for any of the generated passwords from `ADM-SET-026` or `ADM-PEOP-009`.
@@ -377,7 +378,7 @@ Covered by `ADM-SESS-003`.
 **Feature.** Tapping a row opens the whole entry. It used to expand the route's raw JSON into the table cell (`{"fromPercent":40,"toPercent":55}`) — a developer's view of a record whose purpose is to be read months later by somebody asking what a colleague altered and what it was before.
 
 **Steps**
-1. Change a therapist's revenue share from one percentage to another, then open **Settings → Activity Log** and tap that row.
+1. Change a therapist's revenue share from one percentage to another, then open **Logs → All Activity** and tap that row.
 2. Tap a row for **Changed a patient's contact details**.
 3. Tap a row for a **plain care-plan approval** (no reason required).
 4. Tap **Show the exact record** on any entry that has one.
@@ -388,9 +389,75 @@ Covered by `ADM-SESS-003`.
 * Step 2 names **both old and new email and phone**. It previously recorded `emailChanged: true` — an entry saying a patient's sign-in address was altered without saying what it had been is unusable for the only question it gets asked.
 * Step 3 says the action **recorded no further detail**, and that who/what/when is the whole entry — never an empty table that reads as missing data.
 * Money reads as **₹2,499**, not `249900`; a date reads as a date in IST; `true`/`false` read as **Yes**/**No**; an absent value is a dash. A field the screen does not recognise is **still listed** — in an audit record the unfamiliar key is the one somebody is looking for — and the raw record stays available behind the toggle.
-* Every dialog ends with the line saying the entry **cannot be edited or deleted by anyone**, including the admin who wrote it. That is enforced by the table having no update policy; the sentence is there because a reader weighing an entry needs to know it.
+* Every dialog ends with the line saying the entry **cannot be edited by anyone**, including the admin who wrote it, and that after 30 days a Master Admin can clear it and that clearing is logged too. The first half is enforced by the table having no update policy; the second half is there because the screen must not promise something the product stopped keeping when Archive & Clear shipped.
 * Step 5 shows a **note length**, never the note's text: this log is readable by every admin, and a note written about one patient must not be reproduced across the whole back office.
 **The one action logged after the fact on purpose:** `Reset all data` (`SETUP-RESET-001`). The wipe truncates `admin_activity_log`, so the row is written **after** the reset returns — open the log on a freshly reset database and it holds exactly one row, naming who emptied it. A log that is completely empty after a reset means that row is missing, and the most destructive action in the product is unattributed.
+
+### 11.x Logs
+
+The Logs section is **Master Admin only**. Operations, Finance and Clinical have no such section in their sidebar and read their own desk's work on **Today → Activity**, filtered to their own domain and their own desk.
+
+#### `ADM-LOG-001` — Finding one entry in a long log · P1
+
+**Feature.** The log grows for ever, so All Activity is built around finding one row rather than reading the list. The dashboard's own render carries the newest 200 entries; older ones are fetched on demand.
+
+**Steps**
+1. Open **Logs → All Activity** as a Master Admin.
+2. Type a patient's name into the search box. Then type an admin's first name and a word from an action together, e.g. `asha refund`.
+3. Set **Any type** to **Money**, then to **Sessions**.
+4. Set a **From**/**To** range covering yesterday only, then press **Clear filters**.
+5. Press **Load older entries** twice, watching the `x of n loaded` count.
+6. Press it repeatedly until the button is replaced by a line saying there is nothing older.
+7. Export CSV and PDF with a filter applied.
+
+**Expected Result**
+* Search matches the **action's label as well as its stored key** — typing `refund` finds `refund.issue`, and typing `settled` finds `Settled payout` — and also the subject and the admin's name. Two terms **narrow**, they do not widen.
+* The type dropdown offers **only categories that have rows behind them**; a category with nothing in it is not listed. Each row carries its type as a chip, and the categories are the dashboard's own section names plus **Master Admin only** for the four capabilities no desk holds.
+* **Clear filters** appears only while something is set, and returns the count to `n of n loaded`.
+* Each **Load older entries** press adds up to 200 more and the count rises. No entry is ever listed twice, including one written while the page was open.
+* When the log is exhausted the button is replaced by *"That is the whole log"*.
+* Both exports carry **exactly the filtered rows**, with a Category column, and the note under the button says filters and exports run over what is loaded.
+
+#### `ADM-LOG-002` — Archive & Clear, and the floor under it · P0
+
+**Feature.** The only way a row ever leaves `admin_activity_log`. The whole point of the design is that an admin cannot act and then remove the record of having acted.
+
+**Steps**
+1. Open **Logs → Archive & Clear**. Try to find any control offering a cutoff inside 30 days.
+2. Choose **Older than 365 days** and press **Count them**.
+3. Try to press **Clear** before downloading anything.
+4. Press **Prepare the archive**, then download the CSV.
+5. Type `clear logs` in lower case, then `CLEAR LOGS`, and press Clear.
+6. Change the cutoff to a different choice after step 4 and look at the screen.
+7. Open **All Activity** afterwards.
+8. **[API]** POST `/api/admin/clear-activity-log` with `{"olderThanDays": 1, "confirm": "CLEAR LOGS"}`, and again with `{"olderThanDays": 365}` and no `confirm`.
+9. **[API]** POST the same route as an **Operations**, **Finance** and **Clinical** admin.
+10. **[SQL]** `select public.purge_admin_activity_log(1);` against a scratch database.
+
+**Expected Result**
+* Step 1: **no such control exists.** The choices are 30, 90, 180 and 365 days, and nothing shorter is offered.
+* Step 2: a count from the **server**, not from the rows on screen. Zero says plainly there is nothing to clear.
+* Step 3: the Clear button is **disabled** until a download has actually been produced — a checkbox saying a copy was taken is deliberately not what unlocks it.
+* Step 5: the lower-case phrase is refused; only the exact phrase works.
+* Step 6: changing the cutoff **resets the count, the archive, the download and the typed phrase** — a copy taken for one year must not unlock a clear at three months.
+* Step 7: entries older than the cutoff are gone, everything newer is intact, and there is a new **`Cleared older log entries`** row naming the cutoff, the protected window and the number removed. **That row cannot be cleared by any later clear**, because it is inside the 30-day floor.
+* Step 8: both are refused with 400 and nothing is removed.
+* Step 9: **403** for all three, the same answer a stranger gets.
+* Step 10: the function **raises** — the floor holds where no route check runs, which is the case the database half exists for.
+
+#### `ADM-LOG-003` — Who can open Logs at all · P0
+
+**Steps**
+1. Sign in as **Operations**, then **Finance**, then **Clinical**. Look for a Logs entry in the sidebar.
+2. For each, navigate directly to `/admin/dashboard?section=logs&tab=all`, and to `&tab=retention`.
+3. Open **Settings** as a Master Admin and look for an Activity Log screen.
+4. Open **Settings → User Access** as a Master Admin and read the matrix.
+
+**Expected Result**
+* Step 1: **no Logs section** for any of the three.
+* Step 2: each lands on a screen their scope can open — never a heading over nothing, and never the log.
+* Step 3: Settings has **nine** screens and Activity Log is **not** among them; it moved to the Logs section, which is the whole of it in one place.
+* Step 4: the matrix carries a **Logs** group with a read row and a clear row, ticked for Master Admin and blank for the other three — derived from the same module the routes enforce with, so it cannot claim access nobody has.
 
 #### `ADM-SET-035` — Account Security · P2
 **Steps.** Open **Settings → Account Security** and change the admin's own password.

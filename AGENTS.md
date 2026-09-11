@@ -53,8 +53,10 @@ landing screen -- the figure it leads with, quick actions that all land
 inside that scope, the access card a limited scope gets and a Master Admin
 does not, two dozen un-settled sidebar clicks leaving the dashboard naming
 itself exactly twice with no console error and the scope still enforced,
-and six concurrent renders of one dashboard agreeing on every figure
-(`admin-scoped-dashboard.spec.ts` -- whose console-error assertion splits
+six concurrent renders of one dashboard agreeing on every figure, and the
+Logs section refusing all three limited desks at the screen *and* at both of
+its routes while the retention floor refuses a cutoff inside the protected
+window (`admin-scoped-dashboard.spec.ts` -- whose console-error assertion splits
 failed requests by host, since this sandbox blocks the *browser* from
 reaching Supabase and RealtimeRefresh's socket dies on every run),
 and the therapist roster end to end
@@ -204,8 +206,9 @@ src/components/marketing/ the eight public pages' design system: PageHero,
                          Section, PhotoTile, SplitFeature, StepStrip,
                          IconCard, TrustBar, ExploreGrid, ClosingCta
 src/lib/                 domain logic, formatting, Supabase clients
-src/lib/adminNav.ts      the admin dashboard's six sections + their screens
+src/lib/adminNav.ts      the admin dashboard's seven sections + their screens
 src/lib/adminHome.ts     what each admin scope's Today screen opens on
+src/lib/activityLog.ts   the log's search, its categories and its retention floor
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
 src/lib/mission.ts       the mission, vision, promises and stated limits
 src/lib/marketingPhotos.ts every photograph the public pages use
@@ -1744,8 +1747,8 @@ client is the only writer and the log is append-only from any session.
   the one class of item that is still owed something — a programme paid for
   a month ago with sessions unbooked is the case that made it obvious.
 - **The admin dashboard's information architecture lives in
-  `src/lib/adminNav.ts`** — six sections (Today, Sessions, People, Money,
-  Catalog, Settings), each with its own screens. The sidebar, the URL
+  `src/lib/adminNav.ts`** — seven sections (Today, Sessions, People, Money,
+  Catalog, Logs, Settings), each with its own screens. The sidebar, the URL
   (`?section=&tab=`), the content map in the dashboard page, and the scope
   check all read that one list, so adding a screen is one entry there plus
   one entry in the page's `screens` map. Tab state is written with the
@@ -2021,8 +2024,45 @@ client is the only writer and the log is append-only from any session.
   what the rows are scoped to — a printed table nobody can date is
   worthless. Nothing in the admin dashboard exports JSON, and nothing
   should.
+- **The log is a section of its own, and clearing it is the one thing that
+  takes evidence away.** Logs (`logs` in `adminNav.ts`) is Master Admin only
+  -- `SECTION_ACCESS` gives it to `full` at `manage` and to nobody else -- and
+  holds two screens. **All Activity** is every entry with a search, a type
+  filter, a date range, both exports and the detail dialog; the dashboard's
+  render carries the newest 200 and `/api/admin/activity-log` pages the rest
+  **by cursor**, never by offset, since rows are written continuously and an
+  offset skips whichever entry crossed the boundary mid-scroll. **Archive &
+  Clear** is the only delete path this table has ever had, and five things
+  hold it:
+  1. **A floor no setting can get under.** `MIN_RETENTION_DAYS` (30) is
+     checked in `src/lib/activityLog.ts`, again in
+     `/api/admin/clear-activity-log`, and again inside
+     `purge_admin_activity_log()`. The database half is not belt-and-braces:
+     that function is reachable by the service-role key and by hand in the
+     SQL editor, where no route check runs. The newest month of the trail --
+     where anything worth hiding would be -- is out of reach at every
+     setting.
+  2. **The clearing is logged, outside its own reach.** `log.clear` is
+     written after the purge, with the cutoff and the count, and now is
+     inside the protected window, so a clear can never remove the record of a
+     clear.
+  3. **A copy comes first.** The Clear button unlocks only once a download
+     has actually been produced (`DataExportButtons`' `onExported`), not on a
+     checkbox saying one was -- a record that is gone and was never kept is
+     destroyed; one downloaded first has only been moved.
+  4. **The count is taken server-side**, because the screen holds one page
+     and a browser-side count would understate what is about to go.
+  5. **Nothing here can be edited, and the screens say exactly that.** There
+     is still no update path and never should be. The detail dialog's closing
+     line was changed in the same change that added the cutoff -- it used to
+     promise entries could never be deleted by anyone, and a screen making a
+     promise the product stopped keeping is worse than the feature.
+  Adding an action means adding it to `ACTION_DOMAIN` as well as the audit
+  union: the type filter is derived from that map, so a second grouping of
+  the same 80 actions cannot drift from the one the routes enforce.
 - **An audit entry is read months later, so it says what changed from what.**
-  Tapping a row on Settings -> Activity Log opens the whole entry
+  Tapping a row in the Logs section -- or on a limited desk's
+  Today -> Activity -- opens the whole entry
   (`ActivityDetailDialog`), and `src/lib/activityDetails.ts` turns the
   route's `details` blob into it. Four rules:
   1. **The before/after pair is found, not required.** Routes name it five

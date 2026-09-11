@@ -22,7 +22,7 @@ async function signInAsAdmin(page: Page) {
 
 test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
   test.beforeAll(async () => {
-    // Every test here walks all six sections, which only a full-access admin
+    // Every test here walks all seven sections, which only a full-access admin
     // can see. Stated as a precondition so a narrowed scope fails loudly
     // here instead of surfacing as "the Money button doesn't exist".
     const admin = adminClient();

@@ -57,7 +57,7 @@ Dr. Pooja's Physio is a production web application for a physiotherapy practice.
 2. **A patient portal** — book, pay, attend, manage a health profile, answer therapist recommendations.
 3. **A therapist portal** — availability, sessions, clinical records, recommendations, earnings.
 4. **A hospital/partner portal** — refer patients, track referrals, see partner earnings.
-5. **An admin back office** — six sections that run the clinic: Today, Sessions, People, Money, Catalog, Settings.
+5. **An admin back office** — seven sections that run the clinic: Today, Sessions, People, Money, Catalog, Logs, Settings.
 
 ### The business model in one paragraph
 
@@ -171,6 +171,8 @@ Every route below is covered by at least one test. The rightmost column names th
 | Catalog | `packages` | Packages | `ADM-CAT-005` |
 | Catalog | `areas` | Service Areas + waitlist | `ADM-CAT-010` |
 | Catalog | `purchases` | Purchases | `ADM-CAT-014` |
+| Logs | `all` | All Activity | `ADM-SET-033`, `ADM-SET-034`, `ADM-LOG-001`, `ADM-LOG-003` |
+| Logs | `retention` | Archive & Clear | `ADM-LOG-002` |
 | Settings | `brand` | Brand & Contact | `ADM-SET-001` |
 | Settings | `public` | Public Site | `ADM-SET-004` |
 | Settings | `booking` | Booking Rules | `ADM-SET-010` |
@@ -179,7 +181,6 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
 | Settings | `access` | User Access | `ADM-SET-025` |
 | Settings | `health` | System Health | `ADM-SET-030` |
-| Settings | `activity` | Activity Log | `ADM-SET-033` |
 | Settings | `security` | Account Security | `ADM-SET-035` |
 
 Detail routes (open as an overlay from the dashboard, and as a full page on direct navigation):
@@ -364,7 +365,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 * Navigating to **People → Patients** shows an empty-state message, not a table of rows.
 * Navigating to **Catalog → Conditions** shows no treatment categories.
 * Navigating to **Sessions → All Sessions** shows no sessions.
-* Navigating to **Settings → Activity Log** shows an empty log (the reset itself truncates it).
+* Navigating to **Logs → All Activity** shows an empty log apart from the reset's own row (the reset truncates the table, then records itself).
 * Navigating to **Settings → User Access** still lists at least one admin, and your own row is there. **If this list is empty, stop immediately and restore from backup — the reset must never leave the clinic without an admin.**
 * Navigating to **Today → Risk** shows an **empty** queue. **[SQL]** confirm with `select count(*) from communication_flags;` and `select count(*) from risk_signals;` — both must return `0`. A non-zero count here is the regression described above, and it will silently suppress the detector tests later in this plan.
 * **[SQL]** `select rule_key, enabled from risk_rules;` still returns the eight rules, with `plan_conversion_low` and `post_consultation_dropout` back to **disabled** — thresholds are restored to their seeded defaults, not wiped.
@@ -2492,7 +2493,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** Approve one request; decline another with a reason.
 **Expected Result.** Approving writes the new value onto the profile; declining does not. Both are audited. A stale decision on an already-decided request is refused with `This request has already been reviewed`.
 
-#### `ADM-RISK-003` — Each desk reads its own signals; the trails stay closed · P0
+#### `ADM-RISK-004` — Each desk reads its own signals; the trails stay closed · P0
 
 **Steps.** With at least one open signal from a money rule (`cash_variance`) and one from a sessions rule (`contact_leak`), open **Today → Risk** as **Finance**, then as **Operations**, then as **Admin Full**.
 **Expected Result.** Finance sees the money signals and **not** `contact_leak`; Operations and Clinical see the sessions signals and **not** `cash_variance`; Admin Full sees both. Each scoped screen carries `Only the signals your desk can act on are shown here.` — a filtered queue that looks complete is worse than one that says what it is. A scoped desk can **review** its own signals (the route is `today`-scoped, which every desk manages).
@@ -2512,9 +2513,9 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** Review a signal with a note of `ok` (2 characters), then with `Checked the two sessions, both legitimate.`
 **Expected Result.** The short note is refused — the minimum is **ten characters**, enforced by a CHECK, because "dismissed" with no reason reads the same as "not read". Reviews are **append-only**. Closing a signal frees its slot, so a repeat after a dismissal is raised **fresh** — that is correct, it is new information.
 
-#### `ADM-RISK-003` — Thresholds are editable, and the queue is full-scope only · P1
-**Steps.** Edit a rule's threshold on the tab. Then sign in as Admin Ops and open Today.
-**Expected Result.** The threshold saves and the next sweep uses it. As Admin Ops, the **Risk tab is not shown, and the page does not even fetch the signals** — a signal names a colleague and quotes what they wrote.
+#### `ADM-RISK-003` — Thresholds are editable, and the editor is Master Admin's · P1
+**Steps.** Edit a rule's threshold on the tab as a Master Admin. Then sign in as Admin Ops and open Today → Risk.
+**Expected Result.** The threshold saves and the next sweep uses it. As Admin Ops, the **threshold editor is absent** — what fires at all is a clinic-wide decision — and so are the flagged-message and reveal-log trails, which name a colleague and quote what they wrote. The signals that desk can act on are still listed and reviewable (`ADM-RISK-004`).
 
 ---
 
@@ -2815,7 +2816,7 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 2. Try to confirm with the reason `test`. Then enter `Patient says her session link is missing.` and confirm.
 3. Read the bar at the top of the patient dashboard. Walk to Sessions, Programmes and Health Profile.
 4. Tap **Exit and go back to admin**.
-5. Open **Settings → Activity Log**.
+5. Open **Logs → All Activity**.
 6. Repeat step 1 as an **Operations**, **Finance** and **Clinical** admin.
 7. Open another **admin's** profile, and a **suspended** patient's.
 8. Start a swap, then leave the tab for over 30 minutes and reload.
@@ -2826,7 +2827,7 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 * The dialog says in advance that this is the real account, that anything tapped happens for real and is recorded as theirs, that it ends after 30 minutes, and how to get back.
 * Every dashboard screen carries an **amber bar** naming the patient, saying the actions are real, counting the window down, and offering Exit. It is the **only** difference from what she sees.
 * Exit restores the admin's own session and lands on `/admin/dashboard` — no re-login.
-* The Activity Log carries **`Signed in as a user`** and **`Stopped signing in as a user`**, both naming the patient, the first carrying the reason.
+* The log carries **`Signed in as a user`** and **`Stopped signing in as a user`**, both naming the patient, the first carrying the reason.
 * All three roles work the same way: a therapist lands on `/therapist/dashboard`, a hospital on `/hospital/dashboard`, each with the same bar. A hospital's own dashboard is where its referrals and earnings read from, so "the referral I sent is not showing" is a question about that screen rather than about the Partners card.
 * The three scoped admins have **no such button**, and calling `/api/admin/start-impersonation` directly answers **403** — the button's absence is presentation, the route is the rule.
 * Another admin is refused (*"You cannot sign in as another admin"*) whether active or suspended; a suspended patient is refused with what to do about it.
@@ -2923,7 +2924,7 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 3. Delete every session under some condition, leave **one home-visit package** filed against it, and delete it again.
 4. In a second tab, delete a condition; in the first tab, tap **Delete** on the same row.
 5. Tap **Delete**, and with the request in flight, drop the network.
-6. Open **Settings → Activity Log**.
+6. Open **Logs → All Activity**.
 
 **Expected Result**
 * Step 1 deletes, the row leaves the list, and `/` and `/conditions` update immediately.
@@ -2931,7 +2932,7 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 * Step 3 names the **home-visit package** specifically. A refusal that says "it has bookings" sends an admin to delete sessions and be refused a second time by something they were never told about.
 * Step 4 answers **404** with `That condition has already been deleted. Refresh to see the current list.`
 * Step 5 says `Could not reach the server. Nothing has changed.` — previously the thrown request left the transition with nothing on screen at all.
-* The Activity Log's row names the **condition's title**, not "Treatment category": the row is gone by then, so the log is the only thing left that can say which one it was.
+* The log's row names the **condition's title**, not "Treatment category": the row is gone by then, so the log is the only thing left that can say which one it was.
 **Never `{ success: true }` on a delete that removed nothing.** If the row is still listed after a success and a refresh, that is a P0 — it is the exact defect this case was written for.
 
 #### `ADM-CAT-005` — Create a session package · P0
@@ -3049,7 +3050,7 @@ Where a case below still says "Settings → Booking Rules", that is correct — 
 
 #### `ADM-SET-009` — Every Settings screen says what it is · P2
 
-**Steps.** Open each of the ten Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, User Access, System Health, Activity Log, Account Security.
+**Steps.** Open each of the nine Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, User Access, System Health, Account Security. Then open both Logs screens: All Activity and Archive & Clear.
 
 **Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen — none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
 
@@ -3299,7 +3300,8 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 | Finance | `?section=catalog&tab=packages` | `POST /api/admin/create-package` | Same |
 | Clinical | `?section=money&tab=summary` | `POST /api/admin/refund-package` | Same |
 | Clinical | `?section=settings&tab=team` | `POST /api/admin/set-admin-scope` | Same |
-| All three | `?section=today&tab=risk` | — | The Risk tab is not rendered and its data is not fetched |
+| All three | `?section=today&tab=risk` | — | The tab opens with **only the signals that desk can act on**, and the flagged-message and reveal-log trails and the threshold editor are absent (`ADM-RISK-004`) |
+| All three | `?section=logs&tab=all` | `POST /api/admin/clear-activity-log` | Logs is **not in the sidebar** and the URL falls back to an allowed screen; route **403** (`ADM-LOG-003`) |
 
 **Expected Result.** **Every** one returns 403 at the route. The sidebar hiding a section is presentation only — a session cookie can call any route directly.
 **Do not report the three full-only routes as violations.** `set-admin-scope`, `debug-reset` and `create-account` guard with an explicit `scope !== "full"` check rather than `requireAdminScope`, deliberately: a section gate would let a scoped admin widen its own access or mint a full admin. They are stricter than the rule, not exceptions to it.
@@ -3331,7 +3333,7 @@ Covered by `ADM-SESS-003`.
 #### `ADM-SET-033` — Activity Log · P0
 
 **Steps**
-1. Open **Settings → Activity Log**.
+1. Open **Logs → All Activity**.
 2. Confirm each of these earlier actions appears with actor, action, target and timestamp: account approval, therapist revenue-share change, care-plan withdrawal, care-plan authored on behalf, payout settlement, cash amount correction, credit adjustment, hospital onboarding, password reset.
 2a. Confirm the same for the actions that used to leave no trace at all: `Changed a patient's contact details` (`ADM-PEOP-003`'s contact edit), `Edited notes on a patient`, `Changed whether a therapist appears on Team`, `Excluded a session rating from the average`, `Changed a home visit's address`, `Decided a record-access request` and `Decided a health-profile change` (`ADM-PEOP-004`), `Reworded an intake question` (`ADM-SET-020`), `Reviewed a risk signal` (`ADM-RISK-002`) and `Retried a Meet sync` (`ADM-SET-031`).
 3. Search the log for any of the generated passwords from `ADM-SET-026` or `ADM-PEOP-009`.
@@ -3345,7 +3347,7 @@ Covered by `ADM-SESS-003`.
 **Feature.** Tapping a row opens the whole entry. It used to expand the route's raw JSON into the table cell (`{"fromPercent":40,"toPercent":55}`) — a developer's view of a record whose purpose is to be read months later by somebody asking what a colleague altered and what it was before.
 
 **Steps**
-1. Change a therapist's revenue share from one percentage to another, then open **Settings → Activity Log** and tap that row.
+1. Change a therapist's revenue share from one percentage to another, then open **Logs → All Activity** and tap that row.
 2. Tap a row for **Changed a patient's contact details**.
 3. Tap a row for a **plain care-plan approval** (no reason required).
 4. Tap **Show the exact record** on any entry that has one.
@@ -3356,9 +3358,75 @@ Covered by `ADM-SESS-003`.
 * Step 2 names **both old and new email and phone**. It previously recorded `emailChanged: true` — an entry saying a patient's sign-in address was altered without saying what it had been is unusable for the only question it gets asked.
 * Step 3 says the action **recorded no further detail**, and that who/what/when is the whole entry — never an empty table that reads as missing data.
 * Money reads as **₹2,499**, not `249900`; a date reads as a date in IST; `true`/`false` read as **Yes**/**No**; an absent value is a dash. A field the screen does not recognise is **still listed** — in an audit record the unfamiliar key is the one somebody is looking for — and the raw record stays available behind the toggle.
-* Every dialog ends with the line saying the entry **cannot be edited or deleted by anyone**, including the admin who wrote it. That is enforced by the table having no update policy; the sentence is there because a reader weighing an entry needs to know it.
+* Every dialog ends with the line saying the entry **cannot be edited by anyone**, including the admin who wrote it, and that after 30 days a Master Admin can clear it and that clearing is logged too. The first half is enforced by the table having no update policy; the second half is there because the screen must not promise something the product stopped keeping when Archive & Clear shipped.
 * Step 5 shows a **note length**, never the note's text: this log is readable by every admin, and a note written about one patient must not be reproduced across the whole back office.
 **The one action logged after the fact on purpose:** `Reset all data` (`SETUP-RESET-001`). The wipe truncates `admin_activity_log`, so the row is written **after** the reset returns — open the log on a freshly reset database and it holds exactly one row, naming who emptied it. A log that is completely empty after a reset means that row is missing, and the most destructive action in the product is unattributed.
+
+### 11.x Logs
+
+The Logs section is **Master Admin only**. Operations, Finance and Clinical have no such section in their sidebar and read their own desk's work on **Today → Activity**, filtered to their own domain and their own desk.
+
+#### `ADM-LOG-001` — Finding one entry in a long log · P1
+
+**Feature.** The log grows for ever, so All Activity is built around finding one row rather than reading the list. The dashboard's own render carries the newest 200 entries; older ones are fetched on demand.
+
+**Steps**
+1. Open **Logs → All Activity** as a Master Admin.
+2. Type a patient's name into the search box. Then type an admin's first name and a word from an action together, e.g. `asha refund`.
+3. Set **Any type** to **Money**, then to **Sessions**.
+4. Set a **From**/**To** range covering yesterday only, then press **Clear filters**.
+5. Press **Load older entries** twice, watching the `x of n loaded` count.
+6. Press it repeatedly until the button is replaced by a line saying there is nothing older.
+7. Export CSV and PDF with a filter applied.
+
+**Expected Result**
+* Search matches the **action's label as well as its stored key** — typing `refund` finds `refund.issue`, and typing `settled` finds `Settled payout` — and also the subject and the admin's name. Two terms **narrow**, they do not widen.
+* The type dropdown offers **only categories that have rows behind them**; a category with nothing in it is not listed. Each row carries its type as a chip, and the categories are the dashboard's own section names plus **Master Admin only** for the four capabilities no desk holds.
+* **Clear filters** appears only while something is set, and returns the count to `n of n loaded`.
+* Each **Load older entries** press adds up to 200 more and the count rises. No entry is ever listed twice, including one written while the page was open.
+* When the log is exhausted the button is replaced by *"That is the whole log"*.
+* Both exports carry **exactly the filtered rows**, with a Category column, and the note under the button says filters and exports run over what is loaded.
+
+#### `ADM-LOG-002` — Archive & Clear, and the floor under it · P0
+
+**Feature.** The only way a row ever leaves `admin_activity_log`. The whole point of the design is that an admin cannot act and then remove the record of having acted.
+
+**Steps**
+1. Open **Logs → Archive & Clear**. Try to find any control offering a cutoff inside 30 days.
+2. Choose **Older than 365 days** and press **Count them**.
+3. Try to press **Clear** before downloading anything.
+4. Press **Prepare the archive**, then download the CSV.
+5. Type `clear logs` in lower case, then `CLEAR LOGS`, and press Clear.
+6. Change the cutoff to a different choice after step 4 and look at the screen.
+7. Open **All Activity** afterwards.
+8. **[API]** POST `/api/admin/clear-activity-log` with `{"olderThanDays": 1, "confirm": "CLEAR LOGS"}`, and again with `{"olderThanDays": 365}` and no `confirm`.
+9. **[API]** POST the same route as an **Operations**, **Finance** and **Clinical** admin.
+10. **[SQL]** `select public.purge_admin_activity_log(1);` against a scratch database.
+
+**Expected Result**
+* Step 1: **no such control exists.** The choices are 30, 90, 180 and 365 days, and nothing shorter is offered.
+* Step 2: a count from the **server**, not from the rows on screen. Zero says plainly there is nothing to clear.
+* Step 3: the Clear button is **disabled** until a download has actually been produced — a checkbox saying a copy was taken is deliberately not what unlocks it.
+* Step 5: the lower-case phrase is refused; only the exact phrase works.
+* Step 6: changing the cutoff **resets the count, the archive, the download and the typed phrase** — a copy taken for one year must not unlock a clear at three months.
+* Step 7: entries older than the cutoff are gone, everything newer is intact, and there is a new **`Cleared older log entries`** row naming the cutoff, the protected window and the number removed. **That row cannot be cleared by any later clear**, because it is inside the 30-day floor.
+* Step 8: both are refused with 400 and nothing is removed.
+* Step 9: **403** for all three, the same answer a stranger gets.
+* Step 10: the function **raises** — the floor holds where no route check runs, which is the case the database half exists for.
+
+#### `ADM-LOG-003` — Who can open Logs at all · P0
+
+**Steps**
+1. Sign in as **Operations**, then **Finance**, then **Clinical**. Look for a Logs entry in the sidebar.
+2. For each, navigate directly to `/admin/dashboard?section=logs&tab=all`, and to `&tab=retention`.
+3. Open **Settings** as a Master Admin and look for an Activity Log screen.
+4. Open **Settings → User Access** as a Master Admin and read the matrix.
+
+**Expected Result**
+* Step 1: **no Logs section** for any of the three.
+* Step 2: each lands on a screen their scope can open — never a heading over nothing, and never the log.
+* Step 3: Settings has **nine** screens and Activity Log is **not** among them; it moved to the Logs section, which is the whole of it in one place.
+* Step 4: the matrix carries a **Logs** group with a read row and a clear row, ticked for Master Admin and blank for the other three — derived from the same module the routes enforce with, so it cannot claim access nobody has.
 
 #### `ADM-SET-035` — Account Security · P2
 **Steps.** Open **Settings → Account Security** and change the admin's own password.
@@ -4096,10 +4164,10 @@ SETUP-RESET-001
   → PAT-PKG-001 (spend 3 credits)     → XR-CREDIT-001
   → THR-SESS-005 ×3 (deliver them)
   → FIN-SUM-001 (identities hold)     → FIN-PAY-002 (settle) → XR-PAYOUT-001
-  → ADM-SET-033 (every action is in the Activity Log)
+  → ADM-SET-033 (every action is in the log)
 ```
 
-**Pass criterion.** Both money identities hold at the end, every cross-role check agrees, and the Activity Log contains every mutating action including `payout.settle`.
+**Pass criterion.** Both money identities hold at the end, every cross-role check agrees, and the log contains every mutating action including `payout.settle`.
 
 ### `REG-J2` — The home-visit and cash journey · P0
 
@@ -4254,7 +4322,7 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | Catalog | (reads) | (reads) | — | `ADM-CAT-001..015` | `ADM-CAT-006` | `ADM-SET-028` | `UX-MOB-005` |
 | Settings | — | — | — | `ADM-SET-001..035` | `FIN-COST-002` | `ADM-SET-025..028` | — |
 | Contact controls | `THR-LEAK-005` | `THR-LEAK-001..007`, `THR-SESS-003/004` | — | `ADM-SET-029` | — | `SEC-DATA-005` | — |
-| Risk | — | — | — | `ADM-RISK-001..003` | — | `ADM-RISK-003` | — |
+| Risk | — | — | — | `ADM-RISK-001..004` | — | `ADM-RISK-003`, `ADM-RISK-004` | — |
 | Audit log | — | — | — | `ADM-SET-033` | `XR-PAYOUT-001` | `ADM-SET-033` | — |
 | Public site | `PUB-*` | — | `HOS-LEAD-001` | `ADM-SET-004..008` | — | `SEC-ROUTE-004` | `UX-MOB-001` |
 | Debug bar | `DBG-TIME-001` | — | — | `SETUP-RESET-001..003`, `DBG-NAV-001` | — | `SETUP-RESET-002/003` | — |
@@ -4391,8 +4459,9 @@ Sign off each line before release.
 - [ ] `REG-J1` … `REG-J6` all pass on a fresh database
 - [ ] Both money identities hold on the reference dataset
 - [ ] Settings → System Health reports **no** accounting disagreements and **no** unresolved sync issues
-- [ ] Every action in the audit vocabulary has been observed in the Activity Log, `payout.settle` included
-- [ ] No generated password appears anywhere in the Activity Log
+- [ ] Every action in the audit vocabulary has been observed in **Logs → All Activity**, `payout.settle` included
+- [ ] A clear at the shortest cutoff left the last 30 days intact and recorded itself (`ADM-LOG-002`)
+- [ ] No generated password appears anywhere in the log
 - [ ] `npm run verify` (lint + unit tests + build) passes
 - [ ] `npm run lint` passes, including the Realtime publication coverage check
 - [ ] The Playwright suite passes against a test project (`workers: 1`, against `next dev`)

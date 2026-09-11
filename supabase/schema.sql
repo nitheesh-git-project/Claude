@@ -9234,3 +9234,53 @@ $$;
 revoke all on function public.debug_reset_all_data() from public;
 revoke all on function public.debug_reset_all_data() from anon;
 revoke all on function public.debug_reset_all_data() from authenticated;
+
+-- --------------------------------------------------------------------------
+-- purge_admin_activity_log: the one way a row leaves the audit trail
+-- --------------------------------------------------------------------------
+-- The Logs section can clear entries older than a cutoff, once the admin has
+-- downloaded them. Everything else about this table is still append-only:
+-- there is no update path at all, and no delete path but this one.
+--
+-- The floor is the whole reason clearing is safe to offer. The log's value
+-- is that an admin cannot make their own work disappear, and a clear with no
+-- floor hands them exactly that -- act, then clear, then the record of both
+-- is gone. Thirty days means the newest month of the trail, which is where
+-- anything worth hiding would be, is out of this function's reach at every
+-- setting.
+--
+-- It lives here as well as in the route (`refuseRetention` in
+-- src/lib/activityLog.ts) deliberately: a route check is true only for as
+-- long as every caller remembers it, and this function is reachable by the
+-- service-role key and by hand in the SQL editor. Same reasoning as
+-- set_treatment_category_order() refusing a partial list.
+--
+-- Note the WHERE clause is doing real work rather than satisfying
+-- pg-safeupdate: `created_at < cutoff` is the purge itself. See the reset
+-- function's own note on why a bare DELETE would be refused anyway.
+create or replace function public.purge_admin_activity_log(p_days integer)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_cutoff timestamptz;
+  v_removed integer;
+begin
+  if p_days is null or p_days < 30 then
+    raise exception 'purge_admin_activity_log: cutoff must be at least 30 days old';
+  end if;
+
+  v_cutoff := now() - make_interval(days => p_days);
+
+  delete from admin_activity_log where created_at < v_cutoff;
+  get diagnostics v_removed = row_count;
+
+  return v_removed;
+end;
+$$;
+
+revoke all on function public.purge_admin_activity_log(integer) from public;
+revoke all on function public.purge_admin_activity_log(integer) from anon;
+revoke all on function public.purge_admin_activity_log(integer) from authenticated;
