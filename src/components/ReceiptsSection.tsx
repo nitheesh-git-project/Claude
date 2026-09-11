@@ -127,6 +127,29 @@ export default function ReceiptsSection({
                   )}
                 </p>
 
+                {/* On the row, not only behind "See More". A patient opens
+                    this screen to find out where their money is; a refund
+                    that is one tap away from the list is a refund they have
+                    to already suspect to find. It sits under the amount
+                    charged because it is the second half of the same fact
+                    -- and it appears whatever the stage, so a partial refund
+                    on a completed session is stated rather than hidden by a
+                    pill that reads "Completed". */}
+                {r.kind === "booking" && r.refund && (
+                  <p
+                    className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                      r.refund.tone === "bad"
+                        ? "text-red-800 bg-red-50"
+                        : r.refund.tone === "warn"
+                          ? "text-amber-800 bg-amber-50"
+                          : "text-slate-600 bg-slate-100"
+                    }`}
+                  >
+                    <i aria-hidden className="fa-solid fa-rotate-left text-[9px]" />
+                    {r.refund.label}
+                  </p>
+                )}
+
                 <div className="mt-3 pt-3 border-t border-slate-100">
                   <button
                     type="button"
@@ -210,6 +233,28 @@ export default function ReceiptsSection({
                   <span className="font-mono text-slate-600">{selected.transactionId}</span>
                 </div>
               )}
+              {selected.refund && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Refunded</span>
+                    <span className="font-semibold text-slate-800">{selected.refund.label}</span>
+                  </div>
+                  {selected.refund.at && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Refund date</span>
+                      <span className="font-semibold text-slate-800">
+                        {formatDateTime(selected.refund.at)}
+                      </span>
+                    </div>
+                  )}
+                  {selected.refund.reason && (
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-slate-500 shrink-0">Why</span>
+                      <span className="text-right text-slate-600">{selected.refund.reason}</span>
+                    </div>
+                  )}
+                </>
+              )}
               {(selected.stage === "refund_failed" ||
                 selected.stage === "refunded" ||
                 selected.stage === "cancelled") && (
@@ -217,7 +262,7 @@ export default function ReceiptsSection({
                   {selected.stage === "refund_failed"
                     ? "The refund for this cancelled session couldn't be processed automatically — please contact us."
                     : selected.stage === "refunded"
-                    ? "This session was cancelled and refunded."
+                    ? "This session was cancelled and refunded. It can take a few working days to reach your account."
                     : `This session was cancelled — no refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot).`}
                 </p>
               )}

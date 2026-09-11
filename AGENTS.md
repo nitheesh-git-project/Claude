@@ -733,6 +733,24 @@ client is the only writer and the log is append-only from any session.
   inferring one from `updated_at` would put a confident wrong date on a money
   record. They are the newest columns on `appointments`, so they are read in
   their own isolated query and merged, per the migration-dependent rule.
+  **The patient reads the same refund in a different voice.**
+  `describeRefundForPatient()` is the `voice` rule applied to money: the two
+  readings differ in what they are *for*, not only in register. The admin
+  chip answers "what happened to this money"; the patient's line answers "am
+  I getting my money back, and when" -- so `manual_pending` is a work queue
+  to one and a promise to the other, `failed` is a broken row to one and
+  "please contact us" to the person who is out of pocket, and `not_eligible`
+  says **nothing** to the patient, because the cancelled card already
+  explains the window and repeating it as a refund line announces a refund to
+  somebody who is not getting one. It renders on the session card (with the
+  date and the clinic's own stated reason), on every Payments row and in that
+  receipt's detail, and a failed refund is a pinned `needsYou` feed item --
+  the one refund state nothing in the clinic's screens will move without the
+  patient. A **partial** refund on a completed session reached none of these
+  before, because `BookingReceipt.stage` has no honest value for a delivered
+  session that was partly refunded; the refund is its own field beside the
+  stage rather than folded into it, or a delivered session would read
+  "Refunded".
 - **Cancellation/refund**: full refund only outside the 24-hour window in
   `src/lib/pricing.ts`; inside it, none. Home visits use their own window
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) —

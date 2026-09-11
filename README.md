@@ -789,6 +789,22 @@ backfilled, so a refund issued before the columns existed shows its state
 and a dash for the date rather than a date nobody recorded. The chip follows
 `canSeeMoney`, the same gate the amount paid already has.
 
+**The patient is told too, in their own words.** `describeRefundForPatient()`
+is the same four states read for the person whose money moved rather than
+for the clinic: `manual_pending` is a queue item to an admin and a promise to
+a patient (`₹500 coming back to you`), `failed` is a broken row to an admin
+and "please contact us" to somebody who is out of pocket, and `not_eligible`
+says nothing at all — the cancelled session card already explains the window
+it came from, and repeating it as a refund line announces a refund to
+somebody who is not getting one. It appears on the session card (with the
+date and the clinic's stated reason), on every row of **Payments** and in
+that receipt's detail, and a failed refund is a pinned `needsYou` item on the
+patient's feed, since it is the one refund state nothing in the clinic's own
+screens will move. A **partial** refund on a session that went ahead and was
+completed appeared on none of these before: the receipt's `stage` has no
+honest value for it, so the refund is its own field beside the stage rather
+than folded into it.
+
 ## Discounts
 
 Four, and deliberately no more.

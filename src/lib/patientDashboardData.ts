@@ -137,6 +137,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     { data: rawAppointments },
     { data: sessionCodeLinks },
     { data: meetLinkRows },
+    { data: refundDetailRows },
     { data: allPackagePurchases },
     { data: paymentFailures },
     { data: activeCategories },
@@ -180,6 +181,15 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // meet_link is also new/migration-dependent -- same isolation reasoning
     // as sessionCodeLinks above.
     supabase.from("appointments").select("id, meet_link").eq("patient_id", user.id),
+
+    // What came back and when. refunded_at is the newest column on this
+    // table, so this is isolated for the usual reason -- without it a
+    // database missing the migration would lose every session on this
+    // dashboard rather than one line on a refunded one.
+    supabase
+      .from("appointments")
+      .select("id, refund_amount_paise, refund_reason, refunded_at")
+      .eq("patient_id", user.id),
 
     // Full purchase history (not just currently-usable packages -- that's
     // ownedPackages below, filtered to paid ones with sessions remaining) so
@@ -376,19 +386,32 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     }
   }
 
+  const refundDetailById = new Map(
+    (refundDetailRows ?? []).map((r) => [
+      r.id,
+      {
+        refund_amount_paise: r.refund_amount_paise as number | null,
+        refund_reason: r.refund_reason as string | null,
+        refunded_at: r.refunded_at as string | null,
+      },
+    ])
+  );
+
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
   ).map((a) => {
     const discount = discountByAppointment.get(a.id);
+    const refund = refundDetailById.get(a.id);
+    const withRefund = refund ? { ...a, ...refund } : a;
     return discount
       ? {
-          ...a,
+          ...withRefund,
           list_price_paise: discount.listPricePaise,
           discount_paise: discount.discountPaise,
           discount_source: discount.source,
         }
-      : a;
+      : withRefund;
   });
 
   // Unpaid bookings won't have amount_paid_paise set yet (that's only
@@ -681,6 +704,8 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       payment_status: a.payment_status,
       created_at: a.slot_time,
       therapist_name: a.therapist_id ? therapistMap.get(a.therapist_id) ?? null : null,
+      refund_status: a.refund_status,
+      ...refundDetailById.get(a.id),
     })),
     conditionRequests: (conditionRequests ?? []).map((r) => ({
       id: r.id,

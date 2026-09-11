@@ -1,3 +1,4 @@
+import { describeRefundForPatient } from "@/lib/refundState";
 import { adminScreenHref, type AdminSectionKey } from "@/lib/adminNav";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 // The notification feed every dashboard shows, derived rather than stored.
@@ -95,6 +96,13 @@ export type FeedAppointment = {
   therapist_name?: string | null;
   patient_name?: string | null;
   session_code?: string | null;
+  /** Optional, and read through describeRefundForPatient -- a feed built
+   *  from a select that did not ask for these simply says nothing about a
+   *  refund rather than guessing there wasn't one. */
+  refund_status?: string | null;
+  refund_amount_paise?: number | null;
+  refund_reason?: string | null;
+  refunded_at?: string | null;
 };
 
 export type FeedRequest = {
@@ -203,15 +211,43 @@ export function buildPatientFeed({
         href: "/patient/dashboard/sessions",
       });
     } else if (a.status === "cancelled") {
+      // Once the refund is decided, say what it was. "Any refund due
+      // follows the cancellation window" was the only thing this ever said,
+      // which leaves the patient to work out the answer from a rule -- on
+      // the one item where the answer is already recorded.
+      const refund = describeRefundForPatient(a);
       items.push({
         id: `appt-${a.id}`,
         at: when,
         icon: "fa-circle-xmark",
         tone: "bad",
         title: `${mode} cancelled`,
-        detail: "Any refund due follows the cancellation window.",
-        href: "/patient/dashboard/sessions",
+        detail:
+          refund.state === "none"
+            ? "Any refund due follows the cancellation window."
+            : refund.label,
+        href: "/patient/dashboard/payments",
       });
+    }
+    {
+      // A refund that failed at the gateway is the one refund state that is
+      // waiting on the patient: nothing in the clinic's own screens will
+      // move it until they get in touch. Pinned like every other needsYou
+      // item, and separate from the cancellation above so it survives a
+      // partial refund on a session that was never cancelled.
+      const refund = describeRefundForPatient(a);
+      if (refund.state === "failed") {
+        items.push({
+          id: `refund-${a.id}`,
+          at: refund.at ?? when,
+          icon: "fa-triangle-exclamation",
+          tone: "bad",
+          title: "Refund didn't go through",
+          detail: "Please contact the clinic so we can return this by hand.",
+          href: "/patient/dashboard/payments",
+          needsYou: true,
+        });
+      }
     }
     if (a.payment_status === "unpaid" && a.status !== "cancelled") {
       items.push({

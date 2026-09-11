@@ -125,3 +125,52 @@ export function isPartialRefund(
   if (typeof amountPaidPaise !== "number" || amountPaidPaise <= 0) return false;
   return refund.amountPaise < amountPaidPaise;
 }
+
+/**
+ * The same four states, in the patient's own words.
+ *
+ * A separate function rather than a `voice` flag on `describeRefund`,
+ * because the two readings differ in what they are *for*, not only in
+ * register. The admin chip answers "what happened to this money"; the
+ * patient's line answers "am I getting my money back, and when" -- so
+ * `manual_pending` is the clinic's work queue to an admin and a promise to
+ * the patient, and `failed` is a broken row to an admin and "ring us" to
+ * the person who is out of pocket. A shared string that tried to be both
+ * would be honest to neither, which is the `voice` rule this codebase
+ * already applies to the intake wizard.
+ *
+ * `not_eligible` returns `none` here on purpose: "No refund due" is a fact
+ * about a decision, and the cancelled-session card already explains the
+ * window it came from. Repeating it as a refund line would announce a
+ * refund to somebody who is not getting one.
+ */
+export function describeRefundForPatient(
+  row: RefundRow | null | undefined
+): RefundDescription {
+  const admin = describeRefund(row);
+  if (admin.state === "not_eligible") {
+    return { ...admin, state: "none", label: "", tone: "neutral", needsPerson: false };
+  }
+  if (admin.state === "processed") {
+    return {
+      ...admin,
+      label: admin.amountPaise != null ? `${rupees(admin.amountPaise)} refunded` : "Refunded",
+    };
+  }
+  if (admin.state === "manual_pending") {
+    // Cash taken at the door. To the clinic this is a job; to the patient it
+    // is a promise, and the only useful thing to say is that it is coming
+    // and that nothing is required of them.
+    return {
+      ...admin,
+      label:
+        admin.amountPaise != null
+          ? `${rupees(admin.amountPaise)} coming back to you`
+          : "Refund on its way",
+    };
+  }
+  if (admin.state === "failed") {
+    return { ...admin, label: "Refund didn't go through — please contact us" };
+  }
+  return admin;
+}

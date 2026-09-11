@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { describeRefund, hasRefund, isPartialRefund } from "@/lib/refundState";
+import {
+  describeRefund,
+  describeRefundForPatient,
+  hasRefund,
+  isPartialRefund,
+} from "@/lib/refundState";
 
 describe("describeRefund", () => {
   it("says nothing for a session with no refund", () => {
@@ -77,5 +82,57 @@ describe("isPartialRefund", () => {
     expect(isPartialRefund({ refund_status: "processed", refund_amount_paise: 50 }, null)).toBe(
       false
     );
+  });
+});
+
+describe("describeRefundForPatient", () => {
+  it("names the amount that came back", () => {
+    const r = describeRefundForPatient({ refund_status: "processed", refund_amount_paise: 120000 });
+    expect(r.state).toBe("processed");
+    expect(r.label).toBe("₹1,200 refunded");
+  });
+
+  it("reads a cash refund as a promise rather than a job", () => {
+    const r = describeRefundForPatient({
+      refund_status: "manual_pending",
+      refund_amount_paise: 50000,
+    });
+    expect(r.label).toBe("₹500 coming back to you");
+    // The admin reading of the same row is the clinic's work queue.
+    expect(describeRefund({ refund_status: "manual_pending", refund_amount_paise: 50000 }).label).toBe(
+      "Hand back ₹500"
+    );
+  });
+
+  it("tells the patient what to do about a failed refund", () => {
+    const r = describeRefundForPatient({ refund_status: "failed" });
+    expect(r.state).toBe("failed");
+    expect(r.label).toContain("contact us");
+    expect(r.needsPerson).toBe(true);
+  });
+
+  it("says nothing at all when no refund was due", () => {
+    // The admin chip states the decision; announcing "No refund due" to the
+    // patient as a refund line would tell somebody about money they are not
+    // getting, on a card that already explains the window.
+    const r = describeRefundForPatient({ refund_status: "not_eligible" });
+    expect(r.state).toBe("none");
+    expect(r.label).toBe("");
+  });
+
+  it("carries the date and reason through untouched", () => {
+    const r = describeRefundForPatient({
+      refund_status: "processed",
+      refund_amount_paise: 30000,
+      refund_reason: "Session cut short by a connection failure.",
+      refunded_at: "2026-09-04T10:00:00.000Z",
+    });
+    expect(r.at).toBe("2026-09-04T10:00:00.000Z");
+    expect(r.reason).toBe("Session cut short by a connection failure.");
+  });
+
+  it("is silent on a row with no refund", () => {
+    expect(describeRefundForPatient({ refund_status: null }).state).toBe("none");
+    expect(describeRefundForPatient(undefined).state).toBe("none");
   });
 });
