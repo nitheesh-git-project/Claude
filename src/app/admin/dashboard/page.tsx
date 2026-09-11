@@ -38,6 +38,7 @@ import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
 import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
 import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
 import { buildSystemHealth, summarizeHealth } from "@/lib/systemHealth";
+import { activityScopeNote, filterActivityForViewer } from "@/lib/activityScope";
 import { googleConnectionCheckedAt } from "@/lib/googleConnectionHealth";
 import {
   applyLedgerSessionBalances,
@@ -600,6 +601,13 @@ export default async function AdminDashboardPage({
   // PatientDetailContent).
   const adminScopeById = new Map((adminScopeRows ?? []).map((r) => [r.id, r.admin_scope]));
   const viewerScope = parseAdminScope(adminScopeById.get(user.id));
+  const allowedSections = sectionsForScope(viewerScope);
+  // The subset they can act in. Queues and quick actions read this rather
+  // than `allowedSections`: a queue is a piece of work, and finance reads
+  // Sessions without being able to assign one, so an unassigned session is
+  // not waiting on them. Counting it there would put a figure on their Today
+  // screen that nothing they can do would ever bring down.
+  const workableSections = allowedSections.filter((sec) => scopeCanManage(viewerScope, sec));
   const canSeeMoney = scopeCanOpen(viewerScope, "money");
   // Sessions is the one section granted at `view` to anybody (finance), so
   // this is not the same question as "can they open it". Every mutating
@@ -2645,7 +2653,7 @@ export default async function AdminDashboardPage({
     </div>
   );
 
-  const activityRows: ActivityRow[] = (activityLogRows ?? []).map((r) => ({
+  const allActivityRows: ActivityRow[] = (activityLogRows ?? []).map((r) => ({
     id: r.id,
     actorName: profileMap.get(r.actor_id)?.full_name ?? "Unknown admin",
     action: r.action,
@@ -2653,7 +2661,20 @@ export default async function AdminDashboardPage({
     amountPaise: r.amount_paise,
     details: (r.details ?? null) as Record<string, unknown> | null,
     createdAt: r.created_at,
+    // Which desk the acting admin sits at. Null for an actor whose scope
+    // cannot be resolved, which `canReadActivity` treats as "not this desk".
+    actorScope: parseAdminScope(adminScopeById.get(r.actor_id)),
   }));
+
+  // What this desk may read. A Master Admin's list is untouched; the three
+  // limited desks see their own domain, performed by their own scope -- see
+  // src/lib/activityScope.ts for both halves of that and what the actor test
+  // costs. Filtered once here so the Today feed, the Activity screen and the
+  // Settings log cannot disagree about what this reader is allowed.
+  const activityRows = filterActivityForViewer(
+    { scope: viewerScope, workableSections },
+    allActivityRows
+  );
 
   // Read on its own rather than inside the ~40-query batch above, per the
   // migration-dependent rule: a database that has not applied the risk
@@ -3150,10 +3171,14 @@ export default async function AdminDashboardPage({
     />
   );
 
-  const settingsActivityTab = (
+  const activityLogTab = (
     <AdminActivityLogTab
       rows={activityRows}
       actors={adminRows.map((a) => ({ id: a.id, name: a.fullName ?? "Unnamed admin" }))}
+      // Null for a Master Admin, who is reading everything. For the other
+      // three the screen says so, because a filtered list that looks
+      // complete is worse than one that says what it is.
+      scopeNote={activityScopeNote(viewerScope)}
     />
   );
 
@@ -3378,14 +3403,6 @@ export default async function AdminDashboardPage({
       ],
     },
   ];
-
-  const allowedSections = sectionsForScope(viewerScope);
-  // The subset they can act in. Queues and quick actions read this rather
-  // than `allowedSections`: a queue is a piece of work, and finance reads
-  // Sessions without being able to assign one, so an unassigned session is
-  // not waiting on them. Counting it there would put a figure on their Today
-  // screen that nothing they can do would ever bring down.
-  const workableSections = allowedSections.filter((sec) => scopeCanManage(viewerScope, sec));
 
   // Read by the global search below, which links into these two sections.
   const canOpenSessionsSection = allowedSections.includes("sessions");
@@ -3719,7 +3736,12 @@ export default async function AdminDashboardPage({
     "settings:clinical": settingsClinicalTab,
     "settings:access": settingsAccessTab,
     "settings:health": settingsHealthTab,
-    "settings:activity": settingsActivityTab,
+    "settings:activity": activityLogTab,
+    // The same screen over the same (already scope-filtered) rows. It is on
+    // Today because the three limited desks cannot open Settings at all, so
+    // without it their own history is whatever fits in the Today feed --
+    // and it is hidden from a Master Admin, who has it under Settings.
+    "today:activity": activityLogTab,
     "settings:security": settingsSecurityTab,
   };
 
@@ -3756,6 +3778,7 @@ export default async function AdminDashboardPage({
         searchEntities={searchEntities}
         allowedSections={allowedSections}
         manageSections={workableSections}
+        limitedScope={viewerScope !== "full"}
         adminName={adminProfile?.full_name ?? "Admin"}
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         adminAvatarUrl={adminProfile?.avatar_url ?? null}

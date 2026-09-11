@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import AdminGlobalSearch, { type SearchEntity } from "@/components/admin/AdminGlobalSearch";
-import { ADMIN_SECTIONS, findTab, type AdminSectionKey } from "@/lib/adminNav";
+import { ADMIN_SECTIONS, findTab, visibleTabs, type AdminSectionKey } from "@/lib/adminNav";
 
 // Every base table this page's Promise.all queries (src/app/admin/dashboard/
 // page.tsx) -- so any change, whether from another admin screen, a therapist/
@@ -130,6 +130,7 @@ export default function AdminShell({
   scopeLabel,
   allowedSections,
   manageSections,
+  limitedScope,
   offsetTop,
   initialSection,
   initialTab,
@@ -160,6 +161,10 @@ export default function AdminShell({
   // and loses the ones that are nothing but actions -- hiding every control
   // on those would leave an empty page with a heading.
   manageSections: AdminSectionKey[];
+  /** True for Operations, Finance and Clinical -- the three desks that
+   *  cannot open Settings, and so get their own Activity screen under Today
+   *  (see `limitedScopesOnly` in adminNav.ts). */
+  limitedScope: boolean;
   // Whether the dev-only DebugNav bar is showing above everything on this
   // page (same flag the root layout threads into Navbar as its own
   // `offsetTop` prop) -- this page hides the public Navbar entirely, so its
@@ -172,14 +177,19 @@ export default function AdminShell({
   initialSection?: string | null;
   initialTab?: string | null;
 }) {
-  const sections = ADMIN_SECTIONS.filter((s) => allowedSections.includes(s.key)).map((s) =>
-    manageSections.includes(s.key)
-      ? s
-      : { ...s, tabs: s.tabs.filter((t) => !t.requiresManage) }
-  );
+  const sections = ADMIN_SECTIONS.filter((s) => allowedSections.includes(s.key)).map((s) => ({
+    ...s,
+    tabs: visibleTabs(s, manageSections.includes(s.key), limitedScope),
+  }));
   const firstSection = sections[0] ?? ADMIN_SECTIONS[0];
 
-  const initial = findTab(initialSection ?? null, initialTab ?? null, allowedSections, manageSections);
+  const initial = findTab(
+    initialSection ?? null,
+    initialTab ?? null,
+    allowedSections,
+    manageSections,
+    limitedScope
+  );
   const [sectionKey, setSectionKey] = useState<string>(initial.section);
   const [tabKey, setTabKey] = useState<string>(initial.tab);
   // Desktop full <-> mini collapse. Independent of the mobile drawer below --

@@ -6,6 +6,7 @@ import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import type { CsvColumn } from "@/lib/csvExport";
 import { ADMIN_ACTIVITY_LABELS, isMoneyAction } from "@/lib/adminActivityLog";
+import type { AdminScope } from "@/lib/adminScope";
 import Modal from "@/components/admin/Modal";
 import { isFirstValue, readableDetails } from "@/lib/activityDetails";
 
@@ -22,6 +23,9 @@ export type ActivityRow = {
   amountPaise: number | null;
   details: Record<string, unknown> | null;
   createdAt: string;
+  /** Which desk the acting admin sits at. Carried so the page can filter
+   *  before this screen renders; nothing here reads it. */
+  actorScope: AdminScope | null;
 };
 
 function formatWhen(iso: string) {
@@ -42,9 +46,15 @@ function describe(action: string) {
 export default function AdminActivityLogTab({
   rows,
   actors,
+  scopeNote,
 }: {
   rows: ActivityRow[];
   actors: { id: string; name: string }[];
+  /** What this reader is seeing, when it is not everything. A filtered list
+   *  that looks complete is worse than one that says what it is -- an
+   *  Operations admin reading "Nothing logged yet" while a Master Admin has
+   *  been working all morning has been told something false. */
+  scopeNote?: string | null;
 }) {
   const [actorFilter, setActorFilter] = useState("all");
   const [moneyOnly, setMoneyOnly] = useState(false);
@@ -95,14 +105,25 @@ export default function AdminActivityLogTab({
         <div>
           <h2 className="font-display font-bold text-lg text-slate-800">Activity Log</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Every action an admin took from this dashboard. Append-only — nothing here can be
-            edited or deleted from the app.
+            {scopeNote
+              ? "Every action your desk took from this dashboard. Append-only — nothing here can be edited or deleted from the app."
+              : "Every action an admin took from this dashboard. Append-only — nothing here can be edited or deleted from the app."}
           </p>
+          {scopeNote && (
+            <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+              <i aria-hidden className="fa-solid fa-filter text-[9px]" />
+              {scopeNote}
+            </p>
+          )}
         </div>
         <DataExportButtons
           filename="admin-activity"
           title="Admin activity log"
-          subtitle="Every action an admin took from this dashboard, with the filters in view applied."
+          subtitle={
+            scopeNote
+              ? "Your desk's actions from this dashboard, with the filters in view applied."
+              : "Every action an admin took from this dashboard, with the filters in view applied."
+          }
           rows={filtered}
           columns={exportColumns}
         />
@@ -154,7 +175,9 @@ export default function AdminActivityLogTab({
 
       {rows.length === 0 ? (
         <p className="py-6 text-center text-xs text-slate-500">
-          Nothing logged yet. Entries appear here as admins act.
+          {scopeNote
+            ? "Nothing from your desk yet. Entries appear here as your team acts."
+            : "Nothing logged yet. Entries appear here as admins act."}
         </p>
       ) : filtered.length === 0 ? (
         <p className="py-6 text-center text-xs text-slate-500">Nothing matches these filters.</p>

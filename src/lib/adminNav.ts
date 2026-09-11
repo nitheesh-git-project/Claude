@@ -49,6 +49,18 @@ export type AdminTabDef = {
    * empty page.
    */
   requiresManage?: boolean;
+  /**
+   * Shown to a limited scope only.
+   *
+   * One screen needs this: Today -> Activity. A Master Admin reads the whole
+   * log on Settings -> Activity Log, and Operations, Finance and Clinical
+   * cannot open Settings at all -- so without it their own desk's history is
+   * the ten rows that happen to fit in the Today feed. Rendering it for
+   * everybody would put a second list of the same rows in front of the one
+   * reader who already has the first, which is what the "a session is listed
+   * once" rule exists to stop.
+   */
+  limitedScopesOnly?: boolean;
 };
 
 export type AdminSectionDef = {
@@ -78,6 +90,15 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // its own because a signal is a piece of work waiting on somebody,
       // and that is what this section is for.
       { key: "risk", label: "Risk" },
+      // Their own desk's history. See limitedScopesOnly above for why a
+      // Master Admin does not get this entry.
+      {
+        key: "activity",
+        label: "Activity",
+        limitedScopesOnly: true,
+        blurb: "Every change your own desk has made, newest first.",
+        example: "Check which session a colleague on your desk reassigned this morning.",
+      },
     ],
   },
   {
@@ -276,15 +297,40 @@ export function findTab(
   // screen the shell does not render, leaving a heading over nothing.
   // Omitted means every allowed section is manageable, which is the answer
   // for every caller that predates levels.
-  manageable: AdminSectionKey[] = allowed
+  manageable: AdminSectionKey[] = allowed,
+  // Whether this admin's scope is one of the three limited desks, which is
+  // what decides the `limitedScopesOnly` screens. Defaults to false so a
+  // caller that has not thought about it hides them rather than showing a
+  // Master Admin a duplicate of a screen they already have.
+  limitedScope = false
 ): { section: string; tab: string } {
-  const usable = ADMIN_SECTIONS.filter((s) => allowed.includes(s.key)).map((s) =>
-    manageable.includes(s.key) ? s : { ...s, tabs: s.tabs.filter((t) => !t.requiresManage) }
-  );
+  const usable = ADMIN_SECTIONS.filter((s) => allowed.includes(s.key)).map((s) => ({
+    ...s,
+    tabs: visibleTabs(s, manageable.includes(s.key), limitedScope),
+  }));
   const fallback = usable[0] ?? ADMIN_SECTIONS[0];
   const section = usable.find((s) => s.key === sectionParam) ?? fallback;
   const tab = section.tabs.find((t) => t.key === tabParam) ?? section.tabs[0];
   return { section: section.key, tab: tab.key };
+}
+
+/**
+ * The screens of one section this admin actually sees.
+ *
+ * One filter, read by the sidebar and by `findTab`, so a hand-typed
+ * `?tab=` cannot resolve to a screen the shell does not render -- which
+ * leaves a heading over nothing.
+ */
+export function visibleTabs(
+  section: AdminSectionDef,
+  canManage: boolean,
+  limitedScope: boolean
+): AdminTabDef[] {
+  return section.tabs.filter((tab) => {
+    if (tab.requiresManage && !canManage) return false;
+    if (tab.limitedScopesOnly && !limitedScope) return false;
+    return true;
+  });
 }
 
 // Builds the href an in-page link uses to send an admin to another screen --

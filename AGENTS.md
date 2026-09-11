@@ -321,7 +321,20 @@ screen:
 Ordering the queues is emphasis, never permission: `orderQueueGroups()`
 moves a scope's own domains to the top and **removes nothing**, because what
 a scope may work is the routes' decision and a UI that hid a reachable queue
-would be a second permission model to disagree with the first. What a queue
+would be a second permission model to disagree with the first.
+**Activity is the one exception, and it is deliberate.** A queue is work
+waiting on somebody, so hiding one would hide their job; a log is a record of
+what other people did, and the clinic's decision is that a desk reads its own.
+`src/lib/activityScope.ts` holds it: an entry is visible to a limited scope
+only when the action's **domain** is a section that desk can work *and* the
+**actor** sits at that desk. A Master Admin is unfiltered. The domain map is
+taken from the `requireAdminScope("...")` each action's own route guards with,
+so the feed cannot offer a row whose screen the reader is refused at, and
+`activityScope.test.ts` fails when an action in the audit union has no entry.
+The actor half has a cost worth knowing: in a small clinic the Master Admin
+does most of the work, so these feeds run sparse -- which is why a scoped
+reader is told the list is their desk's rather than being shown an empty
+screen that reads as "nothing happened". What a queue
 *count* reads, though, is `manage` and not merely open: a queue is a piece of
 work, and finance reads Sessions without being able to assign one, so an
 unassigned session is not waiting on them — counting it there would put a
