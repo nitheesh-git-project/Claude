@@ -8,15 +8,10 @@ import Link from "@/components/system/ProgressLink";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { createClient } from "@/lib/supabase/client";
+import { useAccountDestination } from "@/lib/useAccountDestination";
 import { isAuthCtaHiddenRoute, isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
 import { MARKETING_PAGES } from "@/lib/marketingNav";
 
-// One URL for every role, resolved server-side by src/app/dashboard/page.tsx.
-// This component is a client component rendered on every public page, so a
-// role-to-path map here would ship the admin dashboard's address in the
-// bundle every visitor downloads.
-const DASHBOARD_HREF = "/dashboard";
 
 export default function Navbar({
   offsetTop = false,
@@ -44,30 +39,14 @@ export default function Navbar({
   // its own profile card and Log Out control, so this nav no longer needs
   // to know WHO is logged in (name/avatar/role), only whether to hide the
   // Sign In / Get Started buttons.
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // Where a signed-in account's own button goes, and what it says.
-  //
-  // It used to be a boolean and the two waiting states were hidden entirely:
-  // an unapproved account bounces off its dashboard to /pending-approval, so
-  // the button was dropped rather than sending them on a round trip. That
-  // left the worst of both -- Sign In and Get Started are gone because they
-  // are signed in, and nothing takes its place, so the nav offers a signed-in
-  // person no way into the app at all from the public site.
-  //
-  // Three destinations instead, resolved from the same `approved`/`active`
-  // pair the proxy enforces on, and each linked **directly** rather than
-  // through /dashboard -- which is what removes the round trip the old
-  // comment was about, rather than removing the button. The label names
-  // where they are actually going: a button reading "Go to Dashboard" that
-  // lands on a waiting screen is the kind of thing this codebase corrects
-  // elsewhere.
-  //
-  // Null starts hidden (fail-closed): a failed or slow role lookup must not
-  // briefly offer a destination to somebody it shouldn't.
-  const [destination, setDestination] = useState<
-    { href: string; label: string } | null
-  >(null);
+
+  // Where a signed-in account's own button goes, and what it says --
+  // shared with the booking wizard's exit link, so the two surfaces that
+  // offer somebody a way back into the app cannot grow different answers
+  // about where that is. See useAccountDestination for the three states and
+  // why the href is direct rather than /dashboard.
+  const { signedIn, destination } = useAccountDestination();
   const [navigating, setNavigating] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -91,54 +70,6 @@ export default function Navbar({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => {
-    // Read auth state on the client rather than in a Server Component, so
-    // the marketing pages this nav sits on can stay statically generated /
-    // ISR-cached instead of every route being forced dynamic just to know
-    // whether to hide the Sign In / Get Started buttons.
-    const supabase = createClient();
-    let active = true;
-
-    async function loadAuthState() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!active) return;
-      setIsLoggedIn(!!session?.user);
-      if (!session?.user) return;
-      // Isolated lookup, not merged into a larger select -- only this one
-      // button needs the role, so a query failure here shouldn't take
-      // anything else down with it.
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, approved, active")
-        .eq("id", session.user.id)
-        .maybeSingle();
-      if (active && profile?.role) {
-        // Suspended is checked first: an account can be both suspended and
-        // unapproved, and the suspension is the one that decides where they
-        // land. Patients and therapists both wait on admin approval, so this
-        // covers either.
-        if (profile.active === false) {
-          setDestination({ href: "/account-suspended", label: "Account suspended" });
-        } else if (profile.approved === false) {
-          setDestination({ href: "/pending-approval", label: "Approval pending" });
-        } else {
-          setDestination({ href: DASHBOARD_HREF, label: "Go to Dashboard" });
-        }
-      }
-    }
-
-    loadAuthState();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => loadAuthState());
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
-  }, []);
 
   // Each of the 4 role dashboards is its own full-height dark app shell
   // (sidebar + content, no page scroll past the viewport) rather than a page
@@ -202,7 +133,7 @@ export default function Navbar({
             })}
           </div>
 
-          {authCtaHidden ? null : !isLoggedIn ? (
+          {authCtaHidden ? null : signedIn !== true ? (
             <div className="hidden md:flex items-center space-x-3">
               <Link
                 href="/patient/login"
@@ -270,7 +201,7 @@ export default function Navbar({
                     {link.label}
                   </Link>
                 ))}
-                {authCtaHidden ? null : !isLoggedIn ? (
+                {authCtaHidden ? null : signedIn !== true ? (
                   <>
                     <Link
                       href="/patient/login"

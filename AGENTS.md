@@ -2477,6 +2477,28 @@ client is the only writer and the log is append-only from any session.
   deliberate exception -- it still lists the admin routes, and is switched
   off before release.
 
+- **The way back in is one rule, not one per surface.**
+  `useAccountDestination()` (`src/lib/useAccountDestination.ts`) answers
+  "where does this account go, and what do I call it", and both surfaces that
+  offer somebody a route back into the app read it: the public `Navbar` and
+  the booking wizard's exit link. Two copies of that logic is two chances to
+  send a patient somewhere the label did not name. It resolves on the client
+  deliberately -- `/book` and `/book-home-visit` are ISR-cached, and reading
+  the session server-side would force every one of those pages dynamic to
+  answer a question about one link.
+  It returns **`signedIn` separately from `destination`**, and that
+  separation is load-bearing: both are null while the session is still being
+  read, and a caller that swaps one control for another needs to tell "not
+  signed in" from "not known yet". Collapsing them showed Sign In and Get
+  Started to somebody who was already signed in.
+  **The booking wizard's exit follows the account.** It read *Back to Home*
+  always, which is right for a visitor who arrived from the marketing site
+  and wrong for the commonest case -- a patient who came from their own
+  dashboard to book, and was being sent to the public home page. Signed out
+  it still says Back to Home (or Back to Home Visit, per wizard); signed in
+  it says **Back to Dashboard** and goes there, or names the waiting screen
+  when that is where the account actually lands. It stays outside the wizard
+  so it covers every one of its states without being repeated four times.
 - **A signed-in person always has a way back in.** The public `Navbar` hides
   Sign In and Get Started once somebody is signed in, so whatever replaces
   them is the only route back into the app from the marketing site. It used
