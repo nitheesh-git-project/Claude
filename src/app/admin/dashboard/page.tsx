@@ -651,6 +651,7 @@ export default async function AdminDashboardPage({
     inviteSettings,
     categoryImageRows,
     categorySpecialtyRows,
+    categoryFocalRows,
     testimonialAvatarRows,
     hospitalNotes,
     refundDetailRows,
@@ -701,6 +702,20 @@ export default async function AdminDashboardPage({
     guard(
       async () => (await admin.from("treatment_categories").select("id, specialty")).data,
       null as { id: string; specialty: string | null }[] | null
+    ),
+    // Its own call rather than folded into the image_url read above, even
+    // though both are covers: these columns are newer than that one, and
+    // sharing a query would mean a database mid-migration losing the
+    // photographs as well as their positions. Apart they degrade separately,
+    // which is the whole point of the rule.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("treatment_categories")
+            .select("id, image_focal_x, image_focal_y")
+        ).data,
+      null as { id: string; image_focal_x: number | null; image_focal_y: number | null }[] | null
     ),
     guard(
       async () => (await admin.from("testimonials").select("id, avatar_url")).data,
@@ -937,6 +952,12 @@ export default async function AdminDashboardPage({
   // the whole dashboard rather than one cover photo.
   const categoryImageById = new Map(
     (categoryImageRows ?? []).map((row) => [row.id, row.image_url as string | null])
+  );
+  const categoryFocalById = new Map(
+    (categoryFocalRows ?? []).map((row) => [
+      row.id,
+      { image_focal_x: row.image_focal_x, image_focal_y: row.image_focal_y },
+    ])
   );
 
   // And the condition type, newer still, in its own call for the same
@@ -2526,6 +2547,7 @@ export default async function AdminDashboardPage({
         categories={(treatmentCategories ?? []).map((c) => ({
           ...c,
           image_url: categoryImageById.get(c.id) ?? null,
+          ...(categoryFocalById.get(c.id) ?? {}),
           specialty: categorySpecialtyById.get(c.id) ?? null,
           points: Array.isArray(c.points) ? (c.points as string[]) : [],
         }))}

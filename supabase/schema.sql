@@ -9342,3 +9342,100 @@ alter table appointments add column if not exists refunded_by uuid references pr
 create index if not exists appointments_refunded_at_idx
   on appointments (refunded_at desc)
   where refunded_at is not null;
+
+-- --------------------------------------------------------------------------
+-- catalog-images: the clinic's own home for catalog cover photographs
+-- --------------------------------------------------------------------------
+-- The three catalog tables have carried `image_url` as a plain text field an
+-- admin pasted a link into. That had two costs. The public one: nobody pastes
+-- links, so the live site shipped with no photographs at all and the cards
+-- read as unfinished. The quieter one: every cover depended on a host this
+-- clinic does not control, so a picture could vanish or be swapped by
+-- somebody else at any time, on a page selling medical care.
+--
+-- Uploads land here instead. Public, like `avatars`, because these are
+-- marketing images with nothing to hide and a signed URL per card would cost
+-- a round trip on an ISR-cached page for no privacy anyone wanted.
+--
+-- **No insert, update or delete policy on purpose.** Unlike avatars -- where
+-- the owner's own browser writes into a folder named after their id -- every
+-- write here goes through /api/admin/upload-catalog-image with the
+-- service-role client, which bypasses RLS entirely. That is what lets the
+-- upload be scope-guarded, size- and type-checked, and recorded in
+-- admin_activity_log; a browser-side upload would skip all three. Same
+-- reasoning as treatment_categories itself, which has no client write policy
+-- either.
+insert into storage.buckets (id, name, public)
+select 'catalog-images', 'catalog-images', true
+where not exists (select 1 from storage.buckets where id = 'catalog-images');
+
+drop policy if exists "catalog_image_select_public" on storage.objects;
+create policy "catalog_image_select_public" on storage.objects
+  for select using (bucket_id = 'catalog-images');
+
+-- --------------------------------------------------------------------------
+-- image_focal_x / image_focal_y: where the subject of a cover photo sits
+-- --------------------------------------------------------------------------
+-- A cover is rendered with `object-fit: cover`, which crops to the centre of
+-- the frame. The card is 4:3 and the detail dialog 16:9, so a photograph with
+-- its subject anywhere but the middle lost a head to one of them -- which is
+-- what "the images look badly aligned" was.
+--
+-- The fix is a focal point rather than a crop, and the difference matters.
+-- Cropping bakes one aspect ratio into the file: the card would be right and
+-- the dialog wrong, and changing either shape later means re-uploading every
+-- picture in the catalogue. Two numbers rendered as `object-position` are
+-- non-destructive -- the same file is correct at every ratio, now and at any
+-- ratio added later -- and cost one CSS property to apply.
+--
+-- Percentages rather than pixels for that same reason: a percentage is
+-- resolution-independent, so replacing a photo with a larger version of the
+-- same shot keeps the position it was given.
+--
+-- Default 50/50 is dead centre, which is exactly what `object-fit: cover`
+-- already does. So every row that exists today renders byte-identically
+-- until somebody deliberately repositions one -- this migration changes no
+-- pixel on the live site by itself.
+alter table treatment_categories
+  add column if not exists image_focal_x smallint not null default 50;
+alter table treatment_categories
+  add column if not exists image_focal_y smallint not null default 50;
+
+alter table treatment_category_packages
+  add column if not exists image_focal_x smallint not null default 50;
+alter table treatment_category_packages
+  add column if not exists image_focal_y smallint not null default 50;
+
+alter table home_visit_packages
+  add column if not exists image_focal_x smallint not null default 50;
+alter table home_visit_packages
+  add column if not exists image_focal_y smallint not null default 50;
+
+-- A focal point outside the frame is not a position, it is a bug that would
+-- render as a blank edge. Checked in the database as well as in the route,
+-- for the reason every other invariant here is: the route check holds only
+-- for as long as every caller remembers it, and these tables are reachable
+-- from the SQL editor.
+do $$
+begin
+  alter table treatment_categories
+    add constraint treatment_categories_focal_range
+    check (image_focal_x between 0 and 100 and image_focal_y between 0 and 100);
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter table treatment_category_packages
+    add constraint treatment_category_packages_focal_range
+    check (image_focal_x between 0 and 100 and image_focal_y between 0 and 100);
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter table home_visit_packages
+    add constraint home_visit_packages_focal_range
+    check (image_focal_x between 0 and 100 and image_focal_y between 0 and 100);
+exception when duplicate_object then null;
+end $$;

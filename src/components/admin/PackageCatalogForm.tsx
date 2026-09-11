@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import CatalogImageField from "@/components/admin/CatalogImageField";
+import { FOCAL_DEFAULT } from "@/lib/catalogImage";
 import { useRouter } from "@/lib/useRouter";
 import { computePackageSavings } from "@/lib/packageProgress";
 
@@ -12,6 +14,10 @@ type Package = {
   subtitle: string | null;
   description: string | null;
   image_url: string | null;
+  /** Migration-dependent, so optional: a database one apply behind hands
+   *  through undefined and the cover centres as it always did. */
+  image_focal_x?: number | null;
+  image_focal_y?: number | null;
   promises: string[];
   badge_label: string | null;
   highlight: boolean;
@@ -54,6 +60,13 @@ export default function PackageCatalogForm({
   const [subtitle, setSubtitle] = useState(pkg?.subtitle ?? "");
   const [description, setDescription] = useState(pkg?.description ?? "");
   const [imageUrl, setImageUrl] = useState(pkg?.image_url ?? "");
+  const [focalX, setFocalX] = useState(pkg?.image_focal_x ?? FOCAL_DEFAULT);
+  const [focalY, setFocalY] = useState(pkg?.image_focal_y ?? FOCAL_DEFAULT);
+  const [draftId] = useState(() =>
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `draft-${Date.now()}`
+  );
   const [promisesText, setPromisesText] = useState((pkg?.promises ?? []).join("\n"));
   const [badgeLabel, setBadgeLabel] = useState(pkg?.badge_label ?? "");
   const [highlight, setHighlight] = useState(pkg?.highlight ?? false);
@@ -115,6 +128,8 @@ export default function PackageCatalogForm({
       subtitle: subtitle || null,
       description: description || null,
       imageUrl: imageUrl || null,
+      imageFocalX: focalX,
+      imageFocalY: focalY,
       promises,
       badgeLabel: badgeLabel || null,
       highlight,
@@ -191,9 +206,18 @@ export default function PackageCatalogForm({
         <Field label="Description" hint="The paragraph a patient reads before buying.">
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={inputCls()} />
         </Field>
-        <Field label="Cover Image URL" hint="Recommend 16:9, at least 1200px wide.">
-          <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…" className={inputCls()} />
-        </Field>
+        <CatalogImageField
+          kind="package"
+          rowId={pkg?.id ?? draftId}
+          value={imageUrl || null}
+          focalX={focalX}
+          focalY={focalY}
+          onChange={(next) => {
+            setImageUrl(next.url ?? "");
+            setFocalX(next.focalX);
+            setFocalY(next.focalY);
+          }}
+        />
         <Field label="What We Promise" hint="One per line. Becomes a ticked list on the card. 3–5 is the sweet spot.">
           <textarea value={promisesText} onChange={(e) => setPromisesText(e.target.value)} rows={4} placeholder={"Weekly 1-on-1 sessions\nSame therapist throughout\nProgress reviewed every 4 sessions"} className={inputCls()} />
         </Field>

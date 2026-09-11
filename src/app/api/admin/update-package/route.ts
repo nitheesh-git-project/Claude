@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { writeCatalogFocal } from "@/lib/catalogImageServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { validatePackagePayload, type PackagePayload } from "@/lib/validatePackagePayload";
 
@@ -44,6 +45,10 @@ export async function POST(request: NextRequest) {
   // Catalog rows decide what is sold and at what price, so every
   // create/update/delete belongs in the same log every other admin
   // action is read from.
+  // Its own call, per the migration-dependent-column rule: a database
+  // without these columns loses the cover position, never the whole save.
+  await writeCatalogFocal(admin, "treatment_category_packages", id, body.imageFocalX, body.imageFocalY);
+
   await recordAdminActivity(admin, adminUser.id, {
     action: "catalog.update",
     targetId: id,
