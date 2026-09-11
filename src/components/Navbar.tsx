@@ -42,14 +42,28 @@ export default function Navbar({
   // Sign In / Get Started buttons.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // An account (patient or therapist) that hasn't been approved yet has
-  // nowhere to go -- its dashboard just redirects them straight back out to
-  // /pending-approval -- so the button is hidden entirely rather than
-  // sending them on a round trip. Starts hidden (fail-closed) rather than
-  // defaulting to visible, so a failed/slow role lookup can't briefly show
-  // the button to someone it shouldn't -- it appears once the role check
-  // actually resolves, same as the rest of this logged-in state already does.
-  const [dashboardVisible, setDashboardVisible] = useState(false);
+  // Where a signed-in account's own button goes, and what it says.
+  //
+  // It used to be a boolean and the two waiting states were hidden entirely:
+  // an unapproved account bounces off its dashboard to /pending-approval, so
+  // the button was dropped rather than sending them on a round trip. That
+  // left the worst of both -- Sign In and Get Started are gone because they
+  // are signed in, and nothing takes its place, so the nav offers a signed-in
+  // person no way into the app at all from the public site.
+  //
+  // Three destinations instead, resolved from the same `approved`/`active`
+  // pair the proxy enforces on, and each linked **directly** rather than
+  // through /dashboard -- which is what removes the round trip the old
+  // comment was about, rather than removing the button. The label names
+  // where they are actually going: a button reading "Go to Dashboard" that
+  // lands on a waiting screen is the kind of thing this codebase corrects
+  // elsewhere.
+  //
+  // Null starts hidden (fail-closed): a failed or slow role lookup must not
+  // briefly offer a destination to somebody it shouldn't.
+  const [destination, setDestination] = useState<
+    { href: string; label: string } | null
+  >(null);
   const [navigating, setNavigating] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -97,12 +111,17 @@ export default function Navbar({
         .eq("id", session.user.id)
         .maybeSingle();
       if (active && profile?.role) {
-        // Applies to patients as well as therapists now that both roles wait
-        // on admin approval -- an unapproved account of either kind just
-        // bounces off its dashboard to /pending-approval. Suspended accounts
-        // bounce the same way (to /account-suspended), so they're hidden for
-        // the same reason rather than being sent on a round trip.
-        setDashboardVisible(profile.approved !== false && profile.active !== false);
+        // Suspended is checked first: an account can be both suspended and
+        // unapproved, and the suspension is the one that decides where they
+        // land. Patients and therapists both wait on admin approval, so this
+        // covers either.
+        if (profile.active === false) {
+          setDestination({ href: "/account-suspended", label: "Account suspended" });
+        } else if (profile.approved === false) {
+          setDestination({ href: "/pending-approval", label: "Approval pending" });
+        } else {
+          setDestination({ href: DASHBOARD_HREF, label: "Go to Dashboard" });
+        }
       }
     }
 
@@ -200,19 +219,19 @@ export default function Navbar({
                 </Link>
               </motion.div>
             </div>
-          ) : dashboardVisible ? (
+          ) : destination ? (
             <motion.div
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
               className="hidden md:flex items-center"
             >
               <Link
-                href={DASHBOARD_HREF}
+                href={destination.href}
                 onClick={() => setNavigating(true)}
                 aria-disabled={navigating}
                 className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm flex items-center gap-1.5 aria-disabled:opacity-60 aria-disabled:pointer-events-none"
               >
-                {navigating ? "Loading..." : "Go to Dashboard"}{" "}
+                {navigating ? "Loading..." : destination.label}{" "}
                 {!navigating && <i className="fa-solid fa-arrow-right text-xs"></i>}
               </Link>
             </motion.div>
@@ -264,9 +283,9 @@ export default function Navbar({
                       Get Started
                     </Link>
                   </>
-                ) : dashboardVisible ? (
+                ) : destination ? (
                   <Link
-                    href={DASHBOARD_HREF}
+                    href={destination.href}
                     onClick={() => {
                       setOpen(false);
                       setNavigating(true);
@@ -274,7 +293,7 @@ export default function Navbar({
                     aria-disabled={navigating}
                     className="mt-2 bg-teal-700 text-white text-center font-semibold px-4 py-2.5 rounded-xl aria-disabled:opacity-60 aria-disabled:pointer-events-none"
                   >
-                    {navigating ? "Loading..." : "Go to Dashboard"}
+                    {navigating ? "Loading..." : destination.label}
                   </Link>
                 ) : null}
               </div>

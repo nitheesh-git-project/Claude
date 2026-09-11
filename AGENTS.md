@@ -2402,6 +2402,26 @@ client is the only writer and the log is append-only from any session.
   deliberate exception -- it still lists the admin routes, and is switched
   off before release.
 
+- **A signed-in person always has a way back in.** The public `Navbar` hides
+  Sign In and Get Started once somebody is signed in, so whatever replaces
+  them is the only route back into the app from the marketing site. It used
+  to be one boolean: an account waiting on approval, or suspended, got
+  **nothing** -- the two CTAs gone because they are signed in, and no button
+  in their place -- which is how an unapproved patient ends up on the home
+  page with no way forward at all. The reasoning was sound and the fix was
+  the wrong half: the button was dropped to avoid a round trip through
+  `/dashboard`, when the round trip is what wanted removing.
+  It is three destinations now, from the same `approved`/`active` pair the
+  proxy enforces on, each linked **directly**: `/dashboard` ("Go to
+  Dashboard"), `/pending-approval` ("Approval pending"), `/account-suspended`
+  ("Account suspended"). Suspended is checked first, since an account can be
+  both and the suspension decides where they land. The label names the real
+  destination -- a button reading "Go to Dashboard" that opens a waiting
+  screen is the "never tell someone they did something they did not do" rule
+  in its navigational form. It still starts **null**, fail-closed, so a slow
+  or failed role lookup offers nothing rather than briefly offering the wrong
+  thing, and `/pending-approval` and `/account-suspended` are in
+  `AUTH_CTA_HIDDEN_ROUTES` so the button never points at the page it is on.
 - **Every dashboard needs a way back to the public site.** All four are in
   `NAV_HIDDEN_ROUTES`, so the public `Navbar` never renders there; without an
   explicit link the only exit is Log Out, which also ends the session. Both

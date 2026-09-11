@@ -3977,6 +3977,30 @@ curl -i -X POST http://localhost:3000/api/<route> \
 **Steps.** As each role, open `/dashboard`. Then open `/dashboard?hash=<something>` and `/dashboard?hash=//evil.example.com`.
 **Expected Result.** Each role lands on their own dashboard. A legitimate `hash` becomes a real fragment (the anchor-based shells need it) and is **pattern-checked**; a value that could smuggle a host is rejected. **No open redirect.**
 
+#### `SEC-ROUTE-007` — The public nav always offers a signed-in person somewhere · P1
+
+**Feature.** The Navbar hides **Sign In** and **Get Started** once somebody is signed in, so whatever replaces them is the only route back into the app from the marketing site. An account waiting on approval used to get **neither** — both CTAs gone because they are signed in, and no button in their place — so an unapproved patient who tapped Home had no way forward at all.
+
+**Steps**
+1. Register a patient and leave them **unapproved**. From `/pending-approval`, tap the logo to reach Home and read the top right.
+2. Tap the button.
+3. Approve them from the back office, reload Home, and read it again.
+4. Suspend an account (`active = false`), open Home as them, and read it again.
+5. Look at the top right **on `/pending-approval` itself**.
+6. Open Home signed out.
+7. Open Home on a slow connection and watch the top right before the role lookup resolves.
+8. Repeat steps 1–4 on a phone width, in the mobile drawer.
+
+**Expected Result**
+* Step 1: a button reading **Approval pending** — not an empty space, and not *Go to Dashboard*, which would name a destination they cannot reach.
+* Step 2: lands on **`/pending-approval`** directly — one navigation, not a bounce through `/dashboard` and their role's dashboard.
+* Step 3: the same button now reads **Go to Dashboard** and opens `/dashboard`.
+* Step 4: **Account suspended**, opening `/account-suspended`. An account that is both suspended and unapproved reads *suspended* — that is the one that decides where they land.
+* Step 5: **no button at all.** Those two pages are in `AUTH_CTA_HIDDEN_ROUTES`, so the nav never offers a link to the page it is already on.
+* Step 6: **Sign In** and **Get Started**, as before.
+* Step 7: **nothing** until the lookup resolves — fail-closed, so a slow or failed role read never briefly offers the wrong destination.
+* Step 8: identical in the drawer.
+
 ### 18.3 Horizontal privilege (one user reaching another's data)
 
 #### `SEC-DATA-001` — Patient A cannot read Patient B · P0
