@@ -251,9 +251,15 @@ test.describe("Catalog cover images", () => {
     // than a stranger did. Same photograph, same position, same card.
     expect(position).toBe(`${FOCAL_X}% ${FOCAL_Y}%`);
 
-    // And the card's own substance came with it.
+    // And the card's own substance came with it. The booking link is found by
+    // where it goes rather than by its words: `cta_label` is an admin-editable
+    // column with its own default, so asserting a label here would fail on a
+    // catalogue somebody had worded differently -- which is a passing product
+    // and a broken test.
     await expect(page.getByText("Cover point one")).toBeVisible();
-    await expect(page.getByRole("link", { name: /Book this session/ }).first()).toBeVisible();
+    await expect(
+      page.locator(`a[href="/book?category=${categoryId}"]`).first()
+    ).toBeVisible();
   });
 
   test("CI-011 a row with no cover still renders at the same height", async ({ page }) => {
