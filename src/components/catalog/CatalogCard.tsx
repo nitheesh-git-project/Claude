@@ -125,9 +125,28 @@ export default function CatalogCard({
       )}
 
       <div className="flex flex-1 flex-col px-2 pt-3.5">
-        <h3 className="font-display text-base font-bold leading-snug text-slate-900">
-          {data.title}
-        </h3>
+        {/* The title opens the dialog as surely as the cover does. The old
+            card was one large button, so a tap anywhere on it worked; making
+            only the photograph tappable left the most obvious target on the
+            card -- the name of the thing -- doing nothing. The heading stays a
+            real <h3> with the button inside it, so the document outline is
+            unchanged and screen readers still announce a heading. */}
+        {onOpenDetails ? (
+          <h3 className="font-display text-base font-bold leading-snug text-slate-900">
+            <button
+              type="button"
+              onClick={onOpenDetails}
+              aria-haspopup="dialog"
+              className="cursor-pointer rounded text-left transition hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+            >
+              {data.title}
+            </button>
+          </h3>
+        ) : (
+          <h3 className="font-display text-base font-bold leading-snug text-slate-900">
+            {data.title}
+          </h3>
+        )}
         {data.summary && (
           <p className="mt-1 text-[13px] leading-relaxed text-slate-600">{data.summary}</p>
         )}
