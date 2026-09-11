@@ -3084,6 +3084,26 @@ change that genuinely needs no doc update can ignore it.
   committed file — `ALLOW_DEBUG_DATA_RESET` belongs in a server environment,
   set deliberately, against a project whose data is throwaway. Check the
   hosting dashboard's own env vars too, since a file cannot clear those.
+- **The page behind an intercepted overlay has to look like the app.** The
+  admin's patient, therapist and condition details are normally an overlay --
+  the dashboard intercepts the route (`@modal/(.)patients/[id]`) and draws
+  the detail over the screen you were on. Interception applies to
+  **client-side navigation only**, so a reload, a shared link, a new tab and
+  the `router.refresh()` an action inside the overlay fires all land on the
+  real page underneath. That page was a bare `<section>` with a small
+  "← Back to Dashboard" link and no chrome at all, so pressing Mark Done on a
+  patient's profile appeared to throw the admin out of the back office onto a
+  different, plainer site.
+  `AdminDetailFrame` is what those three wear now: the same dark rail, the
+  same section list, the same header shape. It reads `ADMIN_SECTIONS` and the
+  scope grid exactly as the shell's sidebar does, so the two cannot list
+  different sections or offer one this admin cannot open, and every entry is
+  built with `adminScreenHref` rather than a hardcoded `?section=`. It is
+  **deliberately reduced** -- no collapse, no badges, no global search, no tab
+  state -- because this is a leaf page and all of those belong to the screen
+  you return to; reproducing them would be a second shell to drift from the
+  first. A route that gets this frame also needs its `loading.tsx` to pass
+  `withSidebar`, or the chrome blanks while the page resolves.
 - **A full-screen overlay opened from inside another one must be portalled.**
   `position: fixed` is relative to the viewport *until* an ancestor carries
   `transform`, `filter`, `backdrop-filter`, `perspective`, `contain` or

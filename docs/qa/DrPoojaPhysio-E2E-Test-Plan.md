@@ -3305,6 +3305,26 @@ The screen warns you to turn it on only once System Health has been clean.
 * A suspended admin **stays listed**, with a note saying how many are suspended.
 * Only a **Master Admin** sees the Suspend button at all, and `POST /api/admin/set-admin-active` answers **403** to any other scope.
 
+#### `ADM-PEOP-011` — The detail page behind the overlay is still the back office · P1
+
+**Feature.** A patient's, therapist's or condition's detail is normally an overlay over the dashboard. Interception only covers client-side navigation, so a reload, a shared link, a new tab and any `router.refresh()` from inside the overlay land on the real page — which used to be a bare panel with a small "Back to Dashboard" link and none of the dashboard around it.
+
+**Steps**
+1. **People → Patients → a patient → Profile.** Press **Mark Done** on a session and confirm.
+2. Look at what you are on afterwards: is there a sidebar?
+3. Copy the URL, open it in a **new tab**, and reload it.
+4. Use the sidebar from that page — tap **Sessions**, then come back and tap **Back to the dashboard**.
+5. Repeat 1–4 for a **therapist** and for a **patient condition**.
+6. Sign in as **Operations**, then **Finance**, then **Clinical**, and open a patient detail URL directly.
+7. Watch the screen while it loads on a slow connection.
+
+**Expected Result**
+* Steps 1–3: the dark **sidebar**, the **Master Admin** brand and the section list are all present. It reads as the back office, not as a different, plainer site.
+* Step 4: every entry lands on a **real dashboard screen**, and Back to the dashboard returns to Today.
+* Step 5: identical on all three.
+* Step 6: the sidebar shows **only the sections that scope can open** — it is built from the same list and the same scope grid the dashboard's own sidebar uses, so the two can never disagree. Logs is absent for all three.
+* Step 7: the skeleton **keeps the sidebar rail** rather than blanking the chrome and putting it back.
+
 #### `ADM-SET-025d` — Delete an account, and be refused when it has history · P0
 
 **Feature.** Delete account sits on all four roles' screens — the Back office rows, and a patient's, therapist's and partner hospital's own page — for a **Master Admin only**. It can only ever succeed on an account with no history at all. That is the database's rule: thirty-five tables reference `profiles(id)` with no delete behaviour, so removing an account that has done anything would mean removing the books and the audit trail with it.
