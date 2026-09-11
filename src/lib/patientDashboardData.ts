@@ -402,8 +402,17 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     meetLinkRows
   ).map((a) => {
     const discount = discountByAppointment.get(a.id);
-    const refund = refundDetailById.get(a.id);
-    const withRefund = refund ? { ...a, ...refund } : a;
+    // Merged unconditionally rather than only where a row came back, so
+    // every appointment carries the same shape: a union of "with refund
+    // columns" and "without" would make every consumer narrow before it
+    // could read one, and the absent case is exactly the null these mean.
+    const withRefund = {
+      ...a,
+      refund_amount_paise: null as number | null,
+      refund_reason: null as string | null,
+      refunded_at: null as string | null,
+      ...refundDetailById.get(a.id),
+    };
     return discount
       ? {
           ...withRefund,

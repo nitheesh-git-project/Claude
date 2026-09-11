@@ -769,6 +769,21 @@ client is the only writer and the log is append-only from any session.
   matched nothing at all before this: `payment_status` is CHECKed to
   `unpaid` / `paid` / `failed` and can never hold `refunded`, so the filter
   silently returned an empty table. A refund lives on `refund_status`.
+  **Every refund states why.** `refund_reason` was written by the partial
+  refund route alone, so the commonest refund in the app -- a cancellation
+  outside the window -- reached both the patient's Payments screen and the
+  admin's drawer with that line blank. `cancelAppointmentAndRefund` records
+  one on all four outcomes: the cancellation's own reason where the person
+  cancelling gave one, and otherwise a sentence naming the rule that produced
+  the outcome, matching what the credit ledger already writes for the same
+  event. The **forfeiture** is the exception and takes the rule's sentence
+  *always*, never the cancellation's reason -- this line is read as "why this
+  money moved" and no money moved, so the answer has to be the window that
+  withheld it, which is also the thing a patient disputes. It names the
+  window that actually applied, which is why the patient card's no-refund
+  hover reads it rather than printing `CANCELLATION_FULL_REFUND_HOURS`: a
+  home visit has its own window, so the constant was quoting the wrong number
+  of hours on every cancelled visit.
 - **Cancellation/refund**: full refund only outside the 24-hour window in
   `src/lib/pricing.ts`; inside it, none. Home visits use their own window
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) —

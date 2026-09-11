@@ -819,6 +819,18 @@ its existing **Refunded** option now works: `payment_status` is CHECKed to
 `unpaid`/`paid`/`failed` and can never hold `refunded`, so it had been
 returning an empty table.
 
+**Every refund states why.** `refund_reason` used to be written only by the
+partial-refund route, so the commonest refund in the app — a cancellation
+outside the window — arrived with a blank reason on both the patient's
+Payments screen and the admin's drawer. `cancelAppointmentAndRefund` now
+records one on all four outcomes: the cancellation's own reason where one was
+given, otherwise a sentence naming the rule that produced the outcome. A
+forfeiture always takes the rule's sentence rather than the cancellation's —
+that line answers "why this money moved" and no money moved — and it names
+the window that actually applied, so the patient card's no-refund hover reads
+it instead of printing the online constant at somebody whose home visit has
+its own window.
+
 ## Discounts
 
 Four, and deliberately no more.
