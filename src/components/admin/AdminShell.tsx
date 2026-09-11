@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import AdminGlobalSearch, { type SearchEntity } from "@/components/admin/AdminGlobalSearch";
+import RefreshButton from "@/components/dashboard/RefreshButton";
 import { ADMIN_SECTIONS, findTab, visibleTabs, type AdminSectionKey } from "@/lib/adminNav";
 
 // Every base table this page's Promise.all queries (src/app/admin/dashboard/
@@ -619,7 +620,13 @@ export default function AdminShell({
                 );
               })()}
             </div>
-            <AdminGlobalSearch entities={searchEntities} />
+            <div className="flex flex-wrap items-center gap-3">
+              <AdminGlobalSearch entities={searchEntities} />
+              {/* Beside the search rather than in the sidebar: it acts on the
+                  screen in front of you, and the sidebar is a closed drawer
+                  on a phone. */}
+              <RefreshButton />
+            </div>
           </div>
 
           {missedTab && (

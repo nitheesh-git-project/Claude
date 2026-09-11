@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { useIdleTimeout } from "@/lib/useIdleTimeout";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
+import RefreshButton from "@/components/dashboard/RefreshButton";
 import SessionTimeoutDialog from "@/components/SessionTimeoutDialog";
 import { LOGIN_HREF_BY_BASE_PATH } from "@/lib/dashboardNavItems";
 
@@ -447,7 +448,13 @@ export default function DashboardShell({
               <h1 className="text-2xl font-bold text-slate-900">{headerTitle}</h1>
               {headerSubtitle && <div className="text-xs text-slate-500 mt-1">{headerSubtitle}</div>}
             </div>
-            {headerActions && <div className="flex items-center gap-4">{headerActions}</div>}
+            {/* Always rendered, whether or not this screen passes actions of
+                its own -- every dashboard gets the same control in the same
+                place, which is the point of it. */}
+            <div className="flex flex-wrap items-center gap-4">
+              {headerActions}
+              <RefreshButton />
+            </div>
           </div>
 
           {children}

@@ -4120,6 +4120,28 @@ Covered by `PAT-BOOK-017`, `PAT-SUGG-004`, `THR-AVAIL-004`, `FIN-PAY-002`, `PAY-
 * **Two overlapping actions**: start a second before the first finishes; the bar must stay up until **both** are done, not vanish with the first.
 * The five money buttons (**Done**, **Collect ₹…**, **Request Payout**, **Confirm … Payment**, **Assign & Confirm**) show a spinning ring beside their busy label rather than only swapping the text.
 
+#### `UX-REFRESH-001` — One Refresh button, on all four dashboards · P1
+
+**Feature.** Every dashboard carries the same Refresh control in its header. These are Server Components, and the only automatic updates come from the realtime channels — which cover subscribed tables only, and hold a 30-second cooldown on the catalog one. Before this there was no way to ask for the page again except a browser reload, which throws away the state the shells keep on purpose and re-downloads the bundle.
+
+**Steps**
+1. Open the patient, therapist, hospital and admin dashboards in turn and find the button in the header.
+2. On the admin dashboard, collapse the sidebar, open a screen with a half-typed filter, then tap **Refresh**.
+3. Watch the button and the top of the page while it runs.
+4. Tap it repeatedly, as fast as you can.
+5. Have a second person change something (assign a session, add a cost) and tap Refresh without reloading.
+6. Compare against a browser reload (F5) on the same screen.
+7. Check it at a phone width on all four.
+
+**Expected Result**
+* Step 1: present on **all four**, same place, same label.
+* Step 2: the data is current and **the collapsed sidebar and the typed filter survive** — this re-runs the server render, it does not reload the page.
+* Step 3: the icon spins and the label reads **Refreshing…**, and the **teal progress bar** runs across the top. The button stays busy for the whole refresh: this is the one control whose own work *is* the refresh, so releasing it early would leave it looking idle while the page was still thinking.
+* Step 4: **one refresh at a time.** The button is disabled while pending — stacking them on the admin dashboard stacks around forty queries a tap for no new answer.
+* Step 5: the other person's change appears.
+* Step 6: the reload loses the sidebar state and the filter; Refresh does not. That difference is the point of the control.
+* Step 7: visible and tappable on a phone, in the header rather than the sidebar — the sidebar is a closed drawer at that width.
+
 #### `UX-BUSY-002` — The admin dashboard's second batch · P2
 **Steps.** Load **/admin/dashboard**, then tap any button that saves.
 **Expected Result.** Noticeably quicker than before: eleven migration-dependent reads that used to run one after another (accounting health, the suggestion and recommendation switches, discounts, the first-session offer, promo and invite settings, category covers and condition types, testimonial avatars, hospital notes) now run as one parallel batch, and both ledger-balance passes run together.

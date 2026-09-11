@@ -2076,6 +2076,20 @@ client is the only writer and the log is append-only from any session.
   who acted had already refreshed deliberately. It is on the 30s channel with
   `contact_reveal_log` and `risk_reviews`, which are there for the same
   reason.
+  **Every dashboard carries one Refresh button**
+  (`src/components/dashboard/RefreshButton.tsx`), in the header of both
+  shells -- so all four get the same control in the same place. It re-runs
+  the Server Component and nothing else: a browser reload throws away the
+  client state these shells keep on purpose (an open row, a half-typed
+  filter, the collapsed sidebar) and re-downloads the bundle, and
+  `RealtimeRefresh` only fires for subscribed tables, on the catalog channel
+  behind a 30-second cooldown. This is the one control whose own pending
+  state **should** span the refresh -- the split above is for a control whose
+  request is a different thing from the refresh that follows it, and here the
+  refresh *is* the work, so releasing the button early would leave it looking
+  idle while what it was asked for was still running. It is disabled while
+  pending, because stacking refreshes on the admin dashboard stacks ~40
+  queries a tap for no new answer.
   `Spinner` (`src/components/system/Spinner.tsx`) is the app's only spinner,
   inheriting `currentColor` so one component works on the filled, outlined
   and text buttons alike. Before it, every busy state was a text swap, which

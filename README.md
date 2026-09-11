@@ -1469,6 +1469,10 @@ of its own:
 - Admins see every note on the patient's condition detail screen, which is
   how the clinic can tell whether care is being delivered and documented.
 
+**Every dashboard has a Refresh button** in its header — patient, therapist,
+hospital and admin alike. It re-runs the page's server render and leaves the
+screen's own state alone, unlike a browser reload.
+
 **Dashboard information architecture.** Patient: Overview · Book a Session ·
 Your Sessions · Packages · Payments · Health Profile · Edit Profile.
 Therapist: Overview · Availability · Sessions · Earnings · My Patients ·
