@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
   const { data: patient } = await admin
     .from("profiles")
-    .select("id, email")
+    .select("id, email, phone")
     .eq("id", patientId)
     .eq("role", "patient")
     .single();
@@ -60,7 +60,17 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, adminUser.id, {
     action: "patient.update_contact",
     targetId: patientId,
-    details: { emailChanged: email !== patient.email, phoneChanged: true },
+    // The values, not "something changed". An audit entry saying a patient's
+    // sign-in email was altered without saying what it was is unusable for
+    // the one question it gets asked: which address did this account have.
+    // Both are already on every People screen, so nothing new is exposed by
+    // recording them -- unlike a password, which never goes in here.
+    details: {
+      previousEmail: patient.email ?? null,
+      email,
+      previousPhone: patient.phone ?? null,
+      phone: phone || null,
+    },
   });
 
   return NextResponse.json({ success: true });

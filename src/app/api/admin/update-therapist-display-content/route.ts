@@ -43,7 +43,11 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, adminUser.id, {
     action: "therapist.update_display_content",
     targetId: therapistId,
-    details: { length: String(displayNote ?? "").length },
+    // The length, deliberately, not the text: this log is readable by
+    // every admin, and a note written about one patient should not be
+    // reproduced on a screen the whole back office reads. The entry says
+    // who rewrote it and when, which is the part with audit value.
+    details: { noteLength: String(displayNote ?? "").length },
   });
 
   return NextResponse.json({ success: true });

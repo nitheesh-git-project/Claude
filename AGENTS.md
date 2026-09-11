@@ -1999,6 +1999,32 @@ client is the only writer and the log is append-only from any session.
   what the rows are scoped to — a printed table nobody can date is
   worthless. Nothing in the admin dashboard exports JSON, and nothing
   should.
+- **An audit entry is read months later, so it says what changed from what.**
+  Tapping a row on Settings -> Activity Log opens the whole entry
+  (`ActivityDetailDialog`), and `src/lib/activityDetails.ts` turns the
+  route's `details` blob into it. Four rules:
+  1. **The before/after pair is found, not required.** Routes name it five
+     ways -- `from`/`to`, `fromPercent`/`toPercent`, `oldExpiresAt`/
+     `newExpiresAt`, `previousStatus` beside `status`, `before`/`after` --
+     because each was written where it was needed. `readableDetails()`
+     recognises all five (and `previousPaise` beside `amountPaise`, where
+     the stem is only a unit), which is cheaper and safer than rewriting
+     twenty routes to agree.
+  2. **Nothing is dropped.** An unrecognised key is exactly the one somebody
+     is looking for, so unpaired fields are listed plainly and the raw JSON
+     stays behind a toggle.
+  3. **Values are read, not parsed**: paise as rupees, an ISO stamp as a
+     date in IST, a boolean as Yes/No, an absent value as a dash. `Paise` is
+     a storage word and never reaches the screen.
+  4. **Record the values, not that something changed.** `patient.update_contact`
+     wrote `{emailChanged: true}` -- an entry saying a patient's sign-in
+     address was altered without saying what it had been is unusable for the
+     one question it gets asked. Both contact routes record the old and new
+     values now. The exception is free text about a person: the four
+     note routes record a **length**, deliberately, because this log is
+     readable by every admin and a note about one patient must not be
+     reproduced across the back office. A generated password still never
+     goes in `details` at all.
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.

@@ -371,6 +371,25 @@ Covered by `ADM-SESS-003`.
 
 **Expected Result.** Step 2: **every one is present.** `payout.settle` is the largest money move in the application and must be attributed — if it is missing, that is a P0 defect. Step 3: **no password appears anywhere in the log.** Step 4: the insert is refused (there is a select policy and deliberately **no insert policy**), and the log is append-only from any session.
 **Ordering guarantee:** each log row is written **after** the route's compare-and-swap, so the log can never record a settlement or cancellation that lost its race.
+
+#### `ADM-SET-034` — Reading one entry: what changed, from what · P1
+
+**Feature.** Tapping a row opens the whole entry. It used to expand the route's raw JSON into the table cell (`{"fromPercent":40,"toPercent":55}`) — a developer's view of a record whose purpose is to be read months later by somebody asking what a colleague altered and what it was before.
+
+**Steps**
+1. Change a therapist's revenue share from one percentage to another, then open **Settings → Activity Log** and tap that row.
+2. Tap a row for **Changed a patient's contact details**.
+3. Tap a row for a **plain care-plan approval** (no reason required).
+4. Tap **Show the exact record** on any entry that has one.
+5. Tap a row for **Edited notes on a patient**.
+
+**Expected Result**
+* A **dialog**, not an inline expander: admin, when, subject and amount at the top, then **What changed** as `40% → 55%` — the old value struck through in red, the new one in green — then **Also recorded** for everything else in the entry.
+* Step 2 names **both old and new email and phone**. It previously recorded `emailChanged: true` — an entry saying a patient's sign-in address was altered without saying what it had been is unusable for the only question it gets asked.
+* Step 3 says the action **recorded no further detail**, and that who/what/when is the whole entry — never an empty table that reads as missing data.
+* Money reads as **₹2,499**, not `249900`; a date reads as a date in IST; `true`/`false` read as **Yes**/**No**; an absent value is a dash. A field the screen does not recognise is **still listed** — in an audit record the unfamiliar key is the one somebody is looking for — and the raw record stays available behind the toggle.
+* Every dialog ends with the line saying the entry **cannot be edited or deleted by anyone**, including the admin who wrote it. That is enforced by the table having no update policy; the sentence is there because a reader weighing an entry needs to know it.
+* Step 5 shows a **note length**, never the note's text: this log is readable by every admin, and a note written about one patient must not be reproduced across the whole back office.
 **The one action logged after the fact on purpose:** `Reset all data` (`SETUP-RESET-001`). The wipe truncates `admin_activity_log`, so the row is written **after** the reset returns — open the log on a freshly reset database and it holds exactly one row, naming who emptied it. A log that is completely empty after a reset means that row is missing, and the most destructive action in the product is unattributed.
 
 #### `ADM-SET-035` — Account Security · P2
