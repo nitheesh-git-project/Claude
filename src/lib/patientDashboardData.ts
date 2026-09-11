@@ -51,6 +51,7 @@ type HubCategoryRow = {
   id: string;
   title: string;
   description: string | null;
+  points?: unknown;
   price_paise: number;
   duration_minutes: number | null;
   cta_label: string | null;
@@ -149,6 +150,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     { data: homeVisitPackages },
     { data: ownedHomeVisitPackages },
     { data: bookableCategories },
+    { data: hubCategoryImages },
+    { data: hubCategoryFocals },
+    { data: hubHomeVisitFocals },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
 
@@ -315,11 +319,34 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     needHub
       ? supabase
           .from("treatment_categories")
-          .select("id, title, description, price_paise, duration_minutes, cta_label")
+          .select("id, title, description, points, price_paise, duration_minutes, cta_label")
           .eq("active", true)
           .order("display_order", { ascending: true })
           .order("id", { ascending: true })
       : emptyRows<HubCategoryRow>(),
+
+    // Covers for the hub's cards, in their own calls for the usual
+    // migration-tolerance reason -- and split from each other because the
+    // focal columns are newer than image_url, so sharing one query would
+    // lose the photographs as well as their positions on a database
+    // mid-migration. The hub renders the same card the public pages do, and
+    // a patient who has already signed up should not meet a plainer
+    // catalogue than a stranger does.
+    needHub
+      ? supabase.from("treatment_categories").select("id, image_url").eq("active", true)
+      : emptyRows<{ id: string; image_url: string | null }>(),
+    needHub
+      ? supabase
+          .from("treatment_categories")
+          .select("id, image_focal_x, image_focal_y")
+          .eq("active", true)
+      : emptyRows<{ id: string; image_focal_x: number | null; image_focal_y: number | null }>(),
+    needHub
+      ? supabase
+          .from("home_visit_packages")
+          .select("id, image_focal_x, image_focal_y")
+          .eq("active", true)
+      : emptyRows<{ id: string; image_focal_x: number | null; image_focal_y: number | null }>(),
   ]);
 
   const adminSettings = parseAdminSettings(settingsRow);
@@ -704,6 +731,31 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     (sum, p) => sum + Math.max(0, (p.session_count ?? 0) - (p.sessions_used ?? 0)),
     0
   );
+  // Covers merged onto the hub's rows here rather than in the component, so
+  // the booking screen and the public pages read a photograph the same way.
+  const hubCategoryImageById = new Map(
+    (hubCategoryImages ?? []).map((r) => [r.id, r.image_url as string | null])
+  );
+  const hubCategoryFocalById = new Map(
+    (hubCategoryFocals ?? []).map((r) => [
+      r.id,
+      { image_focal_x: r.image_focal_x, image_focal_y: r.image_focal_y },
+    ])
+  );
+  const hubHomeVisitFocalById = new Map(
+    (hubHomeVisitFocals ?? []).map((r) => [
+      r.id,
+      { image_focal_x: r.image_focal_x, image_focal_y: r.image_focal_y },
+    ])
+  );
+  const hubCategoriesWithCovers = (bookableCategories ?? []).map((c) => ({
+    ...c,
+    duration_minutes: c.duration_minutes ?? 60,
+    points: Array.isArray(c.points) ? (c.points as string[]) : [],
+    image_url: hubCategoryImageById.get(c.id) ?? null,
+    ...(hubCategoryFocalById.get(c.id) ?? {}),
+  }));
+
   const patientFeed = buildPatientFeed({
     appointments: appointments.map((a) => ({
       id: a.id,
@@ -840,7 +892,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // dropping it would leave a patient who needs to be seen at home with no
   // way in at all.
   const hubHomeVisitPackages = adminSettings.homeVisitEnabled
-    ? (homeVisitPackages ?? []).filter((p) => isDirectlyPurchasable(p.visit_count))
+    ? (homeVisitPackages ?? [])
+        .filter((p) => isDirectlyPurchasable(p.visit_count))
+        .map((p) => ({ ...p, ...(hubHomeVisitFocalById.get(p.id) ?? {}) }))
     : [];
 
   // ---- Invites ------------------------------------------------------
@@ -906,7 +960,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ownedPackages: ownedPackagesForDisplay,
     ownedHomeVisitPackages: ownedHomeVisitPackagesForDisplay,
     homeVisitPackages,
-    bookableCategories,
+    bookableCategories: hubCategoriesWithCovers,
     onboardingRow,
     conditionProfile,
     categoryPriceMap,
