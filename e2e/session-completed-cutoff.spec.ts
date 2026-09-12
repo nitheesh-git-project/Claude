@@ -200,6 +200,14 @@ test.describe("Session Completed cutoff", () => {
     await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all`, {
       waitUntil: "domcontentloaded",
     });
+    // Searched for by session id rather than scrolled to. All Sessions pages
+    // at 25 rows over every session the clinic has ever had, and this one is
+    // 75 minutes in the past, so it sorts below the future bookings and is
+    // simply not on the first page -- which looks identical to a row that
+    // never rendered.
+    // Exact: the dashboard renders every screen at once, so a substring
+    // match also finds the global search and Payment History's own filter.
+    await page.getByPlaceholder("Session ID", { exact: true }).fill(seeded.session_code!);
     const row = page.getByRole("row").filter({ hasText: seeded.session_code! });
     await row.first().waitFor({ timeout: 60_000 });
     // alwaysActive exempts an admin from the join window, never from this.
