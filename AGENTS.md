@@ -88,6 +88,19 @@ test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
 
+**The suite runs in the clinic's zone, pinned in `playwright.config.ts`.**
+Specs build a bookable slot with `d.setHours(hour, 0, 0, 0)` -- a whole hour
+in whatever zone the *runtime* is in -- while the app judges the whole-hour
+rule in the booking's own zone, which is the whole point of that rule. On a
+developer's machine set to India time the two agree; on a UTC host the same
+slot arrives as 15:30 IST and the route correctly answers "Sessions start on
+the hour", taking twenty cases across `session-scheduling`,
+`session-suggestions`, `booking-rules` and `concurrency` red at once --
+every one of them describing a working product. `process.env.TZ` is set at
+the top of the config rather than left to whoever runs it: an environment
+variable somebody has to remember is one they will forget, and this failure
+reads as a broken booking funnel rather than as a clock.
+
 Three environment notes for the browser specs:
 
 - Set `PLAYWRIGHT_CHROMIUM_PATH` when the sandbox already ships a Chromium.
