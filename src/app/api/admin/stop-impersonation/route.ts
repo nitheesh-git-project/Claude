@@ -34,21 +34,46 @@ export async function POST() {
   }
 
   const admin = createAdminClient();
-  // `.is("ended_at", null)` because the row's own trigger refuses a second
-  // close: two tabs both tapping Exit is one logical action, not an error to
-  // show somebody.
-  await admin
-    .from("admin_impersonation_sessions")
-    .update({ ended_at: new Date().toISOString(), ended_reason: "admin_exited" })
-    .eq("id", marker.sessionId)
-    .is("ended_at", null);
 
-  await recordAdminActivity(admin, marker.adminId, {
-    action: "impersonation.end",
-    targetId: marker.targetId,
-    targetLabel: marker.targetName,
-    details: { role: marker.targetRole },
-  });
+  // The marker is unsigned JSON, and httpOnly only stops a *script* writing
+  // it -- anything that can set a request header can send whichever cookie it
+  // likes. So the marker is treated as a claim to be checked against the row
+  // it names rather than as the record itself: `admin_impersonation_sessions`
+  // is written before the swap and cannot be rewritten by the admin it names,
+  // which makes it the authority here.
+  //
+  // Without this, a forged marker was enough to write an `impersonation.end`
+  // entry into `admin_activity_log` naming any profile id as its actor and
+  // carrying an attacker's own `target_label` -- unauthenticated, since this
+  // route deliberately runs no admin check. A log anyone can post to is not
+  // evidence, which is the whole reason that table has no insert policy.
+  const { data: session } = await admin
+    .from("admin_impersonation_sessions")
+    .select("id, admin_id, target_id, ended_at")
+    .eq("id", marker.sessionId)
+    .maybeSingle();
+
+  const genuine =
+    !!session && session.admin_id === marker.adminId && session.target_id === marker.targetId;
+
+  if (genuine && !session.ended_at) {
+    // `.is("ended_at", null)` because the row's own trigger refuses a second
+    // close: two tabs both tapping Exit is one logical action, not an error to
+    // show somebody. The restore below still runs either way -- closing the
+    // swap is what matters, and the second tab has an admin to put back too.
+    await admin
+      .from("admin_impersonation_sessions")
+      .update({ ended_at: new Date().toISOString(), ended_reason: "admin_exited" })
+      .eq("id", marker.sessionId)
+      .is("ended_at", null);
+
+    await recordAdminActivity(admin, marker.adminId, {
+      action: "impersonation.end",
+      targetId: marker.targetId,
+      targetLabel: marker.targetName,
+      details: { role: marker.targetRole },
+    });
+  }
 
   const supabase = await createClient();
   if (restoreToken) {

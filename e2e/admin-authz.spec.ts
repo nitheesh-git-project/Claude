@@ -45,7 +45,19 @@ const GET_ONLY = new Set([
 // deployed server is in.
 const REFUSES_WITH_404 = new Set(["/api/admin/debug-reset"]);
 
+// /api/admin/stop-impersonation answers 200 to anyone, on purpose, and it is
+// the one route here that must: the caller is signed in *as the patient* at
+// the moment they tap Exit, so an admin check would refuse the only person
+// entitled to call it. What makes that safe is that the route acts on
+// nothing it was merely told. It clears the two cookies -- which is the
+// caller's own session either way -- and touches the impersonation row or
+// the audit log only when the marker matches a real `admin_impersonation_
+// sessions` row on all of session, admin and target. A forged marker gets
+// the same 200 and changes nothing.
+const ANSWERS_200 = new Set(["/api/admin/stop-impersonation"]);
+
 function refused(status: number, route: string): boolean {
+  if (ANSWERS_200.has(route)) return status === 200;
   if (REFUSES_WITH_404.has(route)) return [401, 403, 404].includes(status);
   return [401, 403].includes(status);
 }
