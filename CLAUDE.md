@@ -70,6 +70,15 @@ covers (programmes and packages) are admin **uploads** instead, held in the
 `catalog-images` bucket and positioned by `image_focal_x` / `image_focal_y`
 rather than cropped — one position is correct in the card's 4:3 and the
 dialog's 16:9 alike. They fall back to `CatalogImage`'s shared placeholder.
+The home page leads with **four** conditions rather than listing every one,
+with the rest a tap away on `/conditions`; `/home-visit` does the same and
+reveals its own remainder in place, since it is already the full list. Which
+four is an admin's choice — a tick on each row's own screen, never computed
+from sales, because a home page that rearranges itself when a booking lands
+changes without anybody deciding. `src/lib/catalogFeatured.ts` holds the
+rule, and with nothing ticked it falls back to the first four, so the band is
+never empty.
+
 One component, `CatalogCard`, renders every offering the clinic sells — the
 public programme and home-visit cards **and** the patient dashboard's booking
 screen, which was a text-only list — and `CatalogDialogHeader` gives both

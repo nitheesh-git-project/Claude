@@ -21,6 +21,7 @@ type Category = {
   cta_label: string;
   display_order: number;
   active: boolean;
+  featured?: boolean | null;
   /** Which of the three condition types this belongs to. Migration-dependent
    *  and optional on the type, so a caller reading it from a database
    *  without the column hands through undefined rather than failing. */
@@ -78,6 +79,7 @@ export default function TreatmentCategoryForm({
     defaults ? String(defaults.display_order) : newOrderDefault
   );
   const [active, setActive] = useState(defaults?.active ?? true);
+  const [featured, setFeatured] = useState(defaults?.featured === true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -106,6 +108,7 @@ export default function TreatmentCategoryForm({
       specialty: specialty || null,
       displayOrder,
       active,
+      featured,
     };
 
     const res = await fetch(
@@ -276,6 +279,22 @@ export default function TreatmentCategoryForm({
           className="w-4 h-4 accent-teal-600"
         />
         Active (visible to patients)
+      </label>
+      <label className="flex items-start gap-2 font-semibold">
+        <input
+          type="checkbox"
+          checked={featured}
+          onChange={(e) => setFeatured(e.target.checked)}
+          className="mt-0.5 w-4 h-4 accent-teal-600"
+        />
+        <span>
+          Feature on the home page
+          <span className="block text-[11px] font-normal text-slate-500">
+            The home page leads with four conditions and links to the full list. Tick
+            the ones you sell most. With none ticked it shows the first four in this
+            order, so the page is never empty.
+          </span>
+        </span>
       </label>
       <div className="flex gap-2">
         {onCancel && (

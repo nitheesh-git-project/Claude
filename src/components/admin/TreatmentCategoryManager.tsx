@@ -3,6 +3,7 @@
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import TreatmentCategoryForm from "./TreatmentCategoryForm";
+import { countFeatured, FEATURED_LIMIT } from "@/lib/catalogFeatured";
 import { useConfirm } from "@/lib/useConfirm";
 import { isOrderChanged, moveIdOnePlace } from "@/lib/listOrdering";
 import Modal from "@/components/admin/Modal";
@@ -12,6 +13,7 @@ type Category = {
   title: string;
   description: string | null;
   image_url: string | null;
+  featured?: boolean | null;
   points: string[];
   price_paise: number;
   duration_minutes: number;
@@ -241,8 +243,23 @@ export default function TreatmentCategoryManager({
     setDuplicateFrom(null);
   }
 
+  // Says where the four come from, at the screen that sets them. Without
+  // it, an admin who ticks six sees four on the live site and has no way to
+  // tell whether the other two failed to save.
+  const featuredCount = countFeatured(categories);
+
   return (
     <div className="space-y-3">
+      <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+        The home page leads with{" "}
+        <strong className="font-semibold">{FEATURED_LIMIT} conditions</strong> and links
+        to the full list on /conditions.{" "}
+        {featuredCount === 0
+          ? "None are ticked, so it shows the first four in this order."
+          : featuredCount <= FEATURED_LIMIT
+            ? `${featuredCount} ticked.`
+            : `${featuredCount} ticked — the first ${FEATURED_LIMIT} in this order are the ones shown.`}
+      </p>
       {moveError && (
         <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">
           {moveError}

@@ -4,6 +4,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { writeCatalogFocal } from "@/lib/catalogImageServer";
+import { writeCatalogFeatured } from "@/lib/catalogFeaturedServer";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -17,6 +18,7 @@ export async function POST(request: NextRequest) {
     imageUrl,
     imageFocalX,
     imageFocalY,
+    featured,
     points,
     priceInr,
     durationMinutes,
@@ -78,6 +80,7 @@ export async function POST(request: NextRequest) {
 
   await writeSpecialty(admin, data.id, specialty);
   await writeCatalogFocal(admin, "treatment_categories", data.id, imageFocalX, imageFocalY);
+  await writeCatalogFeatured(admin, "treatment_categories", data.id, featured);
 
   // Catalog rows decide what is sold and at what price, so every
   // create/update/delete belongs in the same log every other admin

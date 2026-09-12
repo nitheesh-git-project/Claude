@@ -652,6 +652,8 @@ export default async function AdminDashboardPage({
     categoryImageRows,
     categorySpecialtyRows,
     categoryFocalRows,
+    categoryFeaturedRows,
+    homeVisitFeaturedRows,
     testimonialAvatarRows,
     hospitalNotes,
     refundDetailRows,
@@ -716,6 +718,18 @@ export default async function AdminDashboardPage({
             .select("id, image_focal_x, image_focal_y")
         ).data,
       null as { id: string; image_focal_x: number | null; image_focal_y: number | null }[] | null
+    ),
+    // Which conditions lead the home page. Its own entry in this batch for
+    // the reason every other one is here: `featured` is the newest column on
+    // the table, and an unknown-column error inside the ~40-query Promise.all
+    // would blank the dashboard rather than cost the curation.
+    guard(
+      async () => (await admin.from("treatment_categories").select("id, featured")).data,
+      null as { id: string; featured: boolean | null }[] | null
+    ),
+    guard(
+      async () => (await admin.from("home_visit_packages").select("id, featured")).data,
+      null as { id: string; featured: boolean | null }[] | null
     ),
     guard(
       async () => (await admin.from("testimonials").select("id, avatar_url")).data,
@@ -958,6 +972,13 @@ export default async function AdminDashboardPage({
       row.id,
       { image_focal_x: row.image_focal_x, image_focal_y: row.image_focal_y },
     ])
+  );
+
+  const categoryFeaturedById = new Map(
+    (categoryFeaturedRows ?? []).map((row) => [row.id, row.featured === true])
+  );
+  const homeVisitFeaturedById = new Map(
+    (homeVisitFeaturedRows ?? []).map((row) => [row.id, row.featured === true])
   );
 
   // And the condition type, newer still, in its own call for the same
@@ -2376,6 +2397,7 @@ export default async function AdminDashboardPage({
             // benefits is jsonb -- defaults to '[]' in the schema, but a row
             // written before that default (or by hand) can still be null.
             benefits: Array.isArray(p.benefits) ? (p.benefits as string[]) : [],
+            featured: homeVisitFeaturedById.get(p.id) ?? false,
           }))}
           categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
         />
@@ -2549,6 +2571,7 @@ export default async function AdminDashboardPage({
           image_url: categoryImageById.get(c.id) ?? null,
           ...(categoryFocalById.get(c.id) ?? {}),
           specialty: categorySpecialtyById.get(c.id) ?? null,
+          featured: categoryFeaturedById.get(c.id) ?? false,
           points: Array.isArray(c.points) ? (c.points as string[]) : [],
         }))}
       />

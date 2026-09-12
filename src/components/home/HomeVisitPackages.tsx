@@ -27,6 +27,9 @@ export type PublicHomeVisitPackage = {
    *  without them hands through undefined and the cover centres. */
   image_focal_x?: number | null;
   image_focal_y?: number | null;
+  /** Whether this visit leads the page. Optional: a database without the
+   *  column simply has none, and the page falls back to the first four. */
+  featured?: boolean | null;
   benefits: unknown;
   badge_label: string | null;
   highlight: boolean;
@@ -60,18 +63,31 @@ export type PublicHomeVisitPackage = {
 // forgot to filter is a worse failure than an unused branch.
 export default function HomeVisitPackages({
   packages,
+  /** How many to show before the reveal. Defaults to all of them, so every
+   *  existing caller behaves exactly as it did. */
+  leadCount,
 }: {
   packages: PublicHomeVisitPackage[];
+  leadCount?: number;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  // Revealed in place rather than linked on: this page *is* the full list of
+  // home visits, so there is nowhere to send somebody. The rest are already
+  // in the markup -- two more cards is not worth a round trip, and a visitor
+  // who taps gets them instantly.
+  const [showAll, setShowAll] = useState(false);
   const selected = packages.find((p) => p.id === openId) ?? null;
 
   if (packages.length === 0) return null;
 
+  const lead = leadCount ?? packages.length;
+  const hidden = Math.max(0, packages.length - lead);
+  const visible = showAll ? packages : packages.slice(0, lead);
+
   return (
     <>
     <Stagger className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {packages.map((pkg) => {
+      {visible.map((pkg) => {
         const benefits = Array.isArray(pkg.benefits) ? (pkg.benefits as string[]) : [];
         const savings = computeHomeVisitSavings({
           visitCount: pkg.visit_count,
@@ -124,6 +140,24 @@ export default function HomeVisitPackages({
         );
       })}
     </Stagger>
+
+      {/* Only while something is actually hidden. Once revealed the button
+          goes rather than becoming a "show less": somebody who asked to see
+          everything is not looking for a way to see less of it. */}
+      {hidden > 0 && !showAll && (
+        <div className="mt-8 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-teal-200 bg-white px-5 py-3 text-sm font-bold text-teal-700 shadow-sm transition hover:border-teal-400 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+          >
+            {/* The count is the point: "show more" says nothing about
+                whether it is worth tapping. */}
+            Show {hidden} more {hidden === 1 ? "visit" : "visits"}
+            <i aria-hidden className="fa-solid fa-chevron-down text-xs" />
+          </button>
+        </div>
+      )}
 
       <HomeVisitPackageDetail pkg={selected} onClose={() => setOpenId(null)} />
     </>

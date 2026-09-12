@@ -4,6 +4,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { writeCatalogFocal } from "@/lib/catalogImageServer";
+import { writeCatalogFeatured } from "@/lib/catalogFeaturedServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import {
   validateHomeVisitPackagePayload,
@@ -51,16 +52,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Its own call, per the migration-dependent-column rule: a database
+  // without these columns loses the cover position, never the whole save.
+  await writeCatalogFocal(admin, "home_visit_packages", data.id, body.imageFocalX, body.imageFocalY);
+  await writeCatalogFeatured(admin, "home_visit_packages", data.id, body.featured);
+
   // /home-visit is ISR-cached, so without this a newly published package
-  // would take up to five minutes to appear.
+  // would take up to five minutes to appear -- and it has to run *after* the
+  // isolated writes above, or the page is rebuilt from the row as it was
+  // before them and the cover position and curation are the things that
+  // wait five minutes instead.
   revalidatePath("/home-visit");
 
   // Catalog rows decide what is sold and at what price, so every
   // create/update/delete belongs in the same log every other admin
   // action is read from.
-  // Its own call, per the migration-dependent-column rule: a database
-  // without these columns loses the cover position, never the whole save.
-  await writeCatalogFocal(admin, "home_visit_packages", data.id, body.imageFocalX, body.imageFocalY);
 
   await recordAdminActivity(admin, adminUser.id, {
     action: "catalog.create",
