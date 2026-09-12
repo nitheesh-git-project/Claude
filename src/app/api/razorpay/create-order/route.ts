@@ -9,7 +9,9 @@ import {
   isPatientProfile,
   approvePatientForGenuinePaymentAttempt,
 } from "@/lib/supabase/requireActiveProfile";
-import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
+import { confirmPaidAppointment } from "@/lib/confirmPaidAppointment";
+import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
+import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
 
 // The amount is always resolved here, server-side, from the appointment's
 // linked category price (or the flat base fee) — never trust an amount
@@ -124,39 +126,63 @@ export async function POST(request: NextRequest) {
         // order status (this is a server-to-server lookup, not
         // client-supplied data) and record the payment now rather than
         // sending the patient through checkout a second time.
+        //
+        // This is a recovery path, not a second fulfilment path. It used to
+        // write `payment_status: 'paid'` itself and stop there, which left
+        // the booking looking settled while three things that a capture is
+        // supposed to cause had not happened: no `payments` row, so the
+        // money was absent from the one table the books are reconciled from;
+        // no invite half settled, so the friend who introduced this patient
+        // was never credited and their claimed half stayed open for ever;
+        // and no auto-assignment, so a session the roster could have staffed
+        // sat unassigned in the admin queue. Everything below is the same
+        // sequence `/api/razorpay/verify` runs, through the same modules, so
+        // the two cannot drift.
         const payments = await razorpay.orders.fetchPayments(appointment.razorpay_order_id);
         const capturedPayment = payments.items.find(
           (p) => p.status === "captured" || p.status === "authorized"
         );
-        const shouldAutoConfirm =
-          appointment.therapist_id && appointment.status === "requested";
-        // Claim-check added alongside the Calendar integration: this write
-        // previously had no read-back at all, so there was no way to know
-        // whether it actually landed (e.g. lost a race against a
-        // cancellation) before this. Needed so calendar-event creation below
-        // is only attempted once we know the status change genuinely stuck.
-        const { data: claimed } = await admin
+
+        const { data: confirmable } = await supabase
           .from("appointments")
-          .update({
-            payment_status: "paid",
-            razorpay_payment_id: capturedPayment?.id ?? null,
-            paid_at: new Date().toISOString(),
-            ...(shouldAutoConfirm ? { status: "confirmed" } : {}),
-          })
+          .select(
+            "id, patient_id, therapist_id, status, slot_time, duration_minutes, timezone, visit_mode, preferred_therapist_id"
+          )
           .eq("id", appointmentId)
-          .eq("payment_status", "unpaid")
-          .select("id")
-          .maybeSingle();
-        if (claimed && shouldAutoConfirm && appointment.therapist_id && appointment.slot_time) {
-          await createMeetEventForConfirmedAppointment(admin, {
-            appointmentId,
-            patientId: appointment.patient_id,
-            therapistId: appointment.therapist_id,
-            slotTime: appointment.slot_time,
-            durationMinutes: appointment.duration_minutes,
-            timezone: appointment.timezone,
+          .single();
+
+        if (confirmable) {
+          const outcome = await confirmPaidAppointment(admin, {
+            appointment: confirmable,
+            razorpayPaymentId: capturedPayment?.id ?? null,
+          });
+          if (!outcome.claimed) {
+            // The booking moved out from under the claim -- almost always a
+            // cancellation. The money is real either way, so record it
+            // against the row for reconciliation rather than losing it,
+            // exactly as /verify does in the same situation.
+            await admin
+              .from("appointments")
+              .update({
+                payment_status: "paid",
+                razorpay_payment_id: capturedPayment?.id ?? null,
+                paid_at: new Date().toISOString(),
+              })
+              .eq("id", appointmentId)
+              .eq("payment_status", "unpaid");
+          }
+        }
+
+        // Idempotent by construction: if the webhook already handled this
+        // capture, both of these find it settled and change nothing.
+        if (capturedPayment?.id) {
+          await recordPaymentCapture(admin, {
+            orderId: appointment.razorpay_order_id,
+            paymentId: capturedPayment.id,
           });
         }
+        await settleInvitesOnCapture(admin, appointmentId);
+
         return NextResponse.json({
           alreadyPaid: true,
           error:
