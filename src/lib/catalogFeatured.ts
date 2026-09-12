@@ -11,8 +11,16 @@
  * lives.
  */
 
-/** How many featured rows a public page shows. Four fills one row at every
- *  breakpoint the catalog grid uses, which is why it is four and not five. */
+/**
+ * How many featured rows a public page shows.
+ *
+ * Four because it divides: the home page's catalog grid is two columns from
+ * `md` up, so four is two full rows with no gap. `/home-visit` runs three
+ * columns at `lg`, where four leaves the fourth card alone on its own row --
+ * accepted rather than designed around, since that page has two visits today
+ * and the alternative is a different count on each page, which is a worse
+ * thing to explain than an uneven row.
+ */
 export const FEATURED_LIMIT = 4;
 
 export type FeaturableRow = { id: string; featured?: boolean | null };
