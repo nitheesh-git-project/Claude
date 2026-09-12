@@ -34,6 +34,18 @@ test.describe("Suite H: two admins", () => {
     // package_purchase_summary is a view; postgres_changes only streams base
     // tables, and its underlying table is covered instead.
     queried.delete("package_purchase_summary");
+    // admin_account_notes must NOT be published, and this is the one place
+    // the rule would be broken by doing what the check asks. It holds the
+    // plaintext passwords this clinic generated and carries zero RLS
+    // policies on purpose -- the service role is its only reader -- so
+    // adding it to the publication would stream a table of credentials onto
+    // the realtime channel. It would also put back the bug the table was
+    // built to fix: writing the note fires the refresh that wiped the
+    // password off the User Access screen while an admin was still reading
+    // it out. The dashboard reads it, deliberately does not subscribe to it,
+    // and the admin who just created the account is the one person who does
+    // not need telling that it changed.
+    queried.delete("admin_account_notes");
 
     const missing = [...queried].filter((t) => !subscribed.has(t));
     expect(
