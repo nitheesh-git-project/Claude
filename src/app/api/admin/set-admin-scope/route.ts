@@ -57,12 +57,22 @@ export async function POST(request: NextRequest) {
 
   // Narrowing the last full-access admin leaves nobody who can ever widen
   // anyone again -- including themselves, per the self-change guard above.
+  //
+  // Counted over admins who can still sign in, the same way
+  // set-admin-active counts. Without the `active` filter this passed on a
+  // clinic with two Master Admins where one had been suspended: the count
+  // said two, the narrow went through, and the result was a back office
+  // nobody could widen -- the suspended one cannot sign in, and the narrowed
+  // one no longer has the scope. That state is unrecoverable from inside the
+  // app and needs direct database access to undo, which is exactly the
+  // situation both guards exist to prevent.
   if (target.admin_scope === "full" && scope !== "full") {
     const { count } = await admin
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("role", "admin")
-      .eq("admin_scope", "full");
+      .eq("admin_scope", "full")
+      .neq("active", false);
 
     if ((count ?? 0) <= 1) {
       return NextResponse.json(

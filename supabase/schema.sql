@@ -9474,3 +9474,88 @@ create index if not exists treatment_categories_featured_idx
 
 create index if not exists home_visit_packages_featured_idx
   on home_visit_packages (display_order, id) where featured and active;
+
+-- ---------------------------------------------------------------------------
+-- The back office can never be left with nobody who can open it
+-- ---------------------------------------------------------------------------
+--
+-- Two routes guard this in TypeScript -- set-admin-scope refuses to narrow the
+-- last Master Admin, set-admin-active refuses to suspend them -- and both do
+-- it by counting and then updating. That is correct only for as long as those
+-- two statements are the only thing happening, which is the same
+-- read-then-write shape the CHECK constraints on sessions_used replaced for
+-- the same reason.
+--
+-- Three ways past the route checks, all of them reachable:
+--   1. Two Master Admins acted at the same moment. Each count sees the other
+--      and both writes land, leaving zero.
+--   2. One route narrows a scope while the other suspends an account. They
+--      count different things and neither sees the other's write.
+--   3. Somebody runs an UPDATE by hand in the SQL editor, where no route
+--      check runs at all.
+--
+-- What that state costs is why it is worth a trigger rather than a comment:
+-- an admin whose scope is not `full` cannot widen anyone, and a suspended one
+-- cannot sign in, so a database with no active Master Admin cannot be
+-- repaired from inside the product. Undoing it needs direct database access,
+-- which the people locked out are the least likely to have.
+--
+-- Two things about the shape are load-bearing. It is **statement**-level over
+-- a transition table rather than row-level, so one UPDATE narrowing two
+-- admins is judged once against the table as that statement left it -- a
+-- row-level trigger would check each row against a table the other row had
+-- not been written to yet, and pass. And it only looks at all when the
+-- statement actually touched a Master Admin who could sign in: a patient
+-- editing their own profile must not pay for this count, and more to the
+-- point a database that has no admins yet (a freshly applied schema, before
+-- anybody is promoted by hand) would otherwise refuse **every** profile
+-- update -- a guard that bricks a new deployment to protect an old one.
+--
+-- Transition tables may not be attached to a trigger covering more than one
+-- event, so UPDATE and DELETE get one each over the same function.
+create or replace function public.profiles_keep_one_master_admin()
+returns trigger
+language plpgsql
+as $$
+declare
+  remaining integer;
+  touched boolean;
+begin
+  select exists (
+    select 1 from removed
+    where role = 'admin'
+      and coalesce(admin_scope, 'full') = 'full'
+      and active is not false
+  ) into touched;
+
+  if not touched then
+    return null;
+  end if;
+
+  select count(*) into remaining
+  from profiles
+  where role = 'admin'
+    and coalesce(admin_scope, 'full') = 'full'
+    and active is not false;
+
+  if remaining = 0 then
+    raise exception
+      'at least one Master Admin must be able to sign in: this would leave the back office with nobody who can restore anyone';
+  end if;
+
+  return null;
+end;
+$$;
+
+drop trigger if exists trg_profiles_keep_one_master_admin on profiles;
+drop trigger if exists trg_profiles_keep_one_master_admin_update on profiles;
+create trigger trg_profiles_keep_one_master_admin_update
+  after update on profiles
+  referencing old table as removed
+  for each statement execute function public.profiles_keep_one_master_admin();
+
+drop trigger if exists trg_profiles_keep_one_master_admin_delete on profiles;
+create trigger trg_profiles_keep_one_master_admin_delete
+  after delete on profiles
+  referencing old table as removed
+  for each statement execute function public.profiles_keep_one_master_admin();
