@@ -20,6 +20,7 @@ export type HomeVisitPackage = {
   benefits: string[];
   badge_label: string | null;
   highlight: boolean;
+  featured?: boolean | null;
   terms: string | null;
   visit_count: number;
   price_paise: number;
@@ -105,6 +106,7 @@ export default function HomeVisitPackageForm({
   const [benefitsText, setBenefitsText] = useState((pkg?.benefits ?? []).join("\n"));
   const [badgeLabel, setBadgeLabel] = useState(pkg?.badge_label ?? "");
   const [highlight, setHighlight] = useState(pkg?.highlight ?? false);
+  const [featured, setFeatured] = useState(pkg?.featured === true);
   const [terms, setTerms] = useState(pkg?.terms ?? "");
 
   const [visitCount, setVisitCount] = useState(pkg ? String(pkg.visit_count) : "1");
@@ -167,6 +169,7 @@ export default function HomeVisitPackageForm({
       benefits,
       badgeLabel: badgeLabel || null,
       highlight,
+      featured,
       terms: terms || null,
       visitCount,
       priceInr,
@@ -387,7 +390,23 @@ export default function HomeVisitPackageForm({
           label="Lock to one therapist"
           hint="Every visit in the programme goes to whoever takes the first one."
         />
-        <Check checked={highlight} onChange={setHighlight} label="Feature this package" />
+        {/* Renamed from "Feature this package". `highlight` draws the teal
+            ring on the card -- emphasis -- while `featured` decides which
+            four lead the page. Two controls called Feature, meaning
+            different things, is the one-word-one-concept rule broken in the
+            place an admin would actually meet it. */}
+        <Check
+          checked={highlight}
+          onChange={setHighlight}
+          label="Highlight with a ring"
+          hint="Draws a teal border around the card wherever it appears."
+        />
+        <Check
+          checked={featured}
+          onChange={setFeatured}
+          label="Lead with this on the Home Visit page"
+          hint="That page leads with four visits and reveals the rest on a tap. With none ticked it shows the first four, so it is never empty."
+        />
         <Check checked={active} onChange={setActive} label="Active" hint="Off hides it everywhere." />
         <Check
           checked={visibleOnHomeVisitPage}

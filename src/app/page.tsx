@@ -4,7 +4,11 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { Reveal, MotionButton } from "@/components/motion/primitives";
 import JourneySteps from "@/components/home/JourneySteps";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
+// ProgressLink, not next/link: a plain Link click never touches useRouter,
+// so the teal progress bar would not fire on the way to /conditions.
+import Link from "@/components/system/ProgressLink";
 import ProgramCards from "@/components/catalog/ProgramCards";
+import { pickFeatured } from "@/lib/catalogFeatured";
 import PageHero from "@/components/marketing/PageHero";
 import TrustBar from "@/components/marketing/TrustBar";
 import Section from "@/components/marketing/Section";
@@ -101,11 +105,31 @@ export default async function Home() {
     ])
   );
 
-  const programs = (categories ?? []).map((c) => ({
+  // Which four lead the page. Its own call for the third time on this row,
+  // and for the same reason: `featured` is newer than the focal columns, so
+  // folding it in would cost the photographs as well as the curation on a
+  // database mid-migration. Absent, every row reads as not featured and
+  // pickFeatured falls through to the first four -- exactly what this page
+  // showed before the column existed.
+  const { data: categoryFeatured } = await supabase
+    .from("treatment_categories")
+    .select("id, featured");
+  const featuredByCategoryId = new Map(
+    (categoryFeatured ?? []).map((row) => [row.id, row.featured])
+  );
+
+  const allPrograms = (categories ?? []).map((c) => ({
     ...c,
     image_url: imageByCategoryId.get(c.id) ?? null,
     ...(focalByCategoryId.get(c.id) ?? {}),
+    featured: featuredByCategoryId.get(c.id) ?? false,
   }));
+
+  // The home page leads with four and sends the rest to /conditions, which
+  // still lists everything. Before this it printed all ten, so the page
+  // whose job is to say what this clinic *is* spent most of its length being
+  // an index of itself.
+  const { shown: programs, hasMore: hasMoreConditions } = pickFeatured(allPrograms);
 
   const { data: testimonialRows } = await supabase
     .from("testimonials")
@@ -302,6 +326,20 @@ export default async function Home() {
           lede="Same 60-minute assessment. Different protocol."
         >
           <ProgramCards programs={programs} />
+          {/* Only when there is genuinely more to see: a button opening a
+              list identical to the one above it is a dead end with a label
+              on it. /conditions is unchanged and still shows everything. */}
+          {hasMoreConditions && (
+            <div className="mt-8 flex justify-center">
+              <Link
+                href="/conditions"
+                className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-white px-5 py-3 text-sm font-bold text-teal-700 shadow-sm transition hover:border-teal-400 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+              >
+                See all conditions we treat
+                <i aria-hidden className="fa-solid fa-arrow-right text-xs" />
+              </Link>
+            </div>
+          )}
         </Section>
       )}
 

@@ -5,6 +5,7 @@ import { usePagedList } from "@/lib/usePagedList";
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import HomeVisitPackageForm, { type HomeVisitPackage } from "./HomeVisitPackageForm";
+import { countFeatured, FEATURED_LIMIT } from "@/lib/catalogFeatured";
 import { useConfirm } from "@/lib/useConfirm";
 import { computeHomeVisitSavings } from "@/lib/homeVisitProgress";
 
@@ -64,8 +65,24 @@ export default function HomeVisitPackageManager({
   const [addingNew, setAddingNew] = useState(false);
   const { rows: pagePackages, pager } = usePagedList(packages, { storageKey: "admin-home-visit-catalog" });
 
+  // Same note as the Conditions screen, and the same reason: the cap has to
+  // be visible where it is set. The wording differs because this page has
+  // nowhere to send anybody -- /home-visit *is* the full list, so the rest
+  // are revealed there rather than linked to.
+  const featuredCount = countFeatured(packages);
+
   return (
     <div className="space-y-3">
+      <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+        The Home Visit page leads with{" "}
+        <strong className="font-semibold">{FEATURED_LIMIT} visits</strong> and reveals the
+        rest on a tap.{" "}
+        {featuredCount === 0
+          ? "None are ticked, so it shows the first four in this order."
+          : featuredCount <= FEATURED_LIMIT
+            ? `${featuredCount} ticked.`
+            : `${featuredCount} ticked — the first ${FEATURED_LIMIT} in this order are the ones shown.`}
+      </p>
       {packages.length === 0 && !addingNew ? (
         <p className="text-xs text-slate-500 py-4 text-center">
           No home visit packages yet — add one below. A single one-off visit is just a package with

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
+import { pickFeatured } from "@/lib/catalogFeatured";
 import HomeVisitPackages, {
   type PublicHomeVisitPackage,
 } from "@/components/home/HomeVisitPackages";
@@ -114,19 +115,43 @@ export default async function HomeVisitPage() {
     ])
   );
 
+  // Which visits lead the page. Its own call for the same reason as the two
+  // above: `featured` is the newest column on this table, so sharing a query
+  // would trade the covers and their positions for the curation on a
+  // database mid-migration. Absent, every row reads as not featured and the
+  // page leads with the first four -- what it did before this existed.
+  const { data: packageFeatured } = packageIds.length
+    ? await supabase
+        .from("home_visit_packages")
+        .select("id, featured")
+        .in("id", packageIds)
+    : { data: null };
+  const featuredById = new Map((packageFeatured ?? []).map((f) => [f.id, f.featured]));
+
   // Single visits only. Every home visit in this app is a package purchase,
   // so a one-visit package IS the home-visit consultation and has to stay on
   // this page -- it is the only way in for a patient who needs to be seen at
   // home. A multi-visit programme is a clinical recommendation a therapist
   // writes after seeing someone, so it is not advertised here at all, the
   // same rule / and /conditions now follow for session programmes.
-  const packages = (rawPackages ?? [])
+  const allPackages = (rawPackages ?? [])
     .filter((p) => isDirectlyPurchasable(p.visit_count))
     .map((p) => ({
       ...p,
       ...(detailById.get(p.id) ?? {}),
       ...(focalById.get(p.id) ?? {}),
+      featured: featuredById.get(p.id) ?? false,
     })) as PublicHomeVisitPackage[];
+
+  // This page leads with four and reveals the rest in place rather than
+  // linking on: unlike the home page, which sends a visitor to /conditions,
+  // /home-visit *is* its own full list and has nowhere to send anybody. The
+  // led rows go first so the reveal appends rather than reshuffling what
+  // somebody has already read.
+  const { shown: leadPackages } = pickFeatured(allPackages);
+  const leadIds = new Set(leadPackages.map((p) => p.id));
+  const packages = [...leadPackages, ...allPackages.filter((p) => !leadIds.has(p.id))];
+  const leadCount = leadPackages.length;
 
   const heading =
     settingsRow?.home_visit_page_heading?.trim() || DEFAULT_HOME_VISIT_PAGE_HEADING;
@@ -199,7 +224,7 @@ export default async function HomeVisitPage() {
         lede="One visit, or a programme with the same physiotherapist."
       >
         {packages.length > 0 ? (
-          <HomeVisitPackages packages={packages} />
+          <HomeVisitPackages packages={packages} leadCount={leadCount} />
         ) : (
           <p className="text-center text-sm text-slate-500">
             Home visit packages are being finalised — please check back shortly.

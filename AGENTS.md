@@ -227,6 +227,7 @@ src/lib/activityLog.ts   the log's search, its categories and its retention floo
 src/lib/formatDateTime.ts every date the app renders, pinned to clinic time
 src/lib/refundState.ts   how a refund reads, wherever a session is shown
 src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
+src/lib/catalogFeatured.ts which few of the catalogue a public page leads with
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
 src/lib/mission.ts       the mission, vision, promises and stated limits
 src/lib/marketingPhotos.ts every photograph the public pages use
@@ -3010,6 +3011,46 @@ client is the only writer and the log is append-only from any session.
   costs. `e2e/catalog-cover-image.spec.ts` asserts the heading sits below the
   image **geometrically** rather than by class name, so a restyle that puts
   text back over the photograph fails even if the markup changes shape.
+- **The home page leads with four, and the full list is one tap away.** It
+  rendered every active condition -- ten cards and climbing -- so the page
+  whose job is to say what this clinic *is* spent most of its length being an
+  index of itself. `treatment_categories.featured` and
+  `home_visit_packages.featured` pick which four lead, ticked on the admin's
+  own Conditions and Home Visit screens; `pickFeatured()` in
+  `src/lib/catalogFeatured.ts` is the rule, dependency-free so a judgement
+  about what a visitor sees is unit-tested rather than only clicked. Five
+  things hold it:
+  1. **Admin-chosen, never computed from sales.** "Most bought" is the
+     intention, but a home page that rearranges itself when a booking lands
+     changes without anybody deciding, and a newly added condition could
+     never reach it until it had already sold -- backwards for the page that
+     exists to sell it.
+  2. **Nothing ticked falls back to the first four.** An empty band reads as
+     the clinic having shut, not as a setting nobody has set; it is also what
+     makes shipping the column and the UI in one change safe, since every row
+     is `false` until an admin opens the screen.
+  3. **More ticked than the limit is not an error**, and the cap is stated on
+     the screen that sets it rather than discovered on the live site.
+  4. **The two pages differ because their lists do.** `/` links on to
+     `/conditions`, which still shows everything; `/home-visit` reveals the
+     rest in place, because it *is* its own full list and has nowhere to send
+     anybody. `hasMore` gates both -- a control opening a list identical to
+     the one above it is a dead end with a label on it.
+  5. **`featured` is not `highlight`.** The home-visit form already had a
+     control labelled "Feature this package" that drew the teal ring; it
+     reads "Highlight with a ring" now. Two controls called Feature, meaning
+     different things, is the one-word-one-concept rule broken in the one
+     place an admin meets both.
+  The patient dashboard's booking hub deliberately keeps showing everything:
+  it is the screen somebody opens *to* book, so trimming it hides what they
+  came for.
+  **A revalidate belongs after the isolated writes, not before them.** Both
+  home-visit catalog routes called `revalidatePath("/home-visit")` before
+  `writeCatalogFocal`, so the page was rebuilt from the row as it was a
+  moment earlier and a repositioned cover waited out the full ISR window --
+  the exact failure the revalidate exists to prevent, in the call that exists
+  to prevent it.
+
 - **Ordering a list is one save of the whole list, never a pairwise swap.**
   The Conditions screen moved a category by swapping two rows'
   `display_order` values. Two rows holding the *same* order swapped to the

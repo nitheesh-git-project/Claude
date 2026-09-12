@@ -9439,3 +9439,38 @@ begin
     check (image_focal_x between 0 and 100 and image_focal_y between 0 and 100);
 exception when duplicate_object then null;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Featuring a few of the catalogue on the public pages
+-- ---------------------------------------------------------------------------
+--
+-- The home page listed every active condition, which is ten cards and
+-- climbing -- the one page whose job is to say what this clinic is spent most
+-- of its length being an index. Four are featured there now, with a link to
+-- /conditions for the whole list; /home-visit does the same and reveals the
+-- rest in place, since it *is* its own full list and has nowhere to send
+-- somebody.
+--
+-- Admin-chosen rather than computed from sales. "Most bought" is the
+-- intention, but a home page that rearranges itself when a booking lands
+-- changes without anybody deciding, and a newly added condition could never
+-- appear on it until it had already sold -- which is backwards for the page
+-- that exists to sell it.
+--
+-- Default false, and the pages fall back to the first four by display order
+-- when nothing is ticked: an empty band reads as the clinic having shut,
+-- rather than as a setting nobody has set yet.
+alter table treatment_categories
+  add column if not exists featured boolean not null default false;
+
+alter table home_visit_packages
+  add column if not exists featured boolean not null default false;
+
+-- Partial indexes: every public render asks for exactly these rows, and both
+-- tables are read on pages that are cached for five minutes rather than per
+-- request, so the index earns itself on the miss rather than on the hit.
+create index if not exists treatment_categories_featured_idx
+  on treatment_categories (display_order, id) where featured and active;
+
+create index if not exists home_visit_packages_featured_idx
+  on home_visit_packages (display_order, id) where featured and active;
