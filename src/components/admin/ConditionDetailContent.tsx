@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { formatClinicDateTime } from "@/lib/formatDateTime";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ConditionRequestActions from "@/components/admin/ConditionRequestActions";
 import ConditionAccessActions from "@/components/admin/ConditionAccessActions";
@@ -260,7 +261,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
             <p className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-2">
               <span>
                 Submitted by {pendingRequest.submitted_by_role} —{" "}
-                {new Date(pendingRequest.created_at).toLocaleString()}
+                {formatClinicDateTime(pendingRequest.created_at)}
               </span>
               {pendingDaysOld > 3 && (
                 <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
@@ -351,7 +352,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
                 return (
                   <li key={r.id} className="text-xs text-slate-600 border-t border-slate-100 pt-2">
                     {r.status === "approved" ? "Approved" : "Declined"} — submitted by{" "}
-                    {r.submitted_by_role}, {new Date(r.created_at).toLocaleString()}
+                    {r.submitted_by_role}, {formatClinicDateTime(r.created_at)}
                     {proposed && (
                       <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
                         {specialtyLabel(proposed.specialty)}
@@ -399,7 +400,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
                   </p>
                   <p className="text-xs text-slate-400">
                     {g.status === "requested" ? "Requested" : "Approved"} —{" "}
-                    {new Date(g.requested_at).toLocaleString()}
+                    {formatClinicDateTime(g.requested_at)}
                   </p>
                 </div>
                 <ConditionAccessActions grantId={g.id} status={g.status as "requested" | "approved"} />

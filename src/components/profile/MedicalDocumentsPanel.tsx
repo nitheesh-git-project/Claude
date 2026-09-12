@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import { compressImage } from "@/lib/compressImage";
 import {
@@ -60,6 +61,7 @@ export default function MedicalDocumentsPanel({
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<{ blob: Blob; name: string; mimeType: string } | null>(null);
+  const { show } = useToast();
   const [title, setTitle] = useState("");
   const [documentType, setDocumentType] = useState<MedicalDocumentType>("lab_report");
   const [takenOn, setTakenOn] = useState("");
@@ -131,6 +133,7 @@ export default function MedicalDocumentsPanel({
       if (!response.ok) throw new Error(payload.error ?? "Could not upload that report.");
 
       cancelPending();
+      show("Report uploaded.");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not upload that report.");
@@ -172,6 +175,7 @@ export default function MedicalDocumentsPanel({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Could not delete that report.");
+      show("Report removed.");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not delete that report.");

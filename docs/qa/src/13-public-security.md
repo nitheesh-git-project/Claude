@@ -60,6 +60,10 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 **Expected Result.** The card body is **one tap target that opens a detail dialog** carrying the long description and what the programme covers. The **Book …** link sits **below the card** and again at the foot of the dialog, **outside** the tap-target button (a link nested inside a button is invalid markup and behaves differently per browser). It goes to `/book?category=<id>` — a **first session**, never a course of them.
 **Cover images:** a card with no photo shows the **shared placeholder panel at the same height** as one with a photo. It must never look like an image that failed to load.
 
+#### `PUB-CAT-003` — Nothing sits on the photograph in a detail dialog · P1
+**Steps.** Open a condition's detail dialog on `/conditions` and a package's on `/home-visit`, each with a cover uploaded and each without.
+**Expected Result.** The photograph fills a **16:9 frame with nothing over it** — no scrim, no heading, no badge. The heading, any badge and the summary sit on a **white band below** it, separated by a rule. With no cover, the frame keeps its 16:9 and shows the placeholder, so the dialog does **not** change height depending on whether the catalogue has been filled in. Both dialogs use the same header: the programme one used to ignore the uploaded photograph entirely and draw an illustration, which would pair a photographic card with an illustrated dialog one tap apart.
+
 #### `PUB-CAT-002` — No course of treatment is advertised anywhere public · P0
 
 **Feature.** A course of treatment is a clinical recommendation, so the public site does not carry a price list of them. Removed outright rather than hidden behind a setting: a toggle somebody can flip back on is not the rule being gone.
@@ -124,6 +128,53 @@ curl -i -X POST http://localhost:3000/api/<route> \
 #### `SEC-ROUTE-006` — `/dashboard` routes by role, server-side · P1
 **Steps.** As each role, open `/dashboard`. Then open `/dashboard?hash=<something>` and `/dashboard?hash=//evil.example.com`.
 **Expected Result.** Each role lands on their own dashboard. A legitimate `hash` becomes a real fragment (the anchor-based shells need it) and is **pattern-checked**; a value that could smuggle a host is rejected. **No open redirect.**
+
+#### `SEC-ROUTE-008` — The booking wizard's exit follows the account · P1
+
+**Feature.** `/book` and `/book-home-visit` hide the site nav so a stray link cannot lose somebody's progress mid-payment, which makes the one link at the foot the only way out. It always read *Back to Home* — right for a visitor from the marketing site, wrong for the commonest case: a patient who came from their own dashboard to book, and was sent to the public home page instead of back where they started.
+
+**Steps**
+1. Signed out, open `/book` and read the link at the foot. Then `/book-home-visit`.
+2. Sign in as an **approved patient**, go to the dashboard, start a booking, and read it again on both.
+3. Tap it.
+4. Sign in as a patient who is **not yet approved** (a fresh self-signup, before paying) and read it.
+5. Tap it.
+6. Open `/book` on a slow connection and watch the link before the session resolves.
+7. Sign in as an admin or a therapist and open `/book`.
+
+**Expected Result**
+* Step 1: **Back to Home** → `/`, and **Back to Home Visit** → `/home-visit`. Each wizard keeps its own signed-out destination.
+* Step 2: **Back to Dashboard**, on both.
+* Step 3: lands on their dashboard, not the marketing site.
+* Step 4: **Approval pending** — not *Back to Dashboard*. An unapproved patient bounces off their dashboard to the waiting screen, and a label naming a destination they cannot reach is the failure this resolution exists to avoid.
+* Step 5: lands on `/pending-approval` directly, in one navigation.
+* Step 6: **Back to Home** until the session resolves, then the signed-in wording. Fail-closed — never a dashboard link offered to somebody who might not have one.
+* Step 7: the wizard shows the wrong-account card (one account carries one role), and the exit still reads **Back to Dashboard** — it is about the account, not about who may book.
+* **Critical check:** both pages must still build as **prerendered** (`○`, 5-minute ISR). Resolving this server-side would force every booking page dynamic to answer a question about one link.
+
+#### `SEC-ROUTE-007` — The public nav always offers a signed-in person somewhere · P1
+
+**Feature.** The Navbar hides **Sign In** and **Get Started** once somebody is signed in, so whatever replaces them is the only route back into the app from the marketing site. An account waiting on approval used to get **neither** — both CTAs gone because they are signed in, and no button in their place — so an unapproved patient who tapped Home had no way forward at all.
+
+**Steps**
+1. Register a patient and leave them **unapproved**. From `/pending-approval`, tap the logo to reach Home and read the top right.
+2. Tap the button.
+3. Approve them from the back office, reload Home, and read it again.
+4. Suspend an account (`active = false`), open Home as them, and read it again.
+5. Look at the top right **on `/pending-approval` itself**.
+6. Open Home signed out.
+7. Open Home on a slow connection and watch the top right before the role lookup resolves.
+8. Repeat steps 1–4 on a phone width, in the mobile drawer.
+
+**Expected Result**
+* Step 1: a button reading **Approval pending** — not an empty space, and not *Go to Dashboard*, which would name a destination they cannot reach.
+* Step 2: lands on **`/pending-approval`** directly — one navigation, not a bounce through `/dashboard` and their role's dashboard.
+* Step 3: the same button now reads **Go to Dashboard** and opens `/dashboard`.
+* Step 4: **Account suspended**, opening `/account-suspended`. An account that is both suspended and unapproved reads *suspended* — that is the one that decides where they land.
+* Step 5: **no button at all.** Those two pages are in `AUTH_CTA_HIDDEN_ROUTES`, so the nav never offers a link to the page it is already on.
+* Step 6: **Sign In** and **Get Started**, as before.
+* Step 7: **nothing** until the lookup resolves — fail-closed, so a slow or failed role read never briefly offers the wrong destination.
+* Step 8: identical in the drawer.
 
 ### 18.3 Horizontal privilege (one user reaching another's data)
 

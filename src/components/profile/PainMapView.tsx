@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import {
   PAIN_MAP_REGIONS,
   latestAssessmentByRegionSide,
@@ -162,7 +163,7 @@ export default function PainMapView({ assessments }: { assessments: PainAssessme
                   </span>
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  Last assessed {new Date(selectedLatest.created_at).toLocaleString()}
+                  Last assessed {formatClinicDateTime(selectedLatest.created_at)}
                   {selectedLatest.submitted_by_role &&
                     ` by ${SUBMITTER_LABEL[selectedLatest.submitted_by_role] ?? selectedLatest.submitted_by_role}`}
                 </p>
@@ -176,7 +177,7 @@ export default function PainMapView({ assessments }: { assessments: PainAssessme
                       <ul className="mt-1.5 space-y-1 max-h-32 overflow-y-auto">
                         {selectedHistory.map((a) => (
                           <li key={a.created_at} className="text-[11px] text-slate-500 flex justify-between gap-2">
-                            <span>{new Date(a.created_at).toLocaleDateString()}</span>
+                            <span>{formatClinicDate(a.created_at)}</span>
                             <span className="font-semibold text-slate-600">{formatPainOutOfTen(a.pain_percent)}</span>
                           </li>
                         ))}

@@ -196,7 +196,15 @@ export default function AdminPayoutsTab({
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-          <h2 className="font-display font-bold text-lg text-slate-800">Therapist Payouts</h2>
+          <h2 className="flex flex-wrap items-center gap-2 font-display font-bold text-lg text-slate-800">
+            Therapist Payouts
+            {/* Every figure on this screen is a balance as of now. The same
+                chip marks the one balance in the Summary strip, so the two
+                screens say "the dates do not touch this" the same way. */}
+            <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700">
+              Right now
+            </span>
+          </h2>
           <p className="text-xs text-slate-500">
             Owed: <strong className="text-slate-700">{formatInr(totalOwedPaise)}</strong>
             {totalCashHeldPaise > 0 && (

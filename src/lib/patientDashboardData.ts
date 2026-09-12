@@ -51,6 +51,7 @@ type HubCategoryRow = {
   id: string;
   title: string;
   description: string | null;
+  points?: unknown;
   price_paise: number;
   duration_minutes: number | null;
   cta_label: string | null;
@@ -137,6 +138,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     { data: rawAppointments },
     { data: sessionCodeLinks },
     { data: meetLinkRows },
+    { data: refundDetailRows },
     { data: allPackagePurchases },
     { data: paymentFailures },
     { data: activeCategories },
@@ -148,6 +150,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     { data: homeVisitPackages },
     { data: ownedHomeVisitPackages },
     { data: bookableCategories },
+    { data: hubCategoryImages },
+    { data: hubCategoryFocals },
+    { data: hubHomeVisitFocals },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
 
@@ -180,6 +185,15 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // meet_link is also new/migration-dependent -- same isolation reasoning
     // as sessionCodeLinks above.
     supabase.from("appointments").select("id, meet_link").eq("patient_id", user.id),
+
+    // What came back and when. refunded_at is the newest column on this
+    // table, so this is isolated for the usual reason -- without it a
+    // database missing the migration would lose every session on this
+    // dashboard rather than one line on a refunded one.
+    supabase
+      .from("appointments")
+      .select("id, refund_amount_paise, refund_reason, refunded_at")
+      .eq("patient_id", user.id),
 
     // Full purchase history (not just currently-usable packages -- that's
     // ownedPackages below, filtered to paid ones with sessions remaining) so
@@ -305,11 +319,34 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     needHub
       ? supabase
           .from("treatment_categories")
-          .select("id, title, description, price_paise, duration_minutes, cta_label")
+          .select("id, title, description, points, price_paise, duration_minutes, cta_label")
           .eq("active", true)
           .order("display_order", { ascending: true })
           .order("id", { ascending: true })
       : emptyRows<HubCategoryRow>(),
+
+    // Covers for the hub's cards, in their own calls for the usual
+    // migration-tolerance reason -- and split from each other because the
+    // focal columns are newer than image_url, so sharing one query would
+    // lose the photographs as well as their positions on a database
+    // mid-migration. The hub renders the same card the public pages do, and
+    // a patient who has already signed up should not meet a plainer
+    // catalogue than a stranger does.
+    needHub
+      ? supabase.from("treatment_categories").select("id, image_url").eq("active", true)
+      : emptyRows<{ id: string; image_url: string | null }>(),
+    needHub
+      ? supabase
+          .from("treatment_categories")
+          .select("id, image_focal_x, image_focal_y")
+          .eq("active", true)
+      : emptyRows<{ id: string; image_focal_x: number | null; image_focal_y: number | null }>(),
+    needHub
+      ? supabase
+          .from("home_visit_packages")
+          .select("id, image_focal_x, image_focal_y")
+          .eq("active", true)
+      : emptyRows<{ id: string; image_focal_x: number | null; image_focal_y: number | null }>(),
   ]);
 
   const adminSettings = parseAdminSettings(settingsRow);
@@ -376,19 +413,41 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     }
   }
 
+  const refundDetailById = new Map(
+    (refundDetailRows ?? []).map((r) => [
+      r.id,
+      {
+        refund_amount_paise: r.refund_amount_paise as number | null,
+        refund_reason: r.refund_reason as string | null,
+        refunded_at: r.refunded_at as string | null,
+      },
+    ])
+  );
+
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
   ).map((a) => {
     const discount = discountByAppointment.get(a.id);
+    // Merged unconditionally rather than only where a row came back, so
+    // every appointment carries the same shape: a union of "with refund
+    // columns" and "without" would make every consumer narrow before it
+    // could read one, and the absent case is exactly the null these mean.
+    const withRefund = {
+      ...a,
+      refund_amount_paise: null as number | null,
+      refund_reason: null as string | null,
+      refunded_at: null as string | null,
+      ...refundDetailById.get(a.id),
+    };
     return discount
       ? {
-          ...a,
+          ...withRefund,
           list_price_paise: discount.listPricePaise,
           discount_paise: discount.discountPaise,
           discount_source: discount.source,
         }
-      : a;
+      : withRefund;
   });
 
   // Unpaid bookings won't have amount_paid_paise set yet (that's only
@@ -672,6 +731,31 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     (sum, p) => sum + Math.max(0, (p.session_count ?? 0) - (p.sessions_used ?? 0)),
     0
   );
+  // Covers merged onto the hub's rows here rather than in the component, so
+  // the booking screen and the public pages read a photograph the same way.
+  const hubCategoryImageById = new Map(
+    (hubCategoryImages ?? []).map((r) => [r.id, r.image_url as string | null])
+  );
+  const hubCategoryFocalById = new Map(
+    (hubCategoryFocals ?? []).map((r) => [
+      r.id,
+      { image_focal_x: r.image_focal_x, image_focal_y: r.image_focal_y },
+    ])
+  );
+  const hubHomeVisitFocalById = new Map(
+    (hubHomeVisitFocals ?? []).map((r) => [
+      r.id,
+      { image_focal_x: r.image_focal_x, image_focal_y: r.image_focal_y },
+    ])
+  );
+  const hubCategoriesWithCovers = (bookableCategories ?? []).map((c) => ({
+    ...c,
+    duration_minutes: c.duration_minutes ?? 60,
+    points: Array.isArray(c.points) ? (c.points as string[]) : [],
+    image_url: hubCategoryImageById.get(c.id) ?? null,
+    ...(hubCategoryFocalById.get(c.id) ?? {}),
+  }));
+
   const patientFeed = buildPatientFeed({
     appointments: appointments.map((a) => ({
       id: a.id,
@@ -681,6 +765,8 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       payment_status: a.payment_status,
       created_at: a.slot_time,
       therapist_name: a.therapist_id ? therapistMap.get(a.therapist_id) ?? null : null,
+      refund_status: a.refund_status,
+      ...refundDetailById.get(a.id),
     })),
     conditionRequests: (conditionRequests ?? []).map((r) => ({
       id: r.id,
@@ -734,10 +820,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     {
       label: "Next session",
       value: nextSession?.slot_time
-        ? new Date(nextSession.slot_time).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+        ? new Date(nextSession.slot_time).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata", day: "numeric", month: "short" })
         : "—",
       note: nextSession?.slot_time
-        ? `${new Date(nextSession.slot_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}${
+        ? `${new Date(nextSession.slot_time).toLocaleTimeString([], { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}${
             nextSession.therapist_id ? ` · ${therapistMap.get(nextSession.therapist_id) ?? "therapist"}` : ""
           }`
         : "Nothing booked yet",
@@ -806,7 +892,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // dropping it would leave a patient who needs to be seen at home with no
   // way in at all.
   const hubHomeVisitPackages = adminSettings.homeVisitEnabled
-    ? (homeVisitPackages ?? []).filter((p) => isDirectlyPurchasable(p.visit_count))
+    ? (homeVisitPackages ?? [])
+        .filter((p) => isDirectlyPurchasable(p.visit_count))
+        .map((p) => ({ ...p, ...(hubHomeVisitFocalById.get(p.id) ?? {}) }))
     : [];
 
   // ---- Invites ------------------------------------------------------
@@ -872,7 +960,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ownedPackages: ownedPackagesForDisplay,
     ownedHomeVisitPackages: ownedHomeVisitPackagesForDisplay,
     homeVisitPackages,
-    bookableCategories,
+    bookableCategories: hubCategoriesWithCovers,
     onboardingRow,
     conditionProfile,
     categoryPriceMap,

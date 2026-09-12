@@ -60,9 +60,17 @@ const COPY: Record<
   admin: {
     label: "an admin",
     noun: "admin",
-    body: "To book for a patient, use New Booking under Sessions in the dashboard — it books on their behalf and can override the lead time.",
+    body: "To book for a patient, use New Booking under Sessions in the dashboard — it books on their behalf and can override the lead time. Finance access reads sessions without changing them, so it books through a colleague instead.",
     action: {
-      href: "/dashboard?section=sessions",
+      // The tab as well as the section. Without it `findTab` resolves to the
+      // section's first screen -- the Schedule calendar -- so the one button
+      // in the product named "Book for a patient" landed on a month grid
+      // with no form on it. A hardcoded `?section=&tab=` pair is exactly
+      // what `adminScreenHref` exists to prevent, and it cannot be used here:
+      // this component ships in the public booking page's bundle, and that
+      // helper is typed against the admin nav. The pairing is asserted by
+      // `ADM-SESS-NEW-001` in the QA plan instead.
+      href: "/dashboard?section=sessions&tab=new",
       label: "Book for a patient",
       icon: "fa-calendar-plus",
     },

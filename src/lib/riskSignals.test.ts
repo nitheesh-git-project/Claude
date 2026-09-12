@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { ruleNumber, belowRate, countPhrase, RISK_RULE_KEYS } from "@/lib/riskSignals";
+import {
+  ruleNumber,
+  belowRate,
+  countPhrase,
+  riskRulesForSections,
+  RISK_RULE_DOMAIN,
+  RISK_RULE_KEYS,
+} from "@/lib/riskSignals";
 
 describe("ruleNumber", () => {
   it("reads a configured number", () => {
@@ -47,5 +54,52 @@ describe("countPhrase", () => {
 describe("rule keys", () => {
   it("are unique", () => {
     expect(new Set(RISK_RULE_KEYS).size).toBe(RISK_RULE_KEYS.length);
+  });
+});
+
+describe("which desk a rule belongs to", () => {
+  // A rule with no desk is a finding nobody is shown, which is how a queue
+  // stops being read -- the failure this whole layer was built to avoid.
+  it("gives every rule a desk", () => {
+    for (const key of RISK_RULE_KEYS) {
+      expect(RISK_RULE_DOMAIN[key], key).toBeTruthy();
+    }
+  });
+
+  it("hands the money questions to the desk that can answer them", () => {
+    const finance = riskRulesForSections(["today", "people", "money"]);
+    expect(finance).toEqual([
+      "completion_without_payment",
+      "cash_variance",
+      "manual_adjustment_volume",
+    ]);
+    // A cash variance is not an operations question, and a contact leak is
+    // not a finance one.
+    expect(finance).not.toContain("contact_leak");
+  });
+
+  it("hands the delivery questions to the desks that work sessions", () => {
+    const clinical = riskRulesForSections(["today", "sessions", "people"]);
+    expect(clinical).toContain("contact_leak");
+    expect(clinical).toContain("early_completion");
+    expect(clinical).not.toContain("cash_variance");
+  });
+
+  it("gives a Master Admin every rule", () => {
+    const full = riskRulesForSections([
+      "today",
+      "sessions",
+      "people",
+      "money",
+      "catalog",
+      "settings",
+    ]);
+    expect(full).toEqual([...RISK_RULE_KEYS]);
+  });
+
+  // Finance reads Sessions at `view`, and this takes the workable list, so
+  // passing sections a desk can only read must not widen the queue.
+  it("shows nothing to a desk that can work neither domain", () => {
+    expect(riskRulesForSections(["today", "people"])).toEqual([]);
   });
 });

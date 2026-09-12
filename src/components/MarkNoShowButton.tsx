@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import { useConfirm } from "@/lib/useConfirm";
 
@@ -15,6 +16,7 @@ export default function MarkNoShowButton({
   // to the base `false` and the button reappears for a retry. See
   // PatientActiveToggle's comment for the general pattern.
   const [optimisticDone, setOptimisticDone] = useOptimistic(false);
+  const { show } = useToast();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -46,6 +48,7 @@ export default function MarkNoShowButton({
         }
         return;
       }
+      show("Marked as a no-show.");
       router.refresh();
     });
   }

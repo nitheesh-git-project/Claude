@@ -5,6 +5,7 @@ import { useRouter } from "@/lib/useRouter";
 import TreatmentCategoryForm from "./TreatmentCategoryForm";
 import { useConfirm } from "@/lib/useConfirm";
 import { isOrderChanged, moveIdOnePlace } from "@/lib/listOrdering";
+import Modal from "@/components/admin/Modal";
 
 type Category = {
   id: string;
@@ -21,50 +22,80 @@ type Category = {
   specialty?: string | null;
 };
 
-function DeleteButton({ id }: { id: string }) {
+function DeleteButton({ id, title }: { id: string; title: string }) {
   // The parent only renders this row while the category still exists, so a
   // real success unmounts it via router.refresh() before this optimistic
   // overlay would need to clear on its own -- a failure just reverts to the
   // base `false`. See PatientActiveToggle's comment.
   const [optimisticDeleted, setOptimisticDeleted] = useOptimistic(false);
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  // A refusal here is a paragraph naming which rows are in the way and what
+  // to do instead, so it goes in a dialog. It used to be an 11px line
+  // clipped to 160px beside the button -- unreadable, and easy to miss
+  // entirely, which is how "delete does nothing" gets reported for a delete
+  // that was refused and said so.
+  const [refusal, setRefusal] = useState<string | null>(null);
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
 
   async function handleDelete() {
-    if (!(await confirm("Delete this category? This can't be undone."))) return;
-    setError(null);
+    if (!(await confirm(`Delete "${title}"? This can't be undone.`))) return;
+    setRefusal(null);
     startTransition(async () => {
       setOptimisticDeleted(true);
-      const res = await fetch("/api/admin/delete-treatment-category", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      if (res.ok) {
-        router.refresh();
-      } else {
+      try {
+        const res = await fetch("/api/admin/delete-treatment-category", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        if (res.ok) {
+          router.refresh();
+          return;
+        }
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Could not delete. Please try again.");
+        setRefusal(data.error ?? "Could not delete. Please try again.");
+      } catch {
+        // Without this the request dying on a bad connection threw inside
+        // the transition and nothing reached the screen at all -- the same
+        // silence this whole change is about.
+        setRefusal("Could not reach the server. Nothing has changed.");
       }
     });
   }
 
-  if (optimisticDeleted && !error) {
-    return <span className="text-[11px] font-semibold text-slate-500">Deleting...</span>;
-  }
-
   return (
     <div className="flex flex-col items-end gap-1">
-      <button
-        onClick={handleDelete}
-        disabled={isPending}
-        className="text-[11px] text-red-600 font-semibold hover:underline disabled:opacity-60"
-      >
-        Delete
-      </button>
-      {error && <span className="text-[11px] text-red-600 max-w-[160px] text-right">{error}</span>}
+      {optimisticDeleted && !refusal ? (
+        <span className="text-[11px] font-semibold text-slate-500">Deleting...</span>
+      ) : (
+        <button
+          onClick={handleDelete}
+          disabled={isPending}
+          className="text-[11px] text-red-600 font-semibold hover:underline disabled:opacity-60"
+        >
+          Delete
+        </button>
+      )}
+      {refusal && (
+        <Modal
+          title={`"${title}" cannot be deleted`}
+          onClose={() => setRefusal(null)}
+        >
+          <div className="space-y-4">
+            <p className="text-xs leading-relaxed text-slate-700">{refusal}</p>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setRefusal(null)}
+                className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-900"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
       {dialog}
     </div>
   );
@@ -286,7 +317,7 @@ export default function TreatmentCategoryManager({
                     >
                       Edit
                     </button>
-                    <DeleteButton id={cat.id} />
+                    <DeleteButton id={cat.id} title={cat.title} />
                   </div>
                 </div>
               </li>

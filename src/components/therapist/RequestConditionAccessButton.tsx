@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 
 export default function RequestConditionAccessButton({ patientId }: { patientId: string }) {
   const [isPending, startTransition] = useTransition();
+  const { show } = useToast();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
@@ -17,6 +19,7 @@ export default function RequestConditionAccessButton({ patientId }: { patientId:
         body: JSON.stringify({ patientId }),
       });
       if (res.ok) {
+        show("Access requested. An admin will review it.");
         router.refresh();
       } else {
         const data = await res.json().catch(() => ({}));

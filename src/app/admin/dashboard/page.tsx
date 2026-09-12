@@ -9,17 +9,21 @@ import AssignReferralForm from "@/components/admin/AssignReferralForm";
 import AdminShell, { type AdminScreens } from "@/components/admin/AdminShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import StatStrip from "@/components/dashboard/StatStrip";
-import { buildAdminFeed } from "@/lib/dashboardFeed";
+import { buildAdminFeed, queueRollup } from "@/lib/dashboardFeed";
 import AdminInboxQueues from "@/components/admin/AdminInboxQueues";
 import AdminAllSessionsTab from "@/components/admin/AdminAllSessionsTab";
 import AdminNewBookingTab from "@/components/admin/AdminNewBookingTab";
 import AdminUserAccessTab, { type AdminRow } from "@/components/admin/AdminUserAccessTab";
 import AdminActivityLogTab, { type ActivityRow } from "@/components/admin/AdminActivityLogTab";
+import AdminLogsTab from "@/components/admin/AdminLogsTab";
+import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
+import AdminLogRetentionTab from "@/components/admin/AdminLogRetentionTab";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
 import AdminCostsTab from "@/components/admin/AdminCostsTab";
 import { istDateKey } from "@/lib/formatSlotRange";
 import { sumDiscountsGiven } from "@/lib/discounts";
 import HospitalActiveToggle from "@/components/admin/HospitalActiveToggle";
+import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
 import PackageCatalogManager from "@/components/admin/PackageCatalogManager";
 import PackagePurchasesTable from "@/components/admin/PackagePurchasesTable";
 import PackageSettingsForm from "@/components/admin/PackageSettingsForm";
@@ -32,8 +36,14 @@ import HomeVisitPurchasesTable from "@/components/admin/HomeVisitPurchasesTable"
 import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
-import AccountingHealthPanel from "@/components/admin/AccountingHealthPanel";
+import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
+import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
+import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
 import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
+import { buildSystemHealth, summarizeHealth } from "@/lib/systemHealth";
+import { activityScopeNote, filterActivityForViewer } from "@/lib/activityScope";
+import { riskRulesForSections } from "@/lib/riskSignals";
+import { googleConnectionCheckedAt } from "@/lib/googleConnectionHealth";
 import {
   applyLedgerSessionBalances,
   applyLedgerVisitBalances,
@@ -568,7 +578,7 @@ export default async function AdminDashboardPage({
     // entries are still in the table; this is what the screen shows.
     admin
       .from("admin_activity_log")
-      .select("id, actor_id, action, target_label, amount_paise, details, created_at")
+      .select("id, actor_id, action, target_id, target_label, amount_paise, details, created_at")
       .order("created_at", { ascending: false })
       .limit(200),
 
@@ -595,6 +605,13 @@ export default async function AdminDashboardPage({
   // PatientDetailContent).
   const adminScopeById = new Map((adminScopeRows ?? []).map((r) => [r.id, r.admin_scope]));
   const viewerScope = parseAdminScope(adminScopeById.get(user.id));
+  const allowedSections = sectionsForScope(viewerScope);
+  // The subset they can act in. Queues and quick actions read this rather
+  // than `allowedSections`: a queue is a piece of work, and finance reads
+  // Sessions without being able to assign one, so an unassigned session is
+  // not waiting on them. Counting it there would put a figure on their Today
+  // screen that nothing they can do would ever bring down.
+  const workableSections = allowedSections.filter((sec) => scopeCanManage(viewerScope, sec));
   const canSeeMoney = scopeCanOpen(viewerScope, "money");
   // Sessions is the one section granted at `view` to anybody (finance), so
   // this is not the same question as "can they open it". Every mutating
@@ -634,8 +651,11 @@ export default async function AdminDashboardPage({
     inviteSettings,
     categoryImageRows,
     categorySpecialtyRows,
+    categoryFocalRows,
     testimonialAvatarRows,
     hospitalNotes,
+    refundDetailRows,
+    adminAccountNotes,
     googleConnection,
     syncModeRows,
   ] = await Promise.all([
@@ -683,6 +703,20 @@ export default async function AdminDashboardPage({
       async () => (await admin.from("treatment_categories").select("id, specialty")).data,
       null as { id: string; specialty: string | null }[] | null
     ),
+    // Its own call rather than folded into the image_url read above, even
+    // though both are covers: these columns are newer than that one, and
+    // sharing a query would mean a database mid-migration losing the
+    // photographs as well as their positions. Apart they degrade separately,
+    // which is the whole point of the rule.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("treatment_categories")
+            .select("id, image_focal_x, image_focal_y")
+        ).data,
+      null as { id: string; image_focal_x: number | null; image_focal_y: number | null }[] | null
+    ),
     guard(
       async () => (await admin.from("testimonials").select("id, avatar_url")).data,
       null as { id: string; avatar_url: string | null }[] | null
@@ -696,6 +730,40 @@ export default async function AdminDashboardPage({
             .in("hospital_id", hospitalIds)
         ).data,
       null as { hospital_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
+    ),
+    // The refund detail the session drawer shows -- when it went back, why,
+    // and the gateway's own reference. Isolated because `refunded_at` and
+    // `refunded_by` are the newest columns on `appointments`: on a database
+    // that has not applied them, this loses the detail line under the refund
+    // chip rather than blanking every session on the page.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("appointments")
+            .select("id, refunded_at, refund_reason, refund_id")
+            .not("refund_status", "is", null)
+        ).data,
+      null as {
+        id: string;
+        refunded_at: string | null;
+        refund_reason: string | null;
+        refund_id: string | null;
+      }[] | null
+    ),
+    // The password this clinic issued to each back-office account, still
+    // outstanding. In this batch rather than the main one because
+    // admin_account_notes is the newest table in the file: a database that
+    // has not applied it yet loses one column of the directory rather than
+    // every screen on this page.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("admin_account_notes")
+            .select("admin_id, temp_password, temp_password_set_at")
+        ).data,
+      null as { admin_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
     ),
     // One outbound call to Google, memoized for ten minutes, so the System
     // Health screen can say whether the account is still connected rather
@@ -885,6 +953,12 @@ export default async function AdminDashboardPage({
   const categoryImageById = new Map(
     (categoryImageRows ?? []).map((row) => [row.id, row.image_url as string | null])
   );
+  const categoryFocalById = new Map(
+    (categoryFocalRows ?? []).map((row) => [
+      row.id,
+      { image_focal_x: row.image_focal_x, image_focal_y: row.image_focal_y },
+    ])
+  );
 
   // And the condition type, newer still, in its own call for the same
   // reason -- losing it costs the therapist's picker its grouping, never the
@@ -899,6 +973,8 @@ export default async function AdminDashboardPage({
     (testimonialAvatarRows ?? []).map((row) => [row.id, row.avatar_url as string | null])
   );
 
+  const refundDetailById = new Map((refundDetailRows ?? []).map((r) => [r.id, r]));
+
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
       appointments ?? [],
@@ -910,15 +986,27 @@ export default async function AdminDashboardPage({
     // row, so a database missing these columns loses the goodwill note and
     // nothing else.
     const discount = discountByAppointment.get(a.id);
-    return discount
+    // Same treatment for the refund detail: `refunded_at` is the newest
+    // column on this table, so it is read separately and merged rather than
+    // selected with the row.
+    const refund = refundDetailById.get(a.id);
+    const withRefund = refund
       ? {
           ...a,
+          refunded_at: refund.refunded_at,
+          refund_reason: refund.refund_reason,
+          refund_id: refund.refund_id,
+        }
+      : a;
+    return discount
+      ? {
+          ...withRefund,
           list_price_paise: discount.listPricePaise,
           discount_paise: discount.discountPaise,
           discount_source: discount.source,
           discount_reason: discount.reason,
         }
-      : a;
+      : withRefund;
   });
 
   const appointmentsWithPayoutBatch = appointmentsWithSessionCode.map((a) => ({
@@ -1461,6 +1549,17 @@ export default async function AdminDashboardPage({
                     )}
                   </div>
                   <div className="flex flex-wrap items-start justify-between gap-3 pt-2 border-t border-slate-100">
+                    {/* A hospital's own dashboard is where their referrals
+                        and their earnings read from, so "the referral I sent
+                        is not showing" is a question about this screen and
+                        not about the Partners card. Master Admin only, and
+                        the route checks that again. */}
+                    {viewerScope === "full" && (
+                      <ViewAsUserButton
+                        userId={h.id}
+                        userName={h.full_name ?? "this hospital"}
+                      />
+                    )}
                     <ResetHospitalPasswordButton
                       hospitalId={h.id}
                       currentPassword={hospitalNoteMap.get(h.id)?.temp_password}
@@ -1468,6 +1567,17 @@ export default async function AdminDashboardPage({
                         hospitalNoteMap.get(h.id)?.temp_password_set_at
                       }
                     />
+                    {/* Same rule as the button above: Master Admin only,
+                        re-checked by the route. A partner with referrals on
+                        file is refused and offered the suspend toggle
+                        beside it. */}
+                    {viewerScope === "full" && (
+                      <DeleteAccountButton
+                        userId={h.id}
+                        name={h.full_name ?? "this hospital"}
+                        compact
+                      />
+                    )}
                     <HospitalActiveToggle
                       hospitalId={h.id}
                       active={h.active !== false}
@@ -2437,6 +2547,7 @@ export default async function AdminDashboardPage({
         categories={(treatmentCategories ?? []).map((c) => ({
           ...c,
           image_url: categoryImageById.get(c.id) ?? null,
+          ...(categoryFocalById.get(c.id) ?? {}),
           specialty: categorySpecialtyById.get(c.id) ?? null,
           points: Array.isArray(c.points) ? (c.points as string[]) : [],
         }))}
@@ -2507,8 +2618,6 @@ export default async function AdminDashboardPage({
   const settingsBookingTab = (
     <AdminFeatureControlTab
       settings={adminSettings}
-      syncIssues={googleMeetSyncIssues}
-      waitingRoomIssues={meetWaitingRoomIssues}
       adminEmail={adminProfile?.email ?? user.email ?? ""}
       view="booking"
     />
@@ -2582,31 +2691,30 @@ export default async function AdminDashboardPage({
   );
 
   const settingsHealthTab = (
-    <div className="space-y-8">
-      <AdminFeatureControlTab
-        settings={adminSettings}
-        syncIssues={googleMeetSyncIssues}
-        waitingRoomIssues={meetWaitingRoomIssues}
-        adminEmail={adminProfile?.email ?? user.email ?? ""}
-        view="health"
-        // Read here rather than in the component: this is a server-only
-        // secret, and only its presence crosses to the browser.
-        webhookSecretConfigured={!!process.env.RAZORPAY_WEBHOOK_SECRET}
-        googleConnection={googleConnection}
-      />
-      <AccountingHealthPanel health={accountingHealth} />
-    </div>
+    <AdminSystemHealthTab
+      syncIssues={googleMeetSyncIssues}
+      waitingRoomIssues={meetWaitingRoomIssues}
+      // Read here rather than in the component: this is a server-only
+      // secret, and only its presence crosses to the browser.
+      webhookSecretConfigured={!!process.env.RAZORPAY_WEBHOOK_SECRET}
+      googleConnection={googleConnection}
+      googleCheckedAt={googleConnectionCheckedAt()}
+      accounting={accountingHealth}
+      openAccessEnabled={adminSettings.meetOpenAccessEnabled}
+      canFix={scopeCanManage(viewerScope, "settings")}
+      renderedAt={nowTimestamp()}
+    />
   );
 
   const settingsSecurityTab = (
     <AdminFeatureControlTab
       settings={adminSettings}
-      syncIssues={googleMeetSyncIssues}
-      waitingRoomIssues={meetWaitingRoomIssues}
       adminEmail={adminProfile?.email ?? user.email ?? ""}
       view="security"
     />
   );
+
+  const adminNoteMap = new Map((adminAccountNotes ?? []).map((n) => [n.admin_id, n]));
 
   const adminRows: AdminRow[] = (allProfiles ?? [])
     .filter((p) => p.role === "admin")
@@ -2621,6 +2729,13 @@ export default async function AdminDashboardPage({
       // role's screens give it.
       active: p.active !== false,
       isSelf: p.id === user.id,
+      // The password this clinic issued them, while it is still the one they
+      // sign in with. Null once they have set their own -- a password a
+      // person chose is a bcrypt hash and can never be read back, so the
+      // directory says which of the two states an account is in rather than
+      // pretending to know a secret it does not have.
+      tempPassword: adminNoteMap.get(p.id)?.temp_password ?? null,
+      tempPasswordSetAt: adminNoteMap.get(p.id)?.temp_password_set_at ?? null,
     }));
 
   // Who can reach this dashboard and what they get when they do, plus the
@@ -2634,15 +2749,29 @@ export default async function AdminDashboardPage({
     </div>
   );
 
-  const activityRows: ActivityRow[] = (activityLogRows ?? []).map((r) => ({
+  const allActivityRows: ActivityRow[] = (activityLogRows ?? []).map((r) => ({
     id: r.id,
     actorName: profileMap.get(r.actor_id)?.full_name ?? "Unknown admin",
     action: r.action,
+    targetId: r.target_id,
     targetLabel: r.target_label,
     amountPaise: r.amount_paise,
     details: (r.details ?? null) as Record<string, unknown> | null,
     createdAt: r.created_at,
+    // Which desk the acting admin sits at. Null for an actor whose scope
+    // cannot be resolved, which `canReadActivity` treats as "not this desk".
+    actorScope: parseAdminScope(adminScopeById.get(r.actor_id)),
   }));
+
+  // What this desk may read. A Master Admin's list is untouched; the three
+  // limited desks see their own domain, performed by their own scope -- see
+  // src/lib/activityScope.ts for both halves of that and what the actor test
+  // costs. Filtered once here so the Today feed, the Activity screen and the
+  // Settings log cannot disagree about what this reader is allowed.
+  const activityRows = filterActivityForViewer(
+    { scope: viewerScope, workableSections },
+    allActivityRows
+  );
 
   // Read on its own rather than inside the ~40-query batch above, per the
   // migration-dependent rule: a database that has not applied the risk
@@ -2697,7 +2826,11 @@ export default async function AdminDashboardPage({
     enabled: boolean;
     config: unknown;
   };
-  const viewerCanSeeRisk = viewerScope === "full";
+  // Every desk with at least one rule of its own now reads this queue --
+  // see RISK_RULE_DOMAIN. A desk with none (nobody, today) still pays
+  // nothing: the two queries below are skipped entirely.
+  const viewerRiskRules = riskRulesForSections(workableSections);
+  const viewerCanSeeRisk = viewerScope === "full" || viewerRiskRules.length > 0;
   const { data: riskSignalRows } = viewerCanSeeRisk
     ? await admin
     .from("risk_signals")
@@ -2811,7 +2944,13 @@ export default async function AdminDashboardPage({
     createdAt: r.created_at,
   }));
 
-  const riskSignals: RiskSignalRow[] = (riskSignalRows ?? []).map((r) => ({
+  const readableRuleKeys = new Set<string>(viewerRiskRules);
+  const riskSignals: RiskSignalRow[] = (riskSignalRows ?? [])
+    // A Master Admin reads the whole queue; every other desk reads the rules
+    // it can act on. Filtered here rather than in the query so the rule list
+    // and the signal list are decided by one module.
+    .filter((r) => viewerScope === "full" || readableRuleKeys.has(r.rule_key))
+    .map((r) => ({
     id: r.id,
     ruleKey: r.rule_key,
     subjectKind: r.subject_kind as RiskSubjectKind,
@@ -2833,12 +2972,14 @@ export default async function AdminDashboardPage({
     createdAt: r.created_at,
   }));
 
-  // The whole queue is `full` scope only, not merely the deciding. A signal
-  // names a colleague and quotes what they wrote; an operations admin who
-  // needs the bookings screen has no business reading that. The routes
-  // enforce it and the screen matches, rather than handing a scoped admin a
-  // 403 with nothing to explain it.
+  // The findings are scoped by desk; the *evidence trails* are not. A
+  // flagged message quotes what a therapist wrote and the reveal log names
+  // every patient contact they opened, which is the reading the whole queue
+  // used to be closed for -- so those two panels, and the thresholds that
+  // decide what fires at all, stay with the Master Admin while each desk
+  // works its own signals.
   const canSeeRisk = viewerCanSeeRisk;
+  const canSeeRiskTrails = viewerScope === "full";
   const openRiskCount = canSeeRisk
     ? riskSignals.filter((r) => r.status === "open").length
     : 0;
@@ -2847,8 +2988,8 @@ export default async function AdminDashboardPage({
     <SurfaceCard title="Risk signals" icon="fa-triangle-exclamation">
       <EmptyState
         icon="fa-lock"
-        title="Master Admin only"
-        body="These findings name individual therapists and quote what they wrote, so they are limited to the Master Admin dashboard."
+        title="Nothing here for your desk"
+        body="Risk signals are grouped by the desk that can act on them, and none of the rules belong to yours."
       />
     </SurfaceCard>
   ) : (
@@ -2866,6 +3007,12 @@ export default async function AdminDashboardPage({
       reveals={riskReveals}
       detectorsEnabled={adminSettings.riskSignalsEnabled}
       canReview
+      canSeeTrails={canSeeRiskTrails}
+      scopeNote={
+        viewerScope === "full"
+          ? null
+          : "Only the signals your desk can act on are shown here."
+      }
     />
   );
 
@@ -3139,10 +3286,25 @@ export default async function AdminDashboardPage({
     />
   );
 
-  const settingsActivityTab = (
+  // The whole log, for a Master Admin. Fed the same rows as the desk screen
+  // below -- unfiltered, since `filterActivityForViewer` leaves a full
+  // scope's list untouched -- plus a search, a category filter, and older
+  // pages fetched on demand rather than carried in every render.
+  const logsTab = (
+    <AdminLogsTab
+      rows={activityRows}
+      actors={adminRows.map((a) => ({ id: a.id, name: a.fullName ?? "Unnamed admin" }))}
+    />
+  );
+
+  const activityLogTab = (
     <AdminActivityLogTab
       rows={activityRows}
       actors={adminRows.map((a) => ({ id: a.id, name: a.fullName ?? "Unnamed admin" }))}
+      // Null for a Master Admin, who is reading everything. For the other
+      // three the screen says so, because a filtered list that looks
+      // complete is worse than one that says what it is.
+      scopeNote={activityScopeNote(viewerScope)}
     />
   );
 
@@ -3183,8 +3345,21 @@ export default async function AdminDashboardPage({
   const cashOwedByTherapists = homeVisitRows.filter(
     (v) => v.cash_collected_at && !v.cash_remitted_at
   ).length;
-  const manualRefundsPending = homeVisitRows.filter(
-    (v) => v.refund_status === "manual_pending"
+  // Counted over the appointments read alone, which is every session
+  // including the home visits -- `homeVisitRows` is the *same* table with a
+  // visit_mode filter, so adding the two counted every cash visit twice and
+  // put a figure on the Money strip that the Cash Ledger beneath it
+  // disagreed with. refund_status lives on the appointment for both modes:
+  // a cash home visit reaches manual_pending through cancelAppointment like
+  // any other session, and nothing writes it on a purchase row.
+  const manualRefundsPending = appointmentsWithSessionCode.filter(
+    (a) => a.refund_status === "manual_pending"
+  ).length;
+  // A refund the gateway refused. Nothing in this app was watching these at
+  // all -- the patient's own screen now tells them to contact the clinic,
+  // so the clinic needs the same list.
+  const refundsFailed = appointmentsWithSessionCode.filter(
+    (a) => a.refund_status === "failed"
   ).length;
 
   const inboxGroups: InboxGroup[] = [
@@ -3303,11 +3478,20 @@ export default async function AdminDashboardPage({
           hint: "A therapist has asked to be paid.",
         },
         {
-          label: "Cash refunds to hand back",
+          label: "Refunds to hand back",
           count: manualRefundsPending,
           section: "money",
           tab: "payouts",
-          hint: "Cash was collected and the visit was cancelled — no Razorpay refund exists.",
+          hint: "Money a patient is owed with no card payment to reverse — hand it over, then confirm it here.",
+          urgent: true,
+        },
+        {
+          label: "Refunds that failed",
+          count: refundsFailed,
+          section: "sessions",
+          tab: "all",
+          view: "refund_failed",
+          hint: "The gateway refused the refund. The patient is still out of pocket and has been told to contact you.",
           urgent: true,
         },
         {
@@ -3368,14 +3552,6 @@ export default async function AdminDashboardPage({
     },
   ];
 
-  const allowedSections = sectionsForScope(viewerScope);
-  // The subset they can act in. Queues and quick actions read this rather
-  // than `allowedSections`: a queue is a piece of work, and finance reads
-  // Sessions without being able to assign one, so an unassigned session is
-  // not waiting on them. Counting it there would put a figure on their Today
-  // screen that nothing they can do would ever bring down.
-  const workableSections = allowedSections.filter((sec) => scopeCanManage(viewerScope, sec));
-
   // Read by the global search below, which links into these two sections.
   const canOpenSessionsSection = allowedSections.includes("sessions");
   const canOpenCatalog = allowedSections.includes("catalog");
@@ -3397,9 +3573,13 @@ export default async function AdminDashboardPage({
       actor_name: r.actorName,
       summary: r.targetLabel,
     })),
-    pendingApprovals: pendingAccounts?.length ?? 0,
-    pendingRequests: pendingProfileChanges?.length ?? 0,
-    failedSyncs: googleMeetSyncIssues.length,
+    // Each queue carries the oldest waiting row's own date, not the moment
+    // this page rendered. These three used to stamp themselves `now`, so a
+    // signup that had been waiting three days read as "Just now" after every
+    // realtime refresh -- see queueRollup.
+    pendingApprovals: queueRollup(pendingAccounts),
+    pendingRequests: queueRollup(pendingProfileChanges),
+    failedSyncs: queueRollup(googleMeetSyncIssues, (s) => s.slotTime),
     allowedSections,
   });
 
@@ -3444,6 +3624,39 @@ export default async function AdminDashboardPage({
   // dashboards cannot drift into four different answers to "what needs me
   // today", and so every link on this screen lands somewhere the viewer may
   // actually go. See src/lib/adminHome.ts.
+  // The one "is anything wrong with the money" answer, at the top of all
+  // five Money screens -- an admin should not have to open each of them and
+  // know what a wrong figure looks like. Built once here for the same reason
+  // the health checks are: five copies would be five answers.
+  const moneyAlerts = (
+    <MoneyAlertsStrip
+      counts={{
+        payoutRequestsOpen: payoutRequestsBadgeCount,
+        cashToRemitVisits: cashOwedByTherapists,
+        manualRefundsPending,
+        refundsFailed,
+        unmatchedPayments: accountingHealth.unmatchedPayments.length,
+      }}
+      // Workable, not merely open: every row on this strip is a job, and
+      // Finance reads Sessions without being able to change one -- so a
+      // failed session refund is not theirs to fix and counting it on their
+      // screen would be a figure nothing they could do would bring down.
+      reachableSections={workableSections}
+    />
+  );
+
+  // One derivation, three readers: the System Health screen, that tab's
+  // sidebar badge, and the red line Today carries. Three copies of this
+  // would be three answers to "is the clinic healthy".
+  const systemHealthChecks = buildSystemHealth({
+    webhookSecretConfigured: !!process.env.RAZORPAY_WEBHOOK_SECRET,
+    google: googleConnection,
+    syncIssues: googleMeetSyncIssues,
+    waitingRoomIssues: meetWaitingRoomIssues,
+    accounting: accountingHealth,
+    openAccessEnabled: adminSettings.meetOpenAccessEnabled,
+  });
+
   const home = buildAdminHome(viewerScope, {
     sessionsToday: sessionsToday.length,
     unassignedToday,
@@ -3463,6 +3676,14 @@ export default async function AdminDashboardPage({
 
   const adminOverviewTab = (
     <DashboardOverview
+      // Only an admin who can open System Health is shown its warning: the
+      // banner is a link, and an action for a section this scope cannot
+      // reach would land them somewhere else via findTab's fallback.
+      banner={
+        allowedSections.includes("settings") ? (
+          <AdminHealthBanner checks={systemHealthChecks} />
+        ) : null
+      }
       greeting={home.greeting}
       headline={home.headline}
       cells={home.cells}
@@ -3573,14 +3794,8 @@ export default async function AdminDashboardPage({
     // Performance is the one who needs it.
     "money:summary": (
       <>
+        {moneyAlerts}
         {moneySummaryTab}
-        <div className="mt-8">
-          <PromoCodeManager
-            codes={promoCodeRows}
-            enabled={promoCodesEnabled}
-            nowIso={new Date(nowTimestamp()).toISOString()}
-          />
-        </div>
         <div className="mt-8">
           <MoneyGlossary />
         </div>
@@ -3588,6 +3803,7 @@ export default async function AdminDashboardPage({
     ),
     "money:transactions": (
       <>
+        {moneyAlerts}
         {paymentHistoryTab}
         <div className="mt-8">
           <MoneyGlossary />
@@ -3596,6 +3812,7 @@ export default async function AdminDashboardPage({
     ),
     "money:payouts": (
       <div className="space-y-8">
+        {moneyAlerts}
         {payoutsTab}
         {payoutRequestsTab}
         <HomeVisitCashLedger visits={homeVisitRows} nowMs={nowTimestamp()} />
@@ -3604,6 +3821,20 @@ export default async function AdminDashboardPage({
     ),
     "money:costs": (
       <>
+        {moneyAlerts}
+        {/* Promo codes sit beside the figure they cost, which is the whole
+            reason this screen exists -- and is what Settings -> Offers, the
+            README and the QA plan have always said. They were rendered on
+            Summary instead, so an admin following that note arrived at a
+            screen with no promo codes on it and no way to tell whether the
+            feature existed. */}
+        <div className="mb-8">
+          <PromoCodeManager
+            codes={promoCodeRows}
+            enabled={promoCodesEnabled}
+            nowIso={new Date(nowTimestamp()).toISOString()}
+          />
+        </div>
         <AdminCostsTab
           discountsGiven={{
             totalPaise: discountsGivenTotals.totalPaise,
@@ -3621,6 +3852,7 @@ export default async function AdminDashboardPage({
     ),
     "money:breakdown": (
       <>
+        {moneyAlerts}
         {moneyBreakdownTab}
         <div className="mt-8">
           <MoneyGlossary />
@@ -3661,7 +3893,13 @@ export default async function AdminDashboardPage({
     "settings:clinical": settingsClinicalTab,
     "settings:access": settingsAccessTab,
     "settings:health": settingsHealthTab,
-    "settings:activity": settingsActivityTab,
+    // The three limited desks' own history, on Today because they cannot
+    // open the Logs section at all -- without it, their record is whatever
+    // fits in the Today feed. Hidden from a Master Admin, who reads the
+    // whole log under Logs.
+    "today:activity": activityLogTab,
+    "logs:all": logsTab,
+    "logs:retention": <AdminLogRetentionTab />,
     "settings:security": settingsSecurityTab,
   };
 
@@ -3676,7 +3914,12 @@ export default async function AdminDashboardPage({
     "people:partners": b2bBadgeCount,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,
     "catalog:areas": homeVisitWaitlist?.filter((w) => w.status === "new").length ?? 0,
-    "settings:health": googleMeetSyncIssues.length + accountingProblemCount(accountingHealth),
+    // Checks asking for a person, not rows -- so the badge, the verdict at
+    // the top of that screen and the chips under it are all the same number.
+    // Counting rows hid the two failures with no rows behind them at all: a
+    // missing webhook secret (money arriving against unpaid bookings) and a
+    // dead Google credential both badged zero.
+    "settings:health": summarizeHealth(systemHealthChecks).needsPerson,
   };
 
   return (
@@ -3693,6 +3936,7 @@ export default async function AdminDashboardPage({
         searchEntities={searchEntities}
         allowedSections={allowedSections}
         manageSections={workableSections}
+        limitedScope={viewerScope !== "full"}
         adminName={adminProfile?.full_name ?? "Admin"}
         adminEmail={adminProfile?.email ?? user.email ?? ""}
         adminAvatarUrl={adminProfile?.avatar_url ?? null}

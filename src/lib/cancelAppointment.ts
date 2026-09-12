@@ -298,24 +298,61 @@ export async function cancelAppointmentAndRefund(
   const isLateWithMoneyAtStake =
     isLateCancellation && (isDirectPayment || isPackagePayment || isPrepaidHomeVisit || cashAlreadyCollected);
 
+  // Stamped on every outcome that records one, including the two that are
+  // not a payout -- a failure and a forfeiture are both decisions, and "when
+  // did we decide this" is the question a money record gets asked months
+  // later. Left null only where nothing is recorded at all.
+  const decidedAt = new Date().toISOString();
+
+  // Why this refund happened, in words a patient reads on their own
+  // Payments screen and an admin reads in the session drawer months later.
+  // Only the partial-refund route recorded one before, so the commonest
+  // refund in the app -- a cancellation outside the window -- arrived with
+  // that line blank. The cancellation's own reason is the honest answer
+  // where there is one; where there is not, each outcome states the rule
+  // that produced it rather than leaving the reader to work it out. These
+  // are the same sentences the credit ledger already writes for the same
+  // events (see the mirror calls above), so the two records agree.
+  const givenReason = reason?.trim() || null;
+  const refundReasonFor = (fallback: string) => givenReason ?? fallback;
+
   const { error: recordError } = await admin
     .from("appointments")
     .update(
       refundFailed
-        ? { refund_status: "failed" }
+        ? {
+            refund_status: "failed",
+            refunded_at: decidedAt,
+            refund_reason: refundReasonFor("Cancelled outside the refund window"),
+          }
         : willRefund
         ? {
             refund_id: refundId,
             refund_status: "processed",
             refund_amount_paise: appointment.amount_paid_paise,
+            refunded_at: decidedAt,
+            refund_reason: refundReasonFor("Cancelled outside the refund window"),
           }
         : willRefundCashManually
         ? {
             refund_status: "manual_pending",
             refund_amount_paise: appointment.cash_collected_amount_paise ?? 0,
+            refunded_at: decidedAt,
+            refund_reason: refundReasonFor(
+              "Cancelled outside the refund window — cash was collected at the visit, so there is no card payment to reverse"
+            ),
           }
         : isLateWithMoneyAtStake
-        ? { refund_status: "not_eligible", refund_amount_paise: 0 }
+        ? {
+            refund_status: "not_eligible",
+            refund_amount_paise: 0,
+            refunded_at: decidedAt,
+            // Never the cancellation's own reason: this line is read as
+            // "why this money moved", and no money moved. The rule that
+            // withheld it is the answer, and it is the one a patient
+            // disputes.
+            refund_reason: `Cancelled within ${refundWindowHours} hours of the slot, so no refund was due`,
+          }
         : {}
     )
     .eq("id", appointmentId);

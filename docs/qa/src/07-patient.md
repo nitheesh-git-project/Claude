@@ -139,6 +139,8 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 **Expected Result.**
 * Heading **Book a Session**, subtitle `Video consultations and home visits, in one place.`
 * Group 1 is `Single online consultation` — `One video session with a therapist, booked for a specific concern.` One card per **active** treatment category, each showing its title, description, `N min · online` and its consultation price.
+* **Each group's heading reads as a level above the cards, not as one of them.** A filled square tile in the mode's own colour — **teal** with a video glyph for online, **amber** with a house glyph for home visits — then the heading in the display face, a count chip (`2 OPTIONS`), the one-line blurb, and a hairline that starts in that colour and fades out. The two headings used to be `text-sm font-bold` slate, the identical weight and ink the card titles below them use, so the sections did not separate and the line telling a patient which one comes to their house disappeared into the list. If a heading is the same size and weight as the card titles under it, that regression is back.
+* The count chip must **agree with the cards beneath it** — three cards, `3 OPTIONS`; one card, `1 OPTION` singular.
 * Group 2 is `Home visits` — `A therapist comes to you. We'll check your pincode before anything is charged.` **HV1 (1 visit) appears. HV2 (4 visits) does not.** A multi-visit home package is a programme and comes from a care plan; if HV2 is on this screen that is the P0 `PAT-HV-005` defect. Each card carries `Single visit · N min at home` and either `Travel included` or `Travel charged separately, by area`.
 * **No session package (programme) appears anywhere on this screen**, at any price, with or without a Buy control.
 * Step 5 navigates to `/book?category=<id>` with that category preselected. Step 6 navigates to `/book-home-visit?package=<id>`.
@@ -627,6 +629,15 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 #### `PAT-PAY-010` — Receipts · P2
 **Steps.** Open `/patient/dashboard/payments`. **Expected Result.** Every paid session and purchase is listed once, with amount, date and what it was for. A cash-on-visit home purchase appears with its cash status and is **not** presented as a failed payment. Amounts match Money → Transactions exactly.
+
+#### `PAT-PAY-011` — The patient is told about their refund · P0
+**Preconditions.** For one patient: a session cancelled outside the window and refunded in full, a **completed** session partially refunded by `₹500` with a stated reason, a cash home visit at `manual_pending`, a refund that failed at the gateway, and a session cancelled **inside** the window.
+**Steps.** Open `/patient/dashboard/sessions`, then `/patient/dashboard/payments` and open each receipt's detail, then `/patient/dashboard` and read the feed.
+**Expected Result.** In the patient's own words on every surface: `₹1,200 refunded`, `₹500 refunded`, `₹500 coming back to you`, `Refund didn't go through — please contact us`. The one cancelled inside the window says **`No Refund`** with the window on hover and **no refund line at all** — it must never be announced as a refund. The full and partial refunds carry the date and the clinic's stated reason as given, plus "It can take a few working days to reach your account". The **partial refund on a completed session** appears on the card, on the Payments row and in its detail — its receipt still reads `Completed`, because a delivered session that was partly refunded is not a refunded one. The failed refund is a **pinned** `needs you` feed item. Nothing on any of these screens shows an admin-voice string (`Hand back ₹500`, `Refund failed`, `No refund due`).
+
+#### `PAT-PAY-012` — A refund the patient's database predates · P1
+**Steps.** Against a database whose `appointments` predate `refunded_at`, open a refunded session and its receipt.
+**Expected Result.** The amount and the state still read correctly; the **date line is simply absent** rather than showing a guessed one, and no screen errors. The columns are read in their own query, so a database missing the migration loses the refund date and **not** the sessions list.
 
 #### `PAT-PROF-001` — Edit Profile sections · P2
 **Steps.** Open `/patient/dashboard/profile`. Walk the five sub-sections: **Photo**, **Personal Details**, **Contact Details**, **My Addresses**, **Account Security**.

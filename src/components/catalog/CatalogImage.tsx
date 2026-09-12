@@ -1,6 +1,7 @@
 import CareIllustration, {
   type CareIllustrationId,
 } from "@/components/visuals/CareIllustration";
+import { focalPosition } from "@/lib/catalogImage";
 
 /**
  * The cover image slot on a catalog card — programme, session package or
@@ -29,8 +30,14 @@ export default function CatalogImage({
   art,
   icon = "fa-layer-group",
   className = "h-40",
+  focalX,
+  focalY,
 }: {
   src?: string | null;
+  /** 0-100 across the frame. Undefined centres, matching every row that
+   *  predates the columns. */
+  focalX?: number | null;
+  focalY?: number | null;
   /**
    * Left empty by default. These are decorative covers beside a heading that
    * already names the programme, and an admin pasting a URL has nowhere to
@@ -48,7 +55,12 @@ export default function CatalogImage({
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={alt} className={`w-full object-cover ${className}`} />
+      <img
+        src={src}
+        alt={alt}
+        className={`w-full object-cover ${className}`}
+        style={{ objectPosition: focalPosition({ image_focal_x: focalX, image_focal_y: focalY }) }}
+      />
     );
   }
 

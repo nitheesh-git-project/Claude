@@ -1,21 +1,9 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
 import type { AdminSettings } from "@/lib/adminSettings";
-
-// Same helper every other settings surface uses (see
-// AdminFeatureControlTab.tsx / PackageSettingsForm.tsx) -- one generalized
-// route rather than a dedicated endpoint per toggle.
-async function saveSetting(key: string, value: boolean | number | string) {
-  const res = await fetch("/api/admin/update-setting", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, value }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Could not save. Please try again.");
-}
 
 function Toggle({
   label,
@@ -28,6 +16,7 @@ function Toggle({
   value: boolean;
   settingKey: string;
 }) {
+  const saveSetting = useSaveSetting();
   const [optimistic, setOptimistic] = useOptimistic(value);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +77,7 @@ function NumberSetting({
   min?: number;
   unit: string;
 }) {
+  const saveSetting = useSaveSetting();
   const [input, setInput] = useState(String(value));
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +145,7 @@ function TextSetting({
   settingKey: string;
   rows?: number;
 }) {
+  const saveSetting = useSaveSetting();
   const [input, setInput] = useState(value);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);

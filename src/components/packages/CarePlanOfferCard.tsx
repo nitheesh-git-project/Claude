@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { formatClinicDate } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import { payForCarePlan } from "@/lib/carePlanPayment";
 import AddressForm from "@/components/booking/AddressForm";
@@ -319,7 +320,7 @@ export default function CarePlanOfferCard({
 
       {offer.expiresAt && actionable && (
         <p className="mt-3 text-[11px] text-slate-500">
-          Hold this price until {new Date(offer.expiresAt).toLocaleDateString()}.
+          Hold this price until {formatClinicDate(offer.expiresAt)}.
         </p>
       )}
 

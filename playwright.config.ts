@@ -1,5 +1,27 @@
 import { defineConfig } from "@playwright/test";
 
+// The suite runs in the clinic's zone, and this line is load-bearing.
+//
+// Specs build a bookable slot with `d.setHours(hour, 0, 0, 0)`, which is a
+// whole hour in whatever zone the *runtime* happens to be in. The app judges
+// the whole-hour rule in the **booking's own** zone -- never the server's,
+// deliberately, because India is UTC+05:30 and reading the minute off the
+// instant would refuse every correct booking in the clinic while passing one
+// half an hour out (see `isWholeHourSlot` and the booking rule in AGENTS.md).
+//
+// So on a developer's machine, set to India time, those specs pass; on a UTC
+// host the same slots arrive as 15:30 IST and the route correctly answers
+// "Sessions start on the hour." Twenty cases across session-scheduling,
+// session-suggestions, booking-rules and concurrency went red that way, all
+// of them describing a working product.
+//
+// Set here rather than left to the person running it: an environment
+// variable somebody has to remember is one they will forget, and the failure
+// it produces reads as a broken booking funnel rather than as a clock. It is
+// assigned before any spec is loaded, which is what makes `new Date()` in a
+// spec honour it.
+process.env.TZ = "Asia/Kolkata";
+
 // Scoped to the money-critical paths from the Home Visit QA plan (booking +
 // payment, concurrency/CAS guards, bulk-schedule limits) -- not a full UI
 // test suite. Every spec talks to the app's HTTP API and Supabase directly

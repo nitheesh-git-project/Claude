@@ -40,12 +40,135 @@
 * **Two overlapping actions**: start a second before the first finishes; the bar must stay up until **both** are done, not vanish with the first.
 * The five money buttons (**Done**, **Collect ₹…**, **Request Payout**, **Confirm … Payment**, **Assign & Confirm**) show a spinning ring beside their busy label rather than only swapping the text.
 
+#### `UX-TIME-001` — Every time on screen is clinic time · P0
+
+**Feature.** A date formatted without an explicit timezone renders in whatever zone the *runtime* is in — the host's on the server (UTC), the viewer's in the browser. A 6 PM IST session therefore printed as **12:30 PM** on the patient's own Overview. Every date the app renders is now pinned to `Asia/Kolkata`.
+
+**Steps**
+1. Book a session for **6:00 PM IST**. As that patient, open the dashboard **Overview** and read the **Next session** figure and the line under it.
+2. Read the same session on **Your Sessions**, on the therapist's dashboard, on the admin's All Sessions and in the session drawer.
+3. Change your **device** timezone to something far from IST (London, New York) and reload every one of those screens.
+4. Book a session at **00:30 IST** — the instant that is the *previous* day in UTC — and check the date shown everywhere.
+5. Open a **purchase detail** modal and a **payment receipt**, and read the purchased/expiry dates.
+6. On the admin **Calendar**, read the month title and the selected-day title at a non-IST device timezone.
+7. On the patient's **Book a Session** calendar, page through months at a non-IST device timezone.
+8. Open the health-profile intake wizard, type, and read the **Saved …** line.
+
+**Expected Result**
+* Steps 1–2: **6:00 pm**, everywhere, and the same date on every surface. If any screen says 12:30, that is this defect.
+* Step 3: **unchanged.** The zone is the clinic's, not the reader's — two people looking at one session must not disagree about when it is.
+* Step 4: the **IST date**, on every surface. This is the case a naive formatter gets a full day wrong.
+* Step 5: clinic time, and anything unreadable renders as **—**, never `Invalid Date`.
+* Steps 6–7: the month and day titles are **correct at every device timezone** and must not shift by a day. These are wall-clock dates with no instant behind them, and are deliberately *not* pinned — pinning them is the opposite bug.
+* Step 8: **"Saved 3:42 pm" follows your own clock**, deliberately: it is your own draft, set in your browser, gone on reload — not a stamp on a record anyone else reads.
+* A session slot keeps being shown in the zone the patient **booked** it in, where the booking recorded one.
+
+#### `UX-SAID-001` — Every change says what it was · P0
+
+**Feature.** A mutating control ends with `router.refresh()`, which re-renders the screen into a state that looks identical to the one before it. Turning home visits on left the admin looking at the same page with no idea whether it had worked. Every control now raises a confirmation naming the thing and its new state.
+
+**Steps**
+1. **Settings → Programmes & Home Visits**: toggle **Home Visit enabled** off, then on. Read the message each time.
+2. Change **online booking lead time** to 12, then to 1. Read both.
+3. Change an **invite reward** amount and read the message.
+4. Set the **home page walkthrough** rotation to 0, and the **splash revisit** minutes to 0.
+5. Disconnect the network and toggle any setting.
+6. Watch the message while the page re-renders behind it — do not click anything.
+7. Toggle the same switch three times quickly.
+8. Wait without touching it. Then raise another and press its **×**.
+9. As an **admin**: suspend a colleague, then change their access level.
+10. As a **patient**: save an address, upload a report, delete it.
+11. As a **therapist**: write a session note, mark a session complete, record a cash collection, request a payout.
+12. As a **hospital**: withdraw a referral.
+13. On a phone width, raise any of them.
+
+**Expected Result**
+* Step 1: **"Home visits are off. The public page and the booking wizard are hidden."** then **"Home visits are on…"**. Never *Saved* or *Updated successfully* — a confirmation that does not name the thing says only that a request finished, which was already visible.
+* Step 2: **"12 hours"** and **"1 hour"** — the unit is spelled out and pluralised on its own count.
+* Step 3: reads **₹** and a rupee figure. The word *paise* must never appear: it is a storage unit.
+* Step 4: both zeroes read as words — *"no longer rotates by itself"* and *"shows on a first load only"* — never "every 0 seconds".
+* Step 5: a **red** message saying nothing was saved, and the toggle **snaps back** to where it was. A switch left showing a value the server refused is the worst outcome here.
+* Step 6: the message **survives the refresh**. It is mounted above every route, so the tree re-renders underneath it.
+* Step 7: **one** message on screen, not three — the same sentence replaces itself rather than stacking. Flipping a switch twice is one fact.
+* Step 8: it clears itself after a few seconds (errors stay longer, since they need acting on), and × dismisses immediately.
+* Steps 9–12: each names what happened and to whom — *"Asha Rao can no longer sign in."*, *"Asha Rao now has Finance access."*, *"Report uploaded."*, *"Session note saved."*, *"Payout requested. The clinic will review it."*, *"Referral withdrawn."* **All four dashboards, not only the admin's.**
+* Step 13: full width at the bottom, with the dismiss in thumb reach, and never covering the control that was just used.
+
+#### `UX-BUSY-003` — Nothing waits in silence, on any dashboard · P0
+
+**Feature.** The teal bar used to appear on the admin dashboard and nowhere else, which read as three dashboards with no loading state at all. The cause was not the bar: `useRouter` reports every navigation the app starts *in code*, and the patient, therapist and hospital dashboards move between sections with **plain anchors** — a hard browser navigation, which never touches the router hook. Nothing in React learned a navigation had started.
+
+**Steps**
+1. As a **patient**, click each sidebar entry in turn — Sessions, Packages, Payments, Health Profile, Book, Edit Profile — and watch the **top edge of the window** the moment you click, before the new page arrives.
+2. Repeat as a **therapist** (Availability, Earnings, My Patients, Sessions, Edit Profile) and a **hospital** (Refer, Your Referrals, Earnings, Edit Profile).
+3. Watch what the **new** page paints first, before its data arrives.
+4. Click the entry for the screen you are **already on**.
+5. Click an in-page anchor (Edit Profile's own sub-sections).
+6. Click **Back to Home** from any of the four dashboards.
+7. Go somewhere, then press the browser's **Back** button, and look at the top edge of the restored page.
+8. On the public site, click between Home, Conditions, How It Works and FAQ.
+9. Throttle the network to Slow 3G and repeat steps 1 and 3.
+
+**Expected Result**
+* Steps 1–2: the **teal bar appears at the top of the page you are leaving** and stays up until the new screen arrives. No sidebar entry on any dashboard may leave the screen silent.
+* Step 3: a **skeleton in the shape of the page** — sidebar rail in place, heading, figure tiles, cards — not a white gap and not a blank content area. Every dashboard sub-route has its own boundary now; before, only the four dashboard roots did.
+* Step 4: **no bar.** Re-navigating to the screen you are on finishes instantly, and a bar for it is the flicker the 220ms delay exists to prevent.
+* Step 5: **no bar** — an in-page scroll is not a navigation.
+* Step 6: the bar shows on the way out to the public site, from all four.
+* Step 7: **no stuck bar** on the restored page. A back/forward-cache restore brings the page back exactly as it was, bar included, so it is cleared on `pageshow`.
+* Step 8: the bar runs for public navigations too.
+* Step 9: both are obvious and neither screen is ever static and unexplained — this is the case the whole mechanism exists for.
+
+#### `UX-REFRESH-001` — One Refresh button, on all four dashboards · P1
+
+**Feature.** Every dashboard carries the same Refresh control in its header. These are Server Components, and the only automatic updates come from the realtime channels — which cover subscribed tables only, and hold a 30-second cooldown on the catalog one. Before this there was no way to ask for the page again except a browser reload, which throws away the state the shells keep on purpose and re-downloads the bundle.
+
+**Steps**
+1. Open the patient, therapist, hospital and admin dashboards in turn and find the button in the header.
+2. On the admin dashboard, collapse the sidebar, open a screen with a half-typed filter, then tap **Refresh**.
+3. Watch the button and the top of the page while it runs.
+4. Tap it repeatedly, as fast as you can.
+5. Have a second person change something (assign a session, add a cost) and tap Refresh without reloading.
+6. Compare against a browser reload (F5) on the same screen.
+7. Check it at a phone width on all four.
+
+**Expected Result**
+* Step 1: present on **all four**, same place, same label.
+* Step 2: the data is current and **the collapsed sidebar and the typed filter survive** — this re-runs the server render, it does not reload the page.
+* Step 3: the icon spins and the label reads **Refreshing…**, and the **teal progress bar** runs across the top. The button stays busy for the whole refresh: this is the one control whose own work *is* the refresh, so releasing it early would leave it looking idle while the page was still thinking.
+* Step 4: **one refresh at a time.** The button is disabled while pending — stacking them on the admin dashboard stacks around forty queries a tap for no new answer.
+* Step 5: the other person's change appears.
+* Step 6: the reload loses the sidebar state and the filter; Refresh does not. That difference is the point of the control.
+* Step 7: visible and tappable on a phone, in the header rather than the sidebar — the sidebar is a closed drawer at that width.
+
 #### `UX-BUSY-002` — The admin dashboard's second batch · P2
 **Steps.** Load **/admin/dashboard**, then tap any button that saves.
 **Expected Result.** Noticeably quicker than before: eleven migration-dependent reads that used to run one after another (accounting health, the suggestion and recommendation switches, discounts, the first-session offer, promo and invite settings, category covers and condition types, testimonial avatars, hospital notes) now run as one parallel batch, and both ledger-balance passes run together.
 **Critical check — the isolation is unchanged:** drop one of those columns (see `admin-degraded-schema.spec.ts`) and only that panel degrades. If the whole dashboard blanks, the batch has lost a `guard()` and that is a P0.
 
 **Expected Result.** Each shell offers a **mobile drawer** for the sidebar. **Back to Home is present in all three renders** — expanded sidebar, collapsed rail, and mobile drawer. On all four shells it sits at the **foot of the nav, directly above Collapse** (above the profile/Log Out footer in the mobile drawer, which has no Collapse). Without it the only exit from a dashboard is Log Out, which also ends the session. It is a plain link, not a client-side transition, because transitions into a differently-chromed route were silently not completing.
+
+#### `UX-MODAL-002` — A dialog opened inside a modal covers the screen · P1
+
+**Feature.** `position: fixed` is relative to the viewport until an ancestor carries `backdrop-filter` — and every modal here sets `backdrop-blur-sm`, so every modal is one. A confirmation opened inside one was therefore measured against that modal's scrolling panel instead of the screen.
+
+**Steps**
+1. **People → Patients → a patient → Profile.** In their sessions list, press **Mark Done** on a session.
+2. Look at the dark sheet: how much of the screen does it cover?
+3. Scroll the page while the prompt is open.
+4. Press **No**, scroll the profile **half way down**, and press Mark Done again.
+5. Repeat from the **session drawer** on All Sessions, and from a **purchase detail** modal.
+6. Do the same on a phone width.
+7. Press **No**, then **Yes**, and confirm the action still works and the confirmation toast appears.
+8. On the patient's own dashboard, open a **programme detail** and the **bulk scheduler**, and check their open/close animation still plays.
+
+**Expected Result**
+* Steps 1–2: the prompt is **centred in the viewport** and the dark sheet covers the **whole screen**, not a band of it.
+* Step 3: it **stays put** as the page scrolls behind it — it follows the reader rather than the document.
+* Step 4: identical wherever the page is scrolled to. Previously it appeared at the top of the scrolled content, often off-screen.
+* Steps 5–6: identical from every modal and at every width.
+* Step 7: **unchanged behaviour.** The dialog moved in the DOM but not in the React tree, so clicks, cancel and confirm all work exactly as before.
+* Step 8: the animated overlays still fade in **and out**. They are deliberately not portalled — a portal between them and their animation wrapper would kill the exit animation, and they are always outermost anyway.
 
 #### `UX-MOB-003` — Modals and drawers fit · P1
 **Steps.** At 390 × 844 open: a catalog detail dialog, the admin session drawer, the intake wizard, the pain-exam dialog, the confirm dialog.
@@ -188,6 +311,14 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 #### `XR-SUGG-001` — One suggestion, two views · P1
 **Event.** `THR-SUGG-001` → `PAT-SUGG-002`.
 **Expected Result.** While pending: therapist sees **Waiting on the patient**, patient sees the card. After acceptance: therapist sees the booked session, patient sees it under Upcoming, and exactly one credit has moved.
+
+#### `XR-NAV-001` — A signed-in account is never stranded on the public site · P0
+**Steps.** Sign in as a patient and open `/`. Then repeat with the profile lookup failing (block the `profiles` request in devtools, or sign in as an account whose profile row is momentarily unreadable). Repeat as an unapproved patient and as a suspended one.
+**Expected Result.** The navbar never shows **Sign In / Get Started** *and* no destination button at the same time. Approved → **Go to Dashboard**. Unapproved → **Approval pending** → `/pending-approval`. Suspended → **Account suspended** → `/account-suspended`, and suspension wins when an account is both. **A failed lookup falls back to Go to Dashboard**, not to nothing: `/dashboard` resolves the role server-side and the proxy carries the account onward, so the worst case is one extra hop, never a signed-in person with nothing to tap.
+
+#### `XR-LOAD-001` — Every tap says it registered · P1
+**Steps.** From the admin dashboard tap a **patient name**, a **therapist name** and a **condition name** (each opens an intercepted overlay). Then move between dashboard sections on the patient, therapist and hospital dashboards.
+**Expected Result.** Tapping a name paints the overlay's own sheet with **Opening…** and a skeleton straight away, then swaps to the real detail — it must not sit on the unchanged dashboard with no acknowledgement, which is what makes an admin tap a second time. Section moves on the other three dashboards draw the teal bar. No screen in the app waits on a server render with nothing on it saying so.
 
 #### `XCFG-ROSTER-001` — A roster change moves nothing · P0
 

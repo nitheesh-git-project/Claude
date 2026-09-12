@@ -51,7 +51,7 @@ export default async function TherapistDashboardPage() {
           d.nextSession?.slot_time
             ? `Next up: ${d.patientNameById.get(d.nextSession.patient_id) ?? "a patient"} at ${new Date(
                 d.nextSession.slot_time
-              ).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}.`
+              ).toLocaleString([], { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}.`
             : "No sessions booked yet — keep your availability open and the clinic assigns work to it."
         }
         cells={d.overviewCells}

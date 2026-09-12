@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatClinicDateTime } from "@/lib/formatDateTime";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -942,7 +943,7 @@ export default function BookingWizard({
                 Preferred Time
               </span>
               <span className="font-bold text-slate-900">
-                {slotDateTime && new Date(slotDateTime).toLocaleString()}
+                {slotDateTime && formatClinicDateTime(slotDateTime)}
               </span>
             </div>
             <div className="flex justify-between text-xs">

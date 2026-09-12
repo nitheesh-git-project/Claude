@@ -75,7 +75,7 @@ export default function OrthoSnapshotStrip({ snapshot, showProgress = true }: { 
       value: String(regionsAssessed),
       unit: regionsAssessed === 1 ? "area" : "areas",
       note: lastAssessedAt
-        ? `Last checked ${new Date(lastAssessedAt).toLocaleDateString(undefined, {
+        ? `Last checked ${new Date(lastAssessedAt).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata",
             day: "numeric",
             month: "short",
           })}`

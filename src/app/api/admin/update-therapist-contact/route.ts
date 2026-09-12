@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
   const { data: therapist } = await admin
     .from("profiles")
-    .select("id, email")
+    .select("id, email, phone")
     .eq("id", therapistId)
     .eq("role", "therapist")
     .single();
@@ -60,7 +60,14 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, adminUser.id, {
     action: "therapist.update_contact",
     targetId: therapistId,
-    details: { emailChanged: email !== therapist.email, phoneChanged: true },
+    // The values rather than two booleans -- see the same change on
+    // update-patient-contact for why "something changed" is unusable.
+    details: {
+      previousEmail: therapist.email ?? null,
+      email,
+      previousPhone: therapist.phone ?? null,
+      phone: phone || null,
+    },
   });
 
   return NextResponse.json({ success: true });

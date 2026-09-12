@@ -1,18 +1,9 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
 import { describeInviteOffer, type InviteSettings } from "@/lib/inviteRewards";
-
-async function saveSetting(key: string, value: boolean | number) {
-  const res = await fetch("/api/admin/update-setting", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, value }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Could not save. Please try again.");
-}
 
 /**
  * What an introduction is worth, and to whom.
@@ -28,6 +19,7 @@ async function saveSetting(key: string, value: boolean | number) {
  * the feature is switched off again.
  */
 export default function InviteRewardsForm({ settings }: { settings: InviteSettings }) {
+  const saveSetting = useSaveSetting();
   const router = useRouter();
   const [optimisticEnabled, setOptimisticEnabled] = useOptimistic(settings.enabled);
   const [isTogglePending, startToggle] = useTransition();

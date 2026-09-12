@@ -179,14 +179,6 @@ async function readEntitlementCount(admin: AdminClient): Promise<number | null> 
 }
 
 /** True when nothing needs a person's attention. Drives the inbox badge. */
-export function accountingIsClean(health: AccountingHealth): boolean {
-  return (
-    health.balanceMismatches.length === 0 &&
-    health.unmatchedPayments.length === 0 &&
-    health.sessionsWithoutBacking.length === 0
-  );
-}
-
 export function accountingProblemCount(health: AccountingHealth): number {
   return (
     health.balanceMismatches.length +

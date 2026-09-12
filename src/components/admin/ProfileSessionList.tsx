@@ -6,6 +6,7 @@ import EditBookingForm from "@/components/admin/EditBookingForm";
 import CompleteSessionButton from "@/components/CompleteSessionButton";
 import MarkNoShowButton from "@/components/MarkNoShowButton";
 import MarkPaidByCashButton from "@/components/admin/MarkPaidByCashButton";
+import RefundChip from "@/components/admin/RefundChip";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import SessionDetailDrawer, {
   type SessionDetailAppointment,
@@ -112,6 +113,11 @@ export default function ProfileSessionList({
                   >
                     {a.payment_status}
                   </span>
+                  {/* Beside the payment, because it is the same question
+                      asked in the other direction. This list is where the
+                      gap was reported: an admin refunded from a patient's
+                      profile and the row said nothing at all. */}
+                  {canSeeMoney && <RefundChip row={a} />}
                 </div>
               </div>
               <p className="text-slate-500">

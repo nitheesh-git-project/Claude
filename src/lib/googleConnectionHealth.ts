@@ -67,6 +67,15 @@ export function resetGoogleConnectionCache(): void {
   cached = null;
 }
 
+/** When the memoized verdict was actually worked out, or null if nothing has
+ *  been probed yet. System Health prints it, because this is the one check
+ *  whose answer can be up to ten minutes old -- an owner who has just re-run
+ *  the token script and still sees red needs to know whether the screen is
+ *  disagreeing with them or simply has not looked again. */
+export function googleConnectionCheckedAt(): number | null {
+  return cached?.at ?? null;
+}
+
 function missingEnv(): string[] {
   return REQUIRED_ENV.filter((key) => !process.env[key]);
 }

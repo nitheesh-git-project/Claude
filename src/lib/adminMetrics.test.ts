@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   computeCancellationRate,
   computeNoShowRate,
+  comparePeriod,
   computeRepeatBookingRate,
+  explainMoneyLines,
   moneyByBucketFor,
+  previousRange,
   type MetricsAppointment,
   type PeriodBucket,
 } from "@/lib/adminMetrics";
@@ -437,5 +440,140 @@ describe("the operational rates that sit beside the split", () => {
       appointment({ id: "r3", patient_id: "p-once" }),
     ]);
     expect(rate).toBeCloseTo(50, 5);
+  });
+});
+
+/**
+ * The drill-down and the total it sits under.
+ *
+ * `explainMoneyLines` is what the (i)-style "see the sessions behind this"
+ * modal lists. It is derived from `moneyLineFor`, which `moneyByBucketFor`
+ * itself calls -- so these tests exist to keep that true: a drill-down that
+ * can disagree with its own total is worse than no drill-down at all,
+ * because it makes a correct figure look wrong.
+ */
+describe("explainMoneyLines", () => {
+  const RATES = {
+    therapistSharePercent: SHARES,
+    patientHospitalSharePercent: HOSPITAL_SHARES,
+    hospitalReferredPatientIds: REFERRED,
+    therapistHomeVisitSharePercent: HOME_SHARES,
+  };
+
+  const SET: MetricsAppointment[] = [
+    appointment({ id: "s1" }),
+    appointment({ id: "s2", status: "confirmed" }),
+    appointment({
+      id: "s3",
+      refund_status: "processed",
+      refund_amount_paise: 199900,
+      status: "cancelled",
+    }),
+    appointment({ id: "s4", patient_id: PATIENT_REFERRED }),
+    appointment({ id: "s5", therapist_id: THERAPIST_NO_SHARE }),
+    appointment({
+      id: "s6",
+      visit_mode: "home_visit",
+      travel_fee_paise: 15000,
+    } as Partial<MetricsAppointment>),
+    // Neither of these contributes to any figure, so neither may be listed.
+    appointment({ id: "s7", payment_status: "unpaid" }),
+    appointment({ id: "s8", slot_time: new Date(Date.UTC(2026, 6, 2)).toISOString() }),
+  ];
+
+  it("lists exactly the sessions the totals counted", () => {
+    const ids = explainMoneyLines(SET, [BUCKET], RATES).map((l) => l.appointmentId);
+    expect(ids).not.toContain("s7");
+    expect(ids).not.toContain("s8");
+    expect(ids).toHaveLength(6);
+  });
+
+  it("adds up to the figures on the cards, to the rupee", () => {
+    const lines = explainMoneyLines(SET, [BUCKET], RATES);
+    const totals = run(SET);
+    const sum = (pick: (l: (typeof lines)[number]) => number) =>
+      lines.reduce((acc, l) => acc + pick(l), 0);
+
+    expect(sum((l) => l.paidPaise)).toBe(totals.gross);
+    expect(sum((l) => l.refundPaise)).toBe(totals.refunds);
+    expect(sum((l) => l.therapistCutPaise)).toBe(totals.therapist);
+    expect(sum((l) => l.hospitalCutPaise)).toBe(totals.hospital);
+    expect(sum((l) => l.clinicSharePaise)).toBe(totals.clinic);
+    expect(sum((l) => (l.excluded ? 0 : l.netPaise))).toBe(totals.splittable);
+  });
+
+  // The card names how many sessions are left out of the split; the list
+  // has to be able to show which, or the note is unactionable.
+  it("marks the sessions left out of the split, and zeroes their cuts", () => {
+    const lines = explainMoneyLines(SET, [BUCKET], RATES);
+    const excluded = lines.filter((l) => l.excluded);
+    expect(excluded.map((l) => l.appointmentId)).toEqual(["s5"]);
+    expect(excluded[0].paidPaise).toBeGreaterThan(0);
+    expect(excluded[0].therapistCutPaise).toBe(0);
+    expect(excluded[0].clinicSharePaise).toBe(0);
+  });
+
+  it("keeps a booked-but-undelivered session out of the therapist's cut", () => {
+    const line = explainMoneyLines(SET, [BUCKET], RATES).find((l) => l.appointmentId === "s2")!;
+    expect(line.paidPaise).toBeGreaterThan(0);
+    expect(line.therapistCutPaise).toBe(0);
+  });
+
+  it("puts a home visit's travel fee in the therapist's cut, at the home rate", () => {
+    const line = explainMoneyLines(SET, [BUCKET], RATES).find((l) => l.appointmentId === "s6")!;
+    expect(line.therapistCutPaise).toBe(Math.round((199900 * 65) / 100) + 15000);
+  });
+
+  it("is newest first, so the list opens on what just happened", () => {
+    const lines = explainMoneyLines(
+      [
+        appointment({ id: "old", slot_time: new Date(Date.UTC(2026, 8, 2)).toISOString() }),
+        appointment({ id: "new", slot_time: new Date(Date.UTC(2026, 8, 20)).toISOString() }),
+      ],
+      [BUCKET],
+      RATES
+    );
+    expect(lines.map((l) => l.appointmentId)).toEqual(["new", "old"]);
+  });
+});
+
+describe("comparePeriod", () => {
+  it("compares against the same length of time immediately before", () => {
+    const range = previousRange(Date.UTC(2026, 8, 1), Date.UTC(2026, 9, 1));
+    expect(range.toMs).toBe(Date.UTC(2026, 8, 1));
+    expect(range.toMs - range.fromMs).toBe(Date.UTC(2026, 9, 1) - Date.UTC(2026, 8, 1));
+  });
+
+  it("says which way and by how much, in words", () => {
+    expect(comparePeriod(120000, 100000, "30 days").label).toBe("20% more than the 30 days before");
+    expect(comparePeriod(80000, 100000, "30 days").label).toBe("20% less than the 30 days before");
+    expect(comparePeriod(120000, 100000, "30 days").direction).toBe("up");
+    expect(comparePeriod(80000, 100000, "30 days").direction).toBe("down");
+  });
+
+  // A percentage against nothing is not a percentage, and "+100%" or "∞" is
+  // worse than saying there is no comparison to make.
+  it("refuses to invent a percentage from a zero baseline", () => {
+    const change = comparePeriod(50000, 0, "week");
+    expect(change.percent).toBeNull();
+    expect(change.label).toBe("Nothing in the week before");
+    expect(comparePeriod(0, 0, "week").direction).toBe("flat");
+  });
+
+  // An arrow over noise is an arrow an owner stops reading.
+  it("calls a fraction of a percent level rather than a move", () => {
+    expect(comparePeriod(100200, 100000, "month").direction).toBe("flat");
+    expect(comparePeriod(100200, 100000, "month").label).toBe("Level with the month before");
+  });
+
+  it("keeps one decimal for a small move and drops it for a big one", () => {
+    expect(comparePeriod(101500, 100000, "month").label).toBe("1.5% more than the month before");
+    expect(comparePeriod(212000, 100000, "month").label).toBe("112% more than the month before");
+  });
+
+  it("handles a fall to nothing without dividing by zero", () => {
+    const change = comparePeriod(0, 100000, "month");
+    expect(change.percent).toBe(-100);
+    expect(change.label).toBe("100% less than the month before");
   });
 });

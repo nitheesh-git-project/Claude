@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { AnimatePresence, motion } from "motion/react";
 import { computePackageCounts, daysUntilExpiry, PACKAGE_EVENT_LABELS } from "@/lib/packageProgress";
 
@@ -212,7 +213,7 @@ export default function PackageDetailModal({
                   <p>
                     <span className="text-slate-400">Expires:</span>{" "}
                     {data.purchase.expiresAt
-                      ? `${new Date(data.purchase.expiresAt).toLocaleDateString()}${
+                      ? `${formatClinicDate(data.purchase.expiresAt)}${
                           daysLeft !== null ? ` (${daysLeft}d left)` : ""
                         }`
                       : "No expiry"}
@@ -228,7 +229,7 @@ export default function PackageDetailModal({
                       {data.upcoming.map((a) => (
                         <li key={a.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-xs">
                           <span>
-                            {a.slot_time ? new Date(a.slot_time).toLocaleString() : "Time TBD"}{" "}
+                            {a.slot_time ? formatClinicDateTime(a.slot_time) : "Time TBD"}{" "}
                             <span className="font-mono text-slate-400">{a.session_code ?? ""}</span>
                           </span>
                           <span className="capitalize text-slate-500">{a.status}</span>
@@ -247,7 +248,7 @@ export default function PackageDetailModal({
                       {data.completed.map((a) => (
                         <li key={a.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-xs">
                           <span>
-                            {a.slot_time ? new Date(a.slot_time).toLocaleDateString() : "—"}{" "}
+                            {a.slot_time ? formatClinicDate(a.slot_time) : "—"}{" "}
                             <span className="font-mono text-slate-400">{a.session_code ?? ""}</span>
                           </span>
                           {a.no_show && <span className="font-semibold text-amber-700">No-show</span>}
@@ -270,7 +271,7 @@ export default function PackageDetailModal({
                           <span className="font-semibold text-slate-700">
                             {PACKAGE_EVENT_LABELS[e.event_type] ?? e.event_type}
                           </span>
-                          <span>{new Date(e.created_at).toLocaleString()}</span>
+                          <span>{formatClinicDateTime(e.created_at)}</span>
                         </li>
                       ))}
                     </ul>

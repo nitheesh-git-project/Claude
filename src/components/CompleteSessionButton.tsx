@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Spinner from "@/components/system/Spinner";
@@ -13,6 +14,7 @@ export default function CompleteSessionButton({
   slotTime: string | null;
 }) {
   const [confirmMessage, setConfirmMessage] = useState<string | null>(null);
+  const { show } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -43,7 +45,8 @@ export default function CompleteSessionButton({
         // Someone else already changed this session (marked it done/no-show,
         // or the patient cancelled it) — refresh so this stops showing it as
         // still actionable.
-        router.refresh();
+        show("Session marked as completed.");
+      router.refresh();
       }
       return;
     }

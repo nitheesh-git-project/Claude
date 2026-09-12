@@ -38,7 +38,9 @@ concurrency/CAS guards, bulk limits, admin route authorization for every
 role, input validation, payout/refund maths, the dashboard's own
 navigation in a real browser, the public pages' section rail and scroll
 arrow (`section-nav.spec.ts`), the public catalog's detail dialogs
-(`catalog-detail.spec.ts`), and booking a named specialist from `/team`
+(`catalog-detail.spec.ts`), catalog covers uploaded, positioned and
+rendering the same way on the card, the dialog and the patient's booking
+screen (`catalog-cover-image.spec.ts`), and booking a named specialist from `/team`
 (`therapist-request.spec.ts`), who may book plus the dashboards' way home
 (`booking-account-role.spec.ts`), and therapist-suggested sessions including
 button spam, concurrent answers and a dropped connection
@@ -53,8 +55,10 @@ landing screen -- the figure it leads with, quick actions that all land
 inside that scope, the access card a limited scope gets and a Master Admin
 does not, two dozen un-settled sidebar clicks leaving the dashboard naming
 itself exactly twice with no console error and the scope still enforced,
-and six concurrent renders of one dashboard agreeing on every figure
-(`admin-scoped-dashboard.spec.ts` -- whose console-error assertion splits
+six concurrent renders of one dashboard agreeing on every figure, and the
+Logs section refusing all three limited desks at the screen *and* at both of
+its routes while the retention floor refuses a cutoff inside the protected
+window (`admin-scoped-dashboard.spec.ts` -- whose console-error assertion splits
 failed requests by host, since this sandbox blocks the *browser* from
 reaching Supabase and RealtimeRefresh's socket dies on every run),
 and the therapist roster end to end
@@ -83,6 +87,19 @@ It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
+
+**The suite runs in the clinic's zone, pinned in `playwright.config.ts`.**
+Specs build a bookable slot with `d.setHours(hour, 0, 0, 0)` -- a whole hour
+in whatever zone the *runtime* is in -- while the app judges the whole-hour
+rule in the booking's own zone, which is the whole point of that rule. On a
+developer's machine set to India time the two agree; on a UTC host the same
+slot arrives as 15:30 IST and the route correctly answers "Sessions start on
+the hour", taking twenty cases across `session-scheduling`,
+`session-suggestions`, `booking-rules` and `concurrency` red at once --
+every one of them describing a working product. `process.env.TZ` is set at
+the top of the config rather than left to whoever runs it: an environment
+variable somebody has to remember is one they will forget, and this failure
+reads as a broken booking funnel rather than as a clock.
 
 Three environment notes for the browser specs:
 
@@ -204,8 +221,12 @@ src/components/marketing/ the eight public pages' design system: PageHero,
                          Section, PhotoTile, SplitFeature, StepStrip,
                          IconCard, TrustBar, ExploreGrid, ClosingCta
 src/lib/                 domain logic, formatting, Supabase clients
-src/lib/adminNav.ts      the admin dashboard's six sections + their screens
+src/lib/adminNav.ts      the admin dashboard's seven sections + their screens
 src/lib/adminHome.ts     what each admin scope's Today screen opens on
+src/lib/activityLog.ts   the log's search, its categories and its retention floor
+src/lib/formatDateTime.ts every date the app renders, pinned to clinic time
+src/lib/refundState.ts   how a refund reads, wherever a session is shown
+src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
 src/lib/mission.ts       the mission, vision, promises and stated limits
 src/lib/marketingPhotos.ts every photograph the public pages use
@@ -219,6 +240,7 @@ src/lib/inviteRewards.ts one patient inviting another, and both halves of it
 src/lib/checkoutQuote.ts what a booking costs, resolved once for three callers
 src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
 src/lib/adminScope.ts    admin scopes and which sections each one may open
+src/lib/accountDeletion.ts what blocks deleting an account, and what to say
 src/lib/listOrdering.ts  moving a row up or down a hand-ordered admin list
 src/lib/availabilityRanges.ts the roster's range layer over its hour rows
 src/lib/availabilityRequest.ts server-side validation both save doors share
@@ -260,6 +282,24 @@ They are enforced in **two** places and both must stay in place:
 
 Admin routes go through `src/lib/supabase/requireAdmin.ts`. Never trust a
 role, an id, or an amount sent from the client — re-derive it server-side.
+
+**A check that could not be run is not a check that came back negative.**
+`getAdminUser` collapsed three different outcomes into `null`, and the routes
+turned that into a flat 403: no session, a failed read, and genuinely not
+allowed all said "Forbidden". Two of those are not refusals. The one admins
+actually met is the **session refresh race** — this dashboard fires many
+requests at once, Supabase rotates refresh tokens, and the request carrying
+one another has just rotated comes back with no user — so a Master Admin was
+intermittently told they were not allowed to use a control they use every
+day. `getAdminContextResult()` keeps the reason: `unauthenticated` (401,
+retryable), `unavailable` (the profile read errored — anything but
+`PGRST116`, which is a real "no such row"; 503, retryable), `forbidden`
+(403, and deliberately still opaque so a limited admin cannot map what
+exists beyond their access). `getAdminUser` and `getAdminContext` keep their
+`null` shape, so the 99 routes built on them are unchanged; a route that can
+act on the difference takes the result version instead. A client may retry a
+401 or a 503 **once** — both are answered before anything is written, so
+there is nothing to duplicate — and must not retry anything else.
 
 Admins additionally carry a scope (`profiles.admin_scope`: `full`,
 `operations`, `finance`, `clinical` — see `src/lib/adminScope.ts`), which
@@ -321,7 +361,20 @@ screen:
 Ordering the queues is emphasis, never permission: `orderQueueGroups()`
 moves a scope's own domains to the top and **removes nothing**, because what
 a scope may work is the routes' decision and a UI that hid a reachable queue
-would be a second permission model to disagree with the first. What a queue
+would be a second permission model to disagree with the first.
+**Activity is the one exception, and it is deliberate.** A queue is work
+waiting on somebody, so hiding one would hide their job; a log is a record of
+what other people did, and the clinic's decision is that a desk reads its own.
+`src/lib/activityScope.ts` holds it: an entry is visible to a limited scope
+only when the action's **domain** is a section that desk can work *and* the
+**actor** sits at that desk. A Master Admin is unfiltered. The domain map is
+taken from the `requireAdminScope("...")` each action's own route guards with,
+so the feed cannot offer a row whose screen the reader is refused at, and
+`activityScope.test.ts` fails when an action in the audit union has no entry.
+The actor half has a cost worth knowing: in a small clinic the Master Admin
+does most of the work, so these feeds run sparse -- which is why a scoped
+reader is told the list is their desk's rather than being shown an empty
+screen that reads as "nothing happened". What a queue
 *count* reads, though, is `manage` and not merely open: a queue is a piece of
 work, and finance reads Sessions without being able to assign one, so an
 unassigned session is not waiting on them — counting it there would put a
@@ -492,7 +545,8 @@ client is the only writer and the log is append-only from any session.
   cash-on-visit booking, which never becomes `paid` and so reaches neither.
 
   `verify_entitlement_balances()` reports where the cache, the ledger and
-  the legacy counter disagree, on Settings → System Health. It reports and
+  the legacy counter disagree, on Settings → System Health → Books &
+  Sessions Agree. It reports and
   never repairs — a silent auto-fix on a money record is how a discrepancy
   becomes permanent. It has already earned itself twice, catching two
   distinct bugs in the backfill it checks.
@@ -667,6 +721,96 @@ client is the only writer and the log is append-only from any session.
   registration (`/patient/register`, no booking involved) always waits on a
   human admin — the point of gating on genuine payment intent is to keep a
   bare signup from being a free way to skip that queue.
+- **A refund is shown wherever a payment is.** Money going out was recorded
+  and never displayed: an admin refunded a session from a patient's profile,
+  the route worked, the audit row was written, and the session row went on
+  looking exactly as it had -- `ProfileSessionList` rendered `payment_status`
+  and nothing about `refund_status` at all. The one question that screen
+  could not answer was whether the patient had had their money back.
+  `src/lib/refundState.ts` is the single reading of those columns -- state,
+  label, tone, whether anybody is waiting -- so the chip on a row, the panel
+  in the drawer and the export column cannot describe it four ways. Four
+  states, and the difference is who is waiting for what: `processed` is done,
+  `manual_pending` is cash somebody has to hand over, `failed` is the gateway
+  refusing and is the most urgent precisely because nothing was watching it,
+  and `not_eligible` is a decision that nothing is owed -- recorded rather
+  than left blank, because "no refund due" and "we never looked" read
+  identically when both are empty and mean opposite things. `none` renders
+  **nothing**, not an empty chip on every unrefunded session.
+  **`refunded_at` and `refunded_by` are the other half.** `paid_at` has
+  existed since the first payment shipped; money going out had no equivalent,
+  so "when was this refunded, and by whom" was answerable only from the audit
+  log, which no session screen reads. Every writer stamps them --
+  `cancelAppointmentAndRefund` on all four outcomes, including the failure
+  and the forfeiture, because those are decisions too; `refund-session-
+  partial`; and `mark-cash-refund-returned`, which stamps the moment the cash
+  actually changed hands rather than when it became owed. Neither column is
+  backfilled: a refund issued before they existed has no recorded time, and
+  inferring one from `updated_at` would put a confident wrong date on a money
+  record. They are the newest columns on `appointments`, so they are read in
+  their own isolated query and merged, per the migration-dependent rule.
+  **The patient reads the same refund in a different voice.**
+  `describeRefundForPatient()` is the `voice` rule applied to money: the two
+  readings differ in what they are *for*, not only in register. The admin
+  chip answers "what happened to this money"; the patient's line answers "am
+  I getting my money back, and when" -- so `manual_pending` is a work queue
+  to one and a promise to the other, `failed` is a broken row to one and
+  "please contact us" to the person who is out of pocket, and `not_eligible`
+  says **nothing** to the patient, because the cancelled card already
+  explains the window and repeating it as a refund line announces a refund to
+  somebody who is not getting one. It renders on the session card (with the
+  date and the clinic's own stated reason), on every Payments row and in that
+  receipt's detail, and a failed refund is a pinned `needsYou` feed item --
+  the one refund state nothing in the clinic's screens will move without the
+  patient. A **partial** refund on a completed session reached none of these
+  before, because `BookingReceipt.stage` has no honest value for a delivered
+  session that was partly refunded; the refund is its own field beside the
+  stage rather than folded into it, or a delivered session would read
+  "Refunded".
+  **A refund that is owed is a queue, and both tables are in it.** Money ->
+  the alerts strip and Today's inbox count `manual_pending` across **cash
+  visits and sessions alike** -- the count was home-visit rows only, so a
+  session refunded by hand was work no screen could see -- and they count
+  `failed` as its own row, which nothing in the app was watching at all. The
+  two are separate because the work is: one is "go and hand over cash", the
+  other is "find out why the gateway said no". A failed refund's row belongs
+  to **Sessions**, not Money, because that is where it is fixed, which is
+  also why `MoneyAlertsStrip` takes `workableSections` rather than
+  `allowedSections`: Finance reads Sessions without being able to change one,
+  so counting a failed session refund on their strip would put a figure on
+  their screen that nothing they could do would bring down -- the same rule
+  `visibleQueueTotal` already follows. Both counts run over the **appointments
+  read alone**: `homeVisitRows` is that same table with a `visit_mode` filter,
+  not a second table, so summing the two counted every cash home visit twice
+  and put a figure on the Money strip that the Cash Ledger beneath it
+  disagreed with -- the "a count agrees with the rows it counted" rule broken
+  by arithmetic rather than by filtering. `refund_status` lives on the
+  appointment for both delivery modes; nothing writes it on a purchase row.
+  `AdminAllSessionsTab` takes
+  `refunded`, `refund_pending` and `refund_failed` presets so each count
+  opens exactly the rows it counted. **Its export follows `canSeeMoney` too.**
+  The amount and the refund never render in that table at all, so Operations
+  and Clinical could not read either on screen and could download both: a
+  scope enforced in the markup and not in the file the markup produces is not
+  enforced, and an export is the easiest place to forget it. Its **Refunded** payment-filter option
+  matched nothing at all before this: `payment_status` is CHECKed to
+  `unpaid` / `paid` / `failed` and can never hold `refunded`, so the filter
+  silently returned an empty table. A refund lives on `refund_status`.
+  **Every refund states why.** `refund_reason` was written by the partial
+  refund route alone, so the commonest refund in the app -- a cancellation
+  outside the window -- reached both the patient's Payments screen and the
+  admin's drawer with that line blank. `cancelAppointmentAndRefund` records
+  one on all four outcomes: the cancellation's own reason where the person
+  cancelling gave one, and otherwise a sentence naming the rule that produced
+  the outcome, matching what the credit ledger already writes for the same
+  event. The **forfeiture** is the exception and takes the rule's sentence
+  *always*, never the cancellation's reason -- this line is read as "why this
+  money moved" and no money moved, so the answer has to be the window that
+  withheld it, which is also the thing a patient disputes. It names the
+  window that actually applied, which is why the patient card's no-refund
+  hover reads it rather than printing `CANCELLATION_FULL_REFUND_HOURS`: a
+  home visit has its own window, so the constant was quoting the wrong number
+  of hours on every cancelled visit.
 - **Cancellation/refund**: full refund only outside the 24-hour window in
   `src/lib/pricing.ts`; inside it, none. Home visits use their own window
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) —
@@ -677,7 +821,7 @@ client is the only writer and the log is append-only from any session.
   or, far the commonest cause, the OAuth consent screen left in **Testing**,
   where Google expires refresh tokens after seven days -- every session fails
   at once with `invalid_grant`. Nothing said so. Each failure appeared as its
-  own row in Settings -> System Health -> Sync Health with a raw error string
+  own row in Settings -> System Health -> Session Links with a raw error string
   and a Retry button that could never succeed, so the screen read "a few
   sessions failed" when the truth was "no session will get a link again". The
   one line naming the fix was a `console.error` no clinic owner reads.
@@ -738,7 +882,7 @@ client is the only writer and the log is append-only from any session.
   visit on purpose: there is nothing to join, the therapist is coming to the
   address. Three readers nonetheless used `meet_link is null` as their
   definition of an unsynced session, and every confirmed home visit therefore
-  (1) sat in Settings -> System Health -> Sync Health for ever, (2) was
+  (1) sat in Settings -> System Health -> Session Links for ever, (2) was
   answered `502 "Retry failed"` by the Retry button -- whose success test was
   also `meet_link` -- on the runs where the event had in fact been created,
   and (3) got a **brand new calendar event on every click**, because
@@ -776,7 +920,7 @@ client is the only writer and the log is append-only from any session.
   `createSessionCalendarEvent` only ever creates, so two overlapping
   attempts leave an orphaned event on the calendar under a link the
   appointment no longer points at. At the cap the row stays in the admin's
-  Sync Health panel flagged as needing a person; a manual Retry resets the
+  Session Links panel flagged as needing a person; a manual Retry resets the
   counter. A home visit still gets a
   calendar event even when `google_meet_enabled` is off — that toggle only
   gates the Meet conferencing, not event creation, since the invite email is
@@ -835,9 +979,18 @@ client is the only writer and the log is append-only from any session.
   and the two rules that need a clinic baseline (`plan_conversion_low`,
   `post_consultation_dropout`) ship **disabled** — a threshold invented
   before anyone knows the normal rate fires on everyone or on nobody, and
-  the first of those is how a queue stops being read. The whole queue is
-  `full` scope only, not merely the deciding: a signal names a colleague and
-  quotes what they wrote, so a scoped admin's render does not fetch it.
+  the first of those is how a queue stops being read.
+  **The findings are scoped by desk; the evidence trails are not.**
+  `RISK_RULE_DOMAIN` gives each rule the section that can act on it -- a cash
+  variance and a session completed with no payment are money questions, a
+  contact leak and an early completion are sessions questions -- and a
+  limited desk reads and reviews its own. The reasoning the whole queue used
+  to be closed for still holds for the two panels it was really about: the
+  flagged messages quote what a colleague wrote and the reveal log names
+  every patient contact they opened, so those, and the thresholds deciding
+  what fires at all, stay Master-Admin-only (`canSeeTrails`). A desk with no
+  rule of its own fetches nothing and is told so, rather than being shown a
+  locked screen for a queue holding nothing for them.
   `appointments.completed_at` was added for the `early_completion` detector
   and is stamped only by `complete-session`; a row closed before that column
   existed carries null and is skipped rather than guessed at.
@@ -1616,6 +1769,36 @@ client is the only writer and the log is append-only from any session.
   the banner said "Your therapist has your answers" about a record the
   patient never sent. Attribution is not a nicety on a medical record.
 
+- **Every date renders in the clinic's zone, and the zone is never left to
+  the runtime.** `toLocaleString()` with no `timeZone` formats in whatever
+  zone the *runtime* is in -- on the server that is the host's, which is UTC,
+  so a session booked for 6 PM IST printed as "12:30 PM" on the patient's own
+  Overview; inside a client component the same call used the browser's zone
+  instead, which is a different wrong answer and a hydration mismatch between
+  the two. Ninety-one call sites were formatting that way.
+  `src/lib/formatDateTime.ts` is the one answer -- `formatClinicDate`,
+  `formatClinicDateShort`, `formatClinicTime`, `formatClinicDateTime`, all
+  pinned to `Asia/Kolkata` and `en-IN`, all rendering a dash rather than
+  "Invalid Date" for something unreadable. Pinned rather than per-viewer
+  because the alternative is two people reading one screen and disagreeing
+  about when a session is, with nothing on screen to say why.
+  Three exceptions, each real and each documented where it sits:
+  1. **A session slot** is formatted in the zone the patient booked it in
+     (`formatSlotTime`, `appointments.patient_timezone`) -- the booking's own
+     record of what they were looking at when they chose it. Its no-zone
+     fallback for legacy rows is the clinic's zone, not the runtime's.
+  2. **A wall-clock date** -- `new Date(y, m, d)` in `bookingSlots.ts`, which
+     has no instant behind it -- must *not* be pinned: formatting a local
+     midnight in another zone prints the previous day for any viewer east of
+     India.
+  3. **"Saved 3:42 pm"** on the intake wizard is the viewer's own clock,
+     because it is their own draft, set in their browser, and gone on reload
+     -- not a stamp on a record two people have to agree about.
+  `formatDateTime.test.ts` walks every `.toLocale*String(` in `src/` and
+  fails on one without an explicit zone, with those two files exempted by
+  name. The check earns its keep because this failure is invisible locally:
+  a developer's machine is often in the same zone as the clinic, and it only
+  shows on a UTC host.
 - **One pain scale on screen, whatever the column says.** Assessments are
   stored 0–100 and a patient rates their own pain 0–10; both used to be
   printed raw, so "How you rate it 6/10" sat beside "Last exam found 34%"
@@ -1716,13 +1899,30 @@ client is the only writer and the log is append-only from any session.
   a patient with a dozen abandoned checkouts saw "Payment not completed"
   twelve times and never saw that they had sessions already paid for and
   never booked. The twelfth identical line was never information.
+  **A feed item's date is the row's, never the render's.** The three admin
+  queue rollups -- signups waiting, change requests, sessions with no meeting
+  link -- took a bare count and stamped themselves `new Date()`, and this
+  dashboard re-renders on every realtime event, so "5 signups waiting for
+  approval" reset to *just now* on every refresh. A signup that had waited
+  three days read as having just arrived, which is exactly backwards for the
+  one class of item that gets more urgent the longer it is ignored, and it
+  pinned the queue to the top of a date-sorted feed for a reason that had
+  nothing to do with the queue. They take a `QueueRollup` now -- the count
+  **and** the oldest waiting row's own timestamp, built by `queueRollup()`,
+  which takes the oldest rather than the newest because a queue's age is the
+  age of what has waited longest. The two halves travel together in the type
+  precisely so a count can no longer arrive without a date; changing it
+  failed at every call site, which is what a bare count could not do. An
+  empty list yields count 0 and no item is pushed, so an item on screen
+  always has a real date behind it and there is no missing-date case to
+  invent a fallback for.
   The pinning is load-bearing rather than cosmetic: an item dated when it
   arose sinks further the longer it goes unanswered, which is backwards for
   the one class of item that is still owed something — a programme paid for
   a month ago with sessions unbooked is the case that made it obvious.
 - **The admin dashboard's information architecture lives in
-  `src/lib/adminNav.ts`** — six sections (Today, Sessions, People, Money,
-  Catalog, Settings), each with its own screens. The sidebar, the URL
+  `src/lib/adminNav.ts`** — seven sections (Today, Sessions, People, Money,
+  Catalog, Logs, Settings), each with its own screens. The sidebar, the URL
   (`?section=&tab=`), the content map in the dashboard page, and the scope
   check all read that one list, so adding a screen is one entry there plus
   one entry in the page's `screens` map. Tab state is written with the
@@ -1733,6 +1933,39 @@ client is the only writer and the log is append-only from any session.
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
   runs.
+- **A password this clinic issued is stored; a password the user chose is
+  not, and cannot be.** Supabase keeps a bcrypt hash, so there is no
+  mechanism by which any screen can display a password somebody set
+  themselves -- asking for one is asking for something the database does not
+  contain. What the app does instead is keep the **plaintext it generated**,
+  on four zero-policy tables the service role alone reads
+  (`patient_admin_notes`, `therapist_admin_notes`, `hospital_admin_notes`,
+  `admin_account_notes`), so an admin taking a "it won't let me in" call can
+  read the credential back rather than resetting a working one. Four rules:
+  1. **Every route that generates a password persists it**, the three
+     `reset-*-password` routes and `/api/admin/create-account` alike.
+     Create-account was the one that did not: it returned the password and
+     held it in React state on the User Access screen, so the `profiles`
+     insert it had just made fired a realtime refresh and took the password
+     off the screen mid-sentence. `hospital_admin_notes` exists because the
+     hospital reset button had the identical bug one role earlier -- the
+     shape is known, and a new credential-issuing control must not
+     reintroduce it.
+  2. **It is cleared when they set their own** (`/api/clear-temp-password`,
+     which acts on the caller's own id from their session and never a
+     client-supplied one). That is what makes "still on the password we
+     issued" true rather than stale, and it is why the directory can state
+     which of two states an account is in without ever claiming a third.
+  3. **It never reaches the account owner, and never reaches the log.** The
+     tables carry no RLS policies at all, so a plain column on `profiles`
+     (which `profiles_select_own` would hand straight back) is not an
+     option; and a generated password stays out of `admin_activity_log`,
+     which every admin reads.
+  4. **`admin_account_notes` is deliberately outside the reset's TRUNCATE
+     list**, alone among the four. Notes follow their accounts: the reset
+     deletes every patient, therapist and hospital, and keeps every admin --
+     so emptying this one would strip a working credential off an account
+     the reset had just decided to keep.
 - **User Access is where the access model is read, and it is derived.**
   Settings → User Access is one screen doing what two half-screens did: the
   back-office directory (who can sign in, at what level, and whether they
@@ -1754,7 +1987,32 @@ client is the only writer and the log is append-only from any session.
      the fine-grained matrix whose failure mode is one route quietly falling
      through a gap in it, which is what coarse scopes exist to avoid.
      Changing what a desk reaches is a code change, reviewed.
-  3. **Suspending is not deleting.** `/api/admin/set-admin-active` mirrors
+  3. **Suspending is not deleting, and delete is the narrow case.**
+     `/api/admin/delete-account` exists on all four roles' screens, and it is
+     a delete that can only ever succeed on an account with **no history at
+     all** -- the typo'd email, the duplicate, the one created against the
+     wrong person. That is not a policy: thirty-five tables carry a foreign
+     key to `profiles(id)` with no ON DELETE behaviour, so Postgres refuses
+     outright for an account that has booked, paid, been paid, been treated
+     or acted in the back office, and deleting one "properly" would mean
+     deleting the money and the clinical record with it. So the route counts
+     what points at the row first, groups it the way a person describes it
+     (`src/lib/accountDeletion.ts` -- six groups, not fifty columns), and
+     refuses with the counts named and **suspension offered beside them**,
+     the same shape `describeCategoryBlockers` uses. Four rules:
+     it is `full` scope only, checked directly rather than through
+     `requireAdminScope("people")`, because every desk that manages People
+     can already suspend and this one is irreversible; it carries suspension's
+     own two guards, never yourself and never the last Master Admin who can
+     still sign in; the audit row is written **before** the delete, since
+     afterwards there is no row left to name and a failed attempt is worth
+     recording on the one action with no undo; and it re-reads the profile
+     afterwards, because GoTrue reporting success is not the same as the row
+     being gone -- "removed nothing" and "removed it" must stay
+     distinguishable. The counted groups are for the human; the database is
+     still the authority, and a foreign key the probes do not cover produces
+     `ACCOUNT_DELETE_REFUSED` rather than a Postgres string.
+  4. **Suspending is not deleting.** `/api/admin/set-admin-active` mirrors
      `set-admin-scope`'s two guards (not yourself, not the last Master Admin
      who can still sign in) and flips `profiles.active`, which `getAdminUser`
      and the proxy already refused on — the enforcement existed and the
@@ -1777,6 +2035,15 @@ client is the only writer and the log is append-only from any session.
   sentence needs one, the screen is doing too many things and wants
   splitting. The example is one concrete thing you would come here to do,
   which is the half that makes an unfamiliar screen usable.
+  **Every Money screen carries both too**, for a sharper version of the same
+  reason: five screens named with abstract nouns ("Summary", "Breakdown",
+  "Costs") make an owner open three of them to find the one answering the
+  question they arrived with. The worst case of that was a dead end rather
+  than a detour -- promo codes rendered on Money -> Summary while Settings ->
+  Offers, the README and the QA plan all said Money -> Costs, so following
+  that note landed on a screen with no promo codes anywhere on it. A campaign
+  belongs beside the figure it costs (*Discounts given*), which is where it
+  is now.
   **Booking Rules was that "too many things" case**, and splitting it is
   what the field was added alongside. It had grown six unrelated stacks with
   no heading between them -- when a single session may be booked, cancelled
@@ -1789,6 +2056,47 @@ client is the only writer and the log is append-only from any session.
   advance). Offers carries a note saying where promo codes and goodwill
   live, because "where did the promo screen go" is the question a split
   otherwise creates.
+- **System Health is five checks in one shape, and every unhealthy one says
+  how to fix it.** The screen reports rather than sets, so it is not an
+  `AdminFeatureControlTab` view -- `src/lib/systemHealth.ts` decides each
+  check's status, its one-line headline, the numbered steps that fix it, and
+  the *what this watches* / *for example* pair behind its (i) button, and
+  `AdminSystemHealthTab` draws what that module returns. It replaced five
+  panels that each explained a subsystem in its own words and its own layout:
+  an owner had to read all of them to learn nothing was wrong, and the one
+  sentence naming the fix was buried mid-paragraph. Four rules hold it:
+  1. **A status is a word as well as a colour** (`Healthy`, `Needs a look`,
+     `Needs you now`, `Not set up`, `Not checked`), and **`off` and
+     `unknown` are not faults**. An owner who never wired Google up has not
+     got a problem, and painting that red is how red stops meaning anything
+     -- `needsPerson()` is the one test for "this is asking for somebody".
+  2. **Anything not healthy carries steps the owner can follow alone.** A
+     red card with no way out is the screen this replaced. `systemHealth.test.ts`
+     asserts it over every check.
+  3. **The teaching text lives behind the (i), never on the card.** It is
+     what somebody needs the first time they open the screen and never
+     again; inline, it is the wall of text that made the old one unreadable.
+  4. **The sidebar badge counts checks, not rows**, so it equals the verdict
+     strip's own count and its chips. Counting rows badged **0** for the two
+     failures with no rows behind them -- a missing `RAZORPAY_WEBHOOK_SECRET`
+     (money arriving against unpaid bookings) and a dead Google credential.
+  5. **A red check leaves the screen; an amber one does not.** `healthBannerText()`
+     puts one red line on the admin's Today screen (`AdminHealthBanner`, via
+     `DashboardOverview`'s `banner` slot, and only for a scope that can open
+     Settings -- the banner is a link, and `findTab` would land a scope that
+     cannot on some other screen entirely). Red only, because the two worst
+     failures are invisible from every other screen and nobody opens System
+     Health until they already suspect trouble -- while a banner that is
+     usually there is a banner nobody reads.
+  6. **A cached answer prints its own age.** Every check but Google is
+     computed at render; the Google probe is held ten minutes on success and
+     one on failure, so it passes `googleConnectionCheckedAt()` and the card
+     says "Checked 4 minutes ago". The relative time is rendered after mount,
+     never on the server -- "4 minutes ago" computed server-side is already
+     wrong in the browser, and rendering it in both is a hydration mismatch.
+  A sixth check is an entry in that module plus, if it has rows, a card body
+  in the tab -- never a new panel with its own shape. The two fix buttons
+  render only under `scopeCanManage(scope, "settings")`, matching the routes.
 - **A count links to the rows it counted, never to the whole table.** A
   Today figure or queue row that opened an unfiltered list made the reader
   redo the filtering by hand and, worse, made the number look wrong.
@@ -1904,6 +2212,109 @@ client is the only writer and the log is append-only from any session.
      inside it, and a bar that flashes on every tap makes a fast app feel
      busy. Reduced motion keeps the bar and drops the travel -- someone who
      asked for less movement still needs to know the app is thinking.
+  **The split matters at the call site, not only at the root.** A control
+  that runs its fetch *and* its `router.refresh()` inside one
+  `startTransition(async …)` keeps its own `isPending` true until the refresh
+  lands -- so on the admin dashboard the button stays disabled and spinning
+  through a full Server Component re-render, which is reported as a hang. The
+  shape is: the control is busy for **its request**, releases in a `finally`,
+  and calls `router.refresh()` after, handing the rest to the bar. That is
+  not the `setLoading(false); router.refresh();` mistake above -- the
+  difference is that the bar now exists to carry the half the button cannot.
+  Guard the submit with a synchronous ref as well (a `disabled` attribute
+  lands a render too late), and catch the request: an unhandled throw inside
+  a transition puts nothing on screen at all.
+  **An append-only log does not belong on the operational realtime channel.**
+  Every mutating admin route writes `admin_activity_log`, so while that table
+  sat on the 2s channel each action rebuilt the whole dashboard twice -- once
+  for the row it changed, once for the entry describing it -- and the admin
+  who acted had already refreshed deliberately. It is on the 30s channel with
+  `contact_reveal_log` and `risk_reviews`, which are there for the same
+  reason.
+- **A change that leaves no trace on screen has to say what it was.** Every
+  mutating control ends the same way -- the request lands, `router.refresh()`
+  re-runs the Server Component, and the screen re-renders into a state that
+  looks identical. A toggle that was off is now on and the only evidence is
+  a switch the person has stopped looking at; on a slow render it is
+  indistinguishable from nothing having happened. `ToastProvider` +
+  `useToast()` (`src/lib/toast.tsx`) is the answer, mounted in the **root
+  layout above every route** -- which is what makes the confirmation survive
+  the refresh the control itself fires, with no cookie and no message
+  replayed on the next load. Three rules:
+  1. **It names the thing and its new state.** "Home visits are on", never
+     "Saved" -- a confirmation that does not name the thing tells somebody a
+     request finished, which they could already see. For settings that
+     wording lives in `src/lib/settingMessages.ts`, one vocabulary for the
+     whole section in the owner's words rather than the column's, and
+     `settingMessages.test.ts` fails when a key an admin screen can write
+     has no sentence, reads a column name back to a person, or mis-pluralises
+     a unit.
+  2. **`useToast()` never throws outside a provider.** These controls render
+     in dashboards, in modals and in the booking wizard on a public page, and
+     a missing confirmation must not be the thing that takes a screen down --
+     same posture as the audit log's best-effort write.
+  3. **One `saveSetting`, not eight.** That helper was copy-pasted into every
+     settings surface, which was survivable while it only made a request and
+     stopped being survivable the moment saving needed to *say* something:
+     a confirmation added to one copy is seven screens that do not get one.
+     It is `useSaveSetting()` now, and a failure raises an error toast **and
+     rethrows**, because the callers roll their optimistic switch back on a
+     throw.
+  **The bar has to hear about the navigation, and three dashboards were
+  silent.** `useRouter` covers every navigation this app starts in code,
+  which is why the admin dashboard always had a bar and the other three
+  appeared to have none: patient, therapist and hospital move between
+  sections with **plain anchors** (a deliberate choice -- client-side
+  transitions into a differently-chromed route were silently not completing),
+  and a hard navigation never touches the router hook, `useLinkStatus`, or a
+  client-side `loading.tsx`. Nothing in React learned a navigation had
+  started, so the person sat on the old screen with no acknowledgement at
+  all. Two halves fix it, and both are needed:
+  - `useLeavingPage()` (`src/lib/useLeavingPage.ts`) marks the page as
+    leaving on click. The old document stays on screen until the new one is
+    ready, so a bar drawn then is visible for exactly the wait. It is
+    **never released on that page** -- the document is about to be torn down
+    and the bar goes with it, and releasing on a timer would clear the signal
+    while the person was still waiting -- but it **is** released on
+    `pageshow`, because a bfcache restore brings the page back exactly as it
+    was, bar included.
+  - `ProgressLink` (`src/components/system/ProgressLink.tsx`) does the same
+    for real `<Link>` navigations, which the public Navbar uses. Next's
+    `useLinkStatus` only works *inside* a Link, so the reporter is a child
+    component rendering nothing rather than a hook the wrapper could call.
+  **And every dynamic route has a `loading.tsx`.** A boundary only at each
+  dashboard's root left every sub-route leaning on an ancestor, so the
+  fallback was the wrong shape or absent; all seventeen dashboard
+  sub-routes and the three admin detail routes have their own now, each
+  passing `withSidebar` and a label naming what is coming. **The `@modal`
+  slot has one too**, and it is the case both loading signals miss: tapping a
+  patient name is a `<Link>` into a parallel-route slot, which is not a
+  `useRouter` transition (so no bar) and is not covered by an ancestor
+  `loading.tsx` (which wraps the page tree, not a sibling slot) -- so the row
+  was tapped, the server spent its render, and nothing acknowledged it. That
+  fallback mirrors `DetailOverlayModal`'s own sheet rather than reusing
+  `RouteLoading`: what is arriving is an overlay over the dashboard, and a
+  full-page skeleton there would read as the dashboard itself being
+  replaced. On a hard
+  navigation this is what paints first: the server streams the shell and the
+  fallback before the page's own queries resolve, so the new screen arrives
+  as furniture rather than as a wait. The public marketing pages are
+  deliberately left without one -- they are ISR-prerendered, so there is no
+  server wait to cover, and the bar handles the transition.
+  **Every dashboard carries one Refresh button**
+  (`src/components/dashboard/RefreshButton.tsx`), in the header of both
+  shells -- so all four get the same control in the same place. It re-runs
+  the Server Component and nothing else: a browser reload throws away the
+  client state these shells keep on purpose (an open row, a half-typed
+  filter, the collapsed sidebar) and re-downloads the bundle, and
+  `RealtimeRefresh` only fires for subscribed tables, on the catalog channel
+  behind a 30-second cooldown. This is the one control whose own pending
+  state **should** span the refresh -- the split above is for a control whose
+  request is a different thing from the refresh that follows it, and here the
+  refresh *is* the work, so releasing the button early would leave it looking
+  idle while what it was asked for was still running. It is disabled while
+  pending, because stacking refreshes on the admin dashboard stacks ~40
+  queries a tap for no new answer.
   `Spinner` (`src/components/system/Spinner.tsx`) is the app's only spinner,
   inheriting `currentColor` so one component works on the filled, outlined
   and text buttons alike. Before it, every busy state was a text swap, which
@@ -1948,16 +2359,139 @@ client is the only writer and the log is append-only from any session.
   what the rows are scoped to — a printed table nobody can date is
   worthless. Nothing in the admin dashboard exports JSON, and nothing
   should.
+- **The log is a section of its own, and clearing it is the one thing that
+  takes evidence away.** Logs (`logs` in `adminNav.ts`) is Master Admin only
+  -- `SECTION_ACCESS` gives it to `full` at `manage` and to nobody else -- and
+  holds two screens. **All Activity** is every entry with a search, a type
+  filter, a date range, both exports and the detail dialog; the dashboard's
+  render carries the newest 200 and `/api/admin/activity-log` pages the rest
+  **by cursor**, never by offset, since rows are written continuously and an
+  offset skips whichever entry crossed the boundary mid-scroll. **Archive &
+  Clear** is the only delete path this table has ever had, and five things
+  hold it:
+  1. **A floor no setting can get under.** `MIN_RETENTION_DAYS` (30) is
+     checked in `src/lib/activityLog.ts`, again in
+     `/api/admin/clear-activity-log`, and again inside
+     `purge_admin_activity_log()`. The database half is not belt-and-braces:
+     that function is reachable by the service-role key and by hand in the
+     SQL editor, where no route check runs. The newest month of the trail --
+     where anything worth hiding would be -- is out of reach at every
+     setting.
+  2. **The clearing is logged, outside its own reach.** `log.clear` is
+     written after the purge, with the cutoff and the count, and now is
+     inside the protected window, so a clear can never remove the record of a
+     clear.
+  3. **A copy comes first.** The Clear button unlocks only once a download
+     has actually been produced (`DataExportButtons`' `onExported`), not on a
+     checkbox saying one was -- a record that is gone and was never kept is
+     destroyed; one downloaded first has only been moved.
+  4. **The count is taken server-side**, because the screen holds one page
+     and a browser-side count would understate what is about to go.
+  5. **Nothing here can be edited, and the screens say exactly that.** There
+     is still no update path and never should be. The detail dialog's closing
+     line was changed in the same change that added the cutoff -- it used to
+     promise entries could never be deleted by anyone, and a screen making a
+     promise the product stopped keeping is worse than the feature.
+  Adding an action means adding it to `ACTION_DOMAIN` as well as the audit
+  union: the type filter is derived from that map, so a second grouping of
+  the same 80 actions cannot drift from the one the routes enforce.
+  **A subject has a timeline, and it is keyed on the id.** Tapping an entry's
+  subject fetches every entry against that `target_id`
+  (`SubjectTimelineDialog`), because "what happened to this patient" is what
+  gets asked in a dispute and the log was only good at "what did this admin
+  do". Matching on `target_label` instead would split a patient renamed
+  between two entries into two people -- the label is snapshotted at write
+  time on purpose. An entry with no `target_id` is offered no timeline rather
+  than one built by guessing, and the dialog's footer says what it is keyed
+  on rather than claiming to be everything. One dialog is open at a time:
+  opening a timeline closes the entry behind it, since two stacked modals
+  over a table leave a reader unable to tell which Escape closes what.
+- **An audit entry is read months later, so it says what changed from what.**
+  Tapping a row in the Logs section -- or on a limited desk's
+  Today -> Activity -- opens the whole entry
+  (`ActivityDetailDialog`), and `src/lib/activityDetails.ts` turns the
+  route's `details` blob into it. Four rules:
+  1. **The before/after pair is found, not required.** Routes name it five
+     ways -- `from`/`to`, `fromPercent`/`toPercent`, `oldExpiresAt`/
+     `newExpiresAt`, `previousStatus` beside `status`, `before`/`after` --
+     because each was written where it was needed. `readableDetails()`
+     recognises all five (and `previousPaise` beside `amountPaise`, where
+     the stem is only a unit), which is cheaper and safer than rewriting
+     twenty routes to agree.
+  2. **Nothing is dropped.** An unrecognised key is exactly the one somebody
+     is looking for, so unpaired fields are listed plainly and the raw JSON
+     stays behind a toggle.
+  3. **Values are read, not parsed**: paise as rupees, an ISO stamp as a
+     date in IST, a boolean as Yes/No, an absent value as a dash. `Paise` is
+     a storage word and never reaches the screen.
+  4. **Record the values, not that something changed.** `patient.update_contact`
+     wrote `{emailChanged: true}` -- an entry saying a patient's sign-in
+     address was altered without saying what it had been is unusable for the
+     one question it gets asked. Both contact routes record the old and new
+     values now. The exception is free text about a person: the four
+     note routes record a **length**, deliberately, because this log is
+     readable by every admin and a note about one patient must not be
+     reproduced across the back office. A generated password still never
+     goes in `details` at all.
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.
-- **One word, one money figure.** "Package cash collected" is what came into
-  the bank up front; revenue recognises that same money gradually, one
-  session at a time. Gross/Net Revenue keep their standard meanings.
-  `MoneyGlossary` states each one and renders on **every** Money screen --
-  if a new figure needs a word that is already taken, rename the figure,
-  don't overload the word, and if two figures end up with the same meaning
-  delete one rather than explaining the difference.
+- **One word, one money figure -- and the definition sits beside the
+  figure.** "Package cash collected" is what came into the bank up front;
+  revenue recognises that same money gradually, one session at a time.
+  Gross/Net Revenue keep their standard meanings. If a new figure needs a
+  word that is already taken, rename the figure, don't overload the word,
+  and if two figures end up with the same meaning delete one rather than
+  explaining the difference. (The Costs screen's `Payment fees` was that
+  collision: it printed the gateway *percentage* under the name Summary uses
+  for the resulting *amount*. It is `Gateway fee %` now.)
+  The vocabulary itself lives in `src/lib/moneyTerms.ts`, read by two
+  surfaces that must not disagree: `MoneyGlossary` (still at the foot of
+  every Money screen) and the `(i)` on each figure (`MoneyFigure` /
+  `MoneyTermInfo`). A glossary at the bottom of the screen puts the
+  definition as far as the page allows from the number that needs it, so it
+  is the fallback for reading the whole set, not the answer. Add a figure by
+  adding its term there -- `moneyTerms.test.ts` fails a term with no entry,
+  a duplicate name, or a missing scope.
+  **`scope` is part of a figure's definition, not a sentence somebody
+  remembers to write.** `range` moves with the dates in view, `now` is true
+  this instant (a debt does not stop existing outside a filter), `setting`
+  is a rate rather than an amount. It prints as a chip -- `StatCell.scopeNote`
+  in a strip, `ScopeChip` on a card -- wherever the two kinds sit together,
+  because an admin narrowing the range and watching one figure fall while
+  the one beside it holds still is reading a screen that looks half-broken.
+  **A total can be opened.** Each of Summary's four split figures has a "See
+  the sessions" link listing exactly the rows behind it (`explainMoneyLines`
+  in `adminMetrics.ts`, rendered by one modal for all four -- four modals
+  would be four chances to filter differently from the card that opened
+  them). It is derived from `moneyLineFor`, which `moneyByBucketFor` itself
+  calls, so the drill-down and the total are the same arithmetic rather than
+  two implementations that agree today; `adminMetrics.test.ts` asserts the
+  lines sum to the buckets. A drill-down that can disagree with its own total
+  is worse than none, because it makes a correct figure look wrong.
+  The drill-down exports like every other table (one `CsvColumn[]`, both
+  formats), and Net revenue carries `comparePeriod()` against `previousRange()`
+  -- the same number of days immediately before, never a calendar month
+  against a 30-day window, which would move the figure by the number of days
+  rather than by the business. Two refusals in that helper are the point of
+  it: a zero baseline yields **no** percentage (`+100%` and `∞` are both
+  lies), and a move under half a percent reads "level" rather than drawing an
+  arrow over noise an owner will learn to ignore.
+  **Money answers "is anything wrong?" too.** `src/lib/moneyAlerts.ts` +
+  `MoneyAlertsStrip` sit at the top of all five Money screens: payout
+  requests waiting, cash a therapist is holding, refunds to hand back by
+  hand, payments attached to nothing. Cash collected a month ago and never
+  handed over is not a wrong number on any screen -- it is money that is
+  simply not there -- so no figure could have surfaced it. Same rules as the
+  admin home's actions: a zero row is dropped, an item whose section this
+  scope cannot open is dropped rather than linked into `findTab`'s fallback,
+  and every item links to the rows it counted.
+  **A figure appears once per screen.** Summary printed Net revenue twice,
+  Clinic share three times and Operating profit twice, because its strip
+  repeated the chain below it. The strip is the answers now (net revenue,
+  operating profit, what is owed, cash collected up front); the two blocks
+  under it are the subtraction, where carrying a figure down from the block
+  above is the point rather than a repeat.
 - **The revenue split has one source and two invariants.**
   `moneyByBucketFor` (`src/lib/adminMetrics.ts`) is the only place the
   clinic's money is divided up, so the strip, the tiles and the breakdown
@@ -2044,6 +2578,53 @@ client is the only writer and the log is append-only from any session.
   check moved with the insert. Don't add a fifth booking entry point without
   all three.
 
+- **An admin can sign in as somebody, and that is a session swap rather than
+  a preview.** A Master Admin opens a patient's, therapist's or partner hospital's
+  dashboard -- the first two from their profile page, a hospital from its card
+  on People -> Partners, which is where a hospital's record lives -- and the
+  browser genuinely becomes that account: same
+  routes, same data, same controls, every write real. It exists because "the
+  app is broken for me" is unanswerable from the back office, which shows an
+  admin's view of a patient rather than the patient's own.
+  It is the most dangerous capability in this codebase, so the rules live in
+  `src/lib/impersonation.ts` -- dependency-free and unit-tested rather than
+  only clicked -- and there are five:
+  1. **`full` scope only, checked directly.** Not
+     `requireAdminScope("people")`: a section scope would hand this to
+     whoever can edit a phone number. Never another admin (that is one admin
+     using another's authority, and an admin in trouble can be asked what
+     they see), never a suspended account, never yourself.
+  2. **A real reason, ten characters** -- the floor an admin credit
+     adjustment uses -- stored on `admin_impersonation_sessions`, which is
+     append-only by trigger apart from being closed once, so the admin it
+     names cannot rewrite it. **The row is written before the swap**, so a
+     session with no record behind it cannot exist; a failed insert refuses
+     the whole thing, the same posture as `/api/therapist/reveal-contact`.
+  3. **Everything done during the window is written as that user.** No column
+     on `appointments` -- or anywhere else -- can say an admin was at the
+     keyboard, so that row's `started_at`/`ended_at` window is the only thing
+     a later reader can intersect an action against. That is a real cost of
+     the swap, accepted deliberately: a read-only mirror cannot reproduce a
+     bug that only appears on submit.
+  4. **It expires, and the proxy is what ends it.** The marker cookie and the
+     Supabase session cookies are separate things, so letting the marker
+     lapse on its own max-age would drop the banner while the swap ran on
+     underneath it. `updateSession` checks the window on every dashboard
+     request and signs out past it -- a forgotten tab is an open window into
+     a health record, and the safe direction for one is closed.
+  5. **The banner is the only thing that differs from what they see**, so it
+     sits above every dashboard screen (`ImpersonationGate`, a layout on each
+     of the three trees -- never the root layout, which is shared with the
+     ISR-cached public pages and would be forced dynamic by reading a
+     cookie). It names the account, says the actions are real, counts the
+     window down and carries Exit.
+  The admin's own session is parked in a second httpOnly cookie so Exit puts
+  them back; losing it costs a re-login and nothing else, which is the right
+  direction for a failure here. `/api/admin/stop-impersonation` is authorized
+  by the marker cookie rather than an admin check, deliberately: the caller
+  is signed in as the patient at that point, so `getAdminContext()` would
+  refuse the one person entitled to call it.
+
 - **Don't name the back office to anyone outside it.** Non-admin roles are
   already locked out (`src/proxy.ts`, `requireAdmin`, `requireAdminScope`);
   keep it out of what they can *see* too. A signed-in non-admin reaching
@@ -2060,6 +2641,55 @@ client is the only writer and the log is append-only from any session.
   deliberate exception -- it still lists the admin routes, and is switched
   off before release.
 
+- **The way back in is one rule, not one per surface.**
+  `useAccountDestination()` (`src/lib/useAccountDestination.ts`) answers
+  "where does this account go, and what do I call it", and both surfaces that
+  offer somebody a route back into the app read it: the public `Navbar` and
+  the booking wizard's exit link. Two copies of that logic is two chances to
+  send a patient somewhere the label did not name. It resolves on the client
+  deliberately -- `/book` and `/book-home-visit` are ISR-cached, and reading
+  the session server-side would force every one of those pages dynamic to
+  answer a question about one link.
+  It returns **`signedIn` separately from `destination`**, and that
+  separation is load-bearing: both are null while the session is still being
+  read, and a caller that swaps one control for another needs to tell "not
+  signed in" from "not known yet". Collapsing them showed Sign In and Get
+  Started to somebody who was already signed in.
+  **The booking wizard's exit follows the account.** It read *Back to Home*
+  always, which is right for a visitor who arrived from the marketing site
+  and wrong for the commonest case -- a patient who came from their own
+  dashboard to book, and was being sent to the public home page. Signed out
+  it still says Back to Home (or Back to Home Visit, per wizard); signed in
+  it says **Back to Dashboard** and goes there, or names the waiting screen
+  when that is where the account actually lands. It stays outside the wizard
+  so it covers every one of its states without being repeated four times.
+- **A signed-in person always has a way back in.** The public `Navbar` hides
+  Sign In and Get Started once somebody is signed in, so whatever replaces
+  them is the only route back into the app from the marketing site. It used
+  to be one boolean: an account waiting on approval, or suspended, got
+  **nothing** -- the two CTAs gone because they are signed in, and no button
+  in their place -- which is how an unapproved patient ends up on the home
+  page with no way forward at all. The reasoning was sound and the fix was
+  the wrong half: the button was dropped to avoid a round trip through
+  `/dashboard`, when the round trip is what wanted removing.
+  It is three destinations now, from the same `approved`/`active` pair the
+  proxy enforces on, each linked **directly**: `/dashboard` ("Go to
+  Dashboard"), `/pending-approval` ("Approval pending"), `/account-suspended`
+  ("Account suspended"). Suspended is checked first, since an account can be
+  both and the suspension decides where they land. The label names the real
+  destination -- a button reading "Go to Dashboard" that opens a waiting
+  screen is the "never tell someone they did something they did not do" rule
+  in its navigational form. It starts **null** so a slow lookup offers
+  nothing rather than briefly offering the wrong thing -- but a lookup that
+  *finishes* badly, a read error or a row that is not there, falls back to
+  `/dashboard` rather than staying null. Null forever is the original bug in
+  its failure case: the navbar hides Sign In the moment somebody is signed
+  in, so a dead profile read left them with no Sign In **and** no
+  destination, stranded on the marketing site. `/dashboard` resolves the role
+  server-side and the proxy carries an unapproved or suspended account onward
+  from there, so the fallback is always correct and only ever one hop longer.
+  `/pending-approval` and `/account-suspended` are in
+  `AUTH_CTA_HIDDEN_ROUTES` so the button never points at the page it is on.
 - **Every dashboard needs a way back to the public site.** All four are in
   `NAV_HIDDEN_ROUTES`, so the public `Navbar` never renders there; without an
   explicit link the only exit is Log Out, which also ends the session. Both
@@ -2311,6 +2941,75 @@ client is the only writer and the log is append-only from any session.
   with nothing to sign, and a bucket would mean an upload pipeline to
   maintain. Rendered through a plain `<img>`, since optimising it would need a
   `remotePatterns` allowlist for every host an admin might paste from.
+- **A catalog cover is uploaded, and positioned rather than cropped.** The
+  three catalog tables carried `image_url` as a text box an admin pasted a
+  link into, and that cost twice: in practice nobody pastes links, so the live
+  site shipped with no photographs and the cards read as unfinished -- and
+  every cover that did exist depended on a host this clinic does not control,
+  on pages selling medical care. Uploads land in the clinic's own public
+  `catalog-images` bucket through `/api/admin/upload-catalog-image`.
+  Four things are load-bearing:
+  1. **It is a route, not a browser-side upload.** `avatars` is written from
+     the owner's browser because the owner is the only person allowed to write
+     there and a storage policy can say exactly that. A catalog cover has no
+     such owner -- the rule is "an admin who can manage the catalogue", a
+     scope this app enforces in routes and not in RLS. The route is what makes
+     the upload scope-guarded, size- and type-checked against one shared
+     definition (`src/lib/catalogImage.ts`), and audited. The bucket
+     accordingly carries **no insert policy at all**, only a public select.
+  2. **A focal point, never a crop.** `image_focal_x` / `image_focal_y` (0-100,
+     default 50) render as `object-position`. A cover is drawn with
+     `object-fit: cover`, and the card is 4:3 where the detail dialog is 16:9
+     -- so a photograph whose subject was not dead centre lost a head to one
+     of them, which is what "the images look badly aligned" was. Cropping
+     would bake one ratio into the file and make the other wrong, and changing
+     either shape later would mean re-uploading the whole catalogue; two
+     percentages are correct at every ratio, including ratios added after the
+     upload. Default 50/50 is exactly what `object-fit` already does, so the
+     migration moves no existing pixel.
+  3. **`clampFocal` checks null and `""` before `Number()`.** Both become `0`
+     rather than `NaN`, so without that an unset column would not centre a
+     picture -- it would pin it to the top-left corner. That is the precise
+     failure the function exists to prevent, arriving through its commonest
+     input, and its own test is what caught it.
+  4. **The upload clears all three extensions before writing.** Upsert alone
+     overwrites a JPG with a JPG and leaves a stale PNG beside it, and then
+     one row owns two covers with nothing ever removing the loser. There is no
+     sweeper in this deployment to tidy that up later.
+  The focal columns are written through `writeCatalogFocal`'s own isolated
+  call and read in their own queries, **split from `image_url` rather than
+  sharing one**: they are newer, so a single query would lose the photographs
+  as well as their positions on a database mid-migration.
+- **One card for everything the clinic sells, and one dialog header.**
+  `CatalogCard` renders the programme cards on `/` and `/conditions`, the
+  home-visit cards on `/home-visit`, and the patient dashboard's booking
+  screen -- which was a text-only list before, so a patient who had already
+  signed up met a plainer catalogue than a stranger did. The cover is an inset
+  4:3 rather than a 104px full-bleed strip (a strip that shallow cannot hold a
+  photograph of a person, which is why covers looked mis-cropped however they
+  were shot); the meta chips are a **promotion, not an addition**, since
+  duration, visit count, travel and therapist lock already existed on the row
+  and were readable only by opening the dialog; the price sits on `mt-auto` so
+  cards in a row align however long their titles run; and the two actions
+  differ by weight rather than being two similar links. A field a row does not
+  have simply does not render, which is what lets one component serve a
+  treatment category, a multi-visit home package and a dashboard tile with no
+  variants. It links with **`ProgressLink`, not `next/link`** -- the booking
+  hub used it, and a Link click never touches `useRouter`, so plain `next/link`
+  would have left the hub tapping through to the wizard with no teal bar.
+  `CatalogDialogHeader` is the other half and fixes a real gap: the programme
+  dialog never read `image_url` **at all** -- it drew a teal panel and a vector
+  illustration -- so the moment admins could upload photographs, a card would
+  show one and its own dialog a cartoon, one tap apart. The home-visit dialog
+  did show the picture but laid its heading over it, which costs a scrim dark
+  enough for any image and a heading sized to fight it. Now the photograph
+  gets the full 16:9 with **nothing on top** and the heading sits on its own
+  band below, so a bright cover and a dark one are equally safe and an admin
+  can upload whatever they have. The badge moves into that band: it gains
+  contrast and loses a little prominence, which is what the clean picture
+  costs. `e2e/catalog-cover-image.spec.ts` asserts the heading sits below the
+  image **geometrically** rather than by class name, so a restyle that puts
+  text back over the photograph fails even if the markup changes shape.
 - **Ordering a list is one save of the whole list, never a pairwise swap.**
   The Conditions screen moved a category by swapping two rows'
   `display_order` values. Two rows holding the *same* order swapped to the
@@ -2334,6 +3033,53 @@ client is the only writer and the log is append-only from any session.
   it appends instead of landing on top of everything at the same number.
   Build a future reorder control the same way rather than reintroducing a
   swap.
+- **A delete that removed nothing is not a success.** `supabase-js` reports
+  no error when a DELETE matches zero rows, so
+  `/api/admin/delete-treatment-category` answered `{ success: true }` for a
+  refusal, for a row somebody else had already deleted, and for a real
+  deletion alike -- and the screen, told it had worked, refreshed and painted
+  the condition still sitting there. "Delete does nothing and nothing says
+  why" is the least actionable failure a screen can produce. Three rules,
+  and they apply to any delete of a row other rows point at:
+  1. **Count the blockers first, and name them.** The foreign keys here
+     (`appointments`, `patient_package_purchases`, `home_visit_packages`,
+     `appointment_reassignment_log`) carry no ON DELETE behaviour, so
+     Postgres refuses outright. `describeCategoryBlockers()` in
+     `src/lib/categoryDeletion.ts` turns the counts into the sentence, with
+     the alternative (turn it off) named -- "it has bookings" sends an admin
+     to delete sessions and be refused a second time by a home-visit package
+     they were never told about.
+  2. **Ask for the row back** (`.delete().eq(...).select("id")`), so
+     "removed nothing" is distinguishable from "removed it". Nothing removed
+     and nothing blocking is a 500 saying so, never a success: at that point
+     the app does not know what happened and must not claim it worked.
+  3. **A refusal that is a paragraph belongs in a dialog.** This one was an
+     11px line clipped to 160px beside the button, which is how a refusal
+     that did fire gets reported as a delete that did nothing. The `fetch`
+     is wrapped too -- a request dying on a bad connection threw inside the
+     transition and put nothing on screen at all.
+
+- **`/team` is a public page too, and three more routes change it.** The
+  rule below was applied to catalog and content edits and missed the one
+  table whose *account* state decides what the public sees:
+  `public_therapist_profiles` requires `approved and active and
+  visible_on_team`, so suspending a therapist takes them off `/team` -- but
+  `set-therapist-active` never invalidated it, and the page went on serving
+  a suspended clinician until the ISR window happened to lapse. `approve-
+  account` and `create-account` have the same reach in the other direction,
+  since `visible_on_team` defaults to true and a therapist created or
+  approved belongs there at once. All three call `revalidatePath("/team")`
+  now, the two shared routes only when the row is a therapist -- a patient
+  would throw away a cached page for nothing. `decline-account` deliberately
+  does not: a declined account is still unapproved, so it was never on that
+  page to remove.
+  **A control that cannot change what anyone sees says so.** The same three
+  columns mean the "Hide from /team page" button is only the deciding one
+  while the other two hold. It is disabled for a suspended or unapproved
+  therapist and names which of the two is the reason, rather than offering
+  an action that would change nothing. The stored setting is left untouched,
+  so restoring the account brings the therapist back to whatever the admin
+  had chosen rather than to a default.
 - **An admin write that a public page renders must invalidate that page.**
   `/`, `/conditions`, `/book`, `/faq`, `/mission` and `/team` are ISR-cached
   (`export const revalidate = 300`), so a catalog or content edit was
@@ -2551,6 +3297,55 @@ change that genuinely needs no doc update can ignore it.
   committed file — `ALLOW_DEBUG_DATA_RESET` belongs in a server environment,
   set deliberately, against a project whose data is throwaway. Check the
   hosting dashboard's own env vars too, since a file cannot clear those.
+- **The page behind an intercepted overlay has to look like the app.** The
+  admin's patient, therapist and condition details are normally an overlay --
+  the dashboard intercepts the route (`@modal/(.)patients/[id]`) and draws
+  the detail over the screen you were on. Interception applies to
+  **client-side navigation only**, so a reload, a shared link, a new tab and
+  the `router.refresh()` an action inside the overlay fires all land on the
+  real page underneath. That page was a bare `<section>` with a small
+  "← Back to Dashboard" link and no chrome at all, so pressing Mark Done on a
+  patient's profile appeared to throw the admin out of the back office onto a
+  different, plainer site.
+  `AdminDetailFrame` is what those three wear now: the same dark rail, the
+  same section list, the same header shape. It reads `ADMIN_SECTIONS` and the
+  scope grid exactly as the shell's sidebar does, so the two cannot list
+  different sections or offer one this admin cannot open, and every entry is
+  built with `adminScreenHref` rather than a hardcoded `?section=`. It is
+  **deliberately reduced** -- no collapse, no badges, no global search, no tab
+  state -- because this is a leaf page and all of those belong to the screen
+  you return to; reproducing them would be a second shell to drift from the
+  first. A route that gets this frame also needs its `loading.tsx` to pass
+  `withSidebar`, or the chrome blanks while the page resolves.
+- **A full-screen overlay opened from inside another one must be portalled.**
+  `position: fixed` is relative to the viewport *until* an ancestor carries
+  `transform`, `filter`, `backdrop-filter`, `perspective`, `contain` or
+  `will-change` -- that ancestor then becomes the containing block, and the
+  overlay is measured against its box instead. Every modal in this app sets
+  `backdrop-blur-sm`, which is a `backdrop-filter`, so **any modal is one of
+  those ancestors**. Mark Done on a patient's profile was the case that
+  showed it: the confirmation renders inside `DetailOverlayModal`, so its
+  dark sheet covered only that modal's scrolling panel, the prompt sat at
+  the top of the scrolled content rather than in front of the reader, and it
+  slid away as they scrolled. Nothing was wrong with the dialog.
+  `OverlayPortal` (`src/components/system/OverlayPortal.tsx`) renders into
+  `document.body`, which has no such ancestor, so `fixed` means the viewport
+  again. Two rules:
+  1. **Portal the ones that can be nested**, which is every dialog opened by
+     a tap -- `ConfirmDialog`, `admin/Modal`, `SessionDetailDrawer`,
+     `PainExamDialog`, `ConditionTriageDialog`. React portals bubble along
+     the **React** tree rather than the DOM one, so a dialog inside a panel
+     that stops propagation behaves exactly as it did: this moves pixels,
+     not clicks.
+  2. **Never portal a server-rendered overlay.** The admin's `@modal` detail
+     routes (`DetailOverlayModal`) are in the initial HTML; portalling them
+     renders nothing on the server and pops the modal in after hydration.
+     They are also always outermost, so they have nothing to escape.
+  The five `motion.div` overlays inside an `AnimatePresence` are left alone
+  deliberately -- a portal between the two stops `AnimatePresence` seeing its
+  child and kills the exit animation, and all five are outermost, with every
+  dialog that can open inside them portalled from the child side, which is
+  the side that matters.
 - **Every route tree has an error boundary, and a thrown message never
   reaches the screen.** `RouteError` / `RouteLoading`
   (`src/components/system/`) back `error.tsx` and `loading.tsx` in each
@@ -2573,6 +3368,27 @@ change that genuinely needs no doc update can ignore it.
   `assign_session_code` now also loop past a taken code rather than trusting
   the sequence, so a drift from any other cause (a restore, a manual insert)
   cannot break signup again.
+- **A fallback that is silent is half a fix.** `findTab` landing somewhere
+  valid is correct -- a stale bookmark must not produce a blank page -- but
+  on its own the tap just goes somewhere else and looks like it worked.
+  `AdminShell` now compares the screen the URL *asked for* against the one it
+  resolved, and when an admin's scope is why they differ it says so in one
+  amber line with a Dismiss. It names only a tab that exists in the nav: an
+  unknown key is a stale link, and telling somebody they lack access to a
+  screen that was never there is worse than the silence it replaces. The case
+  that produced it: Finance following **Book for a patient** from `/book`
+  reads Sessions and cannot change one, so New Booking is not theirs and they
+  arrived at the Schedule calendar with nothing saying why.
+  Two related bugs came out of the same path and are worth not
+  reintroducing. `WrongAccountForBooking` linked to `?section=sessions` with
+  **no tab**, so every admin scope -- Master Admin included -- landed on the
+  month grid from the one button in the product named "Book for a patient";
+  a `?section=` with no `?tab=` is a link to a section's first screen, not to
+  the screen you meant. And `AdminShell`'s own popstate handler called
+  `findTab` **without `limitedScope`**, so a limited desk deep-linking to
+  Today -> Activity, or pressing Back to it, resolved the URL differently
+  from the server that had just rendered it. Both arguments are easy to omit
+  and neither failure announces itself.
 - **A hardcoded `?section=&tab=` link is a dead link waiting to happen.**
   `findTab` falls back to a section's first screen when the tab key is
   unknown, so a stale link looks like it works — it just quietly lands

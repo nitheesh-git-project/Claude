@@ -5,7 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import AdminGlobalSearch, { type SearchEntity } from "@/components/admin/AdminGlobalSearch";
-import { ADMIN_SECTIONS, findTab, type AdminSectionKey } from "@/lib/adminNav";
+import RefreshButton from "@/components/dashboard/RefreshButton";
+import { useLeavingPage } from "@/lib/useLeavingPage";
+import { ADMIN_SECTIONS, findTab, visibleTabs, type AdminSectionKey } from "@/lib/adminNav";
 
 // Every base table this page's Promise.all queries (src/app/admin/dashboard/
 // page.tsx) -- so any change, whether from another admin screen, a therapist/
@@ -61,7 +63,6 @@ const ADMIN_REALTIME_TABLES = [
   "home_visit_package_purchases",
   "home_visit_waitlist",
   "patient_addresses",
-  "admin_activity_log",
   "hospital_admin_notes",
   "risk_signals",
   // A therapist writing a recommendation is operational traffic: the
@@ -94,6 +95,14 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   "risk_reviews",
   "communication_flags",
   "contact_reveal_log",
+  // The audit log, for the same reason and more sharply. **Every** mutating
+  // admin route writes a row here, so on the operational channel each of
+  // them rebuilt this whole page a second time -- once for the row the
+  // action changed, once for the log entry describing it -- and the admin
+  // who performed it had already refreshed deliberately. It is an
+  // append-only record nobody watches live; 30s is instant enough for the
+  // Logs screen and stops every tap in the back office costing two rebuilds.
+  "admin_activity_log",
   // Campaigns are admin-edited catalog data like the rest of this list, and
   // the editor already sees their own change -- so the long cooldown is
   // right and the operational one would be wasted rebuilds.
@@ -120,6 +129,26 @@ const ADMIN_CATALOG_REALTIME_COOLDOWN_MS = 30000;
 // change here.
 export type AdminScreens = Record<string, ReactNode>;
 
+/**
+ * The label of a screen that was asked for and not rendered, or null.
+ *
+ * Only names a tab that exists in the nav at all: an unknown key is a stale
+ * or hand-typed link rather than an access refusal, and telling somebody
+ * they lack access to a screen that does not exist is worse than the silent
+ * fallback it replaces.
+ */
+function unreachableTabLabel(
+  requestedSection: string | null,
+  requestedTab: string | null,
+  resolved: { section: string; tab: string }
+): string | null {
+  if (!requestedTab) return null;
+  if (requestedSection === resolved.section && requestedTab === resolved.tab) return null;
+  const section = ADMIN_SECTIONS.find((s) => s.key === (requestedSection ?? resolved.section));
+  const tab = section?.tabs.find((t) => t.key === requestedTab);
+  return tab ? tab.label : null;
+}
+
 export default function AdminShell({
   screens,
   badges,
@@ -130,6 +159,7 @@ export default function AdminShell({
   scopeLabel,
   allowedSections,
   manageSections,
+  limitedScope,
   offsetTop,
   initialSection,
   initialTab,
@@ -160,6 +190,10 @@ export default function AdminShell({
   // and loses the ones that are nothing but actions -- hiding every control
   // on those would leave an empty page with a heading.
   manageSections: AdminSectionKey[];
+  /** True for Operations, Finance and Clinical -- the three desks that
+   *  cannot open Settings, and so get their own Activity screen under Today
+   *  (see `limitedScopesOnly` in adminNav.ts). */
+  limitedScope: boolean;
   // Whether the dev-only DebugNav bar is showing above everything on this
   // page (same flag the root layout threads into Navbar as its own
   // `offsetTop` prop) -- this page hides the public Navbar entirely, so its
@@ -172,18 +206,42 @@ export default function AdminShell({
   initialSection?: string | null;
   initialTab?: string | null;
 }) {
-  const sections = ADMIN_SECTIONS.filter((s) => allowedSections.includes(s.key)).map((s) =>
-    manageSections.includes(s.key)
-      ? s
-      : { ...s, tabs: s.tabs.filter((t) => !t.requiresManage) }
-  );
+  const sections = ADMIN_SECTIONS.filter((s) => allowedSections.includes(s.key)).map((s) => ({
+    ...s,
+    tabs: visibleTabs(s, manageSections.includes(s.key), limitedScope),
+  }));
   const firstSection = sections[0] ?? ADMIN_SECTIONS[0];
 
-  const initial = findTab(initialSection ?? null, initialTab ?? null, allowedSections, manageSections);
+  const initial = findTab(
+    initialSection ?? null,
+    initialTab ?? null,
+    allowedSections,
+    manageSections,
+    limitedScope
+  );
   const [sectionKey, setSectionKey] = useState<string>(initial.section);
   const [tabKey, setTabKey] = useState<string>(initial.tab);
+  // A link that asked for a screen this scope cannot open, said out loud.
+  //
+  // `findTab` falls back to the first screen a scope *can* reach, which is
+  // the right behaviour -- a stale bookmark must land somewhere valid -- but
+  // on its own it is silent, and a tap that quietly goes somewhere else is
+  // the failure mode this codebase already names as a bug class. The
+  // clearest case is Finance following "Book for a patient" from the booking
+  // page: they read Sessions and cannot change one, so New Booking is not
+  // theirs, and without this they arrive at the Schedule calendar with
+  // nothing saying why.
+  //
+  // Computed once from the URL this render was given, held in state so it
+  // clears the moment they navigate. Only an *explicitly asked for* screen
+  // counts -- landing on a section's default because no tab was named is not
+  // a refusal.
+  const [missedTab, setMissedTab] = useState<string | null>(() =>
+    unreachableTabLabel(initialSection ?? null, initialTab ?? null, initial)
+  );
   // Desktop full <-> mini collapse. Independent of the mobile drawer below --
   // a phone gets an off-canvas drawer instead, never the mini/icon-only rail.
+  const markLeaving = useLeavingPage();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -197,18 +255,32 @@ export default function AdminShell({
   useEffect(() => {
     function applyFromLocation() {
       const params = new URLSearchParams(window.location.search);
-      const found = findTab(params.get("section"), params.get("tab"), allowedSections, manageSections);
+      // `limitedScope` passed here too. Without it this defaulted to false
+      // and dropped every `limitedScopesOnly` screen on mount and on Back --
+      // so a limited desk deep-linking to Today -> Activity, or walking back
+      // to it, landed on Today's overview instead, having resolved the URL
+      // differently from the server that had just rendered it.
+      const found = findTab(
+        params.get("section"),
+        params.get("tab"),
+        allowedSections,
+        manageSections,
+        limitedScope
+      );
       setSectionKey(found.section);
       setTabKey(found.tab);
     }
     applyFromLocation();
     window.addEventListener("popstate", applyFromLocation);
     return () => window.removeEventListener("popstate", applyFromLocation);
-  }, [allowedSections, manageSections]);
+  }, [allowedSections, manageSections, limitedScope]);
 
   function navigate(nextSection: string, nextTab: string) {
     setSectionKey(nextSection);
     setTabKey(nextTab);
+    // The notice describes the link they arrived on, not the screen they
+    // chose next.
+    setMissedTab(null);
     const params = new URLSearchParams(window.location.search);
     params.set("section", nextSection);
     params.set("tab", nextTab);
@@ -359,7 +431,12 @@ export default function AdminShell({
       // eslint-disable-next-line @next/next/no-html-link-for-pages
       <a
         href="/"
-        onClick={onNavigate}
+        onClick={() => {
+          // The one hard navigation out of this shell, so the one place the
+          // admin dashboard needs the same treatment the other three do.
+          markLeaving();
+          onNavigate?.();
+        }}
         title={mini ? "Back to Home" : undefined}
         className={`mt-2 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
           mini ? "justify-center px-0" : ""
@@ -550,8 +627,32 @@ export default function AdminShell({
                 );
               })()}
             </div>
-            <AdminGlobalSearch entities={searchEntities} />
+            <div className="flex flex-wrap items-center gap-3">
+              <AdminGlobalSearch entities={searchEntities} />
+              {/* Beside the search rather than in the sidebar: it acts on the
+                  screen in front of you, and the sidebar is a closed drawer
+                  on a phone. */}
+              <RefreshButton />
+            </div>
           </div>
+
+          {missedTab && (
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+              <i aria-hidden className="fa-solid fa-circle-info text-[11px]" />
+              <span>
+                <strong className="font-semibold">{missedTab}</strong> is not part of your
+                access, so this is the nearest screen you can open. Ask a Master Admin if
+                you need it.
+              </span>
+              <button
+                type="button"
+                onClick={() => setMissedTab(null)}
+                className="ml-auto rounded-lg border border-amber-300 bg-white px-2 py-1 font-semibold text-amber-800 transition hover:bg-amber-100"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
 
           {/* Every screen stays mounted and is hidden with CSS rather than
               unmounted -- the same trade the old tab shell made. It keeps a

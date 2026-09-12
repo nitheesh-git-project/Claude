@@ -2,13 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { motion } from "motion/react";
 import { Stagger, StaggerItem } from "@/components/motion/primitives";
 import Modal, { useLastNonNull } from "@/components/Modal";
-import CareIllustration, {
-  type CareIllustrationId,
-} from "@/components/visuals/CareIllustration";
-import CatalogImage from "@/components/catalog/CatalogImage";
+import type { CareIllustrationId } from "@/components/visuals/CareIllustration";
+import CatalogCard from "@/components/catalog/CatalogCard";
+import CatalogDialogHeader from "@/components/catalog/CatalogDialogHeader";
 import {
   CheckList,
   ProseSection,
@@ -36,6 +34,11 @@ export type PublicProgram = {
    * a programme whose photo simply has not been chosen.
    */
   image_url?: string | null;
+  /** Where the subject of the cover sits. Migration-dependent, so
+   *  optional: a caller reading a database without the columns hands
+   *  through undefined and the picture centres, as it always did. */
+  image_focal_x?: number | null;
+  image_focal_y?: number | null;
 };
 
 // Rotates through the illustration set so a grid of programmes does not
@@ -87,83 +90,25 @@ export default function ProgramCards({
             program.description || points[0] || "Learn more about this programme.";
           return (
             <StaggerItem key={program.id} className="h-full">
-              <motion.div
-                whileHover={{ y: -6 }}
-                transition={{ type: "spring", stiffness: 300, damping: 24 }}
-                className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:border-teal-300 hover:shadow-xl hover:shadow-slate-900/5"
-              >
-                <button
-                  type="button"
-                  onClick={() => setSelected({ program, index: i })}
-                  aria-haspopup="dialog"
-                  className="flex flex-1 cursor-pointer flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500"
-                >
-                  {/* Same slot, same height as the package cards one band
-                      away, so the two grids read as one catalog. */}
-                  <CatalogImage
-                    src={program.image_url}
-                    art={PROGRAM_ART[i % PROGRAM_ART.length]}
-                    className="h-40 rounded-t-2xl"
-                  />
-
-                  <div className="flex flex-1 flex-col p-6 sm:p-7">
-                    <div className="min-w-0">
-                      <h3 className="font-display text-lg font-bold text-slate-900">
-                        {program.title}
-                      </h3>
-                      <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{summary}</p>
-                    </div>
-
-                    {points.length > 0 && (
-                      <ul className="mt-5 grid gap-2 border-t border-slate-100 pt-5 sm:grid-cols-2">
-                        {points.slice(0, 4).map((pt) => (
-                          <li
-                            key={pt}
-                            className="flex items-start gap-2 text-xs leading-snug text-slate-700"
-                          >
-                            <i
-                              aria-hidden="true"
-                              className="fa-solid fa-circle-check mt-0.5 shrink-0 text-teal-600"
-                            />
-                            {pt}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    <div className="mt-auto flex items-baseline gap-2 pt-6">
-                      <span className="font-display text-lg font-bold text-slate-900">
-                        {rupees(program.price_paise)}
-                      </span>
-                      <span className="text-xs font-normal text-slate-500">
-                        / {program.duration_minutes ?? 60} min session
-                      </span>
-                    </div>
-                  </div>
-                </button>
-
-                <div className="flex flex-col gap-2 px-6 pb-6 sm:px-7">
-                  <Link
-                    href={`/book?category=${program.id}`}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-                  >
-                    <i aria-hidden="true" className="fa-solid fa-calendar-check" />
-                    {program.cta_label?.trim() || "Book this programme"}
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setSelected({ program, index: i })}
-                    aria-haspopup="dialog"
-                    className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-5 py-2 text-xs font-semibold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                  >
-                    View full details
-                    <i
-                      aria-hidden="true"
-                      className="fa-solid fa-arrow-right text-[10px] transition-transform group-hover:translate-x-1"
-                    />
-                  </button>
-                </div>
-              </motion.div>
+              <CatalogCard
+                data={{
+                  id: program.id,
+                  title: program.title,
+                  summary,
+                  imageUrl: program.image_url ?? null,
+                  focalX: program.image_focal_x,
+                  focalY: program.image_focal_y,
+                  // Facts that were only readable by opening the dialog.
+                  meta: [`${program.duration_minutes ?? 60} min`, "Video session", "1-on-1"],
+                  points,
+                  pricePaise: program.price_paise,
+                  priceUnit: `/ ${program.duration_minutes ?? 60} min session`,
+                  bookHref: `/book?category=${program.id}`,
+                  bookLabel: program.cta_label?.trim() || "Book this session",
+                  art: PROGRAM_ART[i % PROGRAM_ART.length],
+                }}
+                onOpenDetails={() => setSelected({ program, index: i })}
+              />
             </StaggerItem>
           );
         })}
@@ -212,31 +157,29 @@ function ProgramDetail({
     >
       {program && (
         <>
-          <div className="relative overflow-hidden bg-gradient-to-br from-teal-800 to-emerald-700 px-6 pb-7 pt-8 sm:px-8">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute -right-14 -top-14 h-52 w-52 rounded-full bg-white/10 blur-2xl"
-            />
-            <div className="relative flex items-center gap-5">
-              <div className="h-20 w-24 shrink-0 rounded-xl bg-white/15 p-2 ring-1 ring-white/25">
-                <CareIllustration
-                  id={PROGRAM_ART[artIndex % PROGRAM_ART.length]}
-                  className="h-full w-full text-white"
-                />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-teal-200">
-                  Structured programme
-                </span>
-                <h3
-                  id="program-modal-title"
-                  className="font-display mt-1 text-2xl font-extrabold text-white sm:text-3xl"
-                >
-                  {program.title}
-                </h3>
-              </div>
-            </div>
-          </div>
+          {/* The cover, uncovered.
+              Two things were wrong here. This dialog never read `image_url`
+              at all -- it drew a teal panel and a vector illustration -- so
+              once admins could upload real photographs a card would show one
+              and its own dialog a cartoon, one tap apart. And the home-visit
+              dialog beside it laid its heading over the picture, which means
+              a scrim dark enough to survive any photograph and a heading
+              sized to fight it.
+              Neither now: the photograph gets the full 16:9 with nothing on
+              top, and the heading sits on its own band below, where it can be
+              ordinary dark-on-white type. The frame keeps its shape when
+              there is no picture, so the dialog never changes height
+              depending on whether the catalogue has been filled in yet. */}
+          <CatalogDialogHeader
+            titleId="program-modal-title"
+            title={program.title}
+            eyebrow="Structured programme"
+            subtitle={program.description}
+            imageUrl={program.image_url}
+            focalX={program.image_focal_x}
+            focalY={program.image_focal_y}
+            art={PROGRAM_ART[artIndex % PROGRAM_ART.length]}
+          />
 
           <div className="px-6 py-6 sm:px-8">
             <StatTiles items={stats} />
