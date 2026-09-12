@@ -97,3 +97,44 @@ export async function profileIdFor(admin: SupabaseClient, email: string): Promis
   if (error || !data) throw new Error(`no seeded profile for ${email} -- run the e2e global setup first`);
   return data.id;
 }
+
+/**
+ * Waits until React has hydrated the page, rather than until something is
+ * merely visible.
+ *
+ * Every browser spec used to open a dashboard and assert a heading was
+ * visible before driving a control. That heading is server-rendered markup,
+ * so it is on screen well before React attaches -- and a click that lands in
+ * between does nothing at all, silently. It is not a hang and not an error:
+ * the button simply never hears about it.
+ *
+ * The admin dashboard is where this bites, because it is one Server
+ * Component making roughly forty queries with every screen rendered at once,
+ * so the gap between "painted" and "interactive" is at its widest exactly
+ * where the specs are most demanding. Eighteen cases across admin-network,
+ * admin-dashboard-ui, admin-scoped-dashboard, admin-care-plans, journey-pace
+ * and session-completed-cutoff failed this way on a loaded machine while
+ * describing a working product -- the giveaway being a Save button asserted
+ * `disabled` that stayed `enabled` for the full timeout, which is what a
+ * handler that was never invoked looks like.
+ *
+ * Hydration is detected by asking the DOM node itself: React attaches its
+ * fiber and props under `__react*` keys when it takes ownership of an
+ * element. That is a real signal of attachment rather than a timer, which is
+ * what makes this a fix instead of a longer sleep.
+ */
+export async function waitForHydration(
+  page: import("@playwright/test").Page,
+  selector = "button"
+): Promise<void> {
+  await page.waitForFunction(
+    (sel) => {
+      const nodes = Array.from(document.querySelectorAll(sel));
+      return nodes.some((el) =>
+        Object.keys(el).some((k) => k.startsWith("__react"))
+      );
+    },
+    selector,
+    { timeout: 60_000 }
+  );
+}
