@@ -5,7 +5,7 @@ import {
   leadTimeMsFromHours,
   BOOKING_LEAD_TIME_MS,
 } from "../src/lib/bookingSlots";
-import { adminClient, cookieHeaderFor, profileIdFor, QA_EMAILS, BASE } from "./helpers";
+import { adminClient, cookieHeaderFor, profileIdFor, QA_EMAILS, BASE, wholeHourFromNow } from "./helpers";
 
 test.describe("home-visit lead time (regression for the bulk scheduler bug)", () => {
   // HomeVisitBulkScheduler.tsx used to call these helpers with no
@@ -138,7 +138,7 @@ test.describe("home-visit bulk scheduling limits", () => {
     // package's own min-gap/max-per-week rules (if configured) can't be
     // the thing rejecting it; this test is purely about the bulk-count cap.
     const slots = Array.from({ length: bulkMax + 1 }, (_, i) => ({
-      slotDateTime: new Date(Date.now() + (2000 + i * 200) * 3_600_000).toISOString(),
+      slotDateTime: wholeHourFromNow(2000 + i * 200),
     }));
 
     const res = await fetch(`${BASE}/api/home-visit/book-visits`, {
@@ -191,7 +191,7 @@ test.describe("online single-session booking (/api/appointments/create)", () => 
     try {
       const res = await bookOnline(cookie, {
         categoryId: category!.id,
-        slotTime: new Date(Date.now() + 72 * 3_600_000).toISOString(),
+        slotTime: wholeHourFromNow(72),
         timezone: "Asia/Kolkata",
         notes: "e2e unapproved booking",
       });
@@ -240,7 +240,7 @@ test.describe("online single-session booking (/api/appointments/create)", () => 
 
     const res = await bookOnline(cookie, {
       categoryId: category!.id,
-      slotTime: new Date(Date.now() + 3_600_000).toISOString(),
+      slotTime: wholeHourFromNow(1),
       timezone: "Asia/Kolkata",
     });
     expect(res.status).toBe(409);
@@ -269,7 +269,7 @@ test.describe("online single-session booking (/api/appointments/create)", () => 
     try {
       const res = await bookOnline(cookie, {
         categoryId: category!.id,
-        slotTime: new Date(Date.now() + 96 * 3_600_000).toISOString(),
+        slotTime: wholeHourFromNow(96),
         timezone: "Asia/Kolkata",
         // None of these are fields the route reads -- an insert built from
         // the body would happily have taken them.

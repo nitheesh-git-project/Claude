@@ -138,3 +138,25 @@ export async function waitForHydration(
     { timeout: 60_000 }
   );
 }
+
+/**
+ * An ISO instant `hoursAhead` from now, landing exactly on the hour.
+ *
+ * `new Date(Date.now() + n * 3_600_000)` carries whatever minutes the clock
+ * happened to hold, so a slot built that way is only ever bookable when the
+ * suite is run exactly on the hour. Every door that writes a slot time
+ * refuses the rest with `NOT_WHOLE_HOUR_ERROR` -- "Sessions start on the
+ * hour" -- which surfaces as a 400 where the spec expected its own rule to
+ * be the thing under test, so a bulk-limit test reported the limit was not
+ * enforced and a concurrency test saw both racers lose.
+ *
+ * The minutes are zeroed in local time, and `playwright.config.ts` pins that
+ * to the clinic's zone -- which is the zone the routes judge against, since
+ * the rule is checked in the booking's own timezone rather than the
+ * server's.
+ */
+export function wholeHourFromNow(hoursAhead: number): string {
+  const d = new Date(Date.now() + hoursAhead * 3_600_000);
+  d.setMinutes(0, 0, 0);
+  return d.toISOString();
+}
