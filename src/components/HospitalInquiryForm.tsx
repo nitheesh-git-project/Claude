@@ -67,8 +67,8 @@ export default function HospitalInquiryForm() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-3 text-xs">
-        <div>
-          <label className="block font-semibold mb-1">Your Name</label>
+        <label className="block">
+          <span className="block font-semibold mb-1">Your Name</span>
           <input
             type="text"
             name="name"
@@ -76,10 +76,10 @@ export default function HospitalInquiryForm() {
             required
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
-        </div>
+        </label>
         <PhoneNumberField value={phone} onChange={setPhone} required />
-        <div>
-          <label className="block font-semibold mb-1">Email Address</label>
+        <label className="block">
+          <span className="block font-semibold mb-1">Email Address</span>
           <input
             type="email"
             name="email"
@@ -87,11 +87,11 @@ export default function HospitalInquiryForm() {
             required
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
-        </div>
-        <div>
-          <label className="block font-semibold mb-1">
+        </label>
+        <label className="block">
+          <span className="block font-semibold mb-1">
             How did you hear about us?
-          </label>
+          </span>
           <select
             name="source"
             required
@@ -107,19 +107,19 @@ export default function HospitalInquiryForm() {
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="block font-semibold mb-1">
+        </label>
+        <label className="block">
+          <span className="block font-semibold mb-1">
             Official Details{" "}
             <span className="font-normal text-slate-400">(optional)</span>
-          </label>
+          </span>
           <textarea
             name="org_details"
             rows={2}
             placeholder="Hospital/clinic name, role, official email..."
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
-        </div>
+        </label>
         <button
           type="submit"
           disabled={loading}

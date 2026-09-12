@@ -86,22 +86,22 @@ export default function TestimonialForm({
       className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 text-xs"
     >
       {error && <p className="text-red-600">{error}</p>}
-      <div>
-        <label className="block font-semibold mb-1">
+      <label className="block">
+        <span className="block font-semibold mb-1">
           Patient Name{" "}
           <span className="font-normal text-slate-400">
             (e.g. &quot;Priya S.&quot; — consider privacy)
           </span>
-        </label>
+        </span>
         <input
           value={patientName}
           onChange={(e) => setPatientName(e.target.value)}
           required
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-      </div>
-      <div>
-        <label className="block font-semibold mb-1">Quote</label>
+      </label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Quote</span>
         <textarea
           value={quote}
           onChange={(e) => setQuote(e.target.value)}
@@ -109,12 +109,12 @@ export default function TestimonialForm({
           required
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-      </div>
+      </label>
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block font-semibold mb-1">
+        <label className="block">
+          <span className="block font-semibold mb-1">
             Rating <span className="font-normal text-slate-400">(1-5, optional)</span>
-          </label>
+          </span>
           <input
             type="number"
             min={1}
@@ -124,23 +124,23 @@ export default function TestimonialForm({
             onChange={(e) => setRating(e.target.value)}
             className="w-full p-2 rounded-lg border border-slate-300"
           />
-        </div>
-        <div>
-          <label className="block font-semibold mb-1">
+        </label>
+        <label className="block">
+          <span className="block font-semibold mb-1">
             Condition <span className="font-normal text-slate-400">(optional)</span>
-          </label>
+          </span>
           <input
             value={conditionLabel}
             onChange={(e) => setConditionLabel(e.target.value)}
             placeholder="e.g. Spine & Posture Rehabilitation"
             className="w-full p-2 rounded-lg border border-slate-300"
           />
-        </div>
-      </div>
-      <div>
-        <label className="block font-semibold mb-1">
-          Photo URL <span className="font-normal text-slate-400">(optional)</span>
         </label>
+      </div>
+      <label className="block">
+        <span className="block font-semibold mb-1">
+          Photo URL <span className="font-normal text-slate-400">(optional)</span>
+        </span>
         <input
           value={avatarUrl}
           onChange={(e) => setAvatarUrl(e.target.value)}
@@ -152,9 +152,9 @@ export default function TestimonialForm({
           Our Mission. Left blank, it falls back to the patient&apos;s initial.
           Only publish a photo the patient has agreed to.
         </p>
-      </div>
-      <div>
-        <label className="block font-semibold mb-1">Order</label>
+      </label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Order</span>
         <input
           type="number"
           step={1}
@@ -163,7 +163,7 @@ export default function TestimonialForm({
           required
           className="w-24 p-2 rounded-lg border border-slate-300"
         />
-      </div>
+      </label>
       <label className="flex items-center gap-2 font-semibold">
         <input
           type="checkbox"

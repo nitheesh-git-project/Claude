@@ -66,17 +66,17 @@ export default function FaqForm({
       className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 text-xs"
     >
       {error && <p className="text-red-600">{error}</p>}
-      <div>
-        <label className="block font-semibold mb-1">Question</label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Question</span>
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           required
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-      </div>
-      <div>
-        <label className="block font-semibold mb-1">Answer</label>
+      </label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Answer</span>
         <textarea
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
@@ -84,9 +84,9 @@ export default function FaqForm({
           required
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-      </div>
-      <div>
-        <label className="block font-semibold mb-1">Order</label>
+      </label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Order</span>
         <input
           type="number"
           step={1}
@@ -95,7 +95,7 @@ export default function FaqForm({
           required
           className="w-24 p-2 rounded-lg border border-slate-300"
         />
-      </div>
+      </label>
       <label className="flex items-center gap-2 font-semibold">
         <input
           type="checkbox"

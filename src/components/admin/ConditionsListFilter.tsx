@@ -81,6 +81,7 @@ export default function ConditionsListFilter({ rows }: { rows: Row[] }) {
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <input
+          aria-label="Search patients by name or email"
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}

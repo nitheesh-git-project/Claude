@@ -203,6 +203,7 @@ export default function TherapistEarningsTab({
           </h2>
           <div className="flex items-center gap-2 flex-wrap">
             <input
+              aria-label="Filter by session ID"
               type="text"
               value={sessionCodeFilter}
               onChange={(e) => setSessionCodeFilter(e.target.value)}
@@ -210,6 +211,7 @@ export default function TherapistEarningsTab({
               className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-40"
             />
             <select
+              aria-label="Filter by patient"
               value={patientFilter}
               onChange={(e) => setPatientFilter(e.target.value)}
               className="p-2 rounded-lg border border-slate-300 text-xs"
@@ -222,6 +224,7 @@ export default function TherapistEarningsTab({
               ))}
             </select>
             <select
+              aria-label="Filter by treatment category"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="p-2 rounded-lg border border-slate-300 text-xs"
@@ -234,6 +237,7 @@ export default function TherapistEarningsTab({
               ))}
             </select>
             <select
+              aria-label="Filter by session status"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
               className="p-2 rounded-lg border border-slate-300 text-xs"

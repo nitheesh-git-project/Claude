@@ -99,6 +99,7 @@ export default function AssignReferralForm({
     <form onSubmit={handleAssign} className="w-full space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         <select
+          aria-label="Therapist to assign"
           value={therapistId}
           onChange={(e) => setTherapistId(e.target.value)}
           className="text-xs p-2 rounded-lg border border-slate-300"

@@ -376,17 +376,17 @@ export default function PackageBulkScheduler({
                   </div>
                 )}
 
-                <div className="mt-5">
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-900">
+                <label className="mt-5 block">
+                  <span className="mb-1.5 block text-xs font-semibold text-slate-900">
                     Notes for these sessions <span className="font-normal text-slate-500">(optional)</span>
-                  </label>
+                  </span>
                   <textarea
                     rows={2}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 p-3 text-xs"
                   />
-                </div>
+                </label>
 
                 <button
                   onClick={handleSubmit}

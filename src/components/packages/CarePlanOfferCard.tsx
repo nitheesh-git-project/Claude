@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useId, useEffect, useRef, useState, useTransition } from "react";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import { payForCarePlan } from "@/lib/carePlanPayment";
@@ -75,6 +75,7 @@ export default function CarePlanOfferCard({
   const [error, setError] = useState<string | null>(null);
   const [paid, setPaid] = useState<{ purchaseId: string | null } | null>(null);
   const [decliningOpen, setDecliningOpen] = useState(false);
+  const declineReasonId = useId();
   const [declineReason, setDeclineReason] = useState("");
   const [isPending, startTransition] = useTransition();
   const [paying, setPaying] = useState(false);
@@ -433,10 +434,11 @@ export default function CarePlanOfferCard({
 
           {decliningOpen && (
             <div className="rounded-xl border border-slate-200 p-3">
-              <label className="block text-xs font-semibold text-slate-700">
+              <label htmlFor={declineReasonId} className="block text-xs font-semibold text-slate-700">
                 Anything you want your therapist to know? Optional.
               </label>
               <textarea
+                id={declineReasonId}
                 value={declineReason}
                 maxLength={500}
                 rows={2}

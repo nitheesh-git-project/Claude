@@ -1,7 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import OverlayPortal from "@/components/system/OverlayPortal";
+import { useDialogChrome } from "@/lib/useDialogChrome";
 
 export default function Modal({
   title,
@@ -14,6 +15,10 @@ export default function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const titleId = useId();
+  // Escape, the focus trap and the focus restore all come from the one
+  // hook every overlay in the app shares -- see useDialogChrome.
+  const { panelRef, dialogProps } = useDialogChrome({ onClose, labelledBy: titleId });
   return (
     <OverlayPortal>
       <div
@@ -25,15 +30,20 @@ export default function Modal({
         onClick={onClose}
       >
         <div
+          ref={panelRef}
+          {...dialogProps}
           className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[85vh] overflow-y-auto p-6"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-start justify-between mb-4 gap-4">
             <div>
-              <h3 className="font-display font-bold text-lg text-slate-800">{title}</h3>
+              <h3 id={titleId} className="font-display font-bold text-lg text-slate-800">
+                {title}
+              </h3>
               {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
             </div>
             <button
+              type="button"
               onClick={onClose}
               aria-label="Close"
               className="text-slate-400 hover:text-slate-700 text-2xl leading-none shrink-0"

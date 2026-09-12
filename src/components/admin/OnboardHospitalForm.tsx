@@ -103,17 +103,17 @@ export default function OnboardHospitalForm({
       className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-xs"
     >
       {error && <p className="text-red-600">{error}</p>}
-      <div>
-        <label className="block font-semibold mb-1">Contact Full Name</label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Contact Full Name</span>
         <input
           name="fullName"
           defaultValue={lead.name}
           required
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-      </div>
-      <div>
-        <label className="block font-semibold mb-1">Login Email</label>
+      </label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Login Email</span>
         <input
           type="email"
           name="email"
@@ -121,24 +121,24 @@ export default function OnboardHospitalForm({
           required
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-      </div>
-      <div>
-        <label className="block font-semibold mb-1">Organization Name</label>
+      </label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Organization Name</span>
         <input
           name="organizationName"
           defaultValue={lead.org_details ?? ""}
           required
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-      </div>
-      <div>
-        <label className="block font-semibold mb-1">
+      </label>
+      <label className="block">
+        <span className="block font-semibold mb-1">
           Hospital&apos;s Revenue Share (%)
           <span className="font-normal text-slate-400">
             {" "}
             — the rest goes to the company
           </span>
-        </label>
+        </span>
         <input
           type="number"
           name="revenueSharePercent"
@@ -148,7 +148,7 @@ export default function OnboardHospitalForm({
           required
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-      </div>
+      </label>
       <div className="flex gap-2">
         <button
           type="button"

@@ -519,6 +519,7 @@ export default function AdminPaymentHistoryTab({
 
         <div className="flex items-center gap-3 flex-wrap mb-4">
           <select
+            aria-label="Filter by patient or therapist"
             value={receiptPersonFilter}
             onChange={(e) => setReceiptPersonFilter(e.target.value)}
             className="p-2 rounded-lg border border-slate-300 text-xs"
@@ -541,6 +542,7 @@ export default function AdminPaymentHistoryTab({
           </select>
 
           <select
+            aria-label="Filter by receipt type"
             value={receiptTypeFilter}
             onChange={(e) => setReceiptTypeFilter(e.target.value)}
             className="p-2 rounded-lg border border-slate-300 text-xs"
@@ -570,6 +572,7 @@ export default function AdminPaymentHistoryTab({
           />
 
           <input
+            aria-label="Filter by session ID"
             type="text"
             value={receiptSessionCodeFilter}
             onChange={(e) => setReceiptSessionCodeFilter(e.target.value)}

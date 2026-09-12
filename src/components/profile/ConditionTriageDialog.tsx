@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import OverlayPortal from "@/components/system/OverlayPortal";
+import { useDialogChrome } from "@/lib/useDialogChrome";
 import {
   findMissingRequiredKeys,
   parseMultiSelect,
@@ -92,16 +93,25 @@ export default function ConditionTriageDialog({
     onConfirm(effectivePick, triageData);
   }
 
+  const titleId = useId();
+  // Escape, the focus trap and focus restore come from the shared hook
+  // rather than being hand-rolled per dialog -- see useDialogChrome.
+  const { panelRef, dialogProps } = useDialogChrome({ onClose: onCancel, labelledBy: titleId });
+
   return (
     <OverlayPortal>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
-        <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div
+          ref={panelRef}
+          {...dialogProps}
+          className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
+        >
           <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-wide text-teal-700">
                 {currentSpecialty ? "Changing the condition type" : "Patient onboarding"}
               </p>
-              <h2 className="font-display text-lg font-bold text-slate-900">
+              <h2 id={titleId} className="font-display text-lg font-bold text-slate-900">
                 Which condition type is this?
               </h2>
               <p className="mt-1 text-xs text-slate-500">

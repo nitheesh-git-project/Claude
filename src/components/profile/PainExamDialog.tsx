@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useId, useMemo, useState, useTransition } from "react";
 import OverlayPortal from "@/components/system/OverlayPortal";
+import { useDialogChrome } from "@/lib/useDialogChrome";
 import { useRouter } from "@/lib/useRouter";
 import {
   PAIN_MAP_REGIONS,
@@ -121,16 +122,25 @@ export default function PainExamDialog({
   const backRegions = PAIN_MAP_REGIONS.filter((r) => r.view === "back");
   const frontRegions = PAIN_MAP_REGIONS.filter((r) => r.view === "front");
 
+  const titleId = useId();
+  // Escape, the focus trap and focus restore come from the shared hook
+  // rather than being hand-rolled per dialog -- see useDialogChrome.
+  const { panelRef, dialogProps } = useDialogChrome({ onClose: onClose, labelledBy: titleId });
+
   return (
     <OverlayPortal>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
-        <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div
+          ref={panelRef}
+          {...dialogProps}
+          className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
+        >
           <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-wide text-teal-700">
                 Recording an exam
               </p>
-              <h2 className="font-display text-lg font-bold text-slate-900">
+              <h2 id={titleId} className="font-display text-lg font-bold text-slate-900">
                 {regionDef
                   ? `${regionDef.label}${needsSide ? ` — ${side}` : ""}`
                   : "Which area did you examine?"}

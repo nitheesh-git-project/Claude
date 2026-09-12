@@ -682,10 +682,10 @@ export default function BookingWizard({
             </div>
           ) : (
             <>
-              <div>
-                <label className="block font-semibold mb-1.5 text-slate-900">
+              <label className="block">
+                <span className="block font-semibold mb-1.5 text-slate-900">
                   Full Name
-                </label>
+                </span>
                 <input
                   type="text"
                   value={fullName}
@@ -693,12 +693,12 @@ export default function BookingWizard({
                   placeholder="Jane Doe"
                   className="w-full p-3 rounded-xl border border-slate-300"
                 />
-              </div>
+              </label>
               <div className="grid sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1.5 text-slate-900">
+                <label className="block">
+                  <span className="block font-semibold mb-1.5 text-slate-900">
                     Email
-                  </label>
+                  </span>
                   <input
                     type="email"
                     value={email}
@@ -706,14 +706,14 @@ export default function BookingWizard({
                     placeholder="jane@example.com"
                     className="w-full p-3 rounded-xl border border-slate-300"
                   />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1.5 text-slate-900">
+                </label>
+                <label className="block">
+                  <span className="block font-semibold mb-1.5 text-slate-900">
                     Create Password{" "}
                     <span className="font-normal text-slate-500 text-xs">
                       (for portal access)
                     </span>
-                  </label>
+                  </span>
                   <input
                     type="password"
                     value={password}
@@ -721,7 +721,7 @@ export default function BookingWizard({
                     minLength={6}
                     className="w-full p-3 rounded-xl border border-slate-300"
                   />
-                </div>
+                </label>
               </div>
               <PhoneNumberField
                 value={phone}
@@ -735,13 +735,13 @@ export default function BookingWizard({
                 labelClassName="block font-semibold mb-1.5 text-slate-900"
                 errorClassName="text-xs"
               />
-              <div>
-                <label className="block font-semibold mb-1.5 text-slate-900">
+              <label className="block">
+                <span className="block font-semibold mb-1.5 text-slate-900">
                   Referral Code{" "}
                   <span className="font-normal text-slate-500 text-xs">
                     (optional)
                   </span>
-                </label>
+                </span>
                 <input
                   type="text"
                   value={referralCode}
@@ -775,7 +775,7 @@ export default function BookingWizard({
                     Code not recognized — double-check it or leave blank
                   </p>
                 )}
-              </div>
+              </label>
               <p className="text-[11px] text-slate-400">
                 Already have an account?{" "}
                 <Link href="/patient/login" className="text-teal-700 font-semibold">
@@ -854,13 +854,13 @@ export default function BookingWizard({
           )}
 
           {!requestedTherapist && previousTherapists.length > 0 && (
-            <div>
-              <label className="block font-semibold mb-1.5 text-slate-900">
+            <label className="block">
+              <span className="block font-semibold mb-1.5 text-slate-900">
                 Continue with the same therapist?{" "}
                 <span className="font-normal text-slate-500 text-xs">
                   (optional)
                 </span>
-              </label>
+              </span>
               <select
                 value={preferredTherapistId}
                 onChange={(e) => setPreferredTherapistId(e.target.value)}
@@ -877,16 +877,16 @@ export default function BookingWizard({
                 We&apos;ll try to book you with them, subject to availability
                 for your requested time.
               </p>
-            </div>
+            </label>
           )}
 
-          <div>
-            <label className="block font-semibold mb-1.5 text-slate-900">
+          <label className="block">
+            <span className="block font-semibold mb-1.5 text-slate-900">
               Anything else we should know?{" "}
               <span className="font-normal text-slate-500 text-xs">
                 (optional)
               </span>
-            </label>
+            </span>
             <textarea
               rows={3}
               value={notes}
@@ -894,7 +894,7 @@ export default function BookingWizard({
               placeholder="Briefly describe your pain, injury, or goals"
               className="w-full p-3 rounded-xl border border-slate-300"
             />
-          </div>
+          </label>
 
           <div className="flex items-start gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <input

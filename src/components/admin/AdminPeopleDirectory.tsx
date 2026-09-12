@@ -111,6 +111,7 @@ export default function AdminPeopleDirectory({
         <div className="relative flex-1 min-w-[200px] max-w-xs">
           <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
           <input
+            aria-label="Search people by name, email or ID"
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -119,6 +120,7 @@ export default function AdminPeopleDirectory({
           />
         </div>
         <select
+          aria-label="Filter by account status"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
@@ -130,6 +132,7 @@ export default function AdminPeopleDirectory({
         </select>
         {hasCareStatus && (
           <select
+            aria-label="Filter by care status"
             value={careFilter}
             onChange={(e) => setCareFilter(e.target.value)}
             className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"

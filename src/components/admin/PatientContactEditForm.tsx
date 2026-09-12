@@ -78,8 +78,8 @@ export default function PatientContactEditForm({
   return (
     <div className="text-xs space-y-2">
       {error && <p className="text-red-600">{error}</p>}
-      <div>
-        <label className="block font-semibold mb-1">Email</label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Email</span>
         <input
           type="email"
           value={email}
@@ -89,7 +89,7 @@ export default function PatientContactEditForm({
         <p className="text-[10px] text-slate-400 mt-1">
           Changing this also changes their sign-in email.
         </p>
-      </div>
+      </label>
       <PhoneNumberField value={phone} onChange={setPhone} label="Phone" />
       <div className="flex gap-2">
         <button

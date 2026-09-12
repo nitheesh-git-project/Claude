@@ -1,6 +1,8 @@
 "use client";
 
+import { useId } from "react";
 import OverlayPortal from "@/components/system/OverlayPortal";
+import { useDialogChrome } from "@/lib/useDialogChrome";
 // A small in-app Yes/No confirmation, for actions that shouldn't use the
 // browser's own window.confirm() (inconsistent styling, blocks the render
 // thread, can't be restyled/localized). Not the same component as
@@ -21,6 +23,14 @@ export default function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const messageId = useId();
+  // alertdialog, not dialog: this interrupts to ask a question, and the
+  // message is the dialog's name -- there is no heading to point at.
+  const { panelRef, dialogProps } = useDialogChrome({
+    onClose: onCancel,
+    labelledBy: messageId,
+    alert: true,
+  });
   return (
     <OverlayPortal>
       <div
@@ -28,10 +38,14 @@ export default function ConfirmDialog({
         onClick={onCancel}
       >
         <div
+          ref={panelRef}
+          {...dialogProps}
           className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6"
           onClick={(e) => e.stopPropagation()}
         >
-          <p className="text-sm text-slate-700 leading-relaxed">{message}</p>
+          <p id={messageId} className="text-sm text-slate-700 leading-relaxed">
+            {message}
+          </p>
           <div className="flex justify-end gap-2 mt-6">
             <button
               type="button"

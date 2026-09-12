@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
+import OverlayPortal from "@/components/system/OverlayPortal";
+import { useDialogChrome } from "@/lib/useDialogChrome";
 
 // In-app replacement for window.prompt() -- same rationale as
 // ConfirmDialog.tsx (inconsistent native styling, blocks the render thread,
@@ -26,44 +28,56 @@ export default function PromptDialog({
   onCancel: () => void;
 }) {
   const [value, setValue] = useState(defaultValue);
+  const messageId = useId();
+  const { panelRef, dialogProps } = useDialogChrome({
+    onClose: onCancel,
+    labelledBy: messageId,
+    alert: true,
+  });
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
-      onClick={onCancel}
-    >
+    <OverlayPortal>
       <div
-        className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6"
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+        onClick={onCancel}
       >
-        <p className="text-sm text-slate-700 leading-relaxed">{message}</p>
-        <textarea
-          autoFocus
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={placeholder}
-          rows={2}
-          className="w-full mt-3 p-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
-        />
-        <div className="flex justify-end gap-2 mt-4">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={submitting}
-            className="bg-slate-200 hover:bg-slate-300 disabled:opacity-60 text-slate-800 text-sm font-semibold px-4 py-2 rounded-xl transition"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            onClick={() => onSubmit(value)}
-            disabled={submitting}
-            className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-xl transition"
-          >
-            {submitting ? "Saving..." : confirmLabel}
-          </button>
+        <div
+          ref={panelRef}
+          {...dialogProps}
+          className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p id={messageId} className="text-sm text-slate-700 leading-relaxed">
+            {message}
+          </p>
+          <textarea
+            aria-labelledby={messageId}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={placeholder}
+            rows={2}
+            className="w-full mt-3 p-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
+          />
+          <div className="flex justify-end gap-2 mt-4">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={submitting}
+              className="bg-slate-200 hover:bg-slate-300 disabled:opacity-60 text-slate-800 text-sm font-semibold px-4 py-2 rounded-xl transition"
+            >
+              {cancelLabel}
+            </button>
+            <button
+              type="button"
+              onClick={() => onSubmit(value)}
+              disabled={submitting}
+              className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-xl transition"
+            >
+              {submitting ? "Saving..." : confirmLabel}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }

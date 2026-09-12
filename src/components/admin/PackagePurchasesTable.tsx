@@ -113,6 +113,7 @@ export default function PackagePurchasesTable({
         <div className="flex-1 min-w-[180px]">
           <label className="block text-[11px] font-semibold text-slate-500 mb-1">Search</label>
           <input
+            aria-label="Search purchases by patient, code or purchase ID"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Patient name, patient code, or purchase code"
@@ -220,8 +221,11 @@ function FilterSelect({
   options: { value: string; label: string }[];
 }) {
   return (
-    <div>
-      <label className="block text-[11px] font-semibold text-slate-500 mb-1">{label}</label>
+    // Wrapped rather than sat beside the select: a <label> that neither wraps
+    // its control nor carries htmlFor names nothing, so these filters read as
+    // unnamed combo boxes however clear they look.
+    <label className="block">
+      <span className="block text-[11px] font-semibold text-slate-500 mb-1">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -234,6 +238,6 @@ function FilterSelect({
           </option>
         ))}
       </select>
-    </div>
+    </label>
   );
 }

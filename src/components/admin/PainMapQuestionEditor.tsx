@@ -25,8 +25,8 @@ export default function PainMapQuestionEditor({
   );
 
   return (
-    <div>
-      <label className="block text-xs font-semibold text-slate-600 mb-1">Region</label>
+    <label className="block">
+      <span className="block text-xs font-semibold text-slate-600 mb-1">Region</span>
       <select
         value={region}
         onChange={(e) => setRegion(e.target.value as PainMapRegionKey)}
@@ -43,7 +43,7 @@ export default function PainMapQuestionEditor({
           <QuestionRow key={q.key} region={region} questionKey={q.key} text={q.text} />
         ))}
       </div>
-    </div>
+    </label>
   );
 }
 
@@ -81,8 +81,8 @@ function QuestionRow({
 
   return (
     <div className="flex items-start gap-2">
-      <div className="flex-1">
-        <label className="block text-[11px] font-semibold text-slate-500 mb-1">{questionKey}</label>
+      <label className="flex-1 block">
+        <span className="block text-[11px] font-semibold text-slate-500 mb-1">{questionKey}</span>
         <textarea
           value={value}
           onChange={(e) => {
@@ -93,7 +93,7 @@ function QuestionRow({
           className="w-full p-2 rounded-lg border border-slate-300 text-sm"
         />
         {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
-      </div>
+      </label>
       <button
         onClick={handleSave}
         disabled={saving || value === text}

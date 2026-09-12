@@ -245,8 +245,8 @@ export default function InviteRegisterCard() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 text-xs mt-6">
-            <div>
-              <label className="block font-semibold mb-1">Full Name</label>
+            <label className="block">
+              <span className="block font-semibold mb-1">Full Name</span>
               <input
                 type="text"
                 required
@@ -255,9 +255,10 @@ export default function InviteRegisterCard() {
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
-            </div>
+            </label>
             <EmailField value={email} onChange={setEmail} />
             <PasswordField
+              autoComplete="new-password"
               value={password}
               onChange={setPassword}
               label={

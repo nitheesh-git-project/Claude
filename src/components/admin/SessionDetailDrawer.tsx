@@ -1,9 +1,10 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useId, useOptimistic, useState, useTransition } from "react";
 import RefundChip from "@/components/admin/RefundChip";
 import { hasRefund } from "@/lib/refundState";
 import OverlayPortal from "@/components/system/OverlayPortal";
+import { useDialogChrome } from "@/lib/useDialogChrome";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import Link from "next/link";
@@ -347,6 +348,11 @@ export default function SessionDetailDrawer({
     });
   }
 
+  const titleId = useId();
+  // The whole dialog contract -- Escape, the focus trap, focus back to
+  // the row that opened this -- from the one hook every overlay shares.
+  const { panelRef, dialogProps } = useDialogChrome({ onClose, labelledBy: titleId });
+
   return (
     <OverlayPortal>
       <div
@@ -357,12 +363,16 @@ export default function SessionDetailDrawer({
         onClick={onClose}
       >
         <div
+          ref={panelRef}
+          {...dialogProps}
           onClick={(e) => e.stopPropagation()}
           className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 text-xs"
         >
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-bold text-lg text-slate-900">Session Details</h3>
+              <h3 id={titleId} className="font-bold text-lg text-slate-900">
+                Session Details
+              </h3>
               {a.session_code && (
                 <p className="font-mono text-[11px] text-slate-400 mt-0.5">{a.session_code}</p>
               )}
