@@ -102,6 +102,7 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 | **Back** on Step 3 | Returns to Step 2, **clears the draft appointment id and the failed-attempt counter**, and the primary button becomes **Request Booking** again. |
 | **Refresh** at any step | The wizard restarts at Step 1 with fresh auto-picks. **No wizard state is persisted.** Any appointment already created stays in the database and appears in the dashboard as unpaid. |
 | **Abandon** (close tab) | Same as refresh. |
+| **The exit link** at the foot | Outside the wizard, so it shows in every state — loading, part-filled, wrong account, paid. Its label follows the account: `Back to Home` / `Back to Home Visit` signed out, `Back to Dashboard` for a patient, `Approval pending` for one still waiting on an admin, `Account suspended` for a suspended one. Leaving this way abandons the draft exactly as Refresh does. See `PAT-BOOK-018`. |
 
 ### 10.12 What each role sees afterwards
 

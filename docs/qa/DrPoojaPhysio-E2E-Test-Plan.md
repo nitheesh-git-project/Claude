@@ -1104,6 +1104,7 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 | **Back** on Step 3 | Returns to Step 2, **clears the draft appointment id and the failed-attempt counter**, and the primary button becomes **Request Booking** again. |
 | **Refresh** at any step | The wizard restarts at Step 1 with fresh auto-picks. **No wizard state is persisted.** Any appointment already created stays in the database and appears in the dashboard as unpaid. |
 | **Abandon** (close tab) | Same as refresh. |
+| **The exit link** at the foot | Outside the wizard, so it shows in every state — loading, part-filled, wrong account, paid. Its label follows the account: `Back to Home` / `Back to Home Visit` signed out, `Back to Dashboard` for a patient, `Approval pending` for one still waiting on an admin, `Account suspended` for a suspended one. Leaving this way abandons the draft exactly as Refresh does. See `PAT-BOOK-018`. |
 
 ### 10.12 What each role sees afterwards
 
@@ -1413,6 +1414,26 @@ It must **never** be worded as a confirmed booking with that therapist.
 ---
 
 ### 11.3 The booking wizard — negative, boundary and duplicate
+
+#### `PAT-BOOK-018` — The way out of the wizard follows the account · P1
+
+**Feature.** One exit link sits **outside** the wizard, below it and clear of Back/Continue, so it shows in every state the wizard can be in — loading, part-filled, wrong account, paid — without being repeated four times and without being hit by mistake. Its label and destination follow **who is signed in**, not where they came from: it used to always read **Back to Home**, which is right for a visitor who arrived from the marketing site and wrong for the commonest case by far — a patient who came from their own dashboard to book, and was then sent to the public site to find their way back.
+
+**Steps**
+1. **Signed out**, open `/book`. Read the link at the foot. Tap it.
+2. Signed out, open `/book-home-visit`. Read the link. Tap it.
+3. Sign in as **Patient A** (approved). Open `/book` and read the link, then tap it.
+4. Sign in as a patient who is **not yet approved** (Patient B before `ADM-APPR-001`). Open `/book`, get as far as step 3, and read the link.
+5. As Patient A, start the wizard, reach Step 3, then tap the link without paying.
+6. As **Therapist A**, open `/book` — the wrong-account panel renders instead of the form. Read the link.
+
+**Expected Result**
+* Step 1: **`Back to Home`**, landing on `/`. Step 2: **`Back to Home Visit`**, landing on `/home-visit` — each wizard names where a signed-out visitor came in from.
+* Step 3: **`Back to Dashboard`**, landing on the patient's own dashboard. Not the marketing site.
+* Step 4: **`Approval pending`**, landing on `/pending-approval`. This is the case the label exists for — sending an unapproved patient to a dashboard they would bounce off is worse than not offering the link at all. A **suspended** account reads `Account suspended`.
+* Step 5: the draft is abandoned exactly as `PAT-BOOK-016` describes — **no appointment row, no order, no money**.
+* Step 6: the link renders **on the wrong-account panel too**, with that account's own destination. Every state of the wizard has a way out.
+* The destination is the **direct** path, never `/dashboard` — that route resolves the role server-side and would make the label a guess. The same rule feeds the public navbar, so the two cannot grow different answers.
 
 #### `PAT-BOOK-010` — Step 1 validation · P1
 
@@ -1802,6 +1823,14 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 #### `PAT-ADDR-001` — Address book · P2
 **Steps.** In **My Addresses**, add the Patient A address, then add a second, then remove the second.
 **Expected Result.** Both are saved and selectable at home-visit checkout. Removing one does **not** alter any visit already booked — a visit's address is snapshotted onto the appointment at purchase.
+
+#### `PAT-LOAD-001` — Every patient screen says what it is loading · P2
+
+**Feature.** Each screen in the portal has its own loading state, named for the screen rather than a bare spinner, and each keeps the sidebar. The patient dashboard renders its sidebar **per page** rather than in a layout, so a skeleton that forgot it blanks the chrome on every navigation — which reads as the app losing its place.
+
+**Steps.** In DevTools → **Network**, set throttling to **Slow 3G**. Then move through the sidebar: Overview, Book a Session, Suggested Sessions, Sessions, Programmes, Payments, Health Profile, Edit Profile.
+**Expected Result.** Each shows a skeleton with its own label while it loads — `Loading your dashboard`, `Loading booking`, `Loading suggested sessions`, `Loading your sessions`, `Loading your programmes`, `Loading your payments`, `Loading your health profile`, `Loading your profile`. **The sidebar stays on screen throughout**, and the teal progress bar runs above the chrome. No screen flashes empty white, and none shows another screen's label.
+**Note.** Entries hidden for this patient (Programmes and Payments before they own one — see `PAT-EMPTY-001`) are simply not in the sidebar to tap; that is not a missing loading state.
 
 #### `PAT-EMPTY-001` — Empty states across the patient portal · P2
 **Preconditions.** A freshly approved patient with nothing at all.
