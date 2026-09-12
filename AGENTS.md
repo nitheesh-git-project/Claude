@@ -3332,6 +3332,19 @@ change that genuinely needs no doc update can ignore it.
   hide the shared Navbar all call the one helper. At real launch, **delete**
   the bar rather than flipping the flag — it is a public flag, and the bar
   names every route including `/admin/login` and `/admin/dashboard`.
+- **No `.env` file that arms the reset is committed, and two have been.**
+  `.env.production` armed both the public debug nav and the whole-database
+  reset on the live site. `.env.development` then did the same thing one
+  file over: tracked in git despite `.gitignore`'s own `.env*` rule, and
+  setting `ALLOW_DEBUG_DATA_RESET=true` for every `next dev` on every
+  machine that cloned the repo -- against whatever `NEXT_PUBLIC_SUPABASE_URL`
+  happened to point at, which on a developer's machine is often the real
+  project. Its own header said to delete it before real patients existed,
+  and CLAUDE.md says the flag "stays unset"; a committed file setting it to
+  true is that rule being false in the one direction that costs a database.
+  Both are gone. The flag is documented in `.env.example` and belongs in a
+  server environment somebody set on purpose, never in a file a clone
+  brings with it.
 - **`.env.production` stays deleted.** It armed both the public debug nav
   and the whole-database reset on the live site. The nav no longer needs it
   (the default above covers it), and the reset must never be armed from a
