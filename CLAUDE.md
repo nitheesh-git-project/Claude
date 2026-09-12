@@ -6,8 +6,8 @@ Razorpay payments across two delivery modes (video consultation and in-home
 visits), therapist scheduling and payouts, hospital (B2B) referrals, and an
 admin back office. Data, auth, storage, and realtime come from Supabase;
 session video links come from Google Calendar/Meet. The admin back office is
-organised into six sections — Today, Sessions, People, Money, Catalog,
-Settings — defined once in `src/lib/adminNav.ts`. Each Settings screen
+organised into seven sections — Today, Sessions, People, Money, Catalog,
+Logs, Settings — defined once in `src/lib/adminNav.ts`. Each Settings screen
 states in plain words what it is and gives one example, under its own
 heading — a label alone names a category rather than an action, and the
 section's single line ("How the product behaves") explained nothing about
@@ -15,6 +15,19 @@ the screen you had just opened. That is also why the old Booking Rules
 screen is three: **Booking Rules** (one video session), **Offers &
 Discounts** (money off, to win a patient), and **Programmes & Home Visits**
 (more than one appointment, arranged in advance).
+
+**Logs is Master Admin's alone.** Every action an admin takes is recorded in
+`admin_activity_log`, and the Logs section is where the whole of it is read:
+All Activity (search, a type filter derived from `ACTION_DOMAIN`, a date
+range, both exports, and a dialog on every row saying what changed from what,
+with older pages fetched by cursor through `/api/admin/activity-log`) and
+Archive & Clear. Clearing is the only way a row has ever left that table, and
+it cannot reach the last `MIN_RETENTION_DAYS` — 30 — at any setting, checked
+in `src/lib/activityLog.ts`, in the route, and inside
+`purge_admin_activity_log()`. It demands a downloaded copy first, a typed
+phrase, and it records itself. Nothing here can be edited, and there is still
+no update path. Operations, Finance and Clinical cannot open Logs; they read
+their own desk's work on Today → Activity. See the log rule in `AGENTS.md`.
 
 An admin carries a scope (`full`, `operations`, `finance`, `clinical`) that
 decides which of those sections they open **and at what level** — `none`,
@@ -53,8 +66,15 @@ system in `src/components/marketing/`. The home page scrolls down into a
 connector grid linking every other page plus booking; the other six end in
 the same grid minus themselves. Photographs are static imports registered in
 `src/lib/marketingPhotos.ts` and live under `public/photos/`. Catalog
-covers (programmes and packages) are admin-supplied `image_url` values
-instead, falling back to `CatalogImage`'s shared placeholder.
+covers (programmes and packages) are admin **uploads** instead, held in the
+`catalog-images` bucket and positioned by `image_focal_x` / `image_focal_y`
+rather than cropped — one position is correct in the card's 4:3 and the
+dialog's 16:9 alike. They fall back to `CatalogImage`'s shared placeholder.
+One component, `CatalogCard`, renders every offering the clinic sells — the
+public programme and home-visit cards **and** the patient dashboard's booking
+screen, which was a text-only list — and `CatalogDialogHeader` gives both
+detail dialogs the same header, photograph uncovered with the heading on its
+own band below.
 
 - `README.md` — product overview, setup, environment variables, routes, and
   how each flow works.
@@ -113,8 +133,8 @@ session's meeting is switched to open access right after its Calendar event
 is created (`src/lib/googleMeetSpace.ts`, the Meet REST API's
 `meetings.space.settings` scope). A failure never invalidates the session --
 the link works, the meeting just keeps its waiting room -- and lands on
-Settings -> System Health -> Waiting Room with a Fix button and a bounded
-automatic retry. Whether the Google account is connected **at all** is its
+Settings -> System Health -> Waiting Room with an "Open the door" button and
+a bounded automatic retry. Whether the Google account is connected **at all** is its
 own panel on that screen (`src/lib/googleConnectionHealth.ts`), because one
 dead refresh token fails every session identically and used to read as a few
 unlucky ones; the retry sweep stands down while it is down rather than
@@ -141,7 +161,7 @@ over `session_entitlements`, not in a mutable counter. Every movement goes
 through a database function holding a real row lock, keyed for idempotency
 on the appointment or payment that caused it, and
 `verify_entitlement_balances()` reports any disagreement on Settings →
-System Health. Whether balances are read from the ledger or from the older
+System Health → Books & Sessions Agree. Whether balances are read from the ledger or from the older
 counters is one admin switch (`entitlement_ledger_authoritative`), off by
 default and reversible without a release. Admins can change any balance — grant, reverse, revive, all
 with a mandatory reason — and cannot change any history.
@@ -285,6 +305,16 @@ fired; a signal links to the rows behind it and an admin acts, if at all,
 through the ordinary screens. Thresholds are `risk_rules` and the two that
 need a clinic baseline ship disabled. Reviews are append-only and need a real
 note.
+
+A Master Admin can open a patient's, therapist's or partner hospital's
+dashboard and see exactly what they see. It is a real session swap, not a
+preview -- the browser becomes that account, so every control works and every
+write is recorded as theirs, which is what makes a bug that only appears on
+submit reproducible. Fenced accordingly (`src/lib/impersonation.ts`): full
+scope only, never another admin, a ten-character reason on a row the admin
+cannot rewrite, written before the swap, a thirty-minute window the proxy
+ends rather than the browser, and an amber bar on every screen naming the
+account and carrying Exit. See the impersonation rule in `AGENTS.md`.
 
 Payments are recorded in `payments` (one row per Razorpay order, unique on
 both the order id and the payment id) and confirmed by whichever of the

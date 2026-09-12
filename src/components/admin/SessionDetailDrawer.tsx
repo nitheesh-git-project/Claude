@@ -1,6 +1,10 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import RefundChip from "@/components/admin/RefundChip";
+import { hasRefund } from "@/lib/refundState";
+import OverlayPortal from "@/components/system/OverlayPortal";
+import { formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
@@ -53,6 +57,12 @@ export type SessionDetailAppointment = {
   cancellation_reason: string | null;
   refund_status: string | null;
   refund_amount_paise: number | null;
+  // Migration-dependent, like every newer column on this table -- the
+  // screens that load it merge it in separately, so an older deployment
+  // renders the chip without the detail rather than failing the query.
+  refund_reason?: string | null;
+  refund_id?: string | null;
+  refunded_at?: string | null;
   package_purchase_id: string | null;
   // Who the patient asked for at booking (/team's "book this therapist", or
   // the wizard's "same therapist again"). Only a request -- the admin is the
@@ -338,521 +348,554 @@ export default function SessionDetailDrawer({
   }
 
   return (
-    <div
-      // backdrop-blur-sm matches the platform-wide pop-up convention (see
-      // Modal.tsx) -- every full-page overlay blurs the page behind it, not
-      // just dims it.
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
+    <OverlayPortal>
       <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 text-xs"
+        // backdrop-blur-sm matches the platform-wide pop-up convention (see
+        // Modal.tsx) -- every full-page overlay blurs the page behind it, not
+        // just dims it.
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        onClick={onClose}
       >
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-bold text-lg text-slate-900">Session Details</h3>
-            {a.session_code && (
-              <p className="font-mono text-[11px] text-slate-400 mt-0.5">{a.session_code}</p>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="text-slate-400 hover:text-slate-700 text-xl leading-none"
-          >
-            &times;
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {actionError && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700">
-              {actionError}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 text-xs"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-bold text-lg text-slate-900">Session Details</h3>
+              {a.session_code && (
+                <p className="font-mono text-[11px] text-slate-400 mt-0.5">{a.session_code}</p>
+              )}
             </div>
-          )}
-
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <span
-              className={`capitalize font-semibold px-2.5 py-1 rounded-full ${
-                a.status === "completed"
-                  ? "text-teal-700 bg-teal-50"
-                  : a.status === "cancelled"
-                  ? "text-red-700 bg-red-50"
-                  : a.status === "confirmed"
-                  ? "text-purple-700 bg-purple-50"
-                  : "text-amber-700 bg-amber-50"
-              }`}
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="text-slate-400 hover:text-slate-700 text-xl leading-none"
             >
-              {a.status}
-            </span>
-            {a.status === "completed" && a.no_show && (
-              <span className="capitalize font-semibold px-2.5 py-1 rounded-full text-slate-600 bg-slate-100">
-                No-Show
-              </span>
+              &times;
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {actionError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700">
+                {actionError}
+              </div>
             )}
-            <span
-              className={`capitalize font-semibold px-2.5 py-1 rounded-full ${
-                a.payment_status === "paid"
-                  ? "text-green-700 bg-green-50"
-                  : "text-slate-500 bg-slate-100"
-              }`}
-            >
-              {a.payment_status}
-            </span>
-          </div>
 
-          <div>
-            <p className="text-slate-400">Patient</p>
-            <Link
-              href={`/admin/dashboard/patients/${a.patient_id}`}
-              className="font-bold text-slate-900 hover:text-teal-700 hover:underline transition"
-            >
-              {patientName}
-            </Link>
-          </div>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span
+                className={`capitalize font-semibold px-2.5 py-1 rounded-full ${
+                  a.status === "completed"
+                    ? "text-teal-700 bg-teal-50"
+                    : a.status === "cancelled"
+                    ? "text-red-700 bg-red-50"
+                    : a.status === "confirmed"
+                    ? "text-purple-700 bg-purple-50"
+                    : "text-amber-700 bg-amber-50"
+                }`}
+              >
+                {a.status}
+              </span>
+              {a.status === "completed" && a.no_show && (
+                <span className="capitalize font-semibold px-2.5 py-1 rounded-full text-slate-600 bg-slate-100">
+                  No-Show
+                </span>
+              )}
+              <span
+                className={`capitalize font-semibold px-2.5 py-1 rounded-full ${
+                  a.payment_status === "paid"
+                    ? "text-green-700 bg-green-50"
+                    : "text-slate-500 bg-slate-100"
+                }`}
+              >
+                {a.payment_status}
+              </span>
+            </div>
 
-          <div>
-            <p className="text-slate-400">Therapist</p>
-            {a.therapist_id ? (
+            <div>
+              <p className="text-slate-400">Patient</p>
               <Link
-                href={`/admin/dashboard/therapists/${a.therapist_id}`}
+                href={`/admin/dashboard/patients/${a.patient_id}`}
                 className="font-bold text-slate-900 hover:text-teal-700 hover:underline transition"
               >
-                {therapistName ?? "Unknown"}
+                {patientName}
               </Link>
-            ) : (
-              <strong className="text-slate-900">Not yet assigned</strong>
-            )}
-          </div>
-
-          <div>
-            <p className="text-slate-400">Concern / Category</p>
-            <p className="font-semibold text-slate-800">
-              {a.concern ?? "General Consultation"}
-              {categoryTitle && <span className="text-slate-500"> — {categoryTitle}</span>}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-slate-400">Slot (IST)</p>
-            <p className="font-semibold text-slate-800">
-              {a.slot_time ? formatSlotRange(a.slot_time, durationMinutes) : "Time TBD"}
-            </p>
-          </div>
-
-          {a.meet_link && (
-            <div>
-              <p className="text-slate-400">Session Meeting</p>
-              <JoinSessionButton
-                meetLink={a.meet_link}
-                slotTime={a.slot_time}
-                status={a.status}
-                durationMinutes={durationMinutes}
-                alwaysActive
-              />
             </div>
-          )}
 
-          <div>
-            <p className="text-slate-400">Price</p>
-            <p className="font-semibold text-slate-800">
-              ₹{(feePaise / 100).toLocaleString("en-IN")}
-              {a.payment_status !== "paid" && (
-                <span className="text-slate-400 font-normal"> (estimated)</span>
-              )}
-              {a.package_purchase_id && (
-                <span className="text-teal-700 font-normal">
-                  {" "}
-                  • paid via package (no separate Razorpay payment for this session)
-                </span>
-              )}
-              {a.paid_at && (
-                <span className="text-slate-400 font-normal">
-                  {" "}
-                  • paid {new Date(a.paid_at).toLocaleString("en-IN")}
-                </span>
-              )}
-            </p>
-          </div>
-
-          {a.notes && (
             <div>
-              <p className="text-slate-400">Notes</p>
-              <p className="text-slate-700">{a.notes}</p>
+              <p className="text-slate-400">Therapist</p>
+              {a.therapist_id ? (
+                <Link
+                  href={`/admin/dashboard/therapists/${a.therapist_id}`}
+                  className="font-bold text-slate-900 hover:text-teal-700 hover:underline transition"
+                >
+                  {therapistName ?? "Unknown"}
+                </Link>
+              ) : (
+                <strong className="text-slate-900">Not yet assigned</strong>
+              )}
             </div>
-          )}
 
-          {a.status === "cancelled" && (
             <div>
-              <p className="text-slate-400">Cancellation</p>
-              <p className="text-slate-700">
-                {a.refund_status === "processed" && a.refund_amount_paise
-                  ? `₹${(a.refund_amount_paise / 100).toLocaleString("en-IN")} refunded`
-                  : a.refund_status === "not_eligible"
-                  ? a.therapist_payout_paid_at
-                    ? "No refund (this session's payout was already settled — cancelled as an admin correction, not a late cancellation)"
-                    : `No refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot)`
-                  : "No payment to refund"}
+              <p className="text-slate-400">Concern / Category</p>
+              <p className="font-semibold text-slate-800">
+                {a.concern ?? "General Consultation"}
+                {categoryTitle && <span className="text-slate-500"> — {categoryTitle}</span>}
               </p>
-              {a.cancellation_reason && (
-                <p className="text-slate-500 mt-0.5">Reason: {a.cancellation_reason}</p>
-              )}
             </div>
-          )}
 
-          <div className="pt-3 border-t border-slate-100 space-y-2">
-            <p className="font-bold text-slate-800">Ratings &amp; Feedback</p>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-slate-400">Patient</p>
-                {canManageSessions && a.patient_rating !== null && (
-                  <>
-                    <button
-                      onClick={() => handleToggleExcluded("patient", !optimisticExcluded.patient)}
-                      disabled={isExcludePending && excludingRole === "patient"}
-                      className={`text-[10px] font-semibold hover:underline disabled:opacity-60 ${
-                        optimisticExcluded.patient ? "text-amber-600" : "text-slate-500"
-                      }`}
-                    >
-                      {optimisticExcluded.patient
-                        ? "Excluded from average — include it"
-                        : "Exclude from average"}
-                    </button>
-                    <button
-                      onClick={() => handleClearRating("patient")}
-                      disabled={isClearPending && clearingRole === "patient"}
-                      className="text-[10px] text-red-600 font-semibold hover:underline disabled:opacity-60"
-                    >
-                      {isClearPending && clearingRole === "patient"
-                        ? "Clearing..."
-                        : "Clear (let them re-rate)"}
-                    </button>
-                  </>
+              <p className="text-slate-400">Slot (IST)</p>
+              <p className="font-semibold text-slate-800">
+                {a.slot_time ? formatSlotRange(a.slot_time, durationMinutes) : "Time TBD"}
+              </p>
+            </div>
+
+            {a.meet_link && (
+              <div>
+                <p className="text-slate-400">Session Meeting</p>
+                <JoinSessionButton
+                  meetLink={a.meet_link}
+                  slotTime={a.slot_time}
+                  status={a.status}
+                  durationMinutes={durationMinutes}
+                  alwaysActive
+                />
+              </div>
+            )}
+
+            <div>
+              <p className="text-slate-400">Price</p>
+              <p className="font-semibold text-slate-800">
+                ₹{(feePaise / 100).toLocaleString("en-IN")}
+                {a.payment_status !== "paid" && (
+                  <span className="text-slate-400 font-normal"> (estimated)</span>
+                )}
+                {a.package_purchase_id && (
+                  <span className="text-teal-700 font-normal">
+                    {" "}
+                    • paid via package (no separate Razorpay payment for this session)
+                  </span>
+                )}
+                {a.paid_at && (
+                  <span className="text-slate-400 font-normal">
+                    {" "}
+                    • paid {formatClinicDateTime(a.paid_at)}
+                  </span>
+                )}
+              </p>
+            </div>
+
+            {a.notes && (
+              <div>
+                <p className="text-slate-400">Notes</p>
+                <p className="text-slate-700">{a.notes}</p>
+              </div>
+            )}
+
+            {a.status === "cancelled" && (
+              <div>
+                <p className="text-slate-400">Cancellation</p>
+                <p className="text-slate-700">
+                  {a.refund_status === "processed" && a.refund_amount_paise
+                    ? `₹${(a.refund_amount_paise / 100).toLocaleString("en-IN")} refunded`
+                    : a.refund_status === "not_eligible"
+                    ? a.therapist_payout_paid_at
+                      ? "No refund (this session's payout was already settled — cancelled as an admin correction, not a late cancellation)"
+                      : `No refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot)`
+                    : "No payment to refund"}
+                </p>
+                {a.cancellation_reason && (
+                  <p className="text-slate-500 mt-0.5">Reason: {a.cancellation_reason}</p>
                 )}
               </div>
-              {a.patient_rating ? (
-                <>
-                  <Stars rating={a.patient_rating} />
-                  {optimisticExcluded.patient && (
-                    <span className="ml-2 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                      Excluded from average
-                    </span>
-                  )}
-                  {a.patient_feedback && (
-                    <p className="text-slate-700 mt-0.5">{a.patient_feedback}</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-slate-400">Not yet rated.</p>
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-slate-400">Therapist</p>
-                {canManageSessions && a.therapist_rating !== null && (
-                  <>
-                    <button
-                      onClick={() =>
-                        handleToggleExcluded("therapist", !optimisticExcluded.therapist)
-                      }
-                      disabled={isExcludePending && excludingRole === "therapist"}
-                      className={`text-[10px] font-semibold hover:underline disabled:opacity-60 ${
-                        optimisticExcluded.therapist ? "text-amber-600" : "text-slate-500"
-                      }`}
-                    >
-                      {optimisticExcluded.therapist
-                        ? "Excluded from average — include it"
-                        : "Exclude from average"}
-                    </button>
-                    <button
-                      onClick={() => handleClearRating("therapist")}
-                      disabled={isClearPending && clearingRole === "therapist"}
-                      className="text-[10px] text-red-600 font-semibold hover:underline disabled:opacity-60"
-                    >
-                      {isClearPending && clearingRole === "therapist"
-                        ? "Clearing..."
-                        : "Clear (let them re-rate)"}
-                    </button>
-                  </>
-                )}
-              </div>
-              {a.therapist_rating ? (
-                <>
-                  <Stars rating={a.therapist_rating} />
-                  {optimisticExcluded.therapist && (
-                    <span className="ml-2 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                      Excluded from average
-                    </span>
-                  )}
-                  {a.therapist_feedback && (
-                    <p className="text-slate-700 mt-0.5">{a.therapist_feedback}</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-slate-400">Not yet rated.</p>
-              )}
-            </div>
-          </div>
+            )}
 
-          {history.length > 0 && (
-            <div className="pt-3 border-t border-slate-100">
-              <p className="font-bold text-slate-800 mb-2">Reassignment History</p>
-              <ul className="space-y-2">
-                {history.map((h) => (
-                  <li key={h.id} className="text-slate-500">
-                    <span className="text-slate-400">
-                      {new Date(h.changed_at).toLocaleString("en-IN", {
-                        timeZone: "Asia/Kolkata",
-                      })}{" "}
-                      IST{h.changed_by && ` by ${nameOrUnassigned(h.changed_by)}`} —{" "}
-                    </span>
-                    {h.old_therapist_id !== h.new_therapist_id && (
-                      <span className="block">
-                        Therapist: {nameOrUnassigned(h.old_therapist_id)} →{" "}
-                        <strong className="text-slate-700">
-                          {nameOrUnassigned(h.new_therapist_id)}
-                        </strong>
+            <div className="pt-3 border-t border-slate-100 space-y-2">
+              <p className="font-bold text-slate-800">Ratings &amp; Feedback</p>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-slate-400">Patient</p>
+                  {canManageSessions && a.patient_rating !== null && (
+                    <>
+                      <button
+                        onClick={() => handleToggleExcluded("patient", !optimisticExcluded.patient)}
+                        disabled={isExcludePending && excludingRole === "patient"}
+                        className={`text-[10px] font-semibold hover:underline disabled:opacity-60 ${
+                          optimisticExcluded.patient ? "text-amber-600" : "text-slate-500"
+                        }`}
+                      >
+                        {optimisticExcluded.patient
+                          ? "Excluded from average — include it"
+                          : "Exclude from average"}
+                      </button>
+                      <button
+                        onClick={() => handleClearRating("patient")}
+                        disabled={isClearPending && clearingRole === "patient"}
+                        className="text-[10px] text-red-600 font-semibold hover:underline disabled:opacity-60"
+                      >
+                        {isClearPending && clearingRole === "patient"
+                          ? "Clearing..."
+                          : "Clear (let them re-rate)"}
+                      </button>
+                    </>
+                  )}
+                </div>
+                {a.patient_rating ? (
+                  <>
+                    <Stars rating={a.patient_rating} />
+                    {optimisticExcluded.patient && (
+                      <span className="ml-2 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                        Excluded from average
                       </span>
                     )}
-                    {h.old_slot_time !== h.new_slot_time && (
-                      <span className="block">
-                        Time:{" "}
-                        {h.old_slot_time
-                          ? new Date(h.old_slot_time).toLocaleString("en-IN", {
-                              timeZone: "Asia/Kolkata",
-                            })
-                          : "—"}{" "}
-                        →{" "}
-                        <strong className="text-slate-700">
-                          {h.new_slot_time
-                            ? new Date(h.new_slot_time).toLocaleString("en-IN", {
+                    {a.patient_feedback && (
+                      <p className="text-slate-700 mt-0.5">{a.patient_feedback}</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-slate-400">Not yet rated.</p>
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-slate-400">Therapist</p>
+                  {canManageSessions && a.therapist_rating !== null && (
+                    <>
+                      <button
+                        onClick={() =>
+                          handleToggleExcluded("therapist", !optimisticExcluded.therapist)
+                        }
+                        disabled={isExcludePending && excludingRole === "therapist"}
+                        className={`text-[10px] font-semibold hover:underline disabled:opacity-60 ${
+                          optimisticExcluded.therapist ? "text-amber-600" : "text-slate-500"
+                        }`}
+                      >
+                        {optimisticExcluded.therapist
+                          ? "Excluded from average — include it"
+                          : "Exclude from average"}
+                      </button>
+                      <button
+                        onClick={() => handleClearRating("therapist")}
+                        disabled={isClearPending && clearingRole === "therapist"}
+                        className="text-[10px] text-red-600 font-semibold hover:underline disabled:opacity-60"
+                      >
+                        {isClearPending && clearingRole === "therapist"
+                          ? "Clearing..."
+                          : "Clear (let them re-rate)"}
+                      </button>
+                    </>
+                  )}
+                </div>
+                {a.therapist_rating ? (
+                  <>
+                    <Stars rating={a.therapist_rating} />
+                    {optimisticExcluded.therapist && (
+                      <span className="ml-2 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                        Excluded from average
+                      </span>
+                    )}
+                    {a.therapist_feedback && (
+                      <p className="text-slate-700 mt-0.5">{a.therapist_feedback}</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-slate-400">Not yet rated.</p>
+                )}
+              </div>
+            </div>
+
+            {history.length > 0 && (
+              <div className="pt-3 border-t border-slate-100">
+                <p className="font-bold text-slate-800 mb-2">Reassignment History</p>
+                <ul className="space-y-2">
+                  {history.map((h) => (
+                    <li key={h.id} className="text-slate-500">
+                      <span className="text-slate-400">
+                        {new Date(h.changed_at).toLocaleString("en-IN", {
+                          timeZone: "Asia/Kolkata",
+                        })}{" "}
+                        IST{h.changed_by && ` by ${nameOrUnassigned(h.changed_by)}`} —{" "}
+                      </span>
+                      {h.old_therapist_id !== h.new_therapist_id && (
+                        <span className="block">
+                          Therapist: {nameOrUnassigned(h.old_therapist_id)} →{" "}
+                          <strong className="text-slate-700">
+                            {nameOrUnassigned(h.new_therapist_id)}
+                          </strong>
+                        </span>
+                      )}
+                      {h.old_slot_time !== h.new_slot_time && (
+                        <span className="block">
+                          Time:{" "}
+                          {h.old_slot_time
+                            ? new Date(h.old_slot_time).toLocaleString("en-IN", {
                                 timeZone: "Asia/Kolkata",
                               })
-                            : "—"}
-                        </strong>
-                      </span>
-                    )}
-                    {h.old_category_id !== h.new_category_id && (
-                      <span className="block">
-                        Category: {categoryOrNone(h.old_category_id)} →{" "}
-                        <strong className="text-slate-700">
-                          {categoryOrNone(h.new_category_id)}
-                        </strong>
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+                            : "—"}{" "}
+                          →{" "}
+                          <strong className="text-slate-700">
+                            {h.new_slot_time
+                              ? new Date(h.new_slot_time).toLocaleString("en-IN", {
+                                  timeZone: "Asia/Kolkata",
+                                })
+                              : "—"}
+                          </strong>
+                        </span>
+                      )}
+                      {h.old_category_id !== h.new_category_id && (
+                        <span className="block">
+                          Category: {categoryOrNone(h.old_category_id)} →{" "}
+                          <strong className="text-slate-700">
+                            {categoryOrNone(h.new_category_id)}
+                          </strong>
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-          {canManageSessions && canReassign && (
-            <div className="pt-3 border-t border-slate-100">
-              <p className="font-bold text-slate-800 mb-2">
-                {isUnassigned ? "Assign a therapist" : "Reassign Session"}
-              </p>
-              {therapists.length === 0 ? (
-                <p className="text-slate-400">
-                  No approved therapists available to {isUnassigned ? "assign" : "reassign to"}.
+            {canManageSessions && canReassign && (
+              <div className="pt-3 border-t border-slate-100">
+                <p className="font-bold text-slate-800 mb-2">
+                  {isUnassigned ? "Assign a therapist" : "Reassign Session"}
                 </p>
-              ) : (
-                <>
-                  {needsAssigning && (
-                    <div className="mb-2">
-                      <AssignTherapistForm
-                        appointmentId={a.id}
-                        therapists={therapists.filter((t) => t.active !== false)}
-                        preferredTherapistId={a.preferred_therapist_id ?? null}
-                      />
-                      <p className="mt-1 text-[11px] text-slate-400">
-                        Confirms the session at the time it was booked for. Use the
-                        control below instead if the time has to move too.
+                {therapists.length === 0 ? (
+                  <p className="text-slate-400">
+                    No approved therapists available to {isUnassigned ? "assign" : "reassign to"}.
+                  </p>
+                ) : (
+                  <>
+                    {needsAssigning && (
+                      <div className="mb-2">
+                        <AssignTherapistForm
+                          appointmentId={a.id}
+                          therapists={therapists.filter((t) => t.active !== false)}
+                          preferredTherapistId={a.preferred_therapist_id ?? null}
+                        />
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          Confirms the session at the time it was booked for. Use the
+                          control below instead if the time has to move too.
+                        </p>
+                      </div>
+                    )}
+                    <EditBookingForm
+                      appointmentId={a.id}
+                      currentTherapistId={a.therapist_id}
+                      currentSlotTime={a.slot_time}
+                      currentCategoryId={a.category_id}
+                      therapists={therapists}
+                      categories={categories}
+                      onSaved={onClose}
+                    />
+                  </>
+                )}
+              </div>
+            )}
+
+            {homeVisit && (
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <p className="font-bold text-slate-700">Home visit</p>
+                <div className="rounded-lg bg-slate-50 p-3 space-y-1">
+                  {(() => {
+                    const address = visitAddressFromAppointment(homeVisit);
+                    const lines = formatAddressBlock(address);
+                    const mapsUrl = mapsSearchUrl(address);
+                    return (
+                      <>
+                        {lines.length > 0 ? (
+                          lines.map((line) => (
+                            <p key={line} className="text-slate-700">
+                              {line}
+                            </p>
+                          ))
+                        ) : (
+                          <p className="text-red-600">No address on this visit.</p>
+                        )}
+                        {homeVisit.visit_contact_phone && (
+                          <p className="text-slate-600">
+                            Call on arrival: {homeVisit.visit_contact_phone}
+                          </p>
+                        )}
+                        {homeVisit.visit_access_notes && (
+                          <p className="text-slate-600">
+                            <span className="font-semibold text-slate-400">Getting in:</span>{" "}
+                            {homeVisit.visit_access_notes}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-3 pt-1">
+                          {mapsUrl && (
+                            <a
+                              href={mapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] font-semibold text-teal-700 hover:underline"
+                            >
+                              Open in Maps
+                            </a>
+                          )}
+                          <button
+                            onClick={() => setEditingAddress((v) => !v)}
+                            className="text-[11px] font-semibold text-slate-600 hover:underline"
+                          >
+                            {editingAddress ? "Close" : "Edit address"}
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {editingAddress && (
+                  <HomeVisitAddressEditor
+                    visit={homeVisit}
+                    onDone={() => setEditingAddress(false)}
+                  />
+                )}
+
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <p className="text-slate-400">Travel fee</p>
+                    <p className="font-semibold text-slate-700">
+                      {homeVisit.travel_fee_paise
+                        ? `₹${(homeVisit.travel_fee_paise / 100).toLocaleString("en-IN")}`
+                        : "—"}
+                    </p>
+                    <p className="text-slate-400">Paid to the therapist in full.</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">Cash</p>
+                    <p className="font-semibold text-slate-700">
+                      {homeVisit.cash_collected_at
+                        ? `Collected ₹${((homeVisit.cash_collected_amount_paise ?? 0) / 100).toLocaleString("en-IN")}`
+                        : homeVisit.payment_status === "paid"
+                          ? "Prepaid"
+                          : "Cash on visit, not yet collected"}
+                    </p>
+                    {homeVisit.cash_collected_at && (
+                      <p className="text-slate-400">
+                        {homeVisit.cash_remitted_at ? "Remitted" : "Not yet remitted"}
                       </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* A visit still open enough to send someone to. Assignment
+                    runs the same route as an online session -- the padding
+                    for travel time is applied server-side, not here. */}
+                {canManageSessions && homeVisit.status !== "cancelled" && homeVisit.status !== "completed" && (
+                  <HomeVisitAssignForm
+                    visit={homeVisit}
+                    therapists={therapists.filter((t) => t.active !== false)}
+                  />
+                )}
+              </div>
+            )}
+
+            {canManageSessions && a.status === "completed" && (
+              <div className="pt-3 border-t border-slate-100">
+                <button
+                  onClick={handleReopen}
+                  disabled={reopening}
+                  className="text-red-600 font-semibold hover:underline disabled:opacity-60"
+                >
+                  {reopening ? "Reopening..." : "Reopen Session (undo Done)"}
+                </button>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Reverts to Confirmed and clears any ratings/feedback already submitted.
+                </p>
+              </div>
+            )}
+
+            {/* Discretionary refunds are separate from cancelling on purpose:
+                cancelling frees the slot and applies the automatic all-or-
+                nothing rule, while this returns money on a session that may
+                well still be going ahead. */}
+            {/* What has already gone back, above the control that sends
+                more. The form knows the figure -- it needs it to cap the
+                next refund -- but only as an input; nothing here ever said
+                plainly that this session had been refunded, when, or why. */}
+            {canSeeMoney && hasRefund(a) && (
+              <div className="pt-3 border-t border-slate-100">
+                <p className="mb-1.5 font-bold text-slate-700">Refunded</p>
+                <RefundChip row={a} />
+                <dl className="mt-2 space-y-1 text-[11px]">
+                  {a.refunded_at && (
+                    <div className="flex gap-2">
+                      <dt className="text-slate-500">When</dt>
+                      <dd className="text-slate-800">{formatClinicDateTime(a.refunded_at)}</dd>
                     </div>
                   )}
-                  <EditBookingForm
-                    appointmentId={a.id}
-                    currentTherapistId={a.therapist_id}
-                    currentSlotTime={a.slot_time}
-                    currentCategoryId={a.category_id}
-                    therapists={therapists}
-                    categories={categories}
-                    onSaved={onClose}
-                  />
-                </>
-              )}
-            </div>
-          )}
-
-          {homeVisit && (
-            <div className="pt-3 border-t border-slate-100 space-y-2">
-              <p className="font-bold text-slate-700">Home visit</p>
-              <div className="rounded-lg bg-slate-50 p-3 space-y-1">
-                {(() => {
-                  const address = visitAddressFromAppointment(homeVisit);
-                  const lines = formatAddressBlock(address);
-                  const mapsUrl = mapsSearchUrl(address);
-                  return (
-                    <>
-                      {lines.length > 0 ? (
-                        lines.map((line) => (
-                          <p key={line} className="text-slate-700">
-                            {line}
-                          </p>
-                        ))
-                      ) : (
-                        <p className="text-red-600">No address on this visit.</p>
-                      )}
-                      {homeVisit.visit_contact_phone && (
-                        <p className="text-slate-600">
-                          Call on arrival: {homeVisit.visit_contact_phone}
-                        </p>
-                      )}
-                      {homeVisit.visit_access_notes && (
-                        <p className="text-slate-600">
-                          <span className="font-semibold text-slate-400">Getting in:</span>{" "}
-                          {homeVisit.visit_access_notes}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-3 pt-1">
-                        {mapsUrl && (
-                          <a
-                            href={mapsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[11px] font-semibold text-teal-700 hover:underline"
-                          >
-                            Open in Maps
-                          </a>
-                        )}
-                        <button
-                          onClick={() => setEditingAddress((v) => !v)}
-                          className="text-[11px] font-semibold text-slate-600 hover:underline"
-                        >
-                          {editingAddress ? "Close" : "Edit address"}
-                        </button>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-
-              {editingAddress && (
-                <HomeVisitAddressEditor
-                  visit={homeVisit}
-                  onDone={() => setEditingAddress(false)}
-                />
-              )}
-
-              <div className="grid grid-cols-2 gap-2 text-[11px]">
-                <div>
-                  <p className="text-slate-400">Travel fee</p>
-                  <p className="font-semibold text-slate-700">
-                    {homeVisit.travel_fee_paise
-                      ? `₹${(homeVisit.travel_fee_paise / 100).toLocaleString("en-IN")}`
-                      : "—"}
-                  </p>
-                  <p className="text-slate-400">Paid to the therapist in full.</p>
-                </div>
-                <div>
-                  <p className="text-slate-400">Cash</p>
-                  <p className="font-semibold text-slate-700">
-                    {homeVisit.cash_collected_at
-                      ? `Collected ₹${((homeVisit.cash_collected_amount_paise ?? 0) / 100).toLocaleString("en-IN")}`
-                      : homeVisit.payment_status === "paid"
-                        ? "Prepaid"
-                        : "Cash on visit, not yet collected"}
-                  </p>
-                  {homeVisit.cash_collected_at && (
-                    <p className="text-slate-400">
-                      {homeVisit.cash_remitted_at ? "Remitted" : "Not yet remitted"}
-                    </p>
+                  {a.refund_reason && (
+                    <div className="flex gap-2">
+                      <dt className="shrink-0 text-slate-500">Reason</dt>
+                      <dd className="text-slate-800">{a.refund_reason}</dd>
+                    </div>
                   )}
-                </div>
+                  {a.refund_id && (
+                    <div className="flex gap-2">
+                      <dt className="shrink-0 text-slate-500">Gateway ref</dt>
+                      <dd className="font-mono text-slate-600">{a.refund_id}</dd>
+                    </div>
+                  )}
+                </dl>
               </div>
+            )}
 
-              {/* A visit still open enough to send someone to. Assignment
-                  runs the same route as an online session -- the padding
-                  for travel time is applied server-side, not here. */}
-              {canManageSessions && homeVisit.status !== "cancelled" && homeVisit.status !== "completed" && (
-                <HomeVisitAssignForm
-                  visit={homeVisit}
-                  therapists={therapists.filter((t) => t.active !== false)}
+            {canSeeMoney && a.payment_status === "paid" && (
+              <div className="pt-3 border-t border-slate-100">
+                <p className="font-bold text-slate-700 mb-1">Refund</p>
+                <PartialRefundForm
+                  appointmentId={a.id}
+                  paidPaise={a.amount_paid_paise ?? 0}
+                  alreadyRefundedPaise={a.refund_amount_paise ?? 0}
                 />
-              )}
-            </div>
-          )}
+              </div>
+            )}
 
-          {canManageSessions && a.status === "completed" && (
-            <div className="pt-3 border-t border-slate-100">
-              <button
-                onClick={handleReopen}
-                disabled={reopening}
-                className="text-red-600 font-semibold hover:underline disabled:opacity-60"
-              >
-                {reopening ? "Reopening..." : "Reopen Session (undo Done)"}
-              </button>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Reverts to Confirmed and clears any ratings/feedback already submitted.
-              </p>
-            </div>
-          )}
+            {/* The other side of the payment from the refund above. A session
+                nobody has paid for yet cannot be refunded, and this is the
+                lane for the cases that would otherwise be settled off the
+                books entirely — a session cut short, a therapist who ran
+                late, a patient in real hardship. */}
+            {canSeeMoney && a.payment_status !== "paid" && a.status !== "cancelled" && (
+              <div className="pt-3 border-t border-slate-100">
+                <p className="font-bold text-slate-700 mb-1">Goodwill</p>
+                <GoodwillDiscountForm
+                  appointmentId={a.id}
+                  listPricePaise={a.list_price_paise ?? feePaise}
+                  existingDiscountPaise={
+                    a.discount_source === "goodwill" ? a.discount_paise ?? 0 : 0
+                  }
+                  existingReason={a.discount_reason ?? null}
+                />
+              </div>
+            )}
 
-          {/* Discretionary refunds are separate from cancelling on purpose:
-              cancelling frees the slot and applies the automatic all-or-
-              nothing rule, while this returns money on a session that may
-              well still be going ahead. */}
-          {canSeeMoney && a.payment_status === "paid" && (
-            <div className="pt-3 border-t border-slate-100">
-              <p className="font-bold text-slate-700 mb-1">Refund</p>
-              <PartialRefundForm
-                appointmentId={a.id}
-                paidPaise={a.amount_paid_paise ?? 0}
-                alreadyRefundedPaise={a.refund_amount_paise ?? 0}
-              />
-            </div>
-          )}
-
-          {/* The other side of the payment from the refund above. A session
-              nobody has paid for yet cannot be refunded, and this is the
-              lane for the cases that would otherwise be settled off the
-              books entirely — a session cut short, a therapist who ran
-              late, a patient in real hardship. */}
-          {canSeeMoney && a.payment_status !== "paid" && a.status !== "cancelled" && (
-            <div className="pt-3 border-t border-slate-100">
-              <p className="font-bold text-slate-700 mb-1">Goodwill</p>
-              <GoodwillDiscountForm
-                appointmentId={a.id}
-                listPricePaise={a.list_price_paise ?? feePaise}
-                existingDiscountPaise={
-                  a.discount_source === "goodwill" ? a.discount_paise ?? 0 : 0
-                }
-                existingReason={a.discount_reason ?? null}
-              />
-            </div>
-          )}
-
-          {canManageSessions && canReassign && (
-            <div className="pt-3 border-t border-slate-100">
-              <button
-                onClick={handleCancel}
-                disabled={cancelling}
-                className="text-red-600 font-semibold hover:underline disabled:opacity-60"
-              >
-                {cancelling ? "Cancelling..." : "Cancel Session"}
-              </button>
-              {a.payment_status === "paid" && (
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Refunds the amount paid via Razorpay as part of cancelling.
-                </p>
-              )}
-            </div>
-          )}
+            {canManageSessions && canReassign && (
+              <div className="pt-3 border-t border-slate-100">
+                <button
+                  onClick={handleCancel}
+                  disabled={cancelling}
+                  className="text-red-600 font-semibold hover:underline disabled:opacity-60"
+                >
+                  {cancelling ? "Cancelling..." : "Cancel Session"}
+                </button>
+                {a.payment_status === "paid" && (
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Refunds the amount paid via Razorpay as part of cancelling.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
+        {confirmDialog}
+        {promptDialog}
       </div>
-      {confirmDialog}
-      {promptDialog}
-    </div>
+    </OverlayPortal>
   );
 }

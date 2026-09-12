@@ -1,18 +1,17 @@
 "use client";
 
-import Link from "next/link";
+// Every public-site navigation goes through the bar. A `<Link>` click never
+// reaches `useRouter`, so nothing told PendingWorkProvider a page change had
+// started -- ProgressLink reports it from inside the link, which is the only
+// place Next's own `useLinkStatus` can be read.
+import Link from "@/components/system/ProgressLink";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { createClient } from "@/lib/supabase/client";
+import { useAccountDestination } from "@/lib/useAccountDestination";
 import { isAuthCtaHiddenRoute, isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
 import { MARKETING_PAGES } from "@/lib/marketingNav";
 
-// One URL for every role, resolved server-side by src/app/dashboard/page.tsx.
-// This component is a client component rendered on every public page, so a
-// role-to-path map here would ship the admin dashboard's address in the
-// bundle every visitor downloads.
-const DASHBOARD_HREF = "/dashboard";
 
 export default function Navbar({
   offsetTop = false,
@@ -40,16 +39,14 @@ export default function Navbar({
   // its own profile card and Log Out control, so this nav no longer needs
   // to know WHO is logged in (name/avatar/role), only whether to hide the
   // Sign In / Get Started buttons.
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // An account (patient or therapist) that hasn't been approved yet has
-  // nowhere to go -- its dashboard just redirects them straight back out to
-  // /pending-approval -- so the button is hidden entirely rather than
-  // sending them on a round trip. Starts hidden (fail-closed) rather than
-  // defaulting to visible, so a failed/slow role lookup can't briefly show
-  // the button to someone it shouldn't -- it appears once the role check
-  // actually resolves, same as the rest of this logged-in state already does.
-  const [dashboardVisible, setDashboardVisible] = useState(false);
+
+  // Where a signed-in account's own button goes, and what it says --
+  // shared with the booking wizard's exit link, so the two surfaces that
+  // offer somebody a way back into the app cannot grow different answers
+  // about where that is. See useAccountDestination for the three states and
+  // why the href is direct rather than /dashboard.
+  const { signedIn, destination } = useAccountDestination();
   const [navigating, setNavigating] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -73,49 +70,6 @@ export default function Navbar({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => {
-    // Read auth state on the client rather than in a Server Component, so
-    // the marketing pages this nav sits on can stay statically generated /
-    // ISR-cached instead of every route being forced dynamic just to know
-    // whether to hide the Sign In / Get Started buttons.
-    const supabase = createClient();
-    let active = true;
-
-    async function loadAuthState() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!active) return;
-      setIsLoggedIn(!!session?.user);
-      if (!session?.user) return;
-      // Isolated lookup, not merged into a larger select -- only this one
-      // button needs the role, so a query failure here shouldn't take
-      // anything else down with it.
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, approved, active")
-        .eq("id", session.user.id)
-        .maybeSingle();
-      if (active && profile?.role) {
-        // Applies to patients as well as therapists now that both roles wait
-        // on admin approval -- an unapproved account of either kind just
-        // bounces off its dashboard to /pending-approval. Suspended accounts
-        // bounce the same way (to /account-suspended), so they're hidden for
-        // the same reason rather than being sent on a round trip.
-        setDashboardVisible(profile.approved !== false && profile.active !== false);
-      }
-    }
-
-    loadAuthState();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => loadAuthState());
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
-  }, []);
 
   // Each of the 4 role dashboards is its own full-height dark app shell
   // (sidebar + content, no page scroll past the viewport) rather than a page
@@ -179,7 +133,7 @@ export default function Navbar({
             })}
           </div>
 
-          {authCtaHidden ? null : !isLoggedIn ? (
+          {authCtaHidden ? null : signedIn !== true ? (
             <div className="hidden md:flex items-center space-x-3">
               <Link
                 href="/patient/login"
@@ -200,19 +154,19 @@ export default function Navbar({
                 </Link>
               </motion.div>
             </div>
-          ) : dashboardVisible ? (
+          ) : destination ? (
             <motion.div
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
               className="hidden md:flex items-center"
             >
               <Link
-                href={DASHBOARD_HREF}
+                href={destination.href}
                 onClick={() => setNavigating(true)}
                 aria-disabled={navigating}
                 className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm flex items-center gap-1.5 aria-disabled:opacity-60 aria-disabled:pointer-events-none"
               >
-                {navigating ? "Loading..." : "Go to Dashboard"}{" "}
+                {navigating ? "Loading..." : destination.label}{" "}
                 {!navigating && <i className="fa-solid fa-arrow-right text-xs"></i>}
               </Link>
             </motion.div>
@@ -247,7 +201,7 @@ export default function Navbar({
                     {link.label}
                   </Link>
                 ))}
-                {authCtaHidden ? null : !isLoggedIn ? (
+                {authCtaHidden ? null : signedIn !== true ? (
                   <>
                     <Link
                       href="/patient/login"
@@ -264,9 +218,9 @@ export default function Navbar({
                       Get Started
                     </Link>
                   </>
-                ) : dashboardVisible ? (
+                ) : destination ? (
                   <Link
-                    href={DASHBOARD_HREF}
+                    href={destination.href}
                     onClick={() => {
                       setOpen(false);
                       setNavigating(true);
@@ -274,7 +228,7 @@ export default function Navbar({
                     aria-disabled={navigating}
                     className="mt-2 bg-teal-700 text-white text-center font-semibold px-4 py-2.5 rounded-xl aria-disabled:opacity-60 aria-disabled:pointer-events-none"
                   >
-                    {navigating ? "Loading..." : "Go to Dashboard"}
+                    {navigating ? "Loading..." : destination.label}
                   </Link>
                 ) : null}
               </div>

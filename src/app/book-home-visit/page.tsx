@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import Link from "next/link";
+import BookingExitLink from "@/components/booking/BookingExitLink";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
@@ -67,15 +67,7 @@ export default async function BookHomeVisitPage() {
             link can't lose someone's progress mid-payment -- same reasoning
             as /book, and the same single deliberate exit, placed clear of
             the wizard's own Back/Continue controls. */}
-        <div className="mt-6 flex justify-end">
-          <Link
-            href="/home-visit"
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/70 px-4 py-2.5 text-xs font-semibold text-slate-500 shadow-sm transition hover:bg-white hover:text-teal-700"
-          >
-            <i className="fa-solid fa-arrow-left text-[10px]"></i>
-            Back to Home Visit
-          </Link>
-        </div>
+        <BookingExitLink signedOutHref="/home-visit" signedOutLabel="Back to Home Visit" />
       </div>
     </section>
   );

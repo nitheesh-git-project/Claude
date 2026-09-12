@@ -57,7 +57,7 @@ Dr. Pooja's Physio is a production web application for a physiotherapy practice.
 2. **A patient portal** — book, pay, attend, manage a health profile, answer therapist recommendations.
 3. **A therapist portal** — availability, sessions, clinical records, recommendations, earnings.
 4. **A hospital/partner portal** — refer patients, track referrals, see partner earnings.
-5. **An admin back office** — six sections that run the clinic: Today, Sessions, People, Money, Catalog, Settings.
+5. **An admin back office** — seven sections that run the clinic: Today, Sessions, People, Money, Catalog, Logs, Settings.
 
 ### The business model in one paragraph
 
@@ -155,31 +155,33 @@ Every route below is covered by at least one test. The rightmost column names th
 | Today | `risk` | Risk | `ADM-RISK-001` |
 | Sessions | `schedule` | Schedule (calendar) | `ADM-SCHED-001` |
 | Sessions | `all` | All Sessions | `ADM-SESS-001` |
+| Sessions | `new` | New Booking | `ADM-SESS-NEW-001` |
 | Sessions | `roster` | Roster | `ADM-ROST-001` |
 | Sessions | `delivery` | Delivery (operational rates) | `ADM-DELIV-001` |
 | Sessions | `recommendations` | Recommendations — the clinic's review queue, plus every plan | `ADM-CARE-001`, `ADM-CARE-004` |
 | Sessions | `new` | New Booking | `ADM-NEWB-001` |
-| People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001` |
-| People | `therapists` | Therapists | `ADM-PEOP-005` |
-| People | `partners` | Partners | `ADM-PEOP-008` |
-| Money | `summary` | Summary | `FIN-SUM-001` |
+| People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001`, `ADM-PEOP-010` |
+| People | `therapists` | Therapists | `ADM-PEOP-005`, `ADM-PEOP-010` |
+| People | `partners` | Partners | `ADM-PEOP-008`, `ADM-PEOP-010` |
+| Money | `summary` | Summary | `FIN-SUM-001`, `FIN-SUM-004`, `FIN-SUM-005`, `FIN-NAV-001` |
 | Money | `transactions` | Transactions | `FIN-TXN-001` |
 | Money | `payouts` | Payouts + payout requests + Cash Ledger | `FIN-PAY-001` |
-| Money | `costs` | Costs | `FIN-COST-001` |
+| Money | `costs` | Costs + promo codes | `FIN-COST-001`, `ADM-PROMO-001` |
 | Money | `breakdown` | Breakdown | `FIN-BRK-001` |
-| Catalog | `conditions` | Conditions | `ADM-CAT-001` |
+| Catalog | `conditions` | Conditions | `ADM-CAT-001`, `ADM-CAT-004` |
 | Catalog | `packages` | Packages | `ADM-CAT-005` |
 | Catalog | `areas` | Service Areas + waitlist | `ADM-CAT-010` |
 | Catalog | `purchases` | Purchases | `ADM-CAT-014` |
+| Logs | `all` | All Activity | `ADM-SET-033`, `ADM-SET-034`, `ADM-LOG-001`, `ADM-LOG-003`, `ADM-LOG-003a` |
+| Logs | `retention` | Archive & Clear | `ADM-LOG-002` |
 | Settings | `brand` | Brand & Contact | `ADM-SET-001` |
 | Settings | `public` | Public Site | `ADM-SET-004` |
 | Settings | `booking` | Booking Rules | `ADM-SET-010` |
 | Settings | `offers` | Offers & Discounts | `ADM-SET-023`, `ADM-INVITE-001` |
 | Settings | `programmes` | Programmes & Home Visits | `ADM-SET-018` |
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
-| Settings | `access` | User Access | `ADM-SET-025` |
+| Settings | `access` | User Access | `ADM-SET-025`, `ADM-SET-025d`, `ADM-SET-026b` |
 | Settings | `health` | System Health | `ADM-SET-030` |
-| Settings | `activity` | Activity Log | `ADM-SET-033` |
 | Settings | `security` | Account Security | `ADM-SET-035` |
 
 Detail routes (open as an overlay from the dashboard, and as a full page on direct navigation):
@@ -394,7 +396,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 * Navigating to **People → Patients** shows an empty-state message, not a table of rows.
 * Navigating to **Catalog → Conditions** shows no treatment categories.
 * Navigating to **Sessions → All Sessions** shows no sessions.
-* Navigating to **Settings → Activity Log** shows an empty log (the reset itself truncates it).
+* Navigating to **Logs → All Activity** shows an empty log apart from the reset's own row (the reset truncates the table, then records itself).
 * Navigating to **Settings → User Access** still lists at least one admin, and your own row is there. **If this list is empty, stop immediately and restore from backup — the reset must never leave the clinic without an admin.**
 * Navigating to **Today → Risk** shows an **empty** queue. **[SQL]** confirm with `select count(*) from communication_flags;` and `select count(*) from risk_signals;` — both must return `0`. A non-zero count here is the regression described above, and it will silently suppress the detector tests later in this plan.
 * **[SQL]** `select rule_key, enabled from risk_rules;` still returns the eight rules, with `plan_conversion_low` and `post_consultation_dropout` back to **disabled** — thresholds are restored to their seeded defaults, not wiped.
@@ -1293,6 +1295,8 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 **Expected Result.**
 * Heading **Book a Session**, subtitle `Video consultations and home visits, in one place.`
 * Group 1 is `Single online consultation` — `One video session with a therapist, booked for a specific concern.` One card per **active** treatment category, each showing its title, description, `N min · online` and its consultation price.
+* **Each group's heading reads as a level above the cards, not as one of them.** A filled square tile in the mode's own colour — **teal** with a video glyph for online, **amber** with a house glyph for home visits — then the heading in the display face, a count chip (`2 OPTIONS`), the one-line blurb, and a hairline that starts in that colour and fades out. The two headings used to be `text-sm font-bold` slate, the identical weight and ink the card titles below them use, so the sections did not separate and the line telling a patient which one comes to their house disappeared into the list. If a heading is the same size and weight as the card titles under it, that regression is back.
+* The count chip must **agree with the cards beneath it** — three cards, `3 OPTIONS`; one card, `1 OPTION` singular.
 * Group 2 is `Home visits` — `A therapist comes to you. We'll check your pincode before anything is charged.` **HV1 (1 visit) appears. HV2 (4 visits) does not.** A multi-visit home package is a programme and comes from a care plan; if HV2 is on this screen that is the P0 `PAT-HV-005` defect. Each card carries `Single visit · N min at home` and either `Travel included` or `Travel charged separately, by area`.
 * **No session package (programme) appears anywhere on this screen**, at any price, with or without a Buy control.
 * Step 5 navigates to `/book?category=<id>` with that category preselected. Step 6 navigates to `/book-home-visit?package=<id>`.
@@ -1781,6 +1785,15 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 #### `PAT-PAY-010` — Receipts · P2
 **Steps.** Open `/patient/dashboard/payments`. **Expected Result.** Every paid session and purchase is listed once, with amount, date and what it was for. A cash-on-visit home purchase appears with its cash status and is **not** presented as a failed payment. Amounts match Money → Transactions exactly.
+
+#### `PAT-PAY-011` — The patient is told about their refund · P0
+**Preconditions.** For one patient: a session cancelled outside the window and refunded in full, a **completed** session partially refunded by `₹500` with a stated reason, a cash home visit at `manual_pending`, a refund that failed at the gateway, and a session cancelled **inside** the window.
+**Steps.** Open `/patient/dashboard/sessions`, then `/patient/dashboard/payments` and open each receipt's detail, then `/patient/dashboard` and read the feed.
+**Expected Result.** In the patient's own words on every surface: `₹1,200 refunded`, `₹500 refunded`, `₹500 coming back to you`, `Refund didn't go through — please contact us`. The one cancelled inside the window says **`No Refund`** with the window on hover and **no refund line at all** — it must never be announced as a refund. The full and partial refunds carry the date and the clinic's stated reason as given, plus "It can take a few working days to reach your account". The **partial refund on a completed session** appears on the card, on the Payments row and in its detail — its receipt still reads `Completed`, because a delivered session that was partly refunded is not a refunded one. The failed refund is a **pinned** `needs you` feed item. Nothing on any of these screens shows an admin-voice string (`Hand back ₹500`, `Refund failed`, `No refund due`).
+
+#### `PAT-PAY-012` — A refund the patient's database predates · P1
+**Steps.** Against a database whose `appointments` predate `refunded_at`, open a refunded session and its receipt.
+**Expected Result.** The amount and the state still read correctly; the **date line is simply absent** rather than showing a guessed one, and no screen errors. The columns are read in their own query, so a database missing the migration loses the refund date and **not** the sessions list.
 
 #### `PAT-PROF-001` — Edit Profile sections · P2
 **Steps.** Open `/patient/dashboard/profile`. Walk the five sub-sections: **Photo**, **Personal Details**, **Contact Details**, **My Addresses**, **Account Security**.
@@ -2513,6 +2526,25 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 * On All Sessions itself, the **No therapist**, **Today** and **Home visits** figures filter the list **in place** (no page navigation) and tapping the applied one clears it.
 * An admin whose scope cannot open the target section sees the figure **without a link** — never a link into a 403.
 
+#### `ADM-TODAY-006` — A queue's age is real, and survives a refresh · P0
+
+**Feature.** The feed items that roll a queue up — signups waiting for approval, change requests to review, sessions with no meeting link — used to stamp themselves with the moment the page rendered. This dashboard re-renders on every realtime event, so they reset to **just now** constantly, and a signup that had been waiting three days read as having just arrived.
+
+**Steps**
+1. Create a patient signup and leave it unapproved. Note the real time.
+2. Wait a few minutes, then open **Today** (or **Today → Activity** on a scoped desk) and read the time under *"1 signup waiting for approval"*.
+3. Press **Refresh**. Read it again. Then have a second admin act so a realtime refresh fires, and read it a third time.
+4. Leave a second signup unapproved a day later, so two are waiting, and read the time again.
+5. Approve them all and let a **change request** and a **failed Meet sync** be the waiting items instead; check both the same way.
+6. Leave the tab open for ten minutes and watch the item.
+
+**Expected Result**
+* Step 2: the age of the **signup**, not of the page — a few minutes, matching step 1.
+* Step 3: **unchanged by both refreshes.** If it reads *just now* after a refresh, this defect is back.
+* Step 4: the time is the **oldest** of the two, not the newest. A queue's age is the age of what has waited longest — that is the whole reason the figure is worth showing.
+* Step 5: both behave identically. The sync queue is dated by the **session's slot time**, since a session without a link is urgent by when it is due.
+* Step 6: it ages normally (`5m ago` → `15m ago`), which is the one way this number is allowed to move.
+
 #### `ADM-TODAY-002` — Inbox counts are live · P1
 **Steps.** In a second browser, have a patient book a session. Watch the admin's Today screen without reloading.
 **Expected Result.** The unassigned count and the badge update within the operational channel's cooldown. The **first** change appears immediately (leading edge); a burst of ten bookings collapses into one refresh.
@@ -2540,6 +2572,12 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** Approve one request; decline another with a reason.
 **Expected Result.** Approving writes the new value onto the profile; declining does not. Both are audited. A stale decision on an already-decided request is refused with `This request has already been reviewed`.
 
+#### `ADM-RISK-004` — Each desk reads its own signals; the trails stay closed · P0
+
+**Steps.** With at least one open signal from a money rule (`cash_variance`) and one from a sessions rule (`contact_leak`), open **Today → Risk** as **Finance**, then as **Operations**, then as **Admin Full**.
+**Expected Result.** Finance sees the money signals and **not** `contact_leak`; Operations and Clinical see the sessions signals and **not** `cash_variance`; Admin Full sees both. Each scoped screen carries `Only the signals your desk can act on are shown here.` — a filtered queue that looks complete is worse than one that says what it is. A scoped desk can **review** its own signals (the route is `today`-scoped, which every desk manages).
+**What stays closed:** **Flagged messages**, the **contact-reveal trail** and the **thresholds** render for **Admin Full only**. Those quote what a colleague wrote and name every patient contact a therapist opened — the reading the whole queue used to be shut for — and a threshold is configuration. If a scoped admin can see any of the three, that is a P0.
+
 #### `ADM-RISK-001` — The Risk queue · P1
 
 **Feature.** Suspicious patterns surface here, written by a **bounded lazy sweep after the Today render** — a wall-clock budget checked between rules, and a five-minute minimum interval, because realtime refreshes this page on every booking.
@@ -2554,9 +2592,9 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** Review a signal with a note of `ok` (2 characters), then with `Checked the two sessions, both legitimate.`
 **Expected Result.** The short note is refused — the minimum is **ten characters**, enforced by a CHECK, because "dismissed" with no reason reads the same as "not read". Reviews are **append-only**. Closing a signal frees its slot, so a repeat after a dismissal is raised **fresh** — that is correct, it is new information.
 
-#### `ADM-RISK-003` — Thresholds are editable, and the queue is full-scope only · P1
-**Steps.** Edit a rule's threshold on the tab. Then sign in as Admin Ops and open Today.
-**Expected Result.** The threshold saves and the next sweep uses it. As Admin Ops, the **Risk tab is not shown, and the page does not even fetch the signals** — a signal names a colleague and quotes what they wrote.
+#### `ADM-RISK-003` — Thresholds are editable, and the editor is Master Admin's · P1
+**Steps.** Edit a rule's threshold on the tab as a Master Admin. Then sign in as Admin Ops and open Today → Risk.
+**Expected Result.** The threshold saves and the next sweep uses it. As Admin Ops, the **threshold editor is absent** — what fires at all is a clinic-wide decision — and so are the flagged-message and reveal-log trails, which name a colleague and quote what they wrote. The signals that desk can act on are still listed and reviewable (`ADM-RISK-004`).
 
 ---
 
@@ -2565,6 +2603,23 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 #### `ADM-SCHED-001` — Schedule (calendar) · P1
 **Steps.** Open **Sessions → Schedule**. Navigate months. Tap a day with sessions. Tap one session.
 **Expected Result.** The calendar shows sessions by day. Tapping a day opens its panel; tapping a session opens the **same `SessionDetailDrawer`** that All Sessions opens. **There is one detail surface, not two.**
+
+#### `ADM-SESS-NEW-001` — "Book for a patient" lands on the booking form · P1
+
+**Feature.** An admin who opens `/book` is shown the wrong-account card rather than the wizard — one account carries one role, so an admin cannot be the patient a booking is for. Its **Book for a patient** button sends them to New Booking under Sessions. It used to carry `?section=sessions` with **no tab**, which resolves to the section's *first* screen, so the one button in the product named "Book for a patient" landed on the Schedule month grid.
+
+**Steps**
+1. Signed in as a **Master Admin**, open `/` then **Book**, and tap **Book for a patient**.
+2. Repeat as **Operations**, then **Clinical**.
+3. Repeat as **Finance**.
+4. On the screen Finance lands on, press **Dismiss**, then move to another screen and back.
+5. As a limited desk, deep-link straight to `?section=today&tab=activity`, then navigate away and press **Back**.
+
+**Expected Result**
+* Steps 1–2: **New Booking**, with the form on screen — not the calendar.
+* Step 3: Finance lands on the nearest Sessions screen they *can* open, with **one amber line** saying *"New Booking is not part of your access, so this is the nearest screen you can open."* Finance reads Sessions and cannot change one, so booking is genuinely not theirs — `/api/admin/create-booking` refuses them too. What must not happen is landing on a different screen with nothing said.
+* Step 4: the line goes and does not come back — it describes the link they arrived on, not the screen they chose next.
+* Step 5: **Today → Activity both times.** The shell's own URL handler resolves with the same scope rules the server used; while it did not, a limited desk's deep link and Back button both fell through to Today's overview.
 
 #### `ADM-SESS-001` — All Sessions is one filterable list · P0
 
@@ -2590,23 +2645,23 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 
 #### `ADM-SESS-003` — Meet sync failure is recorded, retried and capped · P1
 
-**Feature.** Google sync **must never block a booking**. Failures are recorded on the appointment, re-attempted by a **lazy sweep at the top of the admin dashboard render**, and retried by hand from Sync Health. Because that sweep makes outbound calls from inside a page render, it is capped **three ways**: a wall-clock timeout per attempt, a few appointments per sweep, and an attempts-per-appointment counter.
+**Feature.** Google sync **must never block a booking**. Failures are recorded on the appointment, re-attempted by a **lazy sweep at the top of the admin dashboard render**, and retried by hand from **Session Links**. Because that sweep makes outbound calls from inside a page render, it is capped **three ways**: a wall-clock timeout per attempt, a few appointments per sweep, and an attempts-per-appointment counter.
 
 **Steps.** Remove or invalidate the Google credentials. Assign a therapist to a paid session. Then open **Settings → System Health**. Tap **Retry** on the failed row several times.
-**Expected Result.** The assignment **succeeds** and the session is confirmed — the booking is never blocked. `google_calendar_sync_error` is recorded and the row appears in Sync Health, raising that tab's badge. Retrying increments the attempt counter; at the cap the row stays flagged as **needing a person** rather than being retried forever. A **manual Retry resets the counter.** The **Google Connection** panel above Sync Health turns red at the same time and says the account is no longer connected — see `ADM-SESS-003c`, and check it first, because that panel is what tells you whether these are a few unlucky sessions or the whole integration being down. Two overlapping attempts must not both create an event — each claims the appointment first, with a staleness window so a render that dies mid-attempt releases its row. Retrying a session that is not confirmed-with-a-therapist is refused with `Only confirmed sessions with an assigned therapist can retry Meet sync`. A concurrent retry returns `A sync attempt for this session is already running. Try again in a moment.`
+**Expected Result.** The assignment **succeeds** and the session is confirmed — the booking is never blocked. `google_calendar_sync_error` is recorded and the row appears under **Session Links**, raising that tab's badge. Retrying increments the attempt counter; at the cap the row stays flagged as **needing a person** rather than being retried forever. A **manual Retry resets the counter.** The **Google Connection** card above Session Links turns red at the same time and says the account is no longer connected — see `ADM-SESS-003c`, and check it first, because that panel is what tells you whether these are a few unlucky sessions or the whole integration being down. Two overlapping attempts must not both create an event — each claims the appointment first, with a staleness window so a render that dies mid-attempt releases its row. Retrying a session that is not confirmed-with-a-therapist is refused with `Only confirmed sessions with an assigned therapist can retry Meet sync`. A concurrent retry returns `A sync attempt for this session is already running. Try again in a moment.`
 **Note:** a **home visit still gets a calendar event even when `google_meet_enabled` is off** — that toggle gates the Meet conferencing only, not event creation, because the invite email is the only outbound notification this platform sends.
 
 #### `ADM-SESS-003d` — A home visit is never listed as a failed sync · P1
 
 **Feature.** A home visit deliberately gets **no Meet link** — there is nothing to join, the therapist travels to the address — so its calendar event carries the address and access notes instead. "Has no Meet link" therefore cannot mean "sync failed", and `src/lib/meetSyncState.ts` is the one place that decides: a home visit is synced when its **event** exists, an online session when its **Meet link** does.
 
-**Steps.** Book and confirm a **home visit** with a therapist assigned, and let its calendar event be created. Open **Settings → System Health → Sync Health**. Then, on a session that genuinely has no event, press **Retry** twice and count the events on the clinic's Google Calendar.
-**Expected Result.** The confirmed home visit is **absent** from Sync Health — it is not a failure. Pressing Retry on a session that *is* listed and does succeed reports **success**, not `Retry failed`, whichever delivery mode it is. Most importantly, a session that already has a calendar event **never gets a second one**: `createMeetEventForConfirmedAppointment` refuses on `google_event_id`, at every door — the automatic sweep, the manual Retry, and the three booking paths.
-**Negative:** this is a regression test with a real history. Before it, every confirmed home visit sat in Sync Health permanently, Retry answered `502 Retry failed` even on the runs that worked, and each click minted a duplicate calendar event that emailed the patient and the therapist again — three reached one patient. A **cancelled** session still clears `google_event_id`, so a legitimate re-creation after deletion must still go through.
+**Steps.** Book and confirm a **home visit** with a therapist assigned, and let its calendar event be created. Open **Settings → System Health → Session Links**. Then, on a session that genuinely has no event, press **Retry** twice and count the events on the clinic's Google Calendar.
+**Expected Result.** The confirmed home visit is **absent** from Session Links — it is not a failure. Pressing Retry on a session that *is* listed and does succeed reports **success**, not `Retry failed`, whichever delivery mode it is. Most importantly, a session that already has a calendar event **never gets a second one**: `createMeetEventForConfirmedAppointment` refuses on `google_event_id`, at every door — the automatic sweep, the manual Retry, and the three booking paths.
+**Negative:** this is a regression test with a real history. Before it, every confirmed home visit sat in Session Links permanently, Retry answered `502 Retry failed` even on the runs that worked, and each click minted a duplicate calendar event that emailed the patient and the therapist again — three reached one patient. A **cancelled** session still clears `google_event_id`, so a legitimate re-creation after deletion must still go through.
 
 #### `ADM-SESS-003c` — A dead Google connection says so, and stops burning retries · P1
 
-**Feature.** Every Calendar and Meet call uses one refresh token. When it dies — revoked, or (much the commonest cause) the Google Cloud OAuth consent screen left on **Testing**, where Google expires refresh tokens after **seven days** — *every* session fails at once. Before this the only sign was a list of per-session errors in Sync Health with a Retry button that could never work, which reads as bad luck rather than as an outage. **Settings → System Health → Google Connection** answers it directly, by spending the token: a token can be set and still be dead, so its presence is not the test.
+**Feature.** Every Calendar and Meet call uses one refresh token. When it dies — revoked, or (much the commonest cause) the Google Cloud OAuth consent screen left on **Testing**, where Google expires refresh tokens after **seven days** — *every* session fails at once. Before this the only sign was a list of per-session errors under Session Links with a Retry button that could never work, which reads as bad luck rather than as an outage. **Settings → System Health → Google Connection** answers it directly, by spending the token: a token can be set and still be dead, so its presence is not the test.
 
 **Steps.** Set `GOOGLE_CALENDAR_REFRESH_TOKEN` to a revoked or nonsense value and open **Settings → System Health**. Then unset the three `GOOGLE_CALENDAR_*` variables and reload. Then restore working credentials and reload.
 **Expected Result.** With a dead token the panel is **red**, reads **"The Google account is no longer connected."**, explains that the usual cause is the consent screen being on Testing, and names the fix — set it to **In production** and re-run `scripts/get-google-refresh-token.mjs`. With the variables **unset** the panel is **amber**, not red, and reads **"Google is not set up."** naming the missing variables — an owner who has not wired Google up yet has chosen that, and it is not a fault. With working credentials the panel is **white** and says sessions get an invite and a link automatically; if the saved permission predates the open-access feature it says so and points at the same script. A **network failure is not reported as a dead token** — it reads "Google could not be reached" and says it may be temporary.
@@ -2618,7 +2673,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 
 **Steps.** With the switch **on**, confirm a paid session. Open its Meet link in a browser signed in as a Google account that is *not* on the invite. Then open **Settings → System Health**.
 **Expected Result.** The link goes **straight into the call** — no "asking to be let in", and nobody has to admit anyone. `meet_access_open` is `true` and the session is **not** in the Waiting Room panel. The Join button's caption reads `Opens straight into the call — sign in to Google if asked.` once the join window is open, and `Opens N minutes before your session.` before it.
-**Negative:** with a refresh token minted before the `meetings.space.settings` scope (or the Google Meet API not enabled on the Cloud project), the **booking still succeeds and the link still works** — only the waiting room stays on. The session appears under Waiting Room with the 403 explained, is retried a couple of times automatically, then flagged as **needing a person**. **Open** re-attempts it and re-arms those attempts; on a session with no Meet link yet it is refused with `This session has no Meet link yet — retry the Calendar sync first`, and on a cancelled one with `This session is cancelled — its Meet space is gone`.
+**Negative:** with a refresh token minted before the `meetings.space.settings` scope (or the Google Meet API not enabled on the Cloud project), the **booking still succeeds and the link still works** — only the waiting room stays on. The session appears under Waiting Room with the 403 explained, is retried a couple of times automatically, then flagged as **needing a person**. **Open the door** re-attempts it and re-arms those attempts; on a session with no Meet link yet it is refused with `This session has no Meet link yet — retry the Calendar sync first`, and on a cancelled one with `This session is cancelled — its Meet space is gone`.
 **Note:** open access removes the **knock**, not the **sign-in**. A meeting organised by a personal Gmail account still requires every participant to be signed in to *some* Google account; only moving the organising account to Google Workspace allows a patient with no Google account at all to join.
 
 #### `ADM-SESS-004` — Edit, cancel, reopen and restore a session · P1
@@ -2856,6 +2911,34 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 **Steps.** Use the admin search to find `QA Patient A` and `QA Sunrise Hospital`.
 **Expected Result.** Results are grouped by entity type and link to the right detail surface.
 
+#### `ADM-PEOP-010` — Opening somebody's dashboard · P0
+
+**Feature.** A Master Admin can sign in as a patient or therapist from their profile page, to see exactly what they see. It is a **real session swap**, not a preview: the browser becomes that account, every control works, and every write is recorded as theirs. That is the cost of being able to reproduce a bug that only shows on submit, and everything below is what fences it.
+
+**Steps**
+1. As **Admin Full**, open **People → Patients → QA Patient A** and tap **Open their dashboard**. (The same control sits on a therapist's profile, and on a hospital's card on **People → Partners** — a hospital has no detail page of its own, and its card is where its record lives.)
+2. Try to confirm with the reason `test`. Then enter `Patient says her session link is missing.` and confirm.
+3. Read the bar at the top of the patient dashboard. Walk to Sessions, Programmes and Health Profile.
+4. Tap **Exit and go back to admin**.
+5. Open **Logs → All Activity**.
+6. Repeat step 1 as an **Operations**, **Finance** and **Clinical** admin.
+7. Open another **admin's** profile, and a **suspended** patient's.
+8. Start a swap, then leave the tab for over 30 minutes and reload.
+9. **[SQL]** `update admin_impersonation_sessions set reason = 'x'` on the row your swap wrote, and `delete` it.
+
+**Expected Result**
+* `test` is refused — at least ten characters, the same floor an admin credit adjustment uses. A log full of "test" answers nothing six months later.
+* The dialog says in advance that this is the real account, that anything tapped happens for real and is recorded as theirs, that it ends after 30 minutes, and how to get back.
+* Every dashboard screen carries an **amber bar** naming the patient, saying the actions are real, counting the window down, and offering Exit. It is the **only** difference from what she sees.
+* Exit restores the admin's own session and lands on `/admin/dashboard` — no re-login.
+* The log carries **`Signed in as a user`** and **`Stopped signing in as a user`**, both naming the patient, the first carrying the reason.
+* All three roles work the same way: a therapist lands on `/therapist/dashboard`, a hospital on `/hospital/dashboard`, each with the same bar. A hospital's own dashboard is where its referrals and earnings read from, so "the referral I sent is not showing" is a question about that screen rather than about the Partners card.
+* The three scoped admins have **no such button**, and calling `/api/admin/start-impersonation` directly answers **403** — the button's absence is presentation, the route is the rule.
+* Another admin is refused (*"You cannot sign in as another admin"*) whether active or suspended; a suspended patient is refused with what to do about it.
+* Past 30 minutes the session is **signed out by the proxy**, not merely un-bannered — a marker left to lapse on its own would drop the bar while the swap ran on underneath it. The admin lands on `/admin/login?expired=impersonation`.
+* **[SQL]** Both the update and the delete **raise**: the row is append-only apart from being closed once, so the admin it names cannot rewrite the record of it.
+**Negative:** if the row cannot be written, **no session is opened at all** — an impersonation nobody can trace to a person is the one outcome this route must not produce.
+
 #### `ADM-PEOP-003` — Patient detail · P1
 **Steps**
 1. On **People → Patients**, tap the row for `QA Patient A`.
@@ -2885,6 +2968,10 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 #### `ADM-PEOP-007` — Suspend and restore a therapist · P1
 **Steps.** Toggle Therapist A inactive, then active.
 **Expected Result.** While inactive: their dashboard redirects to `/account-suspended`, their API routes 403, they disappear from `/team` and from `?therapist=` resolution, and they cannot be assigned. Restoring reverses all of it. **Their existing appointments are unchanged.**
+
+**`/team` must update immediately, not eventually.** Open `/team` in a second tab *before* suspending, suspend, then **reload that tab** — the therapist is gone on the next load, not after the five-minute cache window lapses. The public view already excludes them (`approved and active and visible_on_team`); what was missing was the route telling the cached page. Check the same for **approving** a pending therapist and for **creating** one from User Access — both put a therapist on `/team` at once, since the visibility column defaults to showing. **Declining** a pending signup deliberately does not invalidate anything: an unapproved account was never on that page.
+
+**And the "Hide from /team page" button follows the account.** While the therapist is suspended it is **greyed out and does nothing**, with a line saying they are already off `/team` and that the setting returns as you left it. Same while a therapist is still **pending approval**, worded for that reason instead. Restore them and the button is live again, showing the state it had before — set it to hidden, suspend, restore, and it must still read **Show on /team page**, never reset to the default.
 
 #### `ADM-PEOP-008` — Partners · P1
 Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **Update revenue share**, **Set active/inactive**, **Reset password**, **Referral capacity note**, and **Decline referral** (reason mandatory) all work and are audited.
@@ -2920,10 +3007,19 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 5. Tap **Session Length (min)**. Enter `60`.
 6. Tap **Order**. Enter `1`.
 7. Tap **Button Text**. Enter `Book Assessment`.
-8. Optionally paste a **Cover Image URL**.
+8. Optionally upload a **Cover image**.
 9. Save.
 
-**Expected Result.** The category is created and appears **immediately** on `/` and `/conditions` — the create route invalidates both ISR-cached pages, so a five-minute wait is now a defect, not expected behaviour — in the `/book` concern dropdown as `QA Back & Spine Care — ₹1,999 / 60 min`, and as an option when creating a package. The cover image is a **plain URL an admin pastes**, not a Storage upload, rendered through a plain `<img>`; a row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
+**Expected Result.** The category is created and appears **immediately** on `/` and `/conditions` — the create route invalidates both ISR-cached pages, so a five-minute wait is now a defect, not expected behaviour — in the `/book` concern dropdown as `QA Back & Spine Care — ₹1,999 / 60 min`, and as an option when creating a package. The cover is an **upload**, not a pasted URL: there is no URL text box on this form any more. A row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
+
+#### `ADM-CAT-003` — Upload a cover, preview it and position it · P0
+**Steps.** On any condition, package or home-visit form, tap **Upload an image** and choose a landscape photograph whose subject is well off-centre. Then tap **Preview & position**, drag the picture until the subject sits where you want it, and tap **Done**. Save the form.
+**Expected Result.** The drop zone becomes a row naming the file with **Preview & position**, **Replace** and **Remove**, and reads `Centred — not positioned yet` until you move it. In the dialog, the **frame stays still and the picture moves inside it** — dragging right moves the picture right — with a rule-of-thirds guide over it and the live focal point shown as two percentages. The three small frames below (**Card**, **Square**, **Dialog**) all move together: that is the point of the feature, and a position correct on one but not the others is a P0. **Done** only stages it; the public page changes when the **form** is saved, and it changes immediately rather than after the five-minute ISR window.
+**Negatives:** a PDF or SVG is refused with `Please upload a JPG, PNG or WebP image.`; a file over 5 MB with `That image is larger than 5 MB. Please use a smaller file.` Both are refused by the **route**, so the same request sent with a Finance admin's cookie answers **403** regardless of what the form shows.
+
+#### `ADM-CAT-004` — One position, every frame · P0
+**Steps.** After `ADM-CAT-003`, open `/conditions`, then that condition's **View full details** dialog, then `/patient/dashboard/book` signed in as a patient.
+**Expected Result.** The photograph is cropped **the same way** in all three — card 4:3, dialog 16:9, dashboard card 4:3 — with the subject where you placed it. A crop baked into the file would have been right in one and wrong in the others; this is a focal point, so it is right in all of them. The patient's booking screen renders the **same card** as the public pages, with cover, chips, ticks, price and a Book button — it must not be the old text-only list.
 **Negatives:** `Missing title, priceInr, or durationMinutes`; `Price must be a positive number`; `Session length must be a positive number of minutes`; `Order must be a number`.
 
 #### `ADM-CAT-002` — Edit, reorder, deactivate, delete a category · P1
@@ -2934,6 +3030,27 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 **Negatives:** with two browser tabs open, add or delete a category in tab B, then Save order in tab A — refused with `The condition list changed while you were reordering it. Refresh and try again.`
 **[SQL] the same refusal one level down.** The route's completeness check is true only for as long as every caller remembers it, and the function is reachable by the service-role client and by hand in the SQL editor. Against a scratch database with `schema.sql` applied, call it with a subset — `select set_treatment_category_order(array[(select id from treatment_categories limit 1)]);` — and confirm it **raises** `set_treatment_category_order needs every category (1 given, 3 exist)` rather than renumbering one row. Renumbering a subset collides with the rows it never saw, which is how two categories end up sharing an order again — the exact tie the whole change removes.
 **Also:** creating a category now defaults **Order** to one past the last existing category, so a new condition appends rather than appearing first. Deactivating removes it from public surfaces and refuses new bookings against it (`That concern isn't available any more. Please pick another one.`) while **leaving existing appointments untouched**. Deleting a category referenced by a live purchase must not silently break that purchase.
+
+#### `ADM-CAT-004` — Deleting a condition says what happened · P0
+
+**Feature.** Every outcome of Delete is now reported. It previously answered success whether or not a row had gone — supabase-js reports no error when a DELETE matches nothing — so a refusal, an already-deleted row and a real deletion produced the same response, and the screen refreshed on that success and painted the condition still sitting there. **"Delete does nothing, and nothing says why" is the failure this case exists to catch.**
+
+**Steps**
+1. Create `QA Spare Condition` and, without booking anything under it, delete it.
+2. On a condition with a booked session (`QA Back & Spine Care`), tap **Delete** and read the dialog.
+3. Delete every session under some condition, leave **one home-visit package** filed against it, and delete it again.
+4. In a second tab, delete a condition; in the first tab, tap **Delete** on the same row.
+5. Tap **Delete**, and with the request in flight, drop the network.
+6. Open **Logs → All Activity**.
+
+**Expected Result**
+* Step 1 deletes, the row leaves the list, and `/` and `/conditions` update immediately.
+* Step 2 opens a **dialog** — not an 11px line clipped beside the button — naming the counts (`2 sessions and 1 programme purchase still use this condition…`) and saying to **turn it off instead**, with what that preserves. HTTP **409**.
+* Step 3 names the **home-visit package** specifically. A refusal that says "it has bookings" sends an admin to delete sessions and be refused a second time by something they were never told about.
+* Step 4 answers **404** with `That condition has already been deleted. Refresh to see the current list.`
+* Step 5 says `Could not reach the server. Nothing has changed.` — previously the thrown request left the transition with nothing on screen at all.
+* The log's row names the **condition's title**, not "Treatment category": the row is gone by then, so the log is the only thing left that can say which one it was.
+**Never `{ success: true }` on a delete that removed nothing.** If the row is still listed after a success and a refresh, that is a P0 — it is the exact defect this case was written for.
 
 #### `ADM-CAT-005` — Create a session package · P0
 **Steps.** Create Package P1 exactly as specified in §8.11.
@@ -3050,7 +3167,7 @@ Where a case below still says "Settings → Booking Rules", that is correct — 
 
 #### `ADM-SET-009` — Every Settings screen says what it is · P2
 
-**Steps.** Open each of the ten Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, User Access, System Health, Activity Log, Account Security.
+**Steps.** Open each of the nine Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, User Access, System Health, Account Security. Then open both Logs screens: All Activity and Archive & Clear.
 
 **Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen — none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
 
@@ -3193,7 +3310,7 @@ At **Settings → Offers & Discounts**, above Patient invites.
 **Feature.** Whether a balance shown and offered is read from the **credit ledger** or from the older `sessions_used` / `visits_used` counters is **one admin switch**, off by default and **reversible in a second** — both are written either way.
 
 **Steps**
-1. Open **Settings → System Health** and confirm the accounting check reports **no disagreements**, and that **Google Connection** is not red.
+1. Open **Settings → System Health** and confirm **Books & Sessions Agree** is `Healthy`, and that **Google Connection** is not red.
 2. Turn **Session Balances From The Ledger** **on**.
 3. Check every surface that shows a balance: the patient's package widget, the therapist's programme list, both purchase detail modals, the admin Purchases table, and the bulk scheduler.
 4. Turn it back off and check them all again.
@@ -3266,10 +3383,111 @@ The screen warns you to turn it on only once System Health has been clean.
 * A suspended admin **stays listed**, with a note saying how many are suspended.
 * Only a **Master Admin** sees the Suspend button at all, and `POST /api/admin/set-admin-active` answers **403** to any other scope.
 
+#### `ADM-PEOP-011` — The detail page behind the overlay is still the back office · P1
+
+**Feature.** A patient's, therapist's or condition's detail is normally an overlay over the dashboard. Interception only covers client-side navigation, so a reload, a shared link, a new tab and any `router.refresh()` from inside the overlay land on the real page — which used to be a bare panel with a small "Back to Dashboard" link and none of the dashboard around it.
+
+**Steps**
+1. **People → Patients → a patient → Profile.** Press **Mark Done** on a session and confirm.
+2. Look at what you are on afterwards: is there a sidebar?
+3. Copy the URL, open it in a **new tab**, and reload it.
+4. Use the sidebar from that page — tap **Sessions**, then come back and tap **Back to the dashboard**.
+5. Repeat 1–4 for a **therapist** and for a **patient condition**.
+6. Sign in as **Operations**, then **Finance**, then **Clinical**, and open a patient detail URL directly.
+7. Watch the screen while it loads on a slow connection.
+
+**Expected Result**
+* Steps 1–3: the dark **sidebar**, the **Master Admin** brand and the section list are all present. It reads as the back office, not as a different, plainer site.
+* Step 4: every entry lands on a **real dashboard screen**, and Back to the dashboard returns to Today.
+* Step 5: identical on all three.
+* Step 6: the sidebar shows **only the sections that scope can open** — it is built from the same list and the same scope grid the dashboard's own sidebar uses, so the two can never disagree. Logs is absent for all three.
+* Step 7: the skeleton **keeps the sidebar rail** rather than blanking the chrome and putting it back.
+
+#### `ADM-SET-025d` — Delete an account, and be refused when it has history · P0
+
+**Feature.** Delete account sits on all four roles' screens — the Back office rows, and a patient's, therapist's and partner hospital's own page — for a **Master Admin only**. It can only ever succeed on an account with no history at all. That is the database's rule: thirty-five tables reference `profiles(id)` with no delete behaviour, so removing an account that has done anything would mean removing the books and the audit trail with it.
+
+**Steps**
+1. Create a throwaway patient with a typo'd email and, without doing anything else with it, delete it from their profile.
+2. Delete a patient who has at least one session, one payment and a programme.
+3. Delete a therapist who has run sessions and written notes.
+4. Delete an admin who has performed any action at all.
+5. Try to delete **your own** row in Back office.
+6. Leave exactly one active Master Admin and try to delete it.
+7. Sign in as **Operations**, then **Finance**, then **Clinical**, and look for the button. Then POST `/api/admin/delete-account` directly as each.
+8. Open **Logs → All Activity** after step 1.
+9. After step 1, try to sign in as that deleted account.
+
+**Expected Result**
+* Step 1: a **dialog** first, naming the account and saying this only works with no history, with Suspend named as the alternative. Confirming deletes it; the page returns to the directory it came from.
+* Steps 2–4: **nothing is deleted**, and a dialog names what is on file — *"3 sessions, 2 money records, 1 programme and 12 back-office actions"* — and says to suspend instead. Each group is counted separately and pluralised on its own count. A refusal is never an 11px line beside the button: it is a paragraph and it belongs in a dialog.
+* Step 5: refused — *"You can't delete your own account."* The button does not render on your own row either.
+* Step 6: refused — the last Master Admin who can still sign in cannot be deleted, the same guard suspension carries, and this one has no undo at all.
+* Step 7: **no button** for any of the three, and the direct POST is **403** for all three — deleting is Master Admin's alone even though every one of those desks can manage People.
+* Step 8: an **`Deleted an account`** entry naming who did it, the account's name and role, and the email. It is written **before** the delete runs, because afterwards there is no row left to name.
+* Step 9: the login no longer exists.
+
 #### `ADM-SET-026` — Create the three scoped admins · P0
 **Steps.** Create `qa.admin.ops@example.test` (Operations), `qa.admin.finance@example.test` (Finance), `qa.admin.clinical@example.test` (Clinical).
 **The Account type picker is one control, not two.** It lists six entries in two groups — **Clinic**: Patient, Therapist · **Back office**: Master Admin, Operations, Finance, Clinical — using the same four names the dashboards call themselves. There is no separate **Access level** dropdown; picking a back-office desk shows that desk's one-line description under the picker. As a **non-`full`** admin, the whole Back office group is **absent** (only a Master Admin may mint an admin, and `create-account` enforces that with a full-only check, not a section gate — see §2).
-**Expected Result.** Each is created with a one-time password shown once and **never logged**. Signing in as each shows only their allowed sections in the sidebar — Operations: Today, Sessions, People, Catalog. Finance: Today, **Sessions (read-only)**, People, Money. Clinical: Today, Sessions, People.
+**Expected Result.** Each is created with a generated password that is shown on the panel **and kept on that admin's own row in Back office** until they set their own, and is **never logged** (`ADM-SET-026b`). Signing in as each shows only their allowed sections in the sidebar — Operations: Today, Sessions, People, Catalog. Finance: Today, **Sessions (read-only)**, People, Money. Clinical: Today, Sessions, People.
+
+#### `ADM-SET-026b` — The issued password survives, and the chosen one is never shown · P0
+
+**Feature.** Every route in this app that generates a password now stores the plaintext on a service-role-only table, so a credential cannot be lost to a re-render. Create-account was the last one that did not: it held the password in React state alone, and the `profiles` row it had just inserted fired a realtime refresh that took it off the screen mid-sentence.
+
+**Steps**
+1. Create a back-office account. **Without touching anything**, wait for the dashboard to refresh (or have a second admin approve something so a realtime event fires).
+2. Reload the page entirely and open **Settings → User Access**.
+3. Press **Copy** on that row.
+4. Create a **patient** and a **therapist** the same way, then open each of their profiles under **People**.
+5. Sign in as the new admin and change the password through the forgot-password flow. Reopen User Access.
+6. Look for anywhere in the product that displays the password they just chose.
+7. **[SQL]** `select * from admin_account_notes;` as an authenticated non-service-role session.
+8. **[SQL]** Search `admin_activity_log` for any generated password.
+
+**Expected Result**
+* Steps 1–2: the password is **still readable** on that admin's row — the panel going away does not lose it. The row reads *Still on the password we issued*, with the date it was issued.
+* Step 3 puts it on the clipboard.
+* Step 4: the same password appears on the patient's and the therapist's profile, in the existing **Current admin-set password** panel beside Reset Password.
+* Step 5: the row now reads **Signing in with their own password** and the password is gone — cleared by `/api/clear-temp-password`, so the screen never offers a credential that no longer works.
+* Step 6: **nowhere, by design.** A password somebody chose is stored by Supabase as a bcrypt hash and cannot be read back by this app or anyone else. The lane for a locked-out account is **Reset Password**, which issues a new one and puts the row back into the first state.
+* Step 7: **no rows** — the table carries no RLS policies at all, so only the service role reads it. A plain column on `profiles` would be handed straight back to the account owner by `profiles_select_own`, which is why these four tables exist.
+* Step 8: **no password anywhere in the log**, which every admin can read.
+
+#### `ADM-SET-025c` — Suspend and Create release the button, not the page · P1
+
+**Feature.** Both controls used to run their request and the dashboard refresh inside one transition, so the button stayed disabled and spinning until the whole Server Component had re-run — every screen, ~40 queries — which reads as a hang rather than as work. The button now owns its request only; the teal bar at the top of the page owns the refresh.
+
+**Steps**
+1. On **Settings → User Access**, tap **Suspend access** on an admin and watch the button and the top of the page.
+2. Do the same for **Restore access**, and for the **Access level** dropdown.
+3. Create an account and watch the **Create account** button.
+4. Double-tap Suspend as fast as you can.
+5. Put the browser offline (devtools) and tap Suspend.
+6. With a second admin signed in on another machine, have them approve something and watch how many times your dashboard rebuilds.
+
+**Expected Result**
+* Steps 1–3: the button returns to its normal label **as soon as the request lands** — a beat, not seconds — and the **teal progress bar** carries the remaining wait. The row's new state appears when the refresh finishes. Neither control sits disabled through the rebuild.
+* Step 4: **one** request. The second tap is refused by a synchronous guard, not by the disabled attribute, which lands a render too late.
+* Step 5: an error under the control saying the server could not be reached. Never a button that silently did nothing — an unhandled throw inside the old transition put nothing on screen at all.
+* Step 6: **one** rebuild, not two. `admin_activity_log` sits on the 30-second realtime channel with the other append-only records; while it was on the 2-second one, every admin action anywhere rebuilt every admin's dashboard a second time for the log entry describing it.
+
+#### `ADM-SET-026c` — "Forbidden" means forbidden, and nothing else · P1
+
+**Feature.** Create account intermittently answered **Forbidden** to a Master Admin. The cause was not permissions: this dashboard fires many requests at once, Supabase rotates refresh tokens, and a request carrying one that another request has just rotated comes back with no user — which the guard reported the same way it reports a stranger. A failed profile read did the same.
+
+**Steps**
+1. Create several accounts in a row, quickly, while the dashboard is busy (have a second admin acting at the same time). Watch for any refusal.
+2. As an **Operations** admin, try to create a **Master Admin** from the Account type picker, and POST `/api/admin/create-account` with `{"role":"admin"}` directly.
+3. Signed out entirely, POST the same route.
+4. As an Operations admin, POST it with `{"role":"patient"}`.
+
+**Expected Result**
+* Step 1: **no spurious refusal.** A session blip is answered 401 (*"Your session has expired. Sign in again and retry."*) or 503 (*"Could not check your access just now."*), and the form **retries once by itself** before showing either — both are answered before anything is written, so there is no account to duplicate. What must never appear is *Forbidden* for an admin who is allowed.
+* Step 2: the Back office group is **absent from the picker**, and the direct POST is **403 Forbidden** — flat, with no detail. Only a Master Admin may mint an admin, and the refusal stays opaque so a limited admin cannot map what exists beyond their access.
+* Step 3: **401**, not 403 — being signed out is not a statement about what you may do.
+* Step 4: **succeeds.** Creating a patient is an operations capability.
 
 #### `ADM-SET-026a` — Each scope opens on its own dashboard · P1
 There is one admin login (`/admin/login`) and one dashboard route; the scope decides what it opens on. Sign in as each of the four in turn and read the Today screen without tapping anything.
@@ -3300,7 +3518,8 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 | Finance | `?section=catalog&tab=packages` | `POST /api/admin/create-package` | Same |
 | Clinical | `?section=money&tab=summary` | `POST /api/admin/refund-package` | Same |
 | Clinical | `?section=settings&tab=team` | `POST /api/admin/set-admin-scope` | Same |
-| All three | `?section=today&tab=risk` | — | The Risk tab is not rendered and its data is not fetched |
+| All three | `?section=today&tab=risk` | — | The tab opens with **only the signals that desk can act on**, and the flagged-message and reveal-log trails and the threshold editor are absent (`ADM-RISK-004`) |
+| All three | `?section=logs&tab=all` | `POST /api/admin/clear-activity-log` | Logs is **not in the sidebar** and the URL falls back to an allowed screen; route **403** (`ADM-LOG-003`) |
 
 **Expected Result.** **Every** one returns 403 at the route. The sidebar hiding a section is presentation only — a session cookie can call any route directly.
 **Do not report the three full-only routes as violations.** `set-admin-scope`, `debug-reset` and `create-account` guard with an explicit `scope !== "full"` check rather than `requireAdminScope`, deliberately: a section gate would let a scoped admin widen its own access or mint a full admin. They are stricter than the rule, not exceptions to it.
@@ -3317,16 +3536,22 @@ This tab also surfaces the `communication_flags` and `contact_reveal_log` eviden
 
 #### `ADM-SET-030` — System Health · P0
 
-**Steps.** Open **Settings → System Health**.
-**Expected Result.** Two panels: **Sync Health** (failed Meet syncs, with Retry) and the **accounting check**. The accounting check reports where the entitlement **cache**, the **ledger** and the **legacy counter** disagree. **It reports and never repairs** — a silent auto-fix on a money record is how a discrepancy becomes permanent. The badge on this tab is the sum of sync issues and accounting problems.
+**Steps.** Open **Settings → System Health**. Read the verdict strip at the top, then tap the **i** button on each check.
+**Expected Result.** A verdict strip naming how many checks need a person (`All 5 checks healthy`, `2 checks need you`, or `Nothing is broken` when a check is switched off or could not be run), with a jump chip per failing check, followed by five cards in a fixed shape: **Payment Confirmations**, **Google Connection**, **Session Links**, **Waiting Room**, **Books & Sessions Agree**. Every card carries a status **word** as well as a colour — `Healthy`, `Needs a look`, `Needs you now`, `Not set up`, `Not checked` — a one-line plain-words headline, and, whenever it is not healthy, a numbered **How to fix it yourself**. The **i** button expands *What this watches* and *For example* inside the same card and nothing else moves. **Books & Sessions Agree** reports where the entitlement **cache**, the **ledger** and the **legacy counter** disagree, plus captured payments attached to nothing and delivered sessions with nothing behind them. **It reports and never repairs** — a silent auto-fix on a money record is how a discrepancy becomes permanent, and that card deliberately has no fix button. The badge on this tab is the number of **checks** needing a person, and it matches the strip's own count and its chips exactly.
+**Negative:** a missing `RAZORPAY_WEBHOOK_SECRET` and a dead Google credential both badged **0** before this, because the badge counted rows and those two failures have no rows.
 
-#### `ADM-SET-031` — Sync Health retry · P1
+#### `ADM-SET-030a` — System Health reaches the admin who never opens it · P1
+
+**Steps.** Unset `RAZORPAY_WEBHOOK_SECRET` (or revoke the Google refresh token) and open **Today**. Then fix it and reload. Then, on **Settings → System Health**, read the line at the foot of each card and press **Copy for my developer** on a failing one. Finally sign in as an **Operations**, **Finance** and **Clinical** admin and open Today.
+**Expected Result.** One red line at the top of Today naming the failing check and carrying its own headline, linking straight to Settings → System Health; it is gone once the check is green. **Only a red check does this** — an amber one (a Google account connected without Meet permission, sessions still being retried) puts nothing on Today. Each card's foot reads `Checked just now`, except **Google Connection**, which reports the age of its own cached probe (up to ten minutes after a success, one minute after a failure) — so an owner who has just re-run the token script can tell a stale answer from a disagreement. **Copy for my developer** puts the check name, its status, the headline and the numbered steps on the clipboard as plain text; a healthy card offers no such button. The three scoped admins see **no banner at all** — they cannot open Settings, and a banner linking somewhere they cannot follow would land them on a different screen through `findTab`'s fallback.
+
+#### `ADM-SET-031` — Session Links retry · P1
 Covered by `ADM-SESS-003`.
 
 #### `ADM-SET-033` — Activity Log · P0
 
 **Steps**
-1. Open **Settings → Activity Log**.
+1. Open **Logs → All Activity**.
 2. Confirm each of these earlier actions appears with actor, action, target and timestamp: account approval, therapist revenue-share change, care-plan withdrawal, care-plan authored on behalf, payout settlement, cash amount correction, credit adjustment, hospital onboarding, password reset.
 2a. Confirm the same for the actions that used to leave no trace at all: `Changed a patient's contact details` (`ADM-PEOP-003`'s contact edit), `Edited notes on a patient`, `Changed whether a therapist appears on Team`, `Excluded a session rating from the average`, `Changed a home visit's address`, `Decided a record-access request` and `Decided a health-profile change` (`ADM-PEOP-004`), `Reworded an intake question` (`ADM-SET-020`), `Reviewed a risk signal` (`ADM-RISK-002`) and `Retried a Meet sync` (`ADM-SET-031`).
 3. Search the log for any of the generated passwords from `ADM-SET-026` or `ADM-PEOP-009`.
@@ -3334,7 +3559,110 @@ Covered by `ADM-SESS-003`.
 
 **Expected Result.** Step 2: **every one is present.** `payout.settle` is the largest money move in the application and must be attributed — if it is missing, that is a P0 defect. Step 3: **no password appears anywhere in the log.** Step 4: the insert is refused (there is a select policy and deliberately **no insert policy**), and the log is append-only from any session.
 **Ordering guarantee:** each log row is written **after** the route's compare-and-swap, so the log can never record a settlement or cancellation that lost its race.
+
+#### `ADM-SET-034` — Reading one entry: what changed, from what · P1
+
+**Feature.** Tapping a row opens the whole entry. It used to expand the route's raw JSON into the table cell (`{"fromPercent":40,"toPercent":55}`) — a developer's view of a record whose purpose is to be read months later by somebody asking what a colleague altered and what it was before.
+
+**Steps**
+1. Change a therapist's revenue share from one percentage to another, then open **Logs → All Activity** and tap that row.
+2. Tap a row for **Changed a patient's contact details**.
+3. Tap a row for a **plain care-plan approval** (no reason required).
+4. Tap **Show the exact record** on any entry that has one.
+5. Tap a row for **Edited notes on a patient**.
+
+**Expected Result**
+* A **dialog**, not an inline expander: admin, when, subject and amount at the top, then **What changed** as `40% → 55%` — the old value struck through in red, the new one in green — then **Also recorded** for everything else in the entry.
+* Step 2 names **both old and new email and phone**. It previously recorded `emailChanged: true` — an entry saying a patient's sign-in address was altered without saying what it had been is unusable for the only question it gets asked.
+* Step 3 says the action **recorded no further detail**, and that who/what/when is the whole entry — never an empty table that reads as missing data.
+* Money reads as **₹2,499**, not `249900`; a date reads as a date in IST; `true`/`false` read as **Yes**/**No**; an absent value is a dash. A field the screen does not recognise is **still listed** — in an audit record the unfamiliar key is the one somebody is looking for — and the raw record stays available behind the toggle.
+* Every dialog ends with the line saying the entry **cannot be edited by anyone**, including the admin who wrote it, and that after 30 days a Master Admin can clear it and that clearing is logged too. The first half is enforced by the table having no update policy; the second half is there because the screen must not promise something the product stopped keeping when Archive & Clear shipped.
+* Step 5 shows a **note length**, never the note's text: this log is readable by every admin, and a note written about one patient must not be reproduced across the whole back office.
 **The one action logged after the fact on purpose:** `Reset all data` (`SETUP-RESET-001`). The wipe truncates `admin_activity_log`, so the row is written **after** the reset returns — open the log on a freshly reset database and it holds exactly one row, naming who emptied it. A log that is completely empty after a reset means that row is missing, and the most destructive action in the product is unattributed.
+
+### 11.x Logs
+
+The Logs section is **Master Admin only**. Operations, Finance and Clinical have no such section in their sidebar and read their own desk's work on **Today → Activity**, filtered to their own domain and their own desk.
+
+#### `ADM-LOG-001` — Finding one entry in a long log · P1
+
+**Feature.** The log grows for ever, so All Activity is built around finding one row rather than reading the list. The dashboard's own render carries the newest 200 entries; older ones are fetched on demand.
+
+**Steps**
+1. Open **Logs → All Activity** as a Master Admin.
+2. Type a patient's name into the search box. Then type an admin's first name and a word from an action together, e.g. `asha refund`.
+3. Set **Any type** to **Money**, then to **Sessions**.
+4. Set a **From**/**To** range covering yesterday only, then press **Clear filters**.
+5. Press **Load older entries** twice, watching the `x of n loaded` count.
+6. Press it repeatedly until the button is replaced by a line saying there is nothing older.
+7. Export CSV and PDF with a filter applied.
+
+**Expected Result**
+* Search matches the **action's label as well as its stored key** — typing `refund` finds `refund.issue`, and typing `settled` finds `Settled payout` — and also the subject and the admin's name. Two terms **narrow**, they do not widen.
+* The type dropdown offers **only categories that have rows behind them**; a category with nothing in it is not listed. Each row carries its type as a chip, and the categories are the dashboard's own section names plus **Master Admin only** for the four capabilities no desk holds.
+* **Clear filters** appears only while something is set, and returns the count to `n of n loaded`.
+* Each **Load older entries** press adds up to 200 more and the count rises. No entry is ever listed twice, including one written while the page was open.
+* When the log is exhausted the button is replaced by *"That is the whole log"*.
+* Both exports carry **exactly the filtered rows**, with a Category column, and the note under the button says filters and exports run over what is loaded.
+
+#### `ADM-LOG-003a` — One subject's whole history · P1
+
+**Feature.** The log answers *"what did this admin do"* well and *"what happened to this patient"* badly — and the second is the question asked when somebody complains. Tapping an entry's subject fetches every entry recorded against that record.
+
+**Steps**
+1. Do three different things to one patient as an admin (edit their contact details, refund a session, grant a credit).
+2. Open **Logs → All Activity**, tap the refund row, and press **See everything done to this record**.
+3. Tap another entry inside the timeline.
+4. **Rename the patient**, then do one more action on them, and open the timeline again.
+5. Tap a row whose Subject is a dash, or one whose action recorded no record (`Reset all data`).
+
+**Expected Result**
+* Step 2: a dialog listing all three, newest first, each with the actor, the time, the amount where there is one and its type chip. The entry you came from is marked **This entry**.
+* **The entry dialog closes when the timeline opens** — one dialog at a time, never two stacked over the table.
+* Step 3 opens that entry's own detail, including one **older than anything the screen had loaded** — the timeline is fetched by record, not filtered from the loaded page.
+* Step 4: **all four entries are still one history.** The timeline is keyed on the record's id, not on the name snapshotted into each entry, so a rename does not split one patient into two.
+* Step 5: **no button is offered** — an action that named no record has no history to trace, and the footer says the list is entries recorded against that exact record rather than claiming to be everything.
+
+#### `ADM-LOG-002` — Archive & Clear, and the floor under it · P0
+
+**Feature.** The only way a row ever leaves `admin_activity_log`. The whole point of the design is that an admin cannot act and then remove the record of having acted.
+
+**Steps**
+1. Open **Logs → Archive & Clear**. Try to find any control offering a cutoff inside 30 days.
+2. Choose **Older than 365 days** and press **Count them**.
+3. Try to press **Clear** before downloading anything.
+4. Press **Prepare the archive**, then download the CSV.
+5. Type `clear logs` in lower case, then `CLEAR LOGS`, and press Clear.
+6. Change the cutoff to a different choice after step 4 and look at the screen.
+7. Open **All Activity** afterwards.
+8. **[API]** POST `/api/admin/clear-activity-log` with `{"olderThanDays": 1, "confirm": "CLEAR LOGS"}`, and again with `{"olderThanDays": 365}` and no `confirm`.
+9. **[API]** POST the same route as an **Operations**, **Finance** and **Clinical** admin.
+10. **[SQL]** `select public.purge_admin_activity_log(1);` against a scratch database.
+
+**Expected Result**
+* Step 1: **no such control exists.** The choices are 30, 90, 180 and 365 days, and nothing shorter is offered.
+* Step 2: a count from the **server**, not from the rows on screen. Zero says plainly there is nothing to clear.
+* Step 3: the Clear button is **disabled** until a download has actually been produced — a checkbox saying a copy was taken is deliberately not what unlocks it.
+* Step 5: the lower-case phrase is refused; only the exact phrase works.
+* Step 6: changing the cutoff **resets the count, the archive, the download and the typed phrase** — a copy taken for one year must not unlock a clear at three months.
+* Step 7: entries older than the cutoff are gone, everything newer is intact, and there is a new **`Cleared older log entries`** row naming the cutoff, the protected window and the number removed. **That row cannot be cleared by any later clear**, because it is inside the 30-day floor.
+* Step 8: both are refused with 400 and nothing is removed.
+* Step 9: **403** for all three, the same answer a stranger gets.
+* Step 10: the function **raises** — the floor holds where no route check runs, which is the case the database half exists for.
+
+#### `ADM-LOG-003` — Who can open Logs at all · P0
+
+**Steps**
+1. Sign in as **Operations**, then **Finance**, then **Clinical**. Look for a Logs entry in the sidebar.
+2. For each, navigate directly to `/admin/dashboard?section=logs&tab=all`, and to `&tab=retention`.
+3. Open **Settings** as a Master Admin and look for an Activity Log screen.
+4. Open **Settings → User Access** as a Master Admin and read the matrix.
+
+**Expected Result**
+* Step 1: **no Logs section** for any of the three.
+* Step 2: each lands on a screen their scope can open — never a heading over nothing, and never the log.
+* Step 3: Settings has **nine** screens and Activity Log is **not** among them; it moved to the Logs section, which is the whole of it in one place.
+* Step 4: the matrix carries a **Logs** group with a read row and a clear row, ticked for Master Admin and blank for the other three — derived from the same module the routes enforce with, so it cannot claim access nobody has.
 
 #### `ADM-SET-035` — Account Security · P2
 **Steps.** Open **Settings → Account Security** and change the admin's own password.
@@ -3479,10 +3807,22 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 
 ### 16.2 Money screens
 
+#### `FIN-NAV-001` — Each Money screen says what it is, and holds what it claims · P1
+
+**Steps.** Open each of the five Money screens in turn: Summary, Transactions, Payouts, Costs, Breakdown. Read the line under each heading. Then open **Settings → Offers & Discounts**, read its "Looking for promo codes?" note, and follow it.
+**Expected Result.** Every screen prints its own one-line description plus a **For example:** line under the heading, in place of the section's own blurb — the same treatment the Settings screens get, and for a sharper reason: five screens named with abstract nouns ("Summary", "Breakdown") make an owner open three to find the one answering their question. **Promo codes are on Costs**, beside the *Discounts given* figure they produce — which is where the Offers note, the README and `ADM-PROMO-001` have always sent people.
+**Negative:** they used to render on **Summary**, so following that note landed on a screen with no promo codes anywhere on it and no way to tell whether the feature existed at all.
+
 #### `FIN-SUM-001` — Summary and the two identities · P0
 
 **Steps.** Open **Money → Summary**. Set the date range to cover the dataset. Read every figure. Compute the two identities by hand.
 **Expected Result.** `net = gross − refunds` and `clinic share = splittable net − therapist share − partner share` **hold exactly**. The figures match §16.1. The excluded count reads `1` with `₹1,999` named. Every screen ends with the **MoneyGlossary**. No figure is labelled "approximate" — the split is exact over a stated subset.
+**No figure appears twice on the screen.** The strip carries Net revenue, Operating profit, Owed to therapists and Package cash collected; the two blocks below it are the subtraction chain, where Clinic share is deliberately carried down from *Where the money went* into *What it cost to run*. Before this, Net revenue was printed twice, Clinic share three times and Operating profit twice, because the strip repeated the chain under it.
+
+#### `FIN-SUM-004` — Every figure says what it means and when it is measured · P1
+
+**Steps.** On **Money → Summary**, tap the **i** beside Net revenue, Clinic share and Owed to therapists. Read the chip on each. Then open the glossary at the foot of the screen and compare the sentences. Then check the **Gateway fee %** tile on Costs.
+**Expected Result.** The **i** expands one sentence beside the figure, and it is **word-for-word** what the glossary prints — both read `src/lib/moneyTerms.ts`. Clinic share's says in place that it is **not** profit. Chips: `These dates` on the flows, `Right now` on Owed to therapists (amber) and on the Payouts heading, `A setting` on Gateway fee %. **That tile used to be called "Payment fees"** — the same name Summary gives the rupee amount derived from it, which is the one-word-two-figures collision the vocabulary exists to prevent.
 
 #### `FIN-SUM-002` — Paid vs unpaid, completed vs not · P0
 **Steps.** Confirm S2's treatment.
@@ -3492,6 +3832,17 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 #### `FIN-SUM-003` — Date filtering, and what is never filtered · P0
 **Steps.** Narrow the range to one day containing only S1. Read every figure on Summary. Then read **Owed to therapists**.
 **Expected Result.** Gross, refunds, net, and the split all narrow to S1. **"Owed to therapists" does not change** — it is an all-time balance, net of cash held, matching what the Pay button transfers. Its label says so. If it moves with the range, that is a P0: an admin could read "nothing owed" off a quiet week while a real debt sat outside the window.
+
+#### `FIN-SUM-005` — Opening a figure, and what needs you · P1
+
+**Steps.** On **Money → Summary**, tap **See the sessions** on Net revenue, then on Therapists' share, Partners' share and Clinic share. Add up the last column by hand in each. Then leave S7's cash un-remitted and a payout request pending, and open each of the five Money screens.
+**Expected Result.** The modal lists exactly the sessions behind that figure and its footer **equals the card**, to the rupee — both come from `moneyLineFor`, which the totals themselves accumulate. A session paid for but **not delivered** appears under Therapists' share with **nothing** against it rather than being hidden. A session left out of the split is not counted in the two share modals. Partners' share offers no link when nothing was referred in range.
+Every Money screen opens with a **needs-you strip**: `N things need you` over one row per item — payout requests waiting, cash a therapist is holding, refunds to hand back by hand, payments attached to nothing — each linking to the rows it counted. With nothing outstanding it reads `Nothing in Money needs you`. A **Finance** admin (no `settings`) sees the first three and **not** payments-attached-to-nothing, whose fix is on a screen they cannot open.
+
+#### `FIN-SUM-006` — Exporting a figure's sessions, and last period's comparison · P1
+
+**Steps.** Open **See the sessions** on Clinic share and export both CSV and PDF. Then set the range to September, read the line under **Net revenue**, and re-run with an August that has no paid sessions in it.
+**Expected Result.** The export covers the **same rows the modal listed** and both formats come from one column definition, so they describe the same table; the PDF's subtitle names the date range. The strip's Net revenue carries a comparison against **the same number of days immediately before** the range in view — never a calendar month against a 30-day window, which would move the figure by the number of days rather than by the business. Up is green, down is red, and a move under half a percent reads **Level with the N days before** rather than drawing an arrow over noise. With nothing in the previous period it reads **Nothing in the N days before** — it must **never** print `+100%` or `∞` from a zero baseline.
 
 #### `FIN-BRK-001` — Breakdown agrees with Summary · P0
 **Steps.** Open **Money → Breakdown** for the same range.
@@ -3554,6 +3905,41 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 **Preconditions.** A 6-session purchase with 2 sessions **completed** and 4 available.
 **Steps.** Refund the package.
 **Expected Result.** The **4 available** credits are voided; the **2 delivered stay delivered**. The ledger records a `void` for exactly 4. The patient's widget shows the programme as refunded with nothing available. **A delivered session is never un-delivered.**
+
+#### `FIN-REF-005` — A refunded session says so wherever it is listed · P0
+**Preconditions.** One session refunded in full, one refunded partially, one cash home visit at `manual_pending`, one refund that failed at the gateway, and one cancelled inside the window with no refund due.
+**Steps.** Open **People → Patients → the patient's profile** and read the session rows. Then **Sessions → All Sessions**, then open each session's detail drawer. Export All Sessions as CSV **and** as PDF.
+**Expected Result.** Every one of the five carries a refund chip beside its payment chip, reading `Refunded ₹1,200` / `Refunded ₹500` / `Hand back ₹500` / `Refund failed` / `No refund due` respectively, in that wording and nothing else. A session that was never refunded carries **no chip at all** — an empty refund column reading "—" on every ordinary session is noise. A partial refund states the amount refunded, not the amount paid. The drawer adds a **Refunded** panel above the partial-refund form giving when, the reason, and the gateway reference where there is one. Both exports carry a `Refund` column and a `Refunded on` column agreeing with the chips. **A refund is as visible as a payment on every surface that lists a session** — a refund that happened and left no trace on the session is the failure this case exists to catch.
+
+#### `FIN-REF-008` — A refund the clinic owes is counted, and the count opens it · P0
+**Preconditions.** One cash home visit at `manual_pending`, one **session** at `manual_pending`, and one session whose refund `failed` at the gateway.
+**Steps.** As **Master Admin**, read the alerts strip at the top of any Money screen and the Today inbox. Tap each refund row. Then repeat as **Finance**, **Operations** and **Clinical**.
+**Expected Result.** *Refunds to hand back* reads **2** — cash visits and sessions together, because both are money a patient is owed with no card payment to reverse; counting only the visits is the bug this case exists to catch. *Refunds that failed* reads **1** and is its own row, because the work is different. Tapping it lands on **Sessions → All Sessions** filtered to exactly that one session, with every other filter cleared. Finance see the hand-back row and **not** the failed one: they read Sessions without being able to change one, so a figure nothing they could do would bring down does not belong on their screen. Operations and Clinical open no Money screen at all. Every row is **urgent** — this is money the clinic has agreed to return and has not returned.
+
+#### `FIN-REF-011` — A cash home visit is counted once, not twice · P0
+**Preconditions.** Exactly **one** cash home visit at `manual_pending` and no other refund owed anywhere.
+**Steps.** Read *Refunds to hand back* on the Money alerts strip and on the Today inbox, then open **Money → Payouts → Cash Ledger** and count the rows.
+**Expected Result.** Every one of them reads **1**. It must not read 2: the dashboard's home-visit query and its main appointments query are the **same table** (`appointments`, one of them filtered to `visit_mode = 'home_visit'`), so a count that adds the two counts every cash visit twice and puts a figure on the strip the ledger underneath it disagrees with. Repeat with one failed refund on a home visit for *Refunds that failed*.
+
+#### `FIN-REF-012` — The All Sessions export carries no money to a desk that cannot see it · P1
+**Steps.** As **Operations**, then as **Clinical**, open **Sessions → All Sessions** and export both CSV and PDF. Repeat as **Master Admin** and as **Finance**.
+**Expected Result.** The limited desks' files contain **no** `Amount (INR)`, `Refund` or `Refunded on` column at all — not a blank one. Those three never render in this table on screen, so a desk that cannot read them there must not be able to download them; every other column is present and the row count is identical. Master Admin and Finance get all three.
+
+#### `FIN-REF-009` — The All Sessions refund filters · P1
+**Steps.** On **Sessions → All Sessions**, take the payment filter through **Refunded**, **Refund to hand back** and **Refund failed**.
+**Expected Result.** Each returns exactly the sessions in that state. **Refunded** in particular must return rows: `payment_status` is CHECKed to `unpaid` / `paid` / `failed` and can never hold `refunded`, so this option previously matched nothing and quietly returned an empty table — a filter that always looks like "no refunds have ever happened". A refund lives on `refund_status`.
+
+#### `FIN-REF-010` — Every refund says why · P1
+**Steps.** Cancel a paid session **outside** the window giving the reason `Therapist unwell, rescheduling next week.` Cancel a second one outside the window giving **no** reason. Cancel a paid **home visit** **inside** its own window (which differs from the online one). Read each session's admin drawer and each one on the patient's Payments screen.
+**Expected Result.** The first carries the cancellation's own words on both surfaces. The second carries `Cancelled outside the refund window` rather than a blank line — a "Why:" with nothing after it is the failure this case exists to catch. The forfeiture carries `Cancelled within N hours of the slot, so no refund was due` with **N being the home-visit window**, never the online constant, and **never** the cancellation's own reason: that line answers "why this money moved" and no money moved. The patient's card shows the forfeiture as `No Refund` with that sentence on hover and **no refund line** — a forfeiture is not announced to them as a refund.
+
+#### `FIN-REF-006` — A refund issued before the columns existed · P1
+**Steps.** Against a database whose `appointments` rows predate `refunded_at` / `refunded_by`, open a session refunded before the migration.
+**Expected Result.** The chip still reads the refund from `refund_status` and `refund_amount_paise`; **the date reads `—`** rather than guessing one, and the drawer's panel omits the "when" line. The columns are deliberately **not** backfilled — a stamped date nobody recorded is worse than an absent one. Nothing on the screen errors, and `Refunded on` is blank in both exports for that row.
+
+#### `FIN-REF-007` — Finance and the desks that cannot see money · P1
+**Steps.** As **Finance**, open a refunded patient's profile and All Sessions. Then repeat as **Operations** and as **Clinical**.
+**Expected Result.** Finance reads the refund chips everywhere (Money is theirs at `manage`, Sessions at `view`). Operations and Clinical see **no refund chip** on either the patient profile or All Sessions — `canSeeMoney` gates it exactly as it gates the amount paid, so a desk that cannot read what was paid cannot read what was given back either. The `paid` / `unpaid` word itself is unchanged for them: whether a session is paid for is operational, and how much is not.
 
 ---
 
@@ -3704,6 +4090,10 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 **Expected Result.** The card body is **one tap target that opens a detail dialog** carrying the long description and what the programme covers. The **Book …** link sits **below the card** and again at the foot of the dialog, **outside** the tap-target button (a link nested inside a button is invalid markup and behaves differently per browser). It goes to `/book?category=<id>` — a **first session**, never a course of them.
 **Cover images:** a card with no photo shows the **shared placeholder panel at the same height** as one with a photo. It must never look like an image that failed to load.
 
+#### `PUB-CAT-003` — Nothing sits on the photograph in a detail dialog · P1
+**Steps.** Open a condition's detail dialog on `/conditions` and a package's on `/home-visit`, each with a cover uploaded and each without.
+**Expected Result.** The photograph fills a **16:9 frame with nothing over it** — no scrim, no heading, no badge. The heading, any badge and the summary sit on a **white band below** it, separated by a rule. With no cover, the frame keeps its 16:9 and shows the placeholder, so the dialog does **not** change height depending on whether the catalogue has been filled in. Both dialogs use the same header: the programme one used to ignore the uploaded photograph entirely and draw an illustration, which would pair a photographic card with an illustrated dialog one tap apart.
+
 #### `PUB-CAT-002` — No course of treatment is advertised anywhere public · P0
 
 **Feature.** A course of treatment is a clinical recommendation, so the public site does not carry a price list of them. Removed outright rather than hidden behind a setting: a toggle somebody can flip back on is not the rule being gone.
@@ -3800,6 +4190,53 @@ console.table(await Promise.all(routes.map(async (route) => {
 #### `SEC-ROUTE-006` — `/dashboard` routes by role, server-side · P1
 **Steps.** As each role, open `/dashboard`. Then open `/dashboard?hash=<something>` and `/dashboard?hash=//evil.example.com`.
 **Expected Result.** Each role lands on their own dashboard. A legitimate `hash` becomes a real fragment (the anchor-based shells need it) and is **pattern-checked**; a value that could smuggle a host is rejected. **No open redirect.**
+
+#### `SEC-ROUTE-008` — The booking wizard's exit follows the account · P1
+
+**Feature.** `/book` and `/book-home-visit` hide the site nav so a stray link cannot lose somebody's progress mid-payment, which makes the one link at the foot the only way out. It always read *Back to Home* — right for a visitor from the marketing site, wrong for the commonest case: a patient who came from their own dashboard to book, and was sent to the public home page instead of back where they started.
+
+**Steps**
+1. Signed out, open `/book` and read the link at the foot. Then `/book-home-visit`.
+2. Sign in as an **approved patient**, go to the dashboard, start a booking, and read it again on both.
+3. Tap it.
+4. Sign in as a patient who is **not yet approved** (a fresh self-signup, before paying) and read it.
+5. Tap it.
+6. Open `/book` on a slow connection and watch the link before the session resolves.
+7. Sign in as an admin or a therapist and open `/book`.
+
+**Expected Result**
+* Step 1: **Back to Home** → `/`, and **Back to Home Visit** → `/home-visit`. Each wizard keeps its own signed-out destination.
+* Step 2: **Back to Dashboard**, on both.
+* Step 3: lands on their dashboard, not the marketing site.
+* Step 4: **Approval pending** — not *Back to Dashboard*. An unapproved patient bounces off their dashboard to the waiting screen, and a label naming a destination they cannot reach is the failure this resolution exists to avoid.
+* Step 5: lands on `/pending-approval` directly, in one navigation.
+* Step 6: **Back to Home** until the session resolves, then the signed-in wording. Fail-closed — never a dashboard link offered to somebody who might not have one.
+* Step 7: the wizard shows the wrong-account card (one account carries one role), and the exit still reads **Back to Dashboard** — it is about the account, not about who may book.
+* **Critical check:** both pages must still build as **prerendered** (`○`, 5-minute ISR). Resolving this server-side would force every booking page dynamic to answer a question about one link.
+
+#### `SEC-ROUTE-007` — The public nav always offers a signed-in person somewhere · P1
+
+**Feature.** The Navbar hides **Sign In** and **Get Started** once somebody is signed in, so whatever replaces them is the only route back into the app from the marketing site. An account waiting on approval used to get **neither** — both CTAs gone because they are signed in, and no button in their place — so an unapproved patient who tapped Home had no way forward at all.
+
+**Steps**
+1. Register a patient and leave them **unapproved**. From `/pending-approval`, tap the logo to reach Home and read the top right.
+2. Tap the button.
+3. Approve them from the back office, reload Home, and read it again.
+4. Suspend an account (`active = false`), open Home as them, and read it again.
+5. Look at the top right **on `/pending-approval` itself**.
+6. Open Home signed out.
+7. Open Home on a slow connection and watch the top right before the role lookup resolves.
+8. Repeat steps 1–4 on a phone width, in the mobile drawer.
+
+**Expected Result**
+* Step 1: a button reading **Approval pending** — not an empty space, and not *Go to Dashboard*, which would name a destination they cannot reach.
+* Step 2: lands on **`/pending-approval`** directly — one navigation, not a bounce through `/dashboard` and their role's dashboard.
+* Step 3: the same button now reads **Go to Dashboard** and opens `/dashboard`.
+* Step 4: **Account suspended**, opening `/account-suspended`. An account that is both suspended and unapproved reads *suspended* — that is the one that decides where they land.
+* Step 5: **no button at all.** Those two pages are in `AUTH_CTA_HIDDEN_ROUTES`, so the nav never offers a link to the page it is already on.
+* Step 6: **Sign In** and **Get Started**, as before.
+* Step 7: **nothing** until the lookup resolves — fail-closed, so a slow or failed role read never briefly offers the wrong destination.
+* Step 8: identical in the drawer.
 
 ### 18.3 Horizontal privilege (one user reaching another's data)
 
@@ -3962,12 +4399,135 @@ Covered by `PAT-BOOK-017`, `PAT-SUGG-004`, `THR-AVAIL-004`, `FIN-PAY-002`, `PAY-
 * **Two overlapping actions**: start a second before the first finishes; the bar must stay up until **both** are done, not vanish with the first.
 * The five money buttons (**Done**, **Collect ₹…**, **Request Payout**, **Confirm … Payment**, **Assign & Confirm**) show a spinning ring beside their busy label rather than only swapping the text.
 
+#### `UX-TIME-001` — Every time on screen is clinic time · P0
+
+**Feature.** A date formatted without an explicit timezone renders in whatever zone the *runtime* is in — the host's on the server (UTC), the viewer's in the browser. A 6 PM IST session therefore printed as **12:30 PM** on the patient's own Overview. Every date the app renders is now pinned to `Asia/Kolkata`.
+
+**Steps**
+1. Book a session for **6:00 PM IST**. As that patient, open the dashboard **Overview** and read the **Next session** figure and the line under it.
+2. Read the same session on **Your Sessions**, on the therapist's dashboard, on the admin's All Sessions and in the session drawer.
+3. Change your **device** timezone to something far from IST (London, New York) and reload every one of those screens.
+4. Book a session at **00:30 IST** — the instant that is the *previous* day in UTC — and check the date shown everywhere.
+5. Open a **purchase detail** modal and a **payment receipt**, and read the purchased/expiry dates.
+6. On the admin **Calendar**, read the month title and the selected-day title at a non-IST device timezone.
+7. On the patient's **Book a Session** calendar, page through months at a non-IST device timezone.
+8. Open the health-profile intake wizard, type, and read the **Saved …** line.
+
+**Expected Result**
+* Steps 1–2: **6:00 pm**, everywhere, and the same date on every surface. If any screen says 12:30, that is this defect.
+* Step 3: **unchanged.** The zone is the clinic's, not the reader's — two people looking at one session must not disagree about when it is.
+* Step 4: the **IST date**, on every surface. This is the case a naive formatter gets a full day wrong.
+* Step 5: clinic time, and anything unreadable renders as **—**, never `Invalid Date`.
+* Steps 6–7: the month and day titles are **correct at every device timezone** and must not shift by a day. These are wall-clock dates with no instant behind them, and are deliberately *not* pinned — pinning them is the opposite bug.
+* Step 8: **"Saved 3:42 pm" follows your own clock**, deliberately: it is your own draft, set in your browser, gone on reload — not a stamp on a record anyone else reads.
+* A session slot keeps being shown in the zone the patient **booked** it in, where the booking recorded one.
+
+#### `UX-SAID-001` — Every change says what it was · P0
+
+**Feature.** A mutating control ends with `router.refresh()`, which re-renders the screen into a state that looks identical to the one before it. Turning home visits on left the admin looking at the same page with no idea whether it had worked. Every control now raises a confirmation naming the thing and its new state.
+
+**Steps**
+1. **Settings → Programmes & Home Visits**: toggle **Home Visit enabled** off, then on. Read the message each time.
+2. Change **online booking lead time** to 12, then to 1. Read both.
+3. Change an **invite reward** amount and read the message.
+4. Set the **home page walkthrough** rotation to 0, and the **splash revisit** minutes to 0.
+5. Disconnect the network and toggle any setting.
+6. Watch the message while the page re-renders behind it — do not click anything.
+7. Toggle the same switch three times quickly.
+8. Wait without touching it. Then raise another and press its **×**.
+9. As an **admin**: suspend a colleague, then change their access level.
+10. As a **patient**: save an address, upload a report, delete it.
+11. As a **therapist**: write a session note, mark a session complete, record a cash collection, request a payout.
+12. As a **hospital**: withdraw a referral.
+13. On a phone width, raise any of them.
+
+**Expected Result**
+* Step 1: **"Home visits are off. The public page and the booking wizard are hidden."** then **"Home visits are on…"**. Never *Saved* or *Updated successfully* — a confirmation that does not name the thing says only that a request finished, which was already visible.
+* Step 2: **"12 hours"** and **"1 hour"** — the unit is spelled out and pluralised on its own count.
+* Step 3: reads **₹** and a rupee figure. The word *paise* must never appear: it is a storage unit.
+* Step 4: both zeroes read as words — *"no longer rotates by itself"* and *"shows on a first load only"* — never "every 0 seconds".
+* Step 5: a **red** message saying nothing was saved, and the toggle **snaps back** to where it was. A switch left showing a value the server refused is the worst outcome here.
+* Step 6: the message **survives the refresh**. It is mounted above every route, so the tree re-renders underneath it.
+* Step 7: **one** message on screen, not three — the same sentence replaces itself rather than stacking. Flipping a switch twice is one fact.
+* Step 8: it clears itself after a few seconds (errors stay longer, since they need acting on), and × dismisses immediately.
+* Steps 9–12: each names what happened and to whom — *"Asha Rao can no longer sign in."*, *"Asha Rao now has Finance access."*, *"Report uploaded."*, *"Session note saved."*, *"Payout requested. The clinic will review it."*, *"Referral withdrawn."* **All four dashboards, not only the admin's.**
+* Step 13: full width at the bottom, with the dismiss in thumb reach, and never covering the control that was just used.
+
+#### `UX-BUSY-003` — Nothing waits in silence, on any dashboard · P0
+
+**Feature.** The teal bar used to appear on the admin dashboard and nowhere else, which read as three dashboards with no loading state at all. The cause was not the bar: `useRouter` reports every navigation the app starts *in code*, and the patient, therapist and hospital dashboards move between sections with **plain anchors** — a hard browser navigation, which never touches the router hook. Nothing in React learned a navigation had started.
+
+**Steps**
+1. As a **patient**, click each sidebar entry in turn — Sessions, Packages, Payments, Health Profile, Book, Edit Profile — and watch the **top edge of the window** the moment you click, before the new page arrives.
+2. Repeat as a **therapist** (Availability, Earnings, My Patients, Sessions, Edit Profile) and a **hospital** (Refer, Your Referrals, Earnings, Edit Profile).
+3. Watch what the **new** page paints first, before its data arrives.
+4. Click the entry for the screen you are **already on**.
+5. Click an in-page anchor (Edit Profile's own sub-sections).
+6. Click **Back to Home** from any of the four dashboards.
+7. Go somewhere, then press the browser's **Back** button, and look at the top edge of the restored page.
+8. On the public site, click between Home, Conditions, How It Works and FAQ.
+9. Throttle the network to Slow 3G and repeat steps 1 and 3.
+
+**Expected Result**
+* Steps 1–2: the **teal bar appears at the top of the page you are leaving** and stays up until the new screen arrives. No sidebar entry on any dashboard may leave the screen silent.
+* Step 3: a **skeleton in the shape of the page** — sidebar rail in place, heading, figure tiles, cards — not a white gap and not a blank content area. Every dashboard sub-route has its own boundary now; before, only the four dashboard roots did.
+* Step 4: **no bar.** Re-navigating to the screen you are on finishes instantly, and a bar for it is the flicker the 220ms delay exists to prevent.
+* Step 5: **no bar** — an in-page scroll is not a navigation.
+* Step 6: the bar shows on the way out to the public site, from all four.
+* Step 7: **no stuck bar** on the restored page. A back/forward-cache restore brings the page back exactly as it was, bar included, so it is cleared on `pageshow`.
+* Step 8: the bar runs for public navigations too.
+* Step 9: both are obvious and neither screen is ever static and unexplained — this is the case the whole mechanism exists for.
+
+#### `UX-REFRESH-001` — One Refresh button, on all four dashboards · P1
+
+**Feature.** Every dashboard carries the same Refresh control in its header. These are Server Components, and the only automatic updates come from the realtime channels — which cover subscribed tables only, and hold a 30-second cooldown on the catalog one. Before this there was no way to ask for the page again except a browser reload, which throws away the state the shells keep on purpose and re-downloads the bundle.
+
+**Steps**
+1. Open the patient, therapist, hospital and admin dashboards in turn and find the button in the header.
+2. On the admin dashboard, collapse the sidebar, open a screen with a half-typed filter, then tap **Refresh**.
+3. Watch the button and the top of the page while it runs.
+4. Tap it repeatedly, as fast as you can.
+5. Have a second person change something (assign a session, add a cost) and tap Refresh without reloading.
+6. Compare against a browser reload (F5) on the same screen.
+7. Check it at a phone width on all four.
+
+**Expected Result**
+* Step 1: present on **all four**, same place, same label.
+* Step 2: the data is current and **the collapsed sidebar and the typed filter survive** — this re-runs the server render, it does not reload the page.
+* Step 3: the icon spins and the label reads **Refreshing…**, and the **teal progress bar** runs across the top. The button stays busy for the whole refresh: this is the one control whose own work *is* the refresh, so releasing it early would leave it looking idle while the page was still thinking.
+* Step 4: **one refresh at a time.** The button is disabled while pending — stacking them on the admin dashboard stacks around forty queries a tap for no new answer.
+* Step 5: the other person's change appears.
+* Step 6: the reload loses the sidebar state and the filter; Refresh does not. That difference is the point of the control.
+* Step 7: visible and tappable on a phone, in the header rather than the sidebar — the sidebar is a closed drawer at that width.
+
 #### `UX-BUSY-002` — The admin dashboard's second batch · P2
 **Steps.** Load **/admin/dashboard**, then tap any button that saves.
 **Expected Result.** Noticeably quicker than before: eleven migration-dependent reads that used to run one after another (accounting health, the suggestion and recommendation switches, discounts, the first-session offer, promo and invite settings, category covers and condition types, testimonial avatars, hospital notes) now run as one parallel batch, and both ledger-balance passes run together.
 **Critical check — the isolation is unchanged:** drop one of those columns (see `admin-degraded-schema.spec.ts`) and only that panel degrades. If the whole dashboard blanks, the batch has lost a `guard()` and that is a P0.
 
 **Expected Result.** Each shell offers a **mobile drawer** for the sidebar. **Back to Home is present in all three renders** — expanded sidebar, collapsed rail, and mobile drawer. On all four shells it sits at the **foot of the nav, directly above Collapse** (above the profile/Log Out footer in the mobile drawer, which has no Collapse). Without it the only exit from a dashboard is Log Out, which also ends the session. It is a plain link, not a client-side transition, because transitions into a differently-chromed route were silently not completing.
+
+#### `UX-MODAL-002` — A dialog opened inside a modal covers the screen · P1
+
+**Feature.** `position: fixed` is relative to the viewport until an ancestor carries `backdrop-filter` — and every modal here sets `backdrop-blur-sm`, so every modal is one. A confirmation opened inside one was therefore measured against that modal's scrolling panel instead of the screen.
+
+**Steps**
+1. **People → Patients → a patient → Profile.** In their sessions list, press **Mark Done** on a session.
+2. Look at the dark sheet: how much of the screen does it cover?
+3. Scroll the page while the prompt is open.
+4. Press **No**, scroll the profile **half way down**, and press Mark Done again.
+5. Repeat from the **session drawer** on All Sessions, and from a **purchase detail** modal.
+6. Do the same on a phone width.
+7. Press **No**, then **Yes**, and confirm the action still works and the confirmation toast appears.
+8. On the patient's own dashboard, open a **programme detail** and the **bulk scheduler**, and check their open/close animation still plays.
+
+**Expected Result**
+* Steps 1–2: the prompt is **centred in the viewport** and the dark sheet covers the **whole screen**, not a band of it.
+* Step 3: it **stays put** as the page scrolls behind it — it follows the reader rather than the document.
+* Step 4: identical wherever the page is scrolled to. Previously it appeared at the top of the scrolled content, often off-screen.
+* Steps 5–6: identical from every modal and at every width.
+* Step 7: **unchanged behaviour.** The dialog moved in the DOM but not in the React tree, so clicks, cancel and confirm all work exactly as before.
+* Step 8: the animated overlays still fade in **and out**. They are deliberately not portalled — a portal between them and their animation wrapper would kill the exit animation, and they are always outermost anyway.
 
 #### `UX-MOB-003` — Modals and drawers fit · P1
 **Steps.** At 390 × 844 open: a catalog detail dialog, the admin session drawer, the intake wizard, the pain-exam dialog, the confirm dialog.
@@ -4111,6 +4671,14 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 **Event.** `THR-SUGG-001` → `PAT-SUGG-002`.
 **Expected Result.** While pending: therapist sees **Waiting on the patient**, patient sees the card. After acceptance: therapist sees the booked session, patient sees it under Upcoming, and exactly one credit has moved.
 
+#### `XR-NAV-001` — A signed-in account is never stranded on the public site · P0
+**Steps.** Sign in as a patient and open `/`. Then repeat with the profile lookup failing (block the `profiles` request in devtools, or sign in as an account whose profile row is momentarily unreadable). Repeat as an unapproved patient and as a suspended one.
+**Expected Result.** The navbar never shows **Sign In / Get Started** *and* no destination button at the same time. Approved → **Go to Dashboard**. Unapproved → **Approval pending** → `/pending-approval`. Suspended → **Account suspended** → `/account-suspended`, and suspension wins when an account is both. **A failed lookup falls back to Go to Dashboard**, not to nothing: `/dashboard` resolves the role server-side and the proxy carries the account onward, so the worst case is one extra hop, never a signed-in person with nothing to tap.
+
+#### `XR-LOAD-001` — Every tap says it registered · P1
+**Steps.** From the admin dashboard tap a **patient name**, a **therapist name** and a **condition name** (each opens an intercepted overlay). Then move between dashboard sections on the patient, therapist and hospital dashboards.
+**Expected Result.** Tapping a name paints the overlay's own sheet with **Opening…** and a skeleton straight away, then swaps to the real detail — it must not sit on the unchanged dashboard with no acknowledgement, which is what makes an admin tap a second time. Section moves on the other three dashboards draw the teal bar. No screen in the app waits on a server render with nothing on it saying so.
+
 #### `XCFG-ROSTER-001` — A roster change moves nothing · P0
 
 **Purpose.** This is the guard on the deliberate separation between the roster and the booking picker. It is the single most likely place for a well-intentioned "fix" to break the design.
@@ -4147,10 +4715,10 @@ SETUP-RESET-001
   → PAT-PKG-001 (spend 3 credits)     → XR-CREDIT-001
   → THR-SESS-005 ×3 (deliver them)
   → FIN-SUM-001 (identities hold)     → FIN-PAY-002 (settle) → XR-PAYOUT-001
-  → ADM-SET-033 (every action is in the Activity Log)
+  → ADM-SET-033 (every action is in the log)
 ```
 
-**Pass criterion.** Both money identities hold at the end, every cross-role check agrees, and the Activity Log contains every mutating action including `payout.settle`.
+**Pass criterion.** Both money identities hold at the end, every cross-role check agrees, and the log contains every mutating action including `payout.settle`.
 
 ### `REG-J2` — The home-visit and cash journey · P0
 
@@ -4305,7 +4873,7 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | Catalog | (reads) | (reads) | — | `ADM-CAT-001..015` | `ADM-CAT-006` | `ADM-SET-028` | `UX-MOB-005` |
 | Settings | — | — | — | `ADM-SET-001..035` | `FIN-COST-002` | `ADM-SET-025..028` | — |
 | Contact controls | `THR-LEAK-005` | `THR-LEAK-001..007`, `THR-SESS-003/004` | — | `ADM-SET-029` | — | `SEC-DATA-005` | — |
-| Risk | — | — | — | `ADM-RISK-001..003` | — | `ADM-RISK-003` | — |
+| Risk | — | — | — | `ADM-RISK-001..004` | — | `ADM-RISK-003`, `ADM-RISK-004` | — |
 | Audit log | — | — | — | `ADM-SET-033` | `XR-PAYOUT-001` | `ADM-SET-033` | — |
 | Public site | `PUB-*` | — | `HOS-LEAD-001` | `ADM-SET-004..008` | — | `SEC-ROUTE-004` | `UX-MOB-001` |
 | Debug bar | `DBG-TIME-001` | — | — | `SETUP-RESET-001..003`, `DBG-NAV-001` | — | `SETUP-RESET-002/003` | — |
@@ -4442,8 +5010,9 @@ Sign off each line before release.
 - [ ] `REG-J1` … `REG-J6` all pass on a fresh database
 - [ ] Both money identities hold on the reference dataset
 - [ ] Settings → System Health reports **no** accounting disagreements and **no** unresolved sync issues
-- [ ] Every action in the audit vocabulary has been observed in the Activity Log, `payout.settle` included
-- [ ] No generated password appears anywhere in the Activity Log
+- [ ] Every action in the audit vocabulary has been observed in **Logs → All Activity**, `payout.settle` included
+- [ ] A clear at the shortest cutoff left the last 30 days intact and recorded itself (`ADM-LOG-002`)
+- [ ] No generated password appears anywhere in the log
 - [ ] `npm run verify` (lint + unit tests + build) passes
 - [ ] `npm run lint` passes, including the Realtime publication coverage check
 - [ ] The Playwright suite passes against a test project (`workers: 1`, against `next dev`)

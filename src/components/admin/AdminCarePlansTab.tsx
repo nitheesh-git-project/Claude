@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { formatClinicDate } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import PagedList from "@/components/dashboard/PagedList";
@@ -258,8 +259,8 @@ function PlanCard({ plan, canWithdraw }: { plan: AdminCarePlanRow; canWithdraw: 
         {plan.sessionCount} {plan.isHomeVisit ? "visits" : "sessions"} ·{" "}
         {formatInr(plan.pricePaise)}
         {plan.isHomeVisit && " + travel"} · written{" "}
-        {new Date(plan.authoredAt).toLocaleDateString()}
-        {plan.expiresAt && ` · holds until ${new Date(plan.expiresAt).toLocaleDateString()}`}
+        {formatClinicDate(plan.authoredAt)}
+        {plan.expiresAt && ` · holds until ${formatClinicDate(plan.expiresAt)}`}
       </p>
 
       {plan.rationale && (
@@ -746,7 +747,7 @@ function AuthorOnBehalf({
             {sessions.map((s) => (
               <option key={s.appointmentId} value={s.appointmentId}>
                 {s.patientName} with {s.therapistName} —{" "}
-                {new Date(s.slotTime).toLocaleDateString()}
+                {formatClinicDate(s.slotTime)}
                 {s.sessionCode ? ` (${s.sessionCode})` : ""}
               </option>
             ))}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { revalidatePath } from "next/cache";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Approves a pending self-serve signup. Handles both roles that go through
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
     .update({ approved: true })
     .eq("id", userId)
     .in("role", ["therapist", "patient"])
-    .select("id")
+    .select("id, role")
     .maybeSingle();
 
   if (error) {
@@ -34,6 +35,11 @@ export async function POST(request: NextRequest) {
   if (!updated) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
+
+  // Only a therapist appears on /team, so only a therapist's row can have
+  // changed what that page shows. A patient costs nothing here and would
+  // throw away a cached page for no reason.
+  if (updated.role === "therapist") revalidatePath("/team");
 
   await recordAdminActivity(admin, adminUser.id, {
     action: "account.approve",

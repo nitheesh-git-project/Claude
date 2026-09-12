@@ -24,6 +24,16 @@ export type StatCell = {
   /** Marks a cell whose filter is currently applied, so a strip that
    *  doubles as a filter says which slice is showing. */
   selected?: boolean;
+  /** Whether this figure is measured over the dates in view or is true as
+   *  of this instant ("These dates" / "Right now"). Only worth printing in
+   *  a strip that mixes the two -- the admin's Money screens, where a debt
+   *  sits beside a month's revenue and an admin narrowing the range watches
+   *  one move and the other not. */
+  scopeNote?: string;
+  /** How this figure compares with the period before it. Only for a flow --
+   *  a balance has no previous period, and an arrow on one would be a claim
+   *  about time that the figure does not make. */
+  trend?: { direction: "up" | "down" | "flat"; label: string; goodWhenUp?: boolean };
 };
 
 function Cell({ cell }: { cell: StatCell }) {
@@ -34,11 +44,22 @@ function Cell({ cell }: { cell: StatCell }) {
   // loudly. `block` on each keeps the layout identical.
   const body = (
     <>
-      <span className="flex items-center gap-1.5">
+      <span className="flex flex-wrap items-center gap-1.5">
         <span aria-hidden className={`h-2.5 w-1 rounded-full ${cell.accent ?? "bg-slate-300"}`} />
         <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
           {cell.label}
         </span>
+        {cell.scopeNote && (
+          <span
+            className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+              cell.scopeNote === "Right now"
+                ? "bg-amber-50 text-amber-700"
+                : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            {cell.scopeNote}
+          </span>
+        )}
       </span>
       <span className="mt-1 flex items-baseline gap-1">
         <span className={`font-display text-2xl font-bold leading-none ${cell.valueClass ?? "text-slate-800"}`}>
@@ -46,6 +67,29 @@ function Cell({ cell }: { cell: StatCell }) {
         </span>
         {cell.unit && <span className="text-xs font-semibold text-slate-400">{cell.unit}</span>}
       </span>
+      {cell.trend && (
+        <span
+          className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${
+            cell.trend.direction === "flat"
+              ? "text-slate-400"
+              : (cell.trend.direction === "up") === (cell.trend.goodWhenUp ?? true)
+                ? "text-emerald-600"
+                : "text-red-500"
+          }`}
+        >
+          <i
+            aria-hidden
+            className={`fa-solid ${
+              cell.trend.direction === "up"
+                ? "fa-arrow-trend-up"
+                : cell.trend.direction === "down"
+                  ? "fa-arrow-trend-down"
+                  : "fa-minus"
+            } text-[9px]`}
+          />
+          {cell.trend.label}
+        </span>
+      )}
       {cell.note && (
         <span className="mt-1 block text-[11px] leading-snug text-slate-500">{cell.note}</span>
       )}

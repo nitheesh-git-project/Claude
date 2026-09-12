@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { formatClinicDate } from "@/lib/formatDateTime";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
 import {
   type MetricsAppointment,
@@ -11,7 +12,11 @@ import {
   filterBySlotRange,
   buildBuckets,
   bookingsByBucketFor,
+  comparePeriod,
+  explainMoneyLines,
   moneyByBucketFor,
+  previousRange,
+  type MoneyLine,
   packageRevenueInRange,
   computeNoShowRate,
   computeCancellationRate,
@@ -34,6 +39,8 @@ import DataExportButtons from "@/components/admin/DataExportButtons";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import StatStrip from "@/components/dashboard/StatStrip";
+import MoneyFigure, { MoneyTermInfo } from "@/components/admin/MoneyFigure";
+import { MONEY_TERMS } from "@/lib/moneyTerms";
 
 export type { MetricsAppointment };
 
@@ -354,6 +361,11 @@ export default function AdminMetricsTab({
   const [patientFilter, setPatientFilter] = useState<string>("all");
   const [selectedTherapistId, setSelectedTherapistId] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  // Which figure's sessions are being read. One modal, four callers -- the
+  // rows are the same rows, only the column being explained changes.
+  const [explainTerm, setExplainTerm] = useState<
+    "net_revenue" | "therapist_share" | "partner_share" | "clinic_share" | null
+  >(null);
 
   // The earliest session there is, so "All Time" means the clinic's actual
   // history rather than a fixed epoch. It used to jump to 2000-01-01, which
@@ -438,6 +450,61 @@ export default function AdminMetricsTab({
       therapistHomeVisitSharePercent,
     ]
   );
+
+  // The sessions behind the four figures, from the same per-session function
+  // moneyByBucketFor accumulates -- so a drill-down cannot disagree with the
+  // card that opened it. A figure an admin cannot check is a figure they
+  // cannot trust, and this is the one section where that costs the most.
+  const moneyLines = useMemo(
+    () =>
+      explainMoneyLines(inRangeBySlot, buckets, {
+        therapistSharePercent,
+        patientHospitalSharePercent,
+        hospitalReferredPatientIds,
+        therapistHomeVisitSharePercent,
+      }),
+    [
+      inRangeBySlot,
+      buckets,
+      therapistSharePercent,
+      patientHospitalSharePercent,
+      hospitalReferredPatientIds,
+      therapistHomeVisitSharePercent,
+    ]
+  );
+
+  // The same length of time immediately before the range in view. "₹43,200
+  // in September" is only good or bad next to August, and an owner should
+  // not have to change the dates, write the figure down and change them back
+  // to find out. Costs are excluded on purpose: operating profit's previous
+  // period would need the previous period's expenses, and this is the
+  // revenue comparison, not a second P&L.
+  const previous = useMemo(() => {
+    const range = previousRange(fromMs, toMs);
+    const prevBuckets = buildBuckets(range.fromMs, range.toMs);
+    const prevInRange = filterBySlotRange(dimFiltered, range.fromMs, range.toMs);
+    const prevMoney = moneyByBucketFor(
+      prevInRange,
+      prevBuckets,
+      therapistSharePercent,
+      patientHospitalSharePercent,
+      hospitalReferredPatientIds,
+      therapistHomeVisitSharePercent
+    );
+    const days = Math.max(1, Math.round((toMs - fromMs) / 86_400_000));
+    return {
+      netRevenuePaise: prevMoney.netRevenuePaise.reduce((sum, v) => sum + v, 0),
+      periodNoun: `${days} day${days === 1 ? "" : "s"}`,
+    };
+  }, [
+    dimFiltered,
+    fromMs,
+    toMs,
+    therapistSharePercent,
+    patientHospitalSharePercent,
+    hospitalReferredPatientIds,
+    therapistHomeVisitSharePercent,
+  ]);
 
   const totalBookings = bookingsByBucket.reduce((s: number, v: number) => s + v, 0);
 
@@ -781,6 +848,13 @@ export default function AdminMetricsTab({
             other dashboard opens with. Two flows and two balances: what the
             range earned and what it left the clinic, then what is owed and
             what has gone out. */}
+        {/* Three answers, not three chain members. Clinic share used to sit
+            here as well, which put it on this screen three times over -- once
+            in the strip and once in each of the two blocks below, where it is
+            deliberately carried down as part of the subtraction. Net revenue
+            stays because it is the top line and the strip's first question is
+            "how much came in"; what is gone is the figure that was neither
+            an answer nor the start of one. */}
         <div className="mb-5">
           <StatStrip
             cells={[
@@ -792,15 +866,15 @@ export default function AdminMetricsTab({
                     ? `${formatInr(totalGrossRevenuePaise)} charged, ${formatInr(totalRefundedPaise)} refunded`
                     : `${formatInr(totalGrossRevenuePaise)} charged, nothing refunded`,
                 accent: "bg-teal-500",
-              },
-              {
-                label: "Clinic share",
-                value: formatInr(totalClinicSharePaise),
-                note:
-                  clinicSharePercent === null
-                    ? "After therapist and partner shares"
-                    : `${clinicSharePercent.toFixed(1)}% of what the clinic kept`,
-                accent: "bg-emerald-500",
+                scopeNote: "These dates",
+                trend: (() => {
+                  const change = comparePeriod(
+                    totalNetRevenuePaise,
+                    previous.netRevenuePaise,
+                    previous.periodNoun
+                  );
+                  return { direction: change.direction, label: change.label };
+                })(),
               },
               {
                 label: "Operating profit",
@@ -808,20 +882,32 @@ export default function AdminMetricsTab({
                 note:
                   operating.totalCostsPaise > 0
                     ? `After ${formatInr(operating.totalCostsPaise)} of running costs`
-                    : "No running costs recorded for this range",
+                    : "No running costs recorded — this is a ceiling",
                 accent: operating.operatingProfitPaise >= 0 ? "bg-emerald-500" : "bg-red-500",
                 valueClass:
                   operating.operatingProfitPaise < 0 ? "text-red-600" : "text-slate-800",
+                scopeNote: "These dates",
               },
               {
                 label: "Owed to therapists",
                 value: formatInr(allTimeNetPayablePaise),
                 note:
                   allTimeNetPayablePaise > 0
-                    ? "Balance right now, not just this range"
+                    ? "After netting off cash they hold"
                     : "Everyone is settled up",
                 accent: allTimeNetPayablePaise > 0 ? "bg-amber-500" : "bg-emerald-500",
                 valueClass: allTimeNetPayablePaise > 0 ? "text-amber-600" : "text-slate-800",
+                // The one balance in a strip of flows. Without the chip an
+                // admin narrowing the range watches two figures fall and this
+                // one sit still, which reads as a filter that half-works.
+                scopeNote: "Right now",
+              },
+              {
+                label: "Package cash collected",
+                value: formatInr(packageRevenuePaise),
+                note: "Paid up front — revenue counts it session by session",
+                accent: "bg-slate-300",
+                scopeNote: "These dates",
               },
             ]}
           />
@@ -834,55 +920,64 @@ export default function AdminMetricsTab({
           less any partner hospital&apos;s share, leaves the clinic&apos;s share.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-sack-dollar text-teal-600"></i> Net revenue
-            </p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">
-              {formatInr(totalNetRevenuePaise)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {formatInr(totalGrossRevenuePaise)} charged
-              {totalRefundedPaise > 0 && <> · {formatInr(totalRefundedPaise)} refunded</>}
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-user-doctor text-indigo-600"></i> Therapists&apos; share
-            </p>
-            <p className="text-2xl font-bold mt-2" style={{ color: THERAPIST_CUT_COLOR }}>
-              {totalTherapistCutPaise > 0 ? `−${formatInr(totalTherapistCutPaise)}` : formatInr(0)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Earned on delivered sessions, travel included
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-hospital text-amber-600"></i> Partners&apos; share
-            </p>
-            <p className="text-2xl font-bold mt-2" style={{ color: HOSPITAL_CUT_COLOR }}>
-              {totalHospitalCutPaise > 0 ? `−${formatInr(totalHospitalCutPaise)}` : formatInr(0)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {totalHospitalCutPaise > 0
+          <MoneyFigure
+            term="net_revenue"
+            icon="fa-sack-dollar"
+            value={formatInr(totalNetRevenuePaise)}
+            note={
+              totalRefundedPaise > 0
+                ? `${formatInr(totalGrossRevenuePaise)} charged · ${formatInr(totalRefundedPaise)} refunded`
+                : `${formatInr(totalGrossRevenuePaise)} charged`
+            }
+            onExplain={() => setExplainTerm("net_revenue")}
+            explainLabel={`See ${moneyLines.length} session${moneyLines.length === 1 ? "" : "s"}`}
+          />
+          <MoneyFigure
+            term="therapist_share"
+            icon="fa-user-doctor"
+            iconClass="text-indigo-600"
+            value={
+              totalTherapistCutPaise > 0
+                ? `−${formatInr(totalTherapistCutPaise)}`
+                : formatInr(0)
+            }
+            valueClass=""
+            valueStyle={{ color: THERAPIST_CUT_COLOR }}
+            note="Earned on delivered sessions, travel included"
+            onExplain={() => setExplainTerm("therapist_share")}
+          />
+          <MoneyFigure
+            term="partner_share"
+            icon="fa-hospital"
+            iconClass="text-amber-600"
+            value={
+              totalHospitalCutPaise > 0 ? `−${formatInr(totalHospitalCutPaise)}` : formatInr(0)
+            }
+            valueClass=""
+            valueStyle={{ color: HOSPITAL_CUT_COLOR }}
+            note={
+              totalHospitalCutPaise > 0
                 ? "Referral commission on what was kept"
-                : "No hospital-referred sessions in range"}
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-teal-200 bg-teal-50/40 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-chart-line text-teal-600"></i> Clinic share
-            </p>
-            <p className="text-2xl font-bold mt-2" style={{ color: PROFIT_COLOR }}>
-              {formatInr(totalClinicSharePaise)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {clinicSharePercent === null
+                : "No hospital-referred sessions in range"
+            }
+            onExplain={
+              totalHospitalCutPaise > 0 ? () => setExplainTerm("partner_share") : undefined
+            }
+          />
+          <MoneyFigure
+            term="clinic_share"
+            icon="fa-chart-line"
+            value={formatInr(totalClinicSharePaise)}
+            valueClass=""
+            valueStyle={{ color: PROFIT_COLOR }}
+            note={
+              clinicSharePercent === null
                 ? "Before running costs"
-                : `${clinicSharePercent.toFixed(1)}% of net revenue · before running costs`}
-            </p>
-          </div>
+                : `${clinicSharePercent.toFixed(1)}% of net revenue · before running costs`
+            }
+            highlight
+            onExplain={() => setExplainTerm("clinic_share")}
+          />
         </div>
 
         {/* Named, not hidden. An admin who sees the split not adding up to
@@ -912,46 +1007,41 @@ export default function AdminMetricsTab({
           else is what has been recorded under Costs for these dates.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-chart-line text-teal-600"></i> Clinic share
-            </p>
-            <p className="text-2xl font-bold mt-2" style={{ color: PROFIT_COLOR }}>
-              {formatInr(totalClinicSharePaise)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">Carried down from above</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-credit-card text-blue-600"></i> Payment fees
-            </p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">
-              {totalGatewayFeePaise > 0
-                ? `−${formatInr(totalGatewayFeePaise)}`
-                : formatInr(0)}
-            </p>
-            {/* Charged on gross, not net: a processor keeps its fee when a
-                payment is reversed, so a refunded session costs the fee
-                anyway. */}
-            <p className="text-[11px] text-slate-400 mt-1">
-              {gatewayFeePercent}% of everything collected online, refunds included
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-receipt text-amber-600"></i> Running costs
-            </p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">
-              {operating.recordedExpensesPaise > 0
+          <MoneyFigure
+            term="clinic_share"
+            icon="fa-chart-line"
+            value={formatInr(totalClinicSharePaise)}
+            valueClass=""
+            valueStyle={{ color: PROFIT_COLOR }}
+            note="Carried down from above"
+          />
+          <MoneyFigure
+            term="payment_fees"
+            icon="fa-credit-card"
+            iconClass="text-blue-600"
+            value={
+              totalGatewayFeePaise > 0 ? `−${formatInr(totalGatewayFeePaise)}` : formatInr(0)
+            }
+            /* Charged on gross, not net: a processor keeps its fee when a
+               payment is reversed, so a refunded session costs the fee
+               anyway. */
+            note={`${gatewayFeePercent}% of everything collected online, refunds included`}
+          />
+          <MoneyFigure
+            term="running_costs"
+            icon="fa-receipt"
+            iconClass="text-amber-600"
+            value={
+              operating.recordedExpensesPaise > 0
                 ? `−${formatInr(operating.recordedExpensesPaise)}`
-                : formatInr(0)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {rangeExpenses.length > 0
+                : formatInr(0)
+            }
+            note={
+              rangeExpenses.length > 0
                 ? `${rangeExpenses.length} entr${rangeExpenses.length === 1 ? "y" : "ies"} in this range`
-                : "Nothing recorded — add costs under Money → Costs"}
-            </p>
-          </div>
+                : "Nothing recorded — add costs under Money → Costs"
+            }
+          />
           <div
             className={`rounded-2xl border shadow-sm p-5 ${
               operating.operatingProfitPaise >= 0
@@ -959,9 +1049,13 @@ export default function AdminMetricsTab({
                 : "border-red-200 bg-red-50/40"
             }`}
           >
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-sack-dollar text-emerald-600"></i> Operating profit
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                <i aria-hidden className="fa-solid fa-sack-dollar text-emerald-600" /> Operating
+                profit
+              </p>
+              <MoneyTermInfo term="operating_profit" />
+            </div>
             <p
               className={`text-2xl font-bold mt-2 ${
                 operating.operatingProfitPaise >= 0 ? "text-emerald-700" : "text-red-600"
@@ -991,36 +1085,26 @@ export default function AdminMetricsTab({
             chain that ends at operating profit, and a balance is not part of
             that chain. */}
         <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-hand-holding-dollar text-blue-600"></i> Paid to therapists
-            </p>
-            <p className="text-2xl font-bold text-slate-900 mt-2">
-              {formatInr(totalPaidToTherapistsPaise)}
-            </p>
-            {/* Not a cost line: a therapist's share was already deducted
-                above when they earned it. This is the cash movement that
-                settles it, shown so an admin can see both. */}
-            <p className="text-[11px] text-slate-400 mt-1">
-              Settled for sessions scheduled in this range — already counted in the
-              therapists&apos; share above
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              <i className="fa-solid fa-clock text-amber-500"></i> Owed to therapists
-            </p>
-            <p
-              className={`text-2xl font-bold mt-2 ${
-                allTimeNetPayablePaise > 0 ? "text-amber-600" : "text-slate-900"
-              }`}
-            >
-              {formatInr(allTimeNetPayablePaise)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Balance right now, all time, after netting off cash therapists hold
-            </p>
-          </div>
+          <MoneyFigure
+            term="paid_to_therapists"
+            icon="fa-hand-holding-dollar"
+            iconClass="text-blue-600"
+            value={formatInr(totalPaidToTherapistsPaise)}
+            showScope
+            /* Not a cost line: a therapist's share was already deducted above
+               when they earned it. This is the cash movement that settles it,
+               shown so an admin can see both. */
+            note="Already counted in the therapists' share above"
+          />
+          <MoneyFigure
+            term="owed_to_therapists"
+            icon="fa-clock"
+            iconClass="text-amber-500"
+            value={formatInr(allTimeNetPayablePaise)}
+            valueClass={allTimeNetPayablePaise > 0 ? "text-amber-600" : "text-slate-900"}
+            showScope
+            note="All time, after netting off cash therapists hold"
+          />
         </div>
       </div>
       )}
@@ -1149,6 +1233,17 @@ export default function AdminMetricsTab({
           )}
         </div>
       </div>
+
+      {explainTerm && (
+        <MoneyExplainModal
+          term={explainTerm}
+          lines={moneyLines}
+          patients={patients}
+          therapists={therapists}
+          rangeSubtitle={rangeSubtitle}
+          onClose={() => setExplainTerm(null)}
+        />
+      )}
 
       {selectedTherapistRow && (
         <Modal
@@ -1289,22 +1384,24 @@ export default function AdminMetricsTab({
           "how well did it go" and belong with performance. Same row of
           tiles, split by which question it answers. */}
       {view === "summary" && (
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {/* Was a third figure called "Recognised revenue", which was the
-            same paid-sessions-in-range total the Net revenue card above
-            already shows under a different name -- the exact collision this
-            screen's glossary existed to apologise for. Refunds is the number
-            that was actually missing from the row. */}
-        <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">Refunded</p>
+      <div className="grid grid-cols-2 gap-3">
+        {/* Two figures, not three. "Recognised revenue" went first -- it was
+            the Net revenue card again under a second name, the exact
+            collision the glossary existed to apologise for -- and "Package
+            cash collected" followed it into the strip at the top of the
+            screen, where it answers "how big was this period" beside the
+            other three. A figure that appears twice on one screen is a
+            figure a reader has to check is the same number. */}
+        <div className="rounded-xl bg-slate-50 p-3 text-center">
+          <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
+            Refunded <MoneyTermInfo term="refunded" />
+          </p>
           <p className="text-base font-bold text-slate-900">{formatInr(totalRefundedPaise)}</p>
         </div>
-        <div className="bg-slate-50 rounded-xl p-3 text-center" title="Package purchases paid for in this range -- money in the bank up front. The revenue figures above recognise its value gradually instead, one session at a time as they get scheduled, so the two are deliberately different numbers.">
-          <p className="text-[11px] text-slate-500">Package cash collected</p>
-          <p className="text-base font-bold text-slate-900">{formatInr(packageRevenuePaise)}</p>
-        </div>
-        <div className="bg-slate-50 rounded-xl p-3 text-center">
-          <p className="text-[11px] text-slate-500">Bookings</p>
+        <div className="rounded-xl bg-slate-50 p-3 text-center">
+          <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
+            Bookings <MoneyTermInfo term="bookings" />
+          </p>
           <p className="text-base font-bold text-slate-900">{totalBookings}</p>
         </div>
       </div>
@@ -1422,5 +1519,172 @@ export default function AdminMetricsTab({
       </div>
       )}
     </div>
+  );
+}
+
+// The sessions behind one Money figure.
+//
+// One modal for all four cards, because they are the same rows read down a
+// different column -- four modals would be four chances for one of them to
+// filter differently from the card that opened it. The footer sums the
+// column being explained, so a reader can check the card against it, and
+// the rows come from explainMoneyLines, which shares its arithmetic with
+// the totals themselves.
+const EXPLAIN_COLUMN: Record<
+  "net_revenue" | "therapist_share" | "partner_share" | "clinic_share",
+  {
+    heading: string;
+    blurb: string;
+    amount: (line: MoneyLine) => number;
+    include: (line: MoneyLine) => boolean;
+  }
+> = {
+  net_revenue: {
+    heading: "Kept",
+    blurb: "Every paid session in this range, after any refund on it.",
+    amount: (l) => l.netPaise,
+    include: () => true,
+  },
+  therapist_share: {
+    heading: "Therapist",
+    blurb:
+      "Only sessions actually delivered earn a share. A session booked and paid for but not completed is listed with nothing against it.",
+    amount: (l) => l.therapistCutPaise,
+    include: (l) => !l.excluded,
+  },
+  partner_share: {
+    heading: "Partner",
+    blurb: "Sessions with a referring hospital's commission on them.",
+    amount: (l) => l.hospitalCutPaise,
+    include: (l) => l.hospitalCutPaise > 0,
+  },
+  clinic_share: {
+    heading: "Clinic",
+    blurb: "What each session left the clinic after both shares came out of it.",
+    amount: (l) => l.clinicSharePaise,
+    include: (l) => !l.excluded,
+  },
+};
+
+function MoneyExplainModal({
+  term,
+  lines,
+  patients,
+  therapists,
+  rangeSubtitle,
+  onClose,
+}: {
+  term: keyof typeof EXPLAIN_COLUMN;
+  lines: MoneyLine[];
+  patients: Person[];
+  therapists: Person[];
+  rangeSubtitle: string;
+  onClose: () => void;
+}) {
+  const column = EXPLAIN_COLUMN[term];
+  const entry = MONEY_TERMS[term];
+  const patientNameById = new Map(patients.map((p) => [p.id, p.full_name ?? "Unknown"]));
+  const therapistNameById = new Map(therapists.map((t) => [t.id, t.full_name ?? "Unknown"]));
+  const rows = lines.filter(column.include);
+  const total = rows.reduce((sum, l) => sum + column.amount(l), 0);
+
+  // The same rows the table renders, through the same column definition the
+  // spreadsheet and the printed page share -- an accountant asking what makes
+  // up a month's figure should not be sent a screenshot, and the two formats
+  // cannot describe different tables when they are built from one list.
+  const exportColumns: CsvColumn<MoneyLine>[] = [
+    { header: "Session date", value: (l) => formatClinicDate(l.slotTime) },
+    { header: "Delivery", value: (l) => (l.visitMode === "home_visit" ? "Home visit" : "Video") },
+    { header: "Status", value: (l) => l.status ?? "" },
+    { header: "Patient", value: (l) => patientNameById.get(l.patientId) ?? "Unknown" },
+    {
+      header: "Therapist",
+      value: (l) =>
+        l.therapistId ? therapistNameById.get(l.therapistId) ?? "Unknown" : "Unassigned",
+    },
+    { header: "Paid (INR)", value: (l) => (l.paidPaise / 100).toFixed(2) },
+    { header: "Refunded (INR)", value: (l) => (l.refundPaise / 100).toFixed(2) },
+    { header: `${column.heading} (INR)`, value: (l) => (column.amount(l) / 100).toFixed(2) },
+  ];
+
+  return (
+    <Modal title={`${entry.term}: the sessions behind it`} subtitle={column.blurb} onClose={onClose}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] text-slate-500">{rangeSubtitle}</p>
+        <DataExportButtons
+          filename={`money-${term.replace(/_/g, "-")}`}
+          title={`${entry.term}: the sessions behind it`}
+          subtitle={rangeSubtitle}
+          rows={rows}
+          columns={exportColumns}
+        />
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState
+          icon="fa-receipt"
+          title="No sessions in this range"
+          body="Widen the dates, or clear the category and therapist filters above."
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-slate-500">
+                <th className="py-2 pr-3 font-semibold">Session</th>
+                <th className="py-2 pr-3 font-semibold">Patient</th>
+                <th className="py-2 pr-3 font-semibold">Therapist</th>
+                <th className="py-2 pr-3 text-right font-semibold">Paid</th>
+                <th className="py-2 text-right font-semibold">{column.heading}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((line) => (
+                <tr key={line.appointmentId} className="border-b border-slate-100">
+                  <td className="py-2 pr-3 text-slate-600">
+                    {formatClinicDate(line.slotTime)}
+                    {line.visitMode === "home_visit" && (
+                      <span className="ml-1.5 text-[10px] text-slate-400">home visit</span>
+                    )}
+                    {line.status !== "completed" && (
+                      <span className="ml-1.5 text-[10px] text-amber-600">
+                        {line.status ?? "—"}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3 text-slate-700">
+                    {patientNameById.get(line.patientId) ?? "Unknown"}
+                  </td>
+                  <td className="py-2 pr-3 text-slate-700">
+                    {line.therapistId
+                      ? therapistNameById.get(line.therapistId) ?? "Unknown"
+                      : "Unassigned"}
+                  </td>
+                  <td className="py-2 pr-3 text-right text-slate-600">
+                    {formatInr(line.paidPaise)}
+                    {line.refundPaise > 0 && (
+                      <span className="ml-1 text-[10px] text-red-500">
+                        −{formatInr(line.refundPaise)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 text-right font-semibold text-slate-800">
+                    {formatInr(column.amount(line))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-slate-300">
+                <td className="py-2 pr-3 font-bold text-slate-700" colSpan={4}>
+                  {rows.length} session{rows.length === 1 ? "" : "s"} — this is the figure on the
+                  card
+                </td>
+                <td className="py-2 text-right font-bold text-slate-900">{formatInr(total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </Modal>
   );
 }

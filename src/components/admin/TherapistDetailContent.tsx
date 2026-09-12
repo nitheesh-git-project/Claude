@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatClinicDate } from "@/lib/formatDateTime";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
@@ -6,6 +7,7 @@ import { scopeCanOpen } from "@/lib/adminScope";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import TherapistActiveToggle from "@/components/admin/TherapistActiveToggle";
+import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
 import TherapistTeamVisibilityToggle from "@/components/admin/TherapistTeamVisibilityToggle";
 import TherapistNotAvailableToggle from "@/components/admin/TherapistNotAvailableToggle";
 import TherapistContactEditForm from "@/components/admin/TherapistContactEditForm";
@@ -13,6 +15,7 @@ import TherapistNotesForm from "@/components/admin/TherapistNotesForm";
 import TherapistDisplayContentForm from "@/components/admin/TherapistDisplayContentForm";
 import TherapistRevenueShareForm from "@/components/admin/TherapistRevenueShareForm";
 import ResetTherapistPasswordButton from "@/components/admin/ResetTherapistPasswordButton";
+import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
@@ -264,15 +267,25 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                {therapist.credentials} • Joined {new Date(therapist.created_at).toLocaleDateString()}
+                {therapist.credentials} • Joined {formatClinicDate(therapist.created_at)}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Master Admin only, re-checked by the route -- see the same
+                control on the patient page. */}
+            {viewer?.scope === "full" && (
+              <ViewAsUserButton
+                userId={therapist.id}
+                userName={therapist.full_name ?? "this therapist"}
+              />
+            )}
             {!therapist.approved && <ApproveAccountButton userId={therapist.id} />}
             <TherapistTeamVisibilityToggle
               therapistId={therapist.id}
               visibleOnTeam={therapist.visible_on_team}
+              active={therapist.active}
+              approved={therapist.approved}
             />
             <TherapistNotAvailableToggle therapistId={therapist.id} onLeave={therapist.on_leave} />
             <TherapistActiveToggle
@@ -308,12 +321,21 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             )}
             {therapist.bio && <p className="text-slate-600">{therapist.bio}</p>}
           </div>
-          <div className="mt-4 pt-4 border-t border-slate-100">
+          <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
             <ResetTherapistPasswordButton
               therapistId={therapist.id}
               currentPassword={note?.temp_password}
               currentPasswordSetAt={note?.temp_password_set_at}
             />
+            {/* See the patient screen's note: Master Admin only, checked
+                again by the route. */}
+            {viewer?.scope === "full" && (
+              <DeleteAccountButton
+                userId={therapist.id}
+                name={therapist.full_name ?? therapist.email ?? "this therapist"}
+                afterDeleteHref="/admin/dashboard?section=people&tab=therapists"
+              />
+            )}
           </div>
         </div>
 
@@ -469,11 +491,11 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                   </div>
                   <p className="text-slate-500">
                     Session fee ₹{(feePaise / 100).toLocaleString("en-IN")} × {sharePercent}% •{" "}
-                    Paid {a.paid_at ? new Date(a.paid_at).toLocaleDateString() : "date unknown"}
+                    Paid {a.paid_at ? formatClinicDate(a.paid_at) : "date unknown"}
                   </p>
                   {isSettled && (
                     <p className="text-slate-400">
-                      Settled {new Date(a.therapist_payout_paid_at as string).toLocaleDateString()}{" "}
+                      Settled {formatClinicDate(a.therapist_payout_paid_at as string)}{" "}
                       via {a.therapist_payout_method}
                       {a.therapist_payout_note && <> — &quot;{a.therapist_payout_note}&quot;</>}
                     </p>
@@ -509,7 +531,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                       {r.status}
                     </span>
                     <span className="text-slate-400">
-                      {new Date(r.created_at).toLocaleDateString()}
+                      {formatClinicDate(r.created_at)}
                     </span>
                   </div>
                   <ul className="text-slate-600 space-y-0.5">

@@ -5,7 +5,7 @@
 // -- a sequential re-run would pass even against the unguarded code.
 import { test, expect } from "@playwright/test";
 import Razorpay from "razorpay";
-import { adminClient, cookieHeaderFor, profileIdFor, QA_EMAILS, BASE } from "./helpers";
+import { adminClient, cookieHeaderFor, profileIdFor, QA_EMAILS, BASE, wholeHourFromNow } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -129,7 +129,7 @@ test("reassign-home-visit-therapist: concurrent reassigns to different therapist
     .select("id")
     .single();
 
-  const slot = new Date(Date.now() + (96 + Math.random() * 200) * 3600 * 1000).toISOString();
+  const slot = wholeHourFromNow(96 + Math.floor(Math.random() * 200));
   await admin.from("appointments").insert({
     patient_id: patientId,
     therapist_id: therapistAId,
@@ -170,7 +170,7 @@ test("assign-referral: concurrent assignment of two referrals to the same therap
   const hospitalId = await profileIdFor(admin, QA_EMAILS.hospital);
   const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
 
-  const slot = new Date(Date.now() + (500 + Math.random() * 2000) * 3600 * 1000).toISOString();
+  const slot = wholeHourFromNow(500 + Math.floor(Math.random() * 2000));
   const referralIds: string[] = [];
   for (let i = 0; i < 2; i++) {
     const { data } = await admin

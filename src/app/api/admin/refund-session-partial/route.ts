@@ -122,6 +122,11 @@ export async function POST(request: NextRequest) {
       refund_amount_paise: totalRefunded,
       refund_is_manual: true,
       refund_reason: reason,
+      refunded_at: new Date().toISOString(),
+      // Who signed it off. `paid_at` has always had a payment behind it
+      // naming the payer; money going out had nothing naming the person who
+      // sent it, outside the audit log.
+      refunded_by: context.id,
     })
     .eq("id", appointmentId);
   const { data: claimed, error: claimError } = await (

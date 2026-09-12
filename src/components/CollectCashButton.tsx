@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Spinner from "@/components/system/Spinner";
@@ -17,6 +18,7 @@ export default function CollectCashButton({
   amountPaise: number;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const { show } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -39,6 +41,7 @@ export default function CollectCashButton({
       if (res.status === 409) router.refresh();
       return;
     }
+    show("Cash collection recorded. It comes off your next payout.");
     router.refresh();
   }
 

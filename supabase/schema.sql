@@ -8965,3 +8965,477 @@ revoke all on function public.debug_reset_all_data() from authenticated;
 -- weakened by this -- care_plan_reviews is append-only by trigger, so a row is
 -- still unrewritable, and admins are suspended rather than deleted anyway.
 alter table care_plan_reviews alter column reviewer_id drop not null;
+
+-- ---------------------------------------------------------------------------
+-- Impersonation: an admin signing in as somebody, and the record of it
+-- ---------------------------------------------------------------------------
+--
+-- A Master Admin can open a patient's, therapist's or hospital's dashboard as
+-- that user, to see exactly what they see when they report a problem. It is a
+-- real session swap rather than a read-only mirror: the browser genuinely
+-- becomes that account, so every screen renders from their own data and every
+-- control works.
+--
+-- That is the most dangerous capability in this codebase, and the reason this
+-- table exists rather than an audit line alone. Three things follow from the
+-- swap and are enforced here rather than only in the route:
+--
+--   1. Actions taken during a swap are written as the impersonated user,
+--      because there is no column on appointments (or anywhere else) that can
+--      say "an admin was at the keyboard". This table is the only place that
+--      records it, so the window it stores -- started_at to ended_at -- is
+--      what a later reader intersects an action against.
+--   2. A reason is mandatory and real (ten characters, same floor as an
+--      admin credit adjustment or a withdrawn recommendation). "test" tells a
+--      future reader nothing about why somebody opened a patient's record.
+--   3. It expires. A forgotten tab is an open window into a health record, so
+--      expires_at is stamped at the start and the proxy signs the session out
+--      past it.
+--
+-- Append-only apart from the ending: the trigger below permits stamping
+-- ended_at/ended_reason exactly once and refuses every other update, the same
+-- shape care_plan_versions uses for its offer window.
+
+create table if not exists admin_impersonation_sessions (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid not null references profiles(id) on delete cascade,
+  -- Nullable for the same reason care_plan_reviews.reviewer_id is: the record
+  -- outlives the account, and a NOT NULL beside ON DELETE SET NULL makes the
+  -- referenced profile undeletable rather than protecting anything.
+  target_id uuid references profiles(id) on delete set null,
+  target_role text not null check (target_role in ('patient', 'therapist', 'hospital')),
+  reason text not null check (char_length(btrim(reason)) >= 10),
+  started_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  ended_at timestamptz,
+  ended_reason text check (ended_reason in ('admin_exited', 'expired'))
+);
+
+create index if not exists admin_impersonation_sessions_admin_idx
+  on admin_impersonation_sessions (admin_id, started_at desc);
+create index if not exists admin_impersonation_sessions_target_idx
+  on admin_impersonation_sessions (target_id, started_at desc);
+
+alter table admin_impersonation_sessions enable row level security;
+
+-- Admins read; nobody writes through a browser session. Every write here is
+-- the service-role client from the two impersonation routes, exactly like
+-- admin_activity_log -- and deliberately so: a record of who looked at whose
+-- health data must not be editable by the person it names.
+drop policy if exists admin_impersonation_sessions_select_admin on admin_impersonation_sessions;
+create policy admin_impersonation_sessions_select_admin on admin_impersonation_sessions
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+create or replace function admin_impersonation_sessions_append_only()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'admin_impersonation_sessions is append-only';
+  end if;
+
+  -- The one permitted transition: an open session being closed, once.
+  if old.ended_at is not null then
+    raise exception 'This impersonation session is already closed';
+  end if;
+
+  if new.admin_id is distinct from old.admin_id
+     or new.target_id is distinct from old.target_id
+     or new.target_role is distinct from old.target_role
+     or new.reason is distinct from old.reason
+     or new.started_at is distinct from old.started_at
+     or new.expires_at is distinct from old.expires_at then
+    raise exception 'Only ended_at and ended_reason may be set on an impersonation session';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists admin_impersonation_sessions_append_only on admin_impersonation_sessions;
+create trigger admin_impersonation_sessions_append_only
+  before update or delete on admin_impersonation_sessions
+  for each row execute function admin_impersonation_sessions_append_only();
+
+-- ---------------------------------------------------------------------------
+-- debug_reset_all_data: clear the impersonation record too
+-- ---------------------------------------------------------------------------
+--
+-- Adding a table means adding it to this TRUNCATE list, or a reset silently
+-- leaves its rows behind -- and a record of who signed in as whom is exactly
+-- the sort of row that would then outlive the accounts it names. Re-appended
+-- in full rather than edited in place, the way every earlier revision of this
+-- function was, so the file stays re-runnable top to bottom.
+
+create or replace function public.debug_reset_all_data()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  deleted_accounts integer;
+  admin_count integer;
+begin
+  select count(*) into admin_count from profiles where role = 'admin';
+  if admin_count = 0 then
+    raise exception 'refusing to reset: no admin account would be left behind';
+  end if;
+
+  truncate table
+    session_credit_ledger,
+    session_entitlements,
+    payment_webhook_events,
+    payments,
+    business_expenses,
+    admin_activity_log,
+    admin_impersonation_sessions,
+    session_suggestions,
+    appointment_reassignment_log,
+    payment_failure_log,
+    package_purchase_events,
+    home_visit_purchase_events,
+    appointments,
+    patient_package_purchases,
+    home_visit_package_purchases,
+    therapist_payout_requests,
+    therapist_payout_batches,
+    session_note_revisions,
+    session_notes,
+    patient_medical_documents,
+    pain_assessments,
+    condition_change_requests,
+    condition_access_grants,
+    patient_condition_profiles,
+    patient_addresses,
+    patient_admin_notes,
+    therapist_admin_notes,
+    hospital_admin_notes,
+    profile_change_requests,
+    therapist_availability_override,
+    therapist_availability_template,
+    therapist_schedule_state,
+    patient_referrals,
+    b2b_leads,
+    home_visit_waitlist,
+    home_visit_areas,
+    home_visit_packages,
+    testimonials,
+    faqs,
+    intake_question_templates,
+    pain_map_question_templates,
+    -- The four the previous definition missed. care_plans and
+    -- care_plan_versions were already reached by CASCADE; naming them is
+    -- belt and braces, and means a future change to their foreign keys
+    -- cannot quietly take them back out of the reset.
+    care_plan_versions,
+    care_plans,
+    communication_flags,
+    contact_reveal_log,
+    risk_reviews,
+    risk_signals,
+    -- Added with the review step. A reset that left the clinic's decisions
+    -- behind would leave a record of approvals for recommendations that no
+    -- longer exist.
+    care_plan_reviews,
+    -- Adding a table means adding it here, or a reset silently leaves its
+    -- rows behind. patient_invites first: it references appointments, and
+    -- a reset that kept it would leave rewards pointing at bookings that no
+    -- longer exist. promo_codes after, since appointments reference it.
+    patient_invites,
+    promo_codes
+  cascade;
+
+  with removed as (
+    delete from auth.users
+    where id not in (select id from profiles where role = 'admin')
+    returning 1
+  )
+  select count(*) into deleted_accounts from removed;
+
+  -- Detector thresholds back to what the seed set. Not truncated, because
+  -- an empty risk_rules would silently disable every detector rather than
+  -- restoring it -- risk_signals.rule_key references this table.
+  update risk_rules set
+    enabled = default,
+    config = default,
+    updated_at = now()
+  where rule_key is not null;
+
+  update site_settings set
+    site_name = default,
+    site_tagline = default,
+    site_description = default,
+    contact_email = default,
+    whatsapp_number = default,
+    contact_phone = default,
+    footer_copyright_text = default,
+    home_visit_page_heading = null,
+    home_visit_page_subheading = null,
+    ratings_visible_publicly = default,
+    session_packages_visible = default,
+    session_timeout_minutes = default,
+    google_meet_enabled = default,
+    join_window_minutes = default,
+    join_window_after_minutes = default,
+    session_completed_after_minutes = default,
+    booking_languages = default,
+    package_default_validity_days = default,
+    package_therapist_lock_enabled = default,
+    package_bulk_schedule_max = default,
+    package_expiry_reminder_days = default,
+    home_visit_enabled = default,
+    home_visit_cash_enabled = default,
+    home_visit_lead_time_hours = default,
+    home_visit_cancellation_refund_hours = default,
+    home_visit_default_validity_days = default,
+    home_visit_bulk_schedule_max = default,
+    home_visit_travel_buffer_minutes = default,
+    online_booking_lead_time_hours = default,
+    online_cancellation_refund_hours = default,
+    payment_gateway_fee_percent = default,
+    farewell_banner_seconds = default,
+    journey_step_seconds = default,
+    splash_enabled = default,
+    splash_brand_line = default,
+    splash_phrase = default,
+    splash_hold_seconds = default,
+    splash_revisit_minutes = default,
+    enabled_intake_specialties = default,
+    entitlement_ledger_authoritative = default,
+    care_plan_default_expiry_days = default,
+    care_plan_max_frequency_per_week = default,
+    contact_scan_mode = default,
+    contact_masking_enabled = default,
+    risk_signals_enabled = default,
+    therapist_suggestions_enabled = default,
+    auto_assign_therapist_enabled = default,
+    care_plan_requires_approval = default,
+    first_session_offer_enabled = default,
+    first_session_offer_type = default,
+    first_session_offer_value = default,
+    promo_codes_enabled = default,
+    invite_rewards_enabled = default,
+    invite_reward_paise = default,
+    invite_welcome_paise = default,
+    invite_max_rewards_per_patient = default
+  where id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'deleted_accounts', deleted_accounts
+  );
+end;
+$$;
+
+revoke all on function public.debug_reset_all_data() from public;
+revoke all on function public.debug_reset_all_data() from anon;
+revoke all on function public.debug_reset_all_data() from authenticated;
+
+-- --------------------------------------------------------------------------
+-- purge_admin_activity_log: the one way a row leaves the audit trail
+-- --------------------------------------------------------------------------
+-- The Logs section can clear entries older than a cutoff, once the admin has
+-- downloaded them. Everything else about this table is still append-only:
+-- there is no update path at all, and no delete path but this one.
+--
+-- The floor is the whole reason clearing is safe to offer. The log's value
+-- is that an admin cannot make their own work disappear, and a clear with no
+-- floor hands them exactly that -- act, then clear, then the record of both
+-- is gone. Thirty days means the newest month of the trail, which is where
+-- anything worth hiding would be, is out of this function's reach at every
+-- setting.
+--
+-- It lives here as well as in the route (`refuseRetention` in
+-- src/lib/activityLog.ts) deliberately: a route check is true only for as
+-- long as every caller remembers it, and this function is reachable by the
+-- service-role key and by hand in the SQL editor. Same reasoning as
+-- set_treatment_category_order() refusing a partial list.
+--
+-- Note the WHERE clause is doing real work rather than satisfying
+-- pg-safeupdate: `created_at < cutoff` is the purge itself. See the reset
+-- function's own note on why a bare DELETE would be refused anyway.
+create or replace function public.purge_admin_activity_log(p_days integer)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_cutoff timestamptz;
+  v_removed integer;
+begin
+  if p_days is null or p_days < 30 then
+    raise exception 'purge_admin_activity_log: cutoff must be at least 30 days old';
+  end if;
+
+  v_cutoff := now() - make_interval(days => p_days);
+
+  delete from admin_activity_log where created_at < v_cutoff;
+  get diagnostics v_removed = row_count;
+
+  return v_removed;
+end;
+$$;
+
+revoke all on function public.purge_admin_activity_log(integer) from public;
+revoke all on function public.purge_admin_activity_log(integer) from anon;
+revoke all on function public.purge_admin_activity_log(integer) from authenticated;
+
+-- --------------------------------------------------------------------------
+-- admin_account_notes: the fourth and last of the temp-password tables
+-- --------------------------------------------------------------------------
+-- Same table as patient_admin_notes / therapist_admin_notes /
+-- hospital_admin_notes, for back-office accounts. It exists because
+-- /api/admin/create-account was the one credential-issuing route in this app
+-- that persisted nothing: the generated password lived in React state on the
+-- User Access screen and nothing else, so any re-render took it away -- and
+-- the admin dashboard re-renders on every realtime event, including the
+-- `profiles` insert that route had just made. That is the identical failure
+-- the hospital table above was added for, one role later.
+--
+-- Zero RLS policies on purpose, exactly like its three siblings: the
+-- service-role client is the only reader and writer, so a plaintext
+-- credential cannot reach the account owner's own session. It is cleared the
+-- moment that admin sets their own password (see /api/clear-temp-password),
+-- which is what keeps "still on the password we issued" an honest thing for
+-- the directory to say.
+--
+-- It carries no `note` column -- there is no admin-notes UI for a back-office
+-- account and inventing one here would be a second place to write something
+-- about a colleague.
+--
+-- **Deliberately not in debug_reset_all_data()'s TRUNCATE list**, unlike its
+-- three siblings. Notes follow their accounts: the reset deletes every
+-- patient, therapist and hospital, so their rows here are orphans, while it
+-- keeps every admin login on purpose -- and emptying this table would strip
+-- the working credential off an account the reset had just decided to keep.
+create table if not exists admin_account_notes (
+  admin_id uuid primary key references profiles(id) on delete cascade,
+  temp_password text,
+  temp_password_set_at timestamptz
+);
+
+alter table admin_account_notes enable row level security;
+
+-- --------------------------------------------------------------------------
+-- appointments.refunded_at / refunded_by: when the money went back, and who
+-- --------------------------------------------------------------------------
+-- A refund recorded its outcome, its amount and its reason, and never when
+-- it happened or who did it. `paid_at` has existed since the first payment
+-- shipped; money going *out* had no equivalent, so "when was this patient
+-- refunded" was answerable only by finding the matching row in the audit log
+-- -- which records the action but is not what any session screen reads.
+--
+-- Both are nullable and neither is backfilled: a refund issued before this
+-- column existed genuinely has no recorded time, and guessing one from
+-- `updated_at` would put a confident wrong date on a money record. The
+-- screens render a dash for it, which is the honest answer.
+alter table appointments add column if not exists refunded_at timestamptz;
+alter table appointments add column if not exists refunded_by uuid references profiles(id);
+
+-- Reading "every refund, newest first" is a Money screen's question, and
+-- without this it is a full scan of a table that grows with every booking.
+create index if not exists appointments_refunded_at_idx
+  on appointments (refunded_at desc)
+  where refunded_at is not null;
+
+-- --------------------------------------------------------------------------
+-- catalog-images: the clinic's own home for catalog cover photographs
+-- --------------------------------------------------------------------------
+-- The three catalog tables have carried `image_url` as a plain text field an
+-- admin pasted a link into. That had two costs. The public one: nobody pastes
+-- links, so the live site shipped with no photographs at all and the cards
+-- read as unfinished. The quieter one: every cover depended on a host this
+-- clinic does not control, so a picture could vanish or be swapped by
+-- somebody else at any time, on a page selling medical care.
+--
+-- Uploads land here instead. Public, like `avatars`, because these are
+-- marketing images with nothing to hide and a signed URL per card would cost
+-- a round trip on an ISR-cached page for no privacy anyone wanted.
+--
+-- **No insert, update or delete policy on purpose.** Unlike avatars -- where
+-- the owner's own browser writes into a folder named after their id -- every
+-- write here goes through /api/admin/upload-catalog-image with the
+-- service-role client, which bypasses RLS entirely. That is what lets the
+-- upload be scope-guarded, size- and type-checked, and recorded in
+-- admin_activity_log; a browser-side upload would skip all three. Same
+-- reasoning as treatment_categories itself, which has no client write policy
+-- either.
+insert into storage.buckets (id, name, public)
+select 'catalog-images', 'catalog-images', true
+where not exists (select 1 from storage.buckets where id = 'catalog-images');
+
+drop policy if exists "catalog_image_select_public" on storage.objects;
+create policy "catalog_image_select_public" on storage.objects
+  for select using (bucket_id = 'catalog-images');
+
+-- --------------------------------------------------------------------------
+-- image_focal_x / image_focal_y: where the subject of a cover photo sits
+-- --------------------------------------------------------------------------
+-- A cover is rendered with `object-fit: cover`, which crops to the centre of
+-- the frame. The card is 4:3 and the detail dialog 16:9, so a photograph with
+-- its subject anywhere but the middle lost a head to one of them -- which is
+-- what "the images look badly aligned" was.
+--
+-- The fix is a focal point rather than a crop, and the difference matters.
+-- Cropping bakes one aspect ratio into the file: the card would be right and
+-- the dialog wrong, and changing either shape later means re-uploading every
+-- picture in the catalogue. Two numbers rendered as `object-position` are
+-- non-destructive -- the same file is correct at every ratio, now and at any
+-- ratio added later -- and cost one CSS property to apply.
+--
+-- Percentages rather than pixels for that same reason: a percentage is
+-- resolution-independent, so replacing a photo with a larger version of the
+-- same shot keeps the position it was given.
+--
+-- Default 50/50 is dead centre, which is exactly what `object-fit: cover`
+-- already does. So every row that exists today renders byte-identically
+-- until somebody deliberately repositions one -- this migration changes no
+-- pixel on the live site by itself.
+alter table treatment_categories
+  add column if not exists image_focal_x smallint not null default 50;
+alter table treatment_categories
+  add column if not exists image_focal_y smallint not null default 50;
+
+alter table treatment_category_packages
+  add column if not exists image_focal_x smallint not null default 50;
+alter table treatment_category_packages
+  add column if not exists image_focal_y smallint not null default 50;
+
+alter table home_visit_packages
+  add column if not exists image_focal_x smallint not null default 50;
+alter table home_visit_packages
+  add column if not exists image_focal_y smallint not null default 50;
+
+-- A focal point outside the frame is not a position, it is a bug that would
+-- render as a blank edge. Checked in the database as well as in the route,
+-- for the reason every other invariant here is: the route check holds only
+-- for as long as every caller remembers it, and these tables are reachable
+-- from the SQL editor.
+do $$
+begin
+  alter table treatment_categories
+    add constraint treatment_categories_focal_range
+    check (image_focal_x between 0 and 100 and image_focal_y between 0 and 100);
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter table treatment_category_packages
+    add constraint treatment_category_packages_focal_range
+    check (image_focal_x between 0 and 100 and image_focal_y between 0 and 100);
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter table home_visit_packages
+    add constraint home_visit_packages_focal_range
+    check (image_focal_x between 0 and 100 and image_focal_y between 0 and 100);
+exception when duplicate_object then null;
+end $$;

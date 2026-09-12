@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import {
   bookableHoursForDate,
@@ -159,7 +160,7 @@ export default function SuggestSessionControl({
           {state === "lapsed" ? "Suggestion lapsed" : "Waiting on the patient"}
         </p>
         <p className="mt-1 text-xs text-teal-900">
-          {new Date(pending.slotTime).toLocaleString()}
+          {formatClinicDateTime(pending.slotTime)}
         </p>
         {state === "lapsed" && (
           <p className="mt-1 text-[11px] text-teal-800">

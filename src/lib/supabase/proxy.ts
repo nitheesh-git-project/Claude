@@ -1,5 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  ADMIN_RESTORE_COOKIE,
+  IMPERSONATION_COOKIE,
+  isExpired,
+  parseMarker,
+} from "@/lib/impersonation";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -30,6 +36,24 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
+
+  // An impersonation window ends here, not in the browser.
+  //
+  // The marker cookie and the Supabase session cookies are separate things:
+  // if the marker were left to expire on its own max-age, the banner would
+  // vanish while the swap ran on underneath it -- an admin still signed in as
+  // a patient with nothing on screen saying so. So the window is checked on
+  // every dashboard request, and passing it signs the session out rather than
+  // quietly forgetting it. A forgotten tab is an open window into somebody's
+  // health record, and the safe direction for one is closed.
+  const marker = parseMarker(request.cookies.get(IMPERSONATION_COOKIE)?.value);
+  if (marker && isExpired(marker, Date.now())) {
+    await supabase.auth.signOut();
+    const expired = redirectTo("/admin/login?expired=impersonation");
+    expired.cookies.delete(IMPERSONATION_COOKIE);
+    expired.cookies.delete(ADMIN_RESTORE_COOKIE);
+    return expired;
+  }
 
   // Every redirect below has to be built through this rather than a bare
   // NextResponse.redirect. getUser() above refreshes an expired access

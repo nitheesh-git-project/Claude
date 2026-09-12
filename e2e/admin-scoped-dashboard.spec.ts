@@ -316,6 +316,88 @@ test.describe("Suite S: scoped admin dashboards", () => {
     }
   });
 
+  test("S-008: Logs is Master Admin's, and its floor holds at the route", async ({
+    browser,
+  }) => {
+    // Two halves, and the second is the one that matters: the section being
+    // absent from a sidebar is presentation, and a session cookie can post
+    // to any route directly. The retention floor is checked here as well as
+    // in the unit tests because the route is where a browser can reach it.
+    test.setTimeout(120_000);
+    const admin = adminClient();
+    const adminId = await profileIdFor(admin, QA_EMAILS.admin);
+    const context = await browser.newContext();
+
+    try {
+      for (const scope of ["operations", "finance", "clinical"] as const) {
+        await admin.from("profiles").update({ admin_scope: scope }).eq("id", adminId);
+        await context.clearCookies();
+        await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+        const page = await context.newPage();
+
+        // Typed straight into the URL: it lands on a screen this scope can
+        // open rather than on a heading over nothing.
+        await page.goto(`${BASE}/admin/dashboard?section=logs&tab=all`);
+        // The screen, not the words. AdminShell names the tab it refused in
+        // an amber line -- "All Activity is not part of your access" -- which
+        // is the behaviour that replaced a silent redirect, so a bare text
+        // match now finds the refusal and reads it as the leak. The heading
+        // is what only the real screen renders.
+        await expect(
+          page.getByRole("heading", { name: "All Activity", exact: true })
+        ).toHaveCount(0);
+        // And nothing of the log itself came with it.
+        await expect(page.getByRole("heading", { name: /Archive & Clear/ })).toHaveCount(0);
+
+        const cookie = await cookieHeaderFor(QA_EMAILS.admin);
+        for (const route of ["/api/admin/activity-log", "/api/admin/clear-activity-log"]) {
+          const res = await fetch(`${BASE}${route}`, {
+            method: "POST",
+            headers: { Cookie: cookie, "Content-Type": "application/json" },
+            body: JSON.stringify({ olderThanDays: 365, confirm: "CLEAR LOGS" }),
+          });
+          expect(res.status, `${route} let a ${scope} admin through`).toBe(403);
+        }
+        await page.close();
+      }
+
+      // And as a Master Admin, the floor refuses a cutoff inside the
+      // protected window -- the case that would let somebody act and then
+      // remove the record of having acted.
+      await admin.from("profiles").update({ admin_scope: "full" }).eq("id", adminId);
+      await context.clearCookies();
+      await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+      const cookie = await cookieHeaderFor(QA_EMAILS.admin);
+
+      const tooRecent = await fetch(`${BASE}/api/admin/clear-activity-log`, {
+        method: "POST",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ olderThanDays: 1, confirm: "CLEAR LOGS" }),
+      });
+      expect(tooRecent.status, "a one-day cutoff was accepted").toBe(400);
+
+      const unconfirmed = await fetch(`${BASE}/api/admin/clear-activity-log`, {
+        method: "POST",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ olderThanDays: 365 }),
+      });
+      expect(unconfirmed.status, "a clear went through with no typed phrase").toBe(400);
+
+      // The count is a read and must answer, so the preview and the refusals
+      // above cannot be the same check wearing two hats.
+      const preview = await fetch(`${BASE}/api/admin/clear-activity-log`, {
+        method: "POST",
+        headers: { Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "preview", olderThanDays: 365 }),
+      });
+      expect(preview.status).toBe(200);
+      expect(typeof (await preview.json()).count).toBe("number");
+    } finally {
+      await admin.from("profiles").update({ admin_scope: "full" }).eq("id", adminId);
+      await context.close();
+    }
+  });
+
   test("S-006: concurrent loads of one dashboard all agree", async () => {
     // The admin dashboard re-renders in full on every realtime event, so in
     // a busy clinic several renders overlap. buildAdminHome is pure and the

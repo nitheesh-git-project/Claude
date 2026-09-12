@@ -80,7 +80,7 @@ export default function PatientSuggestionCard({
     }
   }
 
-  const when = new Date(suggestion.slotTime).toLocaleString(undefined, {
+  const when = new Date(suggestion.slotTime).toLocaleString(undefined, { timeZone: "Asia/Kolkata",
     weekday: "long",
     day: "numeric",
     month: "short",

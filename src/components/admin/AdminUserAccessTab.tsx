@@ -2,10 +2,13 @@
 
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
-import { Fragment, useState, useTransition } from "react";
+import { Fragment, useRef, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import Spinner from "@/components/system/Spinner";
+import { formatIST } from "@/lib/formatIST";
+import { useToast } from "@/lib/toast";
+import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import {
   ACCESS_LEVEL_LABELS,
   ADMIN_CAPABILITY_GROUPS,
@@ -49,7 +52,39 @@ export type AdminRow = {
   scope: AdminScope;
   active: boolean;
   isSelf: boolean;
+  /** The password this clinic issued, while it is still the one they sign in
+   *  with. Null once they have set their own: a password a person chose is
+   *  stored as a bcrypt hash and can never be read back, so the two states
+   *  this pair can be in are "still on ours" and "theirs now" -- never "here
+   *  is the one they picked". */
+  tempPassword?: string | null;
+  tempPasswordSetAt?: string | null;
 };
+
+// Where the waiting belongs.
+//
+// Every control on this screen used to run its fetch *and* its
+// `router.refresh()` inside one `startTransition(async …)`, which meant the
+// button's own `isPending` stayed true until the refresh landed -- and on
+// this page a refresh is the whole Server Component re-running, every screen
+// and around forty queries, not the one row that changed. Suspending an
+// admin therefore left the button spinning and disabled for as long as that
+// took, which reads as a hang rather than as work.
+//
+// The split is: the control is busy for **its request**, and the refresh is
+// handed to the global teal bar (`useRouter` -> `PendingWorkProvider` ->
+// `RouteProgress`), which exists precisely because that half of the work
+// outlives the button that started it. So each handler releases its own
+// flag in a `finally` and calls `router.refresh()` after -- never the
+// `setLoading(false); router.refresh();` shape this codebase warns about,
+// because the bar is what makes the remaining wait visible rather than
+// hidden.
+//
+// Each also guards with a synchronous ref rather than the `disabled`
+// attribute alone, which lands a render too late for a double tap, and each
+// catches a failed request: an unhandled throw inside the old transition put
+// nothing on screen at all, which is indistinguishable from a button that
+// did nothing.
 
 const LEVEL_STYLE: Record<AccessLevel, { chip: string; mark: string; icon: string }> = {
   manage: {
@@ -72,14 +107,19 @@ const LEVEL_STYLE: Record<AccessLevel, { chip: string; mark: string; icon: strin
 function ScopePicker({ row, canManage }: { row: AdminRow; canManage: boolean }) {
   const [scope, setScope] = useState<AdminScope>(row.scope);
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const router = useRouter();
+  const { show } = useToast();
 
-  function handleChange(next: AdminScope) {
+  async function handleChange(next: AdminScope) {
+    if (savingRef.current) return;
     const previous = scope;
+    savingRef.current = true;
+    setSaving(true);
     setError(null);
     setScope(next);
-    startTransition(async () => {
+    try {
       const res = await fetch("/api/admin/set-admin-scope", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -95,8 +135,18 @@ function ScopePicker({ row, canManage }: { row: AdminRow; canManage: boolean }) 
         setError(data.error ?? "Could not change access.");
         return;
       }
-      router.refresh();
-    });
+    } catch {
+      setScope(previous);
+      setError("Could not reach the server. Please try again.");
+      return;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+    show(`${row.fullName ?? "That admin"} now has ${ADMIN_SCOPE_LABELS[next]} access.`);
+    // Deliberately after the control is released. See "Where the waiting
+    // belongs" at the top of this file.
+    router.refresh();
   }
 
   if (row.isSelf) {
@@ -113,7 +163,7 @@ function ScopePicker({ row, canManage }: { row: AdminRow; canManage: boolean }) 
         aria-label={`Access level for ${row.fullName ?? row.email ?? "this admin"}`}
         value={scope}
         onChange={(e) => handleChange(e.target.value as AdminScope)}
-        disabled={isPending}
+        disabled={saving}
         className="rounded-lg border border-slate-300 p-1.5 text-xs disabled:opacity-60"
       >
         {ADMIN_SCOPES.map((s) => (
@@ -136,13 +186,19 @@ function ScopePicker({ row, canManage }: { row: AdminRow; canManage: boolean }) 
  */
 function StatusToggle({ row, canManage }: { row: AdminRow; canManage: boolean }) {
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [saving, setSaving] = useState(false);
+  // Synchronous, because a `disabled` attribute lands a render too late for
+  // a double tap.
+  const savingRef = useRef(false);
   const router = useRouter();
+  const { show } = useToast();
 
-  function toggle() {
-    if (isPending) return;
+  async function toggle() {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     setError(null);
-    startTransition(async () => {
+    try {
       const res = await fetch("/api/admin/set-admin-active", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -154,8 +210,25 @@ function StatusToggle({ row, canManage }: { row: AdminRow; canManage: boolean })
         setError(data.error ?? "Could not change this.");
         return;
       }
-      router.refresh();
-    });
+    } catch {
+      // A request that dies on a bad connection has to say so. Left
+      // unhandled it threw inside the transition and put nothing on screen,
+      // which reads as a button that did nothing.
+      setError("Could not reach the server. Please try again.");
+      return;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+    // Names the person and what is now true of them -- "Saved" on this
+    // control would leave an admin re-reading the row to check which way it
+    // went.
+    show(
+      row.active
+        ? `${row.fullName ?? "That admin"} can no longer sign in.`
+        : `${row.fullName ?? "That admin"} can sign in again.`
+    );
+    router.refresh();
   }
 
   if (!canManage || row.isSelf) return null;
@@ -165,14 +238,14 @@ function StatusToggle({ row, canManage }: { row: AdminRow; canManage: boolean })
       <button
         type="button"
         onClick={toggle}
-        disabled={isPending}
+        disabled={saving}
         className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition disabled:opacity-60 ${
           row.active
             ? "border-slate-300 text-slate-700 hover:bg-slate-50"
             : "border-teal-300 bg-teal-50 text-teal-800 hover:bg-teal-100"
         }`}
       >
-        {isPending && <Spinner size={11} />}
+        {saving && <Spinner size={11} />}
         {row.active ? "Suspend access" : "Restore access"}
       </button>
       {error && <span className="max-w-[16rem] text-right text-[11px] text-red-600">{error}</span>}
@@ -261,6 +334,94 @@ function AccessMatrix() {
   );
 }
 
+// What was just created, and where to find the password again.
+//
+// The last line is the point of it: an admin who closes this needs to know
+// the credential is not gone, and where it went depends on the role they
+// picked -- a back-office account carries it on its own row in the directory
+// above, a patient or therapist on their profile page under People.
+function CreatedAccountPanel({
+  created,
+}: {
+  created: { email: string; password: string; role: string };
+}) {
+  const [copied, setCopied] = useState(false);
+  const whereItLives =
+    created.role === "admin"
+      ? "It stays on their row in Back office above until they set their own."
+      : "It stays on their profile under People until they set their own.";
+
+  return (
+    <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900">
+      <p className="font-bold">Account created.</p>
+      <p className="mt-1 flex flex-wrap items-center gap-2">
+        {created.email} · temporary password{" "}
+        <span className="font-mono font-bold">{created.password}</span>
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard.writeText(created.password);
+            setCopied(true);
+          }}
+          className="rounded-lg border border-teal-300 bg-white px-2 py-1 font-semibold text-teal-800 transition hover:bg-teal-100"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </p>
+      <p className="mt-1 text-teal-700">
+        This platform sends no email, so read it out to them. {whereItLives}
+      </p>
+    </div>
+  );
+}
+
+// Which password a back-office account is signing in with.
+//
+// Two states, and the screen says which -- it never claims a third. While
+// the clinic's own issued password is still in use it is readable here, so
+// an admin taking a call about "it won't let me in" can read it back
+// instead of resetting a working credential; once that person sets their
+// own, the row is cleared by /api/clear-temp-password and this says so. A
+// password somebody chose themselves is a bcrypt hash in Supabase's own
+// table and cannot be displayed by anyone, this app included -- the lane for
+// an account in that state is a reset, which issues a new one and puts the
+// row back into the first state.
+function IssuedPassword({ row }: { row: AdminRow }) {
+  const [copied, setCopied] = useState(false);
+
+  if (!row.tempPassword) {
+    return (
+      <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-slate-400">
+        <i aria-hidden className="fa-solid fa-lock text-[9px]" />
+        Signing in with their own password
+      </p>
+    );
+  }
+
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+      <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-amber-900">
+        <i aria-hidden className="fa-solid fa-key text-[9px]" />
+        Still on the password we issued:{" "}
+        <strong className="font-mono font-bold">{row.tempPassword}</strong>
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          navigator.clipboard.writeText(row.tempPassword ?? "");
+          setCopied(true);
+        }}
+        className="rounded-lg border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-600 transition hover:bg-slate-50"
+      >
+        {copied ? "Copied" : "Copy"}
+      </button>
+      {row.tempPasswordSetAt && (
+        <span className="text-slate-400">Issued {formatIST(row.tempPasswordSetAt)}</span>
+      )}
+    </p>
+  );
+}
+
 function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
   const [accountType, setAccountType] = useState<AccountTypeValue>("patient");
   const { role, adminScope } = parseAccountType(accountType);
@@ -269,45 +430,77 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
   const [phone, setPhone] = useState("");
   const [credentials, setCredentials] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [created, setCreated] = useState<
+    { email: string; password: string; role: string } | null
+  >(null);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const router = useRouter();
-  useUnloadWarning(isPending);
+  // Only while the request is in flight. It used to cover the refresh as
+  // well, so leaving the page during a ~40-query dashboard rebuild prompted
+  // a warning about work that was already safely written.
+  useUnloadWarning(saving);
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (isPending) return;
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     setError(null);
     setCreated(null);
-    startTransition(async () => {
-      const res = await fetch("/api/admin/create-account", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        keepalive: true,
-        body: JSON.stringify({
-          role,
-          fullName,
-          email,
-          phone: phone.trim() || null,
-          credentials: credentials.trim() || null,
-          adminScope,
-        }),
+    try {
+      const body = JSON.stringify({
+        role,
+        fullName,
+        email,
+        phone: phone.trim() || null,
+        credentials: credentials.trim() || null,
+        adminScope,
       });
+      const send = () =>
+        fetch("/api/admin/create-account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          keepalive: true,
+          body,
+        });
+
+      let res = await send();
+      // Retried exactly once, and only on the two statuses the route uses
+      // for "could not check who you are" -- 401 (the session refresh race
+      // this dashboard's own traffic causes) and 503 (the check itself
+      // failed). Both are answered before anything is written, so there is
+      // no account to duplicate; every other failure, including a 500 that
+      // may have written something, is reported as it stands.
+      if (res.status === 401 || res.status === 503) {
+        res = await send();
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? "Could not create the account.");
         return;
       }
-      // Shown once and never stored for these roles -- read it out, then it
-      // is gone. Kept on screen until the admin navigates away rather than
-      // auto-dismissed, since losing it means resetting the password.
-      setCreated({ email, password: data.password });
+      // The password is stored as well as shown now, so this panel going
+      // away no longer loses it -- a back-office account keeps it on its own
+      // row in the directory above, and a patient or therapist on their
+      // profile page, until they set their own. It used to live here and
+      // nowhere else, which made losing it a matter of timing: this request
+      // inserts a `profiles` row, that table is one the dashboard subscribes
+      // to, and the realtime refresh it triggers arrives while the admin is
+      // still reading the password out.
+      setCreated({ email, password: data.password, role });
       setFullName("");
       setEmail("");
       setPhone("");
       setCredentials("");
-      router.refresh();
-    });
+    } catch {
+      setError("Could not reach the server. Please try again.");
+      return;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+    router.refresh();
   }
 
   const fieldCls = "w-full p-2 rounded-lg border border-slate-300 text-xs";
@@ -405,8 +598,9 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
         </div>
       )}
       <p className="text-[11px] text-slate-400">
-        The account is created already approved — you vetted it by creating it — and a one-time
-        password is shown here once. This platform sends no email, so read it out yourself.
+        The account is created already approved — you vetted it by creating it — and a
+        temporary password is generated. It stays readable until they set their own, so
+        closing this does not lose it.
       </p>
 
       {error && (
@@ -414,26 +608,15 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
           {error}
         </p>
       )}
-      {created && (
-        <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900">
-          <p className="font-bold">Account created.</p>
-          <p className="mt-1">
-            {created.email} · temporary password{" "}
-            <span className="font-mono font-bold">{created.password}</span>
-          </p>
-          <p className="mt-1 text-teal-700">
-            This is the only time it is shown. Tell them to change it after signing in.
-          </p>
-        </div>
-      )}
+      {created && <CreatedAccountPanel created={created} />}
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={saving}
         className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
       >
-        {isPending && <Spinner size={12} />}
-        {isPending ? "Creating…" : "Create account"}
+        {saving && <Spinner size={12} />}
+        {saving ? "Creating…" : "Create account"}
       </button>
     </form>
   );
@@ -551,10 +734,24 @@ export default function AdminUserAccessTab({
                       </span>
                     </p>
                     <p className="text-slate-500">{a.email}</p>
+                    <IssuedPassword row={a} />
                     <p className="mt-1 text-[11px] text-slate-400">{ADMIN_SCOPE_BLURBS[a.scope]}</p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center justify-end gap-3">
                     <StatusToggle row={a} canManage={canManage} />
+                    {/* Never on your own row, and the route refuses it again
+                        along with the last Master Admin who can still sign
+                        in. An admin who has done anything at all is refused
+                        and pointed at Suspend beside it -- which is the
+                        everyday answer, since their id is on every audit row
+                        they wrote. */}
+                    {canManage && !a.isSelf && (
+                      <DeleteAccountButton
+                        userId={a.id}
+                        name={a.fullName ?? a.email ?? "this admin"}
+                        compact
+                      />
+                    )}
                     <ScopePicker row={a} canManage={canManage} />
                   </div>
                 </li>

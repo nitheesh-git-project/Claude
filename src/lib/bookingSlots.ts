@@ -158,6 +158,12 @@ export function buildCalendarMonth(
   return {
     year,
     month,
+    // No `timeZone` here, deliberately, unlike everywhere else that renders
+    // a date (see formatDateTime.ts). `first` is `new Date(y, m, 1)` -- a
+    // wall-clock date with no instant behind it, the same expression the
+    // slot validator uses. Pinning it to IST would format that local
+    // midnight in another zone and print the previous month's name for any
+    // viewer east of India.
     label: first.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
     cells,
   };
@@ -166,6 +172,8 @@ export function buildCalendarMonth(
 // Locale-aware long form for the confirmation line under the calendar --
 // never a bare numeric format, which is ambiguous across regions.
 export function formatDateKeyLong(dateKey: string): string {
+  // Wall-clock again -- fromDateKey builds local midnight. See the note on
+  // `label` above for why this one must not be pinned.
   return fromDateKey(dateKey).toLocaleDateString(undefined, {
     weekday: "long",
     day: "numeric",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import PagedList from "@/components/dashboard/PagedList";
@@ -91,6 +92,8 @@ export default function RiskSignalsTab({
   reveals,
   detectorsEnabled,
   canReview,
+  canSeeTrails = true,
+  scopeNote,
 }: {
   signals: RiskSignalRow[];
   reviews: RiskReviewRow[];
@@ -102,6 +105,16 @@ export default function RiskSignalsTab({
   detectorsEnabled: boolean;
   /** False for a scoped admin, who can read the queue but not close a row. */
   canReview: boolean;
+  /** Whether this reader gets the evidence trails -- the flagged messages
+   *  and the contact-reveal log -- and the thresholds. The findings are
+   *  scoped by desk; these two quote what a colleague wrote and name every
+   *  patient contact they opened, which is the reading the whole queue used
+   *  to be closed for, so they stay with the Master Admin. */
+  canSeeTrails?: boolean;
+  /** Says the list is this desk's rather than the whole clinic's. A
+   *  filtered queue that looks complete is worse than one that says what it
+   *  is. */
+  scopeNote?: string | null;
 }) {
   const reviewsBySignal = new Map<string, RiskReviewRow[]>();
   for (const r of reviews) {
@@ -120,6 +133,12 @@ export default function RiskSignalsTab({
         icon="fa-triangle-exclamation"
         subtitle="Patterns worth a person's attention. Nothing here changes anything on its own — no account is suspended, no payout is held, and no therapist is hidden because a rule fired."
       >
+        {scopeNote && (
+          <p className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+            <i aria-hidden className="fa-solid fa-filter text-[9px]" />
+            {scopeNote}
+          </p>
+        )}
         {open.length === 0 ? (
           <EmptyState
             icon="fa-circle-check"
@@ -144,11 +163,11 @@ export default function RiskSignalsTab({
         )}
       </SurfaceCard>
 
-      {canReview && <FlaggedMessages flags={flags} />}
+      {canReview && canSeeTrails && <FlaggedMessages flags={flags} />}
 
-      {canReview && <RevealTrail reveals={reveals} />}
+      {canReview && canSeeTrails && <RevealTrail reveals={reveals} />}
 
-      {canReview && (
+      {canReview && canSeeTrails && (
         <RulesPanel rules={rules} detectorsEnabled={detectorsEnabled} />
       )}
 
@@ -237,7 +256,7 @@ function SignalCard({
 
       <p className="mt-2 text-slate-700">{signal.summary}</p>
       <p className="mt-1 text-[11px] text-slate-400">
-        Noticed {new Date(signal.detectedAt).toLocaleString()}
+        Noticed {formatClinicDateTime(signal.detectedAt)}
       </p>
 
       <details className="mt-3">
@@ -255,7 +274,7 @@ function SignalCard({
             <li key={r.id} className="text-[11px] text-slate-500">
               <span className="font-semibold text-slate-700">{r.reviewerName}</span>{" "}
               {RISK_STATUS_LABELS[r.outcome as RiskStatus] ?? r.outcome} ·{" "}
-              {new Date(r.createdAt).toLocaleDateString()} — {r.note}
+              {formatClinicDate(r.createdAt)} — {r.note}
             </li>
           ))}
         </ul>
@@ -575,7 +594,7 @@ function FlagCard({ flag }: { flag: CommunicationFlagRow }) {
         </p>
         <span className="text-[11px] text-slate-400">
           {SURFACE_LABELS[flag.surface] ?? flag.surface} ·{" "}
-          {new Date(flag.createdAt).toLocaleDateString()}
+          {formatClinicDate(flag.createdAt)}
         </span>
       </div>
       <p className="mt-1 text-[11px] font-semibold text-slate-600">{flag.summary}</p>
@@ -621,7 +640,7 @@ function RevealTrail({ reveals }: { reveals: ContactRevealRow[] }) {
                 </span>
                 <span className="text-[11px] text-slate-400">
                   {r.reason ? `${r.reason} · ` : ""}
-                  {new Date(r.createdAt).toLocaleString()}
+                  {formatClinicDateTime(r.createdAt)}
                 </span>
               </div>
             ),

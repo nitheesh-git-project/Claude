@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConditionIntakePanel from "@/components/profile/ConditionIntakePanel";
@@ -358,15 +359,15 @@ export default async function PatientHealthProfilePage() {
                 {latestSession?.slot_time && (
                   <p className="mt-1 text-xs font-normal">
                     {latestSession.status === "completed"
-                      ? `Expected at your session on ${new Date(latestSession.slot_time).toLocaleDateString()}. If it still isn't here in a day or two, tell us and we'll chase it.`
-                      : `Your session on ${new Date(latestSession.slot_time).toLocaleDateString()} is when this gets filled in.`}
+                      ? `Expected at your session on ${formatClinicDate(latestSession.slot_time)}. If it still isn't here in a day or two, tell us and we'll chase it.`
+                      : `Your session on ${formatClinicDate(latestSession.slot_time)} is when this gets filled in.`}
                   </p>
                 )}
               </>
             )}
             {isPending && lastRequest?.status === "pending" && (
               <p className="mt-1 text-xs font-normal">
-                Sent {new Date(lastRequest.created_at).toLocaleString()}. Until it&apos;s checked, your therapist
+                Sent {formatClinicDateTime(lastRequest.created_at)}. Until it&apos;s checked, your therapist
                 still sees your previous answers — you can edit again once it clears.
               </p>
             )}

@@ -41,7 +41,13 @@ export async function POST(request: NextRequest) {
   // cash hand-back as cleared twice.
   const { data: claimed, error } = await admin
     .from("appointments")
-    .update({ refund_status: "processed" })
+    // The cash has actually been handed over now, so this is the moment the
+    // refund completed -- the earlier stamp recorded when it became owed.
+    .update({
+      refund_status: "processed",
+      refunded_at: new Date().toISOString(),
+      refunded_by: adminUser.id,
+    })
     .eq("id", appointmentId)
     .eq("refund_status", "manual_pending")
     .select("id")

@@ -5,6 +5,8 @@ import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import PackageChip from "@/components/packages/PackageChip";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
+import { formatClinicDate } from "@/lib/formatDateTime";
+import { describeRefundForPatient } from "@/lib/refundState";
 import { SESSION_FEE_PAISE, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { visitAddressFromAppointment, formatAddressBlock, mapsSearchUrl } from "@/lib/formatAddress";
 import type { PatientDashboardData } from "@/lib/patientDashboardData";
@@ -28,6 +30,7 @@ export function renderPatientSessionCard(
   visit: ReturnType<PatientDashboardData["visitDetailById"]["get"]> | null = null
 ): ReactNode {
   const { profile, therapistMap, categoryPriceMap, purchaseCodeById, adminSettings } = data;
+    const patientRefund = describeRefundForPatient(a);
     const visitAddress = visit ? visitAddressFromAppointment(visit) : null;
     const addressLines = visitAddress ? formatAddressBlock(visitAddress) : [];
     const mapsUrl = visitAddress ? mapsSearchUrl(visitAddress) : null;
@@ -79,34 +82,29 @@ export function renderPatientSessionCard(
             >
               {a.no_show ? "No-Show" : a.status}
             </span>
+            {/* "No refund" is a decision, and it only means anything on a
+                cancelled session -- so it stays here, with the window it
+                came from on hover. Every other refund state is a fact about
+                money and is shown below, whatever the session's status: a
+                partial refund on a *completed* session used to appear
+                nowhere on this card at all. */}
             {a.status === "cancelled" ? (
-              a.refund_status === "processed" ? (
-                <span className="font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
-                  Refunded
-                </span>
-              ) : a.refund_status === "not_eligible" ? (
+              a.refund_status === "not_eligible" && (
                 <span
                   className="font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full"
                   title={
                     a.therapist_payout_paid_at
                       ? "No refund — this session's payout was already settled (cancelled as an admin correction, not a late cancellation)"
-                      : `No refund — cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot`
+                      : // The recorded reason names the window that actually
+                        // applied: a home visit has its own, and the constant
+                        // below is the online one, so this used to quote the
+                        // wrong number of hours on every cancelled visit.
+                        a.refund_reason?.trim() ||
+                        `No refund — cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot`
                   }
                 >
                   No Refund
                 </span>
-              ) : (
-                // refund_status === "failed" -- the refund attempt itself errored out
-                // (see cancelAppointment.ts) and money is still owed. This used to fall
-                // through to nothing, leaving a stuck refund visually identical to a
-                // cancellation that never needed one -- the only place it was ever
-                // surfaced was a one-time toast at the moment of cancellation, gone on
-                // the very next page load.
-                a.refund_status === "failed" && (
-                  <span className="font-semibold text-red-700 bg-red-50 px-3 py-1 rounded-full">
-                    Refund Failed — Contact Us
-                  </span>
-                )
               )
             ) : a.payment_status === "unpaid" ? (
               <PayNowButton
@@ -125,8 +123,45 @@ export function renderPatientSessionCard(
                 Paid
               </span>
             )}
+            {patientRefund.state !== "none" && (
+              <span
+                className={`font-semibold px-3 py-1 rounded-full ${
+                  patientRefund.tone === "bad"
+                    ? "text-red-700 bg-red-50"
+                    : patientRefund.tone === "warn"
+                      ? "text-amber-800 bg-amber-50"
+                      : "text-slate-600 bg-slate-100"
+                }`}
+              >
+                {patientRefund.label}
+              </span>
+            )}
           </div>
         </div>
+
+        {/* The detail behind the pill. "Refunded" with no date is the answer
+            that generates the follow-up question -- a patient checking this
+            screen is asking when the money went back and why, and has no
+            other way to find out. The reason is the clinic's own words from
+            the refund, so it is shown as given rather than paraphrased. */}
+        {patientRefund.state !== "none" && (patientRefund.at || patientRefund.reason) && (
+          <div className="rounded-lg bg-slate-50 p-3 space-y-1">
+            {patientRefund.at && (
+              <p className="text-slate-600">
+                {patientRefund.state === "processed"
+                  ? `Refunded on ${formatClinicDate(patientRefund.at)}.`
+                  : `Recorded on ${formatClinicDate(patientRefund.at)}.`}
+                {patientRefund.state === "processed" &&
+                  " It can take a few working days to reach your account."}
+              </p>
+            )}
+            {patientRefund.reason && (
+              <p className="text-slate-500">
+                <span className="font-semibold text-slate-600">Why:</span> {patientRefund.reason}
+              </p>
+            )}
+          </div>
+        )}
 
         {addressLines.length > 0 && (
           <div className="rounded-lg bg-slate-50 p-3 space-y-1">

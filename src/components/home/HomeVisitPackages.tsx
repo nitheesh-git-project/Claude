@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { motion } from "motion/react";
 import { Stagger, StaggerItem } from "@/components/motion/primitives";
-import CatalogImage from "@/components/catalog/CatalogImage";
+import CatalogCard from "@/components/catalog/CatalogCard";
+import CatalogDialogHeader from "@/components/catalog/CatalogDialogHeader";
 import Modal, { useLastNonNull } from "@/components/Modal";
 import {
   CheckList,
@@ -23,6 +23,10 @@ export type PublicHomeVisitPackage = {
   title: string;
   subtitle: string | null;
   image_url: string | null;
+  /** Migration-dependent, so optional: a caller reading a database
+   *  without them hands through undefined and the cover centres. */
+  image_focal_x?: number | null;
+  image_focal_y?: number | null;
   benefits: unknown;
   badge_label: string | null;
   highlight: boolean;
@@ -76,138 +80,46 @@ export default function HomeVisitPackages({
         });
         const isSingle = pkg.visit_count === 1;
 
+        // Facts that were only readable by opening the dialog. Each one is
+        // dropped where the row has nothing to say, which is what lets the
+        // single-visit card and the multi-visit one share a component.
+        const meta = [
+          isSingle ? "Single visit" : `${pkg.visit_count} visits`,
+          `${pkg.visit_duration_minutes} min${isSingle ? "" : " each"}`,
+          pkg.travel_fee_included ? "Travel included" : "Travel by area",
+          !isSingle && pkg.therapist_locked ? "Same therapist" : "",
+          pkg.validity_days ? `Valid ${pkg.validity_days} days` : "",
+        ].filter(Boolean);
+
         return (
           <StaggerItem key={pkg.id} className="h-full">
-            <motion.div
-              whileHover={{ y: -6 }}
-              transition={{ type: "spring", stiffness: 300, damping: 24 }}
-              className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition-shadow hover:shadow-xl hover:shadow-slate-900/5 ${
-                pkg.highlight
-                  ? "border-teal-300 ring-2 ring-teal-100"
-                  : "border-slate-200 hover:border-teal-300"
-              }`}
-            >
-              {pkg.badge_label && (
-                <span className="absolute right-4 top-4 z-10 rounded-full bg-amber-400 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-950">
-                  {pkg.badge_label}
-                </span>
-              )}
-              {/* Everything informational is one tap target that opens the
-                  dialog; the booking link sits outside it, since a link
-                  nested inside a button is invalid markup. */}
-              <button
-                type="button"
-                onClick={() => setOpenId(pkg.id)}
-                aria-haspopup="dialog"
-                className="flex flex-1 cursor-pointer flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500"
-              >
-              <CatalogImage src={pkg.image_url} icon="fa-house-medical" className="h-40" />
-
-              <div className="flex flex-1 flex-col p-6">
-                <h3 className="font-display text-lg font-bold text-slate-900">{pkg.title}</h3>
-                {pkg.subtitle && (
-                  <p className="mt-1 text-sm leading-relaxed text-slate-600">{pkg.subtitle}</p>
-                )}
-
-                {benefits.length > 0 && (
-                  <ul className="mt-4 space-y-2 border-t border-slate-100 pt-4">
-                    {benefits.slice(0, 4).map((b) => (
-                      <li
-                        key={b}
-                        className="flex items-start gap-2 text-xs leading-snug text-slate-700"
-                      >
-                        <i className="fa-solid fa-circle-check mt-0.5 shrink-0 text-teal-600" />
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                <div className="mt-4 space-y-1.5">
-                  {pkg.travel_fee_included && (
-                    <p className="flex items-center gap-1.5 text-[11px] font-semibold text-teal-700">
-                      <i className="fa-solid fa-car-side" /> Travel included — no extra charge
-                    </p>
-                  )}
-                  {pkg.therapist_locked && !isSingle && (
-                    <p className="flex items-center gap-1.5 text-[11px] font-semibold text-teal-700">
-                      <i className="fa-solid fa-user-doctor" /> One therapist for every visit
-                    </p>
-                  )}
-                </div>
-
-                <div className="mt-auto border-t border-slate-100 pt-5">
-                  <p className="text-xs text-slate-500">
-                    {isSingle ? "Single visit" : `${pkg.visit_count} visits`} ·{" "}
-                    {pkg.visit_duration_minutes} min each
-                  </p>
-                  <div className="mt-1 flex flex-wrap items-baseline gap-2">
-                    <span className="font-display text-2xl font-bold text-slate-900">
-                      {rupees(pkg.price_paise)}
-                    </span>
-                    {savings.compareAtPaise !== null && (
-                      <span className="text-sm text-slate-400 line-through">
-                        {rupees(savings.compareAtPaise)}
-                      </span>
-                    )}
-                  </div>
-                  {/* Per-visit price is noise on a single visit -- it is the
-                      same number as the total, printed twice. */}
-                  {!isSingle && (
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {rupees(savings.perVisitPaise)} / visit
-                      {savings.savingsPercent !== null && (
-                        <span className="ml-1.5 font-semibold text-teal-700">
-                          Save {savings.savingsPercent}%
-                        </span>
-                      )}
-                    </p>
-                  )}
-                  {!pkg.travel_fee_included && (
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      Travel charged separately, by area
-                    </p>
-                  )}
-                  {pkg.validity_days && (
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      Valid {pkg.validity_days} days from purchase
-                    </p>
-                  )}
-                </div>
-              </div>
-              </button>
-
-              <div className="flex flex-col gap-2 px-6 pb-6">
-                {/* A single visit is the home-visit consultation and is
-                    bought here; a course of visits is a therapist's
-                    recommendation, so its card explains rather than sells.
-                    Both routes refuse a programme regardless. */}
-                <Link
-                  href={isSingle ? `/book-home-visit?package=${pkg.id}` : "/book-home-visit"}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-                >
-                  <i aria-hidden="true" className="fa-solid fa-calendar-check" />
-                  {isSingle ? "Book this visit" : "Book a first visit"}
-                </Link>
-                {!isSingle && (
-                  <p className="text-center text-[11px] text-slate-400">
-                    {PROGRAMME_CARD_NOTE}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setOpenId(pkg.id)}
-                  aria-haspopup="dialog"
-                  className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-5 py-2 text-xs font-semibold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                >
-                  View full details
-                  <i
-                    aria-hidden="true"
-                    className="fa-solid fa-arrow-right text-[10px] transition-transform group-hover:translate-x-1"
-                  />
-                </button>
-              </div>
-            </motion.div>
+            <CatalogCard
+              data={{
+                id: pkg.id,
+                title: pkg.title,
+                summary: pkg.subtitle,
+                imageUrl: pkg.image_url,
+                focalX: pkg.image_focal_x,
+                focalY: pkg.image_focal_y,
+                badge: pkg.badge_label,
+                highlight: pkg.highlight,
+                meta,
+                points: benefits,
+                pricePaise: pkg.price_paise,
+                compareAtPaise: savings.compareAtPaise,
+                savingsPaise:
+                  savings.compareAtPaise === null
+                    ? null
+                    : savings.compareAtPaise - pkg.price_paise,
+                priceUnit: isSingle ? "/ visit" : `/ ${pkg.visit_count} visits`,
+                bookHref: isSingle
+                  ? `/book-home-visit?package=${pkg.id}`
+                  : "/book-home-visit",
+                bookLabel: isSingle ? "Book this visit" : "Book a first visit",
+                icon: "fa-house-medical",
+              }}
+              onOpenDetails={() => setOpenId(pkg.id)}
+            />
           </StaggerItem>
         );
       })}
@@ -288,23 +200,21 @@ function HomeVisitPackageDetail({
     >
       {pkg && savings && (
         <>
-          {pkg.image_url ? (
-            <div className="relative h-48 w-full overflow-hidden sm:h-56">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={pkg.image_url} alt="" className="h-full w-full object-cover" />
-              <div
-                aria-hidden="true"
-                className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-slate-950/10"
-              />
-              <div className="absolute bottom-0 left-0 right-0 px-6 pb-5 sm:px-8">
-                <HomeVisitHeading pkg={pkg} />
-              </div>
-            </div>
-          ) : (
-            <div className="bg-gradient-to-br from-teal-800 to-emerald-700 px-6 pb-7 pt-8 sm:px-8">
-              <HomeVisitHeading pkg={pkg} />
-            </div>
-          )}
+          {/* Nothing over the picture. This dialog used to lay the heading
+              on the photograph behind a scrim, which meant every cover had to
+              survive white text and the heading had to be sized to fight it.
+              The same header the programme dialog uses now, so the two cannot
+              drift apart again. */}
+          <CatalogDialogHeader
+            titleId="home-visit-package-modal-title"
+            title={pkg.title}
+            badge={pkg.badge_label}
+            subtitle={pkg.subtitle}
+            imageUrl={pkg.image_url}
+            focalX={pkg.image_focal_x}
+            focalY={pkg.image_focal_y}
+            icon="fa-house-medical"
+          />
 
           <div className="px-6 py-6 sm:px-8">
             <div className="flex flex-wrap items-end justify-between gap-4">
@@ -386,21 +296,3 @@ function HomeVisitPackageDetail({
   );
 }
 
-function HomeVisitHeading({ pkg }: { pkg: PublicHomeVisitPackage }) {
-  return (
-    <>
-      {pkg.badge_label && (
-        <span className="mb-2 inline-block rounded-full bg-amber-400 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-950">
-          {pkg.badge_label}
-        </span>
-      )}
-      <h3
-        id="home-visit-package-modal-title"
-        className="font-display text-2xl font-extrabold text-white sm:text-3xl"
-      >
-        {pkg.title}
-      </h3>
-      {pkg.subtitle && <p className="mt-1.5 text-sm text-teal-100">{pkg.subtitle}</p>}
-    </>
-  );
-}

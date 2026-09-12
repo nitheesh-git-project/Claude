@@ -216,10 +216,15 @@ export default function AdminCostsTab({
             accent: "bg-slate-400",
           },
           {
-            label: "Payment fees",
+            // "Payment fees" on Summary is an amount in rupees; this is the
+            // percentage that produces it. One word over two figures is the
+            // exact collision the money vocabulary exists to stop, so the
+            // rate is named as a rate -- see MONEY_TERMS.gateway_fee_percent.
+            label: "Gateway fee %",
             value: `${gatewayFeePercent}%`,
-            note: "Added automatically on everything collected online",
+            note: "Payment fees on the Summary screen are worked out from this",
             accent: "bg-blue-500",
+            scopeNote: "A setting",
           },
           {
             label: "Discounts given",
@@ -229,6 +234,7 @@ export default function AdminCostsTab({
                 ? "No discount has been applied yet"
                 : `${discountsGiven.count} session${discountsGiven.count === 1 ? "" : "s"} — already reflected in revenue, not a cost on top`,
             accent: discountsGiven.totalPaise > 0 ? "bg-purple-500" : "bg-slate-400",
+            scopeNote: "These dates",
           },
           {
             label: "Biggest category",

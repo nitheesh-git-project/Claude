@@ -75,31 +75,33 @@ Every route below is covered by at least one test. The rightmost column names th
 | Today | `risk` | Risk | `ADM-RISK-001` |
 | Sessions | `schedule` | Schedule (calendar) | `ADM-SCHED-001` |
 | Sessions | `all` | All Sessions | `ADM-SESS-001` |
+| Sessions | `new` | New Booking | `ADM-SESS-NEW-001` |
 | Sessions | `roster` | Roster | `ADM-ROST-001` |
 | Sessions | `delivery` | Delivery (operational rates) | `ADM-DELIV-001` |
 | Sessions | `recommendations` | Recommendations — the clinic's review queue, plus every plan | `ADM-CARE-001`, `ADM-CARE-004` |
 | Sessions | `new` | New Booking | `ADM-NEWB-001` |
-| People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001` |
-| People | `therapists` | Therapists | `ADM-PEOP-005` |
-| People | `partners` | Partners | `ADM-PEOP-008` |
-| Money | `summary` | Summary | `FIN-SUM-001` |
+| People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001`, `ADM-PEOP-010` |
+| People | `therapists` | Therapists | `ADM-PEOP-005`, `ADM-PEOP-010` |
+| People | `partners` | Partners | `ADM-PEOP-008`, `ADM-PEOP-010` |
+| Money | `summary` | Summary | `FIN-SUM-001`, `FIN-SUM-004`, `FIN-SUM-005`, `FIN-NAV-001` |
 | Money | `transactions` | Transactions | `FIN-TXN-001` |
 | Money | `payouts` | Payouts + payout requests + Cash Ledger | `FIN-PAY-001` |
-| Money | `costs` | Costs | `FIN-COST-001` |
+| Money | `costs` | Costs + promo codes | `FIN-COST-001`, `ADM-PROMO-001` |
 | Money | `breakdown` | Breakdown | `FIN-BRK-001` |
-| Catalog | `conditions` | Conditions | `ADM-CAT-001` |
+| Catalog | `conditions` | Conditions | `ADM-CAT-001`, `ADM-CAT-004` |
 | Catalog | `packages` | Packages | `ADM-CAT-005` |
 | Catalog | `areas` | Service Areas + waitlist | `ADM-CAT-010` |
 | Catalog | `purchases` | Purchases | `ADM-CAT-014` |
+| Logs | `all` | All Activity | `ADM-SET-033`, `ADM-SET-034`, `ADM-LOG-001`, `ADM-LOG-003`, `ADM-LOG-003a` |
+| Logs | `retention` | Archive & Clear | `ADM-LOG-002` |
 | Settings | `brand` | Brand & Contact | `ADM-SET-001` |
 | Settings | `public` | Public Site | `ADM-SET-004` |
 | Settings | `booking` | Booking Rules | `ADM-SET-010` |
 | Settings | `offers` | Offers & Discounts | `ADM-SET-023`, `ADM-INVITE-001` |
 | Settings | `programmes` | Programmes & Home Visits | `ADM-SET-018` |
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
-| Settings | `access` | User Access | `ADM-SET-025` |
+| Settings | `access` | User Access | `ADM-SET-025`, `ADM-SET-025d`, `ADM-SET-026b` |
 | Settings | `health` | System Health | `ADM-SET-030` |
-| Settings | `activity` | Activity Log | `ADM-SET-033` |
 | Settings | `security` | Account Security | `ADM-SET-035` |
 
 Detail routes (open as an overlay from the dashboard, and as a full page on direct navigation):

@@ -2,12 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
+import CatalogImageField from "@/components/admin/CatalogImageField";
+import { FOCAL_DEFAULT } from "@/lib/catalogImage";
 
 type Category = {
   id: string;
   title: string;
   description: string | null;
   image_url: string | null;
+  /** Where the subject of the cover sits. Migration-dependent like
+   *  `specialty`, so optional: a database one apply behind hands through
+   *  undefined and the picture centres, exactly as it did before. */
+  image_focal_x?: number | null;
+  image_focal_y?: number | null;
   points: string[];
   price_paise: number;
   duration_minutes: number;
@@ -46,6 +53,17 @@ export default function TreatmentCategoryForm({
   const [title, setTitle] = useState(defaults?.title ?? "");
   const [description, setDescription] = useState(defaults?.description ?? "");
   const [imageUrl, setImageUrl] = useState(defaults?.image_url ?? "");
+  const [focalX, setFocalX] = useState(defaults?.image_focal_x ?? FOCAL_DEFAULT);
+  const [focalY, setFocalY] = useState(defaults?.image_focal_y ?? FOCAL_DEFAULT);
+  // A row being created has no id yet, so the upload is keyed on a draft one.
+  // It only ever names a storage path, and the row stores the URL the upload
+  // returns -- so a draft that is never saved leaves one orphaned object and
+  // no bad data.
+  const [draftId] = useState(() =>
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `draft-${Date.now()}`
+  );
   const [pointsText, setPointsText] = useState((defaults?.points ?? []).join("\n"));
   const [priceInr, setPriceInr] = useState(
     defaults ? String(defaults.price_paise / 100) : ""
@@ -79,6 +97,8 @@ export default function TreatmentCategoryForm({
       title,
       description,
       imageUrl,
+      imageFocalX: focalX,
+      imageFocalY: focalY,
       points,
       priceInr,
       durationMinutes,
@@ -145,20 +165,22 @@ export default function TreatmentCategoryForm({
         />
       </div>
       <div>
-        <label className="block font-semibold mb-1">
-          Cover Image URL{" "}
-          <span className="font-normal text-slate-400">(optional)</span>
-        </label>
-        <input
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder="https://…"
-          className="w-full p-2 rounded-lg border border-slate-300"
+        <CatalogImageField
+          kind="category"
+          rowId={category?.id ?? draftId}
+          value={imageUrl || null}
+          focalX={focalX}
+          focalY={focalY}
+          onChange={(next) => {
+            setImageUrl(next.url ?? "");
+            setFocalX(next.focalX);
+            setFocalY(next.focalY);
+          }}
         />
-        <p className="mt-1 text-xs text-slate-500">
-          Shown at the top of the programme card on the home page and
-          Conditions. Landscape, at least 1200px wide. Left blank, the card
-          falls back to its illustration.
+        <p className="mt-1.5 text-xs text-slate-500">
+          Shown on the card on the home page and Conditions, and at the top of
+          this condition&apos;s detail dialog. Landscape works best. Left
+          blank, the card falls back to its illustration.
         </p>
       </div>
       <div>

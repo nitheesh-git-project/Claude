@@ -219,6 +219,34 @@ are enforced twice — in the proxy for dashboard navigation, and again in
 `src/lib/supabase/requireActiveProfile.ts` for the self-service API routes,
 so a still-valid session cookie can't call the API around the UI gate.
 
+### Opening somebody's dashboard
+
+A **Master Admin** can open a patient's, therapist's or partner hospital's
+dashboard from their profile and see exactly what they see. It answers the question the back
+office cannot: "the app is broken for me" is about their screen, and every
+admin screen shows an admin's view of them instead.
+
+It is a **real session swap**, not a preview. The browser genuinely becomes
+that account — same routes, same data, same buttons — so anything tapped
+happens for real and their history records it as theirs. That is the cost of
+being able to reproduce a bug that only appears on submit, and the reason it
+is fenced:
+
+- **Master Admin only.** Never another admin, never a suspended account.
+- **Patients and therapists from their profile page; a hospital from its card
+  on People → Partners**, which is where a hospital's own record lives.
+- **A reason is required** (ten characters) and is stored where the admin who
+  typed it cannot edit it, alongside who, whom and how long.
+- **Thirty minutes**, ended by the proxy rather than by the browser — a
+  forgotten tab would otherwise be an open window into a health record.
+- **An amber bar on every screen** naming the account, saying the actions are
+  real, counting the window down, and offering Exit. Exit restores the
+  admin's own session.
+
+Both ends write to the Activity Log (`Signed in as a user` / `Stopped signing
+in as a user`), so the fact that it happened is readable beside every other
+admin action.
+
 ## Routes
 
 **Public marketing:** `/` (home), `/conditions`, `/how-it-works`, `/team`,
@@ -241,7 +269,7 @@ link points here so no client bundle has to know the four paths; see
 **Hospital:** `/hospital/login`, `/hospital/dashboard`,
 `/hospital/dashboard/profile`.
 
-**Admin:** `/admin/login`, `/admin/dashboard`, organised into six sections
+**Admin:** `/admin/login`, `/admin/dashboard`, organised into seven sections
 (defined once in `src/lib/adminNav.ts`):
 
 | Section | Screens | Answers |
@@ -249,9 +277,10 @@ link points here so no client bundle has to know the four paths; see
 | **Today** | Today · Approvals | What is waiting on me right now |
 | **Sessions** | Schedule · All Sessions · Roster · Delivery · New Booking | What is being delivered, and by whom |
 | **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
-| **Money** | Summary · Transactions · Payouts · Costs · Breakdown | What came in, what goes out, what it costs, what is still owed |
+| **Money** | Summary · Transactions · Payouts · Costs · Breakdown | What came in, what goes out, what it costs, what is still owed. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
-| **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Activity Log · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
+| **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** — the three limited desks read their own desk's history on Today → Activity. |
+| **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
 
 **How the Money screens divide a rupee.** Every figure on Money → Summary
 comes out of one function, `moneyByBucketFor` in `src/lib/adminMetrics.ts`,
@@ -295,9 +324,37 @@ names how many and how much rather than guessing a percentage.
 **Balances are not date-filtered.** "Owed to therapists" is the all-time
 balance, already net of cash therapists are holding from home visits, and is
 the same number the Payouts screen and the Pay button use. Everything beside
-it (revenue, refunds, what was settled) is scoped to the dates in view. Each
-label says which it is. `MoneyGlossary` sits at the bottom of all four Money
-screens with the full list.
+it (revenue, refunds, what was settled) is scoped to the dates in view.
+
+Every Money screen opens with **what needs you** — payout requests waiting,
+cash a therapist collected and has not handed over, refunds that have to be
+given back by hand, payments the app cannot attach to anything. Each links to
+the rows it counted, and an item whose screen this admin cannot open is
+dropped rather than linked. Cash sitting in somebody's pocket is not a wrong
+number anywhere; it is money that is simply not there, so no figure could
+have surfaced it.
+
+Summary's four split figures can each be **opened**: "See the sessions" lists
+every session behind the number, with a footer that sums to the card, and
+exports to CSV or PDF like every other table in the back office. The rows come
+from the same per-session function the totals are accumulated from, so a
+drill-down cannot disagree with what opened it.
+
+Net revenue also carries **how it compares with the period before** — the same
+number of days immediately preceding the range, never a calendar month against
+a 30-day window. A move under half a percent reads "level" rather than drawing
+an arrow over noise, and a zero baseline says there is nothing to compare with
+rather than inventing a percentage.
+
+Every figure says which it is, with a chip: **These dates** for a flow,
+**Right now** for a balance, **A setting** for a rate. An admin narrowing the
+range and watching one number fall while the one beside it holds still is
+otherwise reading a screen that looks half-broken. Every figure also carries
+an **i** giving its meaning in one sentence, right beside the number —
+"Clinic share" says in place that it is not profit. Meanings and scopes live
+in `src/lib/moneyTerms.ts`; the glossary at the foot of each Money screen
+prints the same sentences for reading the whole set at once, so the two can
+never define one figure twice.
 
 The visible screen is in the URL (`?section=&tab=`), written with the
 History API rather than a router navigation — this page is one Server
@@ -414,10 +471,64 @@ credit cannot both succeed. Each is idempotent on a key derived from the
 appointment or payment that caused it, so a retried request moves the
 balance once. `verify_entitlement_balances()` reports where the cache, the
 ledger and the older `sessions_used` counter disagree; it is shown on
-**Settings → System Health** alongside captured payments nothing is attached
-to and delivered sessions with no payment, package or cash behind them.
+**Settings → System Health** under **Books & Sessions Agree**, alongside
+captured payments nothing is attached to and delivered sessions with no
+payment, package or cash behind them.
 Nothing there is repaired automatically — each finding is either a data
 problem or someone working outside the normal flow, and both want a person.
+
+### System Health
+
+**Settings → System Health** is the app reporting on itself: nothing there is
+a setting. It answers five questions, and every one of them answers in the
+same shape, so the screen can be read without learning five layouts:
+
+| Check | Asks |
+| --- | --- |
+| **Payment Confirmations** | Can a patient who pays and closes the tab still be confirmed? (`RAZORPAY_WEBHOOK_SECRET`) |
+| **Google Connection** | Is the Google account this app books calendars with still signed in? |
+| **Session Links** | Does every confirmed session have its calendar event and video link? |
+| **Waiting Room** | Do patients and therapists walk into their sessions, or knock? |
+| **Books & Sessions Agree** | Do the programme balances, the payments and the delivered sessions all add up? |
+
+A verdict strip at the top says how many checks need a person, with a chip
+per failing check that jumps straight to it — so "is anything wrong?" is
+answered before any card is read, and the sidebar badge is that same number
+of **checks** rather than a row count. Each card carries a status **word** as
+well as a colour (`Healthy`, `Needs a look`, `Needs you now`, `Not set up`,
+`Not checked`), a one-line headline in plain words, and — whenever it is not
+healthy — numbered steps the owner can follow themselves. The **i** button on
+a card expands what that check watches and one example of what goes wrong
+without it, so the explanation is there the first time somebody opens the
+screen and costs nothing every time after.
+
+`Not set up` and `Not checked` are deliberately **not** faults: an owner who
+has not wired Google up has not got a problem, and colouring that red is how
+red stops meaning anything. What each check says, and what fixes it, lives in
+`src/lib/systemHealth.ts` (unit-tested) rather than in the screen.
+
+Three things carry it off the screen:
+
+- **A red check appears on Today.** Anything `Needs you now` puts one red
+  line at the top of the admin's Today screen, linking straight here. The two
+  worst failures are silent by nature — a missing webhook secret and a dead
+  Google token both look like a normal day from every other screen — and
+  nobody opens System Health until they already suspect trouble. Amber
+  deliberately does not: a banner that is usually there is a banner nobody
+  reads.
+- **Each card says when it was checked.** Every check but Google is worked
+  out fresh on each render; the Google probe is one outbound call cached for
+  ten minutes on success and one minute on failure, so it prints its own age.
+  Without it, an owner who has just re-run the token script cannot tell a
+  screen that disagrees with them from one that has not looked again.
+- **Copy for my developer.** Every unhealthy card offers one button that
+  copies the check, its status, the headline and the numbered steps as plain
+  text. The fixes name environment variables and scripts, and the owner
+  reading them is often not the person who can run them.
+
+The fix buttons (Retry a session's calendar event, Open the door on a
+meeting) render only for a scope that may call them — both routes are
+`requireAdminScope("settings")`, and a button that 403s explains nothing.
 
 ### Therapist roster and availability
 
@@ -661,6 +772,68 @@ admin can additionally return any amount on a paid session from its own
 record (`/api/admin/refund-session-partial`) — it requires a stated reason,
 caps at what is still refundable, sets `refund_is_manual`, and is recorded
 in the activity log.
+
+**A refund is shown wherever a payment is.** Money coming in had a chip on
+every session row and money going back out had none, so an admin who
+refunded a session watched the row go on looking exactly as it had.
+`src/lib/refundState.ts` is the one reading of those columns — four states
+(`processed`, `manual_pending`, `failed`, `not_eligible`, plus "no refund
+here", which renders nothing), each with the wording and the colour it gets
+everywhere — and `RefundChip` draws it beside the payment chip on the
+patient's profile, on **Sessions → All Sessions** and in that screen's CSV
+and PDF exports. The session drawer adds a panel giving when, the reason and
+the gateway reference. `appointments.refunded_at` and `refunded_by` are
+stamped by all three writers (`cancelAppointment`, the partial refund route,
+and marking a cash refund handed back); they are deliberately **not**
+backfilled, so a refund issued before the columns existed shows its state
+and a dash for the date rather than a date nobody recorded. The chip follows
+`canSeeMoney`, the same gate the amount paid already has.
+
+**The patient is told too, in their own words.** `describeRefundForPatient()`
+is the same four states read for the person whose money moved rather than
+for the clinic: `manual_pending` is a queue item to an admin and a promise to
+a patient (`₹500 coming back to you`), `failed` is a broken row to an admin
+and "please contact us" to somebody who is out of pocket, and `not_eligible`
+says nothing at all — the cancelled session card already explains the window
+it came from, and repeating it as a refund line announces a refund to
+somebody who is not getting one. It appears on the session card (with the
+date and the clinic's stated reason), on every row of **Payments** and in
+that receipt's detail, and a failed refund is a pinned `needsYou` item on the
+patient's feed, since it is the one refund state nothing in the clinic's own
+screens will move. A **partial** refund on a session that went ahead and was
+completed appeared on none of these before: the receipt's `stage` has no
+honest value for it, so the refund is its own field beside the stage rather
+than folded into it.
+
+**A refund the clinic still owes is counted.** Money's alerts strip and the
+admin Today inbox carry two refund rows: *Refunds to hand back*
+(`manual_pending`, counted over the appointments read, which is **every**
+session including the home visits — it was the home-visit query alone, so a
+session refunded by hand was invisible, and adding the two together counted
+every cash visit twice because they are the same table) and
+*Refunds that failed*, which nothing was watching before. A failed refund
+links to **Sessions → All Sessions** with a `refund_failed` preset, because
+that is where it is fixed; the strip is therefore gated on workable sections
+rather than merely open ones, so Finance — who read Sessions without being
+able to change one — are not shown a figure they cannot bring down. That
+screen's payment filter also gained `refund_pending` and `refund_failed`, and
+its existing **Refunded** option now works: `payment_status` is CHECKed to
+`unpaid`/`paid`/`failed` and can never hold `refunded`, so it had been
+returning an empty table. That screen's export follows `canSeeMoney` as well
+— the amount and the refund never render in the table on screen, so a desk
+that cannot read them there no longer downloads them either.
+
+**Every refund states why.** `refund_reason` used to be written only by the
+partial-refund route, so the commonest refund in the app — a cancellation
+outside the window — arrived with a blank reason on both the patient's
+Payments screen and the admin's drawer. `cancelAppointmentAndRefund` now
+records one on all four outcomes: the cancellation's own reason where one was
+given, otherwise a sentence naming the rule that produced the outcome. A
+forfeiture always takes the rule's sentence rather than the cancellation's —
+that line answers "why this money moved" and no money moved — and it names
+the window that actually applied, so the patient card's no-refund hover reads
+it instead of printing the online constant at somebody whose home visit has
+its own window.
 
 ## Discounts
 
@@ -1073,7 +1246,7 @@ a few failed syncs at the top of each admin dashboard render (there is no
 cron in this deployment), bounded by a per-attempt timeout, a per-sweep row
 limit, and `appointments.google_calendar_sync_attempts`, which stops retrying
 a session that has failed too many times rather than calling Google forever.
-Those exhausted sessions stay in the admin's Sync Health panel marked as
+Those exhausted sessions stay in the admin's Session Links panel marked as
 needing attention, where a manual retry (`/api/admin/retry-meet-sync`) both
 re-attempts the event and re-arms the automatic attempts. Both paths claim
 the session (`appointments.google_calendar_sync_claimed_at`) before calling
@@ -1118,7 +1291,7 @@ Waiting Room**, retried a couple of times by a second pass of the same lazy
 sweep (bounded by `appointments.meet_access_attempts`), and fixable by hand
 with `/api/admin/open-meet-access`. The commonest failure is a 403 because
 the stored refresh token predates the Meet scope: re-run the token script
-once and click Open.
+once and click **Open the door**.
 
 The one thing no code can fix: a meeting organized by a **personal Gmail**
 account still requires every participant to be signed in to *some* Google
@@ -1247,6 +1420,24 @@ allowed to see. One grant is `view` today: **finance reads Sessions**, so
 the person reconciling the books can see what a payment bought without
 being able to cancel or reassign it.
 
+Every account also carries a **Delete account** button — on the Back office
+rows here, and on a patient's, therapist's and partner hospital's own screen
+— for a Master Admin only. It works on an account with **no history at all**
+and refuses everything else, naming what is on file (sessions, money
+records, programmes, clinical records, back-office actions, referrals) and
+pointing at Suspend. That is the database's rule rather than a chosen one:
+thirty-five tables reference `profiles(id)` with no delete behaviour, so
+removing an account that has done anything would mean removing the books and
+the audit trail with it.
+
+**Settings → User Access** also shows, on each row, whether that admin is
+still signing in with the password the clinic issued them — readable there,
+with a Copy button, until they set their own, at which point the row says so
+instead. A password somebody chose themselves is a bcrypt hash and can never
+be displayed; the lane for an account in that state is a reset, which issues
+a new one. The same pair of states is on a patient's and a therapist's
+profile under People, and on a partner hospital's card.
+
 **Settings → User Access** is where that model is read: the back-office
 directory (who can sign in, at what level, and whether they still can) and a
 matrix of what each of the four desks can do, rows in plain words and
@@ -1256,14 +1447,51 @@ deliberately not checkboxes — a tick that did not also change what the
 server allows would be worse than no tick at all, so changing what a desk
 reaches stays a code change.
 `admin_activity_log` records every mutating admin action — actor, action,
-subject, amount, timestamp — readable at **Settings → Activity Log** and
-append-only by construction: the table has a select policy and no insert
-policy, so the only writer is the service-role client inside the API routes.
+subject, amount, timestamp — readable in the **Logs** section and
+append-only by construction: the table has a select policy and no insert or
+update policy, so the only writer is the service-role client inside the API
+routes.
 "Every" is literal: as well as the money moves, it covers the changes that
 move no money and are still somebody's to answer for — a patient's sign-in
 email, a home visit's address, who may read a patient's record, the wording
 of the clinical questions, and the data reset itself, whose row is written
 **after** the wipe because the wipe truncates this table.
+
+**The Logs section is where a Master Admin reads it.** It is a section of its
+own rather than a screen under Settings: Settings is where the product is
+configured, a log is not a setting, and the record of what everybody did was
+buried in the screen list an owner opens least often. Two screens:
+
+- **All Activity** — every entry, newest first, with a search over the words
+  somebody would actually type (an admin's name, a patient's name, "refund"),
+  a **type** filter taken from the section each action's own route guards
+  with, a date range, a money-only switch, CSV and PDF export, and a detail
+  dialog on every row saying what changed from what. The dashboard's own
+  render carries the newest 200 entries; **Load older entries** pages the
+  rest through `/api/admin/activity-log` by cursor, so a table that grows
+  for ever is not a payload every admin downloads on every refresh. An
+  entry's subject opens **everything done to that record** — keyed on
+  `target_id`, never on the label, which is a snapshot taken at write time
+  and would split a renamed patient's history in half. The log answers "what
+  did this admin do" well; that is the other question, the one asked when
+  somebody complains.
+- **Archive & Clear** — the only way a row ever leaves the table. Four steps,
+  each one closing a particular mistake: pick a cutoff from a fixed set,
+  see the count server-side, download a copy (the Clear button stays locked
+  until a download has actually been produced), and type `CLEAR LOGS`.
+  Nothing inside the last **30 days** can be cleared at any setting — the
+  floor is enforced in `src/lib/activityLog.ts`, again in
+  `/api/admin/clear-activity-log`, and again inside
+  `purge_admin_activity_log()`, which is reachable by the service-role key
+  and by hand in the SQL editor where no route check runs. The clearing is
+  itself logged, with the cutoff and the number removed, and is outside its
+  own reach by construction: the entry is written now, and now is inside the
+  protected window.
+
+Everything else about the table is unchanged — there is no update path at
+all, and a Master Admin can remove old history but cannot rewrite any of it.
+Operations, Finance and Clinical cannot open Logs; they read their own
+desk's actions on **Today → Activity**, filtered by `src/lib/activityScope.ts`.
 **Sessions → New Booking** (`/api/admin/create-booking`) books an online
 session on a patient's behalf, running the same conflict check and Meet sync
 as a patient's own booking, with an explicit payment state and a logged
@@ -1303,11 +1531,29 @@ of its own:
 - Admins see every note on the patient's condition detail screen, which is
   how the clinic can tell whether care is being delivered and documented.
 
+**Nothing changes without saying what changed.** Every mutating control
+raises a confirmation naming the thing and its new state — "Home visits are
+on", not "Saved" — on all four dashboards. It is mounted above every route,
+so it survives the refresh the control itself fires. The wording for all 43
+admin settings lives in `src/lib/settingMessages.ts`, with a test that fails
+when a setting an admin screen can write has no sentence.
+
+**Nothing waits without saying so.** A teal bar runs across the top of the
+viewport for any wait longer than 220ms — a navigation, a refresh, a save —
+and every dynamic route has its own skeleton that streams in before the
+page's queries resolve. The three role dashboards navigate with hard
+anchors, so they mark the page as leaving on click; the public site reports
+through its links.
+
+**Every dashboard has a Refresh button** in its header — patient, therapist,
+hospital and admin alike. It re-runs the page's server render and leaves the
+screen's own state alone, unlike a browser reload.
+
 **Dashboard information architecture.** Patient: Overview · Book a Session ·
 Your Sessions · Packages · Payments · Health Profile · Edit Profile.
 Therapist: Overview · Availability · Sessions · Earnings · My Patients ·
 Edit Profile. Hospital: Overview · Refer a Patient · Your Referrals ·
-Earnings · Edit Profile. Admin keeps its six sections
+Earnings · Edit Profile. Admin keeps its seven sections
 (`src/lib/adminNav.ts`).
 
 These lists are the result of repeatedly merging entries that answered the
@@ -1755,13 +2001,32 @@ Two sources, and the difference matters when planning a shoot:
 | Slot | Source | Who changes it |
 | --- | --- | --- |
 | Page heroes, delivery modes, the four steps, the six care areas | Files in `public/photos/`, registered in `src/lib/marketingPhotos.ts` | A developer, in a commit |
-| Programme cards, session packages, home-visit packages | `image_url` on `treatment_categories` / `treatment_category_packages` / `home_visit_packages` | An admin, in Site Content — no deploy |
+| Programme cards, session packages, home-visit packages | An upload on the row, in the `catalog-images` bucket, positioned by `image_focal_x` / `image_focal_y` | An admin, in Site Content — no deploy |
 
 The catalog rows are admin-owned on purpose: programmes and packages are
 created and retired without a release, so their imagery has to move at the
 same speed. Every one of them falls back to `CatalogImage`'s placeholder, so
 a new programme is sellable the moment it is created and gets its photograph
 whenever someone has one.
+
+**They are uploaded, not pasted.** `image_url` used to be a text box an admin
+put a link into, which cost twice: nobody pastes links, so the site shipped
+with no photographs at all — and every cover that did exist lived on a host
+this clinic does not control. Uploads go through
+`/api/admin/upload-catalog-image` into the clinic's own public bucket: a route
+rather than a browser-side upload, because "an admin who can manage the
+catalogue" is a scope this app enforces in routes and not in RLS, and the
+route is what makes the upload scope-guarded, size- and type-capped (JPG, PNG
+or WebP up to 5 MB) and audited.
+
+**And positioned rather than cropped.** A cover renders with
+`object-fit: cover`, and the card is 4:3 where the detail dialog is 16:9, so a
+photograph whose subject was not dead centre lost a head to one of them. The
+admin drags the picture inside a fixed card frame and the result is saved as
+two percentages rendered as `object-position` — correct at every ratio,
+including ratios added later, where a crop would have baked one shape into the
+file. The default is dead centre, which is what `object-fit` already does, so
+no existing cover moves.
 
 **Still to shoot** (currently placeholders): a cover per programme, and a
 cover per package. Landscape, at least 1200px wide, same screen-led direction

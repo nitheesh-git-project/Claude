@@ -82,10 +82,22 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 
 ### 16.2 Money screens
 
+#### `FIN-NAV-001` — Each Money screen says what it is, and holds what it claims · P1
+
+**Steps.** Open each of the five Money screens in turn: Summary, Transactions, Payouts, Costs, Breakdown. Read the line under each heading. Then open **Settings → Offers & Discounts**, read its "Looking for promo codes?" note, and follow it.
+**Expected Result.** Every screen prints its own one-line description plus a **For example:** line under the heading, in place of the section's own blurb — the same treatment the Settings screens get, and for a sharper reason: five screens named with abstract nouns ("Summary", "Breakdown") make an owner open three to find the one answering their question. **Promo codes are on Costs**, beside the *Discounts given* figure they produce — which is where the Offers note, the README and `ADM-PROMO-001` have always sent people.
+**Negative:** they used to render on **Summary**, so following that note landed on a screen with no promo codes anywhere on it and no way to tell whether the feature existed at all.
+
 #### `FIN-SUM-001` — Summary and the two identities · P0
 
 **Steps.** Open **Money → Summary**. Set the date range to cover the dataset. Read every figure. Compute the two identities by hand.
 **Expected Result.** `net = gross − refunds` and `clinic share = splittable net − therapist share − partner share` **hold exactly**. The figures match §16.1. The excluded count reads `1` with `₹1,999` named. Every screen ends with the **MoneyGlossary**. No figure is labelled "approximate" — the split is exact over a stated subset.
+**No figure appears twice on the screen.** The strip carries Net revenue, Operating profit, Owed to therapists and Package cash collected; the two blocks below it are the subtraction chain, where Clinic share is deliberately carried down from *Where the money went* into *What it cost to run*. Before this, Net revenue was printed twice, Clinic share three times and Operating profit twice, because the strip repeated the chain under it.
+
+#### `FIN-SUM-004` — Every figure says what it means and when it is measured · P1
+
+**Steps.** On **Money → Summary**, tap the **i** beside Net revenue, Clinic share and Owed to therapists. Read the chip on each. Then open the glossary at the foot of the screen and compare the sentences. Then check the **Gateway fee %** tile on Costs.
+**Expected Result.** The **i** expands one sentence beside the figure, and it is **word-for-word** what the glossary prints — both read `src/lib/moneyTerms.ts`. Clinic share's says in place that it is **not** profit. Chips: `These dates` on the flows, `Right now` on Owed to therapists (amber) and on the Payouts heading, `A setting` on Gateway fee %. **That tile used to be called "Payment fees"** — the same name Summary gives the rupee amount derived from it, which is the one-word-two-figures collision the vocabulary exists to prevent.
 
 #### `FIN-SUM-002` — Paid vs unpaid, completed vs not · P0
 **Steps.** Confirm S2's treatment.
@@ -95,6 +107,17 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 #### `FIN-SUM-003` — Date filtering, and what is never filtered · P0
 **Steps.** Narrow the range to one day containing only S1. Read every figure on Summary. Then read **Owed to therapists**.
 **Expected Result.** Gross, refunds, net, and the split all narrow to S1. **"Owed to therapists" does not change** — it is an all-time balance, net of cash held, matching what the Pay button transfers. Its label says so. If it moves with the range, that is a P0: an admin could read "nothing owed" off a quiet week while a real debt sat outside the window.
+
+#### `FIN-SUM-005` — Opening a figure, and what needs you · P1
+
+**Steps.** On **Money → Summary**, tap **See the sessions** on Net revenue, then on Therapists' share, Partners' share and Clinic share. Add up the last column by hand in each. Then leave S7's cash un-remitted and a payout request pending, and open each of the five Money screens.
+**Expected Result.** The modal lists exactly the sessions behind that figure and its footer **equals the card**, to the rupee — both come from `moneyLineFor`, which the totals themselves accumulate. A session paid for but **not delivered** appears under Therapists' share with **nothing** against it rather than being hidden. A session left out of the split is not counted in the two share modals. Partners' share offers no link when nothing was referred in range.
+Every Money screen opens with a **needs-you strip**: `N things need you` over one row per item — payout requests waiting, cash a therapist is holding, refunds to hand back by hand, payments attached to nothing — each linking to the rows it counted. With nothing outstanding it reads `Nothing in Money needs you`. A **Finance** admin (no `settings`) sees the first three and **not** payments-attached-to-nothing, whose fix is on a screen they cannot open.
+
+#### `FIN-SUM-006` — Exporting a figure's sessions, and last period's comparison · P1
+
+**Steps.** Open **See the sessions** on Clinic share and export both CSV and PDF. Then set the range to September, read the line under **Net revenue**, and re-run with an August that has no paid sessions in it.
+**Expected Result.** The export covers the **same rows the modal listed** and both formats come from one column definition, so they describe the same table; the PDF's subtitle names the date range. The strip's Net revenue carries a comparison against **the same number of days immediately before** the range in view — never a calendar month against a 30-day window, which would move the figure by the number of days rather than by the business. Up is green, down is red, and a move under half a percent reads **Level with the N days before** rather than drawing an arrow over noise. With nothing in the previous period it reads **Nothing in the N days before** — it must **never** print `+100%` or `∞` from a zero baseline.
 
 #### `FIN-BRK-001` — Breakdown agrees with Summary · P0
 **Steps.** Open **Money → Breakdown** for the same range.
@@ -157,6 +180,41 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 **Preconditions.** A 6-session purchase with 2 sessions **completed** and 4 available.
 **Steps.** Refund the package.
 **Expected Result.** The **4 available** credits are voided; the **2 delivered stay delivered**. The ledger records a `void` for exactly 4. The patient's widget shows the programme as refunded with nothing available. **A delivered session is never un-delivered.**
+
+#### `FIN-REF-005` — A refunded session says so wherever it is listed · P0
+**Preconditions.** One session refunded in full, one refunded partially, one cash home visit at `manual_pending`, one refund that failed at the gateway, and one cancelled inside the window with no refund due.
+**Steps.** Open **People → Patients → the patient's profile** and read the session rows. Then **Sessions → All Sessions**, then open each session's detail drawer. Export All Sessions as CSV **and** as PDF.
+**Expected Result.** Every one of the five carries a refund chip beside its payment chip, reading `Refunded ₹1,200` / `Refunded ₹500` / `Hand back ₹500` / `Refund failed` / `No refund due` respectively, in that wording and nothing else. A session that was never refunded carries **no chip at all** — an empty refund column reading "—" on every ordinary session is noise. A partial refund states the amount refunded, not the amount paid. The drawer adds a **Refunded** panel above the partial-refund form giving when, the reason, and the gateway reference where there is one. Both exports carry a `Refund` column and a `Refunded on` column agreeing with the chips. **A refund is as visible as a payment on every surface that lists a session** — a refund that happened and left no trace on the session is the failure this case exists to catch.
+
+#### `FIN-REF-008` — A refund the clinic owes is counted, and the count opens it · P0
+**Preconditions.** One cash home visit at `manual_pending`, one **session** at `manual_pending`, and one session whose refund `failed` at the gateway.
+**Steps.** As **Master Admin**, read the alerts strip at the top of any Money screen and the Today inbox. Tap each refund row. Then repeat as **Finance**, **Operations** and **Clinical**.
+**Expected Result.** *Refunds to hand back* reads **2** — cash visits and sessions together, because both are money a patient is owed with no card payment to reverse; counting only the visits is the bug this case exists to catch. *Refunds that failed* reads **1** and is its own row, because the work is different. Tapping it lands on **Sessions → All Sessions** filtered to exactly that one session, with every other filter cleared. Finance see the hand-back row and **not** the failed one: they read Sessions without being able to change one, so a figure nothing they could do would bring down does not belong on their screen. Operations and Clinical open no Money screen at all. Every row is **urgent** — this is money the clinic has agreed to return and has not returned.
+
+#### `FIN-REF-011` — A cash home visit is counted once, not twice · P0
+**Preconditions.** Exactly **one** cash home visit at `manual_pending` and no other refund owed anywhere.
+**Steps.** Read *Refunds to hand back* on the Money alerts strip and on the Today inbox, then open **Money → Payouts → Cash Ledger** and count the rows.
+**Expected Result.** Every one of them reads **1**. It must not read 2: the dashboard's home-visit query and its main appointments query are the **same table** (`appointments`, one of them filtered to `visit_mode = 'home_visit'`), so a count that adds the two counts every cash visit twice and puts a figure on the strip the ledger underneath it disagrees with. Repeat with one failed refund on a home visit for *Refunds that failed*.
+
+#### `FIN-REF-012` — The All Sessions export carries no money to a desk that cannot see it · P1
+**Steps.** As **Operations**, then as **Clinical**, open **Sessions → All Sessions** and export both CSV and PDF. Repeat as **Master Admin** and as **Finance**.
+**Expected Result.** The limited desks' files contain **no** `Amount (INR)`, `Refund` or `Refunded on` column at all — not a blank one. Those three never render in this table on screen, so a desk that cannot read them there must not be able to download them; every other column is present and the row count is identical. Master Admin and Finance get all three.
+
+#### `FIN-REF-009` — The All Sessions refund filters · P1
+**Steps.** On **Sessions → All Sessions**, take the payment filter through **Refunded**, **Refund to hand back** and **Refund failed**.
+**Expected Result.** Each returns exactly the sessions in that state. **Refunded** in particular must return rows: `payment_status` is CHECKed to `unpaid` / `paid` / `failed` and can never hold `refunded`, so this option previously matched nothing and quietly returned an empty table — a filter that always looks like "no refunds have ever happened". A refund lives on `refund_status`.
+
+#### `FIN-REF-010` — Every refund says why · P1
+**Steps.** Cancel a paid session **outside** the window giving the reason `Therapist unwell, rescheduling next week.` Cancel a second one outside the window giving **no** reason. Cancel a paid **home visit** **inside** its own window (which differs from the online one). Read each session's admin drawer and each one on the patient's Payments screen.
+**Expected Result.** The first carries the cancellation's own words on both surfaces. The second carries `Cancelled outside the refund window` rather than a blank line — a "Why:" with nothing after it is the failure this case exists to catch. The forfeiture carries `Cancelled within N hours of the slot, so no refund was due` with **N being the home-visit window**, never the online constant, and **never** the cancellation's own reason: that line answers "why this money moved" and no money moved. The patient's card shows the forfeiture as `No Refund` with that sentence on hover and **no refund line** — a forfeiture is not announced to them as a refund.
+
+#### `FIN-REF-006` — A refund issued before the columns existed · P1
+**Steps.** Against a database whose `appointments` rows predate `refunded_at` / `refunded_by`, open a session refunded before the migration.
+**Expected Result.** The chip still reads the refund from `refund_status` and `refund_amount_paise`; **the date reads `—`** rather than guessing one, and the drawer's panel omits the "when" line. The columns are deliberately **not** backfilled — a stamped date nobody recorded is worse than an absent one. Nothing on the screen errors, and `Refunded on` is blank in both exports for that row.
+
+#### `FIN-REF-007` — Finance and the desks that cannot see money · P1
+**Steps.** As **Finance**, open a refunded patient's profile and All Sessions. Then repeat as **Operations** and as **Clinical**.
+**Expected Result.** Finance reads the refund chips everywhere (Money is theirs at `manage`, Sessions at `view`). Operations and Clinical see **no refund chip** on either the patient profile or All Sessions — `canSeeMoney` gates it exactly as it gates the amount paid, so a desk that cannot read what was paid cannot read what was given back either. The `paid` / `unpaid` word itself is unchanged for them: whether a session is paid for is operational, and how much is not.
 
 ---
 

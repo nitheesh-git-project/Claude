@@ -140,7 +140,7 @@ describe("buildAdminHome", () => {
     expect(buildAdminHome("full", ZERO).accessNote).toBeNull();
     const note = buildAdminHome("clinical", ZERO).accessNote;
     expect(note?.sections).toEqual(["Today", "Sessions", "People"]);
-    expect(note?.withheld).toEqual(["Money", "Catalog", "Settings"]);
+    expect(note?.withheld).toEqual(["Money", "Catalog", "Logs", "Settings"]);
   });
 
   it("reads an unknown scope as full rather than blank", () => {

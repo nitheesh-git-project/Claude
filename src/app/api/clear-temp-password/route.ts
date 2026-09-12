@@ -38,6 +38,15 @@ export async function POST() {
       .from("hospital_admin_notes")
       .update({ temp_password: null, temp_password_set_at: null })
       .eq("hospital_id", user.id);
+  } else if (profile?.role === "admin") {
+    // Back-office accounts too, since User Access lists the issued password
+    // beside each one. Without this branch that column would keep offering a
+    // password the admin had already replaced, which is worse than showing
+    // nothing: it is the screen stating something false about a credential.
+    await admin
+      .from("admin_account_notes")
+      .update({ temp_password: null, temp_password_set_at: null })
+      .eq("admin_id", user.id);
   }
 
   return NextResponse.json({ success: true });

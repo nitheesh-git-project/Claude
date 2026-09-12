@@ -1,3 +1,4 @@
+import { describeRefundForPatient, type RefundDescription } from "@/lib/refundState";
 import { describeDiscount, type DiscountSource } from "@/lib/discounts";
 // Pure aggregation for the Receipts feature -- kept separate from any
 // rendering component so the logic can be reasoned about on its own,
@@ -26,6 +27,13 @@ export type PatientReceiptAppointment = {
   razorpay_payment_id: string | null;
   package_purchase_id: string | null;
   refund_status: string | null;
+  /** What came back, when and why. Migration-dependent (refunded_at is the
+   *  newest of the three), so a caller reading a database without them
+   *  hands through undefined and the receipt states the refund without a
+   *  date rather than inventing one. */
+  refund_amount_paise?: number | null;
+  refund_reason?: string | null;
+  refunded_at?: string | null;
   /** What the session listed at and what came off it, when a discount
    *  applied. Migration-dependent, so a caller reading a database without
    *  the columns hands through undefined and the receipt simply shows the
@@ -79,6 +87,11 @@ export type PayoutBatchRow = {
   created_at: string;
 };
 
+function refundOrNull(a: PatientReceiptAppointment): RefundDescription | null {
+  const refund = describeRefundForPatient(a);
+  return refund.state === "none" ? null : refund;
+}
+
 export type BookingReceiptStage =
   | "payment_confirmed"
   | "service_completed"
@@ -110,6 +123,17 @@ export type BookingReceipt = {
   discountLabel: string | null;
   transactionId: string | null;
   date: string; // paid_at, used for sorting/display
+  /**
+   * The refund on this booking, in the patient's own words, or null where
+   * there is nothing to say.
+   *
+   * Separate from `stage` because the two answer different questions and a
+   * refund is no longer only something that happens to a cancelled session:
+   * an admin can return part of what was paid for a session that went ahead
+   * and was completed, which `stage` has no honest value for. Folding that
+   * into the stage would have a delivered session reading "Refunded".
+   */
+  refund: RefundDescription | null;
 };
 
 export type PaymentFailedReceipt = {
@@ -181,6 +205,7 @@ export function buildPatientReceipts(
           ),
       transactionId: a.razorpay_payment_id,
       date: a.paid_at as string,
+      refund: refundOrNull(a),
     }));
 
   const packageReceipts: BookingReceipt[] = packagePurchases
@@ -205,6 +230,10 @@ export function buildPatientReceipts(
       discountLabel: null,
       transactionId: p.razorpay_payment_id,
       date: p.paid_at as string,
+      // A package's own refund is recorded against its purchase row and
+      // surfaced on the programme, not here. Stated as null rather than
+      // guessed from a session's columns it does not have.
+      refund: null,
     }));
 
   const failureReceipts: PaymentFailedReceipt[] = paymentFailures.map((f) => ({

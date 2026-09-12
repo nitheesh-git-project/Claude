@@ -44,6 +44,25 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 * On All Sessions itself, the **No therapist**, **Today** and **Home visits** figures filter the list **in place** (no page navigation) and tapping the applied one clears it.
 * An admin whose scope cannot open the target section sees the figure **without a link** — never a link into a 403.
 
+#### `ADM-TODAY-006` — A queue's age is real, and survives a refresh · P0
+
+**Feature.** The feed items that roll a queue up — signups waiting for approval, change requests to review, sessions with no meeting link — used to stamp themselves with the moment the page rendered. This dashboard re-renders on every realtime event, so they reset to **just now** constantly, and a signup that had been waiting three days read as having just arrived.
+
+**Steps**
+1. Create a patient signup and leave it unapproved. Note the real time.
+2. Wait a few minutes, then open **Today** (or **Today → Activity** on a scoped desk) and read the time under *"1 signup waiting for approval"*.
+3. Press **Refresh**. Read it again. Then have a second admin act so a realtime refresh fires, and read it a third time.
+4. Leave a second signup unapproved a day later, so two are waiting, and read the time again.
+5. Approve them all and let a **change request** and a **failed Meet sync** be the waiting items instead; check both the same way.
+6. Leave the tab open for ten minutes and watch the item.
+
+**Expected Result**
+* Step 2: the age of the **signup**, not of the page — a few minutes, matching step 1.
+* Step 3: **unchanged by both refreshes.** If it reads *just now* after a refresh, this defect is back.
+* Step 4: the time is the **oldest** of the two, not the newest. A queue's age is the age of what has waited longest — that is the whole reason the figure is worth showing.
+* Step 5: both behave identically. The sync queue is dated by the **session's slot time**, since a session without a link is urgent by when it is due.
+* Step 6: it ages normally (`5m ago` → `15m ago`), which is the one way this number is allowed to move.
+
 #### `ADM-TODAY-002` — Inbox counts are live · P1
 **Steps.** In a second browser, have a patient book a session. Watch the admin's Today screen without reloading.
 **Expected Result.** The unassigned count and the badge update within the operational channel's cooldown. The **first** change appears immediately (leading edge); a burst of ten bookings collapses into one refresh.
@@ -71,6 +90,12 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** Approve one request; decline another with a reason.
 **Expected Result.** Approving writes the new value onto the profile; declining does not. Both are audited. A stale decision on an already-decided request is refused with `This request has already been reviewed`.
 
+#### `ADM-RISK-004` — Each desk reads its own signals; the trails stay closed · P0
+
+**Steps.** With at least one open signal from a money rule (`cash_variance`) and one from a sessions rule (`contact_leak`), open **Today → Risk** as **Finance**, then as **Operations**, then as **Admin Full**.
+**Expected Result.** Finance sees the money signals and **not** `contact_leak`; Operations and Clinical see the sessions signals and **not** `cash_variance`; Admin Full sees both. Each scoped screen carries `Only the signals your desk can act on are shown here.` — a filtered queue that looks complete is worse than one that says what it is. A scoped desk can **review** its own signals (the route is `today`-scoped, which every desk manages).
+**What stays closed:** **Flagged messages**, the **contact-reveal trail** and the **thresholds** render for **Admin Full only**. Those quote what a colleague wrote and name every patient contact a therapist opened — the reading the whole queue used to be shut for — and a threshold is configuration. If a scoped admin can see any of the three, that is a P0.
+
 #### `ADM-RISK-001` — The Risk queue · P1
 
 **Feature.** Suspicious patterns surface here, written by a **bounded lazy sweep after the Today render** — a wall-clock budget checked between rules, and a five-minute minimum interval, because realtime refreshes this page on every booking.
@@ -85,9 +110,9 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Steps.** Review a signal with a note of `ok` (2 characters), then with `Checked the two sessions, both legitimate.`
 **Expected Result.** The short note is refused — the minimum is **ten characters**, enforced by a CHECK, because "dismissed" with no reason reads the same as "not read". Reviews are **append-only**. Closing a signal frees its slot, so a repeat after a dismissal is raised **fresh** — that is correct, it is new information.
 
-#### `ADM-RISK-003` — Thresholds are editable, and the queue is full-scope only · P1
-**Steps.** Edit a rule's threshold on the tab. Then sign in as Admin Ops and open Today.
-**Expected Result.** The threshold saves and the next sweep uses it. As Admin Ops, the **Risk tab is not shown, and the page does not even fetch the signals** — a signal names a colleague and quotes what they wrote.
+#### `ADM-RISK-003` — Thresholds are editable, and the editor is Master Admin's · P1
+**Steps.** Edit a rule's threshold on the tab as a Master Admin. Then sign in as Admin Ops and open Today → Risk.
+**Expected Result.** The threshold saves and the next sweep uses it. As Admin Ops, the **threshold editor is absent** — what fires at all is a clinic-wide decision — and so are the flagged-message and reveal-log trails, which name a colleague and quote what they wrote. The signals that desk can act on are still listed and reviewable (`ADM-RISK-004`).
 
 ---
 
@@ -96,6 +121,23 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 #### `ADM-SCHED-001` — Schedule (calendar) · P1
 **Steps.** Open **Sessions → Schedule**. Navigate months. Tap a day with sessions. Tap one session.
 **Expected Result.** The calendar shows sessions by day. Tapping a day opens its panel; tapping a session opens the **same `SessionDetailDrawer`** that All Sessions opens. **There is one detail surface, not two.**
+
+#### `ADM-SESS-NEW-001` — "Book for a patient" lands on the booking form · P1
+
+**Feature.** An admin who opens `/book` is shown the wrong-account card rather than the wizard — one account carries one role, so an admin cannot be the patient a booking is for. Its **Book for a patient** button sends them to New Booking under Sessions. It used to carry `?section=sessions` with **no tab**, which resolves to the section's *first* screen, so the one button in the product named "Book for a patient" landed on the Schedule month grid.
+
+**Steps**
+1. Signed in as a **Master Admin**, open `/` then **Book**, and tap **Book for a patient**.
+2. Repeat as **Operations**, then **Clinical**.
+3. Repeat as **Finance**.
+4. On the screen Finance lands on, press **Dismiss**, then move to another screen and back.
+5. As a limited desk, deep-link straight to `?section=today&tab=activity`, then navigate away and press **Back**.
+
+**Expected Result**
+* Steps 1–2: **New Booking**, with the form on screen — not the calendar.
+* Step 3: Finance lands on the nearest Sessions screen they *can* open, with **one amber line** saying *"New Booking is not part of your access, so this is the nearest screen you can open."* Finance reads Sessions and cannot change one, so booking is genuinely not theirs — `/api/admin/create-booking` refuses them too. What must not happen is landing on a different screen with nothing said.
+* Step 4: the line goes and does not come back — it describes the link they arrived on, not the screen they chose next.
+* Step 5: **Today → Activity both times.** The shell's own URL handler resolves with the same scope rules the server used; while it did not, a limited desk's deep link and Back button both fell through to Today's overview.
 
 #### `ADM-SESS-001` — All Sessions is one filterable list · P0
 
@@ -121,23 +163,23 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 
 #### `ADM-SESS-003` — Meet sync failure is recorded, retried and capped · P1
 
-**Feature.** Google sync **must never block a booking**. Failures are recorded on the appointment, re-attempted by a **lazy sweep at the top of the admin dashboard render**, and retried by hand from Sync Health. Because that sweep makes outbound calls from inside a page render, it is capped **three ways**: a wall-clock timeout per attempt, a few appointments per sweep, and an attempts-per-appointment counter.
+**Feature.** Google sync **must never block a booking**. Failures are recorded on the appointment, re-attempted by a **lazy sweep at the top of the admin dashboard render**, and retried by hand from **Session Links**. Because that sweep makes outbound calls from inside a page render, it is capped **three ways**: a wall-clock timeout per attempt, a few appointments per sweep, and an attempts-per-appointment counter.
 
 **Steps.** Remove or invalidate the Google credentials. Assign a therapist to a paid session. Then open **Settings → System Health**. Tap **Retry** on the failed row several times.
-**Expected Result.** The assignment **succeeds** and the session is confirmed — the booking is never blocked. `google_calendar_sync_error` is recorded and the row appears in Sync Health, raising that tab's badge. Retrying increments the attempt counter; at the cap the row stays flagged as **needing a person** rather than being retried forever. A **manual Retry resets the counter.** The **Google Connection** panel above Sync Health turns red at the same time and says the account is no longer connected — see `ADM-SESS-003c`, and check it first, because that panel is what tells you whether these are a few unlucky sessions or the whole integration being down. Two overlapping attempts must not both create an event — each claims the appointment first, with a staleness window so a render that dies mid-attempt releases its row. Retrying a session that is not confirmed-with-a-therapist is refused with `Only confirmed sessions with an assigned therapist can retry Meet sync`. A concurrent retry returns `A sync attempt for this session is already running. Try again in a moment.`
+**Expected Result.** The assignment **succeeds** and the session is confirmed — the booking is never blocked. `google_calendar_sync_error` is recorded and the row appears under **Session Links**, raising that tab's badge. Retrying increments the attempt counter; at the cap the row stays flagged as **needing a person** rather than being retried forever. A **manual Retry resets the counter.** The **Google Connection** card above Session Links turns red at the same time and says the account is no longer connected — see `ADM-SESS-003c`, and check it first, because that panel is what tells you whether these are a few unlucky sessions or the whole integration being down. Two overlapping attempts must not both create an event — each claims the appointment first, with a staleness window so a render that dies mid-attempt releases its row. Retrying a session that is not confirmed-with-a-therapist is refused with `Only confirmed sessions with an assigned therapist can retry Meet sync`. A concurrent retry returns `A sync attempt for this session is already running. Try again in a moment.`
 **Note:** a **home visit still gets a calendar event even when `google_meet_enabled` is off** — that toggle gates the Meet conferencing only, not event creation, because the invite email is the only outbound notification this platform sends.
 
 #### `ADM-SESS-003d` — A home visit is never listed as a failed sync · P1
 
 **Feature.** A home visit deliberately gets **no Meet link** — there is nothing to join, the therapist travels to the address — so its calendar event carries the address and access notes instead. "Has no Meet link" therefore cannot mean "sync failed", and `src/lib/meetSyncState.ts` is the one place that decides: a home visit is synced when its **event** exists, an online session when its **Meet link** does.
 
-**Steps.** Book and confirm a **home visit** with a therapist assigned, and let its calendar event be created. Open **Settings → System Health → Sync Health**. Then, on a session that genuinely has no event, press **Retry** twice and count the events on the clinic's Google Calendar.
-**Expected Result.** The confirmed home visit is **absent** from Sync Health — it is not a failure. Pressing Retry on a session that *is* listed and does succeed reports **success**, not `Retry failed`, whichever delivery mode it is. Most importantly, a session that already has a calendar event **never gets a second one**: `createMeetEventForConfirmedAppointment` refuses on `google_event_id`, at every door — the automatic sweep, the manual Retry, and the three booking paths.
-**Negative:** this is a regression test with a real history. Before it, every confirmed home visit sat in Sync Health permanently, Retry answered `502 Retry failed` even on the runs that worked, and each click minted a duplicate calendar event that emailed the patient and the therapist again — three reached one patient. A **cancelled** session still clears `google_event_id`, so a legitimate re-creation after deletion must still go through.
+**Steps.** Book and confirm a **home visit** with a therapist assigned, and let its calendar event be created. Open **Settings → System Health → Session Links**. Then, on a session that genuinely has no event, press **Retry** twice and count the events on the clinic's Google Calendar.
+**Expected Result.** The confirmed home visit is **absent** from Session Links — it is not a failure. Pressing Retry on a session that *is* listed and does succeed reports **success**, not `Retry failed`, whichever delivery mode it is. Most importantly, a session that already has a calendar event **never gets a second one**: `createMeetEventForConfirmedAppointment` refuses on `google_event_id`, at every door — the automatic sweep, the manual Retry, and the three booking paths.
+**Negative:** this is a regression test with a real history. Before it, every confirmed home visit sat in Session Links permanently, Retry answered `502 Retry failed` even on the runs that worked, and each click minted a duplicate calendar event that emailed the patient and the therapist again — three reached one patient. A **cancelled** session still clears `google_event_id`, so a legitimate re-creation after deletion must still go through.
 
 #### `ADM-SESS-003c` — A dead Google connection says so, and stops burning retries · P1
 
-**Feature.** Every Calendar and Meet call uses one refresh token. When it dies — revoked, or (much the commonest cause) the Google Cloud OAuth consent screen left on **Testing**, where Google expires refresh tokens after **seven days** — *every* session fails at once. Before this the only sign was a list of per-session errors in Sync Health with a Retry button that could never work, which reads as bad luck rather than as an outage. **Settings → System Health → Google Connection** answers it directly, by spending the token: a token can be set and still be dead, so its presence is not the test.
+**Feature.** Every Calendar and Meet call uses one refresh token. When it dies — revoked, or (much the commonest cause) the Google Cloud OAuth consent screen left on **Testing**, where Google expires refresh tokens after **seven days** — *every* session fails at once. Before this the only sign was a list of per-session errors under Session Links with a Retry button that could never work, which reads as bad luck rather than as an outage. **Settings → System Health → Google Connection** answers it directly, by spending the token: a token can be set and still be dead, so its presence is not the test.
 
 **Steps.** Set `GOOGLE_CALENDAR_REFRESH_TOKEN` to a revoked or nonsense value and open **Settings → System Health**. Then unset the three `GOOGLE_CALENDAR_*` variables and reload. Then restore working credentials and reload.
 **Expected Result.** With a dead token the panel is **red**, reads **"The Google account is no longer connected."**, explains that the usual cause is the consent screen being on Testing, and names the fix — set it to **In production** and re-run `scripts/get-google-refresh-token.mjs`. With the variables **unset** the panel is **amber**, not red, and reads **"Google is not set up."** naming the missing variables — an owner who has not wired Google up yet has chosen that, and it is not a fault. With working credentials the panel is **white** and says sessions get an invite and a link automatically; if the saved permission predates the open-access feature it says so and points at the same script. A **network failure is not reported as a dead token** — it reads "Google could not be reached" and says it may be temporary.
@@ -149,7 +191,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 
 **Steps.** With the switch **on**, confirm a paid session. Open its Meet link in a browser signed in as a Google account that is *not* on the invite. Then open **Settings → System Health**.
 **Expected Result.** The link goes **straight into the call** — no "asking to be let in", and nobody has to admit anyone. `meet_access_open` is `true` and the session is **not** in the Waiting Room panel. The Join button's caption reads `Opens straight into the call — sign in to Google if asked.` once the join window is open, and `Opens N minutes before your session.` before it.
-**Negative:** with a refresh token minted before the `meetings.space.settings` scope (or the Google Meet API not enabled on the Cloud project), the **booking still succeeds and the link still works** — only the waiting room stays on. The session appears under Waiting Room with the 403 explained, is retried a couple of times automatically, then flagged as **needing a person**. **Open** re-attempts it and re-arms those attempts; on a session with no Meet link yet it is refused with `This session has no Meet link yet — retry the Calendar sync first`, and on a cancelled one with `This session is cancelled — its Meet space is gone`.
+**Negative:** with a refresh token minted before the `meetings.space.settings` scope (or the Google Meet API not enabled on the Cloud project), the **booking still succeeds and the link still works** — only the waiting room stays on. The session appears under Waiting Room with the 403 explained, is retried a couple of times automatically, then flagged as **needing a person**. **Open the door** re-attempts it and re-arms those attempts; on a session with no Meet link yet it is refused with `This session has no Meet link yet — retry the Calendar sync first`, and on a cancelled one with `This session is cancelled — its Meet space is gone`.
 **Note:** open access removes the **knock**, not the **sign-in**. A meeting organised by a personal Gmail account still requires every participant to be signed in to *some* Google account; only moving the organising account to Google Workspace allows a patient with no Google account at all to join.
 
 #### `ADM-SESS-004` — Edit, cancel, reopen and restore a session · P1
@@ -387,6 +429,34 @@ Withdrawal also covers a plan **still waiting for approval** — refusing would 
 **Steps.** Use the admin search to find `QA Patient A` and `QA Sunrise Hospital`.
 **Expected Result.** Results are grouped by entity type and link to the right detail surface.
 
+#### `ADM-PEOP-010` — Opening somebody's dashboard · P0
+
+**Feature.** A Master Admin can sign in as a patient or therapist from their profile page, to see exactly what they see. It is a **real session swap**, not a preview: the browser becomes that account, every control works, and every write is recorded as theirs. That is the cost of being able to reproduce a bug that only shows on submit, and everything below is what fences it.
+
+**Steps**
+1. As **Admin Full**, open **People → Patients → QA Patient A** and tap **Open their dashboard**. (The same control sits on a therapist's profile, and on a hospital's card on **People → Partners** — a hospital has no detail page of its own, and its card is where its record lives.)
+2. Try to confirm with the reason `test`. Then enter `Patient says her session link is missing.` and confirm.
+3. Read the bar at the top of the patient dashboard. Walk to Sessions, Programmes and Health Profile.
+4. Tap **Exit and go back to admin**.
+5. Open **Logs → All Activity**.
+6. Repeat step 1 as an **Operations**, **Finance** and **Clinical** admin.
+7. Open another **admin's** profile, and a **suspended** patient's.
+8. Start a swap, then leave the tab for over 30 minutes and reload.
+9. **[SQL]** `update admin_impersonation_sessions set reason = 'x'` on the row your swap wrote, and `delete` it.
+
+**Expected Result**
+* `test` is refused — at least ten characters, the same floor an admin credit adjustment uses. A log full of "test" answers nothing six months later.
+* The dialog says in advance that this is the real account, that anything tapped happens for real and is recorded as theirs, that it ends after 30 minutes, and how to get back.
+* Every dashboard screen carries an **amber bar** naming the patient, saying the actions are real, counting the window down, and offering Exit. It is the **only** difference from what she sees.
+* Exit restores the admin's own session and lands on `/admin/dashboard` — no re-login.
+* The log carries **`Signed in as a user`** and **`Stopped signing in as a user`**, both naming the patient, the first carrying the reason.
+* All three roles work the same way: a therapist lands on `/therapist/dashboard`, a hospital on `/hospital/dashboard`, each with the same bar. A hospital's own dashboard is where its referrals and earnings read from, so "the referral I sent is not showing" is a question about that screen rather than about the Partners card.
+* The three scoped admins have **no such button**, and calling `/api/admin/start-impersonation` directly answers **403** — the button's absence is presentation, the route is the rule.
+* Another admin is refused (*"You cannot sign in as another admin"*) whether active or suspended; a suspended patient is refused with what to do about it.
+* Past 30 minutes the session is **signed out by the proxy**, not merely un-bannered — a marker left to lapse on its own would drop the bar while the swap ran on underneath it. The admin lands on `/admin/login?expired=impersonation`.
+* **[SQL]** Both the update and the delete **raise**: the row is append-only apart from being closed once, so the admin it names cannot rewrite the record of it.
+**Negative:** if the row cannot be written, **no session is opened at all** — an impersonation nobody can trace to a person is the one outcome this route must not produce.
+
 #### `ADM-PEOP-003` — Patient detail · P1
 **Steps**
 1. On **People → Patients**, tap the row for `QA Patient A`.
@@ -416,6 +486,10 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 #### `ADM-PEOP-007` — Suspend and restore a therapist · P1
 **Steps.** Toggle Therapist A inactive, then active.
 **Expected Result.** While inactive: their dashboard redirects to `/account-suspended`, their API routes 403, they disappear from `/team` and from `?therapist=` resolution, and they cannot be assigned. Restoring reverses all of it. **Their existing appointments are unchanged.**
+
+**`/team` must update immediately, not eventually.** Open `/team` in a second tab *before* suspending, suspend, then **reload that tab** — the therapist is gone on the next load, not after the five-minute cache window lapses. The public view already excludes them (`approved and active and visible_on_team`); what was missing was the route telling the cached page. Check the same for **approving** a pending therapist and for **creating** one from User Access — both put a therapist on `/team` at once, since the visibility column defaults to showing. **Declining** a pending signup deliberately does not invalidate anything: an unapproved account was never on that page.
+
+**And the "Hide from /team page" button follows the account.** While the therapist is suspended it is **greyed out and does nothing**, with a line saying they are already off `/team` and that the setting returns as you left it. Same while a therapist is still **pending approval**, worded for that reason instead. Restore them and the button is live again, showing the state it had before — set it to hidden, suspend, restore, and it must still read **Show on /team page**, never reset to the default.
 
 #### `ADM-PEOP-008` — Partners · P1
 Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **Update revenue share**, **Set active/inactive**, **Reset password**, **Referral capacity note**, and **Decline referral** (reason mandatory) all work and are audited.
@@ -451,10 +525,19 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 5. Tap **Session Length (min)**. Enter `60`.
 6. Tap **Order**. Enter `1`.
 7. Tap **Button Text**. Enter `Book Assessment`.
-8. Optionally paste a **Cover Image URL**.
+8. Optionally upload a **Cover image**.
 9. Save.
 
-**Expected Result.** The category is created and appears **immediately** on `/` and `/conditions` — the create route invalidates both ISR-cached pages, so a five-minute wait is now a defect, not expected behaviour — in the `/book` concern dropdown as `QA Back & Spine Care — ₹1,999 / 60 min`, and as an option when creating a package. The cover image is a **plain URL an admin pastes**, not a Storage upload, rendered through a plain `<img>`; a row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
+**Expected Result.** The category is created and appears **immediately** on `/` and `/conditions` — the create route invalidates both ISR-cached pages, so a five-minute wait is now a defect, not expected behaviour — in the `/book` concern dropdown as `QA Back & Spine Care — ₹1,999 / 60 min`, and as an option when creating a package. The cover is an **upload**, not a pasted URL: there is no URL text box on this form any more. A row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
+
+#### `ADM-CAT-003` — Upload a cover, preview it and position it · P0
+**Steps.** On any condition, package or home-visit form, tap **Upload an image** and choose a landscape photograph whose subject is well off-centre. Then tap **Preview & position**, drag the picture until the subject sits where you want it, and tap **Done**. Save the form.
+**Expected Result.** The drop zone becomes a row naming the file with **Preview & position**, **Replace** and **Remove**, and reads `Centred — not positioned yet` until you move it. In the dialog, the **frame stays still and the picture moves inside it** — dragging right moves the picture right — with a rule-of-thirds guide over it and the live focal point shown as two percentages. The three small frames below (**Card**, **Square**, **Dialog**) all move together: that is the point of the feature, and a position correct on one but not the others is a P0. **Done** only stages it; the public page changes when the **form** is saved, and it changes immediately rather than after the five-minute ISR window.
+**Negatives:** a PDF or SVG is refused with `Please upload a JPG, PNG or WebP image.`; a file over 5 MB with `That image is larger than 5 MB. Please use a smaller file.` Both are refused by the **route**, so the same request sent with a Finance admin's cookie answers **403** regardless of what the form shows.
+
+#### `ADM-CAT-004` — One position, every frame · P0
+**Steps.** After `ADM-CAT-003`, open `/conditions`, then that condition's **View full details** dialog, then `/patient/dashboard/book` signed in as a patient.
+**Expected Result.** The photograph is cropped **the same way** in all three — card 4:3, dialog 16:9, dashboard card 4:3 — with the subject where you placed it. A crop baked into the file would have been right in one and wrong in the others; this is a focal point, so it is right in all of them. The patient's booking screen renders the **same card** as the public pages, with cover, chips, ticks, price and a Book button — it must not be the old text-only list.
 **Negatives:** `Missing title, priceInr, or durationMinutes`; `Price must be a positive number`; `Session length must be a positive number of minutes`; `Order must be a number`.
 
 #### `ADM-CAT-002` — Edit, reorder, deactivate, delete a category · P1
@@ -465,6 +548,27 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 **Negatives:** with two browser tabs open, add or delete a category in tab B, then Save order in tab A — refused with `The condition list changed while you were reordering it. Refresh and try again.`
 **[SQL] the same refusal one level down.** The route's completeness check is true only for as long as every caller remembers it, and the function is reachable by the service-role client and by hand in the SQL editor. Against a scratch database with `schema.sql` applied, call it with a subset — `select set_treatment_category_order(array[(select id from treatment_categories limit 1)]);` — and confirm it **raises** `set_treatment_category_order needs every category (1 given, 3 exist)` rather than renumbering one row. Renumbering a subset collides with the rows it never saw, which is how two categories end up sharing an order again — the exact tie the whole change removes.
 **Also:** creating a category now defaults **Order** to one past the last existing category, so a new condition appends rather than appearing first. Deactivating removes it from public surfaces and refuses new bookings against it (`That concern isn't available any more. Please pick another one.`) while **leaving existing appointments untouched**. Deleting a category referenced by a live purchase must not silently break that purchase.
+
+#### `ADM-CAT-004` — Deleting a condition says what happened · P0
+
+**Feature.** Every outcome of Delete is now reported. It previously answered success whether or not a row had gone — supabase-js reports no error when a DELETE matches nothing — so a refusal, an already-deleted row and a real deletion produced the same response, and the screen refreshed on that success and painted the condition still sitting there. **"Delete does nothing, and nothing says why" is the failure this case exists to catch.**
+
+**Steps**
+1. Create `QA Spare Condition` and, without booking anything under it, delete it.
+2. On a condition with a booked session (`QA Back & Spine Care`), tap **Delete** and read the dialog.
+3. Delete every session under some condition, leave **one home-visit package** filed against it, and delete it again.
+4. In a second tab, delete a condition; in the first tab, tap **Delete** on the same row.
+5. Tap **Delete**, and with the request in flight, drop the network.
+6. Open **Logs → All Activity**.
+
+**Expected Result**
+* Step 1 deletes, the row leaves the list, and `/` and `/conditions` update immediately.
+* Step 2 opens a **dialog** — not an 11px line clipped beside the button — naming the counts (`2 sessions and 1 programme purchase still use this condition…`) and saying to **turn it off instead**, with what that preserves. HTTP **409**.
+* Step 3 names the **home-visit package** specifically. A refusal that says "it has bookings" sends an admin to delete sessions and be refused a second time by something they were never told about.
+* Step 4 answers **404** with `That condition has already been deleted. Refresh to see the current list.`
+* Step 5 says `Could not reach the server. Nothing has changed.` — previously the thrown request left the transition with nothing on screen at all.
+* The log's row names the **condition's title**, not "Treatment category": the row is gone by then, so the log is the only thing left that can say which one it was.
+**Never `{ success: true }` on a delete that removed nothing.** If the row is still listed after a success and a refresh, that is a P0 — it is the exact defect this case was written for.
 
 #### `ADM-CAT-005` — Create a session package · P0
 **Steps.** Create Package P1 exactly as specified in §8.11.

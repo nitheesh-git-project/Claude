@@ -18,6 +18,16 @@ export type AdminActivityAction =
   | "account.decline"
   | "account.create"
   | "account.set_active"
+  // Removing an account outright. Only ever possible for one with no history
+  // at all -- anything else is refused -- and recorded before the delete
+  // runs, since afterwards there is no row left to name.
+  | "account.delete"
+  // Signing in as somebody, and signing back out. The deepest capability in
+  // the app: everything done during the window is written as that user, so
+  // these two rows plus admin_impersonation_sessions are the only record
+  // that an admin was at the keyboard at all.
+  | "impersonation.start"
+  | "impersonation.end"
   | "account.reset_password"
   | "profile_change.approve"
   | "profile_change.decline"
@@ -122,6 +132,11 @@ export type AdminActivityAction =
   // The most destructive action in the application. Recorded after the wipe,
   // because the wipe truncates this table.
   | "data.reset"
+  // The only way a row ever leaves this table. Recorded after the purge and
+  // deliberately outside its own reach: the cutoff cannot come within
+  // MIN_RETENTION_DAYS of now, so an entry saying the log was cleared always
+  // survives the clearing it describes.
+  | "log.clear"
   | "catalog.create"
   | "catalog.update"
   | "catalog.delete"
@@ -172,6 +187,9 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "account.decline": "Declined account",
   "account.create": "Created account",
   "account.set_active": "Changed account status",
+  "account.delete": "Deleted an account",
+  "impersonation.start": "Signed in as a user",
+  "impersonation.end": "Stopped signing in as a user",
   "account.reset_password": "Reset password",
   "profile_change.approve": "Approved profile change",
   "profile_change.decline": "Declined profile change",
@@ -240,6 +258,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "clinical_questions.update_pain_map": "Reworded a Pain Map question",
   "risk.review": "Reviewed a risk signal",
   "data.reset": "Reset all data",
+  "log.clear": "Cleared older log entries",
   "catalog.create": "Created catalog item",
   "catalog.update": "Edited catalog item",
   "catalog.delete": "Deleted catalog item",

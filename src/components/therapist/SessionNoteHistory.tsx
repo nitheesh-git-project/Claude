@@ -58,7 +58,7 @@ export default function SessionNoteHistory({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold text-slate-800">
-                  {new Date(note.created_at).toLocaleDateString(undefined, {
+                  {new Date(note.created_at).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata",
                     day: "numeric",
                     month: "short",
                     year: "numeric",

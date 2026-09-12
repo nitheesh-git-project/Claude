@@ -1,6 +1,6 @@
 // The admin dashboard's information architecture, in one place.
 //
-// Six sections, each one a job an admin actually does, rather than the 16
+// Seven sections, each one a job an admin actually does, rather than the 16
 // feature-shaped tabs this replaced (a session used to be listed on four of
 // them, settings lived on four, and "what needs me now" lived on none). The
 // sidebar, the URL (?section=&tab=), the per-screen content map in
@@ -17,6 +17,7 @@ export type AdminSectionKey =
   | "people"
   | "money"
   | "catalog"
+  | "logs"
   | "settings";
 
 export type AdminTabDef = {
@@ -49,6 +50,18 @@ export type AdminTabDef = {
    * empty page.
    */
   requiresManage?: boolean;
+  /**
+   * Shown to a limited scope only.
+   *
+   * One screen needs this: Today -> Activity. A Master Admin reads the whole
+   * log in the Logs section, and Operations, Finance and Clinical cannot
+   * open Logs at all -- so without it their own desk's history is the ten
+   * rows that happen to fit in the Today feed. Rendering it for everybody
+   * would put a second list of the same rows in front of the one reader who
+   * already has the first, which is what the "a session is listed once" rule
+   * exists to stop.
+   */
+  limitedScopesOnly?: boolean;
 };
 
 export type AdminSectionDef = {
@@ -78,6 +91,15 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // its own because a signal is a piece of work waiting on somebody,
       // and that is what this section is for.
       { key: "risk", label: "Risk" },
+      // Their own desk's history. See limitedScopesOnly above for why a
+      // Master Admin does not get this entry.
+      {
+        key: "activity",
+        label: "Activity",
+        limitedScopesOnly: true,
+        blurb: "Every change your own desk has made, newest first.",
+        example: "Check which session a colleague on your desk reassigned this morning.",
+      },
     ],
   },
   {
@@ -129,15 +151,47 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     label: "Money",
     icon: "fa-sack-dollar",
     blurb: "What came in, what goes out, what it costs, what is still owed.",
+    // Every screen here says what it is and gives one example, for the same
+    // reason the Settings screens do -- more so, in fact. Five money screens
+    // whose names are all abstract nouns ("Summary", "Breakdown") leave an
+    // owner opening three of them to find the one answering the question
+    // they arrived with, and a promo code that lived on Summary while every
+    // other surface said Costs was that failure at its worst: the screen the
+    // note sent you to genuinely did not have it.
     tabs: [
-      { key: "summary", label: "Summary" },
-      { key: "transactions", label: "Transactions" },
-      { key: "payouts", label: "Payouts" },
+      {
+        key: "summary",
+        label: "Summary",
+        blurb: "Whether the clinic made money over a stretch of dates, and where each rupee went.",
+        example: "See what last month left you after paying therapists and your own costs.",
+      },
+      {
+        key: "transactions",
+        label: "Transactions",
+        blurb: "Every payment and refund, one row each.",
+        example: "Find what a patient paid on Tuesday, and whether any of it went back.",
+      },
+      {
+        key: "payouts",
+        label: "Payouts",
+        blurb: "What you owe each therapist right now, and paying it.",
+        example: "Pay a therapist what they have earned, less any cash they are still holding.",
+      },
       // What the clinic itself spends. Without it the money screens stop at
       // the clinic's share and no figure anywhere can honestly be called
       // profit.
-      { key: "costs", label: "Costs" },
-      { key: "breakdown", label: "Breakdown" },
+      {
+        key: "costs",
+        label: "Costs",
+        blurb: "What the clinic spends, and what your discounts give away.",
+        example: "Record this month's rent, or set up a promo code for a campaign.",
+      },
+      {
+        key: "breakdown",
+        label: "Breakdown",
+        blurb: "Which treatments and therapists the money came from.",
+        example: "See which condition earned the most over the last three months.",
+      },
     ],
   },
   {
@@ -150,6 +204,39 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       { key: "packages", label: "Packages" },
       { key: "areas", label: "Service Areas" },
       { key: "purchases", label: "Purchases" },
+    ],
+  },
+  {
+    key: "logs",
+    label: "Logs",
+    icon: "fa-clipboard-list",
+    blurb: "Every action taken in this dashboard, and who took it.",
+    // A section of its own rather than a screen under Settings, where it
+    // used to sit. Settings is where the product is configured; a log is not
+    // a setting, and burying the record of what everybody did inside the
+    // screen list an owner opens least often is how it stops being read.
+    //
+    // Master Admin only (see SECTION_ACCESS in adminScope.ts). The three
+    // limited desks keep their own filtered history on Today -> Activity,
+    // which is their desk's work alone -- the whole log names actions on
+    // screens they cannot open and colleagues whose desks are not theirs.
+    tabs: [
+      {
+        key: "all",
+        label: "All Activity",
+        blurb: "Every change an admin has made, newest first \u2014 who, when, and what it changed from.",
+        example: "Find who refunded a session last Tuesday, and what reason they gave.",
+      },
+      {
+        key: "retention",
+        label: "Archive & Clear",
+        // Nothing to read here: the screen is a download and a destructive
+        // button. A scope holding this section at `view` would open an
+        // empty page.
+        requiresManage: true,
+        blurb: "Download older entries and remove them, once you have a copy.",
+        example: "Take a copy of everything older than a year, then clear it out.",
+      },
     ],
   },
   {
@@ -215,12 +302,6 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         example: "Find a booked session whose Google Meet link was never created, and try again.",
       },
       {
-        key: "activity",
-        label: "Activity Log",
-        blurb: "Every change an admin has made, newest first.",
-        example: "Check who refunded a session last Tuesday, and what reason they gave.",
-      },
-      {
         key: "security",
         label: "Account Security",
         blurb: "Your own login. Nothing here affects patients or the website.",
@@ -244,15 +325,40 @@ export function findTab(
   // screen the shell does not render, leaving a heading over nothing.
   // Omitted means every allowed section is manageable, which is the answer
   // for every caller that predates levels.
-  manageable: AdminSectionKey[] = allowed
+  manageable: AdminSectionKey[] = allowed,
+  // Whether this admin's scope is one of the three limited desks, which is
+  // what decides the `limitedScopesOnly` screens. Defaults to false so a
+  // caller that has not thought about it hides them rather than showing a
+  // Master Admin a duplicate of a screen they already have.
+  limitedScope = false
 ): { section: string; tab: string } {
-  const usable = ADMIN_SECTIONS.filter((s) => allowed.includes(s.key)).map((s) =>
-    manageable.includes(s.key) ? s : { ...s, tabs: s.tabs.filter((t) => !t.requiresManage) }
-  );
+  const usable = ADMIN_SECTIONS.filter((s) => allowed.includes(s.key)).map((s) => ({
+    ...s,
+    tabs: visibleTabs(s, manageable.includes(s.key), limitedScope),
+  }));
   const fallback = usable[0] ?? ADMIN_SECTIONS[0];
   const section = usable.find((s) => s.key === sectionParam) ?? fallback;
   const tab = section.tabs.find((t) => t.key === tabParam) ?? section.tabs[0];
   return { section: section.key, tab: tab.key };
+}
+
+/**
+ * The screens of one section this admin actually sees.
+ *
+ * One filter, read by the sidebar and by `findTab`, so a hand-typed
+ * `?tab=` cannot resolve to a screen the shell does not render -- which
+ * leaves a heading over nothing.
+ */
+export function visibleTabs(
+  section: AdminSectionDef,
+  canManage: boolean,
+  limitedScope: boolean
+): AdminTabDef[] {
+  return section.tabs.filter((tab) => {
+    if (tab.requiresManage && !canManage) return false;
+    if (tab.limitedScopesOnly && !limitedScope) return false;
+    return true;
+  });
 }
 
 // Builds the href an in-page link uses to send an admin to another screen --

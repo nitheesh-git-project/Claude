@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -241,7 +242,7 @@ export default function PackageBulkScheduler({
                         r.success ? "border-teal-100 bg-teal-50" : "border-red-100 bg-red-50"
                       }`}
                     >
-                      <span>{new Date(r.slotDateTime).toLocaleString()}</span>
+                      <span>{formatClinicDateTime(r.slotDateTime)}</span>
                       <span className={r.success ? "text-teal-700 font-semibold" : "text-red-600"}>
                         {r.success ? "Booked" : r.error ?? "Failed"}
                       </span>
@@ -362,7 +363,7 @@ export default function PackageBulkScheduler({
                         key={slotDateTimeOf(s)}
                         className="flex items-center justify-between rounded-lg border border-teal-100 bg-teal-50 px-3 py-2 text-xs"
                       >
-                        <span>{new Date(slotDateTimeOf(s)).toLocaleString()}</span>
+                        <span>{formatClinicDateTime(slotDateTimeOf(s))}</span>
                         <button
                           onClick={() => toggleHour(s.dateKey, s.hour)}
                           aria-label="Remove"

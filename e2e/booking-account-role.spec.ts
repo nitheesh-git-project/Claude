@@ -89,7 +89,18 @@ test.describe("Only a patient account can book", () => {
         data: {
           packageId: FAKE_ID,
           address,
-          slotDateTime: new Date(Date.now() + 7 * 24 * 3600_000).toISOString(),
+          // On the hour. `isWholeHourSlot` runs ahead of the role gate in
+          // book-cash, so a slot carrying minutes is refused as 400 before
+          // the check this case is actually about is ever reached.
+          slotDateTime: (() => {
+            const d = new Date(Date.now() + 7 * 24 * 3600_000);
+            d.setUTCMinutes(0, 0, 0);
+            // 00:00 UTC is 05:30 in the clinic's zone, so the instant is
+            // rounded in Asia/Kolkata -- the zone the body declares and the
+            // route judges against.
+            d.setUTCMinutes(30);
+            return d.toISOString();
+          })(),
           timezone: "Asia/Kolkata",
         },
       },

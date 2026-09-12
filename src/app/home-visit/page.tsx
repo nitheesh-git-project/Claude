@@ -98,6 +98,22 @@ export default async function HomeVisitPage() {
     : { data: null };
   const detailById = new Map((packageDetail ?? []).map((d) => [d.id, d]));
 
+  // The focal point of each cover, in its own call again -- these are the
+  // newest columns on this table, and sharing the detail query above would
+  // trade a dialog's whole long-form copy for a picture's position.
+  const { data: packageFocals } = packageIds.length
+    ? await supabase
+        .from("home_visit_packages")
+        .select("id, image_focal_x, image_focal_y")
+        .in("id", packageIds)
+    : { data: null };
+  const focalById = new Map(
+    (packageFocals ?? []).map((f) => [
+      f.id,
+      { image_focal_x: f.image_focal_x, image_focal_y: f.image_focal_y },
+    ])
+  );
+
   // Single visits only. Every home visit in this app is a package purchase,
   // so a one-visit package IS the home-visit consultation and has to stay on
   // this page -- it is the only way in for a patient who needs to be seen at
@@ -109,6 +125,7 @@ export default async function HomeVisitPage() {
     .map((p) => ({
       ...p,
       ...(detailById.get(p.id) ?? {}),
+      ...(focalById.get(p.id) ?? {}),
     })) as PublicHomeVisitPackage[];
 
   const heading =

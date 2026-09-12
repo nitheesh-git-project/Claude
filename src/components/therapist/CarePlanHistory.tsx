@@ -1,4 +1,5 @@
 import { describeVersionChange, parseOfferSnapshot, summariseVersion } from "@/lib/carePlans";
+import { formatClinicDate } from "@/lib/formatDateTime";
 import type {
   CarePlanHistoryVersion as HistoryRow,
   CarePlanReviewRecord,
@@ -166,7 +167,7 @@ export default function CarePlanHistory({
                         </p>
                         <p className="text-[11px] text-slate-400">
                           {authorNames.get(version.authoredBy) ?? "Therapist"} ·{" "}
-                          {new Date(version.authoredAt).toLocaleDateString()}
+                          {formatClinicDate(version.authoredAt)}
                         </p>
                       </div>
 

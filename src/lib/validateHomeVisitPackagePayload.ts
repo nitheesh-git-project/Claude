@@ -22,6 +22,13 @@ export type HomeVisitPackagePayload = {
   subtitle?: string | null;
   description?: string | null;
   imageUrl?: string | null;
+  /** Where the subject of the cover sits, 0-100 on each axis. Carried on
+   *  the payload so the routes can read it, but deliberately NOT turned
+   *  into a column here: these are the newest columns on the table and go
+   *  in through writeCatalogFocal's own isolated call, so a database one
+   *  apply behind loses the position rather than the whole save. */
+  imageFocalX?: number | null;
+  imageFocalY?: number | null;
   benefits?: string[];
   badgeLabel?: string | null;
   highlight?: boolean;

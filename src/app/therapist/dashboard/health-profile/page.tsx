@@ -335,7 +335,7 @@ export default async function TherapistHealthProfilesPage() {
                         {nextSession ? (
                           <span className="rounded-full bg-teal-50 px-2.5 py-1 text-[11px] font-semibold text-teal-700">
                             Next{" "}
-                            {new Date(nextSession).toLocaleString(undefined, {
+                            {new Date(nextSession).toLocaleString(undefined, { timeZone: "Asia/Kolkata",
                               day: "numeric",
                               month: "short",
                               hour: "numeric",

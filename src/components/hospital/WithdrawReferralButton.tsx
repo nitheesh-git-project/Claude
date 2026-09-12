@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import { useConfirm } from "@/lib/useConfirm";
 
@@ -15,6 +16,7 @@ export default function WithdrawReferralButton({
   // its own -- a failure just reverts to the base `false`. See
   // PatientActiveToggle's comment.
   const [optimisticWithdrawn, setOptimisticWithdrawn] = useOptimistic(false);
+  const { show } = useToast();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -33,6 +35,7 @@ export default function WithdrawReferralButton({
         body: JSON.stringify({ referralId }),
       });
       if (res.ok) {
+        show("Referral withdrawn.");
         router.refresh();
       } else {
         const data = await res.json().catch(() => ({}));

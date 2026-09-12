@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
@@ -6,9 +7,11 @@ import { scopeCanOpen } from "@/lib/adminScope";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import PatientActiveToggle from "@/components/admin/PatientActiveToggle";
+import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
 import PatientContactEditForm from "@/components/admin/PatientContactEditForm";
 import PatientNotesForm from "@/components/admin/PatientNotesForm";
 import ResetPatientPasswordButton from "@/components/admin/ResetPatientPasswordButton";
+import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import PatientProfitChart from "@/components/admin/PatientProfitChart";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
@@ -294,14 +297,23 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                 </Link>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Joined {new Date(patient.created_at).toLocaleDateString()}
+                Joined {formatClinicDate(patient.created_at)}
                 {hospital?.organization_name && (
                   <> • Referred by {hospital.organization_name}</>
                 )}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Master Admin only, and the route checks that again -- a
+                session cookie can call it directly, so the button's absence
+                is presentation rather than the rule. */}
+            {viewer?.scope === "full" && (
+              <ViewAsUserButton
+                userId={patient.id}
+                userName={patient.full_name ?? "this patient"}
+              />
+            )}
             {!patient.approved && <ApproveAccountButton userId={patient.id} />}
             <PatientActiveToggle
               patientId={patient.id}
@@ -335,7 +347,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
             <p className="text-slate-600">
               <span className="font-semibold text-slate-500">Date of Birth: </span>
               {patient.date_of_birth
-                ? new Date(patient.date_of_birth).toLocaleDateString("en-IN")
+                ? formatClinicDate(patient.date_of_birth)
                 : "Not set"}
             </p>
             <p className="text-slate-600">
@@ -366,12 +378,22 @@ export default async function PatientDetailContent({ id }: { id: string }) {
               <p className="text-slate-400">Not provided by the patient.</p>
             )}
           </div>
-          <div className="mt-4 pt-4 border-t border-slate-100">
+          <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
             <ResetPatientPasswordButton
               patientId={patient.id}
               currentPassword={note?.temp_password}
               currentPasswordSetAt={note?.temp_password_set_at}
             />
+            {/* Master Admin only, and the route checks it again -- deleting
+                an account is irreversible, where every desk that manages
+                People can already suspend. */}
+            {viewer?.scope === "full" && (
+              <DeleteAccountButton
+                userId={patient.id}
+                name={patient.full_name ?? patient.email ?? "this patient"}
+                afterDeleteHref="/admin/dashboard?section=people&tab=patients"
+              />
+            )}
           </div>
         </div>
 
@@ -472,7 +494,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                     </span>
                   </div>
                   <p className="text-slate-500">
-                    Paid {a.paid_at ? new Date(a.paid_at).toLocaleString("en-IN") : "date unknown"}
+                    Paid {a.paid_at ? formatClinicDateTime(a.paid_at) : "date unknown"}
                     {therapist && a.therapist_id && (
                       <>
                         {" "}
@@ -532,7 +554,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                       {r.status}
                     </span>
                     <span className="text-slate-400">
-                      {new Date(r.created_at).toLocaleDateString()}
+                      {formatClinicDate(r.created_at)}
                     </span>
                   </div>
                   <ul className="text-slate-600 space-y-0.5">

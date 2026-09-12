@@ -56,9 +56,24 @@ export default async function ConditionsPage() {
     (categoryImages ?? []).map((row) => [row.id, row.image_url])
   );
 
+  // Where the subject of each cover sits. Its own call again, and split from
+  // the image read above rather than folded into it: these columns are newer
+  // than image_url, so one query would lose the photographs as well as their
+  // positions on a database mid-migration. Apart, they degrade separately.
+  const { data: categoryFocals } = await supabase
+    .from("treatment_categories")
+    .select("id, image_focal_x, image_focal_y");
+  const focalByCategoryId = new Map(
+    (categoryFocals ?? []).map((row) => [
+      row.id,
+      { image_focal_x: row.image_focal_x, image_focal_y: row.image_focal_y },
+    ])
+  );
+
   const programs = rows.map((c) => ({
     ...c,
     image_url: imageByCategoryId.get(c.id) ?? null,
+    ...(focalByCategoryId.get(c.id) ?? {}),
   }));
 
   const homeVisitEnabled = await readHomeVisitEnabled();
