@@ -51,11 +51,15 @@ export default function Footer({
         </div>
 
         <div>
+          {/* The links below carry py-1 so each one clears WCAG 2.2's 24px
+              minimum target on a phone. At 12px type they were 15px tall --
+              the inline-link exception does not cover a navigation list, and
+              a 15px target between two others is a mis-tap. */}
           <h4 className="text-white text-sm font-semibold mb-3">Explore</h4>
           <ul className="space-y-2 text-xs">
             {links.map((link) => (
               <li key={link.href}>
-                <Link href={link.href} className="hover:text-teal-400 transition">
+                <Link href={link.href} className="inline-block py-1 hover:text-teal-400 transition">
                   {link.label}
                 </Link>
               </li>
@@ -66,8 +70,8 @@ export default function Footer({
         <div>
           <h4 className="text-white text-sm font-semibold mb-3">Get Started</h4>
           <ul className="space-y-2 text-xs">
-            <li><Link href="/get-started" className="hover:text-teal-400 transition">Book a Consultation</Link></li>
-            <li><Link href="/book" className="hover:text-teal-400 transition">Booking Enquiry</Link></li>
+            <li><Link href="/get-started" className="inline-block py-1 hover:text-teal-400 transition">Book a Consultation</Link></li>
+            <li><Link href="/book" className="inline-block py-1 hover:text-teal-400 transition">Booking Enquiry</Link></li>
           </ul>
         </div>
 

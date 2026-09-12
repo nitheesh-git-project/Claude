@@ -54,9 +54,20 @@ export default function AdminNewBookingTab({
     dateKey: "",
     hour: null,
   });
+  // set-state-in-effect is exactly the shape wanted here, and the rule is
+  // disabled deliberately rather than worked around. It guards against a
+  // render that cascades into another render; this fires once on mount to
+  // read a clock the server must not read, which is the sanctioned way to
+  // hold a client-only value. Reading it in a useState initialiser instead
+  // is what caused the hydration mismatch this replaced, and a
+  // `typeof window` branch in that initialiser would be the same bug wearing
+  // a different hat -- the server and the first client render have to agree.
   useEffect(() => {
-    setNowMs(Date.now());
-    setSlot(earliestSlot(Date.now(), leadTimeMsFromHours(leadTimeHours)));
+    const now = Date.now();
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setNowMs(now);
+    setSlot(earliestSlot(now, leadTimeMsFromHours(leadTimeHours)));
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [leadTimeHours]);
   const [notes, setNotes] = useState("");
   const [paymentMode, setPaymentMode] = useState<"unpaid" | "paid_offline">("unpaid");
