@@ -5,7 +5,7 @@
 // leave. These call the routes directly, past the UI, which is the only
 // honest way to test that.
 import { test, expect } from "@playwright/test";
-import { BASE, QA_EMAILS, adminClient, cookieHeaderFor, profileIdFor } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, cookieHeaderFor, profileIdFor, wholeHourFromNow } from "./helpers";
 
 async function post(route: string, body: unknown, cookie: string) {
   const res = await fetch(`${BASE}${route}`, {
@@ -217,7 +217,10 @@ test.describe("Suite E: input validation", () => {
       .limit(1)
       .single();
 
-    const slot = new Date(Date.now() + 7 * 86_400_000).toISOString();
+    // On the hour, or create-booking refuses it for that reason first and
+    // the suspension check below is never reached -- a 400 that reads as the
+    // guard failing when the guard was never asked.
+    const slot = wholeHourFromNow(7 * 24);
 
     // Suspended patient.
     await admin.from("profiles").update({ active: false }).eq("id", patientId);
@@ -231,7 +234,10 @@ test.describe("Suite E: input validation", () => {
 
     // Lead time: a slot an hour from now is inside the window and must be
     // refused unless the override is explicitly set.
-    const soon = new Date(Date.now() + 3_600_000).toISOString();
+    // On the hour for the same reason as the slot above: the whole-hour
+    // refusal is a 400 and lands before the lead-time check, so this case
+    // would report the lead-time window failing while never reaching it.
+    const soon = wholeHourFromNow(1);
     const insideWindow = await post(
       "/api/admin/create-booking",
       { patientId, categoryId: category!.id, slotTime: soon },
@@ -265,7 +271,10 @@ test.describe("Suite E: input validation", () => {
 
       // C-001/C-002: five simultaneous identical requests must not produce
       // five appointments.
-      const burstSlot = new Date(Date.now() + 9 * 86_400_000).toISOString();
+      // Whole hour, like every other slot here: otherwise all five are
+      // refused for their minutes and the burst reports the compare-and-swap
+      // failing when not one request reached it.
+      const burstSlot = wholeHourFromNow(9 * 24);
       const burst = await Promise.all(
         Array.from({ length: 5 }, () =>
           post(

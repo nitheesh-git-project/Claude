@@ -338,7 +338,16 @@ test.describe("Suite S: scoped admin dashboards", () => {
         // Typed straight into the URL: it lands on a screen this scope can
         // open rather than on a heading over nothing.
         await page.goto(`${BASE}/admin/dashboard?section=logs&tab=all`);
-        await expect(onScreen(page, "All Activity")).toHaveCount(0);
+        // The screen, not the words. AdminShell names the tab it refused in
+        // an amber line -- "All Activity is not part of your access" -- which
+        // is the behaviour that replaced a silent redirect, so a bare text
+        // match now finds the refusal and reads it as the leak. The heading
+        // is what only the real screen renders.
+        await expect(
+          page.getByRole("heading", { name: "All Activity", exact: true })
+        ).toHaveCount(0);
+        // And nothing of the log itself came with it.
+        await expect(page.getByRole("heading", { name: /Archive & Clear/ })).toHaveCount(0);
 
         const cookie = await cookieHeaderFor(QA_EMAILS.admin);
         for (const route of ["/api/admin/activity-log", "/api/admin/clear-activity-log"]) {
