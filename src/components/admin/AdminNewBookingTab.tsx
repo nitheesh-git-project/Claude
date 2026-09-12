@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { useRouter } from "@/lib/useRouter";
@@ -28,10 +28,36 @@ export default function AdminNewBookingTab({
   const [patientId, setPatientId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [therapistId, setTherapistId] = useState("");
-  // One instant for the form, read once on mount, so the picker offers dates
-  // against the same clock the submit check uses.
-  const [nowMs] = useState(() => Date.now());
-  const [slot, setSlot] = useState(() => earliestSlot(Date.now(), leadTimeMsFromHours(leadTimeHours)));
+  // Both of these resolve **after mount**, never during render, and that is
+  // load-bearing rather than tidy.
+  //
+  // The picker works in local wall-clock time on purpose -- a date grid that
+  // pinned itself to another zone would print the wrong day for its reader.
+  // But a `useState` initialiser runs during render on the server *and* in
+  // the browser, and those two are in different zones: the server is UTC, the
+  // admin is in the clinic's. So the same default slot was rendered as
+  // "Sunday, September 13, 2026 - 6 AM" by the server and
+  // "Saturday, September 12, 2026 - 10 PM" by the browser.
+  //
+  // React cannot reconcile that text, so it discarded and regenerated the
+  // **entire admin dashboard tree** -- and a click landing during the rebuild
+  // reaches a node that is about to be replaced, so it does nothing at all.
+  // Not a hang and not an error: an admin taps Save and nothing happens. It
+  // cost eighteen browser tests, every one of them reported as a different
+  // broken feature.
+  //
+  // Resolving after mount means the server renders no clock reading at all,
+  // so there is nothing to disagree about, and the browser's answer -- the
+  // only one that is right for the person reading it -- is what lands.
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  const [slot, setSlot] = useState<{ dateKey: string; hour: number | null }>({
+    dateKey: "",
+    hour: null,
+  });
+  useEffect(() => {
+    setNowMs(Date.now());
+    setSlot(earliestSlot(Date.now(), leadTimeMsFromHours(leadTimeHours)));
+  }, [leadTimeHours]);
   const [notes, setNotes] = useState("");
   const [paymentMode, setPaymentMode] = useState<"unpaid" | "paid_offline">("unpaid");
   const [overrideLeadTime, setOverrideLeadTime] = useState(false);
@@ -154,15 +180,28 @@ export default function AdminNewBookingTab({
             the caller would see on the website. Ticking the override below
             drops the lead time to zero and the grid opens up with it --
             that is the one thing this screen may do that /book may not. */}
-        <AdminSlotPicker
-          startOpen
-          label="Date & time"
-          dateKey={slot.dateKey}
-          hour={slot.hour}
-          onChange={setSlot}
-          nowMs={nowMs}
-          leadTimeMs={overrideLeadTime ? 0 : leadTimeMsFromHours(leadTimeHours)}
-        />
+        {/* Held back until the clock is read in the browser. The server has
+            no honest value for `nowMs` -- it is in a different zone from the
+            person reading the screen -- so it renders the resting shape of
+            the control instead of a date it would have to guess. */}
+        {nowMs === null ? (
+          <div>
+            <span className={labelCls}>Date &amp; time</span>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-500">
+              Loading the calendar…
+            </div>
+          </div>
+        ) : (
+          <AdminSlotPicker
+            startOpen
+            label="Date & time"
+            dateKey={slot.dateKey}
+            hour={slot.hour}
+            onChange={setSlot}
+            nowMs={nowMs}
+            leadTimeMs={overrideLeadTime ? 0 : leadTimeMsFromHours(leadTimeHours)}
+          />
+        )}
 
         <div>
           <label className={labelCls} htmlFor="booking-therapist">
