@@ -25,7 +25,7 @@ export default function MarkNoShowButton({
   async function handleMarkNoShow() {
     if (
       !(await confirm(
-        "Mark this session as a no-show? The patient didn't attend. This won't change payout eligibility — the therapist still held the slot, same as a completed session."
+        "Mark this session as a no-show? The patient didn't attend. This won't change payout eligibility - the therapist still held the slot, same as a completed session."
       ))
     )
       return;
@@ -42,7 +42,7 @@ export default function MarkNoShowButton({
         setError(data.error ?? "Could not update. Please try again.");
         if (res.status === 409) {
           // Someone else already changed this session (marked it done, or
-          // the patient cancelled it) — refresh so this stops showing it as
+          // the patient cancelled it) - refresh so this stops showing it as
           // still actionable.
           router.refresh();
         }

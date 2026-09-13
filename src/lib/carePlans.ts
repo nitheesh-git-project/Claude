@@ -266,7 +266,7 @@ export function summariseVersion(version: {
   const frequency = version.frequency_per_week
     ? `, ${version.frequency_per_week} a week`
     : "";
-  return `${snapshot.title} — ${sessions}${frequency}`;
+  return `${snapshot.title} - ${sessions}${frequency}`;
 }
 
 /**
@@ -295,7 +295,7 @@ export function narrowToCategory<T extends { categoryId: string | null }>(
  * How long something has been sitting in a queue, in words.
  *
  * A queue whose rows are dated but not aged makes an admin do arithmetic to
- * find the person who has been waiting longest — and a card that reads
+ * find the person who has been waiting longest - and a card that reads
  * "2 September" when the thing arrived nine minutes ago is worse than no
  * date at all, because the reader cannot tell nine minutes from nine hours.
  *
@@ -321,7 +321,7 @@ export function formatWaitingFor(sinceIso: string | null, nowMs: number): string
  *
  * Four hours, and a fixed number rather than a setting on purpose: this
  * changes nothing about what the clinic may do, only whether a row is
- * coloured — and a threshold an admin can raise until nothing is ever late
+ * coloured - and a threshold an admin can raise until nothing is ever late
  * is a threshold that has stopped meaning anything.
  */
 export const CARE_PLAN_QUEUE_STALE_HOURS = 4;

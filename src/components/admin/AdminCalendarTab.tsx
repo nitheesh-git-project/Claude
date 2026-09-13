@@ -77,7 +77,7 @@ export default function AdminCalendarTab({
     null
   );
 
-  // Cancelled sessions are excluded from the dot count — the dot means
+  // Cancelled sessions are excluded from the dot count - the dot means
   // "something's still actually happening this day", not "something was
   // once booked". They still show up in the day's session list below with
   // their cancelled badge, since that's still useful context once you've
@@ -235,7 +235,7 @@ export default function AdminCalendarTab({
                   onClick={() => setSelectedAppointment(a)}
                   className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
                 >
-                  <td className="py-2 pr-3 text-slate-400 font-mono">{a.session_code ?? "—"}</td>
+                  <td className="py-2 pr-3 text-slate-400 font-mono">{a.session_code ?? "-"}</td>
                   <td className="py-2 pr-3 font-bold text-slate-900">
                     {a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : "Unassigned"}
                     {!a.therapist_id && a.status !== "cancelled" && (
@@ -258,7 +258,7 @@ export default function AdminCalendarTab({
                     {peopleMap.get(a.patient_id) ?? "Unknown"}
                   </td>
                   <td className="py-2 pr-3 text-slate-500">
-                    {a.category_id ? categoryMap.get(a.category_id)?.title ?? "—" : "—"}
+                    {a.category_id ? categoryMap.get(a.category_id)?.title ?? "-" : "-"}
                   </td>
                   <td className="py-2 pr-3">
                     <span

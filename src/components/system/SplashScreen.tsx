@@ -23,7 +23,7 @@ import {
  *    which is a hydration mismatch on every single page of the app.
  * 2. **It renders inside the real page, not instead of it.** The page
  *    underneath is fully rendered the whole time, so the "transition to
- *    the application" costs nothing — there is nothing to load when the
+ *    the application" costs nothing - there is nothing to load when the
  *    overlay lifts.
  *
  * It is `aria-hidden`: the brand name is already in the navbar underneath
@@ -33,7 +33,7 @@ import {
 export default function SplashScreen({ config }: { config: SplashConfig }) {
   // The admin's values, held in a ref so the effect below can subscribe
   // once and stay mounted for the life of the tab. Reading them from props
-  // in that effect's dependencies instead would re-run it — and its
+  // in that effect's dependencies instead would re-run it - and its
   // cleanup clears the attribute, so a settings change landing mid-greeting
   // would blank the sheet halfway through. Kept in step by its own effect
   // rather than assigned during render, which React forbids.
@@ -44,7 +44,7 @@ export default function SplashScreen({ config }: { config: SplashConfig }) {
 
   // Timers for the hold and the fade. Kept in a ref so a replay (tab
   // returned to after a long absence) can cancel a sequence still in
-  // flight instead of racing it — two overlapping runs would clear the
+  // flight instead of racing it - two overlapping runs would clear the
   // attribute half a second into the second greeting.
   const timers = useRef<number[]>([]);
 
@@ -74,7 +74,7 @@ export default function SplashScreen({ config }: { config: SplashConfig }) {
     };
 
     // Whether the boot script decided to greet this load. It, not this
-    // component, owns the first decision — by the time an effect runs the
+    // component, owns the first decision - by the time an effect runs the
     // page has already painted.
     if (root.getAttribute(SPLASH_ATTR) === "on") {
       try {
@@ -89,7 +89,7 @@ export default function SplashScreen({ config }: { config: SplashConfig }) {
     // Coming back to a tab that has been sitting in the background for a
     // long while is the second "first open" the greeting is for. Reduced
     // motion opts out of this path too, for the same reason as the boot
-    // script — matchMedia is read live so a preference changed mid-session
+    // script - matchMedia is read live so a preference changed mid-session
     // takes effect without a reload.
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
@@ -103,7 +103,7 @@ export default function SplashScreen({ config }: { config: SplashConfig }) {
 
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-      // 0 is the admin saying "greet the first load only" — no amount of
+      // 0 is the admin saying "greet the first load only" - no amount of
       // time away earns a replay then.
       const awayMs = settings.current.revisitAwayMs;
       let hiddenAt = 0;

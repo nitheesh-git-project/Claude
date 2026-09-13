@@ -27,7 +27,7 @@ export const GRANT_KIND_LABELS: Record<GrantKind, string> = {
 
 export const GRANT_KIND_BLURBS: Record<GrantKind, string> = {
   service_recovery:
-    "Something on our side went wrong — the therapist didn't join, the call dropped, the link never worked.",
+    "Something on our side went wrong - the therapist didn't join, the call dropped, the link never worked.",
   goodwill: "A gesture: resolving a complaint, or keeping a patient who was about to leave.",
   offline_paid: "The patient genuinely paid, outside the payment gateway. This counts as revenue.",
 };

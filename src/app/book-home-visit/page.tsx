@@ -53,7 +53,7 @@ export default async function BookHomeVisitPage() {
             Book a Home Visit
           </h1>
           <p className="mt-1.5 text-sm text-slate-600">
-            We&apos;ll check we can reach you first — nothing is charged until then.
+            We&apos;ll check we can reach you first - nothing is charged until then.
           </p>
         </Reveal>
         <Suspense fallback={null}>

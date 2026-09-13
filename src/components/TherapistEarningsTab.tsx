@@ -61,7 +61,7 @@ function NotificationBanner({ request }: { request: CompletedRequest }) {
   return (
     <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
       <p className="text-xs text-teal-900">
-        💰 Payment initiated — your payout request for{" "}
+        💰 Payment initiated - your payout request for{" "}
         <strong>{formatInr(request.requestedAmountPaise)}</strong> (requested on{" "}
         {formatDate(request.requestedAt)}) is being processed by admin.
       </p>
@@ -292,7 +292,7 @@ export default function TherapistEarningsTab({
                 pageRows.map((r) => (
                   <tr key={r.id} className="border-b border-slate-100">
                     <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">{formatDate(r.date)}</td>
-                    <td className="py-2.5 pr-3 text-slate-400 font-mono">{r.sessionCode ?? "—"}</td>
+                    <td className="py-2.5 pr-3 text-slate-400 font-mono">{r.sessionCode ?? "-"}</td>
                     <td className="py-2.5 pr-3 font-bold text-slate-900">{r.patientName}</td>
                     <td className="py-2.5 pr-3 text-slate-500">{r.categoryTitle}</td>
                     <td className="py-2.5 pr-3 text-right text-slate-700">{formatInr(r.feePaise)}</td>

@@ -166,7 +166,7 @@ export function buildTherapistPayoutTransactions(
       amountPaise: a.therapist_payout_amount_paise ?? 0,
       method: a.therapist_payout_method === "online" ? "Online transfer" : "Cash",
       note: a.therapist_payout_note,
-      purpose: `${a.concern ?? "Session"} — ${patientNameById.get(a.patient_id) ?? "Unknown patient"}`,
+      purpose: `${a.concern ?? "Session"} - ${patientNameById.get(a.patient_id) ?? "Unknown patient"}`,
       status: "Paid" as const,
       sessionCode: a.session_code ?? null,
     }))

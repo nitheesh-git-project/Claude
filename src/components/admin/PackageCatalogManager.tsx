@@ -93,7 +93,7 @@ export default function PackageCatalogManager({
   return (
     <div className="space-y-3">
       {packages.length === 0 && !addingNew ? (
-        <p className="text-xs text-slate-500 py-4 text-center">No session packages yet — add one below.</p>
+        <p className="text-xs text-slate-500 py-4 text-center">No session packages yet - add one below.</p>
       ) : (
         <ul className="space-y-3">
           {pagePackages.map((pkg) => {
@@ -126,7 +126,7 @@ export default function PackageCatalogManager({
                       )}
                     </p>
                     <p className="text-slate-500 mt-0.5">
-                      {category?.title ?? "Unknown category"} · <span className="font-mono">{pkg.package_code ?? "—"}</span>
+                      {category?.title ?? "Unknown category"} · <span className="font-mono">{pkg.package_code ?? "-"}</span>
                     </p>
                   </div>
                   <span

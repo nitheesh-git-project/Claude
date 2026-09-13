@@ -24,13 +24,13 @@ export const MAX_ACCESS_NOTES_LENGTH = 1000;
 
 /**
  * Validating an address, checking it is somewhere the clinic actually
- * visits, and saving it — the three things every home-visit purchase has to
+ * visits, and saving it - the three things every home-visit purchase has to
  * do before money moves.
  *
  * Extracted from /api/home-visit/create-order when care-plan purchases
  * became the only way to buy a multi-visit programme. That route had all of
  * this inline, and the care-plan route inserted a home-visit purchase with
- * no address and no travel fee at all — which the patient discovered later
+ * no address and no travel fee at all - which the patient discovered later
  * as "this package has no saved address on file" at the moment they tried
  * to book, with the money already taken. One definition, two callers, so
  * the next purchase path cannot rediscover that bug.

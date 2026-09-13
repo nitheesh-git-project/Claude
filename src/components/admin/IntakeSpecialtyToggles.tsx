@@ -58,7 +58,7 @@ export default function IntakeSpecialtyToggles({
       <h3 className="text-sm font-bold text-slate-700">Condition types offered at triage</h3>
       <p className="mt-0.5 text-xs text-slate-500">
         What a therapist can pick when they onboard a patient. Switching one off hides it from that
-        picker only — patients already recorded under it keep their profile exactly as it is.
+        picker only - patients already recorded under it keep their profile exactly as it is.
       </p>
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         {CONDITION_SPECIALTIES.map((s) => {
@@ -84,7 +84,7 @@ export default function IntakeSpecialtyToggles({
                   {s.label}
                 </span>
                 <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">
-                  {locked ? "Always available — triage needs somewhere to land." : s.blurb}
+                  {locked ? "Always available - triage needs somewhere to land." : s.blurb}
                 </span>
               </span>
             </label>

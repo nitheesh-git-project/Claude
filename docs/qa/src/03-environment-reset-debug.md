@@ -13,7 +13,7 @@
 | `RAZORPAY_WEBHOOK_SECRET` set | Without it `/api/razorpay/webhook` answers `503 {"error":"Webhook not configured"}` and a patient who pays and closes the tab leaves a paid order against an unpaid booking. Webhook tests need it. |
 | `ALLOW_DEBUG_DATA_RESET=true` | **Server-side only.** Arms the Reset data button. Never set on a live site. |
 | `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Leave unset. The Debug Bar must be visible. |
-| Google Calendar credentials | Optional. Without them Meet sync fails and is recorded — which is itself a test (`ADM-SET-031`). |
+| Google Calendar credentials | Optional. Without them Meet sync fails and is recorded - which is itself a test (`ADM-SET-031`). |
 | The app running with **`npm run dev`** | Not `next start`. The public pages are ISR-cached for 300s, so a production build serves HTML that predates your fixtures. |
 | At least one **Master Admin** (`admin_scope = 'full'`) in `profiles` | The reset keeps admin logins and refuses to run if it would leave none. |
 | Browsers | Chrome/Edge desktop at 1440×900, plus a mobile viewport at **390 × 844**. |
@@ -29,13 +29,13 @@
 
 ---
 
-## 6. STEP 0 — Reset the test environment
+## 6. STEP 0 - Reset the test environment
 
 **Run this first, before anything else in this plan.** Every numbered section after this assumes a clean database plus the setup in Section 12 (Execution Order).
 
 ### 6.1 Why the database must be reset
 
-Testing this application means filling it with throwaway patients, bookings, purchases and payouts. Several rules in the product are **one-per-thing** rules — one open care plan per patient (published or awaiting the clinic), one pending suggestion per purchase, one open risk signal per rule+subject, a unique Razorpay order id — so leftover rows from a previous run make a correct application look broken. Two known examples:
+Testing this application means filling it with throwaway patients, bookings, purchases and payouts. Several rules in the product are **one-per-thing** rules - one open care plan per patient (published or awaiting the clinic), one pending suggestion per purchase, one open risk signal per rule+subject, a unique Razorpay order id - so leftover rows from a previous run make a correct application look broken. Two known examples:
 
 * A booking test that books a fixed slot leaves the appointment behind; the next run's identical booking is refused as a clash. That refusal is **correct behaviour**, not a defect.
 * An audit-log count assertion picks up the previous run's writes.
@@ -49,27 +49,27 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 **Removed:** every appointment, package purchase, home-visit purchase, payment, payment webhook event, payment failure log, entitlement and credit ledger row, session note and revision, pain assessment, condition profile, condition change request and access grant, patient address, medical-document metadata row, admin notes, profile change request, availability template and override, referral, B2B lead, home-visit waitlist, service area, the home-visit package catalog, testimonials, FAQs, intake question templates, payout requests and batches, business expenses, session suggestions, care plans, their versions and the clinic's reviews of them, risk signals and reviews, communication flags, contact reveal log, and the admin activity log. `site_settings` is put back to its defaults. **Every non-admin account is deleted.**
 
 **Kept:**
-* **Admin logins** — the function refuses to run if it would leave no admin behind.
-* **Detector thresholds** (`risk_rules`) — configuration, like `site_settings`, so it is **reset to its seeded defaults** rather than emptied. Emptying it would silently disable every detector instead of restoring it.
-* **The conditions catalogue** — `treatment_categories` and their `treatment_category_packages`. They are the one part of the list an admin builds by hand rather than generates by testing, so emptying them meant retyping the catalogue after every reset and left the public pages showing nothing, which reads as the clinic having shut rather than as test data being cleared. Home-visit packages, service areas, FAQs and testimonials are **not** kept.
+* **Admin logins** - the function refuses to run if it would leave no admin behind.
+* **Detector thresholds** (`risk_rules`) - configuration, like `site_settings`, so it is **reset to its seeded defaults** rather than emptied. Emptying it would silently disable every detector instead of restoring it.
+* **The conditions catalogue** - `treatment_categories` and their `treatment_category_packages`. They are the one part of the list an admin builds by hand rather than generates by testing, so emptying them meant retyping the catalogue after every reset and left the public pages showing nothing, which reads as the clinic having shut rather than as test data being cleared. Home-visit packages, service areas, FAQs and testimonials are **not** kept.
 * **Objects in the private `medical-reports` Storage bucket.** The metadata rows go; the files do not. Storage is not reachable from SQL. Clear that bucket from the Supabase dashboard if you need the space back.
 
-> **Getting the accounts back in one command.** Every account in §8.2, §8.3, §8.8 and §8.9 is deleted by the reset — that is what "every non-admin account" means, and the full admin is the only login that survives. Rather than recreating twelve of them by hand before testing can start, run **`npm run seed:qa`** (`scripts/seed-qa-accounts.mjs`) from the repository, with `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_URL` in `.env.local`. It creates all four admins, all three patients, all three therapists and both hospitals with the §8.1 password, prints each hospital's referral code, and is safe to re-run: an existing account keeps its id, its history and its code, and only has its password put back. **If a tester reports `Invalid login credentials` on an account this document names, that command is the first thing to try** — it repairs a missing account and a forgotten password alike.
+> **Getting the accounts back in one command.** Every account in §8.2, §8.3, §8.8 and §8.9 is deleted by the reset - that is what "every non-admin account" means, and the full admin is the only login that survives. Rather than recreating twelve of them by hand before testing can start, run **`npm run seed:qa`** (`scripts/seed-qa-accounts.mjs`) from the repository, with `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_URL` in `.env.local`. It creates all four admins, all three patients, all three therapists and both hospitals with the §8.1 password, prints each hospital's referral code, and is safe to re-run: an existing account keeps its id, its history and its code, and only has its password put back. **If a tester reports `Invalid login credentials` on an account this document names, that command is the first thing to try** - it repairs a missing account and a forgotten password alike.
 >
 > It deliberately seeds **accounts only**. Service areas, home-visit packages, therapist rosters and each patient's saved address are created by named tests (§23.2, phases 2 and 5), and seeding them would let those tests pass without running.
 
-> **Regression worth knowing about.** An earlier version of this function predated the care-plan, evidence and risk tables and cleared none of them; three were saved by CASCADE, but `communication_flags`, `risk_signals` and `risk_reviews` survived a "delete everything". The one that actually bit a tester was `risk_signals`: it carries a partial unique index allowing at most one **open or reviewing** signal per `(rule, subject)`, so a leftover open signal held the slot and the same rule firing again wrote nothing — an empty Risk queue on a supposedly clean database, which reads exactly like a broken detector. All three are now named in the TRUNCATE list. `SETUP-RESET-001` asserts it.
+> **Regression worth knowing about.** An earlier version of this function predated the care-plan, evidence and risk tables and cleared none of them; three were saved by CASCADE, but `communication_flags`, `risk_signals` and `risk_reviews` survived a "delete everything". The one that actually bit a tester was `risk_signals`: it carries a partial unique index allowing at most one **open or reviewing** signal per `(rule, subject)`, so a leftover open signal held the slot and the same rule firing again wrote nothing - an empty Risk queue on a supposedly clean database, which reads exactly like a broken detector. All three are now named in the TRUNCATE list. `SETUP-RESET-001` asserts it.
 
 ### 6.3 The four gates (all must pass)
 
-1. `ALLOW_DEBUG_DATA_RESET=true` in the **server** environment. Unset, the route answers **`404`, not `403`** — deliberately, so the route's existence is not confirmed.
+1. `ALLOW_DEBUG_DATA_RESET=true` in the **server** environment. Unset, the route answers **`404`, not `403`** - deliberately, so the route's existence is not confirmed.
 2. A signed-in admin.
 3. That admin's scope must be `full`.
 4. The exact phrase `RESET ALL DATA`, typed by hand.
 
 ---
 
-### TEST: `SETUP-RESET-001` — Reset the test environment
+### TEST: `SETUP-RESET-001` - Reset the test environment
 
 | | |
 | --- | --- |
@@ -91,7 +91,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 4. Tap **Sign In**.
 5. Confirm the black **Debug** bar is pinned across the top of the page.
 6. In the Debug bar, tap **Reset data**.
-7. Read the red warning that appears: *"Deletes people, sessions, purchases, money and settings. Admin logins and your **conditions** (with their programmes) survive — the rest of the catalog does not. No undo."*
+7. Read the red warning that appears: *"Deletes people, sessions, purchases, money and settings. Admin logins and your **conditions** (with their programmes) survive - the rest of the catalog does not. No undo."*
 8. Tap the confirmation text field (its placeholder reads `RESET ALL DATA`). Enter `reset all data` (lower case, deliberately wrong).
 9. Observe the **Reset** button.
 10. Clear the field. Enter `RESET ALL DATA` exactly.
@@ -100,37 +100,37 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 **Expected Result**
 
-* Step 7: the warning text is present and names both survivals explicitly — admin logins and the conditions catalogue.
+* Step 7: the warning text is present and names both survivals explicitly - admin logins and the conditions catalogue.
 * Step 9: the **Reset** button is **disabled** (visibly faded) while the typed phrase does not match exactly. A wrong-case phrase never arms the button.
-* Step 12: the button returns to normal and a teal confirmation message appears in the bar. No error message. **It states real figures** — *"N accounts deleted, M admins kept"* with N and M non-zero where accounts existed. Two zeroes on a wipe that emptied the database is the bug where the route read `accounts_deleted` for a function returning `deleted_accounts`; it reads as a reset that did nothing.
-* Step 12, the other way it failed: **`UPDATE requires a WHERE clause`** in the bar. That is pg-safeupdate, which Supabase preloads for the `authenticator` role PostgREST connects as, refusing a bare `UPDATE` inside `debug_reset_all_data()`. It cannot be reproduced by applying `schema.sql` or by running the statement in the SQL editor — both connect as `postgres`, which has no such preload — so **this gate is only ever exercised by pressing the button**, which is why it reached the deployed site unnoticed. If it reappears, a new `UPDATE` or `DELETE` in that function is missing a `WHERE`; the `TRUNCATE` is never the cause, since the guard does not cover it.
+* Step 12: the button returns to normal and a teal confirmation message appears in the bar. No error message. **It states real figures** - *"N accounts deleted, M admins kept"* with N and M non-zero where accounts existed. Two zeroes on a wipe that emptied the database is the bug where the route read `accounts_deleted` for a function returning `deleted_accounts`; it reads as a reset that did nothing.
+* Step 12, the other way it failed: **`UPDATE requires a WHERE clause`** in the bar. That is pg-safeupdate, which Supabase preloads for the `authenticator` role PostgREST connects as, refusing a bare `UPDATE` inside `debug_reset_all_data()`. It cannot be reproduced by applying `schema.sql` or by running the statement in the SQL editor - both connect as `postgres`, which has no such preload - so **this gate is only ever exercised by pressing the button**, which is why it reached the deployed site unnoticed. If it reappears, a new `UPDATE` or `DELETE` in that function is missing a `WHERE`; the `TRUNCATE` is never the cause, since the guard does not cover it.
 * **Open `/conditions` afterwards.** Every condition you created is still there, at its price, in its order. The public site must not come back empty.
-* The page refreshes. The admin remains signed in — the session is not destroyed.
+* The page refreshes. The admin remains signed in - the session is not destroyed.
 * Navigating to **People → Patients** shows an empty-state message, not a table of rows.
 * Navigating to **Catalog → Conditions** shows no treatment categories.
 * Navigating to **Sessions → All Sessions** shows no sessions.
 * Navigating to **Logs → All Activity** shows an empty log apart from the reset's own row (the reset truncates the table, then records itself).
-* Navigating to **Settings → User Access** still lists at least one admin, and your own row is there. **If this list is empty, stop immediately and restore from backup — the reset must never leave the clinic without an admin.**
-* Navigating to **Today → Risk** shows an **empty** queue. **[SQL]** confirm with `select count(*) from communication_flags;` and `select count(*) from risk_signals;` — both must return `0`. A non-zero count here is the regression described above, and it will silently suppress the detector tests later in this plan.
-* **[SQL]** `select rule_key, enabled from risk_rules;` still returns the eight rules, with `plan_conversion_low` and `post_consultation_dropout` back to **disabled** — thresholds are restored to their seeded defaults, not wiped.
+* Navigating to **Settings → User Access** still lists at least one admin, and your own row is there. **If this list is empty, stop immediately and restore from backup - the reset must never leave the clinic without an admin.**
+* Navigating to **Today → Risk** shows an **empty** queue. **[SQL]** confirm with `select count(*) from communication_flags;` and `select count(*) from risk_signals;` - both must return `0`. A non-zero count here is the regression described above, and it will silently suppress the detector tests later in this plan.
+* **[SQL]** `select rule_key, enabled from risk_rules;` still returns the eight rules, with `plan_conversion_low` and `post_consultation_dropout` back to **disabled** - thresholds are restored to their seeded defaults, not wiped.
 
 **Cleanup.** None. This is the starting state for the whole plan.
 
 ---
 
-### TEST: `SETUP-RESET-002` — The reset is refused for a non-full admin
+### TEST: `SETUP-RESET-002` - The reset is refused for a non-full admin
 
 | | |
 | --- | --- |
-| **Feature** | Pre-launch data reset — gate 3 |
+| **Feature** | Pre-launch data reset - gate 3 |
 | **Role** | Admin (operations scope) |
 | **Priority** | P1 |
 
 **Purpose.** Prove that scope, not merely being an admin, gates the wipe.
 
-**Preconditions.** `ADM-SET-026` has created `qa.admin.ops@example.test` with scope **Operations** — **run it before this test even though it belongs to a later phase.** The account cannot exist before somebody creates it, and the reset does not create it: a fresh database has exactly one admin, the one made by hand in Supabase before Step 0. Attempting this test first is answered `Invalid login credentials`, which is the account being absent rather than anything about the reset.
+**Preconditions.** `ADM-SET-026` has created `qa.admin.ops@example.test` with scope **Operations** - **run it before this test even though it belongs to a later phase.** The account cannot exist before somebody creates it, and the reset does not create it: a fresh database has exactly one admin, the one made by hand in Supabase before Step 0. Attempting this test first is answered `Invalid login credentials`, which is the account being absent rather than anything about the reset.
 
-> **The password is not the standard one.** `create-account` **generates** it — nine random bytes, base64url — and shows it **once**, on the User Access screen, as *"temporary password `<value>`"*. It is deliberately never emailed, never written to the activity log, and never stored anywhere for an admin (the `temp_password` column exists for patients, therapists and hospitals only). **Copy it when it appears.** Lost, it cannot be recovered: set a new one in the Supabase dashboard under **Authentication → Users**, or delete the account there and create it again from User Access.
+> **The password is not the standard one.** `create-account` **generates** it - nine random bytes, base64url - and shows it **once**, on the User Access screen, as *"temporary password `<value>`"*. It is deliberately never emailed, never written to the activity log, and never stored anywhere for an admin (the `temp_password` column exists for patients, therapists and hospitals only). **Copy it when it appears.** Lost, it cannot be recovered: set a new one in the Supabase dashboard under **Authentication → Users**, or delete the account there and create it again from User Access.
 
 **Steps**
 
@@ -150,11 +150,11 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 ---
 
-### TEST: `SETUP-RESET-003` — The reset route is invisible when disarmed **[server config]**
+### TEST: `SETUP-RESET-003` - The reset route is invisible when disarmed **[server config]**
 
 | | |
 | --- | --- |
-| **Feature** | Pre-launch data reset — gate 1 |
+| **Feature** | Pre-launch data reset - gate 1 |
 | **Role** | Admin (full scope) |
 | **Priority** | P1 |
 
@@ -191,7 +191,7 @@ A black bar pinned to the top of **every** page, in **every** environment. It ex
 
 The right-hand label reads *"Remove this bar before real launch"*. That is the intended end state: the bar is **deleted**, not switched off, because `NEXT_PUBLIC_SHOW_DEBUG_NAV` is a public flag and the bar names `/admin/login` and `/admin/dashboard`.
 
-### 7.2 How the simulated clock actually works — read this before writing a defect
+### 7.2 How the simulated clock actually works - read this before writing a defect
 
 This is the single most misunderstood part of the application, and mis-reading it produces false defects.
 
@@ -210,7 +210,7 @@ This is the single most misunderstood part of the application, and mis-reading i
 
 **The practical consequence, stated plainly:** you can use the simulated clock to make the *UI offer* a slot or a button. You cannot use it to make the *server accept* a time-gated write. If you simulate a date far in the future and then try to complete a session, the client will show you the **Tap to Join** control and the server will still answer `409` with *"This session hasn't started yet. You can mark it done once it's under way."* **That is correct behaviour, not a defect.** Tests that need a server-side time gate to pass say so explicitly and tell you to use a real near-future slot instead.
 
-Because the storage key is `localStorage`, the simulation is **per browser profile**, and it survives navigation and reload until you reset it. Applying it triggers a **full page reload** — soft re-renders would not pick it up, because every consumer reads the clock once in a lazy initializer.
+Because the storage key is `localStorage`, the simulation is **per browser profile**, and it survives navigation and reload until you reset it. Applying it triggers a **full page reload** - soft re-renders would not pick it up, because every consumer reads the clock once in a lazy initializer.
 
 ### 7.3 How to use it
 
@@ -243,7 +243,7 @@ These are referenced by ID throughout the plan.
 | **TIME-A** | `2026-09-10 10:00` | Baseline booking. Online lead time is 12h, so the earliest offered slot is 10 September 22:00. | `PAT-BOOK-002`, `PAT-BOOK-003` |
 | **TIME-B** | `2026-09-12 18:00` | Same rules, different day-of-week and a later hour, so the boundary lands on the *next* day. Proves the boundary is computed, not hardcoded. | `PAT-BOOK-004` |
 | **TIME-C** | `2026-09-10 23:30` | Late-night boundary: no slot remains today, so the calendar's earliest bookable date must roll to 11 September. | `PAT-BOOK-005` |
-| **TIME-D** | Real clock + 24h ahead of a home-visit slot | Home-visit lead time defaults to 24h — longer than online. Proves the two lead times are separate settings. | `PAT-HV-003` |
+| **TIME-D** | Real clock + 24h ahead of a home-visit slot | Home-visit lead time defaults to 24h - longer than online. Proves the two lead times are separate settings. | `PAT-HV-003` |
 | **TIME-E** | 10 minutes **before** a confirmed session's slot | The join window opens `join_window_minutes` (default 15) before the slot. **Tap to Join** must be live. | `THR-SESS-004`, `PAT-SESS-003` |
 | **TIME-F** | 90 minutes **after** a confirmed session's slot | Past `session_completed_after_minutes` (default 60). Every join control on every surface must read **Session Completed**. | `XR-CUTOFF-001` |
 | **TIME-G** | 30 hours before a paid session's slot | Outside the 24h cancellation window → full refund path. | `PAT-CANCEL-001` |
@@ -251,11 +251,11 @@ These are referenced by ID throughout the plan.
 
 ---
 
-### TEST: `DBG-TIME-001` — The simulated clock changes what the booking picker offers
+### TEST: `DBG-TIME-001` - The simulated clock changes what the booking picker offers
 
 | | |
 | --- | --- |
-| **Feature** | Debug Bar — time simulation |
+| **Feature** | Debug Bar - time simulation |
 | **Role** | Public (no sign-in needed) |
 | **Priority** | P1 |
 
@@ -274,21 +274,21 @@ These are referenced by ID throughout the plan.
 
 **Expected Result**
 
-* Step 4: the calendar shows **September 2026**, the "today" cell is **10**, dates before 10 September are not selectable, and the earliest selectable slot is **10 September 2026 at 22:00** — twelve hours after the simulated now, matching the 12-hour online booking lead time.
+* Step 4: the calendar shows **September 2026**, the "today" cell is **10**, dates before 10 September are not selectable, and the earliest selectable slot is **10 September 2026 at 22:00** - twelve hours after the simulated now, matching the 12-hour online booking lead time.
 * Step 5: returns a non-zero numeric string.
-* Step 6: the offering is **not frozen**. The clock advanced by roughly a minute, so the picker's boundary has moved forward too (at a minute's granularity you will usually see the same 22:00 hour offered, but the *underlying* now has advanced — confirm by re-reading the "today" cell and by the fact that at a 23:00+ simulated time the day rolls over, per TIME-C).
+* Step 6: the offering is **not frozen**. The clock advanced by roughly a minute, so the picker's boundary has moved forward too (at a minute's granularity you will usually see the same 22:00 hour offered, but the *underlying* now has advanced - confirm by re-reading the "today" cell and by the fact that at a 23:00+ simulated time the day rolls over, per TIME-C).
 * Step 8: the calendar returns to the real current month and the values you wrote down in step 1.
-* At no point does any figure change on an **admin** money screen or an appointment's stored `slot_time` — the simulation is display/advisory only.
+* At no point does any figure change on an **admin** money screen or an appointment's stored `slot_time` - the simulation is display/advisory only.
 
 **Cleanup.** Confirm `localStorage.getItem('debugNowOffsetMs')` is `null`.
 
 ---
 
-### TEST: `DBG-NAV-001` — Jump to page reaches every listed route
+### TEST: `DBG-NAV-001` - Jump to page reaches every listed route
 
 | | |
 | --- | --- |
-| **Feature** | Debug Bar — route jump |
+| **Feature** | Debug Bar - route jump |
 | **Role** | Any |
 | **Priority** | P2 |
 
@@ -303,7 +303,7 @@ These are referenced by ID throughout the plan.
 
 **Expected Result**
 
-* Entries 1–8 (the eight public marketing pages) render normally — **except** `4. Home visit`, which shows a **404** page while the admin master switch `home_visit_enabled` is off. That 404 is correct and is the point of including the entry.
+* Entries 1–8 (the eight public marketing pages) render normally - **except** `4. Home visit`, which shows a **404** page while the admin master switch `home_visit_enabled` is off. That 404 is correct and is the point of including the entry.
 * `9. Get Started Hub`, `10. Booking Enquiry`, `10b. Home Visit Booking`, `11/12/14/15` login pages all render.
 * Every entry ending in `b` (the four protected dashboards) redirects a signed-out visitor to that role's own login page: `/patient/login`, `/therapist/login`, `/admin/login`, `/hospital/login`.
 * No entry produces a blank page, an unhandled error screen, or a stack trace.

@@ -28,14 +28,14 @@ const BAND_STYLE: Record<string, string> = {
  * Recording one region's exam findings, on a surface of its own.
  *
  * This replaces a card that showed a body map, a 17-item region dropdown
- * that duplicated it, and all twenty questions at once — roughly 1,500px of
+ * that duplicated it, and all twenty questions at once - roughly 1,500px of
  * form with nothing telling you which region you were answering about. The
  * region is now chosen by tapping the body map (or the chips in step one
  * here), and it stays in the dialog's header the whole time you type.
  *
  * Grouped rather than paced one-question-at-a-time: the patient fills their
  * intake once and needs gentleness, while a therapist fills this after every
- * session and needs speed. Same principle — never a wall of fields — with
+ * session and needs speed. Same principle - never a wall of fields - with
  * the treatment each audience actually benefits from.
  */
 export default function PainExamDialog({
@@ -77,7 +77,7 @@ export default function PainExamDialog({
   }, [region, overridesByRegion]);
 
   // What this region scored last time. Shown while recording, because the
-  // whole reason these rows are append-only is to read a trend — and a
+  // whole reason these rows are append-only is to read a trend - and a
   // therapist comparing against last visit shouldn't have to close the form
   // to find the number.
   const previous = useMemo(() => {
@@ -132,7 +132,7 @@ export default function PainExamDialog({
               </p>
               <h2 className="font-display text-lg font-bold text-slate-900">
                 {regionDef
-                  ? `${regionDef.label}${needsSide ? ` — ${side}` : ""}`
+                  ? `${regionDef.label}${needsSide ? ` - ${side}` : ""}`
                   : "Which area did you examine?"}
               </h2>
               {previous && (
@@ -224,7 +224,7 @@ export default function PainExamDialog({
                 </div>
 
                 <p className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs text-slate-500">
-                  Nothing here is required — record what you checked and leave the rest. Saving adds a
+                  Nothing here is required - record what you checked and leave the rest. Saving adds a
                   new reading rather than editing the last one, so the patient sees a trend.
                 </p>
 
@@ -352,7 +352,7 @@ export default function PainExamDialog({
                 <span className="text-xs font-semibold text-red-600">{error}</span>
               ) : (
                 <span className="text-xs text-slate-400">
-                  Saves as a new reading — the patient sees it straight away.
+                  Saves as a new reading - the patient sees it straight away.
                 </span>
               )}
               <div className="flex items-center gap-2">

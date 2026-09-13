@@ -21,7 +21,7 @@ export default function ConfirmPasswordField({
 }) {
   const [touched, setTouched] = useState(false);
   // Fires on blur (tapping away), or as soon as enough has been typed to
-  // fully compare against the password — the latter means a complete wrong
+  // fully compare against the password - the latter means a complete wrong
   // retype shows the error immediately as typing finishes, without relying
   // on a blur event that a tap straight onto the submit button can race
   // against.

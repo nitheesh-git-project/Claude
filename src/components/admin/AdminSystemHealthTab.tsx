@@ -174,7 +174,7 @@ export default function AdminSystemHealthTab({
           </div>
         </div>
         <p className="mt-4 border-t border-slate-200/70 pt-3 text-[11px] text-slate-500">
-          Nothing on this screen is a setting — it is the app reporting on itself. Tap{" "}
+          Nothing on this screen is a setting - it is the app reporting on itself. Tap{" "}
           <i aria-hidden className="fa-solid fa-info text-[9px]" /> on any check to see what it
           watches and what would go wrong without it.
         </p>
@@ -282,7 +282,7 @@ function IssueRow({
           {issue.therapistName ? ` → ${issue.therapistName}` : ""}
         </p>
         <p className="mt-0.5 text-[11px] text-slate-500">
-          <span className="font-mono text-slate-400">{issue.sessionCode ?? "—"}</span>
+          <span className="font-mono text-slate-400">{issue.sessionCode ?? "-"}</span>
           {" · "}
           {issue.slotTime
             ? formatClinicDateTime(issue.slotTime)
@@ -294,12 +294,12 @@ function IssueRow({
             genuinely stuck ones never get looked at. */}
         {issue.autoRetryExhausted ? (
           <p className="mt-1 text-[11px] font-semibold text-amber-700">
-            Stopped retrying after {issue.autoRetryAttempts} tries — this one needs you
+            Stopped retrying after {issue.autoRetryAttempts} tries - this one needs you
           </p>
         ) : issue.autoRetryAttempts > 0 ? (
           <p className="mt-1 text-[11px] text-slate-500">
             Tried {issue.autoRetryAttempts}{" "}
-            {issue.autoRetryAttempts === 1 ? "time" : "times"} so far — still trying
+            {issue.autoRetryAttempts === 1 ? "time" : "times"} so far - still trying
           </p>
         ) : null}
         {issue.error && (
@@ -397,14 +397,14 @@ function Finding({
     return (
       <p className="text-xs text-slate-500">
         <i aria-hidden className="fa-solid fa-circle-check mr-1.5 text-[10px] text-emerald-500" />
-        {title} — none
+        {title} - none
       </p>
     );
   }
   return (
     <div>
       <p className="text-xs font-bold text-amber-700">
-        {title} — {rows.length}
+        {title} - {rows.length}
       </p>
       <div className="mt-2 space-y-1">
         {rows.map((r) => (

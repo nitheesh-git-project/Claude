@@ -34,7 +34,7 @@ export default function PartialRefundForm({
   if (remainingPaise <= 0) {
     return (
       <p className="text-[11px] text-slate-400">
-        Fully refunded — ₹{(alreadyRefundedPaise / 100).toLocaleString("en-IN")} returned.
+        Fully refunded - ₹{(alreadyRefundedPaise / 100).toLocaleString("en-IN")} returned.
       </p>
     );
   }

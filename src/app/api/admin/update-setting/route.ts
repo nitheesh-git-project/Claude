@@ -361,7 +361,7 @@ export async function POST(request: NextRequest) {
     }
     if (languages.length === 0) {
       return NextResponse.json(
-        { error: "Keep at least one language — booking needs something to offer." },
+        { error: "Keep at least one language - booking needs something to offer." },
         { status: 400 }
       );
     }

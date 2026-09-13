@@ -8,7 +8,7 @@ import {
 
 // Historical phone numbers were saved as bare digits with no country code at
 // all (there was no country selector before this), so a value with no "+"
-// prefix is assumed to be an Indian number — where the business is based —
+// prefix is assumed to be an Indian number - where the business is based -
 // rather than guessing from the current viewer's browser locale.
 export const LEGACY_DEFAULT_COUNTRY: CountryCode = "IN";
 
@@ -24,7 +24,7 @@ export function flagEmoji(iso2: string): string {
 // browsers/OSes are left on an English (often en-US) language setting
 // regardless of the user's real location, but very few people run their
 // system clock on the wrong timezone. Not exhaustive (IANA has ~400 zones)
-// — covers the markets this app is realistically used from; anything not
+// - covers the markets this app is realistically used from; anything not
 // listed here falls through to the language-based guess below.
 const TIMEZONE_COUNTRY: Record<string, CountryCode> = {
   "Asia/Kolkata": "IN",
@@ -107,7 +107,7 @@ export function detectBrowserCountry(): CountryCode {
       return region as CountryCode;
     }
   } catch {
-    // Intl.Locale unsupported, or no resolvable region — fall through to
+    // Intl.Locale unsupported, or no resolvable region - fall through to
     // the default below.
   }
   return LEGACY_DEFAULT_COUNTRY;
@@ -121,7 +121,7 @@ export const COUNTRY_OPTIONS: CountryOption[] = getCountries()
     try {
       name = new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
     } catch {
-      // Intl.DisplayNames unsupported — fall back to the bare ISO code.
+      // Intl.DisplayNames unsupported - fall back to the bare ISO code.
     }
     return { code, name, dialCode: getCountryCallingCode(code) };
   })

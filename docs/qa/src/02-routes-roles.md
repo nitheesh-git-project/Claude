@@ -16,7 +16,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/mission` | Mission, vision, four promises, testimonials | Public | `PUB-NAV-001` |
 | `/faq` | Admin-managed FAQ accordion | Public | `PUB-FAQ-001` |
 | `/hospitals` | Partner pitch plus the hospital enquiry form | Public | `HOS-LEAD-001` |
-| `/get-started` | Role hub — where a signed-in user of the wrong role is sent | Public | `SEC-ROUTE-003` |
+| `/get-started` | Role hub - where a signed-in user of the wrong role is sent | Public | `SEC-ROUTE-003` |
 
 ### 3.2 Booking
 
@@ -33,7 +33,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/patient/register` | Standalone registration (always waits for admin approval) | `PAT-AUTH-004` |
 | `/patient/dashboard` | Overview: four figures, activity feed, quick actions | `PAT-DASH-001` |
 | `/patient/dashboard/book` | Booking hub inside the portal | `PAT-DASH-002` |
-| `/patient/dashboard/suggested` | Suggested Sessions — therapist recommendations and proposed times. **Only in the sidebar when something is waiting** | `PAT-SUGG-001` |
+| `/patient/dashboard/suggested` | Suggested Sessions - therapist recommendations and proposed times. **Only in the sidebar when something is waiting** | `PAT-SUGG-001` |
 | `/patient/dashboard/sessions` | All sessions, List/Calendar toggle, Upcoming/Past/Cancelled + Video/Home visit filters | `PAT-SESS-001` |
 | `/patient/dashboard/packages` | Owned programmes and their remaining credits | `PAT-PKG-001` |
 | `/patient/dashboard/payments` | Receipts | `PAT-PAY-010` |
@@ -78,7 +78,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Sessions | `new` | New Booking | `ADM-SESS-NEW-001` |
 | Sessions | `roster` | Roster | `ADM-ROST-001` |
 | Sessions | `delivery` | Delivery (operational rates) | `ADM-DELIV-001` |
-| Sessions | `recommendations` | Recommendations — the clinic's review queue, plus every plan | `ADM-CARE-001`, `ADM-CARE-004` |
+| Sessions | `recommendations` | Recommendations - the clinic's review queue, plus every plan | `ADM-CARE-001`, `ADM-CARE-004` |
 | Sessions | `new` | New Booking | `ADM-NEWB-001` |
 | People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001`, `ADM-PEOP-010` |
 | People | `therapists` | Therapists | `ADM-PEOP-005`, `ADM-PEOP-010` |
@@ -123,7 +123,7 @@ Detail routes (open as an overlay from the dashboard, and as a full page on dire
 
 ### 3.8 API routes
 
-The application exposes 150+ POST route handlers under `/api`, grouped by audience: `admin/`, `appointments/`, `patient/`, `therapist/`, `hospital/`, `packages/`, `home-visit/`, `care-plan/`, `razorpay/`, and `medical-documents/`. Individual routes are named inside the tests that exercise them. The security section tests them directly with `curl` — `SEC-ROUTE-002` (anonymous), `SEC-ADMIN-002` (wrong role) and `SEC-TAMPER-*` (manipulated bodies).
+The application exposes 150+ POST route handlers under `/api`, grouped by audience: `admin/`, `appointments/`, `patient/`, `therapist/`, `hospital/`, `packages/`, `home-visit/`, `care-plan/`, `razorpay/`, and `medical-documents/`. Individual routes are named inside the tests that exercise them. The security section tests them directly with `curl` - `SEC-ROUTE-002` (anonymous), `SEC-ADMIN-002` (wrong role) and `SEC-TAMPER-*` (manipulated bodies).
 
 ---
 
@@ -131,39 +131,39 @@ The application exposes 150+ POST route handlers under `/api`, grouped by audien
 
 ### 4.1 The four roles
 
-`profiles.role` is a single column with one of four values. **One account carries exactly one role.** A therapist account can never also be a patient — the booking wizards refuse it, and so do the purchase routes.
+`profiles.role` is a single column with one of four values. **One account carries exactly one role.** A therapist account can never also be a patient - the booking wizards refuse it, and so do the purchase routes.
 
 | Role | How an account is created | Gate before it can be used |
 | --- | --- | --- |
 | `patient` | Self-registers (at `/patient/register`, or inside either booking wizard) | `approved` + `active`. **Exception:** a genuine payment attempt auto-approves a patient (see below). |
 | `therapist` | Self-applies at `/therapist/login` → **Apply to Join** | Admin approval, then `active` |
 | `hospital` | Provisioned by an admin (People → Partners → onboard) | `active` |
-| `admin` | Promoted by hand in Supabase, or minted by a Master Admin | `active` only — **`approved` is deliberately not checked for admins** |
+| `admin` | Promoted by hand in Supabase, or minted by a Master Admin | `active` only - **`approved` is deliberately not checked for admins** |
 
 ### 4.2 The two flags
 
 `profiles.approved` and `profiles.active` are enforced in **two** places, and both matter:
 
-1. **`src/proxy.ts`** — blocks dashboard *navigation*.
-2. **`requireActiveProfile`** inside self-service API routes — blocks a valid session cookie calling the API around the UI.
+1. **`src/proxy.ts`** - blocks dashboard *navigation*.
+2. **`requireActiveProfile`** inside self-service API routes - blocks a valid session cookie calling the API around the UI.
 
 A test that only proves the UI hides something has not proved the rule. Every authorization test in this plan has an API-level twin.
 
 ### 4.3 The payment-attempt approval rule (important, and easy to mis-report)
 
-For a **single online session**, `/api/razorpay/create-order` flips the paying patient's `approved` to `true` the moment they *genuinely attempt* checkout — on the attempt, not on a completed payment. This is deliberate: a patient whose card fails three times still lands in their dashboard with a pending appointment rather than being bounced to `/pending-approval`.
+For a **single online session**, `/api/razorpay/create-order` flips the paying patient's `approved` to `true` the moment they *genuinely attempt* checkout - on the attempt, not on a completed payment. This is deliberate: a patient whose card fails three times still lands in their dashboard with a pending appointment rather than being bounced to `/pending-approval`.
 
 It does **not** apply to:
-* home-visit purchases (`/api/home-visit/create-order` — a *completed* payment vets you), or
+* home-visit purchases (`/api/home-visit/create-order` - a *completed* payment vets you), or
 * standalone registration at `/patient/register` (always waits for a human admin).
 
 ### 4.4 Admin scopes
 
-`profiles.admin_scope` is one of four values. It decides which **sections** an admin may open. **Every** admin route guards on scope — 99 of the 102 with `requireAdminScope(section)`, and three (`set-admin-scope`, `debug-reset`, `create-account`) with an explicit **full-only** check instead, because a section check would be too weak: a `finance` admin passing a section gate could otherwise widen its own access or mint a full admin. The sidebar hiding a section is presentation only.
+`profiles.admin_scope` is one of four values. It decides which **sections** an admin may open. **Every** admin route guards on scope - 99 of the 102 with `requireAdminScope(section)`, and three (`set-admin-scope`, `debug-reset`, `create-account`) with an explicit **full-only** check instead, because a section check would be too weak: a `finance` admin passing a section gate could otherwise widen its own access or mint a full admin. The sidebar hiding a section is presentation only.
 
 | Scope | Sections it can open | Cannot |
 | --- | --- | --- |
-| `full` | Today, Sessions, People, Money, Catalog, Settings | — |
+| `full` | Today, Sessions, People, Money, Catalog, Settings | - |
 | `operations` | Today, Sessions, People, Catalog | Money, Settings |
 | `finance` | Today, People, Money | Sessions, Catalog, Settings |
 | `clinical` | Today, Sessions, People | Money, Catalog, Settings |
@@ -173,4 +173,4 @@ Rules that must hold (tested in `ADM-SET-025`–`ADM-SET-029`):
 * **Nobody can change their own scope.**
 * **The last `full` admin cannot be narrowed.**
 * An unknown/null scope reads as `full` (so a migration can never lock everyone out).
-* The **Risk** queue is `full`-only — a scoped admin's page does not even fetch it.
+* The **Risk** queue is `full`-only - a scoped admin's page does not even fetch it.

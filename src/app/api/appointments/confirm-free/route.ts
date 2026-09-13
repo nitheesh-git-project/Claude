@@ -15,7 +15,7 @@ import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
 // A booking a discount took to nothing.
 //
 // Razorpay refuses a zero-amount order, and the old answer was to floor
-// every discount at ₹1 — which meant a clinic advertising a free first
+// every discount at ₹1 - which meant a clinic advertising a free first
 // session quietly charged a rupee nobody was quoted. The honest answer is
 // not to go to a gateway at all: this route does everything
 // `/api/razorpay/verify` does after a capture, minus the capture.
@@ -25,14 +25,14 @@ import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
 // 1. **The browser never says it is free.** The price and every discount are
 //    re-resolved here through the same module the order route uses, under
 //    the same row lock, and a payable above the gateway minimum is refused
-//    with 409 — the patient is sent to pay instead. A route that trusted a
+//    with 409 - the patient is sent to pay instead. A route that trusted a
 //    `free: true` flag would be a way to book anything for nothing.
 // 2. **No `payments` row is written.** That table is the record of money
 //    that moved, keyed on Razorpay's own order and payment ids; a collection
 //    of zero has neither, and inventing them would put a fiction in the one
 //    place the books are reconciled from.
 // 3. **`amount_paid_paise` is 0 and all four discount facts are recorded**,
-//    so the books can still say what this cost — a free session is inside
+//    so the books can still say what this cost - a free session is inside
 //    gross revenue as zero, with the giveaway named in `discount_paise` and
 //    `discount_source`.
 // 4. **Idempotent by the same claim the paid path uses.** A double tap finds

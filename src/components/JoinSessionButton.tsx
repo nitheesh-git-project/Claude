@@ -138,7 +138,7 @@ export default function JoinSessionButton({
   const caption = alwaysActive || cancelled || completed
     ? null
     : isJoinable
-      ? "Opens straight into the call — sign in to Google if asked."
+      ? "Opens straight into the call - sign in to Google if asked."
       : beforeMinutes > 0
         ? `Opens ${beforeMinutes} minutes before your session.`
         : "Opens at your session time.";

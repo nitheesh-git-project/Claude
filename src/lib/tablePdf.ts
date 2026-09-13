@@ -171,7 +171,7 @@ export async function buildTablePdf(input: TablePdfInput): Promise<Uint8Array> {
   const pages = doc.getPages();
   pages.forEach((p, index) => {
     p.drawText(
-      toWinAnsi(`${input.title} — ${input.rows.length} row${input.rows.length === 1 ? "" : "s"} · page ${index + 1} of ${pages.length}`),
+      toWinAnsi(`${input.title} - ${input.rows.length} row${input.rows.length === 1 ? "" : "s"} · page ${index + 1} of ${pages.length}`),
       { x: MARGIN, y: MARGIN - 18, size: 7.5, font, color: MUTED }
     );
   });

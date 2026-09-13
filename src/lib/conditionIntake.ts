@@ -161,7 +161,7 @@ export type ConditionProfileStatus = "not_started" | "draft" | "pending_review" 
 
 export const CONDITION_STATUS_LABEL: Record<ConditionProfileStatus, string> = {
   not_started: "Not started",
-  draft: "Draft — not submitted",
+  draft: "Draft - not submitted",
   pending_review: "Pending admin review",
   active: "Complete",
 };
@@ -220,7 +220,7 @@ export function formatAreaPainForText(
 ): string[] {
   return entries.map((e) => {
     const side = e.side !== "na" ? ` (${e.side})` : "";
-    const note = e.note ? ` — “${e.note}”` : "";
+    const note = e.note ? ` - “${e.note}”` : "";
     return `${regionLabel(e.region)}${side}: ${e.pain}/10${note}`;
   });
 }

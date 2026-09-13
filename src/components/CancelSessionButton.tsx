@@ -59,7 +59,7 @@ export default function CancelSessionButton({
         setError(data.error ?? "Could not cancel. Please try again.");
         if (res.status === 409) {
           // Someone else (another tab, or an admin) already cancelled this
-          // session — refresh so the page reflects that instead of still
+          // session - refresh so the page reflects that instead of still
           // showing it as active.
           router.refresh();
         }
@@ -67,7 +67,7 @@ export default function CancelSessionButton({
       }
       if (data.refundFailed) {
         setError(
-          "Session cancelled, but the automatic refund failed — we'll process it manually. Contact us if you don't see it in a few days."
+          "Session cancelled, but the automatic refund failed - we'll process it manually. Contact us if you don't see it in a few days."
         );
       }
       show("Session cancelled. Any refund due is on its way.");

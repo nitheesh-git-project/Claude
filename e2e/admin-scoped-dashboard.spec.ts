@@ -197,7 +197,7 @@ test.describe("Suite S: scoped admin dashboards", () => {
       page.on("requestfailed", (req) => {
         const host = new URL(req.url()).hostname;
         if (host === "localhost" || host === "127.0.0.1") {
-          consoleErrors.push(`request failed: ${req.url()} — ${req.failure()?.errorText}`);
+          consoleErrors.push(`request failed: ${req.url()} - ${req.failure()?.errorText}`);
         } else {
           blockedExternal.push(req.url());
         }

@@ -7,8 +7,8 @@ import { photo, type PhotoId } from "@/lib/marketingPhotos";
  * A photograph beside a short claim, with the picture doing most of the
  * explaining.
  *
- * Used for the handful of things a grid of cards genuinely cannot carry —
- * the two delivery modes, the hospital partnership — and nothing else. The
+ * Used for the handful of things a grid of cards genuinely cannot carry -
+ * the two delivery modes, the hospital partnership - and nothing else. The
  * bullets are capped in practice at three because a fourth turns the band
  * back into the prose block this rewrite removed.
  */
@@ -30,7 +30,7 @@ export default function SplitFeature({
   photoId: PhotoId;
   alt: string;
   cta?: { href: string; label: string };
-  /** Photo on the left instead of the right — alternate down a page. */
+  /** Photo on the left instead of the right - alternate down a page. */
   reverse?: boolean;
   /** One word floated on the photo, e.g. the delivery mode. */
   badge?: string;

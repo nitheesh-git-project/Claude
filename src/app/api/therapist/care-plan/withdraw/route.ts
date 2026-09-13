@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Your patient has already paid for this. Ask the clinic to refund it if it was wrong — you can't withdraw a purchased plan.",
+            "Your patient has already paid for this. Ask the clinic to refund it if it was wrong - you can't withdraw a purchased plan.",
         },
         { status: 409 }
       );

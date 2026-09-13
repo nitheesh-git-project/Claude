@@ -10,7 +10,7 @@ import { isGatewayPayable } from "@/lib/discounts";
 //
 // This exists because the wizard used to print the category price on its own
 // Pay button while `/api/razorpay/create-order` silently resolved a
-// first-session offer behind it — so a patient owed ₹499 read "Pay ₹1,200
+// first-session offer behind it - so a patient owed ₹499 read "Pay ₹1,200
 // Now" and watched a different figure appear in the Razorpay sheet. The
 // figure on the button now comes from the same module the order does.
 //
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   // Deliberately open to a signed-out visitor, for a **category-only** quote
   // and nothing else.
   //
-  // The wizard shows a price at step 3 before the account exists — a
+  // The wizard shows a price at step 3 before the account exists - a
   // self-signup patient creates their account, their booking and their
   // payment with one tap further down the same screen. That visitor is
   // exactly who a first-session offer is for, so refusing to quote them
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     if (!(await isProfileActive(user.id))) {
       return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
     }
-    // One account carries one role, and a session is delivered to a patient —
+    // One account carries one role, and a session is delivered to a patient -
     // the same rule the four purchase routes enforce.
     if (!(await isPatientProfile(user.id))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
   // Either an existing booking or the category the wizard is about to book.
   // Both are needed: the wizard creates its appointment and pays for it in
   // one step, so at the moment the patient reads the price there is no row
-  // yet — and quoting only where a row exists would put the figure on the
+  // yet - and quoting only where a row exists would put the figure on the
   // screen where it is least useful.
   const appointmentId = body.appointmentId?.trim();
   const categoryId = body.categoryId?.trim();

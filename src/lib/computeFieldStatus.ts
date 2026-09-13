@@ -10,7 +10,7 @@ type ChangeRequestRow = {
 
 /**
  * Reduces a user's full change-request history into "what's the current
- * state of each individual field right now" — pending (locked, awaiting
+ * state of each individual field right now" - pending (locked, awaiting
  * review, carrying the requested new value), declined (editable again, with
  * the reason shown), or untouched (no entry). Requests are expected ordered
  * newest-first; for any field touched by more than one request, only the
@@ -33,7 +33,7 @@ export function computeFieldStatus(requests: ChangeRequestRow[]): FieldStatusMap
       } else if (r.status === "declined") {
         status[field] = { status: "declined", notes: r.admin_notes };
       }
-      // "approved" leaves no entry — the field is just editable, showing
+      // "approved" leaves no entry - the field is just editable, showing
       // its now-updated current value.
     }
   }

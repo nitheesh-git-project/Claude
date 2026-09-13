@@ -9,7 +9,7 @@ import {
 import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
 
 // Admin edits one specialty's Patient Care Intake question wording and
-// toggles which questions are mandatory — same per-row save pattern as
+// toggles which questions are mandatory - same per-row save pattern as
 // PainMapQuestionEditor, plus a required checkbox since that's editable
 // here (Pain Map has no per-question required concept).
 //

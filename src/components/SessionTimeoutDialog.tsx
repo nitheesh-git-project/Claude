@@ -67,7 +67,7 @@ export default function SessionTimeoutDialog({
             <p className="text-xs text-slate-500 mt-2 leading-relaxed">
               We noticed no activity on this page for a while, so we signed you
               out to keep your account safe. Feel free to sign back in whenever
-              you&apos;re ready — everything is right where you left it.
+              you&apos;re ready - everything is right where you left it.
             </p>
             {/* Plain anchors, not next/link: the session was just cleared,
                 and a hard navigation is what guarantees the next request

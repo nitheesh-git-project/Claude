@@ -64,7 +64,7 @@ export function computeTherapistEarningRows(
         patientName: patientNameById.get(a.patient_id) ?? "Unknown patient",
         date: a.slot_time ?? new Date(0).toISOString(),
         categoryId: a.category_id,
-        categoryTitle: a.category_id ? categoryTitleById.get(a.category_id) ?? "—" : "—",
+        categoryTitle: a.category_id ? categoryTitleById.get(a.category_id) ?? "-" : "-",
         feePaise: feePaise + travelPaise,
         earningPaise: Math.round((feePaise * effectiveShare) / 100) + travelPaise,
         status: a.therapist_payout_paid_at ? "paid_out" : "pending",

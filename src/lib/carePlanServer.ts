@@ -34,7 +34,7 @@ export type RecommendablePackage = {
  * Admin-controlled on two axes: `active` (is this package real at all) and
  * `recommendable` (may a clinician offer it). Those are deliberately
  * separate from the three `visible_*` flags, which decide where a package is
- * *advertised* — an admin who stops selling something on the website has not
+ * *advertised* - an admin who stops selling something on the website has not
  * necessarily stopped it being the right treatment for someone already in
  * the practice.
  *

@@ -1,7 +1,7 @@
 // Avatar defaults. Callers with a different job (a photographed test
 // report, which has to stay *readable*, not just recognisable) pass their
-// own — see MedicalDocumentsPanel.
-const MAX_ORIGINAL_BYTES = 5 * 1024 * 1024; // 5MB — reject before even trying to decode
+// own - see MedicalDocumentsPanel.
+const MAX_ORIGINAL_BYTES = 5 * 1024 * 1024; // 5MB - reject before even trying to decode
 const MAX_DIMENSION = 400; // avatars are shown small; no reason to store more
 const TARGET_BYTES = 500 * 1024; // re-compress harder if still above this
 
@@ -56,7 +56,7 @@ export async function compressImage(file: File, options: CompressImageOptions = 
 
   let blob = await toBlob(0.8);
   if (blob.size > targetBytes) {
-    // Unusually detailed image (e.g. a busy background) — compress harder
+    // Unusually detailed image (e.g. a busy background) - compress harder
     // once rather than iterating indefinitely, to keep this predictable.
     blob = await toBlob(0.6);
   }

@@ -2,8 +2,8 @@
 """Build the manual E2E test plan as a PDF and a DOCX from its Markdown sources.
 
 The sources live in docs/qa/src/*.md and are concatenated in filename order.
-The Markdown subset used there is deliberately small — headings, tables, lists,
-fenced code, blockquotes, horizontal rules, and inline bold/italic/code — so a
+The Markdown subset used there is deliberately small - headings, tables, lists,
+fenced code, blockquotes, horizontal rules, and inline bold/italic/code - so a
 self-contained converter is cheaper than a dependency, and produces exactly the
 print layout we want in both formats.
 
@@ -31,26 +31,26 @@ DOCS = {
     "plan": {
         "src": OUT / "src",
         "basename": "DrPoojaPhysio-E2E-Test-Plan",
-        "title": "Dr. Pooja's Physio — Complete Manual E2E Test Plan & Feature Guide",
+        "title": "Dr. Pooja's Physio - Complete Manual E2E Test Plan & Feature Guide",
         "subtitle": "Feature guide and click-by-click regression suite",
         "meta": [
-            ("Application", "Dr. Pooja's Physio — Next.js 16 · React 19 · Supabase · Razorpay"),
+            ("Application", "Dr. Pooja's Physio - Next.js 16 · React 19 · Supabase · Razorpay"),
             ("Document version", "1.0"),
             ("Audience", "A tester who has never used this application before"),
             ("Environment", "Throwaway Supabase project · Razorpay test mode · npm run dev"),
-            ("Start here", "Section 6 — STEP 0, Reset the test environment"),
+            ("Start here", "Section 6 - STEP 0, Reset the test environment"),
         ],
     },
     "audit": {
         "src": OUT / "audit-src",
         "basename": "DrPoojaPhysio-QA-Audit-Report",
-        "title": "Dr. Pooja's Physio — QA Audit Report",
+        "title": "Dr. Pooja's Physio - QA Audit Report",
         "subtitle": "Static verification against the manual E2E test plan, plus a product review",
         "meta": [
             ("Subject", "Branch claude/complete-e2e-testing-plan-ll8qet"),
-            ("Method", "Two passes — a live run on 2 Sep, re-verification (static + executed) on 4 Sep"),
-            ("Verdict", "Pass after remediation — 13 findings across both passes, all fixed"),
-            ("Read first", "Section 1 — Scope, and what this report is not"),
+            ("Method", "Two passes - a live run on 2 Sep, re-verification (static + executed) on 4 Sep"),
+            ("Verdict", "Pass after remediation - 13 findings across both passes, all fixed"),
+            ("Read first", "Section 1 - Scope, and what this report is not"),
         ],
     },
 }

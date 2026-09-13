@@ -216,7 +216,7 @@ export default function SessionDetailDrawer({
         // so make the admin explicitly own that before letting them proceed.
         if (
           await confirm(
-            "This session's payout has already been settled in cash to the therapist. Reopening it will NOT automatically flag it for a future payout — you'll need to track that manually if the session is redelivered. Reopen anyway?"
+            "This session's payout has already been settled in cash to the therapist. Reopening it will NOT automatically flag it for a future payout - you'll need to track that manually if the session is redelivered. Reopen anyway?"
           )
         ) {
           await submitReopen(true);
@@ -258,7 +258,7 @@ export default function SessionDetailDrawer({
         // explicitly own that before letting them proceed.
         if (
           await confirm(
-            "This session's payout has already been settled in cash to the therapist. Cancelling it now will NOT automatically reclaim that money — you'll need to recover it from the therapist directly if that's warranted. Cancel anyway?"
+            "This session's payout has already been settled in cash to the therapist. Cancelling it now will NOT automatically reclaim that money - you'll need to recover it from the therapist directly if that's warranted. Cancel anyway?"
           )
         ) {
           await submitCancel(reason, true);
@@ -268,7 +268,7 @@ export default function SessionDetailDrawer({
       setActionError(data.error ?? "Could not cancel this session.");
       if (res.status === 409) {
         // Someone else (the patient, or another admin) already cancelled
-        // this session — refresh so the underlying list reflects that,
+        // this session - refresh so the underlying list reflects that,
         // even though this open drawer still shows the stale snapshot.
         router.refresh();
       }
@@ -277,7 +277,7 @@ export default function SessionDetailDrawer({
     router.refresh();
     if (data.refundFailed) {
       // Stay open instead of the usual auto-close so this doesn't get
-      // missed — the session is cancelled either way, but the refund needs
+      // missed - the session is cancelled either way, but the refund needs
       // manual follow-up.
       setActionError(
         "Session cancelled, but the automatic refund failed. Please process the refund manually."
@@ -441,7 +441,7 @@ export default function SessionDetailDrawer({
               <p className="text-slate-400">Concern / Category</p>
               <p className="font-semibold text-slate-800">
                 {a.concern ?? "General Consultation"}
-                {categoryTitle && <span className="text-slate-500"> — {categoryTitle}</span>}
+                {categoryTitle && <span className="text-slate-500"> - {categoryTitle}</span>}
               </p>
             </div>
 
@@ -502,7 +502,7 @@ export default function SessionDetailDrawer({
                     ? `₹${(a.refund_amount_paise / 100).toLocaleString("en-IN")} refunded`
                     : a.refund_status === "not_eligible"
                     ? a.therapist_payout_paid_at
-                      ? "No refund (this session's payout was already settled — cancelled as an admin correction, not a late cancellation)"
+                      ? "No refund (this session's payout was already settled - cancelled as an admin correction, not a late cancellation)"
                       : `No refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot)`
                     : "No payment to refund"}
                 </p>
@@ -527,7 +527,7 @@ export default function SessionDetailDrawer({
                         }`}
                       >
                         {optimisticExcluded.patient
-                          ? "Excluded from average — include it"
+                          ? "Excluded from average - include it"
                           : "Exclude from average"}
                       </button>
                       <button
@@ -573,7 +573,7 @@ export default function SessionDetailDrawer({
                         }`}
                       >
                         {optimisticExcluded.therapist
-                          ? "Excluded from average — include it"
+                          ? "Excluded from average - include it"
                           : "Exclude from average"}
                       </button>
                       <button
@@ -616,7 +616,7 @@ export default function SessionDetailDrawer({
                         {new Date(h.changed_at).toLocaleString("en-IN", {
                           timeZone: "Asia/Kolkata",
                         })}{" "}
-                        IST{h.changed_by && ` by ${nameOrUnassigned(h.changed_by)}`} —{" "}
+                        IST{h.changed_by && ` by ${nameOrUnassigned(h.changed_by)}`} -{" "}
                       </span>
                       {h.old_therapist_id !== h.new_therapist_id && (
                         <span className="block">
@@ -633,14 +633,14 @@ export default function SessionDetailDrawer({
                             ? new Date(h.old_slot_time).toLocaleString("en-IN", {
                                 timeZone: "Asia/Kolkata",
                               })
-                            : "—"}{" "}
+                            : "-"}{" "}
                           →{" "}
                           <strong className="text-slate-700">
                             {h.new_slot_time
                               ? new Date(h.new_slot_time).toLocaleString("en-IN", {
                                   timeZone: "Asia/Kolkata",
                                 })
-                              : "—"}
+                              : "-"}
                           </strong>
                         </span>
                       )}
@@ -762,7 +762,7 @@ export default function SessionDetailDrawer({
                     <p className="font-semibold text-slate-700">
                       {homeVisit.travel_fee_paise
                         ? `₹${(homeVisit.travel_fee_paise / 100).toLocaleString("en-IN")}`
-                        : "—"}
+                        : "-"}
                     </p>
                     <p className="text-slate-400">Paid to the therapist in full.</p>
                   </div>
@@ -859,7 +859,7 @@ export default function SessionDetailDrawer({
             {/* The other side of the payment from the refund above. A session
                 nobody has paid for yet cannot be refunded, and this is the
                 lane for the cases that would otherwise be settled off the
-                books entirely — a session cut short, a therapist who ran
+                books entirely - a session cut short, a therapist who ran
                 late, a patient in real hardship. */}
             {canSeeMoney && a.payment_status !== "paid" && a.status !== "cancelled" && (
               <div className="pt-3 border-t border-slate-100">

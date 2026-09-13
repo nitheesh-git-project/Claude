@@ -56,15 +56,15 @@ export default function GatedProfileFields({
   );
 
   // Fields the user has actually edited this session. handleSubmit only
-  // ever diffs these against fresh server data — never every editable
-  // field — so a stale local draft for an untouched field (e.g. one that
+  // ever diffs these against fresh server data - never every editable
+  // field - so a stale local draft for an untouched field (e.g. one that
   // got approved elsewhere between this mount and now) can never be
   // silently resubmitted or reverted.
   const touchedRef = useRef<Set<string>>(new Set());
 
   // currentValues is a new snapshot on every router.refresh() (after our
   // own submit/withdraw, but potentially after any other server refetch
-  // too). Resync any field the user hasn't touched to that fresh value —
+  // too). Resync any field the user hasn't touched to that fresh value -
   // otherwise `values` would keep whatever was there at mount forever,
   // since useState's initializer only runs once.
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function GatedProfileFields({
 
     // Each changed field becomes its own request row (rather than one row
     // holding every change) so it can later be withdrawn or reviewed on
-    // its own — a single shared row would mean withdrawing any one field
+    // its own - a single shared row would mean withdrawing any one field
     // deletes the whole row and silently withdraws the others with it.
     const rows: { user_id: string; changes: Record<string, string | number | null> }[] = [];
     const submittedNames: string[] = [];
@@ -200,7 +200,7 @@ export default function GatedProfileFields({
               <div className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
                 <span className="text-slate-700 font-semibold">
                   {status.newValue === null || status.newValue === undefined || status.newValue === ""
-                    ? "—"
+                    ? "-"
                     : String(status.newValue)}
                 </span>
                 <button

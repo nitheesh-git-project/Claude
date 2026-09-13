@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Never trust that "changes" only contains fields this role is actually
-  // allowed to request — validate against the server-side allowlist before
+  // allowed to request - validate against the server-side allowlist before
   // writing anything, in case a request was ever crafted or tampered with.
   const allowedFields = GATED_PROFILE_FIELDS[profile.role] ?? [];
   const changes = changeRequest.changes as Record<string, unknown>;

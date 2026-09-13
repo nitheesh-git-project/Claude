@@ -100,7 +100,7 @@ export async function authorCarePlanVersion(
       ok: false,
       status: 409,
       error:
-        "A recommendation is written after a session has been marked complete — that is what it is based on.",
+        "A recommendation is written after a session has been marked complete - that is what it is based on.",
     };
   }
 
@@ -217,7 +217,7 @@ export async function authorCarePlanVersion(
           ok: false,
           status: 409,
           error:
-            "This patient already has a recommendation waiting. Refresh to see it — that one can be updated instead.",
+            "This patient already has a recommendation waiting. Refresh to see it - that one can be updated instead.",
         };
       }
       return {

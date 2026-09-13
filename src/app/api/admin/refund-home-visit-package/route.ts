@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
   }
   if (purchase.payment_mode !== "prepaid") {
     return NextResponse.json(
-      { error: "Cash-on-visit packages have no single payment to refund — cancel visits individually instead." },
+      { error: "Cash-on-visit packages have no single payment to refund - cancel visits individually instead." },
       { status: 400 }
     );
   }
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
   const refundableCount = purchase.visit_count - (completedCount ?? 0);
   if (refundableCount <= 0) {
     return NextResponse.json(
-      { error: "Every visit on this package has already been completed — nothing to refund." },
+      { error: "Every visit on this package has already been completed - nothing to refund." },
       { status: 400 }
     );
   }
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
   }
   if (!claimed) {
     return NextResponse.json(
-      { error: "This package was already refunded or changed concurrently — please refresh." },
+      { error: "This package was already refunded or changed concurrently - please refresh." },
       { status: 409 }
     );
   }
@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
       );
     }
     return NextResponse.json(
-      { error: "The refund could not be processed by Razorpay. Nothing was changed — please retry." },
+      { error: "The refund could not be processed by Razorpay. Nothing was changed - please retry." },
       { status: 502 }
     );
   }

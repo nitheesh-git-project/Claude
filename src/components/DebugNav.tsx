@@ -17,7 +17,7 @@ function toLocalInputValue(ms: number) {
 }
 
 // The public pages come from marketingNav.ts rather than being listed here.
-// This list had gone stale — /faq and /home-visit were missing, so the two
+// This list had gone stale - /faq and /home-visit were missing, so the two
 // newest public pages were the two you could not jump to from the debug bar,
 // which is exactly when you want it. Home Visit is included unconditionally:
 // this is a developer tool, and seeing the 404 is the point when the master

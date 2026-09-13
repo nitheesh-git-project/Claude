@@ -26,7 +26,7 @@ export default function PhoneNumberField({
   labelClassName?: string;
 }) {
   // Lazy initializers seed from the stored/initial value once, on first
-  // render only — after that this component owns country/national itself
+  // render only - after that this component owns country/national itself
   // and pushes composed changes back up via onChange, so re-deriving from
   // the value prop on every parent re-render would fight the user's own
   // in-progress edits.
@@ -54,7 +54,7 @@ export default function PhoneNumberField({
             // Intl.DisplayNames resolves country names from whatever ICU
             // data the runtime has, which can differ slightly between the
             // server (Node) and the client browser for a handful of
-            // countries (e.g. Falkland Islands) — a harmless text
+            // countries (e.g. Falkland Islands) - a harmless text
             // difference, not a real bug, so tell React not to discard
             // and re-render the whole subtree over it.
             <option key={c.code} value={c.code} suppressHydrationWarning>

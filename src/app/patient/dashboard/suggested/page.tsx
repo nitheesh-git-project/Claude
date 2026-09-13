@@ -77,7 +77,7 @@ export default async function Page() {
           <SurfaceCard title="Your programme is ready" icon="fa-circle-check">
             <p className="text-sm text-slate-700">
               Your therapist&apos;s recommendation is paid for. Your sessions are waiting to
-              be booked — pick times that suit you.
+              be booked - pick times that suit you.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <Link
@@ -103,7 +103,7 @@ export default async function Page() {
             <EmptyState
               icon="fa-lightbulb"
               title="No recommendations right now"
-              body="After a session, your therapist may recommend a programme of treatment. It will appear here for you to accept or decline — nothing is ever charged without you choosing it."
+              body="After a session, your therapist may recommend a programme of treatment. It will appear here for you to accept or decline - nothing is ever charged without you choosing it."
             />
           </SurfaceCard>
         </div>
@@ -141,7 +141,7 @@ export default async function Page() {
           <SurfaceCard
             title="Times your therapist has proposed"
             icon="fa-calendar-plus"
-            subtitle="These are on a programme you already own — accepting books the time and uses one of your sessions. Nothing extra to pay."
+            subtitle="These are on a programme you already own - accepting books the time and uses one of your sessions. Nothing extra to pay."
           >
             <div className="space-y-3">
               {d.pendingSuggestions.map((suggestion) => (

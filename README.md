@@ -22,21 +22,21 @@ Open http://localhost:3000.
 Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
 `npm run test`, `npm run check:realtime`, `npm run test:e2e`,
 `npm run seed:qa`, and
-`npm run verify` (lint, then unit tests, then build — the one to run before
+`npm run verify` (lint, then unit tests, then build - the one to run before
 pushing).
 
 ### Seeding the QA accounts
 
 `npm run seed:qa` (`scripts/seed-qa-accounts.mjs`) creates every account the
-manual test plan names — four admins, three patients, three therapists, two
-hospitals — with the plan's fixture password. It exists because the debug
+manual test plan names - four admins, three patients, three therapists, two
+hospitals - with the plan's fixture password. It exists because the debug
 **Reset data** button deletes every non-admin account, which is exactly what
 it is for and which leaves the plan's §8 fixtures as a list of logins that no
 longer exist.
 
 It is idempotent. An account that already exists keeps its id, its history and
 its hospital referral code, and only has its password put back to the fixture
-value — a tester reporting "invalid credentials" has usually lost a generated
+value - a tester reporting "invalid credentials" has usually lost a generated
 password rather than lost the row, and this fixes either. It needs
 `SUPABASE_SERVICE_ROLE_KEY` and writes with the service role, so point it only
 at a throwaway project. `--dry-run` prints what it would do and writes
@@ -49,7 +49,7 @@ that arrived already correct would let that test pass without running.
 ### Unit tests
 
 `npm run test` runs Vitest over `src/**/*.test.ts`. It covers the
-dependency-free modules in `src/lib` — the pricing and payout arithmetic,
+dependency-free modules in `src/lib` - the pricing and payout arithmetic,
 the care-plan state machine and snapshot parsing, the contact scanner and
 its clinical false-positive corpus, contact masking and the reveal window,
 the risk-rule thresholds, and the consultation-first rule. No database and no
@@ -59,28 +59,28 @@ belongs in `e2e/`.
 `npm run check:realtime` (also run first by `npm run lint`) checks that every
 table the dashboards subscribe to for live updates is present in the
 `supabase_realtime` publication in `supabase/schema.sql`. A missing entry has
-no visible symptom — the subscription succeeds and the events never arrive —
+no visible symptom - the subscription succeeds and the events never arrive -
 so this is the only place it gets caught.
 
 ### End-to-end regression suite
 
 `npm run test:e2e` runs a scoped Playwright suite under `e2e/` against a
 running `npm run dev` (started automatically if one isn't already up). It
-is not a full UI test suite — it covers the paths where a silent regression
+is not a full UI test suite - it covers the paths where a silent regression
 would cost real money or trust: the CAS-guarded concurrency races (refund
 double-fire, therapist reassignment, referral double-assignment), home-visit
 area gating, bulk-scheduling limits, and the therapist roster
-(`therapist-roster.spec.ts` — weekly hours, exceptions, leave, admin and
+(`therapist-roster.spec.ts` - weekly hours, exceptions, leave, admin and
 therapist authorization, stale and double-clicked saves, and the check that
 none of it moved a booking or the patient's time picker). Every spec talks to the app's HTTP
 API and Supabase directly (no browser), so it needs real credentials for a
 **test/staging** Supabase project and Razorpay **test-mode** keys in the
-environment or `.env.local` — never point it at production, since it creates
+environment or `.env.local` - never point it at production, since it creates
 real auth users, appointments, and Razorpay test-mode orders.
 
 ### Database
 
-`supabase/schema.sql` is the whole schema — tables, row-level security
+`supabase/schema.sql` is the whole schema - tables, row-level security
 policies, views, triggers, and functions. It is written to be safe to
 re-run: every statement is guarded with `if not exists` / `or replace`, and
 later sections add columns to earlier tables, so applying the file top to
@@ -91,13 +91,13 @@ Apply it either:
 - In the Supabase SQL Editor (Project → SQL Editor → New query), paste and
   run the whole file, or
 - `node scripts/run-schema.mjs`, which applies it over the Supabase
-  Management API — needs `SUPABASE_ACCESS_TOKEN` set (see below). Useful for
+  Management API - needs `SUPABASE_ACCESS_TOKEN` set (see below). Useful for
   re-applying after every change to the file without the manual copy/paste.
 
 `.github/workflows/schema-apply.yml` runs that same script on every push to
 `main` that touches `supabase/schema.sql`, but only if the repository has
 both the `SUPABASE_ACCESS_TOKEN` and `NEXT_PUBLIC_SUPABASE_URL` **repo
-secrets** set — without them the job fails with "Missing
+secrets** set - without them the job fails with "Missing
 SUPABASE_ACCESS_TOKEN" and the live database quietly stays behind the file.
 Check the workflow's run history after merging a schema change: a merged
 change that never got applied leaves the database's policies out of sync
@@ -115,7 +115,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only key that bypasses RLS. Never prefix with `NEXT_PUBLIC_`, never commit |
 | `NEXT_PUBLIC_RAZORPAY_KEY_ID` | Razorpay Key ID, sent to the browser to open checkout |
 | `RAZORPAY_KEY_SECRET` | Razorpay secret, server-only (order creation, signature verification, refunds) |
-| `RAZORPAY_WEBHOOK_SECRET` | Razorpay **webhook** signing secret, server-only — a different secret from the one above. Without it `/api/razorpay/webhook` answers 503 and payment confirmation falls back to the browser callback alone |
+| `RAZORPAY_WEBHOOK_SECRET` | Razorpay **webhook** signing secret, server-only - a different secret from the one above. Without it `/api/razorpay/webhook` answers 503 and payment confirmation falls back to the browser callback alone |
 | `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` | OAuth2 Web application credentials from Google Cloud Console |
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer, and the account whose Meet permission opens each meeting |
@@ -129,7 +129,7 @@ verified end to end.
 The debug bar is **on in every environment**, including production builds
 and the deployed site: `isDebugNavVisible()` (`src/lib/debugNavVisible.ts`)
 returns true unless `NEXT_PUBLIC_SHOW_DEBUG_NAV` is exactly `"false"`. That
-is deliberate while the app is pre-launch — the bar's "jump to page" list,
+is deliberate while the app is pre-launch - the bar's "jump to page" list,
 its simulated clock and its Reset button are how a published change gets
 checked. **Delete the bar before real launch**: the flag is public, and the
 bar's dropdown names every route, protected dashboards included.
@@ -141,7 +141,7 @@ live in a committed one: unset, `/api/admin/debug-reset` answers 404 rather
 than 403, so a probe cannot learn the endpoint exists.
 
 If either variable is set in a hosting dashboard (Vercel project settings,
-for instance), that value wins over anything in the repo — check there too.
+for instance), that value wins over anything in the repo - check there too.
 The matching `debug_reset_all_data()` function still exists in
 `supabase/schema.sql` and should be dropped once it is no longer needed for
 testing; `EXECUTE` on it is revoked from `anon` and `authenticated`, so only
@@ -151,7 +151,7 @@ the service-role key can reach it in the meantime.
 
 Every route tree has an error boundary (`src/app/error.tsx` plus one per
 dashboard) rendering `RouteError`, and `src/app/global-error.tsx` catches a
-throw in the root layout itself — the one case an ordinary boundary cannot,
+throw in the root layout itself - the one case an ordinary boundary cannot,
 since no layout has rendered by then, which is why that file inlines its own
 styles and supplies its own `<html>`. `src/app/not-found.tsx` covers a stale
 link. None of them print the thrown message: it can carry a column name or a
@@ -160,7 +160,7 @@ so a report can still be matched to a server log.
 
 All four dashboards have a `loading.tsx` rendering `RouteLoading`. Three of
 them keep their sidebar inside each page rather than a shared layout, so the
-skeleton draws a sidebar rail of its own (`withSidebar`) — without it, every
+skeleton draws a sidebar rail of its own (`withSidebar`) - without it, every
 navigation would blank the whole chrome, which is worse than the no-boundary
 behaviour it replaces. The admin dashboard gets one for the opposite reason:
 it is the slowest page in the app, and a cold load there can take tens of
@@ -176,22 +176,22 @@ carries the admin path.
 
 Four roles live in `profiles.role`, all backed by Supabase Auth users:
 
-- **patient** — self-registers (or arrives through a hospital invite link)
+- **patient** - self-registers (or arrives through a hospital invite link)
   and waits for admin approval before they can sign in and use the
   dashboard. Booking an online session through `/book` is the one exception:
   a self-signup patient can go straight from signing up to attempting
   payment, and `/api/razorpay/create-order` flips `approved` to `true`
-  itself the moment they genuinely try to check out — whether or not that
+  itself the moment they genuinely try to check out - whether or not that
   payment goes on to succeed. A patient who fails or abandons checkout after
   a few tries still lands straight in their dashboard (appointment showing
   pending) via the booking wizard's own retry-limit prompt, instead of
-  waiting on a human — while a bare `/patient/register` signup, with no
+  waiting on a human - while a bare `/patient/register` signup, with no
   payment intent at all, still queues for approval as before.
-- **therapist** — applies, is approved by the admin, sets weekly
+- **therapist** - applies, is approved by the admin, sets weekly
   availability, runs sessions, and requests payouts.
-- **hospital** — provisioned by the admin (no self-signup). Refers patients
+- **hospital** - provisioned by the admin (no self-signup). Refers patients
   and earns a configured revenue share on referred sessions.
-- **admin** — promoted by hand in the Supabase Table Editor. Runs everything
+- **admin** - promoted by hand in the Supabase Table Editor. Runs everything
   else.
 
 ### Registration and approval
@@ -202,7 +202,7 @@ off** (Authentication → Sign In / Providers → Email → *Confirm email*), so
 lands on `/pending-approval` already signed in. The admin's approval is the
 only gate: the moment they approve, that same session reaches the dashboard
 with nothing further to verify. There is deliberately no email-confirmation
-step — access here is decided by a person reviewing the account, and asking
+step - access here is decided by a person reviewing the account, and asking
 for a mailbox round trip on top of it meant two queues to clear before
 anyone could book, on a platform whose only outbound mail is the calendar
 invite.
@@ -215,7 +215,7 @@ switched back on.
 
 `profiles.approved` and `profiles.active` gate access: unapproved users land
 on `/pending-approval`, suspended users on `/account-suspended`. Both flags
-are enforced twice — in the proxy for dashboard navigation, and again in
+are enforced twice - in the proxy for dashboard navigation, and again in
 `src/lib/supabase/requireActiveProfile.ts` for the self-service API routes,
 so a still-valid session cookie can't call the API around the UI gate.
 
@@ -227,7 +227,7 @@ office cannot: "the app is broken for me" is about their screen, and every
 admin screen shows an admin's view of them instead.
 
 It is a **real session swap**, not a preview. The browser genuinely becomes
-that account — same routes, same data, same buttons — so anything tapped
+that account - same routes, same data, same buttons - so anything tapped
 happens for real and their history records it as theirs. That is the cost of
 being able to reproduce a bug that only appears on submit, and the reason it
 is fenced:
@@ -237,7 +237,7 @@ is fenced:
   on People → Partners**, which is where a hospital's own record lives.
 - **A reason is required** (ten characters) and is stored where the admin who
   typed it cannot edit it, alongside who, whom and how long.
-- **Thirty minutes**, ended by the proxy rather than by the browser — a
+- **Thirty minutes**, ended by the proxy rather than by the browser - a
   forgotten tab would otherwise be an open window into a health record.
 - **An amber bar on every screen** naming the account, saying the actions are
   real, counting the window down, and offering Exit. Exit restores the
@@ -253,7 +253,7 @@ admin action.
 `/mission`, `/hospitals`, `/faq`, `/get-started`, `/book`, `/home-visit`,
 `/book-home-visit`.
 
-**Shared:** `/dashboard` — redirects to whichever dashboard belongs to the
+**Shared:** `/dashboard` - redirects to whichever dashboard belongs to the
 signed-in role (`/get-started` when signed out). Every "go to my dashboard"
 link points here so no client bundle has to know the four paths; see
 "Roles" above.
@@ -279,7 +279,7 @@ link points here so no client bundle has to know the four paths; see
 | **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
 | **Money** | Summary · Transactions · Payouts · Costs · Breakdown | What came in, what goes out, what it costs, what is still owed. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
-| **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** — the three limited desks read their own desk's history on Today → Activity. |
+| **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |
 | **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
 
 **How the Money screens divide a rupee.** Every figure on Money → Summary
@@ -292,33 +292,33 @@ net revenue  = gross revenue - refunds processed
 clinic share = splittable net - therapists' share - partners' share
 ```
 
-- **Gross revenue** — everything charged for sessions whose slot falls in
+- **Gross revenue** - everything charged for sessions whose slot falls in
   the selected range.
-- **Refunded** — refunds that actually processed, not ones that failed or
+- **Refunded** - refunds that actually processed, not ones that failed or
   were never eligible.
-- **Therapists' share** — earned only on sessions actually *delivered*
+- **Therapists' share** - earned only on sessions actually *delivered*
   (`completed`), at that therapist's own rate, with a home visit's travel
   fee added in full. A session paid for but never delivered earns nobody a
   share.
-- **Partners' share** — a referring hospital's commission, taken on net
+- **Partners' share** - a referring hospital's commission, taken on net
   revenue, so a refund reverses the commission with it.
-- **Clinic share** — what is left after both splits, before the clinic has
+- **Clinic share** - what is left after both splits, before the clinic has
   paid for anything of its own.
-- **Payment fees** — the gateway's cut of everything collected online, from
+- **Payment fees** - the gateway's cut of everything collected online, from
   the percentage set on Money → Costs. Taken on gross, because a processor
   keeps its fee even when a payment is refunded; cash-on-visit collections
   never touch a gateway and are excluded.
-- **Running costs** — salaries, rent, software and the rest, recorded by
+- **Running costs** - salaries, rent, software and the rest, recorded by
   hand on Money → Costs and dated to the day they were incurred.
-- **Operating profit** — clinic share less those two. The only figure in the
+- **Operating profit** - clinic share less those two. The only figure in the
   app entitled to the word profit, and still before tax. With no costs
   recorded for a period it is a ceiling rather than the real number, and the
   screen says so.
 
 Revenue and the split have different eligibility on purpose. Gross, refunds
 and net count every paid session; the split leaves out any session whose
-division cannot be known — the therapist has no revenue share set, or the
-patient came from a partner whose share is not configured — and the screen
+division cannot be known - the therapist has no revenue share set, or the
+patient came from a partner whose share is not configured - and the screen
 names how many and how much rather than guessing a percentage.
 
 **Balances are not date-filtered.** "Owed to therapists" is the all-time
@@ -326,7 +326,7 @@ balance, already net of cash therapists are holding from home visits, and is
 the same number the Payouts screen and the Pay button use. Everything beside
 it (revenue, refunds, what was settled) is scoped to the dates in view.
 
-Every Money screen opens with **what needs you** — payout requests waiting,
+Every Money screen opens with **what needs you** - payout requests waiting,
 cash a therapist collected and has not handed over, refunds that have to be
 given back by hand, payments the app cannot attach to anything. Each links to
 the rows it counted, and an item whose screen this admin cannot open is
@@ -340,7 +340,7 @@ exports to CSV or PDF like every other table in the back office. The rows come
 from the same per-session function the totals are accumulated from, so a
 drill-down cannot disagree with what opened it.
 
-Net revenue also carries **how it compares with the period before** — the same
+Net revenue also carries **how it compares with the period before** - the same
 number of days immediately preceding the range, never a calendar month against
 a 30-day window. A move under half a percent reads "level" rather than drawing
 an arrow over noise, and a zero baseline says there is nothing to compare with
@@ -350,19 +350,19 @@ Every figure says which it is, with a chip: **These dates** for a flow,
 **Right now** for a balance, **A setting** for a rate. An admin narrowing the
 range and watching one number fall while the one beside it holds still is
 otherwise reading a screen that looks half-broken. Every figure also carries
-an **i** giving its meaning in one sentence, right beside the number —
+an **i** giving its meaning in one sentence, right beside the number -
 "Clinic share" says in place that it is not profit. Meanings and scopes live
 in `src/lib/moneyTerms.ts`; the glossary at the foot of each Money screen
 prints the same sentences for reading the whole set at once, so the two can
 never define one figure twice.
 
 The visible screen is in the URL (`?section=&tab=`), written with the
-History API rather than a router navigation — this page is one Server
+History API rather than a router navigation - this page is one Server
 Component making ~40 queries, so moving between two already-rendered screens
 must not re-run them. A screen is therefore linkable, survives a reload, and
 is restored after `router.refresh()`.
 
-A link built by `adminScreenHref` may also carry `?view=` — a filter preset
+A link built by `adminScreenHref` may also carry `?view=` - a filter preset
 the target screen applies on arrival, so tapping "Unassigned sessions" on
 Today opens All Sessions showing exactly those sessions rather than every
 session on record. It applies once: the shell drops it from the URL at the
@@ -376,7 +376,7 @@ still renders the full page.
 
 **Shared:** `/pending-approval`, `/account-suspended`, `/reset-password`.
 
-**API:** `src/app/api/**` — mutations are POST route handlers grouped by
+**API:** `src/app/api/**` - mutations are POST route handlers grouped by
 audience (`admin/`, `appointments/`, `patient/`, `therapist/`, `hospital/`,
 `packages/`, `home-visit/`, `razorpay/`). Every route re-authenticates
 server-side; admin routes go through `src/lib/supabase/requireAdmin.ts`.
@@ -386,12 +386,12 @@ server-side; admin routes go through `src/lib/supabase/requireAdmin.ts`.
 **Signing out.** After a sign-out the public site shows a one-line banner
 confirming it worked, then clears itself. How long it stays is admin-set at
 **Settings → Booking Rules** (`site_settings.farewell_banner_seconds`,
-6 seconds by default, 0 to leave it up until dismissed) — on a shared
+6 seconds by default, 0 to leave it up until dismissed) - on a shared
 machine a banner that never goes away means the next person reads the last
 person's goodbye.
 
 **Booking.** The `/book` wizard picks a treatment category, language, date,
-and time slot. The times it offers come from the online booking lead time —
+and time slot. The times it offers come from the online booking lead time -
 12 hours by default, admin-editable at **Settings → Booking Rules**
 (`site_settings.online_booking_lead_time_hours`, with
 `BOOKING_LEAD_TIME_HOURS` in `src/lib/bookingSlots.ts` as the fallback). A
@@ -399,7 +399,7 @@ patient books a *time*, not a therapist: the roster
 (`therapist_availability_template`, `therapist_availability_override`,
 `profiles.on_leave`) is what the admin assigns against afterwards, together
 with the conflict check in `src/lib/checkTherapistConflict.ts`, and it
-deliberately does not filter the patient's picker — see "Therapist roster
+deliberately does not filter the patient's picker - see "Therapist roster
 and availability" below. `/book` sells exactly one
 consultation. It used to sell multi-session programmes too, via
 `?package=<id>`; that is gone, and a link still carrying the parameter is
@@ -409,7 +409,7 @@ carries a specialist across from their profile dialog on `/team` ("Book with
 Dr. X"): the id is resolved client-side against `public_therapist_profiles`
 and lands in `appointments.preferred_therapist_id`, which preselects that
 therapist in the admin's assign form and marks them "(requested)". It is a
-request, not an assignment — the admin still assigns against real
+request, not an assignment - the admin still assigns against real
 availability, and the wizard says so. Because that view already hides
 suspended, unapproved and team-hidden therapists, a stale or hand-typed link
 resolves to nothing and the booking simply carries on with no request
@@ -419,7 +419,7 @@ Only a patient account can book. One auth user carries exactly one role
 (`profiles.id` *is* the auth user's id, and `role` is a single column), so a
 therapist, hospital or admin session can never be the patient a booking is
 for. Both wizards show `WrongAccountForBooking` instead of the form, pointing
-each role at what is actually theirs — a hospital refers (`Refer a Patient`,
+each role at what is actually theirs - a hospital refers (`Refer a Patient`,
 or shares its referral code), an admin books on a patient's behalf from
 **Sessions → New Booking**, and anyone who wants therapy themselves signs out
 and books with a separate patient account. This is enforced server-side too:
@@ -428,7 +428,7 @@ and books with a separate patient account. This is enforced server-side too:
 written.
 
 **Payments.** The wizard's review step posts to `/api/appointments/create`,
-which writes the pre-payment appointment row server-side — concern,
+which writes the pre-payment appointment row server-side - concern,
 duration, lead time and therapist preference all re-derived from the
 patient's session and the category row, never taken from the browser (the
 browser has no insert access to `appointments` at all). Then Razorpay
@@ -441,7 +441,7 @@ A browser callback is not the only way a payment is confirmed.
 `/api/razorpay/webhook` receives Razorpay's own server-to-server
 notification, verifies the HMAC over the **raw** request body with
 `RAZORPAY_WEBHOOK_SECRET`, and applies the capture. Whichever arrives first
-— the patient's browser or the webhook — does the work; the second changes
+- the patient's browser or the webhook - does the work; the second changes
 nothing. That is what covers the patient who pays and closes the tab, or
 whose phone loses signal on the way back from their UPI app: before this
 existed, that left a paid Razorpay order sitting against an unpaid booking,
@@ -451,14 +451,14 @@ Both paths go through one database function, `record_payment_capture`,
 which takes a real row lock and either applies the capture or reports it as
 already captured. Duplicate webhooks, Razorpay's at-least-once retries, a
 delayed webhook racing the browser, and a double-clicked Pay button are all
-the same case to it. It never revives a cancelled booking — money arriving
+the same case to it. It never revives a cancelled booking - money arriving
 for something already called off is recorded for reconciliation, not used
 to resurrect the session.
 
 Session credits are an append-only ledger rather than a counter.
-**`session_entitlements`** is what a patient bought — including a
+**`session_entitlements`** is what a patient bought - including a
 `package_snapshot` of the catalog row as it stood at purchase, which is what
-makes a purchase immutable when an admin later re-prices the package — and
+makes a purchase immutable when an admin later re-prices the package - and
 **`session_credit_ledger`** is every movement of it: the grant, each booking
 that reserved a credit, each session that consumed one, each cancellation
 that released one, refunds, expiries and admin adjustments. The counts on
@@ -474,7 +474,7 @@ ledger and the older `sessions_used` counter disagree; it is shown on
 **Settings → System Health** under **Books & Sessions Agree**, alongside
 captured payments nothing is attached to and delivered sessions with no
 payment, package or cash behind them.
-Nothing there is repaired automatically — each finding is either a data
+Nothing there is repaired automatically - each finding is either a data
 problem or someone working outside the normal flow, and both want a person.
 
 ### System Health
@@ -492,12 +492,12 @@ same shape, so the screen can be read without learning five layouts:
 | **Books & Sessions Agree** | Do the programme balances, the payments and the delivered sessions all add up? |
 
 A verdict strip at the top says how many checks need a person, with a chip
-per failing check that jumps straight to it — so "is anything wrong?" is
+per failing check that jumps straight to it - so "is anything wrong?" is
 answered before any card is read, and the sidebar badge is that same number
 of **checks** rather than a row count. Each card carries a status **word** as
 well as a colour (`Healthy`, `Needs a look`, `Needs you now`, `Not set up`,
-`Not checked`), a one-line headline in plain words, and — whenever it is not
-healthy — numbered steps the owner can follow themselves. The **i** button on
+`Not checked`), a one-line headline in plain words, and - whenever it is not
+healthy - numbered steps the owner can follow themselves. The **i** button on
 a card expands what that check watches and one example of what goes wrong
 without it, so the explanation is there the first time somebody opens the
 screen and costs nothing every time after.
@@ -511,8 +511,8 @@ Three things carry it off the screen:
 
 - **A red check appears on Today.** Anything `Needs you now` puts one red
   line at the top of the admin's Today screen, linking straight here. The two
-  worst failures are silent by nature — a missing webhook secret and a dead
-  Google token both look like a normal day from every other screen — and
+  worst failures are silent by nature - a missing webhook secret and a dead
+  Google token both look like a normal day from every other screen - and
   nobody opens System Health until they already suspect trouble. Amber
   deliberately does not: a banner that is usually there is a banner nobody
   reads.
@@ -527,26 +527,26 @@ Three things carry it off the screen:
   reading them is often not the person who can run them.
 
 The fix buttons (Retry a session's calendar event, Open the door on a
-meeting) render only for a scope that may call them — both routes are
+meeting) render only for a scope that may call them - both routes are
 `requireAdminScope("settings")`, and a button that 403s explains nothing.
 
 ### Therapist roster and availability
 
 A therapist's availability is three separate things, and the screens say so.
 
-- **The weekly schedule** — what they normally work. Working periods per
+- **The weekly schedule** - what they normally work. Working periods per
   weekday, in the therapist's own local time (`profiles.timezone`).
-- **Exceptions** — dates that differ from it. Unavailable all day, or
+- **Exceptions** - dates that differ from it. Unavailable all day, or
   available for set hours only.
-- **Time off** — a therapist off the roster entirely, whatever the schedule
+- **Time off** - a therapist off the roster entirely, whatever the schedule
   says (`profiles.on_leave`, with optional dates and a reason beside it).
 
 Two screens, one editor: the therapist edits their own week at
 `/therapist/dashboard/availability`, and an admin edits anyone's at
 **Sessions → Roster**. Both render `WeeklyScheduleEditor`, so the rules
 about what a valid week looks like cannot differ by who is looking. The
-roster opens on a *list of therapists* — name, timezone, week summary,
-today's hours, upcoming exceptions, next working period — not on a calendar
+roster opens on a *list of therapists* - name, timezone, week summary,
+today's hours, upcoming exceptions, next working period - not on a calendar
 date and an eighteen-column grid of hourly cells, which was the storage
 model drawn on screen.
 
@@ -554,13 +554,13 @@ Nobody clicks an hour. The editor works in ranges ("Monday 9 AM – 1 PM and
 2 PM – 6 PM") with per-day presets, copy-to-days and apply-to-weekdays;
 `src/lib/availabilityRanges.ts` converts between those ranges and the hour
 rows the tables have always stored, in both directions. The storage model is
-unchanged, so every existing schedule reads back as exactly the same hours —
+unchanged, so every existing schedule reads back as exactly the same hours -
 including exceptions written one cell at a time by the old screen.
 
 **What the roster does and does not decide.** It is the clinic's planning
 record: who can be offered, and when. It is what an admin assigns against,
 alongside `checkTherapistConflict`. It does **not** filter the patient's
-booking picker, which is driven by the lead-time rule alone — wiring the two
+booking picker, which is driven by the lead-time rule alone - wiring the two
 together would change who is bookable on a deploy rather than on somebody's
 decision, and `e2e/therapist-roster.spec.ts` (R-B02) is the guard on that.
 
@@ -568,7 +568,7 @@ decision, and `e2e/therapist-roster.spec.ts` (R-B02) is the guard on that.
 Nothing on these screens ever touches an appointment. Removing hours a
 session is already booked into shows who is affected, by name and time, and
 says plainly that saving will not cancel them; the session stays exactly as
-booked. Time off never clears the weekly schedule — coming back restores
+booked. Time off never clears the weekly schedule - coming back restores
 nothing, because nothing was removed.
 
 **Concurrency.** A weekly save is one database function
@@ -576,7 +576,7 @@ nothing, because nothing was removed.
 `therapist_schedule_state`, with compare-and-swap on the version the editor
 loaded. A save carrying a stale version whose hours differ from what is
 stored is refused with 409 and the editor offers to reload; a double-clicked
-Save — two identical requests carrying the same stale version — lands as one
+Save - two identical requests carrying the same stale version - lands as one
 change rather than an error. Date exceptions replace a whole day inside
 `set_therapist_date_exception`, so two admins answering the same date end
 with one coherent day rather than half of each.
@@ -600,8 +600,8 @@ cannot create one, exactly as before.
 ### Care plans
 
 A therapist recommends treatment **after** seeing a patient, from the same
-dialog they write the session note in. They answer two questions — which
-condition, and how many sessions — and those two pick exactly one programme
+dialog they write the session note in. They answer two questions - which
+condition, and how many sessions - and those two pick exactly one programme
 the admin has marked recommendable. Then four clinical fields: whether
 hands-on treatment is needed, how often per week, why this for this patient,
 and anything the patient should do or know. Session count, price, validity
@@ -610,13 +610,13 @@ session-count field and no discount field on a recommendation, so a
 therapist cannot set their own terms.
 
 A recommendation needs a **completed session that therapist ran**, and is
-versioned rather than edited — `care_plan_versions` is append-only by
+versioned rather than edited - `care_plan_versions` is append-only by
 trigger, and only `is_current` and a first `expires_at` may move. Revising a
 recommendation adds a version; the old one stays readable with what changed
 shown beside it.
 
 **The clinic approves it before the patient sees it.** A submission lands in
-Sessions → Recommendations with the patient shown nothing at all — the plan
+Sessions → Recommendations with the patient shown nothing at all - the plan
 is absent from their dashboard and `/api/care-plan/create-order` refuses it,
 so hiding it is not the only thing standing in the way. An admin can:
 
@@ -630,7 +630,7 @@ so hiding it is not the only thing standing in the way. An admin can:
   original in the history beside it.
 
 A reason of at least ten characters is required for the two decisions that
-take something away from somebody — a rejection the therapist has to act on,
+take something away from somebody - a rejection the therapist has to act on,
 and an approval whose numbers are not the ones they wrote. Saying plain yes
 is one tap: approving is the outcome the queue exists to reach, and a
 sentence meaning "fine" typed twenty times a day is a reason column nobody
@@ -639,18 +639,18 @@ reads. All three are recorded in append-only `care_plan_reviews`.
 Approving also **re-checks the live catalogue first**. If the package has
 been re-priced, deactivated or taken off the recommendable list since the
 therapist wrote the plan, the approval is refused with a sentence naming the
-drift — otherwise the patient would discover the clinic's stale data by
+drift - otherwise the patient would discover the clinic's stale data by
 having their payment refused at the last step of checkout. Turning one down
 is deliberately not checked, so a thread whose package has gone can still be
 closed.
 
 The queue is ordered **oldest first** and each card says how long it has been
 waiting rather than the date it arrived, plus how many sessions that patient
-already has unused — the commonest reason to turn a recommendation down, and
+already has unused - the commonest reason to turn a recommendation down, and
 one an admin previously had to leave the queue to find out. The switch is **Settings → Programmes & Home Visits →
 Approve recommendations before the patient sees them**, on by default; with
 it off a submission publishes on save, as it did before. An admin writing a
-recommendation on a therapist's behalf publishes directly — they are the
+recommendation on a therapist's behalf publishes directly - they are the
 approver, so their own queue would decide nothing.
 
 Once a patient has **bought** a plan, that thread is closed. A later
@@ -668,8 +668,8 @@ sections with separate wording. (Proposed times used to render on Overview
 alone, which meant a therapist's proposal was invisible from every other
 screen and had no history.)
 
-Accepting opens Razorpay. The request body carries one thing — which
-recommendation is being accepted — and the price, session count and validity
+Accepting opens Razorpay. The request body carries one thing - which
+recommendation is being accepted - and the price, session count and validity
 are all re-derived server-side from the catalog row the version names, so
 there is nothing in the payload worth tampering with. If the package has
 been re-priced or re-sized since the therapist wrote the plan, checkout
@@ -678,16 +678,16 @@ recommendation goes back to the clinician to confirm. A unique index on
 `care_plan_version_id` means a double-tapped Accept buys the plan once.
 
 The purchase is an ordinary package-purchase row with the version linked, so
-every existing mechanism — entitlements, booking, the therapist lock,
-expiry, refunds, the ledger mirror — keeps working unchanged. On capture the
+every existing mechanism - entitlements, booking, the therapist lock,
+expiry, refunds, the ledger mirror - keeps working unchanged. On capture the
 patient receives exactly the recommended number of sessions, locked to the
 therapist who recommended them, and the plan is marked accepted, which
 closes the thread.
 
 **Then they book them, and the app carries them there.** What a patient buys
 is appointments; a balance of credits is an accounting fact about that
-purchase, not the thing itself. So payment lands on a confirmation — what
-arrived, what they own — followed by one next step, and the scheduler opens
+purchase, not the thing itself. So payment lands on a confirmation - what
+arrived, what they own - followed by one next step, and the scheduler opens
 with the whole run **already proposed**: spaced at the frequency the
 clinician recommended, inside the programme's minimum gap and weekly cap,
 clear of the 12-hour lead time, and stopping at the purchase's validity
@@ -699,7 +699,7 @@ It is only ever a proposal. Every slot still goes through
 the gap, the weekly cap, the expiry and the therapist's diary server-side,
 and reports exactly which slots made it in. A slot that clashed can be
 re-picked from the same dialog. Anything still unbooked stays a "needs you"
-item on the patient's dashboard until the balance is spent — the one thing
+item on the patient's dashboard until the balance is spent - the one thing
 a patient can buy and then receive nothing for.
 
 "I'll do it later" is a real option throughout; nothing is time-pressured
@@ -707,11 +707,11 @@ beyond the programme's own validity.
 
 Declining is a real answer with an optional note, and it closes the thread
 too so the therapist can recommend something else. A therapist can withdraw
-a recommendation they got wrong, but never one already paid for — that is a
+a recommendation they got wrong, but never one already paid for - that is a
 refund, and an admin's job.
 
 The same records render on the therapist's patient chart and on the
-patient's own Health Profile — one authoritative history with two readers,
+patient's own Health Profile - one authoritative history with two readers,
 in each one's own voice. The patient's copy drops any thread still waiting
 on the clinic or turned down by it; the clinician's shows both, because a
 recommendation of theirs sitting in a queue is exactly what they need to
@@ -719,7 +719,7 @@ see. `care_plan_requires_approval`, `care_plan_default_expiry_days` and
 `care_plan_max_frequency_per_week` are all editable on Settings →
 Programmes & Home Visits.
 
-Which of the two the app believes is an admin switch — **Settings →
+Which of the two the app believes is an admin switch - **Settings →
 Programmes & Home Visits → Session Balances From The Ledger**, off by
 default. While it is off,
 every balance comes from the older `sessions_used` / `visits_used` counters
@@ -730,17 +730,17 @@ either way, so the switch is reversible in a second rather than needing a
 release.
 
 Turning it on is also a correctness fix, not only an architecture change: a
-refund never decremented the old counters — it cancels the remaining
-appointments in place — so a refunded package still reads as having sessions
+refund never decremented the old counters - it cancels the remaining
+appointments in place - so a refunded package still reads as having sessions
 pending. The ledger voids what was unspent, keeps what was actually
 delivered, and reads zero. Completing a session now also
 emits the `session_completed` / `visit_completed` purchase events, which had
-been declared since packages were built and never written — a programme's
+been declared since packages were built and never written - a programme's
 timeline used to show sessions being scheduled and then simply stopping.
 
 An admin can put that right without touching the database:
 `/api/admin/grant-session-credits` adds sessions (service recovery,
-goodwill, or cash genuinely paid offline — only the last counts as revenue),
+goodwill, or cash genuinely paid offline - only the last counts as revenue),
 `/api/admin/reverse-session-credit` returns a credit spent on a session that
 did not really happen, and `/api/admin/revive-entitlement` reopens a lapsed
 package and restores the credits its expiry voided. All three require a
@@ -753,7 +753,7 @@ whatever it bought, with unique indexes on `razorpay_order_id` and
 impossible rather than merely unlikely; before them nothing in the database
 stopped one payment id being recorded against two rows. The per-table
 payment columns on `appointments` and the two purchase tables are unchanged
-and still authoritative for "is this thing paid for" — `payments` sits
+and still authoritative for "is this thing paid for" - `payments` sits
 alongside as the record of money. Every webhook Razorpay sends is stored in
 `payment_webhook_events`, deduplicated on its event id, which is what makes
 "process each event once" a database guarantee rather than something the
@@ -769,17 +769,17 @@ cancellation window is 24 hours by default and admin-editable at **Settings
 window get no refund; outside it, a Razorpay refund is issued and stamped on
 the appointment. That automatic rule can only say "all" or "nothing", so an
 admin can additionally return any amount on a paid session from its own
-record (`/api/admin/refund-session-partial`) — it requires a stated reason,
+record (`/api/admin/refund-session-partial`) - it requires a stated reason,
 caps at what is still refundable, sets `refund_is_manual`, and is recorded
 in the activity log.
 
 **A refund is shown wherever a payment is.** Money coming in had a chip on
 every session row and money going back out had none, so an admin who
 refunded a session watched the row go on looking exactly as it had.
-`src/lib/refundState.ts` is the one reading of those columns — four states
+`src/lib/refundState.ts` is the one reading of those columns - four states
 (`processed`, `manual_pending`, `failed`, `not_eligible`, plus "no refund
 here", which renders nothing), each with the wording and the colour it gets
-everywhere — and `RefundChip` draws it beside the payment chip on the
+everywhere - and `RefundChip` draws it beside the payment chip on the
 patient's profile, on **Sessions → All Sessions** and in that screen's CSV
 and PDF exports. The session drawer adds a panel giving when, the reason and
 the gateway reference. `appointments.refunded_at` and `refunded_by` are
@@ -794,7 +794,7 @@ is the same four states read for the person whose money moved rather than
 for the clinic: `manual_pending` is a queue item to an admin and a promise to
 a patient (`₹500 coming back to you`), `failed` is a broken row to an admin
 and "please contact us" to somebody who is out of pocket, and `not_eligible`
-says nothing at all — the cancelled session card already explains the window
+says nothing at all - the cancelled session card already explains the window
 it came from, and repeating it as a refund line announces a refund to
 somebody who is not getting one. It appears on the session card (with the
 date and the clinic's stated reason), on every row of **Payments** and in
@@ -808,29 +808,29 @@ than folded into it.
 **A refund the clinic still owes is counted.** Money's alerts strip and the
 admin Today inbox carry two refund rows: *Refunds to hand back*
 (`manual_pending`, counted over the appointments read, which is **every**
-session including the home visits — it was the home-visit query alone, so a
+session including the home visits - it was the home-visit query alone, so a
 session refunded by hand was invisible, and adding the two together counted
 every cash visit twice because they are the same table) and
 *Refunds that failed*, which nothing was watching before. A failed refund
 links to **Sessions → All Sessions** with a `refund_failed` preset, because
 that is where it is fixed; the strip is therefore gated on workable sections
-rather than merely open ones, so Finance — who read Sessions without being
-able to change one — are not shown a figure they cannot bring down. That
+rather than merely open ones, so Finance - who read Sessions without being
+able to change one - are not shown a figure they cannot bring down. That
 screen's payment filter also gained `refund_pending` and `refund_failed`, and
 its existing **Refunded** option now works: `payment_status` is CHECKed to
 `unpaid`/`paid`/`failed` and can never hold `refunded`, so it had been
 returning an empty table. That screen's export follows `canSeeMoney` as well
-— the amount and the refund never render in the table on screen, so a desk
+- the amount and the refund never render in the table on screen, so a desk
 that cannot read them there no longer downloads them either.
 
 **Every refund states why.** `refund_reason` used to be written only by the
-partial-refund route, so the commonest refund in the app — a cancellation
-outside the window — arrived with a blank reason on both the patient's
+partial-refund route, so the commonest refund in the app - a cancellation
+outside the window - arrived with a blank reason on both the patient's
 Payments screen and the admin's drawer. `cancelAppointmentAndRefund` now
 records one on all four outcomes: the cancellation's own reason where one was
 given, otherwise a sentence naming the rule that produced the outcome. A
-forfeiture always takes the rule's sentence rather than the cancellation's —
-that line answers "why this money moved" and no money moved — and it names
+forfeiture always takes the rule's sentence rather than the cancellation's -
+that line answers "why this money moved" and no money moved - and it names
 the window that actually applied, so the patient card's no-refund hover reads
 it instead of printing the online constant at somebody whose home visit has
 its own window.
@@ -840,8 +840,8 @@ its own window.
 Four, and deliberately no more.
 
 **The first session offer** is how a stranger is bought through the door.
-Configured at **Settings → Offers & Discounts** — off by default, either a set
-price ("first session ₹499") or a percentage off — and it applies to a video
+Configured at **Settings → Offers & Discounts** - off by default, either a set
+price ("first session ₹499") or a percentage off - and it applies to a video
 consultation only. Eligibility is decided by the server asking *has this
 patient ever paid for a session*, so it cannot be claimed twice, cannot be
 asked for, and cannot be sent from a browser. A patient is only new once.
@@ -850,7 +850,7 @@ from a therapist's recommendation, and a visit's travel fee is money that
 goes straight to the therapist.
 
 **A goodwill adjustment** is one admin taking an amount off one session for
-one patient — a session cut short, a therapist who ran late, real hardship.
+one patient - a session cut short, a therapist who ran late, real hardship.
 It lives on the session's own drawer under Money scope, needs a reason of at
 least ten characters, and writes an audit row. It works only **before**
 payment: taking money off something already paid for is a refund, and
@@ -860,7 +860,7 @@ refunds have their own screen.
 checkout. Set one up on **Money → Costs**, beside the figure it produces: a
 code, an amount or a percentage off, an optional window, a total cap, a
 per-patient cap, a minimum spend, and an optional "first session only". The
-whole feature is off until you switch it on there — a code field with no
+whole feature is off until you switch it on there - a code field with no
 campaign behind it teaches every patient that there is a discount they are
 missing.
 
@@ -875,21 +875,21 @@ used it keep their record.
 
 **When a discount covers the whole session**, the booking is confirmed
 without a payment. The payment step shows the session fee, the discount and
-the total; if the total is nothing, the button reads **Confirm booking —
+the total; if the total is nothing, the button reads **Confirm booking -
 free** and no card, UPI or gateway screen appears at all. The clinic still
 sees a real session, and the books still record what it would have cost and
-which rule gave it away — a free session is a session. A goodwill adjustment
+which rule gave it away - a free session is a session. A goodwill adjustment
 is the one thing that cannot reach zero: an amount at or above the session
 price is treated as a typo and refused.
 
 **A patient invite** is one patient telling another. Every patient's
 dashboard shows a code to share; their friend gets something off their first
-session, and they get something off their next one — once that friend has
+session, and they get something off their next one - once that friend has
 actually had and paid for a session, never on a signup. Set both amounts and
 a ceiling on how many rewards one patient may earn at **Settings → Offers &
 Discounts**; it is off by default. A code cannot be used by its owner, cannot be
 used twice, and cannot be used by somebody who has already paid for a
-session — you are new exactly once. An amount already promised is honoured
+session - you are new exactly once. An amount already promised is honoured
 even if you change the figures or switch the feature off later.
 
 This is **not** the same thing as a hospital referral, which is a partner
@@ -898,7 +898,7 @@ its own revenue share.
 
 They never stack, and where more than one would apply the patient pays the
 lowest. Travel is never discounted. A discounted booking records all four
-facts — what it would have cost, what came off, which rule did it and why —
+facts - what it would have cost, what came off, which rule did it and why -
 so the books can tell "we sold this cheap" from "we discounted it".
 
 **What discounting cost** appears on **Money → Costs**, split by rule. It is
@@ -906,7 +906,7 @@ stated, never deducted from profit: a discount means less was collected, so
 it is already inside gross revenue as a smaller number, and subtracting it
 again would understate profit by exactly the amount given away.
 
-Bundle pricing is separate and already existed — a package priced below its
+Bundle pricing is separate and already existed - a package priced below its
 per-session rate, with `therapist_rate_basis` deciding whether the clinic or
 the therapist absorbs it.
 
@@ -914,7 +914,7 @@ the therapist absorbs it.
 price, an optional struck-through compare-at price (derived from the
 category's per-session price when left blank), promises, validity, and
 per-programme rules (minimum gap between sessions, max sessions/week, max
-purchases/patient) — configured field-by-field in the admin **Session
+purchases/patient) - configured field-by-field in the admin **Session
 Manager** tab, not Site Content or Feature Control.
 
 **They are not advertised anywhere public.** A course of treatment is a
@@ -930,25 +930,25 @@ Multi-visit home programmes are recommended, not sold. The
 columns remain in `schema.sql` and nothing reads them.
 
 A purchase's `expires_at` is set the moment payment
-clears — an abandoned checkout never eats into a validity window — using the
+clears - an abandoned checkout never eats into a validity window - using the
 package's own `validity_days` or the site default. When a package has
 `therapist_locked` on (the default) and the site-wide switch
 (`package_therapist_lock_enabled`) allows it, the first therapist assigned to
 any session on a purchase locks onto `locked_therapist_id`; every later
 session booked on that purchase (`src/lib/bookPackageSession.ts`)
 auto-assigns that therapist, auto-confirms (payment is already collected),
-and creates its own Meet link — a scheduling conflict never costs the
+and creates its own Meet link - a scheduling conflict never costs the
 patient a session, it just leaves that one `requested` and unassigned for
 the admin queue. Admin can reassign a whole programme to a new therapist in
 one action, extend or view a purchase's expiry, restore a forfeited session,
 or issue a pro-rata refund on the unused balance (which also cancels any
 still-scheduled future sessions). `sessions_used` counts sessions
-**claimed** (scheduled or completed) — see the counter-semantics comment
+**claimed** (scheduled or completed) - see the counter-semantics comment
 next to `patient_package_purchases` in `supabase/schema.sql` for the exact
 completed/scheduled/pending math every surface relies on.
 
 The patient dashboard's **Your Packages** widget shows that math per
-purchase — progress, days left, the locked therapist — with a **Schedule
+purchase - progress, days left, the locked therapist - with a **Schedule
 sessions** button opening a multi-select calendar
 (`src/components/packages/PackageBulkScheduler.tsx`) that books up to
 `package_bulk_schedule_max` sessions in one request via
@@ -956,7 +956,7 @@ sessions** button opening a multi-select calendar
 gap and max-sessions-per-week rules and reporting exactly which slots made
 it in. Any package-covered session card (patient or therapist dashboard)
 carries a tappable chip that opens the same
-`src/components/packages/PackageDetailModal.tsx` — accessible (Escape,
+`src/components/packages/PackageDetailModal.tsx` - accessible (Escape,
 focus management, scroll lock, like `TeamTherapistPopup`) and backed by
 `/api/packages/purchase-detail`, which scopes fields by viewer: the patient
 sees what they paid, the locked therapist sees the clinical picture without
@@ -967,7 +967,7 @@ every purchase locked to that therapist the same way.
 `site_settings.therapist_suggestions_enabled` on (Session Manager), a
 therapist can propose the next session on a programme locked to them, from
 **Programme Patients**. The patient sees it on their dashboard and accepts or
-declines — nothing is scheduled, and no session is spent, until they accept.
+declines - nothing is scheduled, and no session is spent, until they accept.
 Accepting goes through the same `bookPackageSession()` every other package
 booking uses, so gap rules, expiry, conflict checks and the Meet link behave
 identically. A suggestion holds no slot (the therapist's calendar is
@@ -980,14 +980,14 @@ Routes: `/api/therapist/suggest-session`,
 ### Automatic therapist assignment
 
 A session used to sit `requested` with no therapist from the moment it was
-paid for until an admin opened the dashboard and assigned somebody — and only
+paid for until an admin opened the dashboard and assigned somebody - and only
 then was it confirmed, given a Meet link, and visible to the therapist.
 Overnight and at weekends that wait was hours, and what the patient saw
 immediately after paying was "Requested" with no clinician named.
 
 `src/lib/autoAssignTherapist.ts` closes that, conservatively. At payment
-confirmation — from the browser callback *and* from the webhook, so a patient
-who closes the tab gets the same outcome — it reads the roster (the weekly
+confirmation - from the browser callback *and* from the webhook, so a patient
+who closes the tab gets the same outcome - it reads the roster (the weekly
 template, that date's exceptions, and `on_leave`) and the existing conflict
 check, and assigns a therapist only when the answer is unambiguous:
 
@@ -998,7 +998,7 @@ check, and assigns a therapist only when the answer is unambiguous:
 Zero candidates, or two or more, and it does nothing: the session stays
 `requested` and unassigned in the admin's queue, exactly as it did before.
 Assigning the wrong clinician is far worse than the wait this removes, so the
-tie-break is deliberately "don't". It never throws — a booking must not fail
+tie-break is deliberately "don't". It never throws - a booking must not fail
 because an optional convenience could not be computed.
 
 It is one admin switch, **Settings → Programmes & Home Visits → Assign a
@@ -1021,7 +1021,7 @@ directly only when it is a single session or visit.
 
 Home visits are the exception that proves it. Every home visit in this app is
 a home-visit package purchase, and an ordinary consultation is always a video
-call — so a patient who needs to be seen at home has exactly one way in, and
+call - so a patient who needs to be seen at home has exactly one way in, and
 that is a **one-visit** package. It stays directly purchasable for the same
 reason a video consultation does. A course of home visits is refused by both
 purchase routes and comes from a recommendation, which collects the address
@@ -1031,14 +1031,14 @@ Nothing already bought is affected: an existing programme keeps its sessions
 and books them to exhaustion exactly as before.
 
 The clinic can see every recommendation on **Sessions → Recommendations**. An
-admin can also write one there on a therapist's behalf — the therapist saw the
-patient and said what they wanted recommended, then went on leave or left —
+admin can also write one there on a therapist's behalf - the therapist saw the
+patient and said what they wanted recommended, then went on leave or left -
 with the same fields, the same package whitelist and the same requirement of a
 completed session that therapist ran. The programmes on offer are narrowed to
 the chosen session's own condition, and the screen states whose name it goes
 out in right at the button. It is recommended in their name and recorded as
-typed by the admin. The same screen carries the review queue — approve, turn
-down, or approve with different numbers — described above, and an admin can
+typed by the admin. The same screen carries the review queue - approve, turn
+down, or approve with different numbers - described above, and an admin can
 withdraw a recommendation whose author cannot, including one still waiting
 in that queue.
 
@@ -1051,7 +1051,7 @@ lane for that, and both have their own screens.
 
 For a recommended course of home visits the offer card asks where the visits
 should come, checks the pincode is serviceable, and shows programme, travel
-and total before the patient pays — travel is charged per visit, so a
+and total before the patient pays - travel is charged per visit, so a
 four-visit programme carries four trips.
 
 ## Keeping payments on the platform
@@ -1064,7 +1064,7 @@ clinic. Genuine differences are corrected by an admin through
 `/api/admin/correct-cash-amount`, with a reason, and never once the cash has
 been settled against a payout. And a therapist can no longer mark a session
 complete before it could have started, or complete one that has no payment,
-no programme and no cash behind it — completion is what makes their revenue
+no programme and no cash behind it - completion is what makes their revenue
 share payable. An admin keeps both unrestricted paths for backfills.
 
 Treatment is paid for through this app, so a patient should never be asked
@@ -1077,25 +1077,25 @@ through `src/lib/contactLeakScan.ts` before it is stored: a therapist's
 proposed-time note, a care plan's rationale and instructions, Pain Map exam
 answers, and the patient's own booking notes. There are two tiers, because
 this text is clinical and a check that treats digits as suspicious would
-fire on every dose and every exercise prescription. A **block** hit — a UPI
-handle, a payment link, a payment app — is refused with a message saying
-what was found. A **flag** hit — a phone number, an email address, a social
-handle, a link — is delivered and recorded for an admin to look at, since a
+fire on every dose and every exercise prescription. A **block** hit - a UPI
+handle, a payment link, a payment app - is refused with a message saying
+what was found. A **flag** hit - a phone number, an email address, a social
+handle, a link - is delivered and recorded for an admin to look at, since a
 clinic's own landline in an instruction is a normal thing to write. The
 patient's own notes are recorded but never refused. `contact_scan_mode`
 switches this between `flag_and_block` (the default), `flag_only` and `off`.
 
 **Contact masking.** A therapist's session cards show the last three digits
 of a patient's number and no email address at all. The full number is one
-tap away — `/api/therapist/reveal-contact` returns it around the time of a
-video session, or any time on the day of a home visit — and every reveal is
+tap away - `/api/therapist/reveal-contact` returns it around the time of a
+video session, or any time on the day of a home visit - and every reveal is
 written to `contact_reveal_log`. The point is not to withhold the number
 from a clinician who needs it, but to make asking for it visible: a
 caseload copied for an off-platform practice looks nothing like a therapist
 ringing the patient they are with. `contact_masking_enabled` turns this off
 for a clinic that would rather have the numbers on the card.
 
-Both records — `communication_flags` and `contact_reveal_log` — are readable
+Both records - `communication_flags` and `contact_reveal_log` - are readable
 by admins only and cannot be edited or deleted by anyone, including the
 service role.
 
@@ -1104,8 +1104,8 @@ the dashboard and put what they notice on **Today → Risk**: payment details
 in a message, a session completed with nothing behind it, a session closed
 before it started, cash that differs from what the visit was priced at, an
 unusual number of contact reveals, an unusual number of manual credit
-adjustments. Two more — low recommendation conversion and patients seen once
-and never again — ship switched off, because a threshold invented before the
+adjustments. Two more - low recommendation conversion and patients seen once
+and never again - ship switched off, because a threshold invented before the
 clinic has a baseline fires on everyone or on nobody.
 
 Nothing on that screen changes anything. No account is suspended, no payout
@@ -1118,7 +1118,7 @@ on the same screen.
 There's no cron or background worker in this deployment, so a purchase's
 `status` moves from `active` to `expired` lazily: `src/lib/expirePackagePurchases.ts`
 sweeps any purchase past its `expires_at` at the top of the admin and
-patient dashboard page renders (idempotent — a concurrent sweep just finds
+patient dashboard page renders (idempotent - a concurrent sweep just finds
 nothing left to update). `bookPackageSession` also checks `expires_at`
 directly, so a booking is blocked the instant a package lapses regardless
 of whether that request's sweep has run yet. Package revenue shows up two
@@ -1128,7 +1128,7 @@ session's own slice of the bundle price as that session gets scheduled
 (package sessions are ordinary paid appointments); **Package Cash
 (range)**/**Package Cash** alongside them is the full amount actually
 collected up front, which the Session Manager's **Sessions Banked** stat
-mirrors from the other side — the still-unrecognized value of every
+mirrors from the other side - the still-unrecognized value of every
 purchase's unscheduled sessions. A purchase within `package_expiry_reminder_days`
 of expiring gets a highlighted warning in the patient's package widget and
 counts toward Session Manager's `Expiring ≤Nd` stat.
@@ -1136,10 +1136,10 @@ counts toward Session Manager's `Expiring ≤Nd` stat.
 **Home Visit.** A second delivery mode, built on the same `appointments`
 table rather than a parallel one: `visit_mode` is `'online'` or
 `'home_visit'`, and a home visit differs from an online session in only four
-ways — it carries an address snapshot instead of a Meet link, a travel fee
+ways - it carries an address snapshot instead of a Meet link, a travel fee
 on top of the package price, it can be paid in cash at the door as well as
 prepaid, and its session code starts `HV####` instead of `SS####`. Anyone
-can book either mode; there is no such thing as an "online patient" — the
+can book either mode; there is no such thing as an "online patient" - the
 patient dashboard's **Book a Session** section always offers all three
 products (single online consultation, online session package, home visit
 package), and history sections (**Your Sessions** / **Your Home Visits**)
@@ -1148,10 +1148,10 @@ only appear once a patient actually has that kind of session.
 - *Serviceability and pricing.* Admin maintains a pincode-level service-area
   list (`home_visit_areas`, bulk pincode paste supported) with a travel fee
   per area. `/api/home-visit/check-area` is checked before an address is
-  even collected, and re-checked server-side at checkout — a browser can
+  even collected, and re-checked server-side at checkout - a browser can
   never buy a visit to a pincode the admin hasn't opened. The travel fee is
   a pass-through reimbursement paid to the therapist in full
-  (`src/lib/homeVisitPricing.ts`) and deliberately excluded from revenue —
+  (`src/lib/homeVisitPricing.ts`) and deliberately excluded from revenue -
   folding it into the package price would mean the therapist funds their own
   transport out of their own cut. `home_visit_packages` is a separate
   catalog from the online session packages; a one-off visit is just a
@@ -1162,29 +1162,29 @@ only appear once a patient actually has that kind of session.
   notes); every booked visit snapshots its own copy onto the appointment
   (`visit_address_*` columns) so a later edit to a saved address never
   rewrites where a past visit was actually delivered. The map picker
-  (Google Places autocomplete + draggable pin) was deferred — the address
+  (Google Places autocomplete + draggable pin) was deferred - the address
   step ships with typed fields today, and `latitude`/`longitude`/
   `map_place_id` simply stay null until it lands, with no migration needed
   when it does.
 - *Payment.* Prepaid via Razorpay (`/api/home-visit/create-order` +
   `/api/home-visit/verify`, mirroring the online package flow) or cash
-  collected at the door (`/api/home-visit/book-cash` — books immediately,
+  collected at the door (`/api/home-visit/book-cash` - books immediately,
   no Razorpay round trip, and never auto-confirms since nobody has paid yet;
   the business assigns a therapist before anyone travels). A self-signup
   guest normally waits on admin approval before paying for anything, but a
   completed home-visit payment against a serviceable address is itself the
-  vetting — both purchase routes skip the `approved` check and require only
+  vetting - both purchase routes skip the `approved` check and require only
   `active`, same precedent as hospital-referred patients.
 - *Booking and programmes.* `src/lib/bookHomeVisitSession.ts` is the one
   race-safe claim-and-book implementation every entry point shares (single
   purchase, bulk scheduler, hospital referral conversion). When a package
   has `therapist_locked` on, the first therapist assigned to any visit on a
   purchase locks onto it for the rest of the programme, auto-confirming
-  later visits (a scheduling conflict never costs the patient a visit — it
+  later visits (a scheduling conflict never costs the patient a visit - it
   just lands `requested` and unassigned for the admin queue instead). The
   conflict check is padded by `home_visit_travel_buffer_minutes` on both
   sides of the new slot, since a therapist finishing one visit cannot be at
-  another minutes later — an online session needs no such padding. The
+  another minutes later - an online session needs no such padding. The
   patient dashboard's **Your Home Visit Packages** widget mirrors **Your
   Packages**: progress, expiry warning, a **Schedule visits** button
   (`HomeVisitBulkScheduler.tsx` → `/api/home-visit/book-visits`, enforcing
@@ -1192,12 +1192,12 @@ only appear once a patient actually has that kind of session.
   programme's single saved address), and a detail modal
   (`/api/home-visit/purchase-detail`, viewer-scoped the same way the online
   package route is). `visits_used` counts visits **claimed** (scheduled or
-  completed), never completed — identical semantics to `sessions_used`, see
+  completed), never completed - identical semantics to `sessions_used`, see
   the counter-semantics comment next to `home_visit_package_purchases` in
   `supabase/schema.sql`.
 - *Cancellation and refunds.* Home visits use their own admin-configurable
   refund window (`home_visit_cancellation_refund_hours`) instead of the
-  online one (`online_cancellation_refund_hours`) — a therapist has to physically travel, so the
+  online one (`online_cancellation_refund_hours`) - a therapist has to physically travel, so the
   business can reasonably want more notice. A cash visit has no Razorpay
   payment to reverse; if cash was already collected and the cancellation is
   still eligible, `refund_status` is set to `'manual_pending'` and surfaced
@@ -1206,12 +1206,12 @@ only appear once a patient actually has that kind of session.
   also reassign a whole programme to a new therapist, extend its expiry,
   restore a forfeited visit, or pro-rata refund a prepaid programme's unused
   balance (sourced from the actual Razorpay order total, since
-  `amount_paid_paise` deliberately excludes travel) — cash-on-visit
+  `amount_paid_paise` deliberately excludes travel) - cash-on-visit
   programmes are refunded visit by visit instead, since there's no single
   payment behind the whole programme to reverse.
 - *Delivery.* The therapist's **Home Visits** tab shows the address, a
   working Maps link (exact pin when one exists, formatted address
-  otherwise), the patient's phone, and access notes — no Join button. A
+  otherwise), the patient's phone, and access notes - no Join button. A
   calendar event is still created (`location` set to the address, no Meet
   conferencing) since Google's invite email is the only outbound
   notification this platform sends; `google_meet_enabled` only gates
@@ -1228,8 +1228,8 @@ only appear once a patient actually has that kind of session.
   a pincode; `/api/admin/assign-referral` applies the same travel-buffer
   conflict padding, and `/api/patient/register-via-referral` snapshots the
   address onto the resulting appointment and seeds it into the new patient's
-  address book. `/api/razorpay/create-order` — the same generic route every
-  plain online appointment pays through — adds the travel fee on top of the
+  address book. `/api/razorpay/create-order` - the same generic route every
+  plain online appointment pays through - adds the travel fee on top of the
   charge for a home-visit appointment, while still writing only the
   session's own price to `amount_paid_paise`.
 - *No cron exists in this deployment* (see below), so a home-visit
@@ -1239,7 +1239,7 @@ only appear once a patient actually has that kind of session.
 
 **Video sessions.** Confirming an appointment creates a Google Calendar event
 with a Meet link (`src/lib/googleCalendar.ts`,
-`src/lib/googleCalendarSync.ts`). Calendar failures never block a booking —
+`src/lib/googleCalendarSync.ts`). Calendar failures never block a booking -
 the error is stored in `appointments.google_calendar_sync_error`, and the
 session is re-attempted automatically: `src/lib/retryDueMeetSyncs.ts` sweeps
 a few failed syncs at the top of each admin dashboard render (there is no
@@ -1257,9 +1257,9 @@ only opens inside a configurable window around the slot time.
 
 *Nobody has to be let in.* Meet's default access type is TRUSTED: only a
 signed-in Google user who is *on the invite* joins straight through, and
-everyone else knocks. That default fired on the ordinary case here —
+everyone else knocks. That default fired on the ordinary case here -
 patients register with whatever email address they have, so the invite
-rarely matches the Google account their browser is signed into — and left
+rarely matches the Google account their browser is signed into - and left
 both the patient and the therapist in the waiting room until the one
 authorizing Gmail account admitted them, session by session. There is no
 Calendar API field for this, so right after the event is created the app
@@ -1283,7 +1283,7 @@ session's capped attempts on a credential that cannot succeed.
 A failure here never invalidates anything: the event and the link are
 already created and usable, the meeting simply keeps its waiting room. The
 outcome is recorded per session on `appointments.meet_access_open` /
-`meet_access_error` — deliberately not on `google_calendar_sync_error`,
+`meet_access_error` - deliberately not on `google_calendar_sync_error`,
 which the sync sweep retries by *creating an event*, and creating a second
 one for a session that already has one would orphan a calendar entry to fix
 a waiting room. Affected sessions are listed on **Settings → System Health →
@@ -1298,9 +1298,9 @@ account still requires every participant to be signed in to *some* Google
 account. OPEN removes the knock; it does not allow anonymous joining. Only
 moving the organizing account to Google Workspace does that, and it is the
 right move before launch if patients without Google accounts are expected.
-The whole behaviour is one admin switch — Settings → Booking Rules → **Join
+The whole behaviour is one admin switch - Settings → Booking Rules → **Join
 Without Approval** (`site_settings.meet_open_access_enabled`, on by default)
-— so an owner whose account cannot grant the Meet scope can stop the
+- so an owner whose account cannot grant the Meet scope can stop the
 attempt and its recorded errors.
 
 **Feedback and ratings.** Patient and therapist each rate the session after
@@ -1332,14 +1332,14 @@ approval, join window, idle-timeout
 minutes, the Session Completed cutoff, booking languages), and
 **Brand & Contact Details** (website name,
 tagline, description, contact email, WhatsApp number, contact phone, footer
-copyright text — the strings the public Navbar and Footer render) are all
+copyright text - the strings the public Navbar and Footer render) are all
 editable under **Settings** (Brand & Contact, Public Site, Booking Rules),
-stored in `site_settings` and their own tables — see `src/lib/adminSettings.ts`.
+stored in `site_settings` and their own tables - see `src/lib/adminSettings.ts`.
 **Settings → Booking Rules** carries the two time boundaries on the join
 control. The **Join Button Window** decides how early a patient or therapist
 may open the call and how long after it ends the link still works; the
 **Session Completed Cutoff** (`session_completed_after_minutes`, default 60,
-at least 1) decides when it stops being a call at all — past that many
+at least 1) decides when it stops being a call at all - past that many
 minutes from the scheduled start, every "Tap to Join" button reads
 **Session Completed** and is inert, on the patient, therapist and hospital
 dashboards and in the admin's own lists alike. The admin's button is exempt
@@ -1354,7 +1354,7 @@ range 2–60, or 0 to stop the rotation and let visitors tap through the steps
 themselves). The rotation pauses while a pointer or keyboard focus is inside
 the widget, and never runs at all under `prefers-reduced-motion`.
 
-It also carries **Opening Splash** — the brand sheet the site paints over
+It also carries **Opening Splash** - the brand sheet the site paints over
 itself on a cold open: on/off, the line it says, how long it holds, and how
 many minutes a tab must sit in the background before returning to it earns
 a second greeting. See [The opening splash](#the-opening-splash) for the
@@ -1366,15 +1366,15 @@ change it, Save) via `/api/admin/update-setting`, same as every other
 into `Navbar`/`Footer`, so a change is live everywhere those render, not
 just on the admin page. Session packages live under **Catalog → Packages**
 (beside the home-visit packages) and **Catalog → Purchases**; their
-package-wide settings — visibility, default validity, the therapist-lock
-switch, the bulk-scheduler limit, the expiry reminder window — sit with
+package-wide settings - visibility, default validity, the therapist-lock
+switch, the bulk-scheduler limit, the expiry reminder window - sit with
 every other rule under **Settings → Programmes & Home Visits**; see
 "Session packages" above.
 
 **Admin scopes, activity log, and admin-created bookings.** `profiles.
 admin_scope` is one of `full`, `operations`, `finance`, `clinical` (see
 `src/lib/adminScope.ts`). It decides which sections an admin can open, and
-is enforced server-side by `requireAdminScope()` — hiding a section in the
+is enforced server-side by `requireAdminScope()` - hiding a section in the
 sidebar is presentation only.
 
 Each scope also gets **its own Today screen**, decided in one place
@@ -1386,26 +1386,26 @@ requests and cash still out; Clinical opens on recommendations waiting for
 approval, health records to review and today's sessions; a `full` admin's
 screen is unchanged. The greeting, the four figures, the quick actions and
 the order of the queue list all come from that module, and every link it
-produces is checked against the viewer's scope — an action for a section
+produces is checked against the viewer's scope - an action for a section
 this scope cannot open is dropped rather than rendered, because `findTab`
 would otherwise redirect the tap somewhere else and the dead link would look
 like it worked. "Needs you" counts only the queues this admin can open, so
-the figure and the list beneath it agree. Every dashboard also **names itself** — `Master Admin`,
-`Operations`, `Finance`, `Clinical` — in the sidebar brand and again as the
+the figure and the list beneath it agree. Every dashboard also **names itself** - `Master Admin`,
+`Operations`, `Finance`, `Clinical` - in the sidebar brand and again as the
 eyebrow above the section heading, so which of the four you are on is never
 something to infer from a missing sidebar entry. (Those are the same names
 the scope picker on Settings → User Access uses; `full` reads "Master
 Admin" rather than "Full access" because the one label has to work both as
 a permission and as the name of a desk.) A limited scope additionally gets a
 **Your access** card naming the sections its name covers and the ones it
-does not — a missing section otherwise reads as a fault rather than as
+does not - a missing section otherwise reads as a fault rather than as
 policy. Nothing here is a second permission
 model: the queue list still shows every queue the routes let that scope
 work, in their order rather than a full admin's. Only a `full` admin can change scopes or
 create another admin, nobody can change their own, and the last `full` admin
 cannot be narrowed. Admins are created from **Settings → User Access**
 (`/api/admin/create-account`, which also creates patients and therapists by
-hand), so the database no longer has to be edited to add one — and their
+hand), so the database no longer has to be edited to add one - and their
 access is taken away there too (`/api/admin/set-admin-active`), which
 suspends rather than deletes, because their id is on every audit row they
 ever wrote.
@@ -1415,14 +1415,14 @@ section)` pair is `none`, `view` or `manage`. `view` means they open it and
 read it and every button is gone; it is enforced by `requireAdminScope`
 asking for `manage`, so a read-only section is read-only at all 98 admin
 routes rather than only on the screens that remembered to hide a control.
-There is no "write only" — nobody can honestly change a row they are not
+There is no "write only" - nobody can honestly change a row they are not
 allowed to see. One grant is `view` today: **finance reads Sessions**, so
 the person reconciling the books can see what a payment bought without
 being able to cancel or reassign it.
 
-Every account also carries a **Delete account** button — on the Back office
+Every account also carries a **Delete account** button - on the Back office
 rows here, and on a patient's, therapist's and partner hospital's own screen
-— for a Master Admin only. It works on an account with **no history at all**
+- for a Master Admin only. It works on an account with **no history at all**
 and refuses everything else, naming what is on file (sessions, money
 records, programmes, clinical records, back-office actions, referrals) and
 pointing at Suspend. That is the database's rule rather than a chosen one:
@@ -1431,7 +1431,7 @@ removing an account that has done anything would mean removing the books and
 the audit trail with it.
 
 **Settings → User Access** also shows, on each row, whether that admin is
-still signing in with the password the clinic issued them — readable there,
+still signing in with the password the clinic issued them - readable there,
 with a Copy button, until they set their own, at which point the row says so
 instead. A password somebody chose themselves is a bcrypt hash and can never
 be displayed; the lane for an account in that state is a reset, which issues
@@ -1443,16 +1443,16 @@ directory (who can sign in, at what level, and whether they still can) and a
 matrix of what each of the four desks can do, rows in plain words and
 columns per desk. The matrix is **derived from the same module the routes
 enforce with**, so it cannot claim access nobody has, and its cells are
-deliberately not checkboxes — a tick that did not also change what the
+deliberately not checkboxes - a tick that did not also change what the
 server allows would be worse than no tick at all, so changing what a desk
 reaches stays a code change.
-`admin_activity_log` records every mutating admin action — actor, action,
-subject, amount, timestamp — readable in the **Logs** section and
+`admin_activity_log` records every mutating admin action - actor, action,
+subject, amount, timestamp - readable in the **Logs** section and
 append-only by construction: the table has a select policy and no insert or
 update policy, so the only writer is the service-role client inside the API
 routes.
 "Every" is literal: as well as the money moves, it covers the changes that
-move no money and are still somebody's to answer for — a patient's sign-in
+move no money and are still somebody's to answer for - a patient's sign-in
 email, a home visit's address, who may read a patient's record, the wording
 of the clinical questions, and the data reset itself, whose row is written
 **after** the wipe because the wipe truncates this table.
@@ -1462,7 +1462,7 @@ own rather than a screen under Settings: Settings is where the product is
 configured, a log is not a setting, and the record of what everybody did was
 buried in the screen list an owner opens least often. Two screens:
 
-- **All Activity** — every entry, newest first, with a search over the words
+- **All Activity** - every entry, newest first, with a search over the words
   somebody would actually type (an admin's name, a patient's name, "refund"),
   a **type** filter taken from the section each action's own route guards
   with, a date range, a money-only switch, CSV and PDF export, and a detail
@@ -1470,16 +1470,16 @@ buried in the screen list an owner opens least often. Two screens:
   render carries the newest 200 entries; **Load older entries** pages the
   rest through `/api/admin/activity-log` by cursor, so a table that grows
   for ever is not a payload every admin downloads on every refresh. An
-  entry's subject opens **everything done to that record** — keyed on
+  entry's subject opens **everything done to that record** - keyed on
   `target_id`, never on the label, which is a snapshot taken at write time
   and would split a renamed patient's history in half. The log answers "what
   did this admin do" well; that is the other question, the one asked when
   somebody complains.
-- **Archive & Clear** — the only way a row ever leaves the table. Four steps,
+- **Archive & Clear** - the only way a row ever leaves the table. Four steps,
   each one closing a particular mistake: pick a cutoff from a fixed set,
   see the count server-side, download a copy (the Clear button stays locked
   until a download has actually been produced), and type `CLEAR LOGS`.
-  Nothing inside the last **30 days** can be cleared at any setting — the
+  Nothing inside the last **30 days** can be cleared at any setting - the
   floor is enforced in `src/lib/activityLog.ts`, again in
   `/api/admin/clear-activity-log`, and again inside
   `purge_admin_activity_log()`, which is reachable by the service-role key
@@ -1488,21 +1488,21 @@ buried in the screen list an owner opens least often. Two screens:
   own reach by construction: the entry is written now, and now is inside the
   protected window.
 
-Everything else about the table is unchanged — there is no update path at
+Everything else about the table is unchanged - there is no update path at
 all, and a Master Admin can remove old history but cannot rewrite any of it.
 Operations, Finance and Clinical cannot open Logs; they read their own
 desk's actions on **Today → Activity**, filtered by `src/lib/activityScope.ts`.
 **Sessions → New Booking** (`/api/admin/create-booking`) books an online
 session on a patient's behalf, running the same conflict check and Meet sync
 as a patient's own booking, with an explicit payment state and a logged
-lead-time override. Home visits are not bookable this way yet — they need an
+lead-time override. Home visits are not bookable this way yet - they need an
 address and a serviceable pincode.
 
 **Realtime.** `src/components/RealtimeRefresh.tsx` subscribes to Supabase
 Realtime so dashboards refresh when the underlying rows change.
 
 **Session notes and the prep loop.** A therapist assigned to any session
-automatically gets that patient's full chart — this is unchanged (read
+automatically gets that patient's full chart - this is unchanged (read
 access needs no request; only *writing* to the patient's own intake or Pain
 Map needs an admin-approved `condition_access_grants` row). What is new is
 that the chart is now a preparation surface and has a clinician-only layer
@@ -1514,7 +1514,7 @@ of its own:
   flagged to watch, and how many notes are on file.
 - **The session note** (`session_notes`, fields in
   `src/lib/sessionNotes.ts`) is written from the session card itself right
-  after the session — what was treated, techniques and dosage, how the
+  after the session - what was treated, techniques and dosage, how the
   patient responded, home exercise prescribed, plan for the next session,
   anything to watch, plus free text. It opens as a pop-up so it costs no
   navigation.
@@ -1532,20 +1532,20 @@ of its own:
   how the clinic can tell whether care is being delivered and documented.
 
 **Nothing changes without saying what changed.** Every mutating control
-raises a confirmation naming the thing and its new state — "Home visits are
-on", not "Saved" — on all four dashboards. It is mounted above every route,
+raises a confirmation naming the thing and its new state - "Home visits are
+on", not "Saved" - on all four dashboards. It is mounted above every route,
 so it survives the refresh the control itself fires. The wording for all 43
 admin settings lives in `src/lib/settingMessages.ts`, with a test that fails
 when a setting an admin screen can write has no sentence.
 
 **Nothing waits without saying so.** A teal bar runs across the top of the
-viewport for any wait longer than 220ms — a navigation, a refresh, a save —
+viewport for any wait longer than 220ms - a navigation, a refresh, a save -
 and every dynamic route has its own skeleton that streams in before the
 page's queries resolve. The three role dashboards navigate with hard
 anchors, so they mark the page as leaving on click; the public site reports
 through its links.
 
-**Every dashboard has a Refresh button** in its header — patient, therapist,
+**Every dashboard has a Refresh button** in its header - patient, therapist,
 hospital and admin alike. It re-runs the page's server render and leaves the
 screen's own state alone, unlike a browser reload.
 
@@ -1562,12 +1562,12 @@ same question:
 - Video sessions and home visits are one filtered Sessions screen on both
   the patient and therapist side (`SessionFilterList`).
 - Calendar is a **view switch** on that same Sessions screen
-  (`SessionsView`), not an entry of its own — a calendar is a way of
+  (`SessionsView`), not an entry of its own - a calendar is a way of
   looking at your sessions, not a different set of them.
 - Programmes is a view switch inside the therapist's My Patients
   (`TherapistPatientsView`): the same people, grouped by package purchase
   rather than by name.
-- Earnings absorbed Payout Receipts — one question, what am I owed and
+- Earnings absorbed Payout Receipts - one question, what am I owed and
   what have I been paid.
 - The patient's three package entries became one Packages screen.
 
@@ -1577,12 +1577,12 @@ owed *to* you is **Earnings** (therapist and hospital alike), money going
 (admin). The hospital's Account Security entry became **Edit Profile**,
 which is what the page now is: organisation details (admin-reviewed, since
 patients are told who referred them), contact preferences, and account
-security. A screen that can only ever be empty is not shown at all —
+security. A screen that can only ever be empty is not shown at all -
 Payments appears once a patient has a session or a package.
 
 **Dashboard navigation.** The patient, therapist and hospital dashboards are
-sets of real pages — `/patient/dashboard/sessions`,
-`/therapist/dashboard/earnings`, `/hospital/dashboard/referrals` and so on —
+sets of real pages - `/patient/dashboard/sessions`,
+`/therapist/dashboard/earnings`, `/hospital/dashboard/referrals` and so on -
 one per sidebar entry, the same as Edit Profile has always been. They used to
 be anchors on a single very long page with the sidebar highlighting whichever
 section was nearest the top as you scrolled, which read as the nav choosing
@@ -1602,8 +1602,8 @@ components are identical. The admin's Overview is the first tab of
 **Today**, ahead of the exhaustive Action Inbox.
 
 The feed is derived rather than stored (`src/lib/dashboardFeed.ts`): every
-item comes from rows the page already queries — appointment statuses,
-condition change requests, payouts, referrals, `admin_activity_log` — so
+item comes from rows the page already queries - appointment statuses,
+condition change requests, payouts, referrals, `admin_activity_log` - so
 there is no notifications table and nothing for a cron to write. Items that
 still need the viewer carry `needsYou`, which pins them to the top and
 drives the "N things need you" count; there is deliberately no read/unread
@@ -1615,7 +1615,7 @@ patient's condition data, both surfaced on `/patient/dashboard/health-profile`
 and the admin's **Patient Conditions** tab.
 
 **The intake is per specialty.** A `patient_condition_profiles` row carries
-`specialty` — `ortho`, `neuro` or `pediatrics` — and that decides everything
+`specialty` - `ortho`, `neuro` or `pediatrics` - and that decides everything
 about how the profile reads: which seven questions are asked, which summary
 card renders, which four figures the snapshot strip shows, and what the
 progress line plots. The original set only ever fitted orthopaedic patients:
@@ -1639,22 +1639,22 @@ approving a change *merges* rather than replaces.
 then.** The flow, end to end:
 
 1. A patient books. Their Health Profile says what happens next and offers
-   the reports uploader — which stays open, and is the one useful thing
+   the reports uploader - which stays open, and is the one useful thing
    they can do beforehand. No questions, no amber banner, and the overview
-   figure reads `—` rather than `0%`: nobody has asked them for anything
+   figure reads `-` rather than `0%`: nobody has asked them for anything
    yet.
 2. A therapist is assigned. A **Patient onboarding** task appears on their
    Overview feed and on My Patients, where those rows sort above everyone
    else with an amber "Needs onboarding" chip.
 3. The therapist opens that patient's chart and answers four triage
-   questions (`ConditionTriageDialog`) — age band, presenting problem,
+   questions (`ConditionTriageDialog`) - age band, presenting problem,
    neurological signs, and, for a child, whether there is a developmental
    concern. Those *suggest* a specialty, with the reason shown; the
    therapist confirms or overrides. A fourteen-year-old with a sprained
    ankle correctly lands on orthopaedic, which is why the child question
    exists.
 4. The dialog runs straight on into that specialty's own questions, in the
-   same pop-up. Submitting **goes live immediately** — no review queue.
+   same pop-up. Submitting **goes live immediately** - no review queue.
 5. The patient's profile unlocks in that specialty's shape, and a feed item
    tells them so. From then on they can correct and add to it, and *their*
    edits queue for admin exactly as before.
@@ -1666,7 +1666,7 @@ The two write gates are different because they record different things.
 Onboarding and re-triage need only that the therapist is **assigned**
 (`/api/therapist/condition-profile/onboard`): deciding what kind of case
 this is, and writing down what the patient told you in a session you ran,
-is the therapist's own clinical record — the same kind of thing a Pain Map
+is the therapist's own clinical record - the same kind of thing a Pain Map
 exam or a session note is. The access-grant queue also cannot sit in front
 of the first record ever existing, and an admin approval in between would
 leave the patient on a locked screen after their first session with nothing
@@ -1681,43 +1681,43 @@ everything else.
   `condition_change_requests`) is general history/severity answers. The
   orthopaedic set's `area_pain` reuses the same 17 regions and
   `BodyMapDiagram` as the Pain Map below, but is the *patient's own*
-  self-report (0–10 per tapped area, `AreaPainPicker.tsx`) — a separate
+  self-report (0–10 per tapped area, `AreaPainPicker.tsx`) - a separate
   dataset from the therapist's clinical exam, so the two can be compared.
   Question wording and which questions are mandatory are admin-editable
   per specialty (`intake_question_templates`, keyed
   `(specialty, question_key)`), enforced both client- and server-side on
   submit. Help text, placeholder and short label are code-side and
-  deliberately *not* admin-editable — only wording and required-ness are.
+  deliberately *not* admin-editable - only wording and required-ness are.
   The fill itself is a step-by-step pop-up, not a form on the page:
   `ConditionIntakePanel.tsx` shows only what's on file plus a button, and
   `ConditionIntakeWizard.tsx` asks one question per screen with
   plain-language help text, a progress bar and a review step. Seven fields
   at once read as paperwork; one at a time reads as a conversation. The
-  therapist's own surfaces invert that on purpose — the triage dialog
+  therapist's own surfaces invert that on purpose - the triage dialog
   shows everything at once with headings, because a clinician filling this
   after every assignment wants to scan it. Answers autosave to
   `draft_data` as they are filled, so closing mid-fill loses nothing;
   reopening prioritises an in-progress draft, then a declined submission's
   answers, then the last approved data. Once live, the answers render as
-  the specialty's own summary card — a chart, not a filled-in form — under
+  the specialty's own summary card - a chart, not a filled-in form - under
   a four-cell snapshot strip and a three-step explainer that says who
   writes which half of this screen.
 - *Pain Map* (`pain_assessments`, `pain_map_question_templates`,
   `src/lib/painMap.ts`) is a 17-region clinical exam a therapist fills in
-  after examining the patient — region-specific question sets with an
+  after examining the patient - region-specific question sets with an
   admin-editable question bank, ending in a 0–100 pain percentage per
   region. **It is orthopaedic only.** A neurological or paediatric profile
   does not merely hide it: the page never queries `pain_assessments`, and
   both exam-submit routes refuse such a patient rather than accumulating
   rows nothing renders. Those two specialties get a progress line anyway,
-  read back out of the approved submissions already on file — independence
+  read back out of the approved submissions already on file - independence
   over time, or milestones reached. Their own examination layers (tone,
   power, balance and gait; posture and milestones) are deliberately
   deferred, and `SpecialtyExamPanel` exists now with placeholder arms so
   adding one later is one more arm rather than a page rewrite.
 
   Unlike the intake, a Pain Map exam posts live immediately (it's the
-  therapist's own clinical judgement) and needs no access grant — a
+  therapist's own clinical judgement) and needs no access grant - a
   therapist assigned to the patient can record what they found, the same
   rule session notes use. Rows are append-only so the patient's dashboard
   can show a trend against the previous assessment for that region. The
@@ -1727,7 +1727,7 @@ everything else.
 
   Recording an exam happens in `PainExamDialog`, opened from the one body
   map by **Record an exam** or by tapping a region. The region is chosen by
-  tapping the figure or picking a chip — never a dropdown — and stays in the
+  tapping the figure or picking a chip - never a dropdown - and stays in the
   dialog's header, alongside what that area scored last time, while the
   clinician works. The twenty questions are grouped into *What they
   describe · What sets it off · Pain on testing · Your findings*
@@ -1740,15 +1740,15 @@ everything else.
   stored column is untouched. All three surfaces
   render the same tap-point body diagram
   (`src/components/profile/BodyMapDiagram.tsx`, a jointed lay figure rather
-  than a muscle chart — every joint doubles as a clinical landmark) via the
+  than a muscle chart - every joint doubles as a clinical landmark) via the
   shared `PainMapExplorer`/`PainMapView`; tapping a point in fill mode
   (therapist or admin) picks that region+side directly instead of a manual
   dropdown, and tapping an assessed point in view mode (patient/admin)
   opens a popup with that region's detail.
 
 Both question banks (Health Profile and Pain Map) are managed from
-one place — a **Manage Questions** section at the top of the admin's
-**Patient Conditions** tab (`QuestionBankManager.tsx`), not per-patient —
+one place - a **Manage Questions** section at the top of the admin's
+**Patient Conditions** tab (`QuestionBankManager.tsx`), not per-patient -
 since question wording/required-ness is global config, not something tied
 to one patient's record. The intake bank has one tab per specialty, and
 above it sit the toggles for which specialties triage offers. Switching one
@@ -1761,17 +1761,17 @@ have nothing to land on.
 record on the patient's behalf. Read access is automatic for the patient's
 assigned therapist, and so are the two writes that are the therapist's own
 clinical record rather than an edit to the patient's account of
-themselves — onboarding/re-triage and a Pain Map exam. "Assigned" means the
+themselves - onboarding/re-triage and a Pain Map exam. "Assigned" means the
 therapist has ever had an appointment with the patient, or holds a
 package's `locked_therapist_id`. Edit access is exclusive to one therapist
-per patient at a time — approving a new therapist's request automatically
+per patient at a time - approving a new therapist's request automatically
 revokes any other therapist's currently-approved grant for that patient.
 
 A patient's first dashboard visit also shows a one-time, skippable guided
 spotlight tour (`src/components/patient/OnboardingTour.tsx`,
 `profiles.onboarding_seen_at`) that highlights the actual sidebar nav items
 in sequence. The Health Profile step carries a "Fill it in now" CTA that
-jumps straight there (marking the tour seen, same as Skip/Done) — dropped
+jumps straight there (marking the tour seen, same as Skip/Done) - dropped
 while the record is still the therapist's to write, since sending someone
 to a read-only page with a fill-it-in button is worse than not mentioning
 it. The tour is separate from
@@ -1782,7 +1782,7 @@ the tour was seen or skipped.
 Beyond the core workflow, a few surfaces exist specifically to make the
 data useful once it's collected, not just to collect it:
 
-- **One body map, two views** (`PainMapExplorer.tsx`) — the exam figure
+- **One body map, two views** (`PainMapExplorer.tsx`) - the exam figure
   (`PainMapView.tsx`) with a switch to the comparison
   (`PainComparisonView.tsx`), where the patient's self-reported `area_pain`
   and the therapist's clinical Pain Map sit on one figure (fill = clinical
@@ -1791,11 +1791,11 @@ data useful once it's collected, not just to collect it:
   areas of their own. Under it, `RegionStandingsList.tsx` ranks every
   examined area worst-first with its trend. Shown to patient, therapist,
   and admin.
-- **Progress line** (`PainTrendChart.tsx`) — the average pain percentage
+- **Progress line** (`PainTrendChart.tsx`) - the average pain percentage
   recorded at each exam, oldest to newest, answering "am I getting better?"
   in one line. Deliberately one series: the patient's own 0–10 severity is
   a different scale and never shares the axis.
-- **Point of care** — the therapist's Assigned Sessions cards link straight
+- **Point of care** - the therapist's Assigned Sessions cards link straight
   to that patient's Health Profile. That list sorts anyone still needing
   onboarding to the very top with an amber chip, ahead of "seeing them
   soonest": until their record is written, that patient's own profile is
@@ -1804,14 +1804,14 @@ data useful once it's collected, not just to collect it:
   merely-requested grant still counts) so a first-time assignment doesn't
   go unnoticed. The admin's Patient Conditions list has the same queue as
   an "Awaiting onboarding" filter, beside a specialty filter and chip.
-- **Admin audit trail** — a direct intake edit (`ConditionDirectEditForm`)
+- **Admin audit trail** - a direct intake edit (`ConditionDirectEditForm`)
   also inserts an already-"approved" `condition_change_requests` row, so it
   shows up in the same Review History as every reviewed submission instead
   of silently overwriting `data` with no record of the prior value.
 - **List search/filter/sort** (`ConditionsListFilter.tsx`) on the Patient
   Conditions tab, and an aging flag ("Waiting N days") on a pending request
   once it's sat for 3+ days.
-- **Paged, filterable lists everywhere** — every list in the app (admin
+- **Paged, filterable lists everywhere** - every list in the app (admin
   tables, the patient's and therapist's sessions, receipts, referrals,
   activity feeds, catalog managers) ends with the same control: a
   "Show N per page" field with Previous/Next that grey out at either end,
@@ -1820,7 +1820,7 @@ data useful once it's collected, not just to collect it:
   therapist/patient, referrals by status, payouts by whether anything is
   owed, catalog entries by whether they are shown on the site). Filtering,
   totals and the exports always run over the whole set, never the page.
-- **Admin data exports** — every downloadable table in the admin back
+- **Admin data exports** - every downloadable table in the admin back
   office (All Sessions, the receipts log, patient/therapist payment
   history, the therapist and patient ledgers, both package-purchase
   tables, and the activity log) offers **CSV** for a spreadsheet and
@@ -1828,7 +1828,7 @@ data useful once it's collected, not just to collect it:
   (`DataExportButtons` → `/api/admin/export-pdf`, `src/lib/tablePdf.ts`).
   Both always contain exactly the rows on screen with the filters in view
   applied, and the PDF prints the range or filters it was scoped to.
-- **Patient data export** (`/api/patient/condition-profile/export`) — a
+- **Patient data export** (`/api/patient/condition-profile/export`) - a
   typeset **PDF** of the patient's own intake, every Pain Map exam and the
   reports they have on file, downloaded as `Name_PatientCode.pdf` (e.g.
   `Priya_Sharma_PT0042.pdf`). Its header names the specialty (a receiving
@@ -1836,18 +1836,18 @@ data useful once it's collected, not just to collect it:
   for a child, who answered. The examinations section is omitted entirely
   for a non-orthopaedic profile rather than printed empty, and a
   re-triaged patient's earlier answers are printed under "Earlier
-  profile" — an export handed to another clinician that silently loses a
+  profile" - an export handed to another clinician that silently loses a
   whole prior history is a clinical loss, not a simplification. Built server-side with `pdf-lib` in
   `src/lib/healthProfilePdf.ts`; the standard PDF fonts encode WinAnsi
   only, so every string is transliterated first and a name in a
   non-Latin script degrades rather than throwing. `?format=json` still
   returns the raw structure for machine-readable portability, and Print
   still uses the browser's own print dialog for the screen as it stands.
-  Session notes are excluded from all three. No deletion path yet — that's
+  Session notes are excluded from all three. No deletion path yet - that's
   a retention-policy decision for the practice, not something to build
   without that call being made first.
 - **Test reports and scans** (`patient_medical_documents`,
-  `MedicalDocumentsPanel.tsx`) — the patient uploads X-rays, MRI reports,
+  `MedicalDocumentsPanel.tsx`) - the patient uploads X-rays, MRI reports,
   blood tests, prescriptions and referral letters onto their own Health
   Profile, and the assigned therapist and admin can open them from the
   same chart. The files live in a **private** `medical-reports` Storage
@@ -1856,7 +1856,7 @@ data useful once it's collected, not just to collect it:
   RLS-scoped client and then mints a 120-second signed URL. Uploads are
   capped at 10MB per file and 20 files per patient, restricted to PDF and
   photo types, and photographed reports are re-compressed in the browser
-  first. Uploading and deleting are the patient's own — a therapist and an
+  first. Uploading and deleting are the patient's own - a therapist and an
   admin read only, and the table has no update policy at all.
 - Pain Map's popup shows a full per-region history list and a trend
   sparkline (not just the latest-vs-previous arrow), and who posted the
@@ -1865,19 +1865,19 @@ data useful once it's collected, not just to collect it:
   "started after a fall"), shown alongside the pain score everywhere it's
   displayed.
 - The admin Patients tab (not Patient Conditions) shows a compact severity
-  signal — self-reported severity and pain-area count — right where admin
+  signal - self-reported severity and pain-area count - right where admin
   already manages patients, without a separate trip.
 
 Deliberately not done: a hard gate blocking booking on intake completion
-(a real business-risk decision, not something to make unilaterally — the
+(a real business-risk decision, not something to make unilaterally - the
 dashboard banner and onboarding tour are the current nudge mechanism), and
 push/email notifications for any of this workflow's state changes (separate
 planned work).
 
 ## The public site
 
-Eight pages — `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`,
-`/faq`, `/hospitals` — rebuilt around one rule: a visitor should be able to
+Eight pages - `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`,
+`/faq`, `/hospitals` - rebuilt around one rule: a visitor should be able to
 tell what each page is for with the text blurred out.
 
 They share a design system in `src/components/marketing/` rather than each
@@ -1893,15 +1893,15 @@ having its own layout:
 | `StepStrip` | A process as numbered photographs, all visible at once. |
 | `IconCard` | One fact: tinted icon, short title, one line. |
 | `ExploreGrid` / `ExploreSection` | The site's index as photographs. |
-| `CatalogImage` | The cover slot on a programme or package card — the admin's photo when set, one shared tinted placeholder when not. |
+| `CatalogImage` | The cover slot on a programme or package card - the admin's photo when set, one shared tinted placeholder when not. |
 | `CareAreaShowcase` | The six areas of practice, one at a time: photograph left, explanation right. Swipe, arrows or the name picker; never moves on its own. |
 | `Testimonials` | Patient quotes with portraits, shared by Home and `/mission`. |
 | `ClosingCta` | Every page ends the same way: one sentence, one action. |
 
 ### The opening splash
 
-Every page under the root layout paints a full-screen brand greeting —
-the site name, the line **"Movement Is Medicine"** — for about a second and
+Every page under the root layout paints a full-screen brand greeting -
+the site name, the line **"Movement Is Medicine"** - for about a second and
 a half, then dissolves into the page underneath, which was fully rendered
 the whole time.
 
@@ -1919,7 +1919,7 @@ which writes four `site_settings` columns:
 | Setting | Column | Default |
 | --- | --- | --- |
 | Whether it runs at all | `splash_enabled` | on |
-| The name above the line | `splash_brand_line` | blank — follows `site_name` |
+| The name above the line | `splash_brand_line` | blank - follows `site_name` |
 | The line it says | `splash_phrase` | "Movement Is Medicine" |
 | How long it holds before fading | `splash_hold_seconds` | 1.5 |
 | Minutes away that earn a second greeting | `splash_revisit_minutes` | 15 |
@@ -1929,7 +1929,7 @@ Leaving the **name** blank means the splash prints the site name from Brand
 their own; fill it in only when the splash should say something the navbar
 does not. Setting the minutes to **0** means "greet the first load of a tab
 only".
-There is deliberately no value meaning "greet on every tab focus" — that is
+There is deliberately no value meaning "greet on every tab focus" - that is
 the setting that would splash over a payment in progress. Switching the
 splash off removes the overlay and its boot script from the page entirely
 rather than hiding them.
@@ -1960,7 +1960,7 @@ closing CTA.
 The mission band sits before the conditions band deliberately: a visitor
 deciding whether to trust a clinic they cannot walk into asks "who are
 you" before "do you treat my back". It gives the mission and vision in
-full — two sentences, and paraphrasing them would only weaken the claim —
+full - two sentences, and paraphrasing them would only weaken the claim -
 and reduces the four promises to their titles, each linking to
 `/mission#what-we-promise`. That split is what keeps it a connector rather
 than a second copy of the page.
@@ -1974,7 +1974,7 @@ to be argued over and should be editable without touching a layout.
 
 Two rules shaped it:
 
-- **Every promise is a rule the platform already enforces** — the 24-hour
+- **Every promise is a rule the platform already enforces** - the 24-hour
   refund window, the one-therapist lock on a package, the PDF export, the
   private scan bucket. Nothing on that band is an intention.
 - **The limits are on the page, not buried in the FAQ.** A clinic that says
@@ -1987,7 +1987,7 @@ by whether patients say they held.
 
 `schema.sql` seeds five sample testimonials into an **empty** `testimonials`
 table so the Home and Mission bands can be reviewed populated. **They are
-illustrative copy, not real patients** — the practice has not launched. Delete
+illustrative copy, not real patients** - the practice has not launched. Delete
 them or edit them into real ones as consent comes in; the `where not exists`
 guard means a re-run never brings them back once the table has any row.
 
@@ -2001,7 +2001,7 @@ Two sources, and the difference matters when planning a shoot:
 | Slot | Source | Who changes it |
 | --- | --- | --- |
 | Page heroes, delivery modes, the four steps, the six care areas | Files in `public/photos/`, registered in `src/lib/marketingPhotos.ts` | A developer, in a commit |
-| Programme cards, session packages, home-visit packages | An upload on the row, in the `catalog-images` bucket, positioned by `image_focal_x` / `image_focal_y` | An admin, in Site Content — no deploy |
+| Programme cards, session packages, home-visit packages | An upload on the row, in the `catalog-images` bucket, positioned by `image_focal_x` / `image_focal_y` | An admin, in Site Content - no deploy |
 
 The catalog rows are admin-owned on purpose: programmes and packages are
 created and retired without a release, so their imagery has to move at the
@@ -2011,7 +2011,7 @@ whenever someone has one.
 
 **They are uploaded, not pasted.** `image_url` used to be a text box an admin
 put a link into, which cost twice: nobody pastes links, so the site shipped
-with no photographs at all — and every cover that did exist lived on a host
+with no photographs at all - and every cover that did exist lived on a host
 this clinic does not control. Uploads go through
 `/api/admin/upload-catalog-image` into the clinic's own public bucket: a route
 rather than a browser-side upload, because "an admin who can manage the
@@ -2023,7 +2023,7 @@ or WebP up to 5 MB) and audited.
 `object-fit: cover`, and the card is 4:3 where the detail dialog is 16:9, so a
 photograph whose subject was not dead centre lost a head to one of them. The
 admin drags the picture inside a fixed card frame and the result is saved as
-two percentages rendered as `object-position` — correct at every ratio,
+two percentages rendered as `object-position` - correct at every ratio,
 including ratios added later, where a crop would have baked one shape into the
 file. The default is dead centre, which is what `object-fit` already does, so
 no existing cover moves.
@@ -2051,21 +2051,21 @@ source with the laptop low in frame loses it to a centre crop and quietly
 turns the site back into a walk-in clinic.
 
 **Every photograph shows a face, and the face is warm.** Backs of heads, a
-hand on a phone and an empty desk read as stock filler — a patient cannot
+hand on a phone and an empty desk read as stock filler - a patient cannot
 tell what the service is from a picture with nobody in it. Each image shows
 a person mid-session who looks glad to be there, or the clinician they are
 speaking to. The clinician reading a scan (`reports`) is the deliberate
 exception: concentration is the reassuring expression there.
 
 Each entry carries a `photoAlt` describing the picture, kept separate from
-the `blurb` describing the page — passing the blurb as `alt` announced the
+the `blurb` describing the page - passing the blurb as `alt` announced the
 same sentence twice to a screen reader.
 
 The images shipped here are licence-free stock (Pexels licence: free for
 commercial use, no attribution required) standing in for the clinic's own
 photography. **Verify licensing against your own requirements before
 launch**, and replace them by dropping a file of roughly the same aspect
-ratio over the existing name — no page or component changes.
+ratio over the existing name - no page or component changes.
 
 ## Project layout
 
@@ -2108,7 +2108,7 @@ Notable conventions:
 `graphify-out/graph.json`, `GRAPH_REPORT.md` and `manifest.json` are committed
 and refreshed by CI on every merge to `main`
 (`.github/workflows/graphify.yml`), so a fresh clone already has a current
-graph. `manifest.json` is what keeps the refresh incremental — it records the
+graph. `manifest.json` is what keeps the refresh incremental - it records the
 hashes of the last build, so CI re-extracts only what changed instead of the
 whole repo. When the semantic pass can't run (no `GEMINI_API_KEY` secret, or
 its free-tier quota is spent), CI falls back to a structural graph rather than
@@ -2121,7 +2121,7 @@ git config core.hooksPath .githooks # enables .githooks/post-merge
 ```
 
 Git hooks aren't shared by a clone, so this is per-machine. Skipping it costs
-nothing — the graph still arrives with the next `git pull`.
+nothing - the graph still arrives with the next `git pull`.
 
 ## Deployment
 

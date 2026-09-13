@@ -35,7 +35,7 @@ export type CarePlanDecision = "approved" | "rejected" | "edited_and_approved";
  * somebody: a rejection the therapist has to act on, and an approval whose
  * numbers are not the ones they wrote. Saying plain yes needs none. Taxing
  * the only path this queue exists to let through is how a reason column
- * fills up with "ok" and stops being worth reading — and a plain approval's
+ * fills up with "ok" and stops being worth reading - and a plain approval's
  * evidence is who and when, which is already on the row.
  */
 export function validateReviewReason(
@@ -48,7 +48,7 @@ export function validateReviewReason(
       ok: false,
       error:
         decision === "rejected"
-          ? `Say why, in at least ${MIN_REVIEW_REASON_LENGTH} characters. Your therapist reads this and rewrites from it — a rejection with no reason reads the same as one nobody got round to.`
+          ? `Say why, in at least ${MIN_REVIEW_REASON_LENGTH} characters. Your therapist reads this and rewrites from it - a rejection with no reason reads the same as one nobody got round to.`
           : `Say what you changed and why, in at least ${MIN_REVIEW_REASON_LENGTH} characters. This goes out under the clinician's name.`,
     };
   }
@@ -104,7 +104,7 @@ export async function approveCarePlan(
   // published, not after.
   //
   // Checkout re-reads the package and refuses on a mismatch rather than
-  // charging a different amount, which is right — but it means an admin
+  // charging a different amount, which is right - but it means an admin
   // approving a recommendation whose package has since been re-priced,
   // deactivated or made unrecommendable publishes an offer that will fail
   // at the last step of the patient's checkout. The patient discovers the
@@ -310,7 +310,7 @@ export async function recordReview(
  *
  * Returns a sentence for an admin when it does not, and null when the offer
  * is still good. Only the two numbers a patient reads and pays are compared
- * — the session count and the price — because those are what checkout
+ * - the session count and the price - because those are what checkout
  * refuses on, and flagging a changed `terms` string would stop an approval
  * for something nobody would notice.
  *

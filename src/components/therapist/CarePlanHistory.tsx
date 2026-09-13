@@ -27,7 +27,7 @@ const PLAN_STATUS_LABELS: Record<string, string> = {
 /**
  * Every recommendation this patient has ever been given, newest first.
  *
- * Renders out of `care_plan_versions` directly — the same rows the
+ * Renders out of `care_plan_versions` directly - the same rows the
  * patient's own screen reads. One authoritative record with two readers,
  * rather than a copy per surface: a second copy is a second thing to keep
  * in sync, and clinical history that can drift is not history.
@@ -37,7 +37,7 @@ const PLAN_STATUS_LABELS: Record<string, string> = {
  * so this is a record rather than a form.
  *
  * `voice` branches the sentences that address someone, the same rule
- * ConditionIntakePanel follows — the clinician reading their own reasoning
+ * ConditionIntakePanel follows - the clinician reading their own reasoning
  * back and the patient reading what their therapist said about them need
  * different words, and one string cannot be true for both.
  */
@@ -52,7 +52,7 @@ export default function CarePlanHistory({
   authorNames: Map<string, string>;
   voice: "clinician" | "patient";
   /**
-   * What the clinic decided, keyed by plan. Clinician surfaces only — the
+   * What the clinic decided, keyed by plan. Clinician surfaces only - the
    * patient is never shown an unapproved thread, so there is no decision on
    * one of theirs to explain.
    *
@@ -91,7 +91,7 @@ export default function CarePlanHistory({
       <h2 className="text-sm font-bold text-slate-800">Treatment recommendations</h2>
       <p className="mt-1 text-xs text-slate-500">
         {voice === "clinician"
-          ? "Every version, kept. A recommendation that changed is a new version — nothing here is overwritten."
+          ? "Every version, kept. A recommendation that changed is a new version - nothing here is overwritten."
           : "Everything your therapist has recommended, including anything they later changed their mind about."}
       </p>
 
@@ -131,7 +131,7 @@ export default function CarePlanHistory({
                         ? "The clinic approved this with changes"
                         : "Approved by the clinic"}
                   </span>
-                  {latestReview.reason && <span> — {latestReview.reason}</span>}
+                  {latestReview.reason && <span> - {latestReview.reason}</span>}
                 </div>
               )}
 

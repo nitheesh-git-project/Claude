@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
   if (reason.length < MIN_REASON_LENGTH) {
     return NextResponse.json(
       {
-        error: `Say why the clinic is writing this instead of the therapist — at least ${MIN_REASON_LENGTH} characters.`,
+        error: `Say why the clinic is writing this instead of the therapist - at least ${MIN_REASON_LENGTH} characters.`,
       },
       { status: 400 }
     );

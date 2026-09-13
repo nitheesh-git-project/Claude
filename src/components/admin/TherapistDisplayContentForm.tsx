@@ -64,7 +64,7 @@ export default function TherapistDisplayContentForm({
           {savedNote}
         </p>
       ) : (
-        <p className="text-slate-400">Nothing set — the popup shows their own bio only.</p>
+        <p className="text-slate-400">Nothing set - the popup shows their own bio only.</p>
       )}
     </div>
   );

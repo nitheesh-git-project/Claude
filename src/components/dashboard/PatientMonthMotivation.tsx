@@ -46,7 +46,7 @@ export default function PatientMonthMotivation({ stats }: { stats: MonthStats })
             You have {upcomingCount} session{upcomingCount === 1 ? "" : "s"} coming up this month.
           </p>
           <p className="text-xs text-slate-500 mt-1">
-            Keep it up — consistency is key to recovery!
+            Keep it up - consistency is key to recovery!
           </p>
         </div>
       );

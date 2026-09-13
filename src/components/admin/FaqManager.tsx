@@ -89,7 +89,7 @@ export default function FaqManager({ faqs }: { faqs: Faq[] }) {
         />
       )}
       {faqs.length === 0 && !addingNew ? (
-        <p className="text-xs text-slate-500 py-4 text-center">No FAQs yet — add one below.</p>
+        <p className="text-xs text-slate-500 py-4 text-center">No FAQs yet - add one below.</p>
       ) : (
         <ul className="space-y-3">
           {pageFaqs.map((f) =>

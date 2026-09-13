@@ -14,11 +14,11 @@ import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 type AnswerInput = { key: string; value: string };
 
-// Admin posts one region's Pain Map entry directly — no access-grant
+// Admin posts one region's Pain Map entry directly - no access-grant
 // gate (admin is the final authority, same reasoning as
 // ConditionDirectEditForm for the general intake). Still append-only like
 // every other pain_assessments write: this is a new row, not an edit of
-// a past one, so the trend/history stays intact — see that table's
+// a past one, so the trend/history stays intact - see that table's
 // comment in schema.sql.
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");

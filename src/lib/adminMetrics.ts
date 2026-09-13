@@ -1,4 +1,4 @@
-// Pure aggregation functions for the admin Metrics tab — kept separate from
+// Pure aggregation functions for the admin Metrics tab - kept separate from
 // AdminMetricsTab.tsx so the actual math can be unit-tested without needing
 // to render the component.
 
@@ -93,7 +93,7 @@ export function filterBySlotRange(
   });
 }
 
-// Weekly buckets for a short range, monthly for a longer one — matches how
+// Weekly buckets for a short range, monthly for a longer one - matches how
 // someone actually reads a trend at each zoom level (a year of weekly bars
 // is unreadable, a month of monthly bars is meaningless).
 export function buildBuckets(fromMs: number, toMs: number): PeriodBucket[] {
@@ -482,7 +482,7 @@ export function computeCancellationRate(inRangeBySlot: CancellationInput[]): {
   refundedCount: number;
   forfeitedCount: number;
 } {
-  // Denominator is resolved sessions only (completed or cancelled) — a
+  // Denominator is resolved sessions only (completed or cancelled) - a
   // still-upcoming requested/confirmed session hasn't had the chance to be
   // cancelled yet, so counting it as "not cancelled" would understate the
   // rate. This also means picking a "To" date in the future can't silently
@@ -497,7 +497,7 @@ export function computeCancellationRate(inRangeBySlot: CancellationInput[]): {
   };
 }
 
-// All-time by design (no date range applied here) — "repeat" is a lifetime
+// All-time by design (no date range applied here) - "repeat" is a lifetime
 // concept, not a period one. Only the category/therapist dimension filters
 // (already applied to dimFiltered before this is called) narrow it.
 export function computeRepeatBookingRate(dimFiltered: MetricsAppointment[]): number | null {

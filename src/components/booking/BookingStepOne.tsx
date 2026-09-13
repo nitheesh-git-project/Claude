@@ -56,7 +56,7 @@ export default function BookingStepOne({
       <div className="w-full rounded-xl bg-teal-50/70 px-4 py-3.5 text-slate-700">
         <i className="fa-solid fa-globe text-teal-600 mr-2.5" aria-hidden="true"></i>
         Times shown in <strong className="font-bold text-slate-900">{timezone || "your"}</strong>{" "}
-        timezone — detected automatically
+        timezone - detected automatically
       </div>
 
       <div>
@@ -98,7 +98,7 @@ export default function BookingStepOne({
                 value={hour === "" ? "" : String(hour)}
                 onChange={(next) => onHourChange(Number(next))}
                 autoSelectedValue={autoPicked.hour && hour !== "" ? String(hour) : null}
-                emptyMessage="No times left on this date — please pick another day."
+                emptyMessage="No times left on this date - please pick another day."
               />
             </div>
 
@@ -113,7 +113,7 @@ export default function BookingStepOne({
                 value={language}
                 onChange={onLanguageChange}
                 autoSelectedValue={autoPicked.language ? language : null}
-                emptyMessage="No languages are configured yet — please contact us to book."
+                emptyMessage="No languages are configured yet - please contact us to book."
               />
             </div>
           </motion.div>
@@ -121,7 +121,7 @@ export default function BookingStepOne({
       </AnimatePresence>
 
       <p className="text-xs text-slate-400">
-        This is your preferred time — we&apos;ll confirm the exact slot with you
+        This is your preferred time - we&apos;ll confirm the exact slot with you
         before the session.
       </p>
 

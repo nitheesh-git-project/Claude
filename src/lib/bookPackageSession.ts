@@ -135,7 +135,7 @@ export async function bookPackageSession(
     return {
       success: false,
       status: 409,
-      error: "Could not reserve a package session — please try again.",
+      error: "Could not reserve a package session - please try again.",
     };
   }
 
@@ -199,7 +199,7 @@ export async function bookPackageSession(
     // a real appointment id. A failed insert means no reserve was ever
     // made.
     //
-    // Give the claimed session back — the patient didn't actually get a
+    // Give the claimed session back - the patient didn't actually get a
     // booking out of it. Re-read the current count and CAS-decrement it
     // (same pattern as the restore in cancelAppointment.ts) rather than
     // blindly overwriting with the pre-claim value, which could clobber a

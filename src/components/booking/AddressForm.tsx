@@ -113,7 +113,7 @@ export default function AddressForm({
         </p>
         <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
           Soon you&apos;ll be able to drop a pin on the exact spot. For now, the
-          landmark above is what your therapist will navigate by — please make
+          landmark above is what your therapist will navigate by - please make
           it as specific as you can.
         </p>
       </div>
@@ -145,7 +145,7 @@ export default function AddressForm({
           placeholder="2nd floor, no lift. Ring the bell twice. Friendly dog in the yard."
         />
         <span className="mt-1 block text-[11px] text-slate-400">
-          Floor, lift, gate code, parking, pets — anything that saves a phone
+          Floor, lift, gate code, parking, pets - anything that saves a phone
           call at your door.
         </span>
       </label>

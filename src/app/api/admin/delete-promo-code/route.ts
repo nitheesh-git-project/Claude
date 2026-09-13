@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "This code has been used, so it can't be deleted — switch it off instead and the bookings keep their record.",
+          "This code has been used, so it can't be deleted - switch it off instead and the bookings keep their record.",
       },
       { status: 409 }
     );

@@ -221,7 +221,7 @@ export default function PackagePurchaseDetailModal({
 
           <div className="grid grid-cols-2 gap-3 text-slate-600">
             <p>
-              <span className="text-slate-400">Category:</span> {data.purchase.categoryTitle ?? "—"}
+              <span className="text-slate-400">Category:</span> {data.purchase.categoryTitle ?? "-"}
             </p>
             <p>
               <span className="text-slate-400">Therapist:</span>{" "}
@@ -231,7 +231,7 @@ export default function PackagePurchaseDetailModal({
               <span className="text-slate-400">Paid:</span>{" "}
               {data.purchase.amount_paid_paise
                 ? `₹${(data.purchase.amount_paid_paise / 100).toLocaleString("en-IN")}`
-                : "—"}{" "}
+                : "-"}{" "}
               ({data.purchase.payment_status})
             </p>
             <p>
@@ -272,7 +272,7 @@ export default function PackagePurchaseDetailModal({
                 {data.completed.map((a) => (
                   <li key={a.id} className="flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2">
                     <span>
-                      {a.slot_time ? formatClinicDate(a.slot_time) : "—"}{" "}
+                      {a.slot_time ? formatClinicDate(a.slot_time) : "-"}{" "}
                       <span className="font-mono text-slate-400">{a.session_code ?? ""}</span>
                       {a.no_show && <span className="ml-2 text-amber-700 font-semibold">No-show</span>}
                     </span>
@@ -302,7 +302,7 @@ export default function PackagePurchaseDetailModal({
                 {data.restorable.map((a) => (
                   <li key={a.id} className="flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2">
                     <span>
-                      {a.slot_time ? formatClinicDateTime(a.slot_time) : "—"}{" "}
+                      {a.slot_time ? formatClinicDateTime(a.slot_time) : "-"}{" "}
                       <span className="capitalize text-slate-500">
                         ({a.status === "completed" ? "no-show" : "late cancellation"})
                       </span>

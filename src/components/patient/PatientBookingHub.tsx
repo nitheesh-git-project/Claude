@@ -115,7 +115,7 @@ export default function PatientBookingHub({
   if (!hasAnything) {
     return (
       <p className="py-6 text-center text-xs text-slate-500">
-        Nothing is available to book right now — please check back shortly.
+        Nothing is available to book right now - please check back shortly.
       </p>
     );
   }

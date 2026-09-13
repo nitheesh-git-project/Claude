@@ -102,7 +102,7 @@ export function HomeVisitAddressEditor({
       // deliberate call, so an out-of-area pincode is a warning, not a
       // rejection. Say so rather than letting it pass silently.
       if (data.serviceable === false) {
-        setWarning("Saved, but that pincode isn't a service area — no travel fee applies.");
+        setWarning("Saved, but that pincode isn't a service area - no travel fee applies.");
         router.refresh();
         return;
       }
@@ -124,7 +124,7 @@ export function HomeVisitAddressEditor({
       <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className={inputCls()} placeholder="Phone to call on arrival" />
       <textarea value={accessNotes} onChange={(e) => setAccessNotes(e.target.value)} rows={2} className={inputCls()} placeholder="Access notes" />
       <p className="text-[10px] text-slate-400">
-        Editing here changes this visit only — the patient&apos;s saved address is untouched.
+        Editing here changes this visit only - the patient&apos;s saved address is untouched.
         Any map pin is cleared, since it belonged to the old address.
       </p>
       {error && <p className="text-[11px] text-red-600">{error}</p>}

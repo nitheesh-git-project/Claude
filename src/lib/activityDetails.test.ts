@@ -96,9 +96,9 @@ describe("humaniseValue", () => {
   // A dash, not "null": an audit reader should not have to know what an
   // empty column looks like in JSON.
   it("prints an absent value as a dash", () => {
-    expect(humaniseValue("reason", null)).toBe("—");
-    expect(humaniseValue("reason", undefined)).toBe("—");
-    expect(humaniseValue("reason", "")).toBe("—");
+    expect(humaniseValue("reason", null)).toBe("-");
+    expect(humaniseValue("reason", undefined)).toBe("-");
+    expect(humaniseValue("reason", "")).toBe("-");
   });
 
   it("reads a list as a list, and an empty one as none", () => {
@@ -122,7 +122,7 @@ describe("humaniseKey", () => {
 
 describe("isFirstValue", () => {
   it("knows a value appearing for the first time from one that changed", () => {
-    expect(isFirstValue({ label: "Share", from: "—", to: "55%" })).toBe(true);
+    expect(isFirstValue({ label: "Share", from: "-", to: "55%" })).toBe(true);
     expect(isFirstValue({ label: "Share", from: null, to: "55%" })).toBe(true);
     expect(isFirstValue({ label: "Share", from: "40%", to: "55%" })).toBe(false);
   });

@@ -79,7 +79,7 @@ test.describe("brand splash", () => {
   test("SP-001 covers the site on a cold open, then hands it back", async ({ page }) => {
     await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
 
-    // Set by the inline boot script, so it is true at first paint — the
+    // Set by the inline boot script, so it is true at first paint - the
     // greeting is never seen arriving on top of a page already on screen.
     expect(await splashState(page)).toBe("on");
     await expect(page.getByText(DEFAULTS.splash_phrase)).toBeVisible();
@@ -135,7 +135,7 @@ test.describe("brand splash", () => {
     await settle(page);
 
     // Off means the overlay is not in the page at all, and neither is the
-    // script that would paint it — not merely hidden by CSS.
+    // script that would paint it - not merely hidden by CSS.
     await setSplash({ splash_enabled: false });
     const fresh = await page.context().browser()?.newContext();
     if (!fresh) throw new Error("no browser context");
@@ -179,7 +179,7 @@ test.describe("brand splash", () => {
     await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
     await settle(page);
 
-    // No length of absence earns a replay at 0 — the admin has said "greet
+    // No length of absence earns a replay at 0 - the admin has said "greet
     // the first load of a tab and nothing else".
     await leaveAndReturn(page, 24 * 60 * 60_000);
     expect(await splashState(page)).toBeNull();

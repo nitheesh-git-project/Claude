@@ -43,7 +43,7 @@ export default function SiteRatingsVisibilityToggle({
           <p className="text-[11px] text-slate-400 mt-1 max-w-md">
             Global switch for the /team page and homepage. Off hides every
             therapist&apos;s rating number sitewide, regardless of that
-            therapist&apos;s own visibility setting — useful while review
+            therapist&apos;s own visibility setting - useful while review
             volume is still thin. Ratings keep being collected either way;
             this only controls what visitors see.
           </p>

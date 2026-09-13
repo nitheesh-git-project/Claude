@@ -17,7 +17,7 @@ import {
  * Three fields and a switch, saved one column at a time through
  * /api/admin/update-setting like every other setting on this screen. The
  * bounds below mirror what that route and the columns' own check
- * constraints enforce — stated here too so a bad value is caught before a
+ * constraints enforce - stated here too so a bad value is caught before a
  * round trip, with the route remaining the authority.
  *
  * The fade length is deliberately not here: it is written in both
@@ -35,7 +35,7 @@ export default function SplashScreenForm({
   revisitMinutes,
 }: {
   enabled: boolean;
-  /** The override as stored — blank means the splash follows siteName. */
+  /** The override as stored - blank means the splash follows siteName. */
   brandLine: string;
   /** Brand & Contact Details' site name, shown as the placeholder so the
    *  admin can see what blank actually renders as. */
@@ -145,7 +145,7 @@ export default function SplashScreenForm({
       <p className="text-xs text-slate-500 mb-4">
         A full-screen greeting shown over the site for a moment when someone opens it in a new
         tab, and again when a tab left in the background is returned to. It never shows on an
-        internal link, a reload of the same tab, or a quick flick away and back — someone
+        internal link, a reload of the same tab, or a quick flick away and back - someone
         approving a payment in their banking app comes straight back to where they were. Visitors
         who ask their device to reduce motion never see it.
       </p>
@@ -159,7 +159,7 @@ export default function SplashScreenForm({
           className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-600"
         />
         <span className="text-xs font-semibold text-slate-700">
-          {on ? "Showing on cold opens" : "Switched off — the site opens straight to the page"}
+          {on ? "Showing on cold opens" : "Switched off - the site opens straight to the page"}
         </span>
       </label>
 

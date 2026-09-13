@@ -35,7 +35,7 @@ export type MarketingPage = {
   icon: string;
   photo: PhotoId;
   /**
-   * Describes the photograph, not the page — the blurb already says what the
+   * Describes the photograph, not the page - the blurb already says what the
    * page is for, and a screen reader announcing it twice tells someone
    * nothing about the image they cannot see.
    */
@@ -146,7 +146,7 @@ export function marketingPage(key: MarketingPageKey): MarketingPage {
 }
 
 /**
- * The pages to offer from a given page — every page except the one being
+ * The pages to offer from a given page - every page except the one being
  * read, with Home Visit dropped when the clinic has switched it off.
  *
  * Used by the home page's connector grid and by the "Explore the site" strip

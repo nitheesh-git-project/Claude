@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
   }
   if (!claimed) {
     return NextResponse.json(
-      { error: "This package's expiry was changed concurrently — please refresh and try again." },
+      { error: "This package's expiry was changed concurrently - please refresh and try again." },
       { status: 409 }
     );
   }

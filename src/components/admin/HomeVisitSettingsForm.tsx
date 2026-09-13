@@ -222,16 +222,16 @@ export default function HomeVisitSettingsForm({
         <h3 className="font-bold text-sm text-slate-800 mb-1">Home Visit</h3>
         <p className="text-xs text-slate-500 mb-2">
           The master switch. While this is off, the Home Visit page returns Not Found, the nav link
-          is hidden, and nothing home-visit-related appears to patients — existing bookings still
+          is hidden, and nothing home-visit-related appears to patients - existing bookings still
           render everywhere for staff.
         </p>
         {notReady && (
           <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg p-2 mb-2">
             {areaCount === 0 && packageCount === 0
-              ? "No service areas and no packages yet — turning this on would advertise a service nothing can be booked against."
+              ? "No service areas and no packages yet - turning this on would advertise a service nothing can be booked against."
               : areaCount === 0
-                ? "No service areas yet — every booking attempt would be turned away."
-                : "No packages yet — the Home Visit page would have nothing to sell."}
+                ? "No service areas yet - every booking attempt would be turned away."
+                : "No packages yet - the Home Visit page would have nothing to sell."}
           </p>
         )}
         <div className="divide-y divide-slate-100">
@@ -243,7 +243,7 @@ export default function HomeVisitSettingsForm({
           />
           <Toggle
             label="Allow cash on visit"
-            hint="Lets a patient choose to pay the therapist at the door instead of prepaying. The therapist then holds company money until it is remitted — the Cash Ledger tracks that."
+            hint="Lets a patient choose to pay the therapist at the door instead of prepaying. The therapist then holds company money until it is remitted - the Cash Ledger tracks that."
             value={settings.homeVisitCashEnabled}
             settingKey="home_visit_cash_enabled"
           />

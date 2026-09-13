@@ -468,7 +468,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   ];
   // A patient can read their own appointment rows via RLS, but not the
   // linked therapist's profile (that policy only allows a user to read
-  // their own row) — so the assigned therapist's name has to be looked up
+  // their own row) - so the assigned therapist's name has to be looked up
   // here via the admin client, same pattern as the therapist dashboard
   // looking up its patients' names.
   const therapistIds = [
@@ -821,7 +821,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       label: "Next session",
       value: nextSession?.slot_time
         ? new Date(nextSession.slot_time).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata", day: "numeric", month: "short" })
-        : "—",
+        : "-",
       note: nextSession?.slot_time
         ? `${new Date(nextSession.slot_time).toLocaleTimeString([], { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}${
             nextSession.therapist_id ? ` · ${therapistMap.get(nextSession.therapist_id) ?? "therapist"}` : ""
@@ -846,14 +846,14 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       accent: "bg-blue-500",
       href: "/patient/dashboard/packages",
     },
-    // Before a therapist has filled it in, this deliberately reads "—" on
+    // Before a therapist has filled it in, this deliberately reads "-" on
     // a slate accent rather than "0%" on amber: an amber zero asserts the
     // patient is behind on something nobody has asked them for. Same
     // label and href either way, so the strip keeps its shape.
     intakeGate.reason === "awaiting_therapist"
       ? {
           label: "Health profile",
-          value: "—",
+          value: "-",
           note: "Your therapist fills this in at your first session",
           accent: "bg-slate-400",
           href: "/patient/dashboard/health-profile",

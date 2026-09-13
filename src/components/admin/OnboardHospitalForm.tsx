@@ -48,7 +48,7 @@ export default function OnboardHospitalForm({
     return (
       <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 text-xs space-y-1.5">
         <p className="font-bold text-teal-900">
-          Hospital account created — save these now, they won&apos;t be shown
+          Hospital account created - save these now, they won&apos;t be shown
           again:
         </p>
         <p>
@@ -136,7 +136,7 @@ export default function OnboardHospitalForm({
           Hospital&apos;s Revenue Share (%)
           <span className="font-normal text-slate-400">
             {" "}
-            — the rest goes to the company
+            - the rest goes to the company
           </span>
         </label>
         <input

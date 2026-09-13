@@ -117,7 +117,7 @@ export default function AdminSlotPicker({
             </p>
             {hours.length === 0 ? (
               <p className="text-[11px] text-slate-500">
-                No times left on this date — pick another day.
+                No times left on this date - pick another day.
               </p>
             ) : (
               <div className={BOOKING_OPTION_GRID_COMPACT}>
@@ -142,8 +142,8 @@ export default function AdminSlotPicker({
               than leaving an admin to work it out from greyed-out cells. */}
           <p className="text-[10px] text-slate-500">
             {leadTimeMs === BOOKING_LEAD_TIME_MS
-              ? `Earliest bookable time is ${BOOKING_LEAD_TIME_HOURS} hours from now — the same rule the patient's own booking screen follows.`
-              : "Any time from now on — this screen is an override, so the patient's lead-time rule does not apply."}
+              ? `Earliest bookable time is ${BOOKING_LEAD_TIME_HOURS} hours from now - the same rule the patient's own booking screen follows.`
+              : "Any time from now on - this screen is an override, so the patient's lead-time rule does not apply."}
           </p>
         </div>
       )}

@@ -56,7 +56,7 @@ export default function PatientAuthCard() {
     // to replace this page, so resetting it first just flashes the button
     // back to "Sign In" for however long that navigation takes. Hard nav
     // (not router.push) so the fresh cookies set by signInWithPassword are
-    // guaranteed to be sent with the very next request to the proxy — a
+    // guaranteed to be sent with the very next request to the proxy - a
     // client-side soft nav can race the cookie write.
     window.location.href = "/patient/dashboard";
   }
@@ -378,18 +378,18 @@ export default function PatientAuthCard() {
               {referralCheck.status === "valid" && (
                 <p className="text-teal-700 font-semibold mt-1">
                   <i className="fa-solid fa-circle-check mr-1"></i>
-                  Valid — referred by {referralCheck.hospitalName ?? "your partner hospital"}
+                  Valid - referred by {referralCheck.hospitalName ?? "your partner hospital"}
                 </p>
               )}
               {referralCheck.status === "invalid" && (
                 <p className="text-red-600 font-semibold mt-1">
                   <i className="fa-solid fa-circle-exclamation mr-1"></i>
-                  Code not recognized — double-check it or leave blank
+                  Code not recognized - double-check it or leave blank
                 </p>
               )}
             </div>
             <p className="text-slate-400 leading-relaxed">
-              New accounts are reviewed by our team — you&apos;ll be able to
+              New accounts are reviewed by our team - you&apos;ll be able to
               sign in and book sessions once an admin approves yours.
             </p>
             <button

@@ -35,25 +35,25 @@ export default function PediatricsSnapshotStrip({
       note:
         milestonesReached === 0
           ? "Fills in once these are ticked"
-          : "What your child can do on their own — more is better",
+          : "What your child can do on their own - more is better",
       accent: "bg-emerald-500",
     },
     {
       label: "Born",
-      value: birthHistory ?? "—",
+      value: birthHistory ?? "-",
       note: birthHistory ? "From your first session" : "Not answered yet",
       accent: "bg-amber-500",
     },
     {
       label: "Diagnosis",
       value: diagnosis ?? "None recorded",
-      note: diagnosis ? "What a doctor has said" : "Nothing on file — that is common",
+      note: diagnosis ? "What a doctor has said" : "Nothing on file - that is common",
       accent: "bg-blue-500",
       valueClass: diagnosis ? "text-slate-800" : "text-slate-500",
     },
     {
       label: "Answered by",
-      value: caregiver?.name ?? "—",
+      value: caregiver?.name ?? "-",
       note: caregiver?.relationship
         ? `Your child's ${caregiver.relationship.toLowerCase()}`
         : "Not answered yet",

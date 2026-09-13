@@ -6,10 +6,10 @@ Razorpay payments across two delivery modes (video consultation and in-home
 visits), therapist scheduling and payouts, hospital (B2B) referrals, and an
 admin back office. Data, auth, storage, and realtime come from Supabase;
 session video links come from Google Calendar/Meet. The admin back office is
-organised into seven sections — Today, Sessions, People, Money, Catalog,
-Logs, Settings — defined once in `src/lib/adminNav.ts`. Each Settings screen
+organised into seven sections - Today, Sessions, People, Money, Catalog,
+Logs, Settings - defined once in `src/lib/adminNav.ts`. Each Settings screen
 states in plain words what it is and gives one example, under its own
-heading — a label alone names a category rather than an action, and the
+heading - a label alone names a category rather than an action, and the
 section's single line ("How the product behaves") explained nothing about
 the screen you had just opened. That is also why the old Booking Rules
 screen is three: **Booking Rules** (one video session), **Offers &
@@ -22,7 +22,7 @@ All Activity (search, a type filter derived from `ACTION_DOMAIN`, a date
 range, both exports, and a dialog on every row saying what changed from what,
 with older pages fetched by cursor through `/api/admin/activity-log`) and
 Archive & Clear. Clearing is the only way a row has ever left that table, and
-it cannot reach the last `MIN_RETENTION_DAYS` — 30 — at any setting, checked
+it cannot reach the last `MIN_RETENTION_DAYS` - 30 - at any setting, checked
 in `src/lib/activityLog.ts`, in the route, and inside
 `purge_admin_activity_log()`. It demands a downloaded copy first, a typed
 phrase, and it records itself. Nothing here can be edited, and there is still
@@ -30,36 +30,36 @@ no update path. Operations, Finance and Clinical cannot open Logs; they read
 their own desk's work on Today → Activity. See the log rule in `AGENTS.md`.
 
 An admin carries a scope (`full`, `operations`, `finance`, `clinical`) that
-decides which of those sections they open **and at what level** — `none`,
+decides which of those sections they open **and at what level** - `none`,
 `view` or `manage`, with `requireAdminScope` asking for `manage`, so a
 section granted at `view` is read-only at every admin route rather than only
 where a screen remembered to hide a button. Finance reads Sessions on
 exactly that basis. Settings → User Access is where the model is read: the
 back-office directory plus a matrix of what each desk can do, derived from
 `src/lib/adminScope.ts` so it can never claim access nobody has, and
-deliberately not a set of switches. It is also where access is taken away —
+deliberately not a set of switches. It is also where access is taken away -
 suspending, never deleting, because an admin's id is on every audit row they
 wrote. **Each scope opens on its own
-Today screen** — decided once in `src/lib/adminHome.ts`, never in the page,
+Today screen** - decided once in `src/lib/adminHome.ts`, never in the page,
 so four dashboards cannot grow four answers to "what needs me today".
 Operations leads with unassigned sessions, finance with what is owed to
 therapists, clinical with the recommendations a patient is waiting on; a
 full admin's screen is unchanged. Every link that module produces is built
 through the scope check, so an action for a section this admin cannot open
-is dropped rather than rendered — `findTab` would redirect the tap somewhere
+is dropped rather than rendered - `findTab` would redirect the tap somewhere
 else and the dead link would look like it worked. "Needs you" counts only
-the queues the viewer can **work** — a section they can only read holds no
-work for them — so it agrees with the list beneath it, and
+the queues the viewer can **work** - a section they can only read holds no
+work for them - so it agrees with the list beneath it, and
 ordering those queues by role is emphasis, never permission: nothing
-reachable is hidden. Every dashboard names itself — `Master Admin`,
-`Operations`, `Finance`, `Clinical` — in the sidebar brand and again above
+reachable is hidden. Every dashboard names itself - `Master Admin`,
+`Operations`, `Finance`, `Clinical` - in the sidebar brand and again above
 the section heading, so nobody has to infer which of the four they are on
 from which entries are missing; a limited scope also gets a "Your access"
 card saying which sections that name covers, because a shorter sidebar with
 no explanation reads as a fault. See the scope rule in `AGENTS.md`.
 
-The public marketing site is eight pages — `/`, `/conditions`,
-`/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals` —
+The public marketing site is eight pages - `/`, `/conditions`,
+`/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals` -
 defined once
 in `src/lib/marketingNav.ts` and assembled from one shared, photo-led design
 system in `src/components/marketing/`. The home page scrolls down into a
@@ -68,28 +68,28 @@ the same grid minus themselves. Photographs are static imports registered in
 `src/lib/marketingPhotos.ts` and live under `public/photos/`. Catalog
 covers (programmes and packages) are admin **uploads** instead, held in the
 `catalog-images` bucket and positioned by `image_focal_x` / `image_focal_y`
-rather than cropped — one position is correct in the card's 4:3 and the
+rather than cropped - one position is correct in the card's 4:3 and the
 dialog's 16:9 alike. They fall back to `CatalogImage`'s shared placeholder.
 The home page leads with **four** conditions rather than listing every one,
 with the rest a tap away on `/conditions`; `/home-visit` does the same and
 reveals its own remainder in place, since it is already the full list. Which
-four is an admin's choice — a tick on each row's own screen, never computed
+four is an admin's choice - a tick on each row's own screen, never computed
 from sales, because a home page that rearranges itself when a booking lands
 changes without anybody deciding. `src/lib/catalogFeatured.ts` holds the
 rule, and with nothing ticked it falls back to the first four, so the band is
 never empty.
 
-One component, `CatalogCard`, renders every offering the clinic sells — the
+One component, `CatalogCard`, renders every offering the clinic sells - the
 public programme and home-visit cards **and** the patient dashboard's booking
-screen, which was a text-only list — and `CatalogDialogHeader` gives both
+screen, which was a text-only list - and `CatalogDialogHeader` gives both
 detail dialogs the same header, photograph uncovered with the heading on its
 own band below.
 
-- `README.md` — product overview, setup, environment variables, routes, and
+- `README.md` - product overview, setup, environment variables, routes, and
   how each flow works.
-- `AGENTS.md` — the working rules for editing this codebase (imported below;
+- `AGENTS.md` - the working rules for editing this codebase (imported below;
   follow it in full).
-- `supabase/schema.sql` — the entire database schema, RLS policies, views,
+- `supabase/schema.sql` - the entire database schema, RLS policies, views,
   and triggers. Single source of truth, re-runnable, append-only.
 
 **The debug bar stays switched on, in every environment, until launch.**
@@ -99,7 +99,7 @@ This app has no real patients yet. `isDebugNavVisible()`
 `next build` + `next start` and the deployed site all show it. Do not gate
 it back behind `NODE_ENV`, do not hide it "because production", and do not
 re-inline that expression at a call site. The owner removes it by hand
-before going live — and removal means deleting the bar, since the flag is
+before going live - and removal means deleting the bar, since the flag is
 public and the bar names `/admin/login` and `/admin/dashboard`. The
 database-wipe flag (`ALLOW_DEBUG_DATA_RESET`) is a separate, server-only
 thing and stays unset.
@@ -108,19 +108,19 @@ The health profile is **per specialty**: a condition profile carries
 `specialty` (`ortho`, `neuro`, `pediatrics`), and that decides its seven
 questions, its summary card, its snapshot figures and its progress line.
 A therapist triages the patient at first contact and writes the first
-record — needing only assignment, and going live with no review — and that
+record - needing only assignment, and going live with no review - and that
 fill is what unlocks the patient's own access to it. The Pain Map is an
 orthopaedic layer and stays one; the other two exam layers are explicitly
 deferred. See the "Patient Care Intake and Pain Map" rule in `AGENTS.md`.
 
 Patient files (avatars, and the test reports and scans patients upload to
-their health profile) live in Supabase Storage, never in a table column —
+their health profile) live in Supabase Storage, never in a table column -
 `patient_medical_documents` holds metadata only, and its bucket is private.
 The patient's own record leaves the app as a PDF named
 `Name_PatientCode.pdf` (`src/lib/healthProfilePdf.ts`), not as JSON.
 
 Before writing code: read the relevant guide in `node_modules/next/dist/docs/`
-— this Next.js version differs from training data.
+- this Next.js version differs from training data.
 
 Therapist availability is three things and reads as three things: a
 **weekly schedule** (what someone normally works, as working periods rather
@@ -172,14 +172,14 @@ on the appointment or payment that caused it, and
 `verify_entitlement_balances()` reports any disagreement on Settings →
 System Health → Books & Sessions Agree. Whether balances are read from the ledger or from the older
 counters is one admin switch (`entitlement_ledger_authoritative`), off by
-default and reversible without a release. Admins can change any balance — grant, reverse, revive, all
-with a mandatory reason — and cannot change any history.
+default and reversible without a release. Admins can change any balance - grant, reverse, revive, all
+with a mandatory reason - and cannot change any history.
 
 An admin can write a recommendation on a therapist's behalf when that
-therapist cannot reach their dashboard — same rules, same package whitelist,
+therapist cannot reach their dashboard - same rules, same package whitelist,
 programmes narrowed to that session's own condition, attribution stated at
 the button, attributed to the clinician (`authored_by`) and recorded as typed
-by the admin (`entered_by`) — and can withdraw one. They can also approve a
+by the admin (`entered_by`) - and can withdraw one. They can also approve a
 queued one with different numbers, which is the same thing again: a new
 version through the same function, never an edit of the clinician's. All
 three doors call `authorCarePlanVersion()`, and none of them can set a
@@ -187,8 +187,8 @@ price.
 
 A therapist recommends treatment after a session as a **care plan**
 (`care_plans` + append-only `care_plan_versions`), written from the session
-note dialog. They answer two questions — which condition, and how many
-sessions — and those two select exactly one admin-configured package. There
+note dialog. They answer two questions - which condition, and how many
+sessions - and those two select exactly one admin-configured package. There
 is no price, session count or discount column for anyone to set. Plus four
 clinical fields. It needs a completed session they ran, and a purchased plan
 is never re-versioned: a later recommendation opens a new thread. The same
@@ -197,7 +197,7 @@ rows render on the therapist's chart and the patient's Health Profile.
 **The clinic approves it before the patient sees it.** A submission lands
 `pending_review` and shows on Sessions → Recommendations, counted in Today's
 inbox; an admin approves it in one tap, turns it down with a reason the
-therapist reads, or approves it with different numbers — which writes a
+therapist reads, or approves it with different numbers - which writes a
 *new* version attributed to the clinician and entered by the admin rather
 than editing theirs, since versions are append-only. Decisions are recorded
 in append-only `care_plan_reviews`; a reason is required only for the two
@@ -216,7 +216,7 @@ exactly the recommended sessions.
 **Paying ends in booked appointments, not a balance.** The payment lands on
 a confirmation and one next step; the scheduler opens with the whole run
 already proposed from the clinician's own cadence
-(`src/lib/sessionRhythm.ts` — a proposal only, re-checked server-side); and
+(`src/lib/sessionRhythm.ts` - a proposal only, re-checked server-side); and
 anything still unbooked stays a `needsYou` item on the patient's dashboard
 until the balance is spent. The patient's word for all of it is
 **programme**.
@@ -225,14 +225,14 @@ A patient's first purchase is **one session**. A multi-session programme is a
 clinical judgement, so it comes from a care plan and never from a price list:
 `src/lib/consultationFirst.ts` allows direct purchase only of a single
 session or visit, and the old `/book?package=` checkout is deleted. A
-one-visit home package is the home-visit consultation and stays purchasable —
+one-visit home package is the home-visit consultation and stays purchasable -
 without it, a patient who needs to be seen at home would have no entry point,
 since ordinary consultations are always video.
 
 **Nor is a programme advertised.** The public pages carry no programme
 catalogue at all: `/` and `/conditions` show treatment categories and their
 consultation price, `/home-visit` shows single visits only, and the
-`show_programme_prices` switch is retired rather than defaulted off — a
+`show_programme_prices` switch is retired rather than defaulted off - a
 toggle somebody can flip back on is not the rule being gone. The patient
 dashboard's booking hub is the same: one video consultation, or one visit
 at home.
@@ -246,9 +246,9 @@ an admin applies to one unpaid session with a mandatory reason and an audit
 row; a **promo code**, a campaign an admin sets up that a patient claims by
 typing its name at checkout; and a **patient invite**, which takes something
 off the invited friend's first session and something off the inviter's next
-one. They never stack — the largest applies, and a tie goes to the most
-deliberate decision — travel is never discounted, and all four facts are
-recorded — list price, amount off, which rule, and why — so the books can
+one. They never stack - the largest applies, and a tie goes to the most
+deliberate decision - travel is never discounted, and all four facts are
+recorded - list price, amount off, which rule, and why - so the books can
 tell "sold cheap" from "discounted". What discounting cost is **reported** on
 Money → Costs, split by rule and never deducted from profit: it is already
 inside gross revenue as a smaller number. Bundle pricing stays
@@ -261,14 +261,14 @@ zero.** One module resolves the price and every discount
 `/api/razorpay/create-order` (the authority, claiming under a row lock), and
 `/api/appointments/confirm-free`. The wizard used to print the category price
 while create-order silently applied a first-session offer behind it. When a
-discount takes the total to nothing there is no gateway order at all —
+discount takes the total to nothing there is no gateway order at all -
 Razorpay refuses one, and the old ₹1 floor charged a figure nobody was
 quoted; `MINIMUM_CHARGE_PAISE` now means only "the least a gateway order may
 be", tested by `isGatewayPayable`. The free confirmation re-resolves
 server-side and refuses with 409 if anything is still owed, writes no
 `payments` row (no money moved, and that table is keyed on Razorpay's own
 ids), records `amount_paid_paise = 0` with all four discount facts, and still
-does everything a paid confirmation does — auto-assignment, the Meet event,
+does everything a paid confirmation does - auto-assignment, the Meet event,
 settling an invite half. A goodwill adjustment is the one rule still floored
 above zero: it is a number a person typed, not an advertised free session.
 
@@ -276,7 +276,7 @@ above zero: it is a number a person typed, not an advertised free session.
 every figure comes from the row an admin created. Its redemption cap is
 enforced by `claim_promo_code()` under a row lock rather than by a count
 taken a moment earlier, and a claim that is never paid for stops counting
-after a checkout hold computed at read time — no status column, no sweep,
+after a checkout hold computed at read time - no status column, no sweep,
 the same rule a pending session suggestion follows. The claim is recorded on
 the booking (`appointments.promo_code_id`), not in a second table, so the
 count and the money cannot disagree. Off by default
@@ -297,7 +297,7 @@ Treatment is paid for through this platform, and two admin-switchable
 controls keep it that way. Every string one role writes and another reads is
 scanned (`src/lib/contactLeakScan.ts` via `src/lib/communicationFlags.ts`):
 a payment handle or payment link is refused, a phone number or email is
-delivered and recorded, and clinical text full of numbers is left alone —
+delivered and recorded, and clinical text full of numbers is left alone -
 the two tiers exist because a check that cries wolf is a check nobody
 reads. A patient's phone is masked on the therapist's screens and their
 email is not loaded there at all; the real number comes one session at a
@@ -309,7 +309,7 @@ in `AGENTS.md`.
 
 Suspicious patterns surface on Today → Risk as `risk_signals`, written by a
 bounded lazy sweep after the admin render. A flag is never an accusation and
-never carries a penalty — nothing is suspended, held or hidden because a rule
+never carries a penalty - nothing is suspended, held or hidden because a rule
 fired; a signal links to the rows behind it and an admin acts, if at all,
 through the ordinary screens. Thresholds are `risk_rules` and the two that
 need a clinic baseline ship disabled. Reviews are append-only and need a real
@@ -327,7 +327,7 @@ account and carrying Exit. See the impersonation rule in `AGENTS.md`.
 
 Payments are recorded in `payments` (one row per Razorpay order, unique on
 both the order id and the payment id) and confirmed by whichever of the
-browser callback or `/api/razorpay/webhook` arrives first — both go through
+browser callback or `/api/razorpay/webhook` arrives first - both go through
 the one idempotent `record_payment_capture` function. Setting
 `RAZORPAY_WEBHOOK_SECRET` is what makes the webhook half work; without it
 a patient who pays and closes the tab leaves a paid order against an unpaid
@@ -349,7 +349,7 @@ and the therapist roster end to end -- ranges, exceptions, leave,
 authorization, stale and double-clicked saves, and the booking regression --
 and each admin scope's own landing screen
 (`npm run test:e2e`, see `e2e/`)
-but needs a test Supabase project and Razorpay test keys — verify a change
+but needs a test Supabase project and Razorpay test keys - verify a change
 with a build and a lint.
 
 These three docs describe the app, so keep them current: whenever a change

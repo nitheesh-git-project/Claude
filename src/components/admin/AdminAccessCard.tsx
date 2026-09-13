@@ -45,7 +45,7 @@ export default function AdminAccessCard({ note }: { note: AdminAccessNote }) {
             </dt>
             <dd className="text-slate-700">
               {note.readOnly.join(" · ")}{" "}
-              <span className="text-slate-400">— nothing to change here</span>
+              <span className="text-slate-400">- nothing to change here</span>
             </dd>
           </div>
         )}

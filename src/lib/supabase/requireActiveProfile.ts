@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 // Suspending a patient/therapist (profiles.active = false) is meant to lock
 // them out entirely (see the column's own comment in supabase/schema.sql),
-// but that was previously only enforced by the dashboard-navigation proxy —
+// but that was previously only enforced by the dashboard-navigation proxy -
 // a suspended user's still-valid session cookie could keep calling
 // self-service API routes directly (devtools, a stale open tab, curl) with
 // no server-side check at all. This re-checks the flag at the one point

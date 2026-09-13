@@ -29,7 +29,7 @@ const IST_HOUR_MINUTE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 });
 
-// Minutes since midnight IST, independent of the date — lets the Session
+// Minutes since midnight IST, independent of the date - lets the Session
 // Story table sort purely by time-of-day (e.g. group every 5pm slot
 // together regardless of which day it falls on) separately from sorting
 // by calendar date.

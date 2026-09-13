@@ -14,7 +14,7 @@ import Link from "next/link";
  *
  * Deliberately says nothing about *what* broke. The message on an Error can
  * carry a database column name or a row id, and this renders for patients.
- * `digest` is Next's own hash of the server-side error — safe to show, and
+ * `digest` is Next's own hash of the server-side error - safe to show, and
  * the one thing that lets a real report be matched to a real server log.
  */
 export default function RouteError({
@@ -44,7 +44,7 @@ export default function RouteError({
       </h1>
       <p className="mt-2 text-sm text-slate-500">
         Something went wrong on our side, not yours. Nothing you were doing has been
-        lost — try again, and if it keeps happening let the clinic know.
+        lost - try again, and if it keeps happening let the clinic know.
       </p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
         <button

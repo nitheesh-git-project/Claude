@@ -99,19 +99,19 @@ const server = http.createServer(async (req, res) => {
   try {
     const { tokens } = await oauth2Client.getToken(code);
     res.writeHead(200, { "Content-Type": "text/plain" }).end(
-      "Success — you can close this tab and check your terminal."
+      "Success - you can close this tab and check your terminal."
     );
     console.log("\nSave this in .env.local:\n");
     console.log(`GOOGLE_CALENDAR_REFRESH_TOKEN=${tokens.refresh_token}\n`);
     if (!tokens.refresh_token) {
       console.error(
-        "No refresh token returned — this Google account likely already granted this app access before.\n" +
+        "No refresh token returned - this Google account likely already granted this app access before.\n" +
           "Revoke prior access at https://myaccount.google.com/permissions and re-run this script."
       );
     }
   } catch (err) {
     console.error("Failed to exchange code for tokens:", err);
-    res.writeHead(500).end("Failed — check your terminal.");
+    res.writeHead(500).end("Failed - check your terminal.");
   } finally {
     server.close();
   }

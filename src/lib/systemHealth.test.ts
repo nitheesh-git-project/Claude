@@ -292,7 +292,7 @@ describe("copyTextFor", () => {
   it("carries the status, the headline and every step", () => {
     const check = buildSystemHealth({ ...ALL_WELL, webhookSecretConfigured: false })[0];
     const text = copyTextFor(check);
-    expect(text).toContain("Payment Confirmations — Needs you now");
+    expect(text).toContain("Payment Confirmations - Needs you now");
     expect(text).toContain(check.headline);
     for (const step of check.fix) expect(text).toContain(step);
     expect(text).toContain("1.");

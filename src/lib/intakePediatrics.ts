@@ -79,7 +79,7 @@ export const PEDS_INTAKE_QUESTIONS: IntakeQuestion[] = [
     label: "Which of these can your child do on their own today?",
     shortLabel: "Milestones",
     helpText:
-      "Tick everything your child can do without help, even if it is wobbly. Milestones are how progress is measured in children — this is the line we will watch move.",
+      "Tick everything your child can do without help, even if it is wobbly. Milestones are how progress is measured in children - this is the line we will watch move.",
     inputType: "multi_select",
     options: [
       "Holds head steady",
@@ -101,7 +101,7 @@ export const PEDS_INTAKE_QUESTIONS: IntakeQuestion[] = [
     label: "Has a doctor given a diagnosis, or ordered any tests?",
     shortLabel: "Diagnosis",
     helpText:
-      "For example cerebral palsy, Down syndrome, torticollis, club foot — or a delay with no name yet. If nothing has been said, leave it blank; it does not change whether we can help.",
+      "For example cerebral palsy, Down syndrome, torticollis, club foot - or a delay with no name yet. If nothing has been said, leave it blank; it does not change whether we can help.",
     placeholder: "e.g. Left torticollis, diagnosed at 3 months",
     inputType: "text",
     required: false,

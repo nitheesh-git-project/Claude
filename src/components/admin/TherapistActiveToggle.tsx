@@ -13,7 +13,7 @@ export default function TherapistActiveToggle({
   therapistId: string;
   active: boolean;
   // Both zero by default so today's exact confirm text is unchanged when
-  // there's nothing in flight — these only add a clause when non-zero.
+  // there's nothing in flight - these only add a clause when non-zero.
   upcomingSessionCount?: number;
   openPayoutRequestCount?: number;
 }) {

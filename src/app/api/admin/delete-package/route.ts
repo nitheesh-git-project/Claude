@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   const { error } = await admin.from("treatment_category_packages").delete().eq("id", id);
 
   if (error) {
-    // Someone already bought this package — deleting it would orphan their
+    // Someone already bought this package - deleting it would orphan their
     // purchase's category_id/session_count reference. Deactivate instead.
     if (error.code === "23503") {
       return NextResponse.json(
