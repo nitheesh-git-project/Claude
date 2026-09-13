@@ -81,11 +81,11 @@ export default function HomeVisitPackageManager({
           ? "None are ticked, so it shows the first four in this order."
           : featuredCount <= FEATURED_LIMIT
             ? `${featuredCount} ticked.`
-            : `${featuredCount} ticked — the first ${FEATURED_LIMIT} in this order are the ones shown.`}
+            : `${featuredCount} ticked - the first ${FEATURED_LIMIT} in this order are the ones shown.`}
       </p>
       {packages.length === 0 && !addingNew ? (
         <p className="text-xs text-slate-500 py-4 text-center">
-          No home visit packages yet — add one below. A single one-off visit is just a package with
+          No home visit packages yet - add one below. A single one-off visit is just a package with
           1 visit.
         </p>
       ) : (
@@ -122,7 +122,7 @@ export default function HomeVisitPackageManager({
                       )}
                     </p>
                     <p className="text-slate-500 mt-0.5">
-                      <span className="font-mono">{pkg.package_code ?? "—"}</span>
+                      <span className="font-mono">{pkg.package_code ?? "-"}</span>
                       {pkg.visit_count === 1 && <span> · Single visit</span>}
                     </p>
                   </div>

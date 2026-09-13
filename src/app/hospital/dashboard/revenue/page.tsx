@@ -71,7 +71,7 @@ export default async function Page() {
                     {d.patientMap.get(s.patient_id)?.full_name ?? "Patient"}
                   </p>
                   <p className="text-slate-500">
-                    {s.concern} — {formatSlotTime(s.slot_time, s.timezone)}
+                    {s.concern} - {formatSlotTime(s.slot_time, s.timezone)}
                     {s.session_code && (
                       <span className="ml-2 font-mono text-slate-400">{s.session_code}</span>
                     )}

@@ -44,7 +44,7 @@ export default function TherapistNotesForm({
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={4}
-        placeholder="Private notes about this therapist — never shown to them."
+        placeholder="Private notes about this therapist - never shown to them."
         className="w-full p-2.5 rounded-lg border border-slate-300"
       />
       <button

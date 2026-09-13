@@ -113,7 +113,7 @@ export default function DeleteAccountButton({
           <div className="space-y-4 text-xs text-slate-700">
             <p>
               The login is removed permanently. This only works for an account with{" "}
-              <strong>no history at all</strong> — no sessions, payments, programmes,
+              <strong>no history at all</strong> - no sessions, payments, programmes,
               clinical records or back-office actions. If it has any, nothing is deleted
               and this will tell you what is there.
             </p>

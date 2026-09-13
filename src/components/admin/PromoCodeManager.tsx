@@ -252,7 +252,7 @@ function CampaignForm({
           onChange={(e) => setFirstSessionOnly(e.target.checked)}
         />
         <span>
-          First session only — a patient who has already paid for a session cannot use it.
+          First session only - a patient who has already paid for a session cannot use it.
         </span>
       </label>
 
@@ -428,7 +428,7 @@ export default function PromoCodeManager({
       {!optimisticEnabled && (
         <p className="mb-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
           Promo codes are switched off, so checkout shows no code field and none of these can be
-          used. Switching them on does not start a campaign — each code still has its own dates
+          used. Switching them on does not start a campaign - each code still has its own dates
           and its own switch.
         </p>
       )}

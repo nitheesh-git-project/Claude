@@ -15,8 +15,8 @@ const formatDay = (iso: string) =>
 
 /**
  * "Am I getting better?" as one line: the average pain your therapist
- * recorded on each exam day, oldest to newest. One series, so no legend —
- * the card's own heading names it — and a single direct label on the
+ * recorded on each exam day, oldest to newest. One series, so no legend -
+ * the card's own heading names it - and a single direct label on the
  * newest point rather than a number over every dot.
  *
  * Deliberately not a second series for the patient's own 0-10 severity:
@@ -29,7 +29,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
   if (points.length === 0) {
     return (
       <p className="text-sm text-slate-500">
-        Nothing to chart yet — this line appears once your therapist has examined you twice, and shows whether
+        Nothing to chart yet - this line appears once your therapist has examined you twice, and shows whether
         the pain is coming down.
       </p>
     );

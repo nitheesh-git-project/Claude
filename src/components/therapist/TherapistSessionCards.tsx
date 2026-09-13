@@ -292,7 +292,7 @@ export function renderTherapistHomeVisitCard(
             <i className="fa-solid fa-circle-check mr-1.5" />
             Cash collected
             {visit.cash_collected_amount_paise
-              ? ` — ₹${(visit.cash_collected_amount_paise / 100).toLocaleString("en-IN")}`
+              ? ` - ₹${(visit.cash_collected_amount_paise / 100).toLocaleString("en-IN")}`
               : ""}
           </p>
         )}

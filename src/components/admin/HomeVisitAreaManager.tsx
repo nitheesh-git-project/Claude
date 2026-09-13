@@ -120,7 +120,7 @@ function BulkAddForm({ onDone }: { onDone: () => void }) {
           rows={3}
           required
           className={inputCls()}
-          placeholder="600020, 600041, 600096 — paste as many as you like, separated by spaces, commas or new lines"
+          placeholder="600020, 600041, 600096 - paste as many as you like, separated by spaces, commas or new lines"
         />
         <span className="block text-[10px] text-slate-400 mt-1">
           Every pincode here gets the same city and travel fee. Duplicates and ones already served
@@ -371,7 +371,7 @@ export default function HomeVisitAreaManager({
 
         {areas.length === 0 && !adding ? (
           <p className="text-xs text-slate-500 py-4 text-center">
-            No service areas yet — home visits can&apos;t be booked anywhere until you add one.
+            No service areas yet - home visits can&apos;t be booked anywhere until you add one.
           </p>
         ) : (
           <ul className="space-y-2">

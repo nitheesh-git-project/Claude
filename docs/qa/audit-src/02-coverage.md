@@ -8,13 +8,13 @@ Each row names the plan section, the rule under audit, the evidence class, and w
 
 | Rule the plan asserts | Class | Evidence |
 | --- | --- | --- |
-| Gates enforced in **two** places — proxy for navigation, `requireActiveProfile` in routes | VERIFIED-SOURCE | `src/proxy.ts` matcher covers all four dashboard trees; `src/lib/supabase/proxy.ts` redirects per role; self-service routes call `isProfileActive` |
+| Gates enforced in **two** places - proxy for navigation, `requireActiveProfile` in routes | VERIFIED-SOURCE | `src/proxy.ts` matcher covers all four dashboard trees; `src/lib/supabase/proxy.ts` redirects per role; self-service routes call `isProfileActive` |
 | A signed-in wrong-role user is sent to `/get-started`, never `/admin/login` | VERIFIED-SOURCE | `supabase/proxy.ts` admin branch redirects to `/get-started` |
-| One account, one role — a therapist cannot book | VERIFIED-SOURCE | `isPatientProfile` present in **exactly** the 5 routes the plan names: `appointments/create`, `razorpay/create-order`, `home-visit/create-order`, `home-visit/book-cash`, `care-plan/create-order` |
+| One account, one role - a therapist cannot book | VERIFIED-SOURCE | `isPatientProfile` present in **exactly** the 5 routes the plan names: `appointments/create`, `razorpay/create-order`, `home-visit/create-order`, `home-visit/book-cash`, `care-plan/create-order` |
 | A payment **attempt** auto-approves a patient; home visits and standalone registration do not | VERIFIED-SOURCE | `approvePatientForGenuinePaymentAttempt` called in `razorpay/create-order` only |
 | `/api/appointments/create` gates on active, not approved | VERIFIED-SOURCE | Route uses `isProfileActive`, with the reasoning in its own header comment |
-| Every admin route guards with `requireAdminScope(section)` | **VERIFIED-SOURCE — with a correction** | Re-counted in pass 2: **99 of 102** admin routes call `requireAdminScope`, which asks for `manage`. The other three (`create-account`, `debug-reset`, `set-admin-scope`) use `getAdminContext` plus a **stricter** full-only check. See F-04 |
-| Only `full` may change scopes; nobody changes their own; the last `full` cannot be narrowed | VERIFIED-SOURCE | `set-admin-scope/route.ts` — all three guards present |
+| Every admin route guards with `requireAdminScope(section)` | **VERIFIED-SOURCE - with a correction** | Re-counted in pass 2: **99 of 102** admin routes call `requireAdminScope`, which asks for `manage`. The other three (`create-account`, `debug-reset`, `set-admin-scope`) use `getAdminContext` plus a **stricter** full-only check. See F-04 |
+| Only `full` may change scopes; nobody changes their own; the last `full` cannot be narrowed | VERIFIED-SOURCE | `set-admin-scope/route.ts` - all three guards present |
 | A generated password never reaches the audit log's `details` | VERIFIED-SOURCE | No password variable is passed into `recordAdminActivity` in any create/reset route |
 | Suspension is enforced against a live cookie | NOT-VERIFIABLE | Mechanism present; behaviour needs a session |
 
@@ -66,7 +66,7 @@ Each row names the plan section, the rule under audit, the evidence class, and w
 | Both doors call one authoring implementation | VERIFIED-SOURCE | `authorCarePlanVersion()` called by the therapist route and `admin/author-care-plan` |
 | Split attribution (`authored_by` / `entered_by`) | VERIFIED-SOURCE | Both columns written on the admin path |
 | A purchased plan cannot be withdrawn | VERIFIED-SOURCE | CAS on `status = 'active'` in `withdraw-care-plan` |
-| Unit-tested rules | **EXECUTED** | `carePlans.test.ts` — 20 tests pass |
+| Unit-tested rules | **EXECUTED** | `carePlans.test.ts` - 20 tests pass |
 
 ### 3.6 Suggested sessions (plan §11.8, §12.5)
 
@@ -82,8 +82,8 @@ Each row names the plan section, the rule under audit, the evidence class, and w
 
 | Rule | Class | Evidence |
 | --- | --- | --- |
-| Periods convert to the same hour rows | **EXECUTED** | `availabilityRanges.test.ts` — 41 tests pass |
-| Server-side validation shared by both save doors | **EXECUTED** | `availabilityRequest.test.ts` — 16 tests pass |
+| Periods convert to the same hour rows | **EXECUTED** | `availabilityRanges.test.ts` - 41 tests pass |
+| Server-side validation shared by both save doors | **EXECUTED** | `availabilityRequest.test.ts` - 16 tests pass |
 | Weekly save is a CAS under a row lock, versioned | VERIFIED-SOURCE | `save_therapist_weekly_schedule` + `therapist_schedule_state` |
 | A date exception replaces its whole day in one function | VERIFIED-SOURCE | `set_therapist_date_exception` |
 | A therapist reads exceptions, an admin writes them | VERIFIED-SOURCE | Write route is under `api/admin/`, scope-guarded |
@@ -101,16 +101,16 @@ Each row names the plan section, the rule under audit, the evidence class, and w
 | The patient's lock is enforced in `submit`, `save-draft` **and** an insert policy | VERIFIED-SOURCE | All three present |
 | Session notes have no patient select policy | VERIFIED-SOURCE | No such policy in `schema.sql`; export excludes the table |
 | Documents: private bucket, 120-second signed URL, 10 MB / 20 files | VERIFIED-SOURCE | `medicalDocuments.ts` constants; view route mints a short-lived URL |
-| `pain_assessments` append-only | **PARTIAL — see F-03** | Enforced by `revoke update, delete from authenticated` only; no trigger, unlike its five siblings |
+| `pain_assessments` append-only | **PARTIAL - see F-03** | Enforced by `revoke update, delete from authenticated` only; no trigger, unlike its five siblings |
 
 ### 3.9 Contact controls (plan §12.6)
 
 | Rule | Class | Evidence |
 | --- | --- | --- |
-| Two tiers; clinical text with digits does not fire | **EXECUTED** | `contactLeakScan.test.ts` — 33 tests pass |
-| Masking keeps prefix and last three digits | **EXECUTED** | `contactMasking.test.ts` — 13 tests pass |
+| Two tiers; clinical text with digits does not fire | **EXECUTED** | `contactLeakScan.test.ts` - 33 tests pass |
+| Masking keeps prefix and last three digits | **EXECUTED** | `contactMasking.test.ts` - 13 tests pass |
 | Reveal allowed in the join window, or any time on a home visit's own day | VERIFIED-SOURCE | `canRevealContact()` branches on `visitMode === "home_visit"` |
-| A reveal that cannot be logged is refused | VERIFIED-SOURCE | `reveal-contact` returns 500 when the log insert fails — not best-effort |
+| A reveal that cannot be logged is refused | VERIFIED-SOURCE | `reveal-contact` returns 500 when the log insert fails - not best-effort |
 | Both evidence tables append-only by trigger | VERIFIED-SOURCE | `communication_flags_no_change`, `contact_reveal_log_no_change`, `schema.sql:6435,6441` |
 | `contact_scan_mode` fails open; `contact_masking_enabled` fails closed | VERIFIED-SOURCE | Each read in its own call with the documented fallback |
 
@@ -119,44 +119,44 @@ Each row names the plan section, the rule under audit, the evidence class, and w
 | Rule | Class | Evidence |
 | --- | --- | --- |
 | `net = gross − refunds` | VERIFIED-SOURCE | `moneyByBucketFor` computes net as exactly that |
-| `clinic = splittable − therapist − partner` | VERIFIED-SOURCE | Computed as that difference — the identity holds **by construction**, so it cannot drift |
+| `clinic = splittable − therapist − partner` | VERIFIED-SOURCE | Computed as that difference - the identity holds **by construction**, so it cannot drift |
 | Therapist share only on **completed and paid** | VERIFIED-SOURCE | `if (a.status === "completed")` guards the cut |
 | Travel fee inside the therapist cut, never in revenue | VERIFIED-SOURCE | Added to the cut, never to gross |
 | Refunds reverse the partner cut, not the therapist's | VERIFIED-SOURCE | Hospital cut taken on `netPaise`; therapist cut on `paidPaise` for completed only |
 | Unknowable split excluded and **named**, never guessed | VERIFIED-SOURCE | `excludedCount` / `excludedRevenuePaise`; the "referred but unconfigured" case is distinguished from "not referred" |
 | Gateway fee on gross, skipped for cash | VERIFIED-SOURCE | `gatewayFeePaise` skips `payment_method === "cash"` and uses `amount_paid_paise` |
-| Home-visit price and payout maths | **EXECUTED** | `homeVisitPricing.test.ts` — 11 tests pass |
+| Home-visit price and payout maths | **EXECUTED** | `homeVisitPricing.test.ts` - 11 tests pass |
 | **`moneyByBucketFor` itself** | **NOT TESTED AT ALL** | See F-06 |
 
 ### 3.11 Admin surface
 
 | Rule | Class | Evidence |
 | --- | --- | --- |
-| Six sections, one definition | VERIFIED-SOURCE | `adminNav.ts` and the page's `screens` map agree. Pass 2 re-counted after the Settings split: **31 screens**, not the 28 of pass 1, and the plan said 28 in three places — see F-12 |
-| Every `AdminActivityAction` has a caller | **VERIFIED-SOURCE — clean** | All **76** actions traced to at least one calling route (53 before this pass added 23). `payout.settle` included |
-| Every **mutating admin route** records one | **WAS FALSE — now true** | 24 of the 99 mutating routes wrote nothing, including the route that changes a patient's sign-in email. See F-11 |
+| Six sections, one definition | VERIFIED-SOURCE | `adminNav.ts` and the page's `screens` map agree. Pass 2 re-counted after the Settings split: **31 screens**, not the 28 of pass 1, and the plan said 28 in three places - see F-12 |
+| Every `AdminActivityAction` has a caller | **VERIFIED-SOURCE - clean** | All **76** actions traced to at least one calling route (53 before this pass added 23). `payout.settle` included |
+| Every **mutating admin route** records one | **WAS FALSE - now true** | 24 of the 99 mutating routes wrote nothing, including the route that changes a patient's sign-in email. See F-11 |
 | Audit log has a select policy and no insert policy | VERIFIED-SOURCE | `admin_activity_log_select_admin` only |
 | Every dashboard page selects the shared settings column list | VERIFIED-SOURCE | All seven dashboard pages plus the three role loaders use `SITE_SETTINGS_SELECT` |
-| The Session Completed cutoff reaches every role | VERIFIED-SOURCE | `completedAfterMinutes` passed by all four shells **and** both admin detail contents — 8 call sites |
-| All Sessions row cap | **PLAN WAS WRONG — corrected** | No cap; `usePagedList` with `DEFAULT_PAGE_SIZE = 10`. See F-05 |
+| The Session Completed cutoff reaches every role | VERIFIED-SOURCE | `completedAfterMinutes` passed by all four shells **and** both admin detail contents - 8 call sites |
+| All Sessions row cap | **PLAN WAS WRONG - corrected** | No cap; `usePagedList` with `DEFAULT_PAGE_SIZE = 10`. See F-05 |
 
 
 ### 3.12 Surfaces that arrived after pass 1
 
-Everything in this table was traced for the first time in pass 2, because it did not exist — or did not have this shape — when the first audit ran.
+Everything in this table was traced for the first time in pass 2, because it did not exist - or did not have this shape - when the first audit ran.
 
 | Rule the plan asserts | Class | Evidence |
 | --- | --- | --- |
-| Access has **three** levels per `(scope, section)`, and `requireAdminScope` asks for `manage` | VERIFIED-SOURCE | `requireAdmin.ts:97` — `if (!scopeCanManage(context.scope, section)) return null`. So a section granted at `view` is read-only at all 99 guarded routes without one of them being edited |
-| Finance reads Sessions and cannot change one | VERIFIED-SOURCE | `adminScope.ts:98` — `sessions: "view"` under the finance scope; the only `view` grant in the table |
+| Access has **three** levels per `(scope, section)`, and `requireAdminScope` asks for `manage` | VERIFIED-SOURCE | `requireAdmin.ts:97` - `if (!scopeCanManage(context.scope, section)) return null`. So a section granted at `view` is read-only at all 99 guarded routes without one of them being edited |
+| Finance reads Sessions and cannot change one | VERIFIED-SOURCE | `adminScope.ts:98` - `sessions: "view"` under the finance scope; the only `view` grant in the table |
 | The User Access matrix is **derived**, never a second list | VERIFIED-SOURCE | `AdminUserAccessTab` renders `ADMIN_CAPABILITY_GROUPS` against `sectionAccess`; `adminScope.test.ts` holds the grid's four invariants |
 | Each scope opens on its own Today screen, decided in one module | VERIFIED-SOURCE | `adminHome.ts` returns greeting, figures, actions, queue order and access note; `adminHome.test.ts` asserts the two invariants over all four scopes |
-| A slot starts on the hour, refused at every door that writes one | VERIFIED-SOURCE | `isWholeHourSlot` imported by exactly **9** route handlers — the nine the plan names — and by no component that could be bypassed |
+| A slot starts on the hour, refused at every door that writes one | VERIFIED-SOURCE | `isWholeHourSlot` imported by exactly **9** route handlers - the nine the plan names - and by no component that could be bypassed |
 | Ordering a list is one save of the whole list | VERIFIED-SOURCE | `/api/admin/reorder-treatment-categories` refuses a partial list, **and** `set_treatment_category_order()` raises `check_violation` on one itself, so the SQL editor and the service-role client cannot renumber a subset either |
 | One resolution, three callers, and zero is free | VERIFIED-SOURCE | `checkoutQuote.ts` is imported by `appointments/quote`, `razorpay/create-order` and `appointments/confirm-free`, and by nothing else that prices a booking |
 | A promo code is an identifier; the cap holds under a row lock | VERIFIED-SOURCE | `claim_promo_code()` opens `select … for update`; the claim lives on `appointments.promo_code_id`, with no second redemptions table to disagree with it |
-| The capture path is still single | VERIFIED-SOURCE | `record_payment_capture` reached through `recordPaymentCapture.ts` from the three verify routes and the webhook — 9 references, no fourth fulfilment path |
-| The webhook verifies the **raw** body | VERIFIED-SOURCE | `webhook/route.ts:50` — `await request.text()`, never a re-serialised parse |
+| The capture path is still single | VERIFIED-SOURCE | `record_payment_capture` reached through `recordPaymentCapture.ts` from the three verify routes and the webhook - 9 references, no fourth fulfilment path |
+| The webhook verifies the **raw** body | VERIFIED-SOURCE | `webhook/route.ts:50` - `await request.text()`, never a re-serialised parse |
 
 ### 3.13 Structural sweeps run this pass
 
@@ -164,9 +164,9 @@ Cheap whole-repository checks, each one a rule this codebase states somewhere an
 
 | Sweep | Result |
 | --- | --- |
-| Every table has RLS enabled | **53 / 53.** Four (`appointment_reassignment_log`, and the three `*_admin_notes`) have RLS on and **no policy at all** — deny-all to any browser session, reachable only by the service role. That is the intended shape for a server-only table, not a gap |
+| Every table has RLS enabled | **53 / 53.** Four (`appointment_reassignment_log`, and the three `*_admin_notes`) have RLS on and **no policy at all** - deny-all to any browser session, reachable only by the service role. That is the intended shape for a server-only table, not a gap |
 | Every `alter publication … add table` is wrapped in the duplicate-object `do` block | **42 / 42.** A re-run of `schema.sql` cannot fail on a publication line |
-| Every table created after the last `debug_reset_all_data` is in its `TRUNCATE` | **Clean.** The only tables outside the list are `profiles`, `site_settings` and `risk_rules`, all three deliberate — the first is what the reset preserves, the other two are reset to defaults rather than emptied |
+| Every table created after the last `debug_reset_all_data` is in its `TRUNCATE` | **Clean.** The only tables outside the list are `profiles`, `site_settings` and `risk_rules`, all three deliberate - the first is what the reset preserves, the other two are reset to defaults rather than emptied |
 | No route parses the request body before authenticating | **0 of the 160 route handlers**, after F-10 |
 | No mutating admin route is unaudited | **0 of 99**, after F-11 |
-| Every test ID the plan references is defined | **Clean**, after F-12 — the four remaining `SETUP-*` names are documented aliases, not test cases |
+| Every test ID the plan references is defined | **Clean**, after F-12 - the four remaining `SETUP-*` names are documented aliases, not test cases |

@@ -62,7 +62,7 @@ const STATUS_ICON: Record<ConditionProfileStatus, string> = {
 const STATUS_HEADLINE: Record<ConditionProfileStatus, string> = {
   not_started: "You haven't told us about your condition yet",
   draft: "You started this and haven't sent it in yet",
-  pending_review: "Sent in — the clinic is checking it",
+  pending_review: "Sent in - the clinic is checking it",
   active: "Your therapist has your answers",
 };
 
@@ -341,7 +341,7 @@ export default async function PatientHealthProfilePage() {
               conditionProfile?.last_submitted_role === "therapist" &&
               gate.canEdit && (
                 <p className="mt-1 text-xs font-normal">
-                  Read it over — if anything is not quite right, or you remember something later, you
+                  Read it over - if anything is not quite right, or you remember something later, you
                   can correct it yourself from here.
                 </p>
               )}
@@ -350,7 +350,7 @@ export default async function PatientHealthProfilePage() {
                 <p className="mt-1 text-xs font-normal">
                   They go through a short set of questions with you and write down your answers. It
                   appears here straight away, and you can add to it from then on. In the meantime you
-                  can upload any scans or reports you already have — see below.
+                  can upload any scans or reports you already have - see below.
                 </p>
                 {/* Which session it is waiting on. Without it this screen is
                     a locked door with no sign on it: a patient cannot tell
@@ -368,7 +368,7 @@ export default async function PatientHealthProfilePage() {
             {isPending && lastRequest?.status === "pending" && (
               <p className="mt-1 text-xs font-normal">
                 Sent {formatClinicDateTime(lastRequest.created_at)}. Until it&apos;s checked, your therapist
-                still sees your previous answers — you can edit again once it clears.
+                still sees your previous answers - you can edit again once it clears.
               </p>
             )}
             {!isPending && lastRequest?.status === "declined" && (
@@ -379,7 +379,7 @@ export default async function PatientHealthProfilePage() {
             )}
             {!isPending && isOutdatedVersion && (
               <p className="mt-1 text-xs font-normal">
-                We&apos;ve changed some of these questions since you answered — worth a quick look.
+                We&apos;ve changed some of these questions since you answered - worth a quick look.
               </p>
             )}
           </div>
@@ -465,13 +465,13 @@ export default async function PatientHealthProfilePage() {
                   unit={specialty === "neuro" ? "/ 10" : "milestones"}
                   caption={
                     specialty === "neuro"
-                      ? "Each dot is a time your independence was recorded — the line going up is the goal."
-                      : "Each dot is a time the milestone list was updated — the line going up is the goal."
+                      ? "Each dot is a time your independence was recorded - the line going up is the goal."
+                      : "Each dot is a time the milestone list was updated - the line going up is the goal."
                   }
                   emptyText={
                     specialty === "neuro"
-                      ? "Nothing to chart yet — this line appears once your independence has been recorded twice, and shows whether it is going up."
-                      : "Nothing to chart yet — this line appears once the milestone list has been updated twice, and shows what your child has gained."
+                      ? "Nothing to chart yet - this line appears once your independence has been recorded twice, and shows whether it is going up."
+                      : "Nothing to chart yet - this line appears once the milestone list has been updated twice, and shows what your child has gained."
                   }
                 />
               )}
@@ -485,7 +485,7 @@ export default async function PatientHealthProfilePage() {
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">
                 {isOrtho
-                  ? "Filled in by your therapist after examining you — tap any marked point for that area's detail."
+                  ? "Filled in by your therapist after examining you - tap any marked point for that area's detail."
                   : "What your therapist found when they examined you."}
               </p>
             </div>
@@ -504,7 +504,7 @@ export default async function PatientHealthProfilePage() {
           <div className="mb-4">
             <h2 className="font-display text-lg font-bold text-slate-800">Test reports and scans</h2>
             <p className="mt-0.5 text-xs text-slate-500">
-              X-rays, MRI reports, blood tests, prescriptions — anything another doctor gave you. Your
+              X-rays, MRI reports, blood tests, prescriptions - anything another doctor gave you. Your
               therapist can open these before your session, so you don&apos;t have to remember to carry them.
             </p>
           </div>

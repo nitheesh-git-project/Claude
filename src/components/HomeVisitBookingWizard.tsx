@@ -521,7 +521,7 @@ export default function HomeVisitBookingWizard({
               Where should we come?
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              Start with your pincode — we&apos;ll check we can reach you before anything else.
+              Start with your pincode - we&apos;ll check we can reach you before anything else.
             </p>
           </div>
 
@@ -557,7 +557,7 @@ export default function HomeVisitBookingWizard({
             <>
               <p className="rounded-xl bg-teal-50 p-3 text-sm text-teal-800">
                 <i className="fa-solid fa-circle-check mr-1.5" />
-                Yes — we visit {areaCheck.areaName ? `${areaCheck.areaName}, ` : ""}
+                Yes - we visit {areaCheck.areaName ? `${areaCheck.areaName}, ` : ""}
                 {areaCheck.city}.
                 {areaCheck.travelFeePaise > 0 && !selectedPackage?.travel_fee_included && (
                   <span>
@@ -598,7 +598,7 @@ export default function HomeVisitBookingWizard({
               {waitlistJoined ? (
                 <p className="text-sm font-semibold text-teal-800">
                   <i className="fa-solid fa-circle-check mr-1.5" />
-                  Thanks — we&apos;ll be in touch.
+                  Thanks - we&apos;ll be in touch.
                 </p>
               ) : (
                 <>
@@ -670,7 +670,7 @@ export default function HomeVisitBookingWizard({
             label="Arrival time"
             idPrefix="hv-hour"
             autoSelectedValue={autoPicked.hour && bookHour !== "" ? String(bookHour) : null}
-            emptyMessage="No times left on this date — pick another day."
+            emptyMessage="No times left on this date - pick another day."
           />
 
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -710,7 +710,7 @@ export default function HomeVisitBookingWizard({
               >
                 {sellablePackages.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.title} — {p.visit_count === 1 ? "1 visit" : `${p.visit_count} visits`}
+                    {p.title} - {p.visit_count === 1 ? "1 visit" : `${p.visit_count} visits`}
                   </option>
                 ))}
               </select>
@@ -777,7 +777,7 @@ export default function HomeVisitBookingWizard({
                 )}
                 {referralCheck.status === "invalid" && (
                   <span className="mt-1 block text-[11px] text-amber-700">
-                    We don&apos;t recognise that code — you can still continue.
+                    We don&apos;t recognise that code - you can still continue.
                   </span>
                 )}
               </label>
@@ -923,7 +923,7 @@ export default function HomeVisitBookingWizard({
                 >
                   <span className="block font-bold text-slate-900">Pay online now</span>
                   <span className="mt-1 block text-slate-500">
-                    Confirmed faster — a locked-in therapist doesn&apos;t need admin approval.
+                    Confirmed faster - a locked-in therapist doesn&apos;t need admin approval.
                   </span>
                 </button>
                 <button
@@ -949,7 +949,7 @@ export default function HomeVisitBookingWizard({
           {failedAttempts >= MAX_ATTEMPTS_BEFORE_ESCAPE && (
             <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
               {paymentMode === "cash" ? "Something's not going through." : "Payment isn't going through."}{" "}
-              Your details are saved — you can{" "}
+              Your details are saved - you can{" "}
               <Link href="/patient/dashboard" className="font-semibold underline">
                 try again from your dashboard
               </Link>{" "}
@@ -977,7 +977,7 @@ export default function HomeVisitBookingWizard({
                   ? "Booking..."
                   : "Opening payment..."
                 : paymentMode === "cash"
-                  ? `Book — pay ₹${(total.totalPaise / 100).toLocaleString("en-IN")} at the door`
+                  ? `Book - pay ₹${(total.totalPaise / 100).toLocaleString("en-IN")} at the door`
                   : `Pay ₹${(total.totalPaise / 100).toLocaleString("en-IN")}`}
             </button>
           </div>

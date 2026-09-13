@@ -57,8 +57,8 @@ function formatInr(paise: number) {
  * The four things below are clinical judgement, which is theirs.
  *
  * Collapsed by default. A therapist finishing a note usually has nothing to
- * recommend — most sessions are somewhere in the middle of a plan, not at
- * the point of proposing one — so this stays out of the way until asked
+ * recommend - most sessions are somewhere in the middle of a plan, not at
+ * the point of proposing one - so this stays out of the way until asked
  * for, rather than being another required-looking section between them and
  * the Save button.
  */
@@ -86,9 +86,9 @@ export default function CarePlanFields({
    * This patient already has a recommendation sitting in the clinic's
    * queue.
    *
-   * Writing another is allowed — it lands as a new version on the same
+   * Writing another is allowed - it lands as a new version on the same
    * thread, which is right when a clinician has genuinely changed their
-   * mind — but doing it without being told is how the same plan gets
+   * mind - but doing it without being told is how the same plan gets
    * submitted twice by someone who assumed the first one had failed.
    */
   awaitingClinic?: boolean;
@@ -130,7 +130,7 @@ export default function CarePlanFields({
             {awaitingClinic ? (
               <p className="mt-1 max-w-md text-xs text-slate-500">
                 You have already recommended a programme for this patient and the clinic
-                has not decided yet — nothing has gone wrong, and your patient has not
+                has not decided yet - nothing has gone wrong, and your patient has not
                 been asked for anything. Writing another replaces it.
               </p>
             ) : (
@@ -310,7 +310,7 @@ export default function CarePlanFields({
           How many {value?.offerKind === "home_visit_package" ? "visits" : "sessions"}
         </span>
         <p className="mb-1.5 mt-0.5 text-[11px] text-slate-500">
-          Price, validity and the scheduling rules come with the number — they are set by
+          Price, validity and the scheduling rules come with the number - they are set by
           the clinic, not here.
         </p>
         {countChoices.length === 0 ? (
@@ -371,7 +371,7 @@ export default function CarePlanFields({
           <div>
             <dt className="text-slate-400">Valid for</dt>
             <dd className="font-semibold text-slate-800">
-              {selected.snapshot.validityDays ? `${selected.snapshot.validityDays} days` : "—"}
+              {selected.snapshot.validityDays ? `${selected.snapshot.validityDays} days` : "-"}
             </dd>
           </div>
           <div>
@@ -379,7 +379,7 @@ export default function CarePlanFields({
             <dd className="font-semibold text-slate-800">
               {selected.snapshot.sessionDurationMinutes
                 ? `${selected.snapshot.sessionDurationMinutes} min`
-                : "—"}
+                : "-"}
             </dd>
           </div>
         </dl>
@@ -452,7 +452,7 @@ export default function CarePlanFields({
 
       <p className="text-[11px] text-slate-500">
         This goes to the patient as it is written. They accept and pay from their own
-        dashboard — you are not booking or charging anything here.
+        dashboard - you are not booking or charging anything here.
       </p>
     </div>
   );

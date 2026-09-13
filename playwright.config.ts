@@ -34,7 +34,7 @@ export default defineConfig({
   timeout: 30_000,
   // The dashboards have loading boundaries, so a navigation now resolves on
   // the skeleton and the real content arrives once the server work finishes
-  // — roughly seventy queries on the admin dashboard. Playwright's 5s
+  // - roughly seventy queries on the admin dashboard. Playwright's 5s
   // default for a web-first assertion was written for a page that blocks
   // until it is ready, and races that. Raising it here rather than at each
   // call site, since it applies to every browser assertion in the suite.
@@ -45,7 +45,7 @@ export default defineConfig({
   // of shared tables, and two browser suites at once pushed the admin
   // dashboard (roughly seventy queries) past even a generous assertion
   // timeout. A correctness gate that fails on scheduling is worse than a
-  // slower one — this roughly doubles the runtime and makes it deterministic.
+  // slower one - this roughly doubles the runtime and makes it deterministic.
   workers: 1,
   retries: 0,
   reporter: [["list"]],

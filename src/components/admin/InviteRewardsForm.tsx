@@ -86,7 +86,7 @@ export default function InviteRewardsForm({ settings }: { settings: InviteSettin
           <h3 className="font-bold text-sm text-slate-800">Patient invites</h3>
           <p className="text-xs text-slate-500 mt-1 max-w-md">
             Each patient gets a code to share. Their friend gets something off their first
-            session, and the patient gets something off their next one — once that friend has
+            session, and the patient gets something off their next one - once that friend has
             actually had and paid for a session, never on a signup.
           </p>
           <p className="text-xs text-slate-400 mt-2 max-w-md">

@@ -6,7 +6,7 @@ import { photo, type PhotoId } from "@/lib/marketingPhotos";
  * The last band of every public page: one sentence, one action, one picture.
  *
  * Every page ends the same way on purpose. Wherever a visitor stops reading,
- * the next step is in the same place and says the same thing — the old pages
+ * the next step is in the same place and says the same thing - the old pages
  * ended on four different kinds of block, so "what do I do now" had a
  * different answer depending on where you happened to be.
  *
@@ -18,7 +18,7 @@ import { photo, type PhotoId } from "@/lib/marketingPhotos";
  * sentence saying it.
  *
  * **Each page names its own photograph, and the band has its own set.** The
- * shape is identical everywhere — same layout, same chip, same assurances —
+ * shape is identical everywhere - same layout, same chip, same assurances -
  * so the invitation is still one invitation; only the face changes.
  * Repeating a single image across seven pages made the band read as a
  * template stamped on the end of each of them, which is exactly what a
@@ -27,14 +27,14 @@ import { photo, type PhotoId } from "@/lib/marketingPhotos";
  * and the care bands, so a closing band met a face the visitor had already
  * scrolled past, on the same page or the one before. So the seven `cta-*`
  * files exist only for this band, one per page, and each answers that page's
- * own question — `/team` a clinician opening a session, `/home-visit` a
+ * own question - `/team` a clinician opening a session, `/home-visit` a
  * couple booking from their front room, `/faq` a patient reading her phone.
  *
  * The default below is the fallback for a page that names nothing, not the
- * house style — a page added later should pick its own.
+ * house style - a page added later should pick its own.
  *
  * The confirmation chip over the photo is the same argument once more: it
- * shows what the next screen gives back — a slot, a name, a time — rather
+ * shows what the next screen gives back - a slot, a name, a time - rather
  * than asking anyone to imagine it. It is illustrative and says so in its own
  * label, never a real booking.
  *
@@ -49,7 +49,7 @@ import { photo, type PhotoId } from "@/lib/marketingPhotos";
 
 type CtaLink = { href: string; label: string; icon?: string };
 
-/** Kept short on purpose — these sit under a button, not in a paragraph. */
+/** Kept short on purpose - these sit under a button, not in a paragraph. */
 const DEFAULT_ASSURANCES = [
   { icon: "fa-user-check", label: "One-to-one, never a group" },
   { icon: "fa-file-medical", label: "Reports read before your session" },
@@ -73,7 +73,7 @@ export default function ClosingCta({
   secondary?: CtaLink;
   /**
    * Pass one per page, chosen so it is not a photograph that page already
-   * shows above — the same image twice on one page reads as a mistake. The
+   * shows above - the same image twice on one page reads as a mistake. The
    * default only covers a page that names nothing.
    */
   photoId?: PhotoId;

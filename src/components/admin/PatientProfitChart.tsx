@@ -6,7 +6,7 @@ type ProfitSession = {
   profitPaise: number;
 };
 
-// Chart colors are picked separately from the app's teal-700 brand accent —
+// Chart colors are picked separately from the app's teal-700 brand accent -
 // teal-700 itself is too low-chroma to read reliably as a chart series, and
 // a plain slate neutral sits too close to it for colorblind-safe separation
 // (both checked with the dataviz skill's palette validator). teal-600 +
@@ -169,7 +169,7 @@ export default function PatientProfitChart({
 
       {excludedCount > 0 && (
         <p className="text-[11px] text-slate-400 mt-3">
-          {excludedCount} paid session{excludedCount > 1 ? "s" : ""} excluded — therapist not
+          {excludedCount} paid session{excludedCount > 1 ? "s" : ""} excluded - therapist not
           assigned or their revenue share isn&apos;t set yet.
         </p>
       )}

@@ -52,7 +52,7 @@ export default async function PatientDashboardPage() {
             </span>
             <span className="mt-1 block text-xs text-amber-700">
               {intakeAnswered > 0
-                ? "Your answers were saved — picking up where you left off takes about a minute."
+                ? "Your answers were saved - picking up where you left off takes about a minute."
                 : `${d.intakeTotal} short questions, asked one at a time. About two minutes.`}
             </span>
             {intakeAnswered > 0 && (
@@ -98,7 +98,7 @@ export default async function PatientDashboardPage() {
         headline={
           d.nextSession?.slot_time
             ? `Your next session is ${formatSlotTime(d.nextSession.slot_time, d.nextSession.timezone)}.`
-            : "Nothing booked yet — pick a time that suits you and your therapist takes it from there."
+            : "Nothing booked yet - pick a time that suits you and your therapist takes it from there."
         }
         cells={d.overviewCells}
         stripFooter={

@@ -21,7 +21,7 @@ import type { PainAssessmentRow, QuestionOverrideRow } from "@/lib/painMap";
  *
  * When the viewer may record exams (`record` present) this is also where
  * that starts. It used to be a second body map stacked under this one with
- * twenty form fields between them — the exact "two stacked cards showing the
+ * twenty form fields between them - the exact "two stacked cards showing the
  * same figure twice" this component exists to prevent, reintroduced inside a
  * single card. Recording now happens in a dialog over this one map.
  */
@@ -38,7 +38,7 @@ export default function PainMapExplorer({
   showStandings?: boolean;
   /** Present only for a viewer allowed to write exam findings. Absent for
    *  the patient, and for a therapist whose edit access hasn't been
-   *  approved yet — in both cases this stays a read-only chart. */
+   *  approved yet - in both cases this stays a read-only chart. */
   record?: {
     endpoint: string;
     patientId: string;

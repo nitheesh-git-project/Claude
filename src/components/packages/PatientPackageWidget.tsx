@@ -107,7 +107,7 @@ export default function PatientPackageWidget({
                     <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1 font-semibold text-amber-800">
                       <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
                       {daysLeft <= 0
-                        ? "Expires today — schedule your remaining sessions now"
+                        ? "Expires today - schedule your remaining sessions now"
                         : `Only ${daysLeft} day${daysLeft === 1 ? "" : "s"} left to use ${counts.pending} remaining session${counts.pending === 1 ? "" : "s"}`}
                     </p>
                   ) : (

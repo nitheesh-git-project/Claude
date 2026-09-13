@@ -4,7 +4,7 @@ import CareIllustration, {
 import { focalPosition } from "@/lib/catalogImage";
 
 /**
- * The cover image slot on a catalog card — programme, session package or
+ * The cover image slot on a catalog card - programme, session package or
  * home-visit package.
  *
  * All three are admin-created rows with a nullable `image_url`, so all three
@@ -17,7 +17,7 @@ import { focalPosition } from "@/lib/catalogImage";
  * So the fallback is a designed state, not a broken one: the same tinted
  * panel, the same height, and the row's own illustration at a size that looks
  * deliberate. A card with no photograph should look like a card whose photo
- * has not been chosen yet — never like a card whose image failed to load.
+ * has not been chosen yet - never like a card whose image failed to load.
  *
  * `src` is an admin-supplied URL rendered through a plain <img>, not
  * next/image: optimising it would mean maintaining a remotePatterns allowlist
@@ -41,7 +41,7 @@ export default function CatalogImage({
   /**
    * Left empty by default. These are decorative covers beside a heading that
    * already names the programme, and an admin pasting a URL has nowhere to
-   * describe it — inventing alt text from the title would just repeat the
+   * describe it - inventing alt text from the title would just repeat the
    * heading to a screen reader.
    */
   alt?: string;
@@ -49,7 +49,7 @@ export default function CatalogImage({
   art?: CareIllustrationId;
   /** Icon fallback, for cards that do not. */
   icon?: string;
-  /** Height utility — cards in one grid must pass the same one. */
+  /** Height utility - cards in one grid must pass the same one. */
   className?: string;
 }) {
   if (src) {

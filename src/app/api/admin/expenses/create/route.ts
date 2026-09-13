@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   // the profit figure the whole business reads.
   if (amountPaise > 1_000_000_000) {
     return NextResponse.json(
-      { error: "That's over ₹1 crore — check the amount, or split it across entries." },
+      { error: "That's over ₹1 crore - check the amount, or split it across entries." },
       { status: 400 }
     );
   }
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, context.id, {
     action: "expense.create",
     targetId: created.id,
-    targetLabel: `${category}${trimmedDescription ? ` — ${trimmedDescription}` : ""}`,
+    targetLabel: `${category}${trimmedDescription ? ` - ${trimmedDescription}` : ""}`,
     amountPaise,
     details: { incurredOn },
   });

@@ -74,7 +74,7 @@ export function documentExtension(mimeType: string): string {
   return EXTENSION_BY_MIME[mimeType.toLowerCase()] ?? "bin";
 }
 
-/** A patient's filename is never used as a storage path — it can carry
+/** A patient's filename is never used as a storage path - it can carry
  *  slashes, unicode, or another patient's id. It is kept only as the
  *  display title, trimmed to something a list can render. */
 export function cleanDocumentTitle(raw: string): string {

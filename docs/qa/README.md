@@ -1,12 +1,12 @@
 # Manual E2E test plan, and the audit of it
 
-Two generated documents live here. **Do not hand-edit either** — or their
+Two generated documents live here. **Do not hand-edit either** - or their
 `.md`/`.html` companions, which are build products too.
 
 | Document | Sources | What it is |
 | --- | --- | --- |
 | `DrPoojaPhysio-E2E-Test-Plan.{pdf,docx}` | `src/*.md` | The plan a tester executes: feature guide plus click-by-click suite |
-| `DrPoojaPhysio-QA-Audit-Report.{pdf,docx}` | `audit-src/*.md` | A static audit of the product against that plan, plus a product review. It records what was **executed** here and what could only be **verified in source** — it is not a record of the plan having been run |
+| `DrPoojaPhysio-QA-Audit-Report.{pdf,docx}` | `audit-src/*.md` | A static audit of the product against that plan, plus a product review. It records what was **executed** here and what could only be **verified in source** - it is not a record of the plan having been run |
 
 ## Rebuilding
 
@@ -27,8 +27,8 @@ browser), the `.pdf`, and the `.docx`.
   first (`/opt/pw-browsers/...`), then a system `chromium` or `google-chrome`.
   With none present it skips the PDF and still writes the other three.
 
-The Markdown subset the sources use is deliberately small — headings, tables,
-lists, fenced code, blockquotes, rules, and inline bold/italic/code/links — so
+The Markdown subset the sources use is deliberately small - headings, tables,
+lists, fenced code, blockquotes, rules, and inline bold/italic/code/links - so
 the converter is self-contained rather than another dependency, and the PDF and
 the DOCX are built from **one** parse of **one** source. That is what stops the
 two documents describing different content.
@@ -37,5 +37,5 @@ two documents describing different content.
 
 The plan quotes real behaviour: route paths, admin screen names, setting
 defaults, and error strings taken verbatim from the route handlers. A change to
-any of those makes a test case wrong. Treat it like the other three docs — see
+any of those makes a test case wrong. Treat it like the other three docs - see
 "Keeping the docs current" in `AGENTS.md`.

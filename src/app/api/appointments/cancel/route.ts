@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!(await isProfileActiveAndApproved(user.id))) {
-    return NextResponse.json({ error: "Your account is not active — it is either awaiting admin approval or has been suspended." }, { status: 403 });
+    return NextResponse.json({ error: "Your account is not active - it is either awaiting admin approval or has been suspended." }, { status: 403 });
   }
 
   const admin = createAdminClient();
@@ -56,11 +56,11 @@ export async function POST(request: NextRequest) {
     reason,
   });
   if ("error" in result) {
-    // Patients never see the internal "payout settled" reasoning — it's
+    // Patients never see the internal "payout settled" reasoning - it's
     // meaningless to them and this is a genuine dead end for a patient to
     // resolve on their own.
     const error = result.payoutSettled
-      ? "This session can't be cancelled online — please contact the clinic."
+      ? "This session can't be cancelled online - please contact the clinic."
       : result.error;
     return NextResponse.json({ error }, { status: result.status });
   }

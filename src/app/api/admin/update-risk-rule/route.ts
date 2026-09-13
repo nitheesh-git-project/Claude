@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, adminUser.id, {
     action: "setting.update",
     targetId: null,
-    targetLabel: `Risk rule — ${rule.label}`,
+    targetLabel: `Risk rule - ${rule.label}`,
     details: {
       ruleKey,
       previousEnabled: rule.enabled,

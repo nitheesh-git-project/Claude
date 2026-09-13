@@ -11,7 +11,7 @@ export default function PatientActiveToggle({
 }: {
   patientId: string;
   active: boolean;
-  // Assigned/paid-but-not-yet-happened sessions this patient still has —
+  // Assigned/paid-but-not-yet-happened sessions this patient still has -
   // surfaced in the suspend confirmation so an admin isn't suspending
   // blind. Zero by default keeps today's exact confirm text unchanged.
   upcomingSessionCount?: number;

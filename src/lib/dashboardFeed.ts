@@ -182,7 +182,7 @@ export function buildPatientFeed({
       tone: "warn",
       needsYou: true,
       title: `${u.pending} session${u.pending === 1 ? "" : "s"} still to book`,
-      detail: `${u.title} — you've paid for these. Pick your times whenever suits you.`,
+      detail: `${u.title} - you've paid for these. Pick your times whenever suits you.`,
       href: "/patient/dashboard/packages",
     });
   }
@@ -197,7 +197,7 @@ export function buildPatientFeed({
         icon: "fa-hourglass-half",
         tone: "warn",
         title: `${mode} waiting for a therapist`,
-        detail: "The clinic is assigning someone — you'll see the joining details here once it's confirmed.",
+        detail: "The clinic is assigning someone - you'll see the joining details here once it's confirmed.",
         href: "/patient/dashboard/sessions",
       });
     } else if (a.status === "confirmed") {
@@ -312,7 +312,7 @@ export function buildPatientFeed({
         // Health Profile is read-only and there is nothing telling them
         // when that changes.
         detail: byTherapist
-          ? "Your therapist has filled it in — you can read it and add to it now."
+          ? "Your therapist has filled it in - you can read it and add to it now."
           : "Your therapist can now read your answers.",
         href: "/patient/dashboard/health-profile",
       });
@@ -399,7 +399,7 @@ export function buildTherapistFeed({
         : changed
           ? `The clinic approved your recommendation for ${decision.patientName}, with changes`
           : `The clinic approved your recommendation for ${decision.patientName}`,
-      detail: `${decision.title} — ${decision.reason}`,
+      detail: `${decision.title} - ${decision.reason}`,
       href: "/therapist/dashboard/patients",
     });
   }
@@ -415,8 +415,8 @@ export function buildTherapistFeed({
         ? `${plan.patientName} accepted your recommendation`
         : `${plan.patientName} declined your recommendation`,
       detail: accepted
-        ? `${plan.title} — their sessions are ready to book.`
-        : `${plan.title} — you can recommend again after their next session.`,
+        ? `${plan.title} - their sessions are ready to book.`
+        : `${plan.title} - you can recommend again after their next session.`,
       href: "/therapist/dashboard/patients",
     });
   }
@@ -427,7 +427,7 @@ export function buildTherapistFeed({
       at: p.assignedAt,
       icon: "fa-clipboard-question",
       tone: "warn",
-      title: `Onboarding needed — ${p.name}`,
+      title: `Onboarding needed - ${p.name}`,
       detail:
         "Four questions to set the condition type, then that type's own seven. Their Health Profile stays locked to them until it is done.",
       href: `/therapist/dashboard/health-profile/${p.id}`,
@@ -443,7 +443,7 @@ export function buildTherapistFeed({
       tone: "warn",
       title: `${pending.patientName} is waiting to hear what next`,
       detail:
-        "You saw them and haven't recommended anything yet. Open the session note to write one, or leave it — nothing is chased.",
+        "You saw them and haven't recommended anything yet. Open the session note to write one, or leave it - nothing is chased.",
       href: `/therapist/dashboard/health-profile/${pending.patientId}`,
       needsYou: true,
     });
@@ -461,7 +461,7 @@ export function buildTherapistFeed({
         tone: upcoming ? "good" : "warn",
         title: upcoming
           ? `${mode} booked${a.patient_name ? ` with ${a.patient_name}` : ""}`
-          : `${mode} finished — mark it complete`,
+          : `${mode} finished - mark it complete`,
         detail: when ? formatClinicDateTime(when) : undefined,
         href: "/therapist/dashboard/sessions",
         needsYou: !upcoming,
@@ -473,7 +473,7 @@ export function buildTherapistFeed({
         at: when,
         icon: "fa-circle-check",
         tone: "good",
-        title: `${mode} completed${a.patient_name ? ` — ${a.patient_name}` : ""}`,
+        title: `${mode} completed${a.patient_name ? ` - ${a.patient_name}` : ""}`,
         href: "/therapist/dashboard/sessions",
       });
     }
@@ -535,7 +535,7 @@ export function buildHospitalFeed({ referrals }: { referrals: FeedReferral[] }):
         at: r.created_at,
         icon: "fa-hospital-user",
         tone,
-        title: r.patient_name ? `${title} — ${r.patient_name}` : title,
+        title: r.patient_name ? `${title} - ${r.patient_name}` : title,
         href: "/hospital/dashboard/referrals",
       };
     })
@@ -656,7 +656,7 @@ export function buildAdminFeed({
     at: row.created_at,
     icon: "fa-clock-rotate-left",
     tone: "neutral" as FeedTone,
-    title: row.summary ? `${humaniseAction(row.action)} — ${row.summary}` : humaniseAction(row.action),
+    title: row.summary ? `${humaniseAction(row.action)} - ${row.summary}` : humaniseAction(row.action),
     detail: [row.actor_name ? `by ${row.actor_name}` : null, count > 1 ? `${count} changes` : null]
       .filter(Boolean)
       .join(" · ") || undefined,
@@ -694,7 +694,7 @@ export function buildAdminFeed({
       icon: "fa-triangle-exclamation",
       tone: "bad",
       title: `${failedSyncs.count} session${failedSyncs.count === 1 ? "" : "s"} without a meeting link`,
-      detail: "Google Calendar sync failed — retry from Sync Health.",
+      detail: "Google Calendar sync failed - retry from Sync Health.",
       href: adminScreenHref("settings", "health"),
       needsYou: true,
     });

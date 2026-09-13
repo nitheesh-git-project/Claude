@@ -50,7 +50,7 @@ export default function BookingLanguagesSection({
     // Mirrors the server's own guard -- caught here too so admin gets the
     // message without a round trip.
     if (draft.length === 0) {
-      setError("Keep at least one language — booking needs something to offer.");
+      setError("Keep at least one language - booking needs something to offer.");
       return;
     }
     startTransition(async () => {
@@ -69,14 +69,14 @@ export default function BookingLanguagesSection({
       <h3 className="font-bold text-sm text-slate-800">Booking Languages</h3>
       <p className="text-xs text-slate-500 mt-1 max-w-md">
         The preferred-language options patients choose from in Step 1 of booking.
-        Added languages appear there immediately — the booking page keeps no list
+        Added languages appear there immediately - the booking page keeps no list
         of its own.
       </p>
 
       <div className="flex flex-wrap gap-2 mt-4">
         {draft.length === 0 ? (
           <p className="text-xs text-slate-400">
-            No languages yet — add at least one before saving.
+            No languages yet - add at least one before saving.
           </p>
         ) : (
           draft.map((language) => (

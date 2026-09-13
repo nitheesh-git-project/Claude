@@ -30,7 +30,7 @@ export default function CompletePayoutRequestButton({
       currentlyOwedPaise > 0
         ? `This therapist still shows ₹${(currentlyOwedPaise / 100).toLocaleString(
             "en-IN"
-          )} owed and unsettled in the Payouts tab — mark this request completed anyway?`
+          )} owed and unsettled in the Payouts tab - mark this request completed anyway?`
         : "Mark this payout request as completed? The therapist will be notified.";
     if (!(await confirm(confirmMessage))) return;
 

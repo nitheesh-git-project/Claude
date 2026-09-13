@@ -182,7 +182,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     }))
   );
 
-  // Sorted by when payment actually cleared, not booking-creation order —
+  // Sorted by when payment actually cleared, not booking-creation order -
   // same reasoning as the patient detail page's Payment History.
   const paidAppointments = (appointments ?? [])
     .filter((a) => a.payment_status === "paid")
@@ -192,7 +192,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       return bt - at;
     });
   const sharePercent = therapist.revenue_share_percent;
-  // Only a completed session is actually owed to the therapist — matches
+  // Only a completed session is actually owed to the therapist - matches
   // settle-therapist-payout's own filter, so this displayed balance is
   // exactly what the payout button will settle, not a larger number that
   // includes still-upcoming (paid but undelivered) sessions.
@@ -349,7 +349,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           />
           <div className="mt-4 pt-4 border-t border-slate-100">
             <h2 className="font-bold text-sm text-slate-800 mb-1">Admin Notes</h2>
-            <p className="text-[11px] text-slate-400 mb-3">Private — never shown to the therapist.</p>
+            <p className="text-[11px] text-slate-400 mb-3">Private - never shown to the therapist.</p>
             <TherapistNotesForm therapistId={therapist.id} currentNote={note?.note ?? ""} />
           </div>
         </div>
@@ -385,7 +385,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           <div>
             <p className="text-slate-400">No-Show Rate</p>
             <p className="font-bold text-slate-900 text-lg">
-              {noShowStats.rate === null ? "—" : `${noShowStats.rate.toFixed(1)}%`}
+              {noShowStats.rate === null ? "-" : `${noShowStats.rate.toFixed(1)}%`}
             </p>
             <p className="text-slate-400">
               {noShowStats.noShowCount} of {noShowStats.completedCount} completed sessions
@@ -394,7 +394,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           <div>
             <p className="text-slate-400">Cancellation Rate</p>
             <p className="font-bold text-slate-900 text-lg">
-              {cancellationStats.rate === null ? "—" : `${cancellationStats.rate.toFixed(1)}%`}
+              {cancellationStats.rate === null ? "-" : `${cancellationStats.rate.toFixed(1)}%`}
             </p>
             <p className="text-slate-400">
               {cancellationStats.cancelledCount} cancelled ({cancellationStats.refundedCount} refunded,{" "}
@@ -497,7 +497,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                     <p className="text-slate-400">
                       Settled {formatClinicDate(a.therapist_payout_paid_at as string)}{" "}
                       via {a.therapist_payout_method}
-                      {a.therapist_payout_note && <> — &quot;{a.therapist_payout_note}&quot;</>}
+                      {a.therapist_payout_note && <> - &quot;{a.therapist_payout_note}&quot;</>}
                     </p>
                   )}
                 </li>

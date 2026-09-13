@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CONDITION_SPECIALTIES, type ConditionSpecialty } from "@/lib/conditionSpecialty";
 // One set of status words, shared with the detail screen one click away --
-// this file used to re-declare its own ("Draft" vs "Draft — not submitted").
+// this file used to re-declare its own ("Draft" vs "Draft - not submitted").
 import { CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
 
 const CONDITION_STATUS_STYLE: Record<string, string> = {

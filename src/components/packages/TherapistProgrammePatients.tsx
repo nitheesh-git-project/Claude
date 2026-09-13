@@ -44,7 +44,7 @@ export default function TherapistProgrammePatients({
   if (purchases.length === 0) {
     return (
       <p className="py-8 text-center text-xs text-slate-500">
-        No programme patients locked to you yet — this fills in once you&apos;re assigned the first
+        No programme patients locked to you yet - this fills in once you&apos;re assigned the first
         session of a package purchase.
       </p>
     );

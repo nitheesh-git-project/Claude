@@ -232,7 +232,7 @@ export default function SuggestSessionControl({
           </p>
           {hours.length === 0 ? (
             <p className="text-[11px] text-slate-500">
-              No times left on this date — pick another day.
+              No times left on this date - pick another day.
             </p>
           ) : (
             <div className={BOOKING_OPTION_GRID_COMPACT}>

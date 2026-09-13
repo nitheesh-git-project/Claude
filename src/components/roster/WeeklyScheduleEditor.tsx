@@ -488,7 +488,7 @@ export default function WeeklyScheduleEditor({
             ))}
           </ul>
           <p className="mt-2 text-[11px] text-amber-800">
-            Changing hours will not cancel these sessions — they stay exactly as booked.
+            Changing hours will not cancel these sessions - they stay exactly as booked.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button

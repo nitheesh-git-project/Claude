@@ -100,7 +100,7 @@ async function post(path: string, cookie: string, body: unknown) {
   });
 }
 
-test.describe("Therapist roster — admin", () => {
+test.describe("Therapist roster - admin", () => {
   test("R-A01: the roster opens on therapists, not on an hourly grid", async ({ browser }) => {
     const context = await browser.newContext();
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
@@ -280,7 +280,7 @@ test.describe("Therapist roster — admin", () => {
   });
 });
 
-test.describe("Therapist roster — the therapist's own screen", () => {
+test.describe("Therapist roster - the therapist's own screen", () => {
   test("R-T01/R-T02/R-T03/R-T04: a therapist edits only their own week", async () => {
     const admin = adminClient();
     const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
@@ -339,7 +339,7 @@ test.describe("Therapist roster — the therapist's own screen", () => {
   });
 });
 
-test.describe("Therapist roster — security", () => {
+test.describe("Therapist roster - security", () => {
   test("R-S01: every roster route refuses the wrong caller", async () => {
     const admin = adminClient();
     const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
@@ -460,7 +460,7 @@ test.describe("Therapist roster — security", () => {
   });
 });
 
-test.describe("Therapist roster — concurrency", () => {
+test.describe("Therapist roster - concurrency", () => {
   test("R-C01/R-C03: two identical saves land as one change", async () => {
     const admin = adminClient();
     const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
@@ -552,7 +552,7 @@ test.describe("Therapist roster — concurrency", () => {
   });
 });
 
-test.describe("Therapist roster — booking is untouched", () => {
+test.describe("Therapist roster - booking is untouched", () => {
   test("R-B01: changing hours never changes an appointment", async () => {
     const admin = adminClient();
     const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);

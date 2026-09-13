@@ -70,7 +70,7 @@ export const NEURO_INTAKE_QUESTIONS: IntakeQuestion[] = [
     label: "Day-to-day independence right now (0 = need help with everything, 10 = fully independent)",
     shortLabel: "Independence",
     helpText:
-      "Dressing, bathing, eating, getting to the toilet. Your therapist re-asks this over time — it is the neurological equivalent of a pain score, and it is how we will show you that things are moving.",
+      "Dressing, bathing, eating, getting to the toilet. Your therapist re-asks this over time - it is the neurological equivalent of a pain score, and it is how we will show you that things are moving.",
     inputType: "scale_0_10",
     required: true,
   },
@@ -100,9 +100,9 @@ export const NEURO_INTAKE_QUESTIONS: IntakeQuestion[] = [
     label: "Falls in the last three months?",
     shortLabel: "Falls",
     helpText:
-      "Falls are the main risk we are trying to remove, so this shapes the plan more than almost anything else here. Near-misses count — mention those to your therapist too.",
+      "Falls are the main risk we are trying to remove, so this shapes the plan more than almost anything else here. Near-misses count - mention those to your therapist too.",
     inputType: "select",
-    options: ["None", "One", "Two or three", "More than three", "Not applicable — cannot stand"],
+    options: ["None", "One", "Two or three", "More than three", "Not applicable - cannot stand"],
     required: false,
   },
   {

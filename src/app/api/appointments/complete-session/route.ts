@@ -8,7 +8,7 @@ import { mirrorConsume } from "@/lib/sessionCreditMirror";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 
 // Marks a confirmed session as completed. Callable by the therapist who ran
-// the session, or an admin correcting the record — nobody else.
+// the session, or an admin correcting the record - nobody else.
 //
 // Two gates apply to the therapist's own path and to neither of the
 // admin's, because `status = 'completed' && payment_status = 'paid'` is the
@@ -26,7 +26,7 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 //      is the same join window a therapist could have opened the call in,
 //      so "I marked it done before it began" is not expressible.
 //
-// An admin keeps the unrestricted path for backfills and corrections —
+// An admin keeps the unrestricted path for backfills and corrections -
 // which is what the `early_completion` and `completion_without_entitlement`
 // signals watch, rather than a rule that would block a legitimate fix.
 export async function POST(request: NextRequest) {
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
   // Only gate the therapist's own path -- an admin correcting the record is
   // never subject to the patient/therapist suspension flag.
   if (!adminUser && !(await isProfileActiveAndApproved(user.id))) {
-    return NextResponse.json({ error: "Your account is not active — it is either awaiting admin approval or has been suspended." }, { status: 403 });
+    return NextResponse.json({ error: "Your account is not active - it is either awaiting admin approval or has been suspended." }, { status: 403 });
   }
 
   if (appointment.status !== "confirmed") {
@@ -123,10 +123,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Atomic claim, same pattern as cancelAppointmentAndRefund's — the plain
+  // Atomic claim, same pattern as cancelAppointmentAndRefund's - the plain
   // read-then-write this used to be let two concurrent requests (e.g. a
   // therapist clicking Done while an admin clicks No-Show, or a patient
-  // cancelling — and getting refunded — at the same moment) both pass the
+  // cancelling - and getting refunded - at the same moment) both pass the
   // status check above and then unconditionally overwrite each other. Worse,
   // an unconditional write here could resurrect a just-cancelled-and-refunded
   // appointment back to "completed", making it look payout-eligible again.
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
   }
   if (!updated) {
     return NextResponse.json(
-      { error: "This session was already updated — please refresh and try again." },
+      { error: "This session was already updated - please refresh and try again." },
       { status: 409 }
     );
   }

@@ -189,7 +189,7 @@ export default function AdminLogRetentionTab() {
         <p className="mt-1 text-xs text-slate-500">
           The log keeps every action for ever unless you clear it. Clearing removes
           entries older than a cutoff you choose, and never anything from the last{" "}
-          {MIN_RETENTION_DAYS} days — so the record of what happened recently, including
+          {MIN_RETENTION_DAYS} days - so the record of what happened recently, including
           this clearing, cannot be removed by it.
         </p>
 
@@ -267,7 +267,7 @@ export default function AdminLogRetentionTab() {
                     <>
                       {" "}
                       That is fewer than the {countedForThis.count.toLocaleString("en-IN")}{" "}
-                      counted — this screen fetches at most{" "}
+                      counted - this screen fetches at most{" "}
                       {ARCHIVE_MAX_ENTRIES.toLocaleString("en-IN")} entries at a
                       time. Clear in smaller steps, or take a copy from the database.
                     </>
@@ -275,7 +275,7 @@ export default function AdminLogRetentionTab() {
                 </p>
                 <DataExportButtons
                   filename={`admin-logs-before-${days}-days`}
-                  title="Admin activity log — archive"
+                  title="Admin activity log - archive"
                   subtitle={`Every entry older than ${days} days, as at the moment this was prepared.`}
                   rows={archivedForThis.rows}
                   columns={archiveColumns}

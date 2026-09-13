@@ -2,7 +2,7 @@
 
 ## 9. Payment test data and the payment model
 
-### 9.1 Razorpay test mode — credentials
+### 9.1 Razorpay test mode - credentials
 
 > **Use Razorpay Test Mode only.** Test cards fail in live mode with an "invalid card issuer" error, which is the intended safety net. Before executing this section, re-confirm the values against Razorpay's own pages, because Razorpay changes them from time to time:
 > * Test cards: `https://razorpay.com/docs/payments/payments/test-card-details/`
@@ -46,7 +46,7 @@
 
 Understanding this model is what makes a payment defect report useful.
 
-**One row per Razorpay order.** The `payments` table has **unique indexes on `razorpay_order_id` and on `razorpay_payment_id`**. Nothing else in the database previously stopped one payment id being recorded against two rows. A unique-violation on either is not a bug to work around — it means a duplicate already exists and wants investigating.
+**One row per Razorpay order.** The `payments` table has **unique indexes on `razorpay_order_id` and on `razorpay_payment_id`**. Nothing else in the database previously stopped one payment id being recorded against two rows. A unique-violation on either is not a bug to work around - it means a duplicate already exists and wants investigating.
 
 **A capture is applied in exactly one place.** The database function `record_payment_capture` moves the `payments` row and the row it paid for **together**, under a real `select … for update`. It is called by the three verify routes and by the webhook. It is **idempotent by construction**: the second caller for an order finds it already captured and changes nothing. That single property is what makes all four of these safe without any of them knowing about the others:
 
@@ -57,13 +57,13 @@ Understanding this model is what makes a payment defect report useful.
 
 **Two confirmations, whichever arrives first.** A payment is confirmed by *either* the browser callback (`/api/razorpay/verify`) *or* the server webhook (`/api/razorpay/webhook`). Both go through the same capture function.
 
-**The webhook checks its signature against the raw body** (`await request.text()`), never a re-serialised parse. It inserts its `payment_webhook_events` row **before** doing any work — that insert colliding on `razorpay_event_id` *is* the deduplication.
+**The webhook checks its signature against the raw body** (`await request.text()`), never a re-serialised parse. It inserts its `payment_webhook_events` row **before** doing any work - that insert colliding on `razorpay_event_id` *is* the deduplication.
 
 **Without `RAZORPAY_WEBHOOK_SECRET`, the webhook half does not exist.** The route answers `503`. A patient who pays and closes the tab before the callback lands leaves a **paid Razorpay order against an unpaid booking**. Test `PAY-WH-004` covers exactly this.
 
 **Meet/Calendar creation is deliberately outside the capture function**, because it needs an outbound Google call. Confirmation of the appointment and the Meet link stay in the route.
 
-**Cash-on-visit is real, and breaks the usual assumption.** A cash home-visit purchase sits at `payment_status: 'unpaid'` for its whole life with real confirmed visits hanging off it. **Never read `payment_status` as "did money change hands" for a home visit — check `payment_mode` first.**
+**Cash-on-visit is real, and breaks the usual assumption.** A cash home-visit purchase sits at `payment_status: 'unpaid'` for its whole life with real confirmed visits hanging off it. **Never read `payment_status` as "did money change hands" for a home visit - check `payment_mode` first.**
 
 ### 9.3 The payment surfaces
 
@@ -73,7 +73,7 @@ Understanding this model is what makes a payment defect report useful.
 | Home visit (prepaid) | `/api/home-visit/create-order` | `/api/home-visit/verify` | A `home_visit_package_purchases` row |
 | Home visit (cash at the door) | *(none)* | `/api/home-visit/book-cash` | Same, `payment_mode='cash'`, `payment_status='unpaid'` |
 | Care-plan programme | `/api/care-plan/create-order` | `/api/care-plan/verify` | A `patient_package_purchases` or home-visit purchase, plus session credits |
-| Webhook (all of the above) | — | `/api/razorpay/webhook` | Confirms whichever the order pointed at |
+| Webhook (all of the above) | - | `/api/razorpay/webhook` | Confirms whichever the order pointed at |
 
 **Direct programme checkout no longer exists.** `/api/packages/create-order` and `/api/packages/verify` are deleted. `/book?package=<id>` shows a "Programmes come from your therapist now" page instead of quietly selling one session to somebody who came to buy six.
 
@@ -87,7 +87,7 @@ Understanding this model is what makes a payment defect report useful.
 | Admin partial refund on a session | `/api/admin/refund-session-partial` | Requires an amount > 0 and a mandatory reason |
 | Cash refund with no Razorpay payment behind it | `/api/admin/refund-home-visit-package` | Becomes `refund_status: 'manual_pending'`, surfaced on the admin Cash Ledger until an admin confirms the cash was handed back |
 
-**A refund never touches a therapist's cut** — a refunded session was cancelled, so it never earned one. It **does** reverse the hospital's commission, because that is a commission on net revenue.
+**A refund never touches a therapist's cut** - a refunded session was cancelled, so it never earned one. It **does** reverse the hospital's commission, because that is a commission on net revenue.
 
 ### 9.5 What a single payment must never produce
 

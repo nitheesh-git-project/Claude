@@ -11,7 +11,7 @@ const MIN_REASON_LENGTH = 10;
  * The counterpart of `PartialRefundForm` on the other side of the payment:
  * a refund returns money that has already moved, this reduces what will be
  * asked for. Both need a reason and both are `money` scope, but they are
- * deliberately separate controls rather than one with a mode — an admin
+ * deliberately separate controls rather than one with a mode - an admin
  * looking at an unpaid session should not be offered a refund, and an admin
  * looking at a paid one should not be offered this.
  *
@@ -82,12 +82,12 @@ export default function GoodwillDiscountForm({
     return (
       <div className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
         <p className="font-semibold">
-          {inr(existingDiscountPaise)} off — they pay{" "}
+          {inr(existingDiscountPaise)} off - they pay{" "}
           {inr(Math.max(100, listPricePaise - existingDiscountPaise))}
         </p>
         {existingReason && <p className="mt-0.5 text-amber-800">{existingReason}</p>}
         <p className="mt-1 text-amber-700">
-          Applied before payment. To change it, cancel and rebook — a discount is not
+          Applied before payment. To change it, cancel and rebook - a discount is not
           re-editable once the patient has been quoted it.
         </p>
       </div>
@@ -110,7 +110,7 @@ export default function GoodwillDiscountForm({
     <div className="rounded-lg border border-slate-200 p-3">
       <p className="text-[11px] text-slate-500">
         The session costs {inr(listPricePaise)}. This reduces what the patient is asked
-        for — it does not refund anything, because nothing has been paid yet.
+        for - it does not refund anything, because nothing has been paid yet.
       </p>
 
       <div className="mt-2 flex items-end gap-2">

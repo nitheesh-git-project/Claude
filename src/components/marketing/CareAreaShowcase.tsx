@@ -8,7 +8,7 @@ import { CARE_AREAS } from "@/lib/careAreas";
 import { photo } from "@/lib/marketingPhotos";
 
 /**
- * What we treat — one area at a time: photograph on the left, the answer on
+ * What we treat - one area at a time: photograph on the left, the answer on
  * the right, and a picker to move between them.
  *
  * This band has been through both failure modes, and the shape below is what
@@ -22,7 +22,7 @@ import { photo } from "@/lib/marketingPhotos";
  *
  * Showing one at a time fixes both. The photograph gets enough room to be
  * looked at instead of skimmed past, and because only one panel is on screen
- * the copy can be a real answer — what we look at, what happens next — rather
+ * the copy can be a real answer - what we look at, what happens next - rather
  * than the six words a card could fit. The other five are one tap away and
  * cost no vertical space.
  *
@@ -33,12 +33,12 @@ import { photo } from "@/lib/marketingPhotos";
  *   you read the first is worse than either alone. Every change here is
  *   something the visitor did.
  * - **Swipe, arrows and the picker are the same action.** Touch drags the
- *   photo, the arrow buttons step, and the picker jumps — all through
+ *   photo, the arrow buttons step, and the picker jumps - all through
  *   `select()`, so they cannot disagree about which area is showing.
  * - **It is a real tablist.** Chips are tabs with roving focus and arrow-key
  *   support, and the panel is labelled by the active one, so keyboard and
  *   screen-reader users get the behaviour pointer users get. The label is
- *   deliberately not "How the process works" — that belongs to JourneySteps,
+ *   deliberately not "How the process works" - that belongs to JourneySteps,
  *   and two tablists sharing a name makes both unfindable.
  */
 
@@ -97,7 +97,7 @@ export default function CareAreaShowcase({
   return (
     <div>
       <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
-        {/* PHOTOGRAPH — draggable on touch. The fixed aspect ratio means the
+        {/* PHOTOGRAPH - draggable on touch. The fixed aspect ratio means the
             panel never changes height as areas swap, which is what stops the
             page jumping under the reader. */}
         <div className="relative">
@@ -215,7 +215,7 @@ export default function CareAreaShowcase({
         </div>
       </div>
 
-      {/* THE PICKER — all six always visible, so nobody has to swipe blind to
+      {/* THE PICKER - all six always visible, so nobody has to swipe blind to
           find out whether their complaint is on the list. */}
       <div
         role="tablist"

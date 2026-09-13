@@ -147,7 +147,7 @@ export default function InviteRegisterCard() {
     });
     if (signInError) {
       setLoading(false);
-      setError("Account created — please sign in from the Patient Login page.");
+      setError("Account created - please sign in from the Patient Login page.");
       return;
     }
 
@@ -184,7 +184,7 @@ export default function InviteRegisterCard() {
           Complete Your Registration
         </h1>
         <p className="text-xs text-slate-500 text-center mt-1">
-          You&apos;ve been referred for a virtual physical therapy session —
+          You&apos;ve been referred for a virtual physical therapy session -
           set up your account and complete payment to confirm it.
         </p>
 
@@ -216,7 +216,7 @@ export default function InviteRegisterCard() {
 
         {preview && preview.valid && preview.isPastSlot && (
           <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
-            This scheduled time has already passed — you can still register and
+            This scheduled time has already passed - you can still register and
             pay below, and the clinic will follow up to reschedule your session.
           </div>
         )}
@@ -230,7 +230,7 @@ export default function InviteRegisterCard() {
         {appointmentId ? (
           <div className="mt-6 text-center">
             <p className="text-xs text-slate-500 mb-4">
-              Your account is ready — complete payment to confirm your
+              Your account is ready - complete payment to confirm your
               session.
             </p>
             <button

@@ -65,14 +65,14 @@ export default function TherapistPayoutButton({
       setError(data.error ?? "Could not record the payout. Please try again.");
       if (res.status === 409) {
         // Someone else (another tab, or another admin) already settled this
-        // — refresh so the owed balance reflects that instead of still
+        // - refresh so the owed balance reflects that instead of still
         // inviting a second payout for the same sessions.
         router.refresh();
       }
       return;
     }
     // Show what the server actually settled, not the owedPaise this
-    // component was rendered with — a payment could have landed in the
+    // component was rendered with - a payment could have landed in the
     // gap between page load and this click, so the two can differ.
     setSettled({ amountPaise: data.settledAmountPaise, count: data.settledCount, method });
     setView("closed");
@@ -81,7 +81,7 @@ export default function TherapistPayoutButton({
   }
 
   // Gated on owedPaise too, not just the local "did we just settle"
-  // flag — this component doesn't remount on router.refresh(), so if new
+  // flag - this component doesn't remount on router.refresh(), so if new
   // sessions become owed later in the same page view, owedPaise will
   // reflect that on the next server refetch and this stale success
   // banner needs to step aside for a fresh "Pay" button instead of
@@ -156,7 +156,7 @@ export default function TherapistPayoutButton({
             {(cashHeldPaise / 100).toLocaleString("en-IN")} already held in cash)
           </>
         )}
-        . This records that the payment already happened — it doesn&apos;t send any money itself.
+        . This records that the payment already happened - it doesn&apos;t send any money itself.
       </p>
       <textarea
         value={note}

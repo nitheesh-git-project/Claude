@@ -7,7 +7,7 @@
 // every region, plus a handful of region-specific keys (trigger, function,
 // movement_pain, special_test) whose wording changes per region. This is
 // the code-level default; an admin can override any single question's
-// wording via pain_map_question_templates without redeploying — see
+// wording via pain_map_question_templates without redeploying - see
 // mergeQuestionOverrides below.
 
 export type PainMapView = "front" | "back";
@@ -42,7 +42,7 @@ export type PainMapRegionDef = {
 };
 
 // Order matches the visual top-to-bottom label stack on the reference
-// diagram — back view first, then front — see the published Pain Map
+// diagram - back view first, then front - see the published Pain Map
 // artifact from the design pass.
 export const PAIN_MAP_REGIONS: PainMapRegionDef[] = [
   { key: "neck", label: "Neck", view: "back", paired: false },
@@ -180,7 +180,7 @@ export type QuestionTemplate = {
   order: number;
 };
 
-// The keys whose wording varies per region — everything else in
+// The keys whose wording varies per region - everything else in
 // GENERIC_QUESTIONS is shared verbatim across all 17 regions.
 type RegionSpecificKey = "trigger" | "function" | "movement_pain" | "special_test";
 
@@ -223,7 +223,7 @@ const GENERIC_QUESTIONS: Omit<QuestionTemplate, "text">[] = [
 ];
 
 const GENERIC_TEXT: Record<string, string> = {
-  location: "Where exactly in this area — which part?",
+  location: "Where exactly in this area - which part?",
   onset: "When did this start, and was it sudden or gradual?",
   pain_type: "What kind of pain is it?",
   worse: "What makes it worse?",
@@ -252,7 +252,7 @@ const REGION_TEXT: Record<PainMapRegionKey, Record<RegionSpecificKey, string>> =
     trigger: "Does raising your arm overhead, or reaching behind your back, bring it on?",
     function: "Can you reach a shelf, or fasten something behind your back, without pain?",
     movement_pain: "Rate the pain as you raise your arm overhead slowly (0–10)",
-    special_test: "Painful arc — pain between roughly 60–120° of raising the arm?",
+    special_test: "Painful arc - pain between roughly 60–120° of raising the arm?",
   },
   upper_back: {
     trigger: "Does sitting for long periods, or twisting your torso, bring it on?",
@@ -264,86 +264,86 @@ const REGION_TEXT: Record<PainMapRegionKey, Record<RegionSpecificKey, string>> =
     trigger: "Does bending forward, lifting, or sitting for long periods bring it on?",
     function: "Can you pick something off the floor, or stand up from sitting, without pain?",
     movement_pain: "Rate the pain during a forward bend and standing back up (0–10)",
-    special_test: "Straight leg raise — pain reproduced down the leg?",
+    special_test: "Straight leg raise - pain reproduced down the leg?",
   },
   chest: {
     trigger: "Does deep breathing, coughing, or pushing/pressing movements bring it on?",
     function: "Can you take a full deep breath, or push open a heavy door, without pain?",
     movement_pain: "Rate the pain with a resisted push motion or deep breath (0–10)",
-    special_test: "Resisted horizontal arm adduction — pain reproduced?",
+    special_test: "Resisted horizontal arm adduction - pain reproduced?",
   },
   abs_core: {
     trigger: "Does sitting up, coughing or sneezing, or twisting bring it on?",
     function: "Can you get up from lying down, or cough, without pain?",
     movement_pain: "Rate the pain during a partial sit-up / trunk flexion (0–10)",
-    special_test: "Resisted trunk flexion — pain reproduced?",
+    special_test: "Resisted trunk flexion - pain reproduced?",
   },
   biceps: {
     trigger: "Does lifting something palm-up, or bending your elbow against resistance, bring it on?",
     function: "Can you carry a bag, or lift a cup to your mouth, without pain?",
     movement_pain: "Rate the pain during resisted elbow flexion (0–10)",
-    special_test: "Speed's test — pain reproduced?",
+    special_test: "Speed's test - pain reproduced?",
   },
   triceps: {
     trigger:
-      "Does straightening your arm against resistance bring it on — like pushing a door, or getting up from a chair?",
+      "Does straightening your arm against resistance bring it on - like pushing a door, or getting up from a chair?",
     function: "Can you push yourself up from a chair, or straighten your arm fully, without pain?",
     movement_pain: "Rate the pain as you extend your elbow against light resistance (0–10)",
-    special_test: "Resisted elbow extension test — pain reproduced?",
+    special_test: "Resisted elbow extension test - pain reproduced?",
   },
   elbow: {
     trigger: "Does gripping, twisting a doorknob or jar lid, or bending/straightening the elbow bring it on?",
     function: "Can you carry a bag, or shake hands firmly, without pain?",
     movement_pain: "Rate the pain during resisted wrist extension or flexion (0–10)",
-    special_test: "Resisted wrist extension (lateral) / flexion (medial) — pain reproduced?",
+    special_test: "Resisted wrist extension (lateral) / flexion (medial) - pain reproduced?",
   },
   wrist_hand: {
     trigger: "Does typing, gripping, or bending the wrist bring it on?",
     function: "Can you write, type, or open a jar without pain?",
     movement_pain: "Rate the pain during wrist flexion/extension against resistance (0–10)",
-    special_test: "Tinel's / Phalen's test — pain or tingling reproduced?",
+    special_test: "Tinel's / Phalen's test - pain or tingling reproduced?",
   },
   hip: {
     trigger: "Does walking, climbing stairs, or getting up from a low chair bring it on?",
     function: "Can you climb stairs, or get in and out of a car, without pain?",
     movement_pain: "Rate the pain during hip flexion and rotation (0–10)",
-    special_test: "FABER test — pain reproduced?",
+    special_test: "FABER test - pain reproduced?",
   },
   glutes: {
     trigger: "Does sitting for long periods, or climbing stairs, bring it on?",
     function: "Can you sit through a long drive, or climb stairs, without pain?",
     movement_pain: "Rate the pain during resisted hip extension (0–10)",
-    special_test: "Resisted hip extension / sciatic notch palpation — pain reproduced?",
+    special_test: "Resisted hip extension / sciatic notch palpation - pain reproduced?",
   },
   quads: {
     trigger: "Does going up or down stairs, squatting, or kicking bring it on?",
     function: "Can you squat down, or walk downstairs, without pain?",
     movement_pain: "Rate the pain during resisted knee extension (0–10)",
-    special_test: "Resisted knee extension — pain reproduced?",
+    special_test: "Resisted knee extension - pain reproduced?",
   },
   hamstrings: {
     trigger: "Does bending forward, sprinting, or stretching the back of your thigh bring it on?",
     function: "Can you bend down to tie your shoes, or walk briskly, without pain?",
     movement_pain: "Rate the pain during resisted knee flexion (0–10)",
-    special_test: "Resisted knee flexion / passive stretch — pain reproduced?",
+    special_test: "Resisted knee flexion / passive stretch - pain reproduced?",
   },
   knee: {
     trigger: "Does going up or down stairs, squatting, or twisting the knee bring it on?",
     function: "Can you kneel, squat, or climb stairs, without pain?",
     movement_pain: "Rate the pain during active knee flexion/extension (0–10)",
-    special_test: "McMurray's test (if locking/catching) or single-leg squat — pain reproduced?",
+    special_test: "McMurray's test (if locking/catching) or single-leg squat - pain reproduced?",
   },
   calves: {
     trigger: "Does walking, running, or going up on your toes bring it on?",
     function: "Can you walk briskly, or stand on your toes, without pain?",
     movement_pain: "Rate the pain during a resisted calf raise (0–10)",
-    special_test: "Calf raise test / passive dorsiflexion stretch — pain reproduced?",
+    special_test: "Calf raise test / passive dorsiflexion stretch - pain reproduced?",
   },
   ankle_foot: {
     trigger: "Does walking on uneven ground, or rolling/twisting your ankle, bring it on?",
     function: "Can you walk, or stand for a while, without pain?",
     movement_pain: "Rate the pain during active ankle movement while weight-bearing (0–10)",
-    special_test: "Anterior drawer test / passive stretch — pain reproduced?",
+    special_test: "Anterior drawer test / passive stretch - pain reproduced?",
   },
 };
 
@@ -359,7 +359,7 @@ export function getDefaultQuestionsForRegion(region: PainMapRegionKey): Question
 export type QuestionOverrideRow = { question_key: string; question_text: string };
 
 /** Applies admin-edited wording from pain_map_question_templates on top of
- *  the code defaults. Only question_text is overridable — input type and
+ *  the code defaults. Only question_text is overridable - input type and
  *  order stay code-defined so an edit can't corrupt how the form renders. */
 export function mergeQuestionOverrides(
   defaults: QuestionTemplate[],
@@ -394,7 +394,7 @@ export type PainAssessmentRow = {
   submitted_by_role?: string;
 };
 
-/** Latest row per (region, side), keyed "region:side" — the shape every
+/** Latest row per (region, side), keyed "region:side" - the shape every
  *  Pain Map display (diagram dots, summary list, admin grid) needs, built
  *  once here instead of three slightly different reimplementations. */
 export function latestAssessmentByRegionSide(

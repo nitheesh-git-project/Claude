@@ -10,7 +10,7 @@ import { MISSION, VISION, PRINCIPLES } from "@/lib/mission";
  * treat my back", and the old home page never answered the first question at
  * all.
  *
- * Only the mission and the vision are given in full here — they are two
+ * Only the mission and the vision are given in full here - they are two
  * sentences, and paraphrasing them into a teaser would leave the home page
  * making a weaker version of the same claim. Everything else is a headline
  * that links through: the four promises appear as their titles only, and

@@ -71,7 +71,7 @@ export default function ReceiptsSection({
       {receipts.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <p className="text-xs text-slate-500 py-8 text-center">
-            Nothing to show yet — receipts appear here once you make a payment.
+            Nothing to show yet - receipts appear here once you make a payment.
           </p>
         </div>
       ) : (
@@ -90,7 +90,7 @@ export default function ReceiptsSection({
                   : formatInr(r.amountPaise)
                 : r.amountPaise !== null
                 ? formatInr(r.amountPaise)
-                : "—";
+                : "-";
             return (
               <div
                 key={`${r.kind}-${r.id}`}
@@ -260,10 +260,10 @@ export default function ReceiptsSection({
                 selected.stage === "cancelled") && (
                 <p className="text-slate-500 pt-2 border-t border-slate-100">
                   {selected.stage === "refund_failed"
-                    ? "The refund for this cancelled session couldn't be processed automatically — please contact us."
+                    ? "The refund for this cancelled session couldn't be processed automatically - please contact us."
                     : selected.stage === "refunded"
                     ? "This session was cancelled and refunded. It can take a few working days to reach your account."
-                    : `This session was cancelled — no refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot).`}
+                    : `This session was cancelled - no refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot).`}
                 </p>
               )}
             </div>
@@ -286,7 +286,7 @@ export default function ReceiptsSection({
               <p className="text-slate-600 pt-2 border-t border-slate-100">
                 {selected.errorDescription ||
                   selected.errorReason ||
-                  "The payment didn't go through — this can happen for reasons like a declined card or a bank timeout. You can try again from your session or package above."}
+                  "The payment didn't go through - this can happen for reasons like a declined card or a bank timeout. You can try again from your session or package above."}
               </p>
               {selected.errorCode && (
                 <p className="text-slate-400">Reference code: {selected.errorCode}</p>

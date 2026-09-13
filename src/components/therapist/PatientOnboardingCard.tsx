@@ -130,8 +130,8 @@ function FirstFillPrompt({
             {patientName.split(" ")[0]} needs onboarding
           </p>
           <p className="mt-1 max-w-md text-sm text-slate-600">
-            Four questions to decide the condition type — orthopaedic, neurological or paediatric
-            — then that type&apos;s own short set of seven. Go through it with them in the first
+            Four questions to decide the condition type - orthopaedic, neurological or paediatric
+            - then that type&apos;s own short set of seven. Go through it with them in the first
             session: it goes on their record straight away, and it is what opens their Health
             Profile to them. You can change the condition type later if the case turns out to be
             something else.
@@ -164,7 +164,7 @@ function RetriagePrompt({
         <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${def?.chipClass ?? ""}`}>
           {def?.label}
         </span>{" "}
-        — change it if the case turned out to be something else.
+        - change it if the case turned out to be something else.
       </p>
       <button
         type="button"

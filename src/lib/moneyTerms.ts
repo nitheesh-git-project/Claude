@@ -44,7 +44,7 @@ export const MONEY_TERMS = {
   net_revenue: {
     term: "Net revenue",
     meaning:
-      "Gross revenue minus refunds — what the clinic kept. Every share below is taken out of this.",
+      "Gross revenue minus refunds - what the clinic kept. Every share below is taken out of this.",
     scope: "range",
   },
   therapist_share: {
@@ -62,7 +62,7 @@ export const MONEY_TERMS = {
   clinic_share: {
     term: "Clinic share",
     meaning:
-      "Net revenue less both shares — what is left before the clinic has paid for anything of its own. Not profit: see Operating profit, which is this figure after costs.",
+      "Net revenue less both shares - what is left before the clinic has paid for anything of its own. Not profit: see Operating profit, which is this figure after costs.",
     scope: "range",
   },
   excluded_from_split: {
@@ -80,7 +80,7 @@ export const MONEY_TERMS = {
   running_costs: {
     term: "Running costs",
     meaning:
-      "What the clinic itself spends — salaries, rent, software, marketing — entered by hand on the Costs screen and dated to the day the cost was incurred, not the day it was typed in.",
+      "What the clinic itself spends - salaries, rent, software, marketing - entered by hand on the Costs screen and dated to the day the cost was incurred, not the day it was typed in.",
     scope: "range",
   },
   operating_profit: {
@@ -92,7 +92,7 @@ export const MONEY_TERMS = {
   owed_to_therapists: {
     term: "Owed to therapists",
     meaning:
-      "What the clinic owes right now, all time — not scoped to the dates in view, because a debt does not stop existing outside a date range. Already net of any cash therapists are holding, so it is exactly what a payout run would transfer.",
+      "What the clinic owes right now, all time - not scoped to the dates in view, because a debt does not stop existing outside a date range. Already net of any cash therapists are holding, so it is exactly what a payout run would transfer.",
     scope: "now",
   },
   paid_to_therapists: {
@@ -103,7 +103,7 @@ export const MONEY_TERMS = {
   package_cash_collected: {
     term: "Package cash collected",
     meaning:
-      "The full price of package purchases paid up front — money in the bank. Deliberately not added to revenue, which recognises the same money gradually, one session at a time as they get scheduled. Both are real; they answer different questions.",
+      "The full price of package purchases paid up front - money in the bank. Deliberately not added to revenue, which recognises the same money gradually, one session at a time as they get scheduled. Both are real; they answer different questions.",
     scope: "range",
   },
   bookings: {
@@ -114,7 +114,7 @@ export const MONEY_TERMS = {
   travel_fee: {
     term: "Travel fee",
     meaning:
-      "A home visit's travel reimbursement. Paid to the therapist in full and never counted as revenue — folding it in would mean a therapist funding their own transport.",
+      "A home visit's travel reimbursement. Paid to the therapist in full and never counted as revenue - folding it in would mean a therapist funding their own transport.",
     scope: "range",
   },
   cash_collected: {
@@ -126,19 +126,19 @@ export const MONEY_TERMS = {
   cash_remitted: {
     term: "Cash remitted",
     meaning:
-      "Collected cash the clinic has back. Until then it nets off that therapist's next payout — and settling a payout that absorbs it records it as remitted, so the same rupees are never deducted twice.",
+      "Collected cash the clinic has back. Until then it nets off that therapist's next payout - and settling a payout that absorbs it records it as remitted, so the same rupees are never deducted twice.",
     scope: "now",
   },
   manual_refund_pending: {
     term: "Manual refund pending",
     meaning:
-      "A cancelled cash visit where money was collected and there is no Razorpay payment to reverse — a human has to hand it back. It stays on the Cash Ledger until someone confirms they did.",
+      "A cancelled cash visit where money was collected and there is no Razorpay payment to reverse - a human has to hand it back. It stays on the Cash Ledger until someone confirms they did.",
     scope: "now",
   },
   unpaid_home_visit: {
     term: "Unpaid (home visit)",
     meaning:
-      "Normal for cash-on-visit before the therapist records the collection. It does not mean nobody will ever pay — check the payment mode before reading it as a debt.",
+      "Normal for cash-on-visit before the therapist records the collection. It does not mean nobody will ever pay - check the payment mode before reading it as a debt.",
     scope: "now",
   },
   discounts_given: {

@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, context.id, {
     action: "expense.delete",
     targetId: existing.id,
-    targetLabel: `${existing.category}${existing.description ? ` — ${existing.description}` : ""}`,
+    targetLabel: `${existing.category}${existing.description ? ` - ${existing.description}` : ""}`,
     amountPaise: existing.amount_paise,
     details: { incurredOn: existing.incurred_on },
   });

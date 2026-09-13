@@ -49,7 +49,7 @@ export default function AdminPayoutRequestsTab({ requests }: { requests: PayoutR
         </h2>
         <p className="text-[11px] text-slate-400 -mt-2 mb-4">
           Start Review to let the therapist know you&apos;re on it, pay them via the Payouts tab,
-          then mark the request completed here — that notifies the therapist.
+          then mark the request completed here - that notifies the therapist.
         </p>
         {open.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">No open requests.</p>

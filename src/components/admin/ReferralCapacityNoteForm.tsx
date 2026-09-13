@@ -68,7 +68,7 @@ export default function ReferralCapacityNoteForm({
         type="text"
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        placeholder="e.g. no capacity right now — will follow up"
+        placeholder="e.g. no capacity right now - will follow up"
         maxLength={200}
         className="p-2 rounded-lg border border-slate-300 text-xs flex-1 min-w-[200px]"
       />

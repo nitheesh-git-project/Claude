@@ -64,8 +64,8 @@ function Rating({ avg, count }: { avg: number | null; count: number }) {
  * Specialist roster. Cards open a detail modal rather than a separate page,
  * so a visitor comparing therapists never loses their place in the list.
  *
- * The dialog contract — labelled, Escape to close, focus moved in on open
- * and restored on close, background scroll locked — lives in Modal, shared
+ * The dialog contract - labelled, Escape to close, focus moved in on open
+ * and restored on close, background scroll locked - lives in Modal, shared
  * with the package and programme dialogs.
  */
 export default function TeamTherapistPopup({ therapists }: { therapists: TeamTherapist[] }) {
@@ -126,7 +126,7 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                       Experience
                     </dt>
                     <dd className="font-display mt-0.5 text-sm font-bold text-slate-900">
-                      {t.years_experience != null ? `${t.years_experience}+ yrs` : "—"}
+                      {t.years_experience != null ? `${t.years_experience}+ yrs` : "-"}
                     </dd>
                   </div>
                   <div className="min-w-0">
@@ -134,7 +134,7 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                       Languages
                     </dt>
                     <dd className="mt-0.5 truncate text-sm font-medium text-slate-700">
-                      {langs.length ? langs.join(", ") : "—"}
+                      {langs.length ? langs.join(", ") : "-"}
                     </dd>
                   </div>
                 </dl>
@@ -213,7 +213,7 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                       Experience
                     </dt>
                     <dd className="font-display mt-1 text-base font-bold text-slate-900">
-                      {open.years_experience != null ? `${open.years_experience}+ years` : "—"}
+                      {open.years_experience != null ? `${open.years_experience}+ years` : "-"}
                     </dd>
                   </div>
                   <div>

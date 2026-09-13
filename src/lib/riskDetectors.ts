@@ -242,7 +242,7 @@ const detectCompletionWithoutPayment: Detector = async (admin, rule) => {
  * A session marked done materially before its slot.
  *
  * The therapist's route now refuses this outright, so anything found here
- * came through an admin path — which is exactly why it is worth surfacing
+ * came through an admin path - which is exactly why it is worth surfacing
  * rather than assuming the block holds everywhere.
  */
 const detectEarlyCompletion: Detector = async (admin, rule) => {

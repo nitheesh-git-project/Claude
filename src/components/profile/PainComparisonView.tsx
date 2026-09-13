@@ -90,7 +90,7 @@ export default function PainComparisonView({
   if (allKeys.size === 0) {
     return (
       <p className="text-xs text-slate-500">
-        Nothing to compare yet — no self-reported areas or clinical assessments on record.
+        Nothing to compare yet - no self-reported areas or clinical assessments on record.
       </p>
     );
   }
@@ -106,11 +106,11 @@ export default function PainComparisonView({
     <div>
       <div className="flex items-center gap-4 mb-3 text-[11px] text-slate-500">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-slate-400" /> Filled dot — what the
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-slate-400" /> Filled dot - what the
           therapist found
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-blue-600" /> Ring — where the
+          <span className="inline-block h-2.5 w-2.5 rounded-full ring-2 ring-blue-600" /> Ring - where the
           patient said it hurts
         </span>
       </div>

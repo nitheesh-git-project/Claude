@@ -93,6 +93,6 @@ export async function POST() {
   return NextResponse.json({
     ok: true,
     redirectTo: "/admin/login",
-    note: "Your own session could not be restored — please sign in again.",
+    note: "Your own session could not be restored - please sign in again.",
   });
 }

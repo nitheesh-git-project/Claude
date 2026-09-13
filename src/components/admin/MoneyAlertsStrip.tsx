@@ -30,7 +30,7 @@ export default function MoneyAlertsStrip({
       <div className="mb-5 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
         <i aria-hidden className="fa-solid fa-circle-check text-sm text-emerald-600" />
         <p className="text-xs font-semibold text-emerald-900">
-          Nothing in Money needs you — no cash to chase, no refunds to hand back.
+          Nothing in Money needs you - no cash to chase, no refunds to hand back.
         </p>
       </div>
     );

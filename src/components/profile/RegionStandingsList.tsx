@@ -36,7 +36,7 @@ const TREND_TONE: Record<string, string> = {
 };
 
 /**
- * The exam results as a ranked list — worst area first, each with a bar
+ * The exam results as a ranked list - worst area first, each with a bar
  * you can compare across rows at a glance and a plain-English trend.
  * The body map answers "where"; this answers "how bad, and is it moving",
  * which is the question a patient actually asks of their own chart.
@@ -47,7 +47,7 @@ export default function RegionStandingsList({ assessments }: { assessments: Pain
   if (standings.length === 0) {
     return (
       <p className="text-sm text-slate-500">
-        Your therapist hasn&apos;t recorded an exam yet — this fills in on its own after your first session.
+        Your therapist hasn&apos;t recorded an exam yet - this fills in on its own after your first session.
       </p>
     );
   }

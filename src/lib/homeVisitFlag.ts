@@ -11,7 +11,7 @@ import { createPublicClient } from "@/lib/supabase/public";
  * Read on its own and never merged into a page's other selects: the column is
  * migration-dependent, and a database that has not re-run schema.sql should
  * lose one card from one strip rather than blank whichever query it was
- * bundled into. Fails closed — an unreadable flag hides the mode instead of
+ * bundled into. Fails closed - an unreadable flag hides the mode instead of
  * advertising one the clinic cannot deliver.
  */
 export async function readHomeVisitEnabled(): Promise<boolean> {

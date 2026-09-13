@@ -244,7 +244,7 @@ export default function HomeVisitPackageForm({
       <div className="grid sm:grid-cols-3 gap-3">
         <Field
           label="Visits Included"
-          hint="Set 1 to sell a single one-off home visit — there is no separate single-visit product."
+          hint="Set 1 to sell a single one-off home visit - there is no separate single-visit product."
         >
           <input
             type="number"
@@ -348,7 +348,7 @@ export default function HomeVisitPackageForm({
       <div className="grid sm:grid-cols-3 gap-3">
         <Field label="Condition Category" hint="Optional grouping only.">
           <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputCls()}>
-            <option value="">— None —</option>
+            <option value="">- None -</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.title}
@@ -382,7 +382,7 @@ export default function HomeVisitPackageForm({
           checked={travelFeeIncluded}
           onChange={setTravelFeeIncluded}
           label="Travel fee included in price"
-          hint="On: the price above is all the patient pays, and the area's travel fee is not added at checkout. The therapist is still paid that fee either way — this only changes what the patient is quoted."
+          hint="On: the price above is all the patient pays, and the area's travel fee is not added at checkout. The therapist is still paid that fee either way - this only changes what the patient is quoted."
         />
         <Check
           checked={therapistLocked}

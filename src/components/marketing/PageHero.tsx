@@ -9,7 +9,7 @@ export type HeroCta = { href: string; label: string; icon?: string };
  * The opening screen of every public page.
  *
  * All seven pages share it so the site reads as one product rather than
- * seven landing pages — the previous version gave each page its own hero
+ * seven landing pages - the previous version gave each page its own hero
  * shape, which is part of why moving between them felt like moving between
  * different sites.
  *
@@ -39,7 +39,7 @@ export default function PageHero({
   stats?: HeroStat[];
   photoId: PhotoId;
   alt: string;
-  /** Small card floated over the photo — one fact, never a paragraph. */
+  /** Small card floated over the photo - one fact, never a paragraph. */
   overlay?: { icon: string; title: string; body: string };
   size?: "default" | "large";
 }) {

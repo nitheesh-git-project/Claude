@@ -94,13 +94,13 @@ export function renderPatientSessionCard(
                   className="font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full"
                   title={
                     a.therapist_payout_paid_at
-                      ? "No refund — this session's payout was already settled (cancelled as an admin correction, not a late cancellation)"
+                      ? "No refund - this session's payout was already settled (cancelled as an admin correction, not a late cancellation)"
                       : // The recorded reason names the window that actually
                         // applied: a home visit has its own, and the constant
                         // below is the online one, so this used to quote the
                         // wrong number of hours on every cancelled visit.
                         a.refund_reason?.trim() ||
-                        `No refund — cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot`
+                        `No refund - cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot`
                   }
                 >
                   No Refund

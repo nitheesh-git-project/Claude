@@ -95,7 +95,7 @@ export default function TestimonialManager({ testimonials }: { testimonials: Tes
       )}
       {testimonials.length === 0 && !addingNew ? (
         <p className="text-xs text-slate-500 py-4 text-center">
-          No testimonials yet — add one below.
+          No testimonials yet - add one below.
         </p>
       ) : (
         <ul className="space-y-3">

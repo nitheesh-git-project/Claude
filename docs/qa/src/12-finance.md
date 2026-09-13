@@ -2,9 +2,9 @@
 
 ## 16. Finance test plan (Money) and payment integrity
 
-### 16.0 Feature guide — the money model
+### 16.0 Feature guide - the money model
 
-**One word, one money figure.** If a new figure needs a word that is already taken, the figure gets renamed — the word is never overloaded. If two figures end up with the same meaning, one is deleted rather than explained. `MoneyGlossary` renders on **every** Money screen, not only Summary, because an admin reading "Net payable" on Payouts is the one who needs it.
+**One word, one money figure.** If a new figure needs a word that is already taken, the figure gets renamed - the word is never overloaded. If two figures end up with the same meaning, one is deleted rather than explained. `MoneyGlossary` renders on **every** Money screen, not only Summary, because an admin reading "Net payable" on Payouts is the one who needs it.
 
 | Word | Means |
 | --- | --- |
@@ -12,10 +12,10 @@
 | **Refunds** | Refunds that actually processed |
 | **Net Revenue** | `Gross − Refunds` |
 | **Splittable Net** | The part of Net whose split is **knowable**. Always ≤ Net. |
-| **Therapist share** | Earned by **delivering** — completed **and** paid only. Includes a home visit's travel fee in full. |
+| **Therapist share** | Earned by **delivering** - completed **and** paid only. Includes a home visit's travel fee in full. |
 | **Partner share** | A commission on **net** revenue |
 | **Clinic share** | `Splittable Net − Therapist share − Partner share`. A **gross** figure. |
-| **Operating profit** | Clinic share **less** the gateway fee and hand-entered business expenses. The only figure that may be called profit — and only because costs exist. |
+| **Operating profit** | Clinic share **less** the gateway fee and hand-entered business expenses. The only figure that may be called profit - and only because costs exist. |
 | **Package cash collected** | What came into the bank up front |
 | **Recognised revenue** | The same money, recognised one session at a time |
 | **Owed to therapists** | An all-time **balance**, net of cash held. Never date-filtered. |
@@ -33,7 +33,7 @@ clinic share  = splittable net − therapist share − partner share
 2. **A home visit's travel fee is part of the therapist's share and is never revenue.** The Money screens must be passed the payout-enriched appointments (visit mode, travel fee, the cash columns) and the per-therapist home-visit rate. Passing the plain array silently moved the whole travel bill into the clinic's share.
 3. **Refunds reverse the partner's commission, not the therapist's.** A refunded session was cancelled, so it never earned a therapist share; a hospital's cut is taken on net.
 
-**Different eligibility for revenue and for the split.** Gross, refunds and net count **every** paid session. A session whose split is **unknowable** — no therapist share set, or a hospital-referred patient whose hospital has no share configured — is excluded **from the split alone** and surfaced as a **named count**. **Never guess a percentage to make the numbers tie.**
+**Different eligibility for revenue and for the split.** Gross, refunds and net count **every** paid session. A session whose split is **unknowable** - no therapist share set, or a hospital-referred patient whose hospital has no share configured - is excluded **from the split alone** and surfaced as a **named count**. **Never guess a percentage to make the numbers tie.**
 
 **Flows are range-scoped; balances are not.** "Owed to therapists" is all-time and net of cash held, matching what the Pay button actually transfers. Scoping it to the range in view once let an admin read "nothing owed" off a quiet week while a real debt sat outside the window. The label has to say which it is.
 
@@ -45,20 +45,20 @@ Build this exact dataset before running §16.2 onward. It is small enough to com
 
 | # | Patient | Therapist | Mode | Paid | Status | Refund | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| S1 | A | A (60%) | online | ₹1,999 | completed | — | Ordinary delivered session |
-| S2 | A | A (60%) | online | ₹1,799 | confirmed (not completed) | — | Paid, **not delivered** |
+| S1 | A | A (60%) | online | ₹1,999 | completed | - | Ordinary delivered session |
+| S2 | A | A (60%) | online | ₹1,799 | confirmed (not completed) | - | Paid, **not delivered** |
 | S3 | A | A (60%) | online | ₹1,999 | cancelled | ₹1,999 processed | Refunded outside the window |
-| S4 | C (Hospital A, 10%) | A (60%) | online | ₹2,499 | completed | — | Partner attribution |
-| S5 | C (Hospital A, 10%) | B (**no share set**) | online | ₹1,999 | completed | — | **Excluded from the split** |
-| S6 | A | A (home 65%) | home visit | ₹2,499 | completed | — | Travel fee ₹150, paid online |
-| S7 | B | A (home 65%) | home visit | ₹2,499 | completed | — | Travel ₹150, **cash at the door**, not remitted |
+| S4 | C (Hospital A, 10%) | A (60%) | online | ₹2,499 | completed | - | Partner attribution |
+| S5 | C (Hospital A, 10%) | B (**no share set**) | online | ₹1,999 | completed | - | **Excluded from the split** |
+| S6 | A | A (home 65%) | home visit | ₹2,499 | completed | - | Travel fee ₹150, paid online |
+| S7 | B | A (home 65%) | home visit | ₹2,499 | completed | - | Travel ₹150, **cash at the door**, not remitted |
 
 Costs: the three expenses from §8.15. Gateway fee: **2%**.
 
 **Hand-computed expectations for the whole range (all figures in rupees):**
 
 * **Gross** = 1999 + 1799 + 1999 + 2499 + 1999 + 2499 + 2499 = **₹15,293**
-  *(S7 is a cash home visit: include it only once the cash is recorded as collected — see `FIN-SUM-002`.)*
+  *(S7 is a cash home visit: include it only once the cash is recorded as collected - see `FIN-SUM-002`.)*
 * **Refunds** = **₹1,999** (S3)
 * **Net** = 15,293 − 1,999 = **₹13,294**
 * **Excluded from the split**: S5 → count `1`, excluded revenue **₹1,999**
@@ -74,7 +74,7 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 * **Clinic share** = 11,295 − 6,247.50 − 249.90 = **₹4,797.60**
 * **Gateway fee** (2% of **online** collections, charged on **gross**, **skipped for cash-on-visit**): online gross = 15,293 − 2,499 (S7 cash) = 12,794 → `≈ ₹255.88`
 * **Expenses in a September range** = 25,000 + 4,000 = **₹29,000** (the ₹6,000 August row is **outside** and must not be counted)
-* **Operating profit** = 4,797.60 − 255.88 − 29,000 = **−₹24,458.28** (a loss — which is the honest answer for this dataset)
+* **Operating profit** = 4,797.60 − 255.88 − 29,000 = **−₹24,458.28** (a loss - which is the honest answer for this dataset)
 
 > Rounding: each per-appointment share is rounded to the nearest paise **individually** before summing. Expect ±1 paise against a spreadsheet that rounds at the end.
 
@@ -82,199 +82,199 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 
 ### 16.2 Money screens
 
-#### `FIN-NAV-001` — Each Money screen says what it is, and holds what it claims · P1
+#### `FIN-NAV-001` - Each Money screen says what it is, and holds what it claims · P1
 
 **Steps.** Open each of the five Money screens in turn: Summary, Transactions, Payouts, Costs, Breakdown. Read the line under each heading. Then open **Settings → Offers & Discounts**, read its "Looking for promo codes?" note, and follow it.
-**Expected Result.** Every screen prints its own one-line description plus a **For example:** line under the heading, in place of the section's own blurb — the same treatment the Settings screens get, and for a sharper reason: five screens named with abstract nouns ("Summary", "Breakdown") make an owner open three to find the one answering their question. **Promo codes are on Costs**, beside the *Discounts given* figure they produce — which is where the Offers note, the README and `ADM-PROMO-001` have always sent people.
+**Expected Result.** Every screen prints its own one-line description plus a **For example:** line under the heading, in place of the section's own blurb - the same treatment the Settings screens get, and for a sharper reason: five screens named with abstract nouns ("Summary", "Breakdown") make an owner open three to find the one answering their question. **Promo codes are on Costs**, beside the *Discounts given* figure they produce - which is where the Offers note, the README and `ADM-PROMO-001` have always sent people.
 **Negative:** they used to render on **Summary**, so following that note landed on a screen with no promo codes anywhere on it and no way to tell whether the feature existed at all.
 
-#### `FIN-SUM-001` — Summary and the two identities · P0
+#### `FIN-SUM-001` - Summary and the two identities · P0
 
 **Steps.** Open **Money → Summary**. Set the date range to cover the dataset. Read every figure. Compute the two identities by hand.
-**Expected Result.** `net = gross − refunds` and `clinic share = splittable net − therapist share − partner share` **hold exactly**. The figures match §16.1. The excluded count reads `1` with `₹1,999` named. Every screen ends with the **MoneyGlossary**. No figure is labelled "approximate" — the split is exact over a stated subset.
+**Expected Result.** `net = gross − refunds` and `clinic share = splittable net − therapist share − partner share` **hold exactly**. The figures match §16.1. The excluded count reads `1` with `₹1,999` named. Every screen ends with the **MoneyGlossary**. No figure is labelled "approximate" - the split is exact over a stated subset.
 **No figure appears twice on the screen.** The strip carries Net revenue, Operating profit, Owed to therapists and Package cash collected; the two blocks below it are the subtraction chain, where Clinic share is deliberately carried down from *Where the money went* into *What it cost to run*. Before this, Net revenue was printed twice, Clinic share three times and Operating profit twice, because the strip repeated the chain under it.
 
-#### `FIN-SUM-004` — Every figure says what it means and when it is measured · P1
+#### `FIN-SUM-004` - Every figure says what it means and when it is measured · P1
 
 **Steps.** On **Money → Summary**, tap the **i** beside Net revenue, Clinic share and Owed to therapists. Read the chip on each. Then open the glossary at the foot of the screen and compare the sentences. Then check the **Gateway fee %** tile on Costs.
-**Expected Result.** The **i** expands one sentence beside the figure, and it is **word-for-word** what the glossary prints — both read `src/lib/moneyTerms.ts`. Clinic share's says in place that it is **not** profit. Chips: `These dates` on the flows, `Right now` on Owed to therapists (amber) and on the Payouts heading, `A setting` on Gateway fee %. **That tile used to be called "Payment fees"** — the same name Summary gives the rupee amount derived from it, which is the one-word-two-figures collision the vocabulary exists to prevent.
+**Expected Result.** The **i** expands one sentence beside the figure, and it is **word-for-word** what the glossary prints - both read `src/lib/moneyTerms.ts`. Clinic share's says in place that it is **not** profit. Chips: `These dates` on the flows, `Right now` on Owed to therapists (amber) and on the Payouts heading, `A setting` on Gateway fee %. **That tile used to be called "Payment fees"** - the same name Summary gives the rupee amount derived from it, which is the one-word-two-figures collision the vocabulary exists to prevent.
 
-#### `FIN-SUM-002` — Paid vs unpaid, completed vs not · P0
+#### `FIN-SUM-002` - Paid vs unpaid, completed vs not · P0
 **Steps.** Confirm S2's treatment.
-**Expected Result.** S2 (paid, **not** completed) **is** in Gross/Net, and contributes **nothing** to the therapist share. If the therapist share includes S2, the "earned by delivering" rule has regressed — that is a P0.
+**Expected Result.** S2 (paid, **not** completed) **is** in Gross/Net, and contributes **nothing** to the therapist share. If the therapist share includes S2, the "earned by delivering" rule has regressed - that is a P0.
 **Cash check:** S7's cash home visit sits at `payment_status='unpaid'` for its whole life. **Read `payment_mode` first.** It must not be presented anywhere as a failed or outstanding online payment.
 
-#### `FIN-SUM-003` — Date filtering, and what is never filtered · P0
+#### `FIN-SUM-003` - Date filtering, and what is never filtered · P0
 **Steps.** Narrow the range to one day containing only S1. Read every figure on Summary. Then read **Owed to therapists**.
-**Expected Result.** Gross, refunds, net, and the split all narrow to S1. **"Owed to therapists" does not change** — it is an all-time balance, net of cash held, matching what the Pay button transfers. Its label says so. If it moves with the range, that is a P0: an admin could read "nothing owed" off a quiet week while a real debt sat outside the window.
+**Expected Result.** Gross, refunds, net, and the split all narrow to S1. **"Owed to therapists" does not change** - it is an all-time balance, net of cash held, matching what the Pay button transfers. Its label says so. If it moves with the range, that is a P0: an admin could read "nothing owed" off a quiet week while a real debt sat outside the window.
 
-#### `FIN-SUM-005` — Opening a figure, and what needs you · P1
+#### `FIN-SUM-005` - Opening a figure, and what needs you · P1
 
 **Steps.** On **Money → Summary**, tap **See the sessions** on Net revenue, then on Therapists' share, Partners' share and Clinic share. Add up the last column by hand in each. Then leave S7's cash un-remitted and a payout request pending, and open each of the five Money screens.
-**Expected Result.** The modal lists exactly the sessions behind that figure and its footer **equals the card**, to the rupee — both come from `moneyLineFor`, which the totals themselves accumulate. A session paid for but **not delivered** appears under Therapists' share with **nothing** against it rather than being hidden. A session left out of the split is not counted in the two share modals. Partners' share offers no link when nothing was referred in range.
-Every Money screen opens with a **needs-you strip**: `N things need you` over one row per item — payout requests waiting, cash a therapist is holding, refunds to hand back by hand, payments attached to nothing — each linking to the rows it counted. With nothing outstanding it reads `Nothing in Money needs you`. A **Finance** admin (no `settings`) sees the first three and **not** payments-attached-to-nothing, whose fix is on a screen they cannot open.
+**Expected Result.** The modal lists exactly the sessions behind that figure and its footer **equals the card**, to the rupee - both come from `moneyLineFor`, which the totals themselves accumulate. A session paid for but **not delivered** appears under Therapists' share with **nothing** against it rather than being hidden. A session left out of the split is not counted in the two share modals. Partners' share offers no link when nothing was referred in range.
+Every Money screen opens with a **needs-you strip**: `N things need you` over one row per item - payout requests waiting, cash a therapist is holding, refunds to hand back by hand, payments attached to nothing - each linking to the rows it counted. With nothing outstanding it reads `Nothing in Money needs you`. A **Finance** admin (no `settings`) sees the first three and **not** payments-attached-to-nothing, whose fix is on a screen they cannot open.
 
-#### `FIN-SUM-006` — Exporting a figure's sessions, and last period's comparison · P1
+#### `FIN-SUM-006` - Exporting a figure's sessions, and last period's comparison · P1
 
 **Steps.** Open **See the sessions** on Clinic share and export both CSV and PDF. Then set the range to September, read the line under **Net revenue**, and re-run with an August that has no paid sessions in it.
-**Expected Result.** The export covers the **same rows the modal listed** and both formats come from one column definition, so they describe the same table; the PDF's subtitle names the date range. The strip's Net revenue carries a comparison against **the same number of days immediately before** the range in view — never a calendar month against a 30-day window, which would move the figure by the number of days rather than by the business. Up is green, down is red, and a move under half a percent reads **Level with the N days before** rather than drawing an arrow over noise. With nothing in the previous period it reads **Nothing in the N days before** — it must **never** print `+100%` or `∞` from a zero baseline.
+**Expected Result.** The export covers the **same rows the modal listed** and both formats come from one column definition, so they describe the same table; the PDF's subtitle names the date range. The strip's Net revenue carries a comparison against **the same number of days immediately before** the range in view - never a calendar month against a 30-day window, which would move the figure by the number of days rather than by the business. Up is green, down is red, and a move under half a percent reads **Level with the N days before** rather than drawing an arrow over noise. With nothing in the previous period it reads **Nothing in the N days before** - it must **never** print `+100%` or `∞` from a zero baseline.
 
-#### `FIN-BRK-001` — Breakdown agrees with Summary · P0
+#### `FIN-BRK-001` - Breakdown agrees with Summary · P0
 **Steps.** Open **Money → Breakdown** for the same range.
-**Expected Result.** Every figure and every chart segment matches Summary **exactly** — both come from **one pass** of the same maths. A discrepancy of any size is a P0.
+**Expected Result.** Every figure and every chart segment matches Summary **exactly** - both come from **one pass** of the same maths. A discrepancy of any size is a P0.
 
-#### `FIN-TXN-001` — Transactions · P1
+#### `FIN-TXN-001` - Transactions · P1
 **Steps.** Open **Money → Transactions**. Reconcile every row against the dataset. Export CSV and PDF.
-**Expected Result.** One row per payment, with the order id and payment id. **No payment id appears on two rows.** The CSV and the PDF describe the **same table** — they are generated from one column definition, and the PDF route is sent the exact filtered rows the browser rendered. Both cover the **whole filtered set**. The PDF carries a subtitle naming the scope and the date. **No JSON export exists.**
+**Expected Result.** One row per payment, with the order id and payment id. **No payment id appears on two rows.** The CSV and the PDF describe the **same table** - they are generated from one column definition, and the PDF route is sent the exact filtered rows the browser rendered. Both cover the **whole filtered set**. The PDF carries a subtitle naming the scope and the date. **No JSON export exists.**
 
-#### `FIN-PAY-001` — Payouts · P0
+#### `FIN-PAY-001` - Payouts · P0
 **Steps.** Open **Money → Payouts**. Read Therapist A's row.
-**Expected Result.** `Owed` matches §16.1's therapist share for A, **less anything already settled**. **The Pay button shows the net figure** — owed minus cash held — not the gross owed. A therapist with **no revenue share set** shows the "not set" state rather than `₹0`; paying them is refused with `Set this therapist's revenue share % before paying out.`
+**Expected Result.** `Owed` matches §16.1's therapist share for A, **less anything already settled**. **The Pay button shows the net figure** - owed minus cash held - not the gross owed. A therapist with **no revenue share set** shows the "not set" state rather than `₹0`; paying them is refused with `Set this therapist's revenue share % before paying out.`
 
-#### `FIN-PAY-002` — Settling a payout · P0
+#### `FIN-PAY-002` - Settling a payout · P0
 **Steps.** Settle Therapist A's payout. Then attempt to settle again immediately. Then double-click Settle on Therapist B.
-**Expected Result.** The transfer amount is recorded, `therapist_payout_paid_at` is stamped on exactly the sessions settled, and a **`payout.settle` audit row** is written **after** the compare-and-swap claim. A second attempt is a no-op or is refused — **no double payout**. The Owed figure drops to zero for the settled sessions.
+**Expected Result.** The transfer amount is recorded, `therapist_payout_paid_at` is stamped on exactly the sessions settled, and a **`payout.settle` audit row** is written **after** the compare-and-swap claim. A second attempt is a no-op or is refused - **no double payout**. The Owed figure drops to zero for the settled sessions.
 
-#### `FIN-PAY-003` — Netting cash off a payout is a remittance · P0
+#### `FIN-PAY-003` - Netting cash off a payout is a remittance · P0
 
 **Purpose.** Without this, the same rupees are deducted again on the next payout and the Cash Ledger goes on asking someone to chase money already recovered.
 **Preconditions.** Therapist A is holding S7's cash (₹2,499 + ₹150 travel, per the reconstructed total), un-remitted.
 **Steps.** Read the Pay button's figure. Settle. Then open the **Cash Ledger** panel on the same screen. Then run a second payout cycle.
 **Expected Result.** The transfer is reduced by the cash held. **The same run marks exactly those visits `cash_remitted_at`.** The Cash Ledger stops listing them. The second payout cycle does **not** deduct that cash again.
 
-#### `FIN-PAY-004` — A therapist holding more cash than they are owed · P0
+#### `FIN-PAY-004` - A therapist holding more cash than they are owed · P0
 **Preconditions.** Arrange cash held > amount owed.
 **Expected Result.** The transfer **floors at zero** (never negative). The difference is shown as **still owed to the business**, and **those collections deliberately stay open on the Cash Ledger** for a person to chase. They must not be silently marked remitted.
 
-#### `FIN-PAY-005` — Payout requests · P1
+#### `FIN-PAY-005` - Payout requests · P1
 **Steps.** With a therapist request outstanding, tap **Start review**, then **Complete**. Then try to complete a request that was never reviewed.
-**Expected Result.** The states move `pending → reviewing → completed`. Completing without review is refused with `Start review on this request before marking it completed.` A completed request re-submitted returns `This request is already completed.` A stale action returns `This request is no longer pending — please refresh.` All audited.
+**Expected Result.** The states move `pending → reviewing → completed`. Completing without review is refused with `Start review on this request before marking it completed.` A completed request re-submitted returns `This request is already completed.` A stale action returns `This request is no longer pending - please refresh.` All audited.
 
-#### `FIN-PAY-006` — Correcting a cash amount is the admin's job, not the therapist's · P0
+#### `FIN-PAY-006` - Correcting a cash amount is the admin's job, not the therapist's · P0
 **Steps.** As Admin Full, correct S7's cash amount to `₹2,000` with the reason `Patient short ₹649 at the door; agreed balance next visit.` Then try with a blank reason, then on an **already remitted** visit.
-**Expected Result.** Valid: succeeds with a CAS on the figure being replaced, and writes a **`cash.correct_amount`** audit row. Blank reason: refused. Already remitted: **refused** — that transfer has gone out, so the fix is an adjustment against the next payout, not a silent edit of a settled one (`This session isn't a cash-on-visit home visit.` / the remitted refusal). A stale figure returns `Someone else changed this figure. Refresh and try again.`
+**Expected Result.** Valid: succeeds with a CAS on the figure being replaced, and writes a **`cash.correct_amount`** audit row. Blank reason: refused. Already remitted: **refused** - that transfer has gone out, so the fix is an adjustment against the next payout, not a silent edit of a settled one (`This session isn't a cash-on-visit home visit.` / the remitted refusal). A stale figure returns `Someone else changed this figure. Refresh and try again.`
 As Admin Ops (no `money` scope): **403**, and the control does not render.
 
-#### `FIN-COST-001` — Costs · P1
+#### `FIN-COST-001` - Costs · P1
 **Steps.** Open **Money → Costs**. Add the three expenses from §8.15. Set the range to September 2026.
-**Expected Result.** Only the two September rows count; the 28 August row is excluded — expenses are dated by **when they were incurred**, not when they were typed in. Negatives: `Enter an amount greater than zero.`, `Pick the date this cost was incurred.` Deleting an expense removes it from the total.
+**Expected Result.** Only the two September rows count; the 28 August row is excluded - expenses are dated by **when they were incurred**, not when they were typed in. Negatives: `Enter an amount greater than zero.`, `Pick the date this cost was incurred.` Deleting an expense removes it from the total.
 
-#### `FIN-COST-002` — Operating profit and the gateway fee · P0
+#### `FIN-COST-002` - Operating profit and the gateway fee · P0
 **Steps.** Read Operating profit. Then change the gateway fee percentage and re-read.
 **Expected Result.** The gateway fee is **derived automatically** from what was collected **online**, charged on **gross** (a processor keeps its fee through a refund), and **skipped for cash-on-visit**, which never touches a gateway. Operating profit = clinic share − gateway fee − expenses. Changing the percentage moves it.
-**With no costs recorded for a range, Operating profit is a ceiling and the screen must say so** rather than implying a number it cannot know. **Nothing here is post-tax — the label must never read "net profit".**
+**With no costs recorded for a range, Operating profit is a ceiling and the screen must say so** rather than implying a number it cannot know. **Nothing here is post-tax - the label must never read "net profit".**
 
-#### `FIN-REF-001` — Refunds across the screens · P0
+#### `FIN-REF-001` - Refunds across the screens · P0
 **Steps.** Refund S3 in full. Then partially refund another session by `₹500` with the reason `Session cut short by a connection failure.` Then attempt a partial refund of `₹0`, and one with no reason.
 **Expected Result.** Full: Gross unchanged, Refunds +₹1,999, Net −₹1,999, **therapist share unchanged**, **partner share reduced**. Partial: the same shape at ₹500. `₹0`: `Enter a refund amount greater than zero.` No reason: `Say why this refund is being made.` A second full refund: `This session has already been refunded in full.`
 
-#### `FIN-REF-002` — Refund failure at the gateway · P1
+#### `FIN-REF-002` - Refund failure at the gateway · P1
 **Steps.** Force a Razorpay refund failure (use a payment that cannot be refunded in test mode).
-**Expected Result.** `Razorpay refused the refund. Nothing was refunded — check Razorpay and retry.` **Nothing is marked refunded locally** — the local state must never claim a refund the gateway did not make.
+**Expected Result.** `Razorpay refused the refund. Nothing was refunded - check Razorpay and retry.` **Nothing is marked refunded locally** - the local state must never claim a refund the gateway did not make.
 
-#### `FIN-REF-003` — A cash refund becomes a manual pending item · P1
+#### `FIN-REF-003` - A cash refund becomes a manual pending item · P1
 **Steps.** Refund a cash-on-visit home purchase.
-**Expected Result.** With no Razorpay payment behind it, the refund becomes `refund_status='manual_pending'` and is **surfaced on the admin Cash Ledger** until an admin confirms the cash was handed back. Marking it returned clears it and is audited. Attempting to refund a cash purchase as if it were online: `Cash-on-visit packages have no single payment to refund — cancel visits individually instead.`
+**Expected Result.** With no Razorpay payment behind it, the refund becomes `refund_status='manual_pending'` and is **surfaced on the admin Cash Ledger** until an admin confirms the cash was handed back. Marking it returned clears it and is audited. Attempting to refund a cash purchase as if it were online: `Cash-on-visit packages have no single payment to refund - cancel visits individually instead.`
 
-#### `FIN-REF-004` — A refund voids available credits, never delivered ones · P0
+#### `FIN-REF-004` - A refund voids available credits, never delivered ones · P0
 **Preconditions.** A 6-session purchase with 2 sessions **completed** and 4 available.
 **Steps.** Refund the package.
 **Expected Result.** The **4 available** credits are voided; the **2 delivered stay delivered**. The ledger records a `void` for exactly 4. The patient's widget shows the programme as refunded with nothing available. **A delivered session is never un-delivered.**
 
-#### `FIN-REF-005` — A refunded session says so wherever it is listed · P0
+#### `FIN-REF-005` - A refunded session says so wherever it is listed · P0
 **Preconditions.** One session refunded in full, one refunded partially, one cash home visit at `manual_pending`, one refund that failed at the gateway, and one cancelled inside the window with no refund due.
 **Steps.** Open **People → Patients → the patient's profile** and read the session rows. Then **Sessions → All Sessions**, then open each session's detail drawer. Export All Sessions as CSV **and** as PDF.
-**Expected Result.** Every one of the five carries a refund chip beside its payment chip, reading `Refunded ₹1,200` / `Refunded ₹500` / `Hand back ₹500` / `Refund failed` / `No refund due` respectively, in that wording and nothing else. A session that was never refunded carries **no chip at all** — an empty refund column reading "—" on every ordinary session is noise. A partial refund states the amount refunded, not the amount paid. The drawer adds a **Refunded** panel above the partial-refund form giving when, the reason, and the gateway reference where there is one. Both exports carry a `Refund` column and a `Refunded on` column agreeing with the chips. **A refund is as visible as a payment on every surface that lists a session** — a refund that happened and left no trace on the session is the failure this case exists to catch.
+**Expected Result.** Every one of the five carries a refund chip beside its payment chip, reading `Refunded ₹1,200` / `Refunded ₹500` / `Hand back ₹500` / `Refund failed` / `No refund due` respectively, in that wording and nothing else. A session that was never refunded carries **no chip at all** - an empty refund column reading "-" on every ordinary session is noise. A partial refund states the amount refunded, not the amount paid. The drawer adds a **Refunded** panel above the partial-refund form giving when, the reason, and the gateway reference where there is one. Both exports carry a `Refund` column and a `Refunded on` column agreeing with the chips. **A refund is as visible as a payment on every surface that lists a session** - a refund that happened and left no trace on the session is the failure this case exists to catch.
 
-#### `FIN-REF-008` — A refund the clinic owes is counted, and the count opens it · P0
+#### `FIN-REF-008` - A refund the clinic owes is counted, and the count opens it · P0
 **Preconditions.** One cash home visit at `manual_pending`, one **session** at `manual_pending`, and one session whose refund `failed` at the gateway.
 **Steps.** As **Master Admin**, read the alerts strip at the top of any Money screen and the Today inbox. Tap each refund row. Then repeat as **Finance**, **Operations** and **Clinical**.
-**Expected Result.** *Refunds to hand back* reads **2** — cash visits and sessions together, because both are money a patient is owed with no card payment to reverse; counting only the visits is the bug this case exists to catch. *Refunds that failed* reads **1** and is its own row, because the work is different. Tapping it lands on **Sessions → All Sessions** filtered to exactly that one session, with every other filter cleared. Finance see the hand-back row and **not** the failed one: they read Sessions without being able to change one, so a figure nothing they could do would bring down does not belong on their screen. Operations and Clinical open no Money screen at all. Every row is **urgent** — this is money the clinic has agreed to return and has not returned.
+**Expected Result.** *Refunds to hand back* reads **2** - cash visits and sessions together, because both are money a patient is owed with no card payment to reverse; counting only the visits is the bug this case exists to catch. *Refunds that failed* reads **1** and is its own row, because the work is different. Tapping it lands on **Sessions → All Sessions** filtered to exactly that one session, with every other filter cleared. Finance see the hand-back row and **not** the failed one: they read Sessions without being able to change one, so a figure nothing they could do would bring down does not belong on their screen. Operations and Clinical open no Money screen at all. Every row is **urgent** - this is money the clinic has agreed to return and has not returned.
 
-#### `FIN-REF-011` — A cash home visit is counted once, not twice · P0
+#### `FIN-REF-011` - A cash home visit is counted once, not twice · P0
 **Preconditions.** Exactly **one** cash home visit at `manual_pending` and no other refund owed anywhere.
 **Steps.** Read *Refunds to hand back* on the Money alerts strip and on the Today inbox, then open **Money → Payouts → Cash Ledger** and count the rows.
 **Expected Result.** Every one of them reads **1**. It must not read 2: the dashboard's home-visit query and its main appointments query are the **same table** (`appointments`, one of them filtered to `visit_mode = 'home_visit'`), so a count that adds the two counts every cash visit twice and puts a figure on the strip the ledger underneath it disagrees with. Repeat with one failed refund on a home visit for *Refunds that failed*.
 
-#### `FIN-REF-012` — The All Sessions export carries no money to a desk that cannot see it · P1
+#### `FIN-REF-012` - The All Sessions export carries no money to a desk that cannot see it · P1
 **Steps.** As **Operations**, then as **Clinical**, open **Sessions → All Sessions** and export both CSV and PDF. Repeat as **Master Admin** and as **Finance**.
-**Expected Result.** The limited desks' files contain **no** `Amount (INR)`, `Refund` or `Refunded on` column at all — not a blank one. Those three never render in this table on screen, so a desk that cannot read them there must not be able to download them; every other column is present and the row count is identical. Master Admin and Finance get all three.
+**Expected Result.** The limited desks' files contain **no** `Amount (INR)`, `Refund` or `Refunded on` column at all - not a blank one. Those three never render in this table on screen, so a desk that cannot read them there must not be able to download them; every other column is present and the row count is identical. Master Admin and Finance get all three.
 
-#### `FIN-REF-009` — The All Sessions refund filters · P1
+#### `FIN-REF-009` - The All Sessions refund filters · P1
 **Steps.** On **Sessions → All Sessions**, take the payment filter through **Refunded**, **Refund to hand back** and **Refund failed**.
-**Expected Result.** Each returns exactly the sessions in that state. **Refunded** in particular must return rows: `payment_status` is CHECKed to `unpaid` / `paid` / `failed` and can never hold `refunded`, so this option previously matched nothing and quietly returned an empty table — a filter that always looks like "no refunds have ever happened". A refund lives on `refund_status`.
+**Expected Result.** Each returns exactly the sessions in that state. **Refunded** in particular must return rows: `payment_status` is CHECKed to `unpaid` / `paid` / `failed` and can never hold `refunded`, so this option previously matched nothing and quietly returned an empty table - a filter that always looks like "no refunds have ever happened". A refund lives on `refund_status`.
 
-#### `FIN-REF-010` — Every refund says why · P1
+#### `FIN-REF-010` - Every refund says why · P1
 **Steps.** Cancel a paid session **outside** the window giving the reason `Therapist unwell, rescheduling next week.` Cancel a second one outside the window giving **no** reason. Cancel a paid **home visit** **inside** its own window (which differs from the online one). Read each session's admin drawer and each one on the patient's Payments screen.
-**Expected Result.** The first carries the cancellation's own words on both surfaces. The second carries `Cancelled outside the refund window` rather than a blank line — a "Why:" with nothing after it is the failure this case exists to catch. The forfeiture carries `Cancelled within N hours of the slot, so no refund was due` with **N being the home-visit window**, never the online constant, and **never** the cancellation's own reason: that line answers "why this money moved" and no money moved. The patient's card shows the forfeiture as `No Refund` with that sentence on hover and **no refund line** — a forfeiture is not announced to them as a refund.
+**Expected Result.** The first carries the cancellation's own words on both surfaces. The second carries `Cancelled outside the refund window` rather than a blank line - a "Why:" with nothing after it is the failure this case exists to catch. The forfeiture carries `Cancelled within N hours of the slot, so no refund was due` with **N being the home-visit window**, never the online constant, and **never** the cancellation's own reason: that line answers "why this money moved" and no money moved. The patient's card shows the forfeiture as `No Refund` with that sentence on hover and **no refund line** - a forfeiture is not announced to them as a refund.
 
-#### `FIN-REF-006` — A refund issued before the columns existed · P1
+#### `FIN-REF-006` - A refund issued before the columns existed · P1
 **Steps.** Against a database whose `appointments` rows predate `refunded_at` / `refunded_by`, open a session refunded before the migration.
-**Expected Result.** The chip still reads the refund from `refund_status` and `refund_amount_paise`; **the date reads `—`** rather than guessing one, and the drawer's panel omits the "when" line. The columns are deliberately **not** backfilled — a stamped date nobody recorded is worse than an absent one. Nothing on the screen errors, and `Refunded on` is blank in both exports for that row.
+**Expected Result.** The chip still reads the refund from `refund_status` and `refund_amount_paise`; **the date reads `-`** rather than guessing one, and the drawer's panel omits the "when" line. The columns are deliberately **not** backfilled - a stamped date nobody recorded is worse than an absent one. Nothing on the screen errors, and `Refunded on` is blank in both exports for that row.
 
-#### `FIN-REF-007` — Finance and the desks that cannot see money · P1
+#### `FIN-REF-007` - Finance and the desks that cannot see money · P1
 **Steps.** As **Finance**, open a refunded patient's profile and All Sessions. Then repeat as **Operations** and as **Clinical**.
-**Expected Result.** Finance reads the refund chips everywhere (Money is theirs at `manage`, Sessions at `view`). Operations and Clinical see **no refund chip** on either the patient profile or All Sessions — `canSeeMoney` gates it exactly as it gates the amount paid, so a desk that cannot read what was paid cannot read what was given back either. The `paid` / `unpaid` word itself is unchanged for them: whether a session is paid for is operational, and how much is not.
+**Expected Result.** Finance reads the refund chips everywhere (Money is theirs at `manage`, Sessions at `view`). Operations and Clinical see **no refund chip** on either the patient profile or All Sessions - `canSeeMoney` gates it exactly as it gates the amount paid, so a desk that cannot read what was paid cannot read what was given back either. The `paid` / `unpaid` word itself is unchanged for them: whether a session is paid for is operational, and how much is not.
 
 ---
 
 ### 16.3 Payment integrity (duplicates, concurrency, webhooks)
 
-#### `PAY-DUP-001` — One payment, one appointment · P0
+#### `PAY-DUP-001` - One payment, one appointment · P0
 **Steps.** Complete `PAT-BOOK-003`, then reload and inspect Sessions → All Sessions and the `payments` table.
 **Expected Result.** Exactly one appointment, exactly one `payments` row. **The appointment is created *before* the order, and the order is minted against it**, so there is no path by which one payment creates two appointments.
 
-#### `PAY-DUP-002` — One order, one purchase · P0 **[SQL]**
+#### `PAY-DUP-002` - One order, one purchase · P0 **[SQL]**
 **Steps.** Attempt to insert a second `payments` row with an existing `razorpay_order_id`.
-**Expected Result.** The unique index rejects it. **Do not drop that index to make an import succeed** — a collision means a duplicate already exists and wants investigating. Repeat for `razorpay_payment_id`.
+**Expected Result.** The unique index rejects it. **Do not drop that index to make an import succeed** - a collision means a duplicate already exists and wants investigating. Repeat for `razorpay_payment_id`.
 
-#### `PAY-DUP-003` — One purchase, one entitlement · P0
+#### `PAY-DUP-003` - One purchase, one entitlement · P0
 **Steps.** After a care-plan purchase, trigger the verify route twice (retry the callback).
 **Expected Result.** Exactly one entitlement, `sessions_granted = 6`. The grant function is idempotent.
 
-#### `PAY-DUP-004` — Duplicate webhook · P0
+#### `PAY-DUP-004` - Duplicate webhook · P0
 **Preconditions.** `RAZORPAY_WEBHOOK_SECRET` is set.
 **Steps.** Capture a real webhook body and its `x-razorpay-signature` header from the Razorpay dashboard's webhook log. POST it to `/api/razorpay/webhook`. POST **the identical body** again.
-**Expected Result.** The first is processed. The second collides on `razorpay_event_id` in `payment_webhook_events` and is treated as already-seen — **that insert is the deduplication, and it happens before any work is done**, so a retry arriving mid-flight cannot do the work twice. Money → Transactions shows the payment **once**. Gross Revenue does not double.
+**Expected Result.** The first is processed. The second collides on `razorpay_event_id` in `payment_webhook_events` and is treated as already-seen - **that insert is the deduplication, and it happens before any work is done**, so a retry arriving mid-flight cannot do the work twice. Money → Transactions shows the payment **once**. Gross Revenue does not double.
 
-#### `PAY-WH-001` — Signature verification · P0
+#### `PAY-WH-001` - Signature verification · P0
 **Steps.** POST a webhook body with (a) no signature header, (b) a wrong signature, (c) the correct signature but a **re-serialised** body (`JSON.parse` then `JSON.stringify`).
-**Expected Result.** (a) `400 Missing signature`. (b) `400 Invalid signature`. (c) **`400 Invalid signature`** — and this is correct: the signature is checked against the **raw** body, because a re-serialised body does not round-trip byte-for-byte. **The fix for a legitimate webhook failing here is never to skip the check.**
+**Expected Result.** (a) `400 Missing signature`. (b) `400 Invalid signature`. (c) **`400 Invalid signature`** - and this is correct: the signature is checked against the **raw** body, because a re-serialised body does not round-trip byte-for-byte. **The fix for a legitimate webhook failing here is never to skip the check.**
 
-#### `PAY-WH-002` — Webhook races the browser callback · P0
+#### `PAY-WH-002` - Webhook races the browser callback · P0
 **Steps.** Complete a payment and, as close to simultaneously as you can manage, POST the webhook body and let the browser callback fire.
 **Expected Result.** Whichever arrives first applies the capture; the second finds it captured and **changes nothing**. The appointment is paid once, `payments` has one row, and the Meet event is created **once** (the webhook only creates one if the appointment does not already carry an event id).
 
-#### `PAY-WH-003` — Non-capture events are recorded and ignored · P2
+#### `PAY-WH-003` - Non-capture events are recorded and ignored · P2
 **Steps.** POST a `payment.failed` webhook with a valid signature.
 **Expected Result.** The event row is recorded and marked processed. No capture is applied.
 
-#### `PAY-WH-004` — Without the webhook secret, a closed tab loses the confirmation · P0
+#### `PAY-WH-004` - Without the webhook secret, a closed tab loses the confirmation · P0
 **Steps.** Unset `RAZORPAY_WEBHOOK_SECRET`, restart, and POST any webhook.
 **Expected Result.** `503 {"error":"Webhook not configured"}`. **Consequence to state in your report if you see it in the wild:** a patient who pays and closes the tab before the callback lands leaves a **paid Razorpay order against an unpaid booking**. Restore the secret.
 
-#### `PAY-DUP-005` — Double settle · P0
+#### `PAY-DUP-005` - Double settle · P0
 Covered by `FIN-PAY-002`. **No double payout.**
 
-#### `PAY-DUP-006` — Partner commission is not accumulated twice · P0
+#### `PAY-DUP-006` - Partner commission is not accumulated twice · P0
 **Steps.** Re-run the webhook and the callback for S4, then read Money → Breakdown and the hospital's Earnings.
 **Expected Result.** `₹249.90` appears **once** on both.
 
-#### `PAY-DUP-007` — Credit idempotency keys are derived, never random · P0 **[SQL]**
+#### `PAY-DUP-007` - Credit idempotency keys are derived, never random · P0 **[SQL]**
 **Steps.** Inspect `session_credit_ledger` for a booked package session.
-**Expected Result.** Keys read `reserve:<appointment_id>` and `consume:<appointment_id>`. **A random key would make every retry look like a new event, which is the exact bug the key exists to prevent.** Availability is checked **after** idempotency in the reserve function, deliberately — checking availability first would answer "no credits available" for a booking that in fact succeeded.
+**Expected Result.** Keys read `reserve:<appointment_id>` and `consume:<appointment_id>`. **A random key would make every retry look like a new event, which is the exact bug the key exists to prevent.** Availability is checked **after** idempotency in the reserve function, deliberately - checking availability first would answer "no credits available" for a booking that in fact succeeded.
 
-#### `PAY-CONC-001` — Twelve concurrent reserves against one credit · P0 **[script]**
+#### `PAY-CONC-001` - Twelve concurrent reserves against one credit · P0 **[script]**
 **Steps.** With a purchase holding exactly **one** remaining credit, fire twelve concurrent booking requests for distinct slots.
 **Expected Result.** **Exactly one succeeds.** The rest are refused. The row lock in the reserve function is real, and the CHECK constraint on the cached counts makes an overdrawn balance impossible rather than merely unwritten.
 
-#### `PAY-CONC-002` — Two admins settle the same payout at once · P0
-**Expected Result.** One wins; the other is refused. The audit log records **only the winner** — the log write happens after the CAS claim.
+#### `PAY-CONC-002` - Two admins settle the same payout at once · P0
+**Expected Result.** One wins; the other is refused. The audit log records **only the winner** - the log write happens after the CAS claim.
 
-#### `PAY-AMT-001` — The amount is server-derived · P0
+#### `PAY-AMT-001` - The amount is server-derived · P0
 **Steps.** Intercept the `create-order` request and change any client-supplied amount or package id. Also attempt `create-order` with another patient's `appointmentId`.
 **Expected Result.** The amount charged is **re-derived server-side** from the category or the catalog row. A tampered amount has no effect. Another patient's appointment is **not found** under the caller's own scoped client → `Appointment not found` (404). Attempting to pay an already-paid booking: `This booking is already paid`.
 
-#### `PAY-AMT-002` — A care-plan price cannot be tampered with · P0
+#### `PAY-AMT-002` - A care-plan price cannot be tampered with · P0
 **Steps.** Accept a recommendation, intercepting the request to change the package id to a cheaper one.
 **Expected Result.** The route **re-derives the price from the plan's own recommended package** and refuses a catalog mismatch (`That recommendation is incomplete.` / a mismatch 409). The programme granted is the one recommended, at the price recommended.

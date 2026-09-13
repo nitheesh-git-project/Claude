@@ -94,7 +94,7 @@ export default function AreaPainPicker({
                 value={e.note ?? ""}
                 disabled={disabled}
                 onChange={(ev) => updateNote(e.region, e.side, ev.target.value)}
-                placeholder="Add a note (optional) — e.g. started after a fall"
+                placeholder="Add a note (optional) - e.g. started after a fall"
                 className="mt-2 w-full p-1.5 rounded-md border border-slate-200 text-xs disabled:bg-slate-50"
               />
             </div>

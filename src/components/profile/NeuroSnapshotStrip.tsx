@@ -7,7 +7,7 @@ import type { NeuroSnapshot } from "@/lib/healthProfileSummary";
 //
 // There is no clinical column here yet: the Pain Map is an orthopaedic
 // layer and the neurological exam layer is not built. Rather than print an
-// empty "Last exam found —", the fourth cell reports what the record does
+// empty "Last exam found -", the fourth cell reports what the record does
 // know (falls), and the deferred exam is stated once, in
 // SpecialtyExamPanel, where the exam would be.
 
@@ -30,18 +30,18 @@ export default function NeuroSnapshotStrip({ snapshot, showProgress = true }: { 
   const cells: StatCell[] = [
     {
       label: "Independence",
-      value: independence === null ? "—" : String(independence),
+      value: independence === null ? "-" : String(independence),
       unit: independence === null ? undefined : "/ 10",
       note:
         independence === null
           ? "Your therapist records this with you"
-          : `${INDEPENDENCE_WORD(independence)} — day to day`,
+          : `${INDEPENDENCE_WORD(independence)} - day to day`,
       accent: independence === null ? "bg-slate-400" : INDEPENDENCE_ACCENT(independence),
       valueClass: independence === null ? "text-slate-800" : INDEPENDENCE_TEXT(independence),
     },
     {
       label: "Getting around",
-      value: mobility ?? "—",
+      value: mobility ?? "-",
       note: mobility ? "Indoors, right now" : "Not answered yet",
       accent: "bg-violet-500",
     },
@@ -54,7 +54,7 @@ export default function NeuroSnapshotStrip({ snapshot, showProgress = true }: { 
     },
     {
       label: "Falls",
-      value: falls ?? "—",
+      value: falls ?? "-",
       note: falls ? "In the last three months" : "Not answered yet",
       accent: fallsAreConcerning ? "bg-red-500" : "bg-slate-400",
       valueClass: fallsAreConcerning ? "text-red-600" : "text-slate-800",

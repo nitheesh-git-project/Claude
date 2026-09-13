@@ -54,7 +54,7 @@ export default function TherapistPayoutReceiptsSection({
       {receipts.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <p className="text-xs text-slate-500 py-8 text-center">
-            No payouts settled yet — this fills in once the clinic pays you out.
+            No payouts settled yet - this fills in once the clinic pays you out.
           </p>
         </div>
       ) : (

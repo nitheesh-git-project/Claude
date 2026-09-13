@@ -149,7 +149,7 @@ export const TRIAGE_QUESTIONS: IntakeQuestion[] = [
   {
     key: "development_concern",
     label:
-      "Any concern about milestones — sitting, standing, walking, speech — or a condition diagnosed at or since birth?",
+      "Any concern about milestones - sitting, standing, walking, speech - or a condition diagnosed at or since birth?",
     shortLabel: "Development concern",
     helpText:
       "Only asked for a child. This is what separates a paediatric case from a child with an ordinary sprain: under 18 on its own is not a paediatric referral.",
@@ -209,7 +209,7 @@ export function suggestSpecialtyFromTriage(
   return {
     suggested: "ortho",
     because: isChild
-      ? "A child with a musculoskeletal complaint and no developmental concern — under 18 on its own is not a paediatric case."
+      ? "A child with a musculoskeletal complaint and no developmental concern - under 18 on its own is not a paediatric case."
       : "A musculoskeletal complaint with no neurological signs.",
   };
 }

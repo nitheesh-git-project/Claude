@@ -131,7 +131,7 @@ export default function RecommendationSettingsForm({
         <h3 className="font-bold text-sm text-slate-800">How long a recommendation holds</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
           How long the patient has to answer. Counted from when the recommendation is
-          approved, not from when the therapist wrote it — otherwise the ones the clinic
+          approved, not from when the therapist wrote it - otherwise the ones the clinic
           took longest over would reach the patient with the least time left on them.
         </p>
         <div className="flex items-center gap-3 mt-3">
@@ -162,7 +162,7 @@ export default function RecommendationSettingsForm({
         <h3 className="font-bold text-sm text-slate-800">Most sessions a week a clinician may ask for</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
           A ceiling over the programme&apos;s own rule, whichever is lower. It stops a
-          recommendation being written that the booking rules would then refuse — which the
+          recommendation being written that the booking rules would then refuse - which the
           patient would discover at checkout rather than the therapist at writing.
         </p>
         <div className="flex items-center gap-3 mt-3">

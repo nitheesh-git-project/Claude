@@ -230,7 +230,7 @@ export default function PackageBulkScheduler({
                 {failedCount > 0 && (
                   <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                     {failedCount === 1 ? "One time" : `${failedCount} times`} didn&apos;t work. Your other
-                    sessions are booked and nothing was charged again — pick another time for{" "}
+                    sessions are booked and nothing was charged again - pick another time for{" "}
                     {failedCount === 1 ? "it" : "them"} below.
                   </p>
                 )}
@@ -290,7 +290,7 @@ export default function PackageBulkScheduler({
                       {frequencyPerWeek
                         ? `Spaced ${frequencyPerWeek} a week, the way your therapist recommended.`
                         : "Spaced a week apart."}{" "}
-                      Change any of them below — nothing is booked until you confirm.
+                      Change any of them below - nothing is booked until you confirm.
                     </p>
                     {!isProposal && (
                       <button

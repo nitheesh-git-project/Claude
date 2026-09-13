@@ -39,7 +39,7 @@ export default async function TherapistDashboardPage() {
               </strong>
             )}
             {d.profile?.rating_visible === false && (
-              <span className="text-slate-400"> — hidden from public pages</span>
+              <span className="text-slate-400"> - hidden from public pages</span>
             )}
           </p>
         </>
@@ -52,7 +52,7 @@ export default async function TherapistDashboardPage() {
             ? `Next up: ${d.patientNameById.get(d.nextSession.patient_id) ?? "a patient"} at ${new Date(
                 d.nextSession.slot_time
               ).toLocaleString([], { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}.`
-            : "No sessions booked yet — keep your availability open and the clinic assigns work to it."
+            : "No sessions booked yet - keep your availability open and the clinic assigns work to it."
         }
         cells={d.overviewCells}
         feed={d.therapistFeed}

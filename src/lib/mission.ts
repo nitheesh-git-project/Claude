@@ -14,7 +14,7 @@
 
 /** One line, under fifteen words. Why the practice exists at all. */
 export const MISSION =
-  "An hour with a physiotherapist who watches how you actually move — wherever you live.";
+  "An hour with a physiotherapist who watches how you actually move - wherever you live.";
 
 /** One line, under fifteen words. What it looks like if we succeed. */
 export const VISION =
@@ -31,7 +31,7 @@ export type MissionPrinciple = {
 
 /**
  * How the mission shows up in the product. Each of these is a decision
- * already made in the codebase, not an aspiration — the refund window, the
+ * already made in the codebase, not an aspiration - the refund window, the
  * therapist lock, the export, the private bucket all exist. Anything added
  * here has to be similarly checkable.
  */
@@ -66,7 +66,7 @@ export const PRINCIPLES: MissionPrinciple[] = [
  * The limits, stated on the page rather than buried in the FAQ.
  *
  * A clinic that names what it will not do is more believable than one that
- * claims everything, and every line here is a rule the platform enforces —
+ * claims everything, and every line here is a rule the platform enforces -
  * so this band doubles as the honest version of the pricing and refund copy.
  */
 export const COMMITMENTS: MissionPrinciple[] = [

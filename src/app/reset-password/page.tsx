@@ -27,7 +27,7 @@ export default function ResetPasswordPage() {
     async function establishSession() {
       // Supabase's password-reset email can land here either as a PKCE
       // "?code=" param (needs exchanging) or an implicit "#access_token="
-      // fragment (already picked up automatically by detectSessionInUrl) —
+      // fragment (already picked up automatically by detectSessionInUrl) -
       // handle both so this works regardless of the project's auth flow
       // setting.
       const url = new URL(window.location.href);
@@ -64,7 +64,7 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    // Best-effort — an admin-issued temp password (if any) should stop
+    // Best-effort - an admin-issued temp password (if any) should stop
     // being shown once the user has set their own; not fatal if this fails.
     const {
       data: { user },

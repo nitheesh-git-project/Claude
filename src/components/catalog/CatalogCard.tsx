@@ -44,7 +44,7 @@ export type CatalogCardData = {
   imageUrl: string | null;
   focalX?: number | null;
   focalY?: number | null;
-  /** Small pill over the cover — a condition type, or an admin's badge. */
+  /** Small pill over the cover - a condition type, or an admin's badge. */
   badge?: string | null;
   /** Draws the teal ring. Admin-set, and only ever on one or two rows. */
   highlight?: boolean;

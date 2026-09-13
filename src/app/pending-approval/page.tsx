@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: "Approval Pending | Dr. Pooja's Physio",
 };
 
-// Both self-serve roles land here now — a therapist waiting on their
+// Both self-serve roles land here now - a therapist waiting on their
 // application review, and a patient waiting on their new account being
 // approved. The wording is the only difference, so this reads the role
 // rather than duplicating the whole screen per role. A signed-out visitor
@@ -32,9 +32,9 @@ export default async function PendingApprovalPage() {
   const heading = role === "therapist" ? "Application Received" : "Approval Pending";
   const body =
     role === "therapist"
-      ? "Thanks for applying to join the therapist network. Your credentials are being reviewed — you'll get access to your dashboard once an admin approves your account."
+      ? "Thanks for applying to join the therapist network. Your credentials are being reviewed - you'll get access to your dashboard once an admin approves your account."
       : role === "patient"
-        ? "Thanks for registering. Your account is being reviewed — you'll get access to your dashboard, and be able to book sessions, once an admin approves it."
+        ? "Thanks for registering. Your account is being reviewed - you'll get access to your dashboard, and be able to book sessions, once an admin approves it."
         : "Your account is being reviewed. You'll get access to your dashboard once an admin approves it.";
 
   return (

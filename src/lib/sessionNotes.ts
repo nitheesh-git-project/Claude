@@ -43,7 +43,7 @@ export const SESSION_NOTE_FIELDS: SessionNoteField[] = [
     shortLabel: "Techniques",
     type: "text",
     placeholder: "e.g. Grade III PA mobilisation ×3 sets, 30s hold",
-    help: "What you actually applied, at what dosage — so progression next time is a decision, not a guess.",
+    help: "What you actually applied, at what dosage - so progression next time is a decision, not a guess.",
   },
   {
     key: "response",
@@ -69,14 +69,14 @@ export const SESSION_NOTE_FIELDS: SessionNoteField[] = [
     type: "textarea",
     required: true,
     placeholder: "e.g. Progress to loaded hinge if pain stays under 3/10; reassess SLR",
-    help: "Written for whoever runs the next session — possibly you in three weeks, possibly a colleague covering.",
+    help: "Written for whoever runs the next session - possibly you in three weeks, possibly a colleague covering.",
   },
   {
     key: "red_flags",
     label: "Anything to watch",
     shortLabel: "Watch for",
     type: "text",
-    placeholder: "e.g. Reports night pain — reassess if it persists",
+    placeholder: "e.g. Reports night pain - reassess if it persists",
     help: "Red flags, cautions, or anything that would change the plan if it shows up again. Leave blank if nothing.",
   },
 ];

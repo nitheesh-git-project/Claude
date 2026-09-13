@@ -4,7 +4,7 @@
  * Every dashboard page here is dynamic and some are query-heavy (the admin
  * dashboard makes roughly seventy), so without a loading boundary the
  * browser sits on the previous screen with no acknowledgement that a tap
- * registered — which reads as a dead click, and gets tapped again.
+ * registered - which reads as a dead click, and gets tapped again.
  *
  * Shaped like the layout it stands in for (a heading, a strip of figures,
  * then cards) rather than a spinner: matching the eventual furniture makes
@@ -17,7 +17,7 @@ export default function RouteLoading({
   label?: string;
   /** Dashboard trees render their sidebar inside each page rather than a
    *  shared layout, so a bare skeleton here would blank the whole chrome on
-   *  every navigation — worse than the no-boundary behaviour it replaces.
+   *  every navigation - worse than the no-boundary behaviour it replaces.
    *  This keeps a rail in place so only the content area changes. */
   withSidebar?: boolean;
 }) {

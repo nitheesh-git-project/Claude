@@ -89,8 +89,8 @@ export default function ViewAsUserButton({
               </p>
               <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-amber-800">
                 <li>
-                  Anything you tap happens for real — a booking, a cancellation, a
-                  payment — and their history will record it as theirs.
+                  Anything you tap happens for real - a booking, a cancellation, a
+                  payment - and their history will record it as theirs.
                 </li>
                 <li>It ends automatically after {minutes} minutes.</li>
                 <li>

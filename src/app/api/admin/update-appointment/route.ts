@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     );
   }
   // Reassigning to a different therapist after this session's payout has
-  // already been settled would silently orphan the payout record — the
+  // already been settled would silently orphan the payout record - the
   // original therapist's Payout History would lose a session they were
   // genuinely already paid for, and the new therapist's would show one
   // they never received. Time-only reschedules (same therapist) are fine.
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     );
   }
   // Block reassigning TO a suspended therapist, but don't block re-saving
-  // an appointment that's already assigned to one — e.g. rescheduling just
+  // an appointment that's already assigned to one - e.g. rescheduling just
   // the time on a session whose therapist was suspended after the fact
   // must still work.
   if (!therapist.active && therapistId !== appointment.therapist_id) {
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Changing category re-labels the session and updates its duration (for
-  // accurate conflict-checking / calendar blocking) — the amount already
+  // accurate conflict-checking / calendar blocking) - the amount already
   // charged is left untouched, since real money already moved via Razorpay
   // and retroactively adjusting it would need refund/upcharge handling
   // this route doesn't do.
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Re-check for a conflict now that the write has landed — the earlier
+  // Re-check for a conflict now that the write has landed - the earlier
   // check and this write aren't atomic, so two concurrent reschedules onto
   // the same therapist with overlapping times could both pass the earlier
   // check before either write committed, double-booking that therapist.
@@ -189,13 +189,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "This therapist was just double-booked by a concurrent change — please try again or pick a different therapist/time.",
+          "This therapist was just double-booked by a concurrent change - please try again or pick a different therapist/time.",
       },
       { status: 409 }
     );
   }
 
-  // Best-effort audit trail — logged only when something actually changed,
+  // Best-effort audit trail - logged only when something actually changed,
   // so a no-op "save" (e.g. picking the same therapist/time again) doesn't
   // clutter the session's history with an empty entry.
   const therapistChanged = appointment.therapist_id !== therapistId;

@@ -49,7 +49,7 @@ export default function AssignTherapistForm({
   if (therapists.length === 0) {
     return (
       <p className="text-[11px] text-slate-400">
-        No approved, active therapist to assign — approve or unsuspend one under
+        No approved, active therapist to assign - approve or unsuspend one under
         People → Therapists first.
       </p>
     );

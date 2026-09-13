@@ -11,7 +11,7 @@ import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 export const metadata: Metadata = {
   title: "FAQ | Dr. Pooja's Physio",
   description:
-    "Cost, refunds, privacy and how a video physiotherapy session actually runs — answered before you book.",
+    "Cost, refunds, privacy and how a video physiotherapy session actually runs - answered before you book.",
 };
 
 export const revalidate = 300;
@@ -56,7 +56,7 @@ export default async function FaqPage() {
             <FaqAccordion faqs={rows} />
           ) : (
             <p className="text-center text-sm text-slate-500">
-              No questions posted yet — check back soon.
+              No questions posted yet - check back soon.
             </p>
           )}
         </div>

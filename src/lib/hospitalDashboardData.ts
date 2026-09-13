@@ -37,7 +37,7 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
   // Revenue transparency: which sessions (across both referral channels)
   // are attributed to this hospital and paid. RLS wouldn't normally let a
   // hospital see other people's appointments, so this uses the
-  // service-role client — but strictly scoped to rows referencing this
+  // service-role client - but strictly scoped to rows referencing this
   // hospital's own id, never anything broader.
   const admin = createAdminClient();
 
