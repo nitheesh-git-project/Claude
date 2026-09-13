@@ -79,6 +79,7 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   "treatment_category_packages",
   "testimonials",
   "faqs",
+  "mission_principles",
   "home_visit_areas",
   "home_visit_packages",
   // Costs are admin-entered like the rest of this list -- the editor already

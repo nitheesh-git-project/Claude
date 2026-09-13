@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
-import { PRINCIPLES } from "@/lib/mission";
+import type { MissionPrinciple } from "@/lib/mission";
 
 /**
  * Why the practice exists, on the home page, above "what we treat".
@@ -25,9 +25,13 @@ import { PRINCIPLES } from "@/lib/mission";
 export default function MissionPreview({
   mission,
   vision,
+  promises,
 }: {
   mission: string;
   vision: string;
+  /** Titles only -- the bodies stay on /mission, which is what keeps this a
+   *  connector rather than a second copy of that page. */
+  promises: MissionPrinciple[];
 }) {
   return (
     <div>
@@ -54,32 +58,40 @@ export default function MissionPreview({
         </Reveal>
       </div>
 
-      {/* The promises as headlines only. Each one is its own link so the
-          answer is a tap away from whichever promise caught the eye, and they
-          all land on the band that explains them rather than the top of the
-          page. */}
-      <Reveal className="mx-auto mt-10 max-w-5xl">
-        <p className="text-center text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
-          What we promise
-        </p>
-      </Reveal>
+      {/* Nothing at all when an admin has hidden every promise: a heading
+          reading "What we promise" over an empty row is worse than the band
+          being absent, and the mission page drops its own band on the same
+          test. */}
+      {promises.length > 0 && (
+        <>
+        {/* The promises as headlines only. Each one is its own link so the
+            answer is a tap away from whichever promise caught the eye, and they
+            all land on the band that explains them rather than the top of the
+            page. */}
+        <Reveal className="mx-auto mt-10 max-w-5xl">
+          <p className="text-center text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
+            What we promise
+          </p>
+        </Reveal>
 
-      <Stagger className="mx-auto mt-4 flex max-w-5xl flex-wrap justify-center gap-2.5">
-        {PRINCIPLES.map((item) => (
-          <StaggerItem key={item.key}>
-            <Link
-              href="/mission#what-we-promise"
-              className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-teal-300 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-            >
-              <i
-                className={`fa-solid ${item.icon} text-xs text-teal-600`}
-                aria-hidden="true"
-              />
-              {item.title}
-            </Link>
-          </StaggerItem>
-        ))}
-      </Stagger>
+        <Stagger className="mx-auto mt-4 flex max-w-5xl flex-wrap justify-center gap-2.5">
+          {promises.map((item) => (
+            <StaggerItem key={item.key}>
+              <Link
+                href="/mission#what-we-promise"
+                className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-teal-300 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+              >
+                <i
+                  className={`fa-solid ${item.icon} text-xs text-teal-600`}
+                  aria-hidden="true"
+                />
+                {item.title}
+              </Link>
+            </StaggerItem>
+          ))}
+        </Stagger>
+        </>
+      )}
 
       <Reveal className="mt-10 text-center">
         <Link

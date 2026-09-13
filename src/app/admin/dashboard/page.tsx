@@ -82,6 +82,9 @@ import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilit
 import HomePageWalkthroughForm from "@/components/admin/HomePageWalkthroughForm";
 import SplashScreenForm from "@/components/admin/SplashScreenForm";
 import MissionStatementForm from "@/components/admin/MissionStatementForm";
+import MissionPrincipleManager, {
+  type MissionPrincipleRecord,
+} from "@/components/admin/MissionPrincipleManager";
 import BrandContactDetailsForm from "@/components/admin/BrandContactDetailsForm";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
@@ -662,6 +665,7 @@ export default async function AdminDashboardPage({
     googleConnection,
     syncModeRows,
     missionCopyRow,
+    missionPrincipleRows,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -809,6 +813,21 @@ export default async function AdminDashboardPage({
             .maybeSingle()
         ).data,
       null as { mission_statement: string | null; vision_statement: string | null } | null
+    ),
+    // The promises and the limits. Read with the admin client rather than the
+    // page's own, because the public policy shows active rows only and an
+    // admin who hides one has to still be able to find it. Isolated for the
+    // usual reason -- the table is newer than this screen.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("mission_principles")
+            .select("id, kind, title, body, icon, display_order, active")
+            .order("display_order", { ascending: true })
+            .order("title", { ascending: true })
+        ).data,
+      null as MissionPrincipleRecord[] | null
     ),
   ]);
 
@@ -2619,6 +2638,22 @@ export default async function AdminDashboardPage({
       <MissionStatementForm
         mission={missionCopyRow?.mission_statement ?? ""}
         vision={missionCopyRow?.vision_statement ?? ""}
+      />
+
+      <MissionPrincipleManager
+        kind="promise"
+        rows={missionPrincipleRows ?? []}
+        heading="What We Promise"
+        blurb="The four cards under your mission, on the Home page as headlines and in full on Our Mission. Each one should be something a patient could hold you to — a rule the platform actually keeps, not an intention."
+        noun="promise"
+      />
+
+      <MissionPrincipleManager
+        kind="limit"
+        rows={missionPrincipleRows ?? []}
+        heading="What We Will Not Do"
+        blurb="The band at the foot of Our Mission. Saying plainly what the clinic will not do is believed where a page that claims everything is not — so keep these real, and keep them ones you would repeat on the phone."
+        noun="limit"
       />
 
       <SplashScreenForm

@@ -43,6 +43,22 @@ Every setting below is read through one shared settings module with defaults. **
 **Steps.** On Settings → Public Site → **Mission & Vision**, replace the mission with `Seen properly, wherever you are.` and save. Open `/` and `/mission` **immediately** — do not wait five minutes. Then clear the mission box entirely and save again.
 **Expected Result.** Both pages show the new line at once on the first check, in the Mission card on the Home page and in the "The practice, in two sentences" band on `/mission`. After clearing it, both pages go back to the line the site ships with — **blank is the undo, not an error**, and the confirmation says so ("back to the wording the site shipped with") rather than claiming an edit. The same two checks apply to the vision box. A value over the character cap is refused with `Please keep this to 160 characters or fewer.` (140 for the vision); past fifteen words the counter turns amber and the save still works, because that budget is advice.
 
+#### `ADM-SET-037` — Promises and limits · P1
+**Feature.** The four cards under the mission and the three "what we won't do" cards are rows an admin manages on Settings → Public Site, one list each. An **empty** list shows the wording the site shipped with; **every row switched off** is a decision and shows nothing.
+
+| Step | Expected Result |
+| --- | --- |
+| Edit a promise's title and save | `/` (the chip row under the mission) and `/mission` both show the new wording **immediately**, not after five minutes |
+| Add a fifth promise | It appears last on both pages. The `/mission` heading must **not** claim a count — no "Four things" over five cards |
+| Move a promise up, then press **Save order** | The arrows alone change nothing on the public pages; the order publishes only on save. **Save order** is disabled until something has moved |
+| Hide every promise | The whole band disappears from `/mission` **and its entry disappears from the section rail** — the scroll arrow must not stop at a section that is not there. The chip row on `/` goes too |
+| Delete the last remaining promise | Allowed. The confirmation says the shipped wording will come back, and it does — this is **not** a failed delete |
+| Delete the same row twice (two tabs) | The second attempt says it no longer exists. It must not report success |
+| Write the limits, leaving promises untouched | The promises keep showing the shipped four — the fallback is **per band**, so writing one must not empty the other |
+| Icon | A picker, not a text box. Every icon offered must actually draw |
+
+Check the Logs section afterwards: an added, edited, removed or reordered row each has its own entry, and an edit records what the wording **was**.
+
 #### `ADM-SET-006` — The opening splash, all five settings · P1
 
 **Feature.** A teal sheet painted over the site for a beat. It greets a **cold open** — the first load of a browser tab — and a **return to a tab that has been in the background longer than the away threshold**. It deliberately does **not** show on every navigation, every reload or every tab focus, because a patient paying by UPI leaves the tab for their bank's app and comes back mid-checkout, and **splashing over a payment in progress is the one thing this must never do.**
@@ -631,6 +647,7 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 35 | Brand & contact details | Settings → Brand & Contact | Navbar, Footer, page metadata, splash fallback | All update | `ADM-SET-001` |
 | 36 | Walkthrough seconds | Settings → Public Site | The home page walkthrough | Pace changes; 0 = static | `ADM-SET-005` |
 | 36a | Mission & Vision | Settings → Public Site | `/` and `/mission` | Both update at once; blank restores the shipped line | `ADM-SET-036` |
+| 36b | Promises and limits | Settings → Public Site | `/` chips and both `/mission` bands | Rows publish at once; empty band restores the shipped set; all-off drops the band and its rail entry | `ADM-SET-037` |
 | 37 | Splash (5 settings) | Settings → Public Site | The opening splash | Each behaves as documented | `ADM-SET-006` |
 | 38 | Testimonials | Settings → Public Site | `/` and `/mission` bands | Both update from one component | `ADM-SET-007` |
 | 39 | FAQ | Settings → Public Site | `/faq` | Accordion updates | `ADM-SET-008` |

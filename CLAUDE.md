@@ -65,8 +65,13 @@ means "use the wording in `src/lib/mission.ts`", so clearing the box is the
 undo and a database without the migration renders what it always did; the
 lines are read in their own isolated call (`readMissionCopy()`), falling back
 to that wording rather than to a blank card, and saving invalidates `/` and
-`/mission` so the new sentence is not five minutes behind the save. See the
-mission rule in `AGENTS.md`.
+`/mission` so the new sentence is not five minutes behind the save. The four
+promises and the three limits are editable the same way, as rows in
+`mission_principles` with one manager serving both bands: an empty table falls
+back per band to the arrays in `src/lib/mission.ts`, every row switched off is
+respected and drops the band along with its section-rail entry, ordering is one
+save of the whole band through `set_mission_principle_order`, and the icon is a
+picker rather than a text box. See the two mission rules in `AGENTS.md`.
 
 The public marketing site is eight pages — `/`, `/conditions`,
 `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals` —

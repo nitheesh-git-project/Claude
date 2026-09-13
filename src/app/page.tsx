@@ -15,7 +15,7 @@ import Section from "@/components/marketing/Section";
 import SplitFeature from "@/components/marketing/SplitFeature";
 import ExploreGrid from "@/components/marketing/ExploreGrid";
 import MissionPreview from "@/components/marketing/MissionPreview";
-import { readMissionCopy } from "@/lib/missionCopy";
+import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
 import Testimonials, {
   type PublicTestimonial,
 } from "@/components/marketing/Testimonials";
@@ -77,6 +77,10 @@ export default async function Home() {
   // rather than to blanks -- an empty mission card reads as a broken page on
   // the one band whose job is to say who this clinic is.
   const missionCopy = await readMissionCopy();
+
+  // The promise titles the mission band links through with. Same fallback, so
+  // a database without the table shows the four this repository ships.
+  const { promises } = await readMissionPrinciples();
 
   // No programme catalog on the public site. A course of treatment is a
   // clinical recommendation a therapist writes after a session they ran, so
@@ -294,7 +298,11 @@ export default async function Home() {
         eyebrow="Our mission"
         title="Why we do this"
       >
-        <MissionPreview mission={missionCopy.mission} vision={missionCopy.vision} />
+        <MissionPreview
+          mission={missionCopy.mission}
+          vision={missionCopy.vision}
+          promises={promises}
+        />
       </Section>
 
       {/* Breadth of care, as six photographs. The old version of this band

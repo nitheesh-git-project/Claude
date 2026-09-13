@@ -9590,7 +9590,12 @@ begin
     -- a reset that kept it would leave rewards pointing at bookings that no
     -- longer exist. promo_codes after, since appointments reference it.
     patient_invites,
-    promo_codes
+    promo_codes,
+    -- The promises and the limits. Truncated rather than left alone, and the
+    -- pages then fall back to the arrays in src/lib/mission.ts -- so a reset
+    -- restores the shipped wording instead of leaving one clinic's edits on a
+    -- database that has had everything else cleared out from under them.
+    mission_principles
   cascade;
 
   with removed as (
@@ -9680,3 +9685,144 @@ $$;
 revoke all on function public.debug_reset_all_data() from public;
 revoke all on function public.debug_reset_all_data() from anon;
 revoke all on function public.debug_reset_all_data() from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The four promises and the three limits, as rows
+-- ---------------------------------------------------------------------------
+--
+-- These were two arrays in `src/lib/mission.ts` alongside the mission and the
+-- vision, and they are the other half of that change: the wording most likely
+-- to be argued over was the wording only a developer could change. They are
+-- rows rather than more `site_settings` columns because they are a list an
+-- admin adds to and reorders -- the same shape `faqs` and `testimonials`
+-- already have, with the same manager, the same reorder rule and the same
+-- public-select policy.
+--
+-- One table for both bands, keyed by `kind`. They are the same shape and the
+-- same editing job; what they are not is the same claim, which is exactly what
+-- the column keeps straight -- a promise must never render under "what we will
+-- not do".
+--
+-- **An empty table falls back to the arrays in `src/lib/mission.ts`**, the
+-- same rule a blank `mission_statement` follows, and it covers three real
+-- cases at once: a database that has not run this file, one the debug reset
+-- has just truncated, and a clinic that has not opened the screen yet. On
+-- `/mission` these two bands are the page, so "What we promise" with nothing
+-- under it is the one outcome worth a fallback. Switching every row off is
+-- different and is respected: that is a decision somebody made.
+--
+-- Seeded only into an **empty** table, the way the testimonials are, so an
+-- admin opening the screen finds the shipped wording to edit rather than a
+-- blank list -- and a clinic that has since deleted a promise does not get it
+-- back on the next schema apply.
+create table if not exists mission_principles (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null check (kind in ('promise', 'limit')),
+  title text not null check (char_length(title) between 1 and 60),
+  body text not null check (char_length(body) between 1 and 120),
+  -- Checked against MISSION_ICONS in the route rather than here: a retired
+  -- icon name should stop being offered, not make an existing row unwritable.
+  icon text,
+  display_order integer not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists mission_principles_kind_order_idx
+  on mission_principles (kind, display_order, id);
+
+alter table mission_principles enable row level security;
+
+-- Public, like `faqs`: these render on two pages anybody can read. Writes are
+-- the admin routes' alone, which use the service-role client -- there is
+-- deliberately no insert/update policy for a browser session to reach.
+drop policy if exists "mission_principles_select_active" on mission_principles;
+create policy "mission_principles_select_active" on mission_principles
+  for select using (active = true);
+
+-- The admin screen has to show the hidden rows too, or switching one off makes
+-- it unreachable. Admins read every row; the policy above is what a visitor
+-- gets.
+drop policy if exists "mission_principles_select_admin" on mission_principles;
+create policy "mission_principles_select_admin" on mission_principles
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+-- The shipped wording, once, into an empty table only.
+insert into mission_principles (kind, title, body, icon, display_order)
+select * from (values
+  ('promise', 'Assess before advising', 'No plan is written before someone has watched you move.', 'fa-magnifying-glass', 1),
+  ('promise', 'One therapist, all the way', 'The same physiotherapist for every session in your course.', 'fa-user-check', 2),
+  ('promise', 'Say it plainly', 'You leave knowing what is wrong and what to do.', 'fa-comments', 3),
+  ('promise', 'Your record is yours', 'Your whole chart exports as a PDF you keep.', 'fa-file-shield', 4),
+  ('limit', 'We will tell you if this is not for you', 'If you need hands-on care, the assessment says so.', 'fa-hand', 1),
+  ('limit', 'No subscriptions, no auto-renewals', 'Cancel 24 hours ahead for a full refund. No subscriptions.', 'fa-lock-open', 2),
+  ('limit', 'No selling from the treatment table', 'You decide the next session. Declining changes nothing.', 'fa-ban', 3)
+) as seed(kind, title, body, icon, display_order)
+where not exists (select 1 from mission_principles);
+
+-- ---------------------------------------------------------------------------
+-- Ordering a band is one save of that whole band
+-- ---------------------------------------------------------------------------
+--
+-- Same rule, and the same past bug, as `set_treatment_category_order`: a
+-- pairwise swap of two rows holding the same `display_order` succeeds and
+-- changes nothing, and the default of 0 makes ties the norm. So the arrows
+-- rearrange in the browser and Save posts the whole band, renumbered 1..n by
+-- position. Scoped to one `kind`, because the two bands are ordered
+-- independently and a list covering both would renumber a band the admin was
+-- not looking at.
+--
+-- It refuses a partial list itself rather than trusting the route to: this
+-- function is reachable by the service-role client and by hand in the SQL
+-- editor, and renumbering a subset from 1 collides with the rows it never saw.
+create or replace function set_mission_principle_order(target_kind text, ordered_ids uuid[])
+returns void
+language plpgsql
+as $$
+declare
+  v_total integer;
+  v_given integer;
+begin
+  select count(*) into v_total from mission_principles where kind = target_kind;
+  -- distinct, because a duplicated id would pass a plain length check while
+  -- leaving one row unnumbered.
+  select count(distinct id) into v_given
+  from unnest(ordered_ids) as u(id)
+  where exists (
+    select 1 from mission_principles m where m.id = u.id and m.kind = target_kind
+  );
+
+  if v_given <> v_total then
+    raise exception
+      'set_mission_principle_order needs every row of that band (% given, % exist)',
+      v_given, v_total
+      using errcode = 'check_violation';
+  end if;
+
+  update mission_principles m
+  set display_order = pos.ord
+  from (
+    select u.id, u.ord::integer as ord
+    from unnest(ordered_ids) with ordinality as u(id, ord)
+  ) as pos
+  where m.id = pos.id
+    and m.kind = target_kind
+    and m.display_order is distinct from pos.ord;
+end;
+$$;
+
+revoke all on function public.set_mission_principle_order(text, uuid[]) from public;
+revoke all on function public.set_mission_principle_order(text, uuid[]) from anon;
+revoke all on function public.set_mission_principle_order(text, uuid[]) from authenticated;
+
+-- The admin dashboard subscribes to this table on its catalog/settings
+-- channel, so it has to be in the publication or the subscription succeeds and
+-- simply never fires -- a mismatch with no runtime symptom, which is why
+-- `npm run check:realtime` fails the lint on it.
+do $$
+begin
+  alter publication supabase_realtime add table mission_principles;
+exception when duplicate_object then null;
+end $$;
