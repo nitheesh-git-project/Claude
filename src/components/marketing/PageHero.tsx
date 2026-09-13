@@ -107,17 +107,26 @@ export default function PageHero({
           )}
 
           {stats && stats.length > 0 && (
-            <dl className="mt-10 grid max-w-lg grid-cols-3 gap-6 border-t border-slate-200/80 pt-6">
+            // Columns follow the count. It was fixed at three, so a hero with
+            // anything else to say left a dead cell -- which is what the home
+            // page needs, since its third stat is a real rating and there is
+            // not always one to quote.
+            <dl
+              className={`mt-10 grid max-w-lg gap-6 border-t border-slate-200/80 pt-6 ${
+                stats.length >= 3 ? "grid-cols-3" : "grid-cols-2"
+              }`}
+            >
               {stats.map((stat) => (
-                <div key={stat.label}>
-                  <dt className="sr-only">{stat.label}</dt>
-                  <dd>
-                    <span className="font-display block text-xl font-bold text-slate-900 sm:text-2xl">
-                      {stat.value}
-                    </span>
-                    <span className="mt-0.5 block text-xs font-medium text-slate-500">
-                      {stat.label}
-                    </span>
+                // dt before dd, as a definition list requires, then flipped
+                // visually. It used to hide the label in an `sr-only` dt and
+                // draw it again inside the dd, so a screen reader read every
+                // stat's label twice.
+                <div key={stat.label} className="flex flex-col-reverse">
+                  <dt className="mt-0.5 block text-xs font-medium text-slate-500">
+                    {stat.label}
+                  </dt>
+                  <dd className="font-display block text-xl font-bold text-slate-900 sm:text-2xl">
+                    {stat.value}
                   </dd>
                 </div>
               ))}

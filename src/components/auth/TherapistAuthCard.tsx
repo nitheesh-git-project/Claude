@@ -216,16 +216,17 @@ export default function TherapistAuthCard() {
                 Enter your account email and we&apos;ll send you a link to
                 reset your password.
               </p>
-              <div>
-                <label className="block font-semibold mb-1">Email Address</label>
+              <label className="block">
+                <span className="block font-semibold mb-1">Email Address</span>
                 <input
                   type="email"
                   name="email"
+                  autoComplete="email"
                   required
                   maxLength={254}
                   className="w-full p-3 rounded-xl border border-slate-300"
                 />
-              </div>
+              </label>
               <button
                 type="submit"
                 disabled={forgotSubmitting}
@@ -257,25 +258,29 @@ export default function TherapistAuthCard() {
           )
         ) : tab === "login" ? (
           <form onSubmit={handleLogin} className="space-y-4 text-xs">
-            <div>
-              <label className="block font-semibold mb-1">Email Address</label>
+            <label className="block">
+              <span className="block font-semibold mb-1">Email Address</span>
               <input
                 type="email"
                 name="email"
+                autoComplete="email"
                 required
                 maxLength={254}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
-            </div>
+            </label>
             <div>
-              <label className="block font-semibold mb-1">Password</label>
-              <input
-                type="password"
-                name="password"
-                required
-                maxLength={72}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
+              <label className="block">
+                <span className="block font-semibold mb-1">Password</span>
+                <input
+                  type="password"
+                  name="password"
+                  autoComplete="current-password"
+                  required
+                  maxLength={72}
+                  className="w-full p-3 rounded-xl border border-slate-300"
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => setForgotMode(true)}
@@ -294,22 +299,23 @@ export default function TherapistAuthCard() {
           </form>
         ) : (
           <form onSubmit={handleRegister} className="space-y-3 text-xs">
-            <div>
-              <label className="block font-semibold mb-1">Full Name</label>
+            <label className="block">
+              <span className="block font-semibold mb-1">Full Name</span>
               <input
                 type="text"
                 name="fullName"
+                autoComplete="name"
                 required
                 maxLength={120}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
-            </div>
+            </label>
             <EmailField value={registerEmail} onChange={setRegisterEmail} />
             <PhoneNumberField value={registerPhone} onChange={setRegisterPhone} required />
-            <div>
-              <label className="block font-semibold mb-1">
+            <label className="block">
+              <span className="block font-semibold mb-1">
                 Qualifications & License / Council Reg No.
-              </label>
+              </span>
               <input
                 type="text"
                 name="credentials"
@@ -318,8 +324,9 @@ export default function TherapistAuthCard() {
                 maxLength={200}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
-            </div>
+            </label>
             <PasswordField
+              autoComplete="new-password"
               value={registerPassword}
               onChange={setRegisterPassword}
               label={

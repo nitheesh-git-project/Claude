@@ -753,24 +753,24 @@ export default function AdminMetricsTab({
             : "Applies to every chart and stat on this screen, including the revenue breakdown below."}
         </p>
         <div className="flex flex-wrap items-end gap-4 text-xs">
-          <div className="flex flex-col gap-1">
-            <label className="font-semibold text-slate-500">From</label>
+          <label className="flex flex-col gap-1 block">
+            <span className="font-semibold text-slate-500">From</span>
             <input
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
               className="border border-slate-300 rounded-lg px-2.5 py-1.5"
             />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="font-semibold text-slate-500">To</label>
+          </label>
+          <label className="flex flex-col gap-1 block">
+            <span className="font-semibold text-slate-500">To</span>
             <input
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
               className="border border-slate-300 rounded-lg px-2.5 py-1.5"
             />
-          </div>
+          </label>
           {/* Wraps rather than overflowing: seven quick-range buttons in a
               nowrap row pushed the whole page 70px wider than a 360px phone
               viewport, which scrolls the body sideways instead of scrolling
@@ -794,8 +794,8 @@ export default function AdminMetricsTab({
               </button>
             ))}
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="font-semibold text-slate-500">Category</label>
+          <label className="flex flex-col gap-1 block">
+            <span className="font-semibold text-slate-500">Category</span>
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
@@ -808,9 +808,9 @@ export default function AdminMetricsTab({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="font-semibold text-slate-500">Therapist</label>
+          </label>
+          <label className="flex flex-col gap-1 block">
+            <span className="font-semibold text-slate-500">Therapist</span>
             <select
               value={therapistFilter}
               onChange={(e) => setTherapistFilter(e.target.value)}
@@ -823,9 +823,9 @@ export default function AdminMetricsTab({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="font-semibold text-slate-500">Patient</label>
+          </label>
+          <label className="flex flex-col gap-1 block">
+            <span className="font-semibold text-slate-500">Patient</span>
             <select
               value={patientFilter}
               onChange={(e) => setPatientFilter(e.target.value)}
@@ -838,7 +838,7 @@ export default function AdminMetricsTab({
                 </option>
               ))}
             </select>
-          </div>
+          </label>
         </div>
       </div>
 

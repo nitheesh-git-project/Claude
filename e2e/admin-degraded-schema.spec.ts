@@ -45,9 +45,59 @@ async function dashboardStillWorks(page: import("@playwright/test").Page) {
   await expect(page.getByRole("table")).toBeVisible();
 }
 
+/**
+ * Whether this suite is safe to run at all.
+ *
+ * Every test here drops something real and puts it back by re-applying
+ * schema.sql. Both halves go through the Supabase Management API, and the
+ * restore additionally shells out to `scripts/run-schema.mjs`, which needs a
+ * direct Postgres connection.
+ *
+ * So the credential is not a convenience -- it is the *undo*. A run that can
+ * drop but cannot restore leaves the project's schema broken, and the failure
+ * would look like a product bug on every subsequent spec. Checked once, before
+ * anything is dropped, and the whole suite stands down if the answer is no.
+ *
+ * It is checked by spending the token rather than testing that it is set,
+ * for the same reason `googleConnectionHealth` spends its refresh token: a
+ * token can be present and expired, and presence would have passed here while
+ * an expired token was refusing every call.
+ */
+let restorable: { ok: boolean; why: string } | null = null;
+
+async function canRestoreSchema(): Promise<{ ok: boolean; why: string }> {
+  if (restorable) return restorable;
+  const token = process.env.SUPABASE_ACCESS_TOKEN;
+  if (!token) {
+    restorable = { ok: false, why: "SUPABASE_ACCESS_TOKEN is not set" };
+    return restorable;
+  }
+  const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split(".")[0];
+  try {
+    const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "select 1" }),
+    });
+    restorable = res.ok
+      ? { ok: true, why: "" }
+      : { ok: false, why: `the Management API answered ${res.status} -- the access token is expired or lacks rights on this project` };
+  } catch (err) {
+    restorable = { ok: false, why: `the Management API is unreachable (${err instanceof Error ? err.message : String(err)})` };
+  }
+  return restorable;
+}
+
 test.describe("Suite J: degraded schema", () => {
   test.beforeEach(async ({ page }) => {
     test.setTimeout(300_000);
+    const restore = await canRestoreSchema();
+    test.skip(
+      !restore.ok,
+      `this suite drops real columns and restores them by re-applying schema.sql, ` +
+        `and it cannot restore here: ${restore.why}. Refusing to drop anything ` +
+        `rather than risk leaving the schema broken.`
+    );
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.admin));
   });
 

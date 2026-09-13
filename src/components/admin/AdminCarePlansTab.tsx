@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -217,6 +217,7 @@ export default function AdminCarePlansTab({
 
 function PlanCard({ plan, canWithdraw }: { plan: AdminCarePlanRow; canWithdraw: boolean }) {
   const [open, setOpen] = useState(false);
+  const withdrawReasonId = useId();
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -272,10 +273,11 @@ function PlanCard({ plan, canWithdraw }: { plan: AdminCarePlanRow; canWithdraw: 
       {canWithdraw &&
         (open ? (
           <div className="mt-3 rounded-lg border border-slate-200 p-3">
-            <label className="block text-[11px] font-semibold text-slate-700">
+            <label htmlFor={withdrawReasonId} className="block text-[11px] font-semibold text-slate-700">
               Why is the clinic withdrawing this?
             </label>
             <textarea
+              id={withdrawReasonId}
               rows={2}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -355,6 +357,7 @@ function ReviewCard({
   nowMs: number;
 }) {
   const [mode, setMode] = useState<"idle" | "reject" | "edit">("idle");
+  const reviewReasonId = useId();
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -554,12 +557,16 @@ function ReviewCard({
             </div>
           )}
 
-          <label className="block text-[11px] font-semibold text-slate-700">
+          <label
+            htmlFor={reviewReasonId}
+            className="block text-[11px] font-semibold text-slate-700"
+          >
             {mode === "reject"
               ? `Why is this being turned down? ${plan.therapistName} reads this and rewrites from it.`
               : "What is the clinic changing, and why?"}
           </label>
           <textarea
+            id={reviewReasonId}
             rows={2}
             value={reason}
             onChange={(e) => setReason(e.target.value)}

@@ -7,6 +7,7 @@ import {
   browserCookiesFor,
   cookieHeaderFor,
   profileIdFor,
+  skipWithoutBrowserEgress,
 } from "./helpers";
 
 // The therapist roster, end to end: the admin's screen, the therapist's own,
@@ -625,6 +626,11 @@ test.describe("Therapist roster - booking is untouched", () => {
     const context = await browser.newContext();
     await context.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
     const page = await context.newPage();
+    // BookingWizard only renders its time picker once the browser has read
+    // the signed-in profile for itself, so with no egress from the page
+    // there is no radiogroup to count and the regression this guards
+    // cannot be observed either way.
+    await skipWithoutBrowserEgress(page);
 
     await post(WEEKLY, cookie, {
       therapistId,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   mergeIntakeQuestionOverrides,
   questionsForSpecialty,
@@ -55,6 +55,7 @@ function QuestionRow({
   text: string;
   required: boolean;
 }) {
+  const fieldId = useId();
   const [value, setValue] = useState(text);
   const [isRequired, setIsRequired] = useState(required);
   const [saving, setSaving] = useState(false);
@@ -84,8 +85,14 @@ function QuestionRow({
   return (
     <div className="flex items-start gap-2">
       <div className="flex-1">
-        <label className="block text-[11px] font-semibold text-slate-500 mb-1">{questionKey}</label>
+        <label
+          htmlFor={fieldId}
+          className="block text-[11px] font-semibold text-slate-500 mb-1"
+        >
+          {questionKey}
+        </label>
         <textarea
+          id={fieldId}
           value={value}
           onChange={(e) => {
             setValue(e.target.value);

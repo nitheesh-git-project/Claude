@@ -563,6 +563,7 @@ export default function AdminAllSessionsTab({
       <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
         <div className="flex flex-wrap items-center gap-2">
           <input
+            aria-label="Filter by session ID"
             type="text"
             value={sessionCodeFilter}
             onChange={(e) => setSessionCodeFilter(e.target.value)}
@@ -612,6 +613,7 @@ export default function AdminAllSessionsTab({
             <option value="no_show">No-show</option>
           </select>
           <select
+            aria-label="Filter by payment status"
             value={paymentFilter}
             onChange={(e) => setPaymentFilter(e.target.value)}
             className={selectCls()}
@@ -624,6 +626,7 @@ export default function AdminAllSessionsTab({
             <option value="refund_failed">Refund failed</option>
           </select>
           <select
+            aria-label="Filter by therapist"
             value={therapistFilter}
             onChange={(e) => setTherapistFilter(e.target.value)}
             className={selectCls()}
@@ -636,6 +639,7 @@ export default function AdminAllSessionsTab({
             ))}
           </select>
           <select
+            aria-label="Filter by patient"
             value={patientFilter}
             onChange={(e) => setPatientFilter(e.target.value)}
             className={selectCls()}

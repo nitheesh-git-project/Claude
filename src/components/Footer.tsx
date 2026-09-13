@@ -78,9 +78,25 @@ export default function Footer({
         <div>
           <h4 className="text-white text-sm font-semibold mb-3">Contact</h4>
           <ul className="space-y-2 text-xs text-slate-400">
-            <li><i className="fa-solid fa-envelope text-teal-500 mr-2"></i>{contactEmail}</li>
-            <li><i className="fa-brands fa-whatsapp text-teal-500 mr-2"></i>{whatsappNumber}</li>
-            <li><i className="fa-solid fa-phone text-teal-500 mr-2"></i>{contactPhone}</li>
+            <ContactLine
+              icon="fa-solid fa-envelope"
+              value={contactEmail}
+              href={`mailto:${contactEmail}`}
+              show={hasRealEmail(contactEmail)}
+            />
+            <ContactLine
+              icon="fa-brands fa-whatsapp"
+              value={whatsappNumber}
+              href={`https://wa.me/${digitsOnly(whatsappNumber)}`}
+              label="Chat on WhatsApp"
+              show={hasRealPhone(whatsappNumber)}
+            />
+            <ContactLine
+              icon="fa-solid fa-phone"
+              value={contactPhone}
+              href={`tel:${digitsOnly(contactPhone, true)}`}
+              show={hasRealPhone(contactPhone)}
+            />
           </ul>
         </div>
       </div>
@@ -88,5 +104,65 @@ export default function Footer({
         © {new Date().getFullYear()} {footerCopyrightText}
       </div>
     </footer>
+  );
+}
+
+/**
+ * `site_settings` ships both numbers as the literal string "+91 XXXXX XXXXX"
+ * -- a placeholder for an admin to replace, which the footer printed as
+ * though it were the clinic's number. On the one page a hesitant patient
+ * looks for evidence there is a real practice behind this, the answer was a
+ * row of X's. Nothing is better than a fake: the same reading `refundState`
+ * already applies, where "none" renders nothing rather than an empty chip.
+ *
+ * Counted rather than matched against the placeholder string, which would go
+ * stale the moment somebody edited it to "+91 XXXXXXXXXX". An Indian mobile
+ * with its country code is twelve digits; the shipped placeholder has two.
+ * Seven is comfortably below any real number and far above any placeholder.
+ */
+const MIN_REAL_PHONE_DIGITS = 7;
+
+function hasRealPhone(value: string): boolean {
+  return (value ?? "").replace(/[^0-9]/g, "").length >= MIN_REAL_PHONE_DIGITS;
+}
+
+function hasRealEmail(value: string): boolean {
+  return /.+@.+\..+/.test(value ?? "");
+}
+
+/** wa.me takes digits with the country code and no punctuation. */
+function digitsOnly(value: string, keepPlus = false): string {
+  const digits = (value ?? "").replace(/[^0-9]/g, "");
+  return keepPlus && value?.trim().startsWith("+") ? `+${digits}` : digits;
+}
+
+function ContactLine({
+  icon,
+  value,
+  href,
+  label,
+  show,
+}: {
+  icon: string;
+  value: string;
+  href: string;
+  label?: string;
+  /** Whether this detail has actually been filled in -- see above. */
+  show: boolean;
+}) {
+  if (!show) return null;
+  return (
+    <li>
+      {/* A phone number a patient cannot tap is a phone number they have to
+          copy out by hand, on the device most likely to be used to ring it. */}
+      <a
+        href={href}
+        aria-label={label}
+        className="inline-block py-1 hover:text-teal-400 transition"
+      >
+        <i aria-hidden="true" className={`${icon} text-teal-500 mr-2`}></i>
+        {value}
+      </a>
+    </li>
   );
 }

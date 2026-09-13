@@ -386,10 +386,10 @@ export default function CarePlanFields({
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="block text-xs font-semibold text-slate-700">
+        <label className="block">
+          <span className="block text-xs font-semibold text-slate-700">
             How often, per week
-          </label>
+          </span>
           <select
             value={value?.frequencyPerWeek ?? ""}
             onChange={(e) =>
@@ -404,7 +404,7 @@ export default function CarePlanFields({
               </option>
             ))}
           </select>
-        </div>
+        </label>
 
         <div className="flex items-end">
           <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
@@ -436,10 +436,10 @@ export default function CarePlanFields({
         />
       </div>
 
-      <div>
-        <label className="block text-xs font-semibold text-slate-700">
+      <label className="block">
+        <span className="block text-xs font-semibold text-slate-700">
           Anything they should do or know
-        </label>
+        </span>
         <textarea
           value={value?.instructions ?? ""}
           maxLength={MAX_INSTRUCTIONS}
@@ -448,7 +448,7 @@ export default function CarePlanFields({
           placeholder="e.g. Keep up the walking between sessions. Book the first one within a fortnight if you can."
           className="mt-1.5 w-full rounded-xl border border-slate-300 p-3 text-sm focus:border-teal-500 focus:outline-none"
         />
-      </div>
+      </label>
 
       <p className="text-[11px] text-slate-500">
         This goes to the patient as it is written. They accept and pay from their own

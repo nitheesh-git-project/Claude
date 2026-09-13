@@ -63,6 +63,7 @@ export default function AssignTherapistForm({
         </span>
       )}
       <select
+        aria-label="Therapist to assign"
         value={therapistId}
         onChange={(e) => setTherapistId(e.target.value)}
         className="text-xs p-2 rounded-lg border border-slate-300"

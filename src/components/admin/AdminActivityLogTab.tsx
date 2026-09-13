@@ -132,6 +132,7 @@ export default function AdminActivityLogTab({
 
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
         <select
+          aria-label="Filter by admin"
           value={actorFilter}
           onChange={(e) => setActorFilter(e.target.value)}
           className="rounded-lg border border-slate-300 bg-white p-2 text-xs"

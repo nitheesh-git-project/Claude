@@ -90,16 +90,17 @@ export default function HospitalLoginCard() {
                 Enter your partner account email and we&apos;ll send you a
                 link to reset your password.
               </p>
-              <div>
-                <label className="block font-semibold mb-1">Email Address</label>
+              <label className="block">
+                <span className="block font-semibold mb-1">Email Address</span>
                 <input
                   type="email"
                   name="email"
+                  autoComplete="email"
                   required
                   maxLength={254}
                   className="w-full p-3 rounded-xl border border-slate-300"
                 />
-              </div>
+              </label>
               <button
                 type="submit"
                 disabled={forgotSubmitting}
@@ -119,25 +120,29 @@ export default function HospitalLoginCard() {
         ) : (
           <>
             <form onSubmit={handleLogin} className="space-y-4 text-xs mt-6">
-              <div>
-                <label className="block font-semibold mb-1">Email Address</label>
+              <label className="block">
+                <span className="block font-semibold mb-1">Email Address</span>
                 <input
                   type="email"
                   name="email"
+                  autoComplete="email"
                   required
                   maxLength={254}
                   className="w-full p-3 rounded-xl border border-slate-300"
                 />
-              </div>
+              </label>
               <div>
-                <label className="block font-semibold mb-1">Password</label>
-                <input
-                  type="password"
-                  name="password"
-                  required
-                  maxLength={72}
-                  className="w-full p-3 rounded-xl border border-slate-300"
-                />
+                <label className="block">
+                  <span className="block font-semibold mb-1">Password</span>
+                  <input
+                    type="password"
+                    name="password"
+                    autoComplete="current-password"
+                    required
+                    maxLength={72}
+                    className="w-full p-3 rounded-xl border border-slate-300"
+                  />
+                </label>
                 <button
                   type="button"
                   onClick={() => setForgotMode(true)}

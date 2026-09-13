@@ -104,12 +104,16 @@ export default function CatalogImageField({
   }
 
   return (
-    <div>
-      <label className="mb-1.5 block text-xs font-semibold text-slate-700">{label}</label>
+    // Deliberately not a wrapping <label>: the visible controls here are
+    // buttons that open this input programmatically, and a label wrapping
+    // them would make every one of those buttons a second file picker.
+    <div className="block">
+      <span className="mb-1.5 block text-xs font-semibold text-slate-700">{label}</span>
 
       <input
         ref={inputRef}
         type="file"
+        aria-label={label}
         accept={CATALOG_IMAGE_TYPES.join(",")}
         className="hidden"
         onChange={(e) => {

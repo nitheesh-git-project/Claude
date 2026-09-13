@@ -121,7 +121,12 @@ export default function ResetPasswordPage() {
                 {error}
               </div>
             )}
-            <PasswordField value={password} onChange={setPassword} label="New Password" />
+            <PasswordField
+              value={password}
+              onChange={setPassword}
+              label="New Password"
+              autoComplete="new-password"
+            />
             <ConfirmPasswordField
               password={password}
               value={confirmPassword}
