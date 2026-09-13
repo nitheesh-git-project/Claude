@@ -3317,6 +3317,34 @@ change that genuinely needs no doc update can ignore it.
   requires it.
 - Comments in this codebase explain *why*, especially where a non-obvious
   constraint or a past bug drove the shape of the code. Match that.
+- **`text-slate-400` is a dark-surface token.** On white it is 2.63:1, which
+  fails WCAG AA for body text, and an axe-core sweep found it on 62 surfaces
+  across the public pages and all four dashboards -- every one of them a label,
+  a count, a hint or a code somebody actually has to read. The rule is by
+  surface, not by taste: on the dark chrome (the two shells' rails, the
+  footer, the debug bar) `text-slate-400` is correct and `text-slate-500` is
+  the failure; on a white or `slate-50` card the floor is `text-slate-500`,
+  and on a `slate-100` fill -- a segmented-control track, a neutral pill --
+  it is `text-slate-600`, since slate-500 there is 4.34:1 and just misses.
+  Sidebar's own active entry is `bg-teal-700`, not `-600`: white on teal-600
+  is 3.66:1. The same split applies to the two chart constants in
+  `AdminMetricsTab` -- they are drawn as lines *and* printed as figures, so
+  they take the -700 shades while `PatientProfitChart`, which only draws,
+  keeps -600.
+- **Every control carries an accessible name, and an icon-only one carries it
+  explicitly.** A visible label is associated with `htmlFor` + `useId` (not
+  by sitting next to the input), a control with no visible label at all --
+  an icon button, a visually hidden `type="file"` behind a styled button, a
+  number box under an `<h3>` -- takes `aria-label`, and a decorative glyph
+  inside a named button takes `aria-hidden`. Two whole-app sweeps were needed
+  to get here, so a new control without one is a regression rather than an
+  omission.
+- **A dialog opened by a tap uses `useDialogChrome`** (`src/lib/`), which is
+  the one implementation of the contract: `role`, `aria-modal`, focus moved
+  in on open and restored on close, Escape, a Tab trap and the scroll lock.
+  It takes an `active` flag because `Modal.tsx` stays mounted and toggles
+  `open` -- a hook that locked body scroll while closed is the bug that flag
+  exists to prevent.
 
 ## Gotchas
 

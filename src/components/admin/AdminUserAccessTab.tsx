@@ -98,7 +98,7 @@ const LEVEL_STYLE: Record<AccessLevel, { chip: string; mark: string; icon: strin
     icon: "fa-eye",
   },
   none: {
-    chip: "bg-slate-100 text-slate-500 border-slate-200",
+    chip: "bg-slate-100 text-slate-600 border-slate-200",
     mark: "text-slate-300",
     icon: "fa-minus",
   },
@@ -150,7 +150,7 @@ function ScopePicker({ row, canManage }: { row: AdminRow; canManage: boolean }) 
   }
 
   if (row.isSelf) {
-    return <span className="text-[11px] text-slate-400">{ADMIN_SCOPE_LABELS[row.scope]} · you</span>;
+    return <span className="text-[11px] text-slate-500">{ADMIN_SCOPE_LABELS[row.scope]} · you</span>;
   }
 
   if (!canManage) {
@@ -291,7 +291,7 @@ function AccessMatrix() {
                   {/* The level for the section itself, so the row group says
                       why the ticks under it fall where they do rather than
                       leaving a reader to infer the rule from the pattern. */}
-                  <span className="ml-2 font-normal text-slate-400">
+                  <span className="ml-2 font-normal text-slate-500">
                     {ADMIN_SCOPES.map((s) => `${ADMIN_SCOPE_LABELS[s]}: ${ACCESS_LEVEL_LABELS[sectionAccess(s, group.section)].toLowerCase()}`).join(" · ")}
                   </span>
                 </td>
@@ -301,7 +301,7 @@ function AccessMatrix() {
                   <td className="py-2 pr-4 text-xs text-slate-700">
                     {cap.label}
                     {!cap.writes && (
-                      <span className="ml-1.5 text-[10px] uppercase tracking-wide text-slate-400">
+                      <span className="ml-1.5 text-[10px] uppercase tracking-wide text-slate-500">
                         read
                       </span>
                     )}
@@ -391,7 +391,7 @@ function IssuedPassword({ row }: { row: AdminRow }) {
 
   if (!row.tempPassword) {
     return (
-      <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-slate-400">
+      <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-slate-500">
         <i aria-hidden className="fa-solid fa-lock text-[9px]" />
         Signing in with their own password
       </p>
@@ -416,7 +416,7 @@ function IssuedPassword({ row }: { row: AdminRow }) {
         {copied ? "Copied" : "Copy"}
       </button>
       {row.tempPasswordSetAt && (
-        <span className="text-slate-400">Issued {formatIST(row.tempPasswordSetAt)}</span>
+        <span className="text-slate-500">Issued {formatIST(row.tempPasswordSetAt)}</span>
       )}
     </p>
   );
@@ -540,7 +540,7 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
             sit under the second dropdown, which is where it was needed
             then; the picker is the only place it belongs now. */}
         {role === "admin" && (
-          <p className="mt-1 text-[11px] text-slate-400">{ADMIN_SCOPE_BLURBS[adminScope]}</p>
+          <p className="mt-1 text-[11px] text-slate-500">{ADMIN_SCOPE_BLURBS[adminScope]}</p>
         )}
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -597,7 +597,7 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
           )}
         </div>
       )}
-      <p className="text-[11px] text-slate-400">
+      <p className="text-[11px] text-slate-500">
         The account is created already approved - you vetted it by creating it - and a
         temporary password is generated. It stays readable until they set their own, so
         closing this does not lose it.
@@ -735,7 +735,7 @@ export default function AdminUserAccessTab({
                     </p>
                     <p className="text-slate-500">{a.email}</p>
                     <IssuedPassword row={a} />
-                    <p className="mt-1 text-[11px] text-slate-400">{ADMIN_SCOPE_BLURBS[a.scope]}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">{ADMIN_SCOPE_BLURBS[a.scope]}</p>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-3">
                     <StatusToggle row={a} canManage={canManage} />

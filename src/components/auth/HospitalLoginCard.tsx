@@ -160,7 +160,7 @@ export default function HospitalLoginCard() {
               </button>
             </form>
 
-            <p className="text-[11px] text-slate-400 text-center mt-4">
+            <p className="text-[11px] text-slate-500 text-center mt-4">
               Interested in partnering?{" "}
               <a href="/hospitals" className="text-teal-700 font-semibold">
                 Learn more

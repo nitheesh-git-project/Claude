@@ -163,7 +163,7 @@ export default function PainExamDialog({
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="shrink-0 text-slate-400 transition hover:text-slate-700"
+              className="shrink-0 text-slate-500 transition hover:text-slate-700"
             >
               ✕
             </button>
@@ -184,7 +184,7 @@ export default function PainExamDialog({
                   ["Front of the body", frontRegions],
                 ].map(([title, list]) => (
                   <div key={title as string}>
-                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
                       {title as string}
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -241,7 +241,7 @@ export default function PainExamDialog({
                 {grouped.map(({ group, questions }) => (
                   <section key={group.key}>
                     <h3 className="text-sm font-bold text-slate-800">{group.title}</h3>
-                    <p className="mb-3 text-[11px] text-slate-400">{group.blurb}</p>
+                    <p className="mb-3 text-[11px] text-slate-500">{group.blurb}</p>
                     <div className="space-y-3">
                       {questions.map((q) => (
                         <div key={q.key}>
@@ -321,7 +321,7 @@ export default function PainExamDialog({
                       comparison view -- so the /10 equivalent is shown here
                       rather than leaving the clinician to convert in their
                       head and the two scales to look like a discrepancy. */}
-                  <p className="mb-3 text-[11px] text-slate-400">
+                  <p className="mb-3 text-[11px] text-slate-500">
                     Shown out of ten, the same way the patient rates their own pain. Stored as the
                     percentage beside it, which is what past readings use.
                   </p>
@@ -336,13 +336,13 @@ export default function PainExamDialog({
                     />
                     <span className="w-28 shrink-0 text-right text-sm font-bold text-slate-800">
                       {formatPainOutOfTen(painPercent)}
-                      <span className="ml-1.5 font-normal text-slate-400">{painPercent}%</span>
+                      <span className="ml-1.5 font-normal text-slate-500">{painPercent}%</span>
                     </span>
                   </div>
                   <p className="mt-2 text-[11px] font-semibold text-slate-500">
                     {PAIN_BAND_LABEL[painBand(painPercent)]}
                     {previous && (
-                      <span className="ml-2 font-normal text-slate-400">
+                      <span className="ml-2 font-normal text-slate-500">
                         {painPercent === previous.pain_percent
                           ? "Same as last time"
                           : painPercent < previous.pain_percent
@@ -361,7 +361,7 @@ export default function PainExamDialog({
               {error ? (
                 <span className="text-xs font-semibold text-red-600">{error}</span>
               ) : (
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-500">
                   Saves as a new reading - the patient sees it straight away.
                 </span>
               )}

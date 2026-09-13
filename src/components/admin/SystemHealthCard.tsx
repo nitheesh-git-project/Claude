@@ -46,13 +46,13 @@ const TONE: Record<HealthStatus, { pill: string; card: string; icon: string; dot
     pill: "neutral",
     card: "border-slate-200 bg-white",
     icon: "fa-circle-minus",
-    dot: "text-slate-400",
+    dot: "text-slate-500",
   },
   unknown: {
     pill: "neutral",
     card: "border-slate-200 bg-white",
     icon: "fa-circle-question",
-    dot: "text-slate-400",
+    dot: "text-slate-500",
   },
 };
 
@@ -166,7 +166,7 @@ export default function SystemHealthCard({
       {children && <div className="border-t border-slate-200 px-5 py-4 sm:px-6">{children}</div>}
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 px-5 py-2.5 sm:px-6">
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-slate-500">
           {ago ? `Checked ${ago}` : "\u00a0"}
         </p>
         {check.status !== "healthy" && (

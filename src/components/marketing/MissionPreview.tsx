@@ -51,7 +51,7 @@ export default function MissionPreview() {
           all land on the band that explains them rather than the top of the
           page. */}
       <Reveal className="mx-auto mt-10 max-w-5xl">
-        <p className="text-center text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
+        <p className="text-center text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
           What we promise
         </p>
       </Reveal>

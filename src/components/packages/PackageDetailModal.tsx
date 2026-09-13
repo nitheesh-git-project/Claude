@@ -190,28 +190,28 @@ export default function PackageDetailModal({
                 <div className="grid grid-cols-2 gap-3 text-xs text-slate-600">
                   {data.purchase.categoryTitle && (
                     <p>
-                      <span className="text-slate-400">Category:</span> {data.purchase.categoryTitle}
+                      <span className="text-slate-500">Category:</span> {data.purchase.categoryTitle}
                     </p>
                   )}
                   {data.viewerRole === "patient" && data.purchase.therapistName && (
                     <p>
-                      <span className="text-slate-400">Therapist:</span> {data.purchase.therapistName}
+                      <span className="text-slate-500">Therapist:</span> {data.purchase.therapistName}
                     </p>
                   )}
                   {data.viewerRole === "therapist" && data.purchase.patientName && (
                     <p>
-                      <span className="text-slate-400">Patient:</span> {data.purchase.patientName}
+                      <span className="text-slate-500">Patient:</span> {data.purchase.patientName}
                       {data.purchase.patientCode ? ` (${data.purchase.patientCode})` : ""}
                     </p>
                   )}
                   {data.viewerRole === "patient" && data.purchase.amountPaidPaise !== null && (
                     <p>
-                      <span className="text-slate-400">Paid:</span> ₹
+                      <span className="text-slate-500">Paid:</span> ₹
                       {(data.purchase.amountPaidPaise / 100).toLocaleString("en-IN")}
                     </p>
                   )}
                   <p>
-                    <span className="text-slate-400">Expires:</span>{" "}
+                    <span className="text-slate-500">Expires:</span>{" "}
                     {data.purchase.expiresAt
                       ? `${formatClinicDate(data.purchase.expiresAt)}${
                           daysLeft !== null ? ` (${daysLeft}d left)` : ""
@@ -223,14 +223,14 @@ export default function PackageDetailModal({
                 <section>
                   <h4 className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700">Upcoming</h4>
                   {data.upcoming.length === 0 ? (
-                    <p className="mt-2 text-xs text-slate-400">Nothing scheduled yet.</p>
+                    <p className="mt-2 text-xs text-slate-500">Nothing scheduled yet.</p>
                   ) : (
                     <ul className="mt-2 space-y-1.5">
                       {data.upcoming.map((a) => (
                         <li key={a.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-xs">
                           <span>
                             {a.slot_time ? formatClinicDateTime(a.slot_time) : "Time TBD"}{" "}
-                            <span className="font-mono text-slate-400">{a.session_code ?? ""}</span>
+                            <span className="font-mono text-slate-500">{a.session_code ?? ""}</span>
                           </span>
                           <span className="capitalize text-slate-500">{a.status}</span>
                         </li>
@@ -242,14 +242,14 @@ export default function PackageDetailModal({
                 <section>
                   <h4 className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700">Completed</h4>
                   {data.completed.length === 0 ? (
-                    <p className="mt-2 text-xs text-slate-400">None yet.</p>
+                    <p className="mt-2 text-xs text-slate-500">None yet.</p>
                   ) : (
                     <ul className="mt-2 space-y-1.5">
                       {data.completed.map((a) => (
                         <li key={a.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-xs">
                           <span>
                             {a.slot_time ? formatClinicDate(a.slot_time) : "-"}{" "}
-                            <span className="font-mono text-slate-400">{a.session_code ?? ""}</span>
+                            <span className="font-mono text-slate-500">{a.session_code ?? ""}</span>
                           </span>
                           {a.no_show && <span className="font-semibold text-amber-700">No-show</span>}
                         </li>
@@ -259,7 +259,7 @@ export default function PackageDetailModal({
                 </section>
 
                 {counts.pending > 0 && (
-                  <p className="text-xs text-slate-400">{counts.pending} session(s) not yet scheduled.</p>
+                  <p className="text-xs text-slate-500">{counts.pending} session(s) not yet scheduled.</p>
                 )}
 
                 {data.events.length > 0 && (

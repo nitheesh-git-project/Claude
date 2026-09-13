@@ -98,7 +98,7 @@ function PatientTransactionTable({ transactions }: { transactions: PatientTransa
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-left text-slate-400 border-b border-slate-200">
+          <tr className="text-left text-slate-500 border-b border-slate-200">
             <th className="pb-2 pr-3 font-semibold">Date</th>
             <th className="pb-2 pr-3 font-semibold">Session ID</th>
             <th className="pb-2 pr-3 font-semibold">Transaction ID</th>
@@ -112,7 +112,7 @@ function PatientTransactionTable({ transactions }: { transactions: PatientTransa
           {transactions.map((t) => (
             <tr key={t.id} className="border-b border-slate-100">
               <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">{formatDateTime(t.date)}</td>
-              <td className="py-2.5 pr-3 text-slate-400 font-mono">{t.sessionCode ?? "-"}</td>
+              <td className="py-2.5 pr-3 text-slate-500 font-mono">{t.sessionCode ?? "-"}</td>
               <td className="py-2.5 pr-3 text-slate-500 font-mono">{t.transactionId ?? "-"}</td>
               <td className="py-2.5 pr-3 text-slate-700">{t.modeOfPayment}</td>
               <td className="py-2.5 pr-3 text-right font-semibold text-slate-900">{formatInr(t.amountPaise)}</td>
@@ -144,7 +144,7 @@ function TherapistTransactionTable({ transactions }: { transactions: TherapistPa
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-left text-slate-400 border-b border-slate-200">
+          <tr className="text-left text-slate-500 border-b border-slate-200">
             <th className="pb-2 pr-3 font-semibold">Date</th>
             <th className="pb-2 pr-3 font-semibold">Session ID</th>
             <th className="pb-2 pr-3 font-semibold">Method</th>
@@ -158,7 +158,7 @@ function TherapistTransactionTable({ transactions }: { transactions: TherapistPa
           {transactions.map((t) => (
             <tr key={t.id} className="border-b border-slate-100">
               <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">{formatDateTime(t.date)}</td>
-              <td className="py-2.5 pr-3 text-slate-400 font-mono">{t.sessionCode ?? "-"}</td>
+              <td className="py-2.5 pr-3 text-slate-500 font-mono">{t.sessionCode ?? "-"}</td>
               <td className="py-2.5 pr-3 text-slate-700">{t.method}</td>
               <td className="py-2.5 pr-3 text-right font-semibold text-slate-900">{formatInr(t.amountPaise)}</td>
               <td className="py-2.5 pr-3 text-slate-700">{t.purpose}</td>
@@ -392,7 +392,7 @@ export default function AdminPaymentHistoryTab({
             />
           </div>
         </div>
-        <p className="text-[11px] text-slate-400 mb-4">
+        <p className="text-[11px] text-slate-500 mb-4">
           Every successful session payment and package purchase, per patient. Sessions covered by an
           already-paid package aren&apos;t counted again here - the package purchase itself is the real
           transaction.
@@ -400,7 +400,7 @@ export default function AdminPaymentHistoryTab({
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-left text-slate-400 border-b border-slate-200">
+              <tr className="text-left text-slate-500 border-b border-slate-200">
                 <th className="pb-2 pr-3 font-semibold">Patient ID</th>
                 <th className="pb-2 pr-3 font-semibold">Patient Name</th>
                 <th className="pb-2 pr-3 font-semibold text-right">Total Spent</th>
@@ -411,7 +411,7 @@ export default function AdminPaymentHistoryTab({
             <tbody>
               {patientPageRows.map(({ patient, summary }) => (
                 <tr key={patient.id} className="border-b border-slate-100">
-                  <td className="py-2.5 pr-3 text-slate-400 font-mono">{patient.code ?? "-"}</td>
+                  <td className="py-2.5 pr-3 text-slate-500 font-mono">{patient.code ?? "-"}</td>
                   <td className="py-2.5 pr-3 font-bold text-slate-900">{patient.full_name ?? "Unknown"}</td>
                   <td className="py-2.5 pr-3 text-right text-slate-700">{formatInr(summary.totalSpentPaise)}</td>
                   <td className="py-2.5 pr-3 text-slate-700">
@@ -454,7 +454,7 @@ export default function AdminPaymentHistoryTab({
             />
           </div>
         </div>
-        <p className="text-[11px] text-slate-400 mb-4">
+        <p className="text-[11px] text-slate-500 mb-4">
           Every payout settlement an admin has recorded for a therapist. These are admin-recorded
           cash/online record-keeping entries, not payment-gateway charges - see the Payouts tab for
           what&apos;s currently still owed.
@@ -462,7 +462,7 @@ export default function AdminPaymentHistoryTab({
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-left text-slate-400 border-b border-slate-200">
+              <tr className="text-left text-slate-500 border-b border-slate-200">
                 <th className="pb-2 pr-3 font-semibold">Therapist ID</th>
                 <th className="pb-2 pr-3 font-semibold">Therapist Name</th>
                 <th className="pb-2 pr-3 font-semibold text-right">Total Paid Out</th>
@@ -473,7 +473,7 @@ export default function AdminPaymentHistoryTab({
             <tbody>
               {therapistPageRows.map(({ therapist, summary }) => (
                 <tr key={therapist.id} className="border-b border-slate-100">
-                  <td className="py-2.5 pr-3 text-slate-400 font-mono">{therapist.code ?? "-"}</td>
+                  <td className="py-2.5 pr-3 text-slate-500 font-mono">{therapist.code ?? "-"}</td>
                   <td className="py-2.5 pr-3 font-bold text-slate-900">{therapist.full_name ?? "Unknown"}</td>
                   <td className="py-2.5 pr-3 text-right text-slate-700">{formatInr(summary.totalPaidOutPaise)}</td>
                   <td className="py-2.5 pr-3 text-slate-700">
@@ -511,7 +511,7 @@ export default function AdminPaymentHistoryTab({
             columns={receiptsColumns}
           />
         </div>
-        <p className="text-[11px] text-slate-400 mb-4">
+        <p className="text-[11px] text-slate-500 mb-4">
           Every receipt generated on the platform - patient payments, completed sessions, failed
           payment attempts, and therapist payouts - in one filterable log. The download reflects
           whatever filters are currently applied below.
@@ -562,7 +562,7 @@ export default function AdminPaymentHistoryTab({
             className="p-2 rounded-lg border border-slate-300 text-xs"
             aria-label="From date"
           />
-          <span className="text-slate-400 text-xs">to</span>
+          <span className="text-slate-500 text-xs">to</span>
           <input
             type="date"
             value={receiptToDate}
@@ -593,7 +593,7 @@ export default function AdminPaymentHistoryTab({
                 setReceiptToDate("");
                 setReceiptSessionCodeFilter("");
               }}
-              className="text-slate-400 hover:text-slate-700 text-xs font-semibold"
+              className="text-slate-500 hover:text-slate-700 text-xs font-semibold"
             >
               Clear filters
             </button>
@@ -608,7 +608,7 @@ export default function AdminPaymentHistoryTab({
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-left text-slate-400 border-b border-slate-200">
+                <tr className="text-left text-slate-500 border-b border-slate-200">
                   <th className="pb-2 pr-3 font-semibold">Date</th>
                   <th className="pb-2 pr-3 font-semibold">Session ID</th>
                   <th className="pb-2 pr-3 font-semibold">Who</th>
@@ -623,10 +623,10 @@ export default function AdminPaymentHistoryTab({
                     <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">
                       {formatDateTime(r.date)}
                     </td>
-                    <td className="py-2.5 pr-3 text-slate-400 font-mono">{r.sessionCode ?? "-"}</td>
+                    <td className="py-2.5 pr-3 text-slate-500 font-mono">{r.sessionCode ?? "-"}</td>
                     <td className="py-2.5 pr-3">
                       <span className="font-bold text-slate-900">{r.personName}</span>
-                      <span className="text-slate-400 capitalize"> · {r.personRole}</span>
+                      <span className="text-slate-500 capitalize"> · {r.personRole}</span>
                     </td>
                     <td className="py-2.5 pr-3">
                       <span

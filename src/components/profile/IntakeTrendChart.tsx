@@ -65,7 +65,7 @@ export default function IntakeTrendChart({
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <p className="font-display text-2xl font-bold leading-none text-slate-800">
           {latest.value}
-          <span className="ml-1 text-sm font-semibold text-slate-400">{unit}</span>
+          <span className="ml-1 text-sm font-semibold text-slate-500">{unit}</span>
         </p>
         {change !== null && change !== 0 && (
           <p className="text-xs text-slate-500">
@@ -173,7 +173,7 @@ export default function IntakeTrendChart({
         )}
       </div>
 
-      <p className="mt-1 text-[11px] text-slate-400">Higher is better. {caption}</p>
+      <p className="mt-1 text-[11px] text-slate-500">Higher is better. {caption}</p>
     </div>
   );
 }

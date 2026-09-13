@@ -122,7 +122,7 @@ function BulkAddForm({ onDone }: { onDone: () => void }) {
           className={inputCls()}
           placeholder="600020, 600041, 600096 - paste as many as you like, separated by spaces, commas or new lines"
         />
-        <span className="block text-[10px] text-slate-400 mt-1">
+        <span className="block text-[10px] text-slate-500 mt-1">
           Every pincode here gets the same city and travel fee. Duplicates and ones already served
           are skipped.
         </span>
@@ -132,7 +132,7 @@ function BulkAddForm({ onDone }: { onDone: () => void }) {
         <p className="text-[11px] text-slate-600">
           {unique.length} unique pincode{unique.length === 1 ? "" : "s"}
           {parsed.length !== unique.length && (
-            <span className="text-slate-400"> ({parsed.length - unique.length} duplicate removed)</span>
+            <span className="text-slate-500"> ({parsed.length - unique.length} duplicate removed)</span>
           )}
           {invalid.length > 0 && (
             <span className="text-red-600 font-semibold"> · Not valid: {invalid.join(", ")}</span>
@@ -259,14 +259,14 @@ function AreaRow({ area }: { area: ServiceAreaRow }) {
         </p>
         <p className="text-slate-500 mt-0.5">
           Travel ₹{(area.travel_fee_paise / 100).toLocaleString("en-IN")} per visit
-          {area.notes && <span className="text-slate-400"> · {area.notes}</span>}
+          {area.notes && <span className="text-slate-500"> · {area.notes}</span>}
         </p>
         {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
       </div>
       <div className="flex items-center gap-3">
         <span
           className={`font-semibold px-2.5 py-1 rounded-full ${
-            area.active ? "text-teal-700 bg-teal-50" : "text-slate-500 bg-slate-100"
+            area.active ? "text-teal-700 bg-teal-50" : "text-slate-600 bg-slate-100"
           }`}
         >
           {area.active ? "Active" : "Off"}
@@ -327,7 +327,7 @@ function WaitlistItem({ entry }: { entry: WaitlistRow }) {
           {entry.name ?? "No name"} · {entry.phone}
           {entry.email && <span> · {entry.email}</span>}
         </p>
-        {entry.note && <p className="text-slate-400 mt-0.5">{entry.note}</p>}
+        {entry.note && <p className="text-slate-500 mt-0.5">{entry.note}</p>}
       </div>
       <div className="flex items-center gap-2">
         <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
@@ -410,7 +410,7 @@ export default function HomeVisitAreaManager({
         </div>
 
         {waitlist.length === 0 ? (
-          <p className="text-xs text-slate-400 py-2">No requests yet.</p>
+          <p className="text-xs text-slate-500 py-2">No requests yet.</p>
         ) : (
           <ul className="space-y-2">
             {waitlist.map((entry) => (

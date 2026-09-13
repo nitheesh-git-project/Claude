@@ -107,7 +107,7 @@ export default function ActivityDetailDialog({
                   <p className="text-[11px] font-semibold text-slate-500">{change.label}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                     {isFirstValue(change) ? (
-                      <span className="text-slate-400">Not set before</span>
+                      <span className="text-slate-500">Not set before</span>
                     ) : (
                       <span className="rounded-md bg-red-50 px-2 py-1 font-medium text-red-700 line-through decoration-red-300">
                         {change.from}
@@ -166,7 +166,7 @@ export default function ActivityDetailDialog({
               {JSON.stringify(row.details, null, 2)}
             </pre>
           )}
-          <p className="mt-2 text-[11px] text-slate-400">
+          <p className="mt-2 text-[11px] text-slate-500">
             {/* Said on the screen rather than only in the schema: a reader
                 weighing an entry needs to know it cannot have been edited.
                 The second sentence is the honest half -- entries older than

@@ -31,8 +31,8 @@ const TREND_ICON: Record<string, string> = {
 const TREND_TONE: Record<string, string> = {
   down: "text-emerald-600",
   up: "text-red-600",
-  flat: "text-slate-400",
-  new: "text-slate-400",
+  flat: "text-slate-500",
+  new: "text-slate-500",
 };
 
 /**
@@ -68,7 +68,7 @@ export default function RegionStandingsList({ assessments }: { assessments: Pain
           <p className={`mt-1 flex items-center gap-1.5 text-[11px] ${TREND_TONE[s.trend]}`}>
             <i aria-hidden className={`fa-solid ${TREND_ICON[s.trend]} text-[9px]`} />
             {TREND_LABEL[s.trend]}
-            <span className="text-slate-400">
+            <span className="text-slate-500">
               · checked{" "}
               {new Date(s.assessedAt).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata", day: "numeric", month: "short" })}
             </span>

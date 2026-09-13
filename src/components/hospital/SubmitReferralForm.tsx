@@ -180,7 +180,7 @@ export default function SubmitReferralForm({
       <label className="block">
         <span className="block font-semibold mb-1">
           Treatment Needed{" "}
-          <span className="font-normal text-slate-400">(optional)</span>
+          <span className="font-normal text-slate-500">(optional)</span>
         </span>
         <textarea
           name="treatment_needed"

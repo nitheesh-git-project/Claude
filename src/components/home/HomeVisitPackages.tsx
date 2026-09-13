@@ -258,7 +258,7 @@ function HomeVisitPackageDetail({
                     {rupees(pkg.price_paise)}
                   </span>
                   {savings.compareAtPaise !== null && (
-                    <span className="text-base text-slate-400 line-through">
+                    <span className="text-base text-slate-500 line-through">
                       {rupees(savings.compareAtPaise)}
                     </span>
                   )}

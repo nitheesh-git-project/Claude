@@ -55,8 +55,8 @@ const STRIP_ICON: Record<HealthStatus, { icon: string; tone: string }> = {
   healthy: { icon: "fa-circle-check", tone: "text-emerald-600" },
   attention: { icon: "fa-triangle-exclamation", tone: "text-amber-600" },
   broken: { icon: "fa-circle-exclamation", tone: "text-red-600" },
-  off: { icon: "fa-circle-minus", tone: "text-slate-400" },
-  unknown: { icon: "fa-circle-question", tone: "text-slate-400" },
+  off: { icon: "fa-circle-minus", tone: "text-slate-500" },
+  unknown: { icon: "fa-circle-question", tone: "text-slate-500" },
 };
 
 export default function AdminSystemHealthTab({
@@ -282,7 +282,7 @@ function IssueRow({
           {issue.therapistName ? ` → ${issue.therapistName}` : ""}
         </p>
         <p className="mt-0.5 text-[11px] text-slate-500">
-          <span className="font-mono text-slate-400">{issue.sessionCode ?? "-"}</span>
+          <span className="font-mono text-slate-500">{issue.sessionCode ?? "-"}</span>
           {" · "}
           {issue.slotTime
             ? formatClinicDateTime(issue.slotTime)
@@ -303,7 +303,7 @@ function IssueRow({
           </p>
         ) : null}
         {issue.error && (
-          <p className="mt-1 break-words text-[11px] text-slate-400">
+          <p className="mt-1 break-words text-[11px] text-slate-500">
             Google said: {issue.error}
           </p>
         )}

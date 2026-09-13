@@ -1342,7 +1342,7 @@ export default async function AdminDashboardPage({
                   <div>
                     <p className="font-bold text-slate-900">
                       {requester?.full_name ?? "Unknown user"}{" "}
-                      <span className="font-normal text-slate-400 capitalize">
+                      <span className="font-normal text-slate-500 capitalize">
                         ({requester?.role ?? "unknown"})
                       </span>
                     </p>
@@ -1353,10 +1353,10 @@ export default async function AdminDashboardPage({
                         ];
                         return (
                           <li key={field}>
-                            <span className="text-slate-400">
+                            <span className="text-slate-500">
                               {PROFILE_FIELD_LABELS[field] ?? field}:
                             </span>{" "}
-                            <span className="line-through text-slate-400">
+                            <span className="line-through text-slate-500">
                               {oldValue === null || oldValue === undefined || oldValue === ""
                                 ? "(not set)"
                                 : String(oldValue)}
@@ -1499,7 +1499,7 @@ export default async function AdminDashboardPage({
                           {h.organization_name}
                         </p>
                         {roleCodeMap.get(h.id)?.hospital_code && (
-                          <span className="text-[10px] font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
                             {roleCodeMap.get(h.id)?.hospital_code}
                           </span>
                         )}
@@ -1522,7 +1522,7 @@ export default async function AdminDashboardPage({
                         TherapistDetailContent hides its own share form. */}
                     {canSeeMoney && (
                       <div>
-                        <p className="text-slate-400">Revenue Share</p>
+                        <p className="text-slate-500">Revenue Share</p>
                         <EditRevenueShareForm
                           hospitalId={h.id}
                           currentPercent={sharePercent}
@@ -1530,17 +1530,17 @@ export default async function AdminDashboardPage({
                       </div>
                     )}
                     <div>
-                      <p className="text-slate-400">Paid Sessions</p>
+                      <p className="text-slate-500">Paid Sessions</p>
                       <p className="font-bold text-slate-900">
                         {revenue.paidSessions}
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-400">Conversion Rate</p>
+                      <p className="text-slate-500">Conversion Rate</p>
                       <p className="font-bold text-slate-900">
                         {conversionRate === null ? "-" : `${conversionRate.toFixed(0)}%`}
                       </p>
-                      <p className="text-slate-400">
+                      <p className="text-slate-500">
                         {referralStats.converted}/{referralStats.total} referrals
                       </p>
                     </div>
@@ -1552,7 +1552,7 @@ export default async function AdminDashboardPage({
                     {canSeeMoney && (
                       <>
                         <div>
-                          <p className="text-slate-400">Partner&apos;s share</p>
+                          <p className="text-slate-500">Partner&apos;s share</p>
                           <p className="font-bold text-teal-700">
                             ₹{hospitalCut.toFixed(2)}
                           </p>
@@ -1561,7 +1561,7 @@ export default async function AdminDashboardPage({
                           )}
                         </div>
                         <div>
-                          <p className="text-slate-400">Clinic&apos;s share</p>
+                          <p className="text-slate-500">Clinic&apos;s share</p>
                           <p className="font-bold text-slate-900">
                             ₹{companyCut.toFixed(2)}
                           </p>
@@ -1684,7 +1684,7 @@ export default async function AdminDashboardPage({
                             {referralPhone}
                           </a>
                         ) : (
-                          <span className="text-slate-400">No phone on file</span>
+                          <span className="text-slate-500">No phone on file</span>
                         )}
                         <span className="text-slate-500">
                           <i
@@ -1811,7 +1811,7 @@ export default async function AdminDashboardPage({
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
         Patients
-        <span className="ml-2 text-xs font-normal text-slate-400">
+        <span className="ml-2 text-xs font-normal text-slate-500">
           {patients.length} total
         </span>
       </h2>
@@ -1901,7 +1901,7 @@ export default async function AdminDashboardPage({
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
         Therapists
-        <span className="ml-2 text-xs font-normal text-slate-400">
+        <span className="ml-2 text-xs font-normal text-slate-500">
           {allTherapists.length} total
         </span>
       </h2>
@@ -2185,25 +2185,25 @@ export default async function AdminDashboardPage({
                   <p className="font-bold text-slate-900 mb-2">{c.title}</p>
                   <div className="grid grid-cols-4 gap-3">
                     <div>
-                      <p className="text-slate-400">Bookings</p>
+                      <p className="text-slate-500">Bookings</p>
                       <p className="font-bold text-slate-900">
                         {stats.totalBookings}
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-400">Paid</p>
+                      <p className="text-slate-500">Paid</p>
                       <p className="font-bold text-slate-900">
                         {stats.paidBookings}
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-400">Session revenue</p>
+                      <p className="text-slate-500">Session revenue</p>
                       <p className="font-bold text-teal-700">
                         ₹{stats.totalRevenue.toLocaleString("en-IN")}
                       </p>
                     </div>
                     <div title="Package purchases paid for under this category, collected up front. Session revenue to the left recognises the same money gradually instead, one session at a time as they get scheduled -- so the two are deliberately different figures, not a discrepancy.">
-                      <p className="text-slate-400">Package cash collected</p>
+                      <p className="text-slate-500">Package cash collected</p>
                       <p className="font-bold text-teal-700">
                         ₹{stats.packageCashCollected.toLocaleString("en-IN")}
                       </p>

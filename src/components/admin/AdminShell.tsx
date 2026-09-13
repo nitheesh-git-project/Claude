@@ -339,7 +339,7 @@ export default function AdminShell({
           title={mini ? section.label : undefined}
           className={`group relative w-full flex items-center gap-3 rounded-xl transition ${
             mini ? "justify-center px-0 py-3" : "px-3.5 py-2.5"
-          } ${active ? "bg-teal-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+          } ${active ? "bg-teal-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
         >
           <i className={`fa-solid ${section.icon} ${mini ? "text-base" : "w-4 text-center text-sm"}`}></i>
           {!mini && <span className="flex-1 text-left text-sm font-semibold">{section.label}</span>}
@@ -599,7 +599,7 @@ export default function AdminShell({
                     const tabLabel = activeSection.tabs.find((t) => t.key === tabKey)?.label ?? "";
                     if (!tabLabel || tabLabel === activeSection.label) return null;
                     return (
-                      <span className="ml-2 text-base font-semibold text-slate-400">{tabLabel}</span>
+                      <span className="ml-2 text-base font-semibold text-slate-500">{tabLabel}</span>
                     );
                   })()}
               </h1>
@@ -618,8 +618,8 @@ export default function AdminShell({
                   <div className="mt-1 max-w-2xl">
                     <p className="text-xs text-slate-600">{activeTab.blurb}</p>
                     {activeTab.example && (
-                      <p className="mt-0.5 text-xs text-slate-400">
-                        <span className="font-semibold text-slate-500">For example:</span>{" "}
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        <span className="font-semibold text-slate-600">For example:</span>{" "}
                         {activeTab.example}
                       </p>
                     )}

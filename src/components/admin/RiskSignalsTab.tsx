@@ -22,7 +22,7 @@ const SEVERITY_STYLE: Record<string, string> = {
 const STATUS_STYLE: Record<RiskStatus, string> = {
   open: "bg-amber-50 text-amber-700",
   reviewing: "bg-sky-50 text-sky-700",
-  dismissed: "bg-slate-100 text-slate-500",
+  dismissed: "bg-slate-100 text-slate-600",
   actioned: "bg-teal-50 text-teal-700",
 };
 
@@ -236,7 +236,7 @@ function SignalCard({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-bold text-slate-900">{signal.subjectName}</p>
-          <p className="text-[11px] text-slate-400">{signal.ruleLabel}</p>
+          <p className="text-[11px] text-slate-500">{signal.ruleLabel}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span
@@ -255,7 +255,7 @@ function SignalCard({
       </div>
 
       <p className="mt-2 text-slate-700">{signal.summary}</p>
-      <p className="mt-1 text-[11px] text-slate-400">
+      <p className="mt-1 text-[11px] text-slate-500">
         Noticed {formatClinicDateTime(signal.detectedAt)}
       </p>
 
@@ -592,7 +592,7 @@ function FlagCard({ flag }: { flag: CommunicationFlagRow }) {
             <span className="font-normal text-slate-500"> → {flag.patientName}</span>
           )}
         </p>
-        <span className="text-[11px] text-slate-400">
+        <span className="text-[11px] text-slate-500">
           {SURFACE_LABELS[flag.surface] ?? flag.surface} ·{" "}
           {formatClinicDate(flag.createdAt)}
         </span>
@@ -638,7 +638,7 @@ function RevealTrail({ reveals }: { reveals: ContactRevealRow[] }) {
                   <span className="font-semibold">{r.therapistName}</span> saw{" "}
                   {r.patientName}&apos;s {r.field}
                 </span>
-                <span className="text-[11px] text-slate-400">
+                <span className="text-[11px] text-slate-500">
                   {r.reason ? `${r.reason} · ` : ""}
                   {formatClinicDateTime(r.createdAt)}
                 </span>

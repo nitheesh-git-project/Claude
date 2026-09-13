@@ -143,7 +143,7 @@ export default function PainMapView({ assessments }: { assessments: PainAssessme
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className="shrink-0 text-slate-400 hover:text-slate-600"
+                className="shrink-0 text-slate-500 hover:text-slate-600"
                 aria-label="Close"
               >
                 ✕

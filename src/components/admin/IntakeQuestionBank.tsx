@@ -50,7 +50,7 @@ export default function IntakeQuestionBank({
               {isOff && (
                 <span
                   className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-                    isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                    isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
                   }`}
                 >
                   Off

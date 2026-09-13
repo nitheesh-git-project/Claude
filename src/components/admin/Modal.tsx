@@ -46,7 +46,7 @@ export default function Modal({
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="text-slate-400 hover:text-slate-700 text-2xl leading-none shrink-0"
+              className="text-slate-500 hover:text-slate-700 text-2xl leading-none shrink-0"
             >
               &times;
             </button>

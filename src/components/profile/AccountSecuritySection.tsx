@@ -26,7 +26,7 @@ export default function AccountSecuritySection({ email }: { email: string }) {
   return (
     <div className="text-xs space-y-3">
       <p>
-        <span className="text-slate-400">Email:</span>{" "}
+        <span className="text-slate-500">Email:</span>{" "}
         <span className="font-semibold text-slate-700">{email}</span>
       </p>
       {error && <p className="text-red-600">{error}</p>}
@@ -45,7 +45,7 @@ export default function AccountSecuritySection({ email }: { email: string }) {
           {sending ? "Sending..." : "Send Password Reset Email"}
         </button>
       )}
-      <p className="text-[11px] text-slate-400">
+      <p className="text-[11px] text-slate-500">
         To change your email address, please contact us - this keeps your
         sign-in secure.
       </p>

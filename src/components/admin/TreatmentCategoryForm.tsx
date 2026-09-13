@@ -158,7 +158,7 @@ export default function TreatmentCategoryForm({
       </label>
       <label className="block">
         <span className="block font-semibold mb-1">
-          Description <span className="font-normal text-slate-400">(optional)</span>
+          Description <span className="font-normal text-slate-500">(optional)</span>
         </span>
         <textarea
           value={description}
@@ -189,7 +189,7 @@ export default function TreatmentCategoryForm({
       <label className="block">
         <span className="block font-semibold mb-1">
           Tick Points{" "}
-          <span className="font-normal text-slate-400">(one per line)</span>
+          <span className="font-normal text-slate-500">(one per line)</span>
         </span>
         <textarea
           value={pointsText}

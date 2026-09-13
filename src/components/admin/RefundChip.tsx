@@ -28,7 +28,7 @@ export default function RefundChip({
         ? "text-amber-800 bg-amber-50"
         : refund.tone === "bad"
           ? "text-red-700 bg-red-50"
-          : "text-slate-500 bg-slate-100";
+          : "text-slate-600 bg-slate-100";
 
   return (
     <span

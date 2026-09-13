@@ -359,23 +359,23 @@ export default function CarePlanFields({
       {selected && (
         <dl className="grid grid-cols-2 gap-3 rounded-lg bg-white p-3 text-[11px] sm:grid-cols-4">
           <div>
-            <dt className="text-slate-400">Sessions</dt>
+            <dt className="text-slate-500">Sessions</dt>
             <dd className="font-semibold text-slate-800">{selected.snapshot.sessionCount}</dd>
           </div>
           <div>
-            <dt className="text-slate-400">Price</dt>
+            <dt className="text-slate-500">Price</dt>
             <dd className="font-semibold text-slate-800">
               {formatInr(selected.snapshot.pricePaise)}
             </dd>
           </div>
           <div>
-            <dt className="text-slate-400">Valid for</dt>
+            <dt className="text-slate-500">Valid for</dt>
             <dd className="font-semibold text-slate-800">
               {selected.snapshot.validityDays ? `${selected.snapshot.validityDays} days` : "-"}
             </dd>
           </div>
           <div>
-            <dt className="text-slate-400">Each session</dt>
+            <dt className="text-slate-500">Each session</dt>
             <dd className="font-semibold text-slate-800">
               {selected.snapshot.sessionDurationMinutes
                 ? `${selected.snapshot.sessionDurationMinutes} min`

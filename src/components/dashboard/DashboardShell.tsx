@@ -195,7 +195,7 @@ export default function DashboardShell({
     const active = item.href ? pathname === item.href : onBasePage && activeId === item.id;
     const className = `group relative w-full flex items-center gap-3 rounded-xl transition ${
       mini ? "justify-center px-0 py-3" : "px-3.5 py-2.5"
-    } ${active ? "bg-teal-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`;
+    } ${active ? "bg-teal-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`;
     const content = (
       <>
         <i className={`fa-solid ${item.icon} ${mini ? "text-base" : "w-4 text-center text-sm"}`}></i>
@@ -348,7 +348,7 @@ export default function DashboardShell({
               <p className="truncate text-xs font-semibold text-white">{userName}</p>
               <p className="truncate text-[11px] text-slate-400">{userEmail}</p>
               {userCode && (
-                <p className="truncate text-[10px] font-mono font-semibold text-slate-500">{userCode}</p>
+                <p className="truncate text-[10px] font-mono font-semibold text-slate-400">{userCode}</p>
               )}
             </div>
           )}

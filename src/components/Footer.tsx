@@ -100,7 +100,7 @@ export default function Footer({
           </ul>
         </div>
       </div>
-      <div className="border-t border-slate-800 py-4 text-center text-[11px] text-slate-500">
+      <div className="border-t border-slate-800 py-4 text-center text-[11px] text-slate-400">
         © {new Date().getFullYear()} {footerCopyrightText}
       </div>
     </footer>

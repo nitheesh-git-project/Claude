@@ -71,7 +71,7 @@ export default function ListPager({
           aria-label={`How many ${plural} to show per page`}
           className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-teal-400 focus:outline-none"
         />
-        <span className="hidden font-normal text-slate-400 sm:inline">per page</span>
+        <span className="hidden font-normal text-slate-500 sm:inline">per page</span>
         {/* Datalist rather than a select: the field takes any number, and
             these are the sizes people actually pick. */}
         <datalist id="list-pager-sizes">

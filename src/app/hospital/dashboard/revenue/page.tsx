@@ -73,7 +73,7 @@ export default async function Page() {
                   <p className="text-slate-500">
                     {s.concern} - {formatSlotTime(s.slot_time, s.timezone)}
                     {s.session_code && (
-                      <span className="ml-2 font-mono text-slate-400">{s.session_code}</span>
+                      <span className="ml-2 font-mono text-slate-500">{s.session_code}</span>
                     )}
                   </p>
                 </div>
@@ -89,7 +89,7 @@ export default async function Page() {
                     className={`font-semibold px-3 py-1 rounded-full ${
                       s.payment_status === "paid"
                         ? "text-green-700 bg-green-50"
-                        : "text-slate-500 bg-slate-100"
+                        : "text-slate-600 bg-slate-100"
                     }`}
                   >
                     {s.payment_status}

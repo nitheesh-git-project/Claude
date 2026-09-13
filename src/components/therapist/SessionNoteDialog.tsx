@@ -198,13 +198,13 @@ export default function SessionNoteDialog({
                 type="button"
                 onClick={close}
                 aria-label="Close"
-                className="shrink-0 text-2xl leading-none text-slate-400 transition hover:text-slate-700"
+                className="shrink-0 text-2xl leading-none text-slate-500 transition hover:text-slate-700"
               >
                 &times;
               </button>
             </div>
             <p className="mt-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
-              <i aria-hidden className="fa-solid fa-lock mt-0.5 text-[10px] text-slate-400" />
+              <i aria-hidden className="fa-solid fa-lock mt-0.5 text-[10px] text-slate-500" />
               <span>
                 Only you and the clinic&apos;s admin can read this. The patient never sees it - write it the
                 way you would for a colleague covering your next session.

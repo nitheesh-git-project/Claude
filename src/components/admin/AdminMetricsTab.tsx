@@ -44,21 +44,24 @@ import { MONEY_TERMS } from "@/lib/moneyTerms";
 
 export type { MetricsAppointment };
 
-// Single sequential hue reused from PatientProfitChart's already-validated
-// pair (teal-600) - these charts are always single-series (one bar color =
-// magnitude only, never identity), so no categorical pair or legend is
-// needed; the card title names the series.
-const CHART_COLOR = "#0d9488";
+// Single sequential hue - these charts are always single-series (one bar
+// color = magnitude only, never identity), so no categorical pair or legend
+// is needed; the card title names the series. teal-700 rather than the -600
+// PatientProfitChart uses, because these two constants are also printed as
+// text (the conversion figure, the partners' share), and teal-600 on white is
+// 3.7:1 - enough for a bar, short of AA for a number somebody has to read.
+const CHART_COLOR = "#0f766e"; // teal-700
 
-// Four-series palette for the revenue breakdown line chart, chosen the same
-// way as PatientProfitChart's pair: distinct in lightness/hue, colorblind-
-// separable, and readable against a white card. Profit reuses teal (the
-// same "your take" meaning PatientProfitChart already gives it); therapist
-// cut reuses PatientProfitChart's indigo for the same reason.
+// Four-series palette for the revenue breakdown line chart: distinct in
+// lightness/hue, colorblind-separable, and readable against a white card.
+// Profit reuses teal (the same "your take" meaning PatientProfitChart gives
+// it); therapist cut reuses PatientProfitChart's indigo for the same reason.
+// The teal and amber are a shade darker than that chart's, for the reason
+// above - these two are printed as figures as well as drawn as lines.
 const REVENUE_COLOR = "#0f172a"; // slate-900 - the top-line total
 const THERAPIST_CUT_COLOR = "#4f46e5"; // indigo-600
-const HOSPITAL_CUT_COLOR = "#d97706"; // amber-600
-const PROFIT_COLOR = "#0d9488"; // teal-600
+const HOSPITAL_CUT_COLOR = "#b45309"; // amber-700
+const PROFIT_COLOR = "#0f766e"; // teal-700
 
 type Category = { id: string; title: string };
 
@@ -747,7 +750,7 @@ export default function AdminMetricsTab({
     <div className="space-y-6">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Filters</h2>
-        <p className="text-[11px] text-slate-400 mb-4 -mt-2">
+        <p className="text-[11px] text-slate-500 mb-4 -mt-2">
           {view === "delivery"
             ? "Applies to every rate and count below."
             : "Applies to every chart and stat on this screen, including the revenue breakdown below."}
@@ -914,7 +917,7 @@ export default function AdminMetricsTab({
         </div>
 
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Where the money went</h2>
-        <p className="text-[11px] text-slate-400 mb-3">
+        <p className="text-[11px] text-slate-500 mb-3">
           Every figure below is for sessions scheduled in the selected range. Each row subtracts
           from the one above it, so the four add up: net revenue, less the therapists&apos; share,
           less any partner hospital&apos;s share, leaves the clinic&apos;s share.
@@ -1002,7 +1005,7 @@ export default function AdminMetricsTab({
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1 mt-8">
           What it cost to run
         </h2>
-        <p className="text-[11px] text-slate-400 mb-3">
+        <p className="text-[11px] text-slate-500 mb-3">
           Payment fees are worked out automatically from what was collected online. Everything
           else is what has been recorded under Costs for these dates.
         </p>
@@ -1063,7 +1066,7 @@ export default function AdminMetricsTab({
             >
               {formatInr(operating.operatingProfitPaise)}
             </p>
-            <p className="text-[11px] text-slate-400 mt-1">
+            <p className="text-[11px] text-slate-500 mt-1">
               {operating.marginPercent === null
                 ? "Before tax"
                 : `${operating.marginPercent.toFixed(1)}% of net revenue · before tax`}
@@ -1123,7 +1126,7 @@ export default function AdminMetricsTab({
               columns={therapistLedgerColumns}
             />
           </div>
-          <p className="text-[11px] text-slate-400 mb-4">
+          <p className="text-[11px] text-slate-500 mb-4">
             Click a row for the full session-by-session breakdown and to record a payout.
           </p>
           {rangeTherapistLedger.length === 0 ? (
@@ -1163,7 +1166,7 @@ export default function AdminMetricsTab({
                             {formatInr(row.summary.owedPaise)}
                           </span>
                         ) : (
-                          <span className="text-slate-400">₹0</span>
+                          <span className="text-slate-500">₹0</span>
                         )}
                       </td>
                       <td className="py-2 pr-3 font-semibold text-teal-700">
@@ -1189,7 +1192,7 @@ export default function AdminMetricsTab({
               columns={patientLedgerColumns}
             />
           </div>
-          <p className="text-[11px] text-slate-400 mb-4">
+          <p className="text-[11px] text-slate-500 mb-4">
             Click a row to see this patient&apos;s paid transactions in range.
           </p>
           {rangePatientLedger.length === 0 ? (
@@ -1260,7 +1263,7 @@ export default function AdminMetricsTab({
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <p className="text-xs font-bold text-slate-700">Record Payout</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5 max-w-sm">
+                  <p className="text-[11px] text-slate-500 mt-0.5 max-w-sm">
                     Settles this therapist&apos;s full outstanding balance across every unpaid
                     session, not just the range shown below.
                   </p>
@@ -1414,7 +1417,7 @@ export default function AdminMetricsTab({
           <p className="text-base font-bold text-slate-900">
             {noShowRate === null ? "-" : `${noShowRate.toFixed(1)}%`}
           </p>
-          <p className="text-[10px] text-slate-400">{noShowDenominator} completed</p>
+          <p className="text-[10px] text-slate-500">{noShowDenominator} completed</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3 text-center">
           <p className="text-[11px] text-slate-500">Cancellation rate</p>
@@ -1422,7 +1425,7 @@ export default function AdminMetricsTab({
             {cancellationRate === null ? "-" : `${cancellationRate.toFixed(1)}%`}
           </p>
           {cancelledCount > 0 && (
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-slate-500">
               {refundedCount} refunded · {forfeitedCount} forfeited
             </p>
           )}
@@ -1432,7 +1435,7 @@ export default function AdminMetricsTab({
           <p className="text-base font-bold" style={{ color: CHART_COLOR }}>
             {repeatBookingRate === null ? "-" : `${repeatBookingRate.toFixed(1)}%`}
           </p>
-          <p className="text-[10px] text-slate-400">all-time, not date-filtered</p>
+          <p className="text-[10px] text-slate-500">all-time, not date-filtered</p>
         </div>
       </div>
       )}
@@ -1441,7 +1444,7 @@ export default function AdminMetricsTab({
       <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Net revenue trend</h2>
-        <p className="text-[11px] text-slate-400 mb-3">
+        <p className="text-[11px] text-slate-500 mb-3">
           After refunds, by the week or month the session was scheduled in.
         </p>
         <TrendBarChart buckets={buckets} values={money.netRevenuePaise} formatValue={formatInr} />
@@ -1454,7 +1457,7 @@ export default function AdminMetricsTab({
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Revenue Breakdown</h2>
-        <p className="text-[11px] text-slate-400 mb-4">
+        <p className="text-[11px] text-slate-500 mb-4">
           The same four figures as the cards above, period by period: net revenue, the therapists&apos;
           and partners&apos; shares taken out of it, and the clinic&apos;s share left over. The totals
           are the cards&apos; totals - this is where they came from.
@@ -1472,7 +1475,7 @@ export default function AdminMetricsTab({
         />
 
         {money.excludedCount > 0 && (
-          <p className="text-[11px] text-slate-400 mt-3">
+          <p className="text-[11px] text-slate-500 mt-3">
             {money.excludedCount} paid session{money.excludedCount > 1 ? "s" : ""} totalling{" "}
             {formatInr(money.excludedRevenuePaise)} excluded from this breakdown - therapist not
             assigned, their revenue share isn&apos;t set yet, or (for a hospital-referred patient)
@@ -1490,7 +1493,7 @@ export default function AdminMetricsTab({
         {/* Was "Therapist Utilization", which promises a capacity figure this
             platform cannot produce -- it has no record of contracted hours,
             so there is no denominator. It is a count, and now says so. */}
-        <p className="text-[11px] text-slate-400 mb-4">
+        <p className="text-[11px] text-slate-500 mb-4">
           Completed sessions per therapist in range. A count, not a capacity figure - the platform
           doesn&apos;t track contracted working hours, so there is nothing to divide by.
         </p>
@@ -1643,7 +1646,7 @@ function MoneyExplainModal({
                   <td className="py-2 pr-3 text-slate-600">
                     {formatClinicDate(line.slotTime)}
                     {line.visitMode === "home_visit" && (
-                      <span className="ml-1.5 text-[10px] text-slate-400">home visit</span>
+                      <span className="ml-1.5 text-[10px] text-slate-500">home visit</span>
                     )}
                     {line.status !== "completed" && (
                       <span className="ml-1.5 text-[10px] text-amber-600">

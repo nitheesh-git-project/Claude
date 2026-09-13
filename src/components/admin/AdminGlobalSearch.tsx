@@ -97,7 +97,7 @@ export default function AdminGlobalSearch({ entities }: { entities: SearchEntity
   return (
     <div ref={boxRef} className="relative w-full max-w-sm">
       <div className="relative">
-        <i className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></i>
+        <i className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500"></i>
         <input
           ref={inputRef}
           type="search"

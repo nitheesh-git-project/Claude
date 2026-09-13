@@ -108,7 +108,7 @@ export default function ProfileSessionList({
                     className={`capitalize font-semibold px-2.5 py-1 rounded-full ${
                       a.payment_status === "paid"
                         ? "text-green-700 bg-green-50"
-                        : "text-slate-500 bg-slate-100"
+                        : "text-slate-600 bg-slate-100"
                     }`}
                   >
                     {a.payment_status}
@@ -125,7 +125,7 @@ export default function ProfileSessionList({
                 {formatSlotTime(a.slot_time, a.timezone)} • {durationMinutes} min • ₹
                 {(feePaise / 100).toLocaleString("en-IN")}
                 {a.session_code && (
-                  <span className="ml-1 font-mono text-slate-400">• {a.session_code}</span>
+                  <span className="ml-1 font-mono text-slate-500">• {a.session_code}</span>
                 )}
               </p>
               {variant === "patient" && (
@@ -146,7 +146,7 @@ export default function ProfileSessionList({
               )}
               {a.notes && (
                 <p className="text-slate-500">
-                  <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
+                  <span className="font-semibold text-slate-500">Notes:</span> {a.notes}
                 </p>
               )}
               {canManageSessions && isUpcoming && (

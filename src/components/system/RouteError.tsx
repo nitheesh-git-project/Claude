@@ -62,7 +62,7 @@ export default function RouteError({
         </Link>
       </div>
       {error.digest && (
-        <p className="mt-6 font-mono text-[11px] text-slate-400">
+        <p className="mt-6 font-mono text-[11px] text-slate-500">
           Reference {error.digest}
         </p>
       )}

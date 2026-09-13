@@ -248,7 +248,7 @@ export default function AdminLogRetentionTab() {
 
           <Step n={3} title="Download a copy first">
             {!countedForThis || countedForThis.count === 0 ? (
-              <p className="text-xs text-slate-400">Count them first.</p>
+              <p className="text-xs text-slate-500">Count them first.</p>
             ) : !archivedForThis ? (
               <button
                 type="button"
@@ -281,7 +281,7 @@ export default function AdminLogRetentionTab() {
                   columns={archiveColumns}
                   onExported={() => setExported(true)}
                 />
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-500">
                   {exported
                     ? "Copy downloaded. You can clear these entries now."
                     : "Download one of these before the Clear button unlocks."}
@@ -310,7 +310,7 @@ export default function AdminLogRetentionTab() {
                 Clear entries older than {days} days
               </button>
             </div>
-            <p className="mt-2 text-[11px] text-slate-400">
+            <p className="mt-2 text-[11px] text-slate-500">
               Type {CLEAR_CONFIRM_PHRASE} to confirm. This cannot be undone, and the
               clearing is recorded in the log with the cutoff and the number removed.
             </p>

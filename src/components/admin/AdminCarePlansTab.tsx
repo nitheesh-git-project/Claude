@@ -67,11 +67,11 @@ const STATE_STYLE: Record<CarePlanState, string> = {
   pending_review: "bg-indigo-50 text-indigo-700",
   rejected: "bg-rose-50 text-rose-700",
   awaiting_patient: "bg-amber-50 text-amber-700",
-  lapsed: "bg-slate-100 text-slate-500",
+  lapsed: "bg-slate-100 text-slate-600",
   accepted: "bg-teal-50 text-teal-700",
-  declined: "bg-slate-100 text-slate-500",
-  withdrawn: "bg-slate-100 text-slate-500",
-  superseded: "bg-slate-100 text-slate-500",
+  declined: "bg-slate-100 text-slate-600",
+  withdrawn: "bg-slate-100 text-slate-600",
+  superseded: "bg-slate-100 text-slate-600",
 };
 
 /** Matches MIN_REASON_LENGTH in /api/admin/author-care-plan. A reason the
@@ -246,7 +246,7 @@ function PlanCard({ plan, canWithdraw }: { plan: AdminCarePlanRow; canWithdraw: 
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-bold text-slate-900">{plan.patientName}</p>
-          <p className="text-[11px] text-slate-400">Recommended by {plan.therapistName}</p>
+          <p className="text-[11px] text-slate-500">Recommended by {plan.therapistName}</p>
         </div>
         <span
           className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATE_STYLE[plan.state]}`}

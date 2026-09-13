@@ -280,23 +280,23 @@ export default function CarePlanOfferCard({
       {snapshot && (
         <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <dt className="text-[11px] text-slate-400">Sessions</dt>
+            <dt className="text-[11px] text-slate-500">Sessions</dt>
             <dd className="text-sm font-bold text-slate-900">{snapshot.sessionCount}</dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-400">Price</dt>
+            <dt className="text-[11px] text-slate-500">Price</dt>
             <dd className="text-sm font-bold text-slate-900">
               {formatInr(snapshot.pricePaise)}
             </dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-400">How often</dt>
+            <dt className="text-[11px] text-slate-500">How often</dt>
             <dd className="text-sm font-bold text-slate-900">
               {offer.frequencyPerWeek ? `${offer.frequencyPerWeek} a week` : "Flexible"}
             </dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-400">Each session</dt>
+            <dt className="text-[11px] text-slate-500">Each session</dt>
             <dd className="text-sm font-bold text-slate-900">
               {snapshot.sessionDurationMinutes ? `${snapshot.sessionDurationMinutes} min` : "-"}
             </dd>

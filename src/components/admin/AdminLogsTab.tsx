@@ -166,7 +166,7 @@ export default function AdminLogsTab({
             <label className="relative min-w-[220px] flex-1">
               <i
                 aria-hidden
-                className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400"
+                className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-500"
               />
               <input
                 type="search"
@@ -243,7 +243,7 @@ export default function AdminLogsTab({
                 Clear filters
               </button>
             )}
-            <span className="ml-auto text-[11px] text-slate-400">
+            <span className="ml-auto text-[11px] text-slate-500">
               {filtered.length} of {all.length} loaded
             </span>
           </div>
@@ -328,11 +328,11 @@ export default function AdminLogsTab({
               {loading ? "Loading older entries…" : "Load older entries"}
             </button>
           ) : (
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-500">
               That is the whole log - there is nothing older to load.
             </p>
           )}
-          <p className="mt-2 text-[11px] text-slate-400">{LOADED_NOTE}</p>
+          <p className="mt-2 text-[11px] text-slate-500">{LOADED_NOTE}</p>
         </div>
       </div>
 

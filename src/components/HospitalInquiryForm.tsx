@@ -111,7 +111,7 @@ export default function HospitalInquiryForm() {
         <label className="block">
           <span className="block font-semibold mb-1">
             Official Details{" "}
-            <span className="font-normal text-slate-400">(optional)</span>
+            <span className="font-normal text-slate-500">(optional)</span>
           </span>
           <textarea
             name="org_details"

@@ -31,8 +31,8 @@ const GRANT_LABEL: Record<string, string> = {
 const GRANT_STYLE: Record<string, string> = {
   requested: "bg-amber-100 text-amber-700",
   approved: "bg-emerald-100 text-emerald-700",
-  declined: "bg-slate-100 text-slate-500",
-  revoked: "bg-slate-100 text-slate-500",
+  declined: "bg-slate-100 text-slate-600",
+  revoked: "bg-slate-100 text-slate-600",
 };
 
 export default async function TherapistHealthProfilesPage() {
@@ -329,7 +329,7 @@ export default async function TherapistHealthProfilesPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-bold text-slate-800">{p.full_name}</p>
-                        <p className="truncate text-xs text-slate-400">{p.patient_code ?? "-"}</p>
+                        <p className="truncate text-xs text-slate-500">{p.patient_code ?? "-"}</p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
                         {nextSession ? (
@@ -389,7 +389,7 @@ export default async function TherapistHealthProfilesPage() {
                         </p>
                       </div>
                     ) : (
-                      <p className="mt-2 text-[11px] text-slate-400">
+                      <p className="mt-2 text-[11px] text-slate-500">
                         No session notes yet - after their first session with you, what you record shows up
                         here.
                       </p>

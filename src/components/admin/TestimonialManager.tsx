@@ -121,12 +121,12 @@ export default function TestimonialManager({ testimonials }: { testimonials: Tes
                       )}
                     </p>
                     {t.condition_label && (
-                      <p className="text-slate-400 mt-0.5">{t.condition_label}</p>
+                      <p className="text-slate-500 mt-0.5">{t.condition_label}</p>
                     )}
                   </div>
                   <span
                     className={`font-semibold px-2.5 py-1 rounded-full ${
-                      t.active ? "text-teal-700 bg-teal-50" : "text-slate-500 bg-slate-100"
+                      t.active ? "text-teal-700 bg-teal-50" : "text-slate-600 bg-slate-100"
                     }`}
                   >
                     {t.active ? "Active" : "Inactive"}
@@ -134,7 +134,7 @@ export default function TestimonialManager({ testimonials }: { testimonials: Tes
                 </div>
                 <p className="text-slate-600 leading-relaxed">&quot;{t.quote}&quot;</p>
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                  <p className="text-slate-400">Order: {t.display_order}</p>
+                  <p className="text-slate-500">Order: {t.display_order}</p>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setEditingId(t.id)}

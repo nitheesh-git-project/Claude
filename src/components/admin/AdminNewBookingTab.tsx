@@ -231,7 +231,7 @@ export default function AdminNewBookingTab({
               </option>
             ))}
           </select>
-          <p className="mt-1 text-[11px] text-slate-400">
+          <p className="mt-1 text-[11px] text-slate-500">
             A clash with the therapist&apos;s existing sessions is refused - the same check a
             patient&apos;s own booking goes through.
           </p>
@@ -320,7 +320,7 @@ export default function AdminNewBookingTab({
           >
             {isPending ? "Booking…" : "Create booking"}
           </button>
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-slate-500">
             Home visits need an address and a serviceable pincode - book those from the
             patient&apos;s own flow for now.
           </p>

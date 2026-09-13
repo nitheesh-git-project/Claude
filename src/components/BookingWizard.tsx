@@ -761,7 +761,7 @@ export default function BookingWizard({
                   className="w-full p-3 rounded-xl border border-slate-300"
                 />
                 {referralCheck.status === "checking" && (
-                  <p className="text-slate-400 text-xs mt-1">Checking code...</p>
+                  <p className="text-slate-500 text-xs mt-1">Checking code...</p>
                 )}
                 {referralCheck.status === "valid" && (
                   <p className="text-teal-700 font-semibold text-xs mt-1">
@@ -776,7 +776,7 @@ export default function BookingWizard({
                   </p>
                 )}
               </label>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500">
                 Already have an account?{" "}
                 <Link href="/patient/login" className="text-teal-700 font-semibold">
                   Sign in first
@@ -873,7 +873,7 @@ export default function BookingWizard({
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-slate-400 mt-1">
+              <p className="text-[11px] text-slate-500 mt-1">
                 We&apos;ll try to book you with them, subject to availability
                 for your requested time.
               </p>
