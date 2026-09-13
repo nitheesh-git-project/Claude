@@ -29,9 +29,22 @@ declare
   v_raised boolean;
 begin
   -- Fixtures. Distinctive names so a leftover row is obvious.
-  insert into profiles (role, full_name, email)
-  values ('therapist', 'zz roster sql check', 'zz.roster.check@example.invalid')
-  returning id into v_therapist;
+  --
+  -- The auth.users row comes first and supplies the id. `profiles.id` is
+  -- `references auth.users(id)` with no default, so an insert that let the
+  -- column default was refused outright with "null value in column id" --
+  -- this script could not have run against a correctly applied schema, and
+  -- the setup failed before a single check was reached. Minting the id here
+  -- is what the app itself does: every profile is an auth user first.
+  v_therapist := gen_random_uuid();
+  insert into auth.users (id, email) values (v_therapist, 'zz.roster.check@example.invalid');
+  -- handle_new_user already inserted the profile from that auth row (as a
+  -- patient, the way every self-signup starts), so this promotes it rather
+  -- than inserting a second one.
+  insert into profiles (id, role, full_name, email)
+  values (v_therapist, 'therapist', 'zz roster sql check', 'zz.roster.check@example.invalid')
+  on conflict (id) do update
+    set role = excluded.role, full_name = excluded.full_name;
   select id into v_actor from profiles where role = 'admin' limit 1;
 
   -- 1. A null payload is an empty week, not a crash.
@@ -187,6 +200,12 @@ begin
   if v_count <> 0 then
     raise exception 'a deleted therapist left % exception rows', v_count;
   end if;
+
+  -- The auth row this script minted goes too. Check 13 deletes the profile
+  -- on purpose (it is asserting the cascade), which leaves the auth.users
+  -- row behind -- and "cleans up after itself" has to mean both tables, or
+  -- a second run accumulates one orphan per run.
+  delete from auth.users where id = v_therapist;
 
   raise notice 'roster SQL checks passed';
 end $$;

@@ -9532,6 +9532,24 @@ begin
     return null;
   end if;
 
+  -- Serialise the check against any other statement doing the same one.
+  --
+  -- Without this the guard passes both halves of a real race and still ends
+  -- at zero: under READ COMMITTED each transaction's count runs on its own
+  -- snapshot, so two sessions suspending two different Master Admins each
+  -- see the other as still active, each counts one remaining, and both
+  -- commit. Verified -- two concurrent psql sessions left zero active
+  -- Master Admins with the count alone in place.
+  --
+  -- The advisory lock is transaction-scoped, so it is released on commit or
+  -- rollback with nothing to clean up. Taking it makes the second statement
+  -- wait for the first to finish; the count below is then a *new* statement
+  -- taking a fresh snapshot, which is what lets it see the change it was
+  -- racing and refuse. Taken after the `touched` test, so an ordinary
+  -- profile update -- a patient editing their own name -- never queues on
+  -- it.
+  perform pg_advisory_xact_lock(hashtext('profiles_keep_one_master_admin'));
+
   select count(*) into remaining
   from profiles
   where role = 'admin'
