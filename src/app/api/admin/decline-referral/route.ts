@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Atomic claim: the read above could be stale by the time this write
-  // lands — e.g. an admin sends an invite (assign-referral) in the moment
+  // lands - e.g. an admin sends an invite (assign-referral) in the moment
   // between this route's read and write, which would otherwise let this
   // write silently flip status back to 'declined' even though a live
   // invite link now exists for the patient. Requiring status still be in

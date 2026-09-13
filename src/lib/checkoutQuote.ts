@@ -73,7 +73,7 @@ export type CheckoutQuote = {
 
 /**
  * **Unidentified quotes.** `patient_id` may be null, because the booking
- * wizard shows a price to a visitor who has not signed up yet — the account,
+ * wizard shows a price to a visitor who has not signed up yet - the account,
  * the booking and the payment are all created by one tap further down the
  * screen. That is exactly the patient a first-session offer exists for, so
  * quoting them list price and then charging the offer would be the same
@@ -81,8 +81,8 @@ export type CheckoutQuote = {
  *
  * Such a quote answers for a **new** patient, which is what they are about
  * to be: the first-session offer applies, and the three things that need an
- * identity — a goodwill adjustment, an invite half, a promo code's
- * per-patient cap — are simply not part of it. It is never authoritative.
+ * identity - a goodwill adjustment, an invite half, a promo code's
+ * per-patient cap - are simply not part of it. It is never authoritative.
  * The wizard re-quotes against the real appointment once the account exists,
  * and `create-order` resolves everything again under a row lock before a
  * rupee moves.

@@ -316,7 +316,7 @@ export default function AdminAllSessionsTab({
         a,
         patientName: peopleMap.get(a.patient_id) ?? "Unknown",
         therapistName: a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : "Unassigned",
-        categoryTitle: category?.title ?? "—",
+        categoryTitle: category?.title ?? "-",
         price: a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE,
         isVisit: homeVisitMap.has(a.id),
       };
@@ -494,14 +494,14 @@ export default function AdminAllSessionsTab({
             </span>
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Every session and every home visit — upcoming, delivered and cancelled — with
+            Every session and every home visit - upcoming, delivered and cancelled - with
             ratings from both sides. Click a row for the full record.
           </p>
         </div>
         <DataExportButtons
           filename="sessions"
           title="Sessions"
-          subtitle="Every session and home visit passing the filters in view — upcoming, delivered and cancelled."
+          subtitle="Every session and home visit passing the filters in view - upcoming, delivered and cancelled."
           rows={rows}
           columns={exportColumns}
         />
@@ -528,7 +528,7 @@ export default function AdminAllSessionsTab({
                 unassignedVisible === 0
                   ? "All assigned"
                   : statusFilter === "unassigned"
-                    ? "Showing these — tap to clear"
+                    ? "Showing these - tap to clear"
                     : "Tap to see only these",
               accent: unassignedVisible > 0 ? "bg-amber-500" : "bg-emerald-500",
               selected: statusFilter === "unassigned",
@@ -660,9 +660,9 @@ export default function AdminAllSessionsTab({
         </div>
         <p className="mt-2 text-[11px] text-slate-400">
           {filtersActive
-            ? "These filters are remembered on this device — clear them to see everything."
+            ? "These filters are remembered on this device - clear them to see everything."
             : "Filters are remembered on this device, except the date range."}{" "}
-          Unpaid is normal for a cash-on-visit home visit — money changes hands at the door,
+          Unpaid is normal for a cash-on-visit home visit - money changes hands at the door,
           so check the visit itself rather than reading payment status as “never paid”.
         </p>
       </div>
@@ -707,7 +707,7 @@ export default function AdminAllSessionsTab({
                   onClick={() => setSelectedId(a.id)}
                   className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
                 >
-                  <td className="py-2 pr-3 text-slate-400 font-mono">{a.session_code ?? "—"}</td>
+                  <td className="py-2 pr-3 text-slate-400 font-mono">{a.session_code ?? "-"}</td>
                   <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">
                     {a.slot_time
                       ? new Date(a.slot_time).toLocaleDateString("en-IN", {
@@ -716,7 +716,7 @@ export default function AdminAllSessionsTab({
                           year: "numeric",
                           timeZone: "Asia/Kolkata",
                         })
-                      : "—"}
+                      : "-"}
                   </td>
                   <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">
                     {formatSlotRange(a.slot_time, a.duration_minutes ?? BASE_DURATION_MINUTES)}
@@ -782,14 +782,14 @@ export default function AdminAllSessionsTab({
                     {a.patient_rating ? (
                       <Stars rating={a.patient_rating} />
                     ) : (
-                      <span className="text-slate-300">—</span>
+                      <span className="text-slate-300">-</span>
                     )}
                   </td>
                   <td className="py-2 pr-3">
                     {a.therapist_rating ? (
                       <Stars rating={a.therapist_rating} />
                     ) : (
-                      <span className="text-slate-300">—</span>
+                      <span className="text-slate-300">-</span>
                     )}
                   </td>
                   <td className="py-2 pr-3" onClick={(e) => e.stopPropagation()}>

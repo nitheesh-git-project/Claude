@@ -8,7 +8,7 @@ Use these exact values everywhere. Every test in this plan refers to them by lab
 
 **All test accounts use the same password:** `QaTest!2024pass`
 
-> **Before typing any of §8.2–§8.9 in by hand, read this.** A data reset deletes every non-admin account, so the twelve logins below stop existing the moment `SETUP-RESET-001` runs. `npm run seed:qa` recreates all of them with this password, prints both hospitals' referral codes, and can be re-run safely — see §6.2. The two accounts an admin would otherwise mint from the back office (a scoped admin in `ADM-SET-026`, a hospital in `HOS-AUTH-002`) hand out a **generated** password shown once and stored nowhere; the seeder gives them this one instead, which is why `Invalid login credentials` on any account named here is a seeding question before it is a bug.
+> **Before typing any of §8.2–§8.9 in by hand, read this.** A data reset deletes every non-admin account, so the twelve logins below stop existing the moment `SETUP-RESET-001` runs. `npm run seed:qa` recreates all of them with this password, prints both hospitals' referral codes, and can be re-run safely - see §6.2. The two accounts an admin would otherwise mint from the back office (a scoped admin in `ADM-SET-026`, a hospital in `HOS-AUTH-002`) hand out a **generated** password shown once and stored nowhere; the seeder gives them this one instead, which is why `Invalid login credentials` on any account named here is a seeding question before it is a bug.
 
 Where a test needs a *second, different* password (a change-password test), use `QaTest!2024new`.
 
@@ -21,7 +21,7 @@ Where a test needs a *second, different* password (a change-password test), use 
 | **Admin Finance** | `qa.admin.finance@example.test` | `finance` | Proves Sessions and Catalog are blocked. |
 | **Admin Clinical** | `qa.admin.clinical@example.test` | `clinical` | Proves Money, Catalog and Settings are blocked. |
 
-Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated one-time password shown once on that screen** — not `QaTest!2024pass`. Write all three down as you create them: nothing stores an admin's temporary password, so a lost one is reset from the Supabase dashboard under **Authentication → Users**.
+Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated one-time password shown once on that screen** - not `QaTest!2024pass`. Write all three down as you create them: nothing stores an admin's temporary password, so a lost one is reset from the Supabase dashboard under **Authentication → Users**.
 
 ### 8.3 Patients
 
@@ -51,13 +51,13 @@ Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `ac
 | Too-short password | `abc12` (5 characters; minimum is 6) |
 | Mismatched confirm password | Password `QaTest!2024pass`, confirm `QaTest!2024pas` |
 | Invalid phone | `12345` |
-| Invalid PIN code | `0560038` (leading zero — the pattern requires `[1-9]` first) and `56003` (5 digits) |
+| Invalid PIN code | `0560038` (leading zero - the pattern requires `[1-9]` first) and `56003` (5 digits) |
 | Unknown referral code | `ZZZZZZ` |
 | Contact-leak **block** text | `Pay me on UPI 9876543210@okhdfc instead` |
 | Contact-leak **flag** text | `Call me on 9876543210` |
 | Clinical text that must **not** flag | `Grade III PA mobilisation ×3 sets, 30s hold. Repeat 10 reps, twice daily.` |
 
-### 8.4 Clinical answers — Orthopaedic (Patient A)
+### 8.4 Clinical answers - Orthopaedic (Patient A)
 
 The orthopaedic intake is **seven questions**. Question keys are fixed and globally unique.
 
@@ -71,7 +71,7 @@ The orthopaedic intake is **seven questions**. Question keys are fixed and globa
 | What helps or relieves it? | `helps` | `Walking, and lying flat for ten minutes` |
 | Anything else the therapist should know? | `notes` | `I work at a desk nine hours a day. No previous surgery.` |
 
-### 8.5 Clinical answers — Neurological (Patient C)
+### 8.5 Clinical answers - Neurological (Patient C)
 
 All neurological keys are prefixed `neuro_`.
 
@@ -85,9 +85,9 @@ All neurological keys are prefixed `neuro_`.
 | Falls in the last three months? | `neuro_falls` | `One` |
 | What would you most like to be able to do again? | `neuro_goal` | `Walk to the end of my street without help` |
 
-### 8.6 Clinical answers — Paediatric (Patient D, if used)
+### 8.6 Clinical answers - Paediatric (Patient D, if used)
 
-Paediatric keys are prefixed `peds_`. **The two caregiver fields are a pre-step, not part of the seven-question count** — the answered counter must never include them.
+Paediatric keys are prefixed `peds_`. **The two caregiver fields are a pre-step, not part of the seven-question count** - the answered counter must never include them.
 
 | Question | Key | Answer |
 | --- | --- | --- |
@@ -110,9 +110,9 @@ Triage is four questions. Its answers are stored separately from the patient's o
 | How old is the patient? | `18 to 64` | `65 or older` |
 | What brought them in? | `Injury, strain or overuse` | `After a stroke, brain or spinal injury` |
 | Any of these present? | `None of these` | `Weakness on one side` + `Difficulty with balance or walking` |
-| Any concern about milestones…? | *(not shown — only appears when age is `Under 18`)* | *(not shown)* |
+| Any concern about milestones…? | *(not shown - only appears when age is `Under 18`)* | *(not shown)* |
 
-Expected suggestion: **Orthopaedic** for Patient A, **Neurological** for Patient C. The suggestion is shown with its reason and is **never auto-accepted** — the therapist confirms.
+Expected suggestion: **Orthopaedic** for Patient A, **Neurological** for Patient C. The suggestion is shown with its reason and is **never auto-accepted** - the therapist confirms.
 
 ### 8.8 Therapists
 
@@ -127,10 +127,10 @@ Expected suggestion: **Orthopaedic** for Patient A, **Neurological** for Patient
 | Experience | `9 years` | `12 years` | `5 years` |
 | Bio | `Works with desk-based patients on posture-driven back pain.` | `Post-stroke gait and balance retraining.` | `Early-intervention paediatric care.` |
 | Revenue share % (set by admin) | `60` | `55` | `50` |
-| Home-visit revenue share % | `65` | *(leave unset — must fall back to 60/55)* | *(unset)* |
+| Home-visit revenue share % | `65` | *(leave unset - must fall back to 60/55)* | *(unset)* |
 | Weekly schedule | Mon–Fri `09:00–13:00` and `14:00–18:00` | Mon–Fri `10:00–16:00` | Tue/Thu `09:00–12:00` |
-| Date exception | `2026-09-15`: `14:00–18:00` only, reason `Clinic audit in the morning` | — | — |
-| Leave dates | — | — | `2026-09-14` to `2026-09-18`, reason `Annual leave` |
+| Date exception | `2026-09-15`: `14:00–18:00` only, reason `Clinic audit in the morning` | - | - |
+| Leave dates | - | - | `2026-09-14` to `2026-09-18`, reason `Annual leave` |
 | Timezone | Whatever the browser reports; the roster header states it | same | same |
 
 ### 8.9 Hospitals / partners
@@ -144,7 +144,7 @@ Expected suggestion: **Orthopaedic** for Patient A, **Neurological** for Patient
 | Address | `18 Airport Road` | `5 Lake View Street` |
 | City / State / PIN | `Bengaluru` / `Karnataka` / `560017` | `Bengaluru` / `Karnataka` / `560034` |
 | Revenue share % | `10` | `12` |
-| Referral code | Generated at onboarding — **write it down**, Patient C needs it | Generated at onboarding |
+| Referral code | Generated at onboarding - **write it down**, Patient C needs it | Generated at onboarding |
 
 **Referral payload (Hospital A → Patient C)**
 
@@ -172,7 +172,7 @@ Negative values for validation tests: Price `0`, Price `-100`, Price `abc`, Sess
 
 ### 8.11 Session packages (programmes)
 
-Create in **Catalog → Packages**. Every one of these has `session_count ≥ 2`, so **none of them is directly purchasable** — they can only reach a patient through a care plan. That is the rule under test, not a limitation of the fixtures.
+Create in **Catalog → Packages**. Every one of these has `session_count ≥ 2`, so **none of them is directly purchasable** - they can only reach a patient through a care plan. That is the rule under test, not a limitation of the fixtures.
 
 | Field | **Package P1** | **Package P2** | **Package P3 (consultation)** |
 | --- | --- | --- | --- |
@@ -183,10 +183,10 @@ Create in **Catalog → Packages**. Every one of these has `session_count ≥ 2`
 | What We Promise (one per line) | `The same therapist every session` / `A written home programme` / `Progress measured, not guessed` | `The same therapist every session` / `Gait retraining` / `Family guidance` | `A full assessment` |
 | Sessions Included | `6` | `8` | `1` |
 | Bundle Price (₹) | `9999` | `17999` | `1999` |
-| Compare-at Price (₹) | *(blank — auto-computes from the category price)* | *(blank)* | *(blank)* |
+| Compare-at Price (₹) | *(blank - auto-computes from the category price)* | *(blank)* | *(blank)* |
 | Therapist Pay Basis | `Discounted package price` | `Category list price` | `Discounted package price` |
 | Validity (days) | `90` | `120` | `30` |
-| Session Duration (min) | *(blank — inherits 60)* | *(blank)* | *(blank)* |
+| Session Duration (min) | *(blank - inherits 60)* | *(blank)* | *(blank)* |
 | Minimum gap between sessions (hours) | `24` | `48` | *(blank)* |
 | Maximum sessions per week | `3` | `2` | *(blank)* |
 | Maximum purchases per patient | `2` | `1` | *(blank)* |
@@ -209,7 +209,7 @@ Create in **Catalog → Packages** (home-visit section).
 
 | Field | **HV1 (consultation)** | **HV2 (programme)** |
 | --- | --- | --- |
-| Package Name | `QA Home Visit — Single` | `QA Home Visit Recovery — 4 Visits` |
+| Package Name | `QA Home Visit - Single` | `QA Home Visit Recovery - 4 Visits` |
 | Subtitle | `One visit at your door` | `Four visits over a month` |
 | Description | `A single home assessment.` | `A four-visit home rehabilitation block.` |
 | Benefits (one per line) | `A physiotherapist at your door` / `Full assessment` | `The same therapist each visit` / `Family training` |
@@ -267,12 +267,12 @@ Create small dummy files locally. Content does not matter; the filename and type
 
 | Text | Expected tier | Where to enter it |
 | --- | --- | --- |
-| `Pay me directly on 9876543210@okhdfc, it's cheaper` | **block** — the write is refused | Therapist's care-plan *Why this, for this patient* |
+| `Pay me directly on 9876543210@okhdfc, it's cheaper` | **block** - the write is refused | Therapist's care-plan *Why this, for this patient* |
 | `https://rzp.io/l/abcd1234 pay here` | **block** | Therapist's suggestion note |
-| `Call me on 9876543210 before the session` | **flag** — delivered, and recorded | Therapist's suggestion note |
+| `Call me on 9876543210 before the session` | **flag** - delivered, and recorded | Therapist's suggestion note |
 | `Email me at therapist@example.test` | **flag** | Care-plan *Anything they should do or know* |
-| `Grade III PA mobilisation ×3 sets, 30s hold. 10 reps, 2× daily. Order ref 90210.` | **no hit** — clinical text with digits must not fire | Session note |
-| `Call me on 9876543210` written by the **patient** | **record only** — never blocked | Patient's booking notes on `/book` |
+| `Grade III PA mobilisation ×3 sets, 30s hold. 10 reps, 2× daily. Order ref 90210.` | **no hit** - clinical text with digits must not fire | Session note |
+| `Call me on 9876543210` written by the **patient** | **record only** - never blocked | Patient's booking notes on `/book` |
 
 ### 8.17 Admin settings this plan assumes
 
@@ -280,7 +280,7 @@ Unless a test says otherwise, leave every setting at its default. The four that 
 
 | Setting | Default | Note |
 | --- | --- | --- |
-| **Therapist-Suggested Sessions** | **on** on a fresh database | Needed by `THR-SUGG-*` and `PAT-SUGG-*`. On a database that predates the change it stays at its old value — **confirm the toggle before running those tests** |
+| **Therapist-Suggested Sessions** | **on** on a fresh database | Needed by `THR-SUGG-*` and `PAT-SUGG-*`. On a database that predates the change it stays at its old value - **confirm the toggle before running those tests** |
 | **Assign a Therapist Automatically** | **off** | `ADM-SET-021` switches it on; several booking tests assume the queue behaviour while it is off |
 | **Session Balances From The Ledger** | **off** | `ADM-SET-019` |
 | **Home Visit** | **off** | `ADM-SET-013` switches it on for the home-visit journey |

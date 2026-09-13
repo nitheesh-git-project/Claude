@@ -206,7 +206,7 @@ export default function SessionNoteDialog({
             <p className="mt-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
               <i aria-hidden className="fa-solid fa-lock mt-0.5 text-[10px] text-slate-400" />
               <span>
-                Only you and the clinic&apos;s admin can read this. The patient never sees it — write it the
+                Only you and the clinic&apos;s admin can read this. The patient never sees it - write it the
                 way you would for a colleague covering your next session.
               </span>
             </p>
@@ -217,7 +217,7 @@ export default function SessionNoteDialog({
             )}
             {locked && (
               <p className="mt-2 text-[11px] font-semibold text-slate-500">
-                This note is locked — it was written more than 24 hours ago.
+                This note is locked - it was written more than 24 hours ago.
               </p>
             )}
           </div>

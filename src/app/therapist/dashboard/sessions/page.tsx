@@ -38,7 +38,7 @@ export default async function Page() {
     <TherapistDashboardShell
       data={d}
       title="Sessions"
-      subtitle="Everything assigned to you — video consultations and home visits together."
+      subtitle="Everything assigned to you - video consultations and home visits together."
     >
       <SurfaceCard title="Assigned sessions" icon="fa-clipboard-list">
         <SessionsView
@@ -46,7 +46,7 @@ export default async function Page() {
           cardsById={cardsById}
           nowMs={d.nowMs}
           emptyTitle="Nothing assigned yet"
-          emptyBody="Keep your weekly availability up to date — the clinic assigns bookings into the hours you have open."
+          emptyBody="Keep your weekly availability up to date - the clinic assigns bookings into the hours you have open."
         />
       </SurfaceCard>
     </TherapistDashboardShell>

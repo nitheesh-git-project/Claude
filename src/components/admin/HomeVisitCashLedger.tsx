@@ -244,7 +244,7 @@ function TherapistCashCard({
       {ageDays !== null && (
         <p className={`mt-1 ${ageDays >= 7 ? "font-semibold text-red-600" : "text-slate-400"}`}>
           Oldest uncollected: {ageDays} day{ageDays === 1 ? "" : "s"} ago
-          {ageDays >= 7 && " — follow up"}
+          {ageDays >= 7 && " - follow up"}
         </p>
       )}
 
@@ -257,7 +257,7 @@ function TherapistCashCard({
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-2.5"
             >
               <span className="text-slate-600">
-                <span className="font-mono">{v.session_code ?? "—"}</span>
+                <span className="font-mono">{v.session_code ?? "-"}</span>
                 {v.slot_time && ` · ${formatSlotTime(v.slot_time, v.timezone)}`}
                 {" · "}
                 <span className="font-semibold text-slate-800">
@@ -331,7 +331,7 @@ export default function HomeVisitCashLedger({
           </p>
           <p className="mt-1 text-xs text-red-700">
             These visits were cancelled after cash was already collected. There is no automatic way
-            to return cash — hand it back to the patient, then clear it below.
+            to return cash - hand it back to the patient, then clear it below.
           </p>
           <ul className="mt-3 space-y-2">
             {refundPage.map((v) => (
@@ -340,7 +340,7 @@ export default function HomeVisitCashLedger({
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-2.5 text-xs"
               >
                 <span className="text-slate-700">
-                  <span className="font-mono">{v.session_code ?? "—"}</span> · {v.patientName} ·{" "}
+                  <span className="font-mono">{v.session_code ?? "-"}</span> · {v.patientName} ·{" "}
                   <span className="font-semibold">{formatInr(v.refund_amount_paise ?? v.cash_collected_amount_paise ?? 0)}</span>
                 </span>
                 <MarkRefundReturnedButton

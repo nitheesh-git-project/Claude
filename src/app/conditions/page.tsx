@@ -12,10 +12,10 @@ import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 export const metadata: Metadata = {
   title: "Conditions Treated | Dr. Pooja's Physio",
   description:
-    "Back, neck, knee, posture, sports and mobility problems — each with a defined assessment and a structured programme behind it.",
+    "Back, neck, knee, posture, sports and mobility problems - each with a defined assessment and a structured programme behind it.",
 };
 
-// No per-user content on this page — cache and revalidate on a timer
+// No per-user content on this page - cache and revalidate on a timer
 // instead of hitting Supabase on every single visit.
 export const revalidate = 300;
 

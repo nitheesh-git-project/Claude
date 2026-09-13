@@ -70,7 +70,7 @@ export default function EditBookingForm({
     // Lets a parent (e.g. the session detail drawer) close itself or clear
     // its own snapshot of this appointment instead of continuing to show
     // stale pre-reassignment data after router.refresh() re-renders behind
-    // it — refresh() alone doesn't reconcile client-side state that was
+    // it - refresh() alone doesn't reconcile client-side state that was
     // captured at click-time.
     onSaved?.();
   }
@@ -131,7 +131,7 @@ export default function EditBookingForm({
       {/* Same calendar and hour cells as the patient's own booking screen, so
           one control means one thing everywhere. The lead time is zero here
           on purpose: this moves a session that already exists, which is the
-          admin override lane rather than a booking — the same reasoning that
+          admin override lane rather than a booking - the same reasoning that
           exempts an admin from complete-session's gates. It still cannot
           reach into the past. */}
       <AdminSlotPicker

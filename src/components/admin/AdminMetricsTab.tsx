@@ -45,7 +45,7 @@ import { MONEY_TERMS } from "@/lib/moneyTerms";
 export type { MetricsAppointment };
 
 // Single sequential hue reused from PatientProfitChart's already-validated
-// pair (teal-600) — these charts are always single-series (one bar color =
+// pair (teal-600) - these charts are always single-series (one bar color =
 // magnitude only, never identity), so no categorical pair or legend is
 // needed; the card title names the series.
 const CHART_COLOR = "#0d9488";
@@ -55,7 +55,7 @@ const CHART_COLOR = "#0d9488";
 // separable, and readable against a white card. Profit reuses teal (the
 // same "your take" meaning PatientProfitChart already gives it); therapist
 // cut reuses PatientProfitChart's indigo for the same reason.
-const REVENUE_COLOR = "#0f172a"; // slate-900 — the top-line total
+const REVENUE_COLOR = "#0f172a"; // slate-900 - the top-line total
 const THERAPIST_CUT_COLOR = "#4f46e5"; // indigo-600
 const HOSPITAL_CUT_COLOR = "#d97706"; // amber-600
 const PROFIT_COLOR = "#0d9488"; // teal-600
@@ -76,13 +76,13 @@ function toDateInputValue(d: Date) {
   return istDateKey(d.toISOString());
 }
 
-// Pinned to a fixed timeZone (not left to the runtime's local zone) —
+// Pinned to a fixed timeZone (not left to the runtime's local zone) -
 // this component is always mounted server-side first, so an unpinned zone
 // can render a different date string on the server (SSR) vs the admin's
 // browser (hydration), the same hydration-mismatch class of bug already
 // fixed elsewhere in this codebase (e.g. AdminCalendarTab, AdminRosterTab).
 function formatShortDate(iso: string | null) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return new Date(iso).toLocaleDateString("en-IN", {
     day: "numeric",
     month: "short",
@@ -147,7 +147,7 @@ function TrendBarChart({
       <EmptyState
         icon="fa-chart-column"
         title="No data in this range"
-        body="Widen the date range or clear a filter — nothing was delivered in the window you picked."
+        body="Widen the date range or clear a filter - nothing was delivered in the window you picked."
       />
     );
   }
@@ -216,7 +216,7 @@ function TrendLineChart({
       <EmptyState
         icon="fa-chart-column"
         title="No data in this range"
-        body="Widen the date range or clear a filter — nothing was delivered in the window you picked."
+        body="Widen the date range or clear a filter - nothing was delivered in the window you picked."
       />
     );
   }
@@ -270,7 +270,7 @@ function TrendLineChart({
           {series.map((s) =>
             s.values.map((v, i) => (
               <circle key={`${s.label}-${i}`} cx={xFor(i)} cy={yFor(v)} r={3} fill={s.color}>
-                <title suppressHydrationWarning>{`${s.label} — ${buckets[i].label}: ${formatValue(v)}`}</title>
+                <title suppressHydrationWarning>{`${s.label} - ${buckets[i].label}: ${formatValue(v)}`}</title>
               </circle>
             ))
           )}
@@ -340,9 +340,9 @@ export default function AdminMetricsTab({
   // Which slice of this component to render. The maths is identical for all
   // three and is deliberately computed once:
   //
-  //   "summary"     — how much money (totals, trends, the revenue split)
-  //   "breakdown"   — who and what earned it (per-therapist, per-patient)
-  //   "delivery"    — how well it went (no-show, cancellation, repeat rate,
+  //   "summary"     - how much money (totals, trends, the revenue split)
+  //   "breakdown"   - who and what earned it (per-therapist, per-patient)
+  //   "delivery"    - how well it went (no-show, cancellation, repeat rate,
   //                   session counts per therapist)
   //
   // Delivery lives under Sessions, not Money: a no-show rate is a question
@@ -396,7 +396,7 @@ export default function AdminMetricsTab({
     );
   }
 
-  // Parsed with an explicit +05:30 (IST) offset, not local time —
+  // Parsed with an explicit +05:30 (IST) offset, not local time -
   // "YYYY-MM-DDT00:00:00" without a zone suffix parses as the *runtime's*
   // local time, which differs between the server (SSR) and the admin's
   // browser (hydration), shifting these bucket boundaries by the timezone
@@ -414,7 +414,7 @@ export default function AdminMetricsTab({
     [appointments, categoryFilter, therapistFilter, patientFilter]
   );
 
-  // The one range filter every chart and stat on this tab shares — buckets,
+  // The one range filter every chart and stat on this tab shares - buckets,
   // revenue, bookings, no-shows, cancellations, utilization, and the money
   // breakdown below all key off this exact same array, so picking a From/To
   // range (or a Category/Therapist/Patient filter) means the same thing
@@ -554,7 +554,7 @@ export default function AdminMetricsTab({
   // nobody can date is worthless -- so the range in view is printed on it.
   const rangeSubtitle = `Sessions dated ${fromDate} to ${toDate}.`;
 
-  // Therapist Ledger — scoped to the same date range as everything else on
+  // Therapist Ledger - scoped to the same date range as everything else on
   // this tab (a session counts here if its slot_time falls in range,
   // regardless of when it was actually settled). Rows with zero activity
   // in range are dropped so a 30-day view doesn't list every therapist
@@ -592,13 +592,13 @@ export default function AdminMetricsTab({
     0
   );
 
-  // The real, unfiltered owed balance per therapist — deliberately computed
+  // The real, unfiltered owed balance per therapist - deliberately computed
   // over the FULL `appointments` array, not inRangeBySlot. settle-therapist-
   // payout always settles a therapist's entire outstanding balance
   // server-side (there's no date-scoped settlement); if the Pay button in
   // the ledger modal below were fed the date-filtered owed amount instead,
   // an admin could see "Pending: ₹X" for the selected range, click Pay, and
-  // have the server actually settle a larger all-time amount — the modal
+  // have the server actually settle a larger all-time amount - the modal
   // would have shown one number and charged another. Keeping this separate
   // means the button here always tells the truth about what it's about to do.
   const allTimeOwedByTherapist = useMemo(() => {
@@ -637,7 +637,7 @@ export default function AdminMetricsTab({
     return total;
   }, [therapists, appointments, therapistSharePercent, therapistHomeVisitSharePercent, nowMs]);
 
-  // Patient Ledger — same date-range scoping, only counting sessions that
+  // Patient Ledger - same date-range scoping, only counting sessions that
   // were actually paid for (an unpaid/requested booking isn't spend yet).
   const rangePatientLedger = useMemo(() => {
     return patients
@@ -882,7 +882,7 @@ export default function AdminMetricsTab({
                 note:
                   operating.totalCostsPaise > 0
                     ? `After ${formatInr(operating.totalCostsPaise)} of running costs`
-                    : "No running costs recorded — this is a ceiling",
+                    : "No running costs recorded - this is a ceiling",
                 accent: operating.operatingProfitPaise >= 0 ? "bg-emerald-500" : "bg-red-500",
                 valueClass:
                   operating.operatingProfitPaise < 0 ? "text-red-600" : "text-slate-800",
@@ -905,7 +905,7 @@ export default function AdminMetricsTab({
               {
                 label: "Package cash collected",
                 value: formatInr(packageRevenuePaise),
-                note: "Paid up front — revenue counts it session by session",
+                note: "Paid up front - revenue counts it session by session",
                 accent: "bg-slate-300",
                 scopeNote: "These dates",
               },
@@ -988,7 +988,7 @@ export default function AdminMetricsTab({
             <strong>{money.excludedCount}</strong> paid session
             {money.excludedCount === 1 ? "" : "s"} worth{" "}
             <strong>{formatInr(money.excludedRevenuePaise)}</strong> are counted in net revenue but
-            left out of the three shares — the therapist has no revenue share set, or the patient
+            left out of the three shares - the therapist has no revenue share set, or the patient
             came from a partner whose share is not configured. Set those percentages in People and
             the figures complete themselves.
           </p>
@@ -1039,7 +1039,7 @@ export default function AdminMetricsTab({
             note={
               rangeExpenses.length > 0
                 ? `${rangeExpenses.length} entr${rangeExpenses.length === 1 ? "y" : "ies"} in this range`
-                : "Nothing recorded — add costs under Money → Costs"
+                : "Nothing recorded - add costs under Money → Costs"
             }
           />
           <div
@@ -1074,7 +1074,7 @@ export default function AdminMetricsTab({
         {operating.recordedExpensesPaise === 0 && (
           <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
             Operating profit only counts the costs it knows about. With nothing recorded for these
-            dates it is really <strong>clinic share less payment fees</strong> — a ceiling, not the
+            dates it is really <strong>clinic share less payment fees</strong> - a ceiling, not the
             true figure. Record salaries, rent and software under{" "}
             <strong>Money → Costs</strong> to make it real.
           </p>
@@ -1336,7 +1336,7 @@ export default function AdminMetricsTab({
             <EmptyState
               icon="fa-indian-rupee-sign"
               title="No paid transactions in this range"
-              body="Only settled payments count here — pending or failed attempts are on Transactions."
+              body="Only settled payments count here - pending or failed attempts are on Transactions."
             />
           ) : (
             <div className="overflow-x-auto">
@@ -1357,7 +1357,7 @@ export default function AdminMetricsTab({
                         {formatShortDate(t.date)}
                       </td>
                       <td className="py-2 pr-3 text-slate-500 font-mono text-[11px]">
-                        {t.transactionId ?? "—"}
+                        {t.transactionId ?? "-"}
                       </td>
                       <td className="py-2 pr-3 font-semibold text-slate-800">{t.therapistName}</td>
                       <td className="py-2 pr-3 font-semibold text-slate-900">
@@ -1412,14 +1412,14 @@ export default function AdminMetricsTab({
         <div className="bg-slate-50 rounded-xl p-3 text-center">
           <p className="text-[11px] text-slate-500">No-show rate</p>
           <p className="text-base font-bold text-slate-900">
-            {noShowRate === null ? "—" : `${noShowRate.toFixed(1)}%`}
+            {noShowRate === null ? "-" : `${noShowRate.toFixed(1)}%`}
           </p>
           <p className="text-[10px] text-slate-400">{noShowDenominator} completed</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3 text-center">
           <p className="text-[11px] text-slate-500">Cancellation rate</p>
           <p className="text-base font-bold text-slate-900">
-            {cancellationRate === null ? "—" : `${cancellationRate.toFixed(1)}%`}
+            {cancellationRate === null ? "-" : `${cancellationRate.toFixed(1)}%`}
           </p>
           {cancelledCount > 0 && (
             <p className="text-[10px] text-slate-400">
@@ -1430,7 +1430,7 @@ export default function AdminMetricsTab({
         <div className="bg-teal-50 rounded-xl p-3 text-center">
           <p className="text-[11px] text-slate-500">Repeat-booking rate</p>
           <p className="text-base font-bold" style={{ color: CHART_COLOR }}>
-            {repeatBookingRate === null ? "—" : `${repeatBookingRate.toFixed(1)}%`}
+            {repeatBookingRate === null ? "-" : `${repeatBookingRate.toFixed(1)}%`}
           </p>
           <p className="text-[10px] text-slate-400">all-time, not date-filtered</p>
         </div>
@@ -1457,7 +1457,7 @@ export default function AdminMetricsTab({
         <p className="text-[11px] text-slate-400 mb-4">
           The same four figures as the cards above, period by period: net revenue, the therapists&apos;
           and partners&apos; shares taken out of it, and the clinic&apos;s share left over. The totals
-          are the cards&apos; totals — this is where they came from.
+          are the cards&apos; totals - this is where they came from.
         </p>
 
         <TrendLineChart
@@ -1474,10 +1474,10 @@ export default function AdminMetricsTab({
         {money.excludedCount > 0 && (
           <p className="text-[11px] text-slate-400 mt-3">
             {money.excludedCount} paid session{money.excludedCount > 1 ? "s" : ""} totalling{" "}
-            {formatInr(money.excludedRevenuePaise)} excluded from this breakdown — therapist not
+            {formatInr(money.excludedRevenuePaise)} excluded from this breakdown - therapist not
             assigned, their revenue share isn&apos;t set yet, or (for a hospital-referred patient)
             the referring hospital&apos;s revenue share isn&apos;t set yet, so no split is
-            knowable. Still counted in net revenue above — only the split leaves them out.
+            knowable. Still counted in net revenue above - only the split leaves them out.
           </p>
         )}
       </div>
@@ -1491,7 +1491,7 @@ export default function AdminMetricsTab({
             platform cannot produce -- it has no record of contracted hours,
             so there is no denominator. It is a count, and now says so. */}
         <p className="text-[11px] text-slate-400 mb-4">
-          Completed sessions per therapist in range. A count, not a capacity figure — the platform
+          Completed sessions per therapist in range. A count, not a capacity figure - the platform
           doesn&apos;t track contracted working hours, so there is nothing to divide by.
         </p>
         {therapistUtilization.length === 0 ? (
@@ -1647,7 +1647,7 @@ function MoneyExplainModal({
                     )}
                     {line.status !== "completed" && (
                       <span className="ml-1.5 text-[10px] text-amber-600">
-                        {line.status ?? "—"}
+                        {line.status ?? "-"}
                       </span>
                     )}
                   </td>
@@ -1676,7 +1676,7 @@ function MoneyExplainModal({
             <tfoot>
               <tr className="border-t-2 border-slate-300">
                 <td className="py-2 pr-3 font-bold text-slate-700" colSpan={4}>
-                  {rows.length} session{rows.length === 1 ? "" : "s"} — this is the figure on the
+                  {rows.length} session{rows.length === 1 ? "" : "s"} - this is the figure on the
                   card
                 </td>
                 <td className="py-2 text-right font-bold text-slate-900">{formatInr(total)}</td>

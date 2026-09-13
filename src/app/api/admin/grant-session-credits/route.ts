@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "This package was refunded. Granting sessions onto it would leave the refund describing something that no longer happened — create a new grant instead.",
+          "This package was refunded. Granting sessions onto it would leave the refund describing something that no longer happened - create a new grant instead.",
       },
       { status: 409 }
     );

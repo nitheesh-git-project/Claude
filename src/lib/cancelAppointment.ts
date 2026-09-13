@@ -12,7 +12,7 @@ type CancelResult =
 /**
  * Cancels an upcoming appointment and, if it was paid, refunds the exact
  * amount charged via Razorpay (or gives a package-booked session back to
- * the patient's balance) — used by both the patient-facing and
+ * the patient's balance) - used by both the patient-facing and
  * admin-facing cancel routes so this logic only lives in one place.
  * Takes a service-role client since it writes fields (status, refund_*)
  * that have no client-side update policy.
@@ -30,7 +30,7 @@ export async function cancelAppointmentAndRefund(
     reason?: string | null;
     // Admin-only escape hatch (see /api/admin/cancel-appointment) for the
     // rare case where a session was marked completed, its cash payout was
-    // settled, and then it was reopened by mistake — cancelling it can't
+    // settled, and then it was reopened by mistake - cancelling it can't
     // touch cash that's already left the building, so this doesn't attempt
     // to reconcile therapist_payout_*; it just lets the admin free the slot
     // and record the cancellation, on the understanding that recovering the
@@ -60,7 +60,7 @@ export async function cancelAppointmentAndRefund(
   // payout needs manual recovery.
   if (appointment.therapist_payout_paid_at && !overridePayoutSettled) {
     return {
-      error: "This session's payout has already been settled — please contact the clinic to cancel it.",
+      error: "This session's payout has already been settled - please contact the clinic to cancel it.",
       status: 400,
       payoutSettled: true,
     };
@@ -68,7 +68,7 @@ export async function cancelAppointmentAndRefund(
 
   // A directly-paid session has a razorpay_payment_id on the appointment
   // itself. A package-booked session has payment_status 'paid' too, but the
-  // money moved on the *package purchase*, not this appointment — there's
+  // money moved on the *package purchase*, not this appointment - there's
   // nothing here for Razorpay to refund; instead the session gets given
   // back to the package's balance (unless it's a late cancellation, same
   // forfeit rule as money).
@@ -115,7 +115,7 @@ export async function cancelAppointmentAndRefund(
   }
 
   // Missing slot_time shouldn't happen for a real, paid booking, but if it
-  // ever does there's no way to judge lateness — don't penalize for a data
+  // ever does there's no way to judge lateness - don't penalize for a data
   // gap that isn't the patient's fault.
   const hoursUntilSlot = appointment.slot_time
     ? (new Date(appointment.slot_time).getTime() - Date.now()) / (1000 * 60 * 60)
@@ -144,7 +144,7 @@ export async function cancelAppointmentAndRefund(
   // strand: no refund record, no reminder, no trace.
   const willRefundCashManually = cashAlreadyCollected && !isLateCancellation;
 
-  // Atomically claim the cancellation — only succeeds if the appointment is
+  // Atomically claim the cancellation - only succeeds if the appointment is
   // still in an upcoming state. Closes the race where two concurrent cancel
   // requests (double-click past the button's disabled guard, two open
   // tabs, or a patient and admin cancelling the same session around the
@@ -180,7 +180,7 @@ export async function cancelAppointmentAndRefund(
   });
 
   // Give the package session back. Best-effort compare-and-swap on the
-  // purchase row — if it loses a race against another cancellation on the
+  // purchase row - if it loses a race against another cancellation on the
   // same package, the session simply doesn't get restored rather than
   // risking a double-restore; the appointment's own cancellation above is
   // already safely claimed regardless.
@@ -282,7 +282,7 @@ export async function cancelAppointmentAndRefund(
       });
       refundId = refund.id;
     } catch (err) {
-      // The cancellation itself is already committed (claimed above) — a
+      // The cancellation itself is already committed (claimed above) - a
       // refund failure here doesn't roll that back, since the slot is
       // legitimately freed either way. It just needs manual follow-up.
       console.error("Refund failed for appointment", appointmentId, err);
@@ -339,7 +339,7 @@ export async function cancelAppointmentAndRefund(
             refund_amount_paise: appointment.cash_collected_amount_paise ?? 0,
             refunded_at: decidedAt,
             refund_reason: refundReasonFor(
-              "Cancelled outside the refund window — cash was collected at the visit, so there is no card payment to reverse"
+              "Cancelled outside the refund window - cash was collected at the visit, so there is no card payment to reverse"
             ),
           }
         : isLateWithMoneyAtStake

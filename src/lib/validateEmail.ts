@@ -1,6 +1,6 @@
 // Stricter-than-HTML5 email validation, run at submit time on the
 // account-creation forms. HTML5's type="email" pattern is much looser than
-// this (e.g. it accepts consecutive dots, single-label domains) — this
+// this (e.g. it accepts consecutive dots, single-label domains) - this
 // mirrors what mailbox providers actually reject.
 const LOCAL_PART_RE = /^[A-Za-z0-9.!#$%&'*+/=?^_{}|~-]+$/;
 const DOMAIN_LABEL_RE = /^[A-Za-z0-9-]+$/;

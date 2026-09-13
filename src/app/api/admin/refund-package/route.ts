@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
   const refundableCount = purchase.session_count - (completedCount ?? 0);
   if (refundableCount <= 0) {
     return NextResponse.json(
-      { error: "Every session on this package has already been completed — nothing to refund." },
+      { error: "Every session on this package has already been completed - nothing to refund." },
       { status: 400 }
     );
   }
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
   }
   if (!claimed) {
     return NextResponse.json(
-      { error: "This package was already refunded or changed concurrently — please refresh." },
+      { error: "This package was already refunded or changed concurrently - please refresh." },
       { status: 409 }
     );
   }
@@ -139,12 +139,12 @@ export async function POST(request: NextRequest) {
       console.error("Failed to revert package purchase claim after Razorpay refund failure", purchaseId, revertError);
     }
     return NextResponse.json(
-      { error: "The refund could not be processed by Razorpay. Nothing was changed — please retry." },
+      { error: "The refund could not be processed by Razorpay. Nothing was changed - please retry." },
       { status: 502 }
     );
   }
 
-  // Refund succeeded — now close out the purchase and free any sessions
+  // Refund succeeded - now close out the purchase and free any sessions
   // it still had scheduled.
   const { data: futureAppointments } = await admin
     .from("appointments")
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
     .eq("id", purchaseId);
 
   if (updateError) {
-    // The Razorpay refund already happened and can't be undone here — log
+    // The Razorpay refund already happened and can't be undone here - log
     // loudly for manual reconciliation rather than pretending this failed
     // outright.
     console.error(

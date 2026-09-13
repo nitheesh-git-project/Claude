@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       .from("condition_access_grants")
       .update({
         status: "revoked",
-        admin_notes: "Automatically revoked — another therapist's access request for this patient was approved.",
+        admin_notes: "Automatically revoked - another therapist's access request for this patient was approved.",
         decided_by: adminUser.id,
         decided_at: new Date().toISOString(),
       })

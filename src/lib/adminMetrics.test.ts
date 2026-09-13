@@ -111,7 +111,7 @@ function run(appointments: MetricsAppointment[]) {
   };
 }
 
-describe("moneyByBucketFor — the two identities", () => {
+describe("moneyByBucketFor - the two identities", () => {
   it("holds net = gross - refunds, and clinic = splittable - therapist - hospital", () => {
     const r = run([
       appointment({ id: "s1" }),
@@ -144,7 +144,7 @@ describe("moneyByBucketFor — the two identities", () => {
   });
 });
 
-describe("moneyByBucketFor — correction 1: a share is earned by delivering", () => {
+describe("moneyByBucketFor - correction 1: a share is earned by delivering", () => {
   it("counts a completed paid session toward the therapist's cut", () => {
     const r = run([appointment({ id: "s1" })]);
     // 199900 * 60%
@@ -188,7 +188,7 @@ describe("moneyByBucketFor — correction 1: a share is earned by delivering", (
   });
 });
 
-describe("moneyByBucketFor — correction 2: travel is the therapist's, never revenue", () => {
+describe("moneyByBucketFor - correction 2: travel is the therapist's, never revenue", () => {
   it("adds a home visit's travel fee to the cut without adding it to gross", () => {
     const r = run([
       appointment({
@@ -234,7 +234,7 @@ describe("moneyByBucketFor — correction 2: travel is the therapist's, never re
   });
 });
 
-describe("moneyByBucketFor — correction 3: refunds reverse the partner, not the therapist", () => {
+describe("moneyByBucketFor - correction 3: refunds reverse the partner, not the therapist", () => {
   it("takes the partner's commission on net, so a refund reverses it", () => {
     const delivered = run([
       appointment({ id: "s4", patient_id: PATIENT_REFERRED, amount_paid_paise: 249900 }),
@@ -265,7 +265,7 @@ describe("moneyByBucketFor — correction 3: refunds reverse the partner, not th
   });
 });
 
-describe("moneyByBucketFor — correction 4: unknowable is excluded, never guessed", () => {
+describe("moneyByBucketFor - correction 4: unknowable is excluded, never guessed", () => {
   it("excludes a session whose therapist has no revenue share set", () => {
     const r = run([appointment({ id: "s5", therapist_id: THERAPIST_NO_SHARE })]);
     // Money is money: revenue still counts it.
@@ -301,7 +301,7 @@ describe("moneyByBucketFor — correction 4: unknowable is excluded, never guess
   });
 });
 
-describe("moneyByBucketFor — what falls outside the range or the rules", () => {
+describe("moneyByBucketFor - what falls outside the range or the rules", () => {
   it("ignores an unpaid session entirely", () => {
     const r = run([appointment({ id: "u1", payment_status: "unpaid" })]);
     expect(r).toMatchObject({ gross: 0, net: 0, excludedCount: 0 });
@@ -342,7 +342,7 @@ describe("moneyByBucketFor — what falls outside the range or the rules", () =>
   });
 });
 
-describe("moneyByBucketFor — the whole reference dataset", () => {
+describe("moneyByBucketFor - the whole reference dataset", () => {
   // The seven rows from §16.1 of the manual test plan, so the figures a
   // tester checks by hand against the Money screens are pinned here too.
   const dataset: MetricsAppointment[] = [

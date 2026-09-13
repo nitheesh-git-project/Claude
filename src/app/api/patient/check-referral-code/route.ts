@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 // Public, unauthenticated lookup so the signup form can tell a patient
 // immediately whether a referral code they typed is real, instead of
-// silently dropping it if it's wrong (the old behavior — the signup
+// silently dropping it if it's wrong (the old behavior - the signup
 // trigger just leaves referred_by_hospital_id null on no match).
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code")?.trim();

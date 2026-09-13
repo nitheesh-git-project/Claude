@@ -42,9 +42,9 @@ const DATE_TIME = formatter({
 /** An unreadable or missing date renders as a dash rather than
  *  "Invalid Date", which is a developer's string on a patient's screen. */
 function safe(value: string | number | Date | null | undefined, f: Intl.DateTimeFormat) {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return "-";
   const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "-";
   return f.format(date);
 }
 

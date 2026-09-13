@@ -183,7 +183,7 @@ export default function BookingWizard({
 
   useEffect(() => {
     // Reads the browser's detected timezone, which is only known once
-    // mounted on the client — there's no way to get this during render.
+    // mounted on the client - there's no way to get this during render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
@@ -209,7 +209,7 @@ export default function BookingWizard({
               setSignedInRole(profile.role as NonPatientRole);
             }
           }
-          // Best-effort "book with the same therapist again" — a fresh
+          // Best-effort "book with the same therapist again" - a fresh
           // account or a fetch failure just means the option doesn't show.
           fetch("/api/patient/previous-therapists")
             .then((res) => (res.ok ? res.json() : { therapists: [] }))
@@ -218,7 +218,7 @@ export default function BookingWizard({
         }
       })
       .catch(() => {
-        // Not logged in / session check failed — proceed as a guest booking.
+        // Not logged in / session check failed - proceed as a guest booking.
       })
       .finally(() => setCheckingAuth(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -561,7 +561,7 @@ export default function BookingWizard({
           ? `${formatInr(selectedCategory.price_paise)} INR • ${
               selectedCategory.duration_minutes
             }-Min HD Video Call & Custom Rehab Plan`
-          : "HD Video Call & Custom Rehab Plan — pricing shown once you pick a concern"}
+          : "HD Video Call & Custom Rehab Plan - pricing shown once you pick a concern"}
       </p>
     </div>
   );
@@ -766,13 +766,13 @@ export default function BookingWizard({
                 {referralCheck.status === "valid" && (
                   <p className="text-teal-700 font-semibold text-xs mt-1">
                     <i className="fa-solid fa-circle-check mr-1"></i>
-                    Valid — referred by {referralCheck.hospitalName ?? "your partner hospital"}
+                    Valid - referred by {referralCheck.hospitalName ?? "your partner hospital"}
                   </p>
                 )}
                 {referralCheck.status === "invalid" && (
                   <p className="text-red-600 font-semibold text-xs mt-1">
                     <i className="fa-solid fa-circle-exclamation mr-1"></i>
-                    Code not recognized — double-check it or leave blank
+                    Code not recognized - double-check it or leave blank
                   </p>
                 )}
               </div>
@@ -792,7 +792,7 @@ export default function BookingWizard({
             </label>
             {categories.length === 0 ? (
               <p className="text-xs text-red-600">
-                No condition categories are available right now — please
+                No condition categories are available right now - please
                 contact us directly to book.
               </p>
             ) : (
@@ -802,11 +802,11 @@ export default function BookingWizard({
                 className="w-full p-3 rounded-xl border border-slate-300 bg-white"
               >
                 <option value="" disabled>
-                  — Select what you need help with —
+                  - Select what you need help with -
                 </option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.title} — {formatInr(c.price_paise)} / {c.duration_minutes} min
+                    {c.title} - {formatInr(c.price_paise)} / {c.duration_minutes} min
                   </option>
                 ))}
               </select>
@@ -866,7 +866,7 @@ export default function BookingWizard({
                 onChange={(e) => setPreferredTherapistId(e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-300 bg-white"
               >
-                <option value="">No preference — any available specialist</option>
+                <option value="">No preference - any available specialist</option>
                 {previousTherapists.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.full_name}
@@ -948,7 +948,7 @@ export default function BookingWizard({
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">Language</span>
-              <span className="font-bold text-slate-900">{language || "—"}</span>
+              <span className="font-bold text-slate-900">{language || "-"}</span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">Concern</span>
@@ -961,7 +961,7 @@ export default function BookingWizard({
                   ? `${formatInr(quote.listPricePaise)} INR`
                   : selectedCategory
                     ? `${formatInr(selectedCategory.price_paise)} INR`
-                    : "—"}
+                    : "-"}
               </span>
             </div>
             {quote && quote.discountPaise > 0 && (
@@ -1010,7 +1010,7 @@ export default function BookingWizard({
           <p className="text-xs text-slate-500">
             <i className="fa-solid fa-lock text-teal-600 mr-1"></i>
             {quote?.free
-              ? "Nothing to pay — your discount covers this session in full. Your slot is held once you confirm."
+              ? "Nothing to pay - your discount covers this session in full. Your slot is held once you confirm."
               : "Secure payment via Razorpay. Your slot is held once payment is confirmed."}
           </p>
           <p className="text-xs text-slate-500">
@@ -1053,7 +1053,7 @@ export default function BookingWizard({
               {loading
                 ? "Please wait..."
                 : quote?.free
-                  ? "Confirm booking — free"
+                  ? "Confirm booking - free"
                   : appointmentId
                     ? `Pay ${formatInr(quote?.totalPaise ?? selectedCategory?.price_paise ?? 0)} Now`
                     : "Request Booking"}
@@ -1069,14 +1069,14 @@ export default function BookingWizard({
             failedAttempts > 0 &&
             failedAttempts < MAX_ATTEMPTS_BEFORE_ESCAPE && (
               <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-600">
-                Nothing was lost — your booking is saved and still held as unpaid. You can try
+                Nothing was lost - your booking is saved and still held as unpaid. You can try
                 again above, or pay later from your dashboard.
               </p>
             )}
           {appointmentId && failedAttempts >= MAX_ATTEMPTS_BEFORE_ESCAPE && (
             <div className="text-xs text-center bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 space-y-2">
               <p>
-                Having trouble paying? Your booking is saved as pending — you
+                Having trouble paying? Your booking is saved as pending - you
                 can come back and pay any time from your dashboard.
               </p>
               <Link

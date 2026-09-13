@@ -32,7 +32,7 @@ export default function AccountSecuritySection({ email }: { email: string }) {
       {error && <p className="text-red-600">{error}</p>}
       {sent ? (
         <p className="text-teal-700 bg-teal-50 border border-teal-200 rounded-lg p-3">
-          Check your inbox — we&apos;ve sent a link to {email} to set a new
+          Check your inbox - we&apos;ve sent a link to {email} to set a new
           password.
         </p>
       ) : (
@@ -46,7 +46,7 @@ export default function AccountSecuritySection({ email }: { email: string }) {
         </button>
       )}
       <p className="text-[11px] text-slate-400">
-        To change your email address, please contact us — this keeps your
+        To change your email address, please contact us - this keeps your
         sign-in secure.
       </p>
     </div>

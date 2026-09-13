@@ -85,7 +85,7 @@ export default function InviteCard({
       }
       setMessage(
         data.welcomePaise > 0
-          ? `Done — ${formatInr(data.welcomePaise)} comes off your first session.`
+          ? `Done - ${formatInr(data.welcomePaise)} comes off your first session.`
           : "Done."
       );
       setEntry("");

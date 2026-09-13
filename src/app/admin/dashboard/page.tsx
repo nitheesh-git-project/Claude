@@ -280,7 +280,7 @@ export default async function AdminDashboardPage({
       .eq("status", "pending")
       .order("created_at", { ascending: false }),
 
-    // Includes suspended (active: false) therapists deliberately — the
+    // Includes suspended (active: false) therapists deliberately - the
     // reassign-existing-session form (EditBookingForm, used by the Calendar
     // and Session Story tabs) must always be able to show whoever a session
     // is CURRENTLY assigned to, even if they were suspended after the fact,
@@ -1037,7 +1037,7 @@ export default async function AdminDashboardPage({
 
   const onLeaveMap = new Map((onLeaveRows ?? []).map((r) => [r.id, r.on_leave]));
   // This single query feeds Overview, Calendar, Session Story, and Metrics
-  // all at once — if it fails (e.g. a column referenced here doesn't exist
+  // all at once - if it fails (e.g. a column referenced here doesn't exist
   // yet because a schema.sql update wasn't re-run), every one of those tabs
   // would otherwise silently render as "no bookings" with no indication
   // anything is actually wrong. Log it loudly instead of swallowing it.
@@ -1146,7 +1146,7 @@ export default async function AdminDashboardPage({
 
 
   // Revenue rollup per hospital: every paid session belonging to a patient
-  // this hospital referred (either channel — invite-link or self-serve
+  // this hospital referred (either channel - invite-link or self-serve
   // code, both set referred_by_hospital_id) counts toward their payout.
   const hospitalRevenue = new Map<
     string,
@@ -1163,7 +1163,7 @@ export default async function AdminDashboardPage({
     };
     entry.paidSessions += 1;
     // Falls back to the current session fee only for older paid rows from
-    // before amount_paid_paise existed — every payment since then records
+    // before amount_paid_paise existed - every payment since then records
     // exactly what was charged, so this never drifts as pricing changes.
     entry.totalRevenue += (appt.amount_paid_paise ?? SESSION_FEE_PAISE) / 100;
     hospitalRevenue.set(hospitalId, entry);
@@ -1182,7 +1182,7 @@ export default async function AdminDashboardPage({
   }
 
   // Per-category performance: how many bookings each condition category
-  // has gotten, and how much revenue it's actually brought in — useful now
+  // has gotten, and how much revenue it's actually brought in - useful now
   // that price varies by category instead of every booking being worth
   // the same flat fee.
   const categoryStats = new Map<
@@ -1250,7 +1250,7 @@ export default async function AdminDashboardPage({
             here to be allowed to buy their first session. */}
         <p className="-mt-2 mb-4 max-w-2xl text-xs leading-relaxed text-slate-500">
           Therapists here are waiting on a credentials check. Patients here registered without
-          booking — a patient who starts a payment is approved automatically, so approving one
+          booking - a patient who starts a payment is approved automatically, so approving one
           from this list only affects what they can see, never whether they can pay.
         </p>
         {!pendingAccounts || pendingAccounts.length === 0 ? (
@@ -1426,7 +1426,7 @@ export default async function AdminDashboardPage({
                   {lead.org_details && (
                     <>
                       {" "}
-                      — <span className="text-slate-500">Details:</span>{" "}
+                      - <span className="text-slate-500">Details:</span>{" "}
                       {lead.org_details}
                     </>
                   )}
@@ -1538,7 +1538,7 @@ export default async function AdminDashboardPage({
                     <div>
                       <p className="text-slate-400">Conversion Rate</p>
                       <p className="font-bold text-slate-900">
-                        {conversionRate === null ? "—" : `${conversionRate.toFixed(0)}%`}
+                        {conversionRate === null ? "-" : `${conversionRate.toFixed(0)}%`}
                       </p>
                       <p className="text-slate-400">
                         {referralStats.converted}/{referralStats.total} referrals
@@ -1557,7 +1557,7 @@ export default async function AdminDashboardPage({
                             ₹{hospitalCut.toFixed(2)}
                           </p>
                           {isSuspended && (
-                            <p className="text-red-600">Stopped — suspended</p>
+                            <p className="text-red-600">Stopped - suspended</p>
                           )}
                         </div>
                         <div>
@@ -1712,13 +1712,13 @@ export default async function AdminDashboardPage({
                   </div>
                   <p className="text-slate-600">
                     <strong>{r.medical_issue}</strong>
-                    {r.treatment_needed && <> — {r.treatment_needed}</>}
+                    {r.treatment_needed && <> - {r.treatment_needed}</>}
                   </p>
                   {assignedTherapist ? (
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <p className="text-slate-500 flex items-center gap-2 flex-wrap">
                         Assigned to:{" "}
-                        <strong>{assignedTherapist.full_name}</strong> —{" "}
+                        <strong>{assignedTherapist.full_name}</strong> -{" "}
                         {formatSlotTime(r.assigned_slot_time, "Asia/Kolkata")}
                         {slotHasPassed && (
                           <span className="font-bold uppercase text-red-700 bg-red-100 px-2 py-0.5 rounded-full text-[10px]">
@@ -2163,7 +2163,7 @@ export default async function AdminDashboardPage({
         </h2>
         {!treatmentCategories || treatmentCategories.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">
-            No categories yet — add one in Site Content to start tracking bookings.
+            No categories yet - add one in Site Content to start tracking bookings.
           </p>
         ) : (
           <PagedList
@@ -2348,7 +2348,7 @@ export default async function AdminDashboardPage({
     packageId: p.package_id,
     packageTitle: packageTitleMap.get(p.package_id) ?? "Session Package",
     categoryId: p.category_id,
-    categoryTitle: categoryTitleMap.get(p.category_id) ?? "—",
+    categoryTitle: categoryTitleMap.get(p.category_id) ?? "-",
     therapistId: p.locked_therapist_id,
     therapistName: p.locked_therapist_id ? profileMap.get(p.locked_therapist_id)?.full_name ?? "Unknown therapist" : null,
     sessionCount: p.session_count,
@@ -2388,7 +2388,7 @@ export default async function AdminDashboardPage({
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Home Visit Packages</h2>
         <p className="text-xs text-slate-500 mb-4">
           Bundles of visits delivered at the patient&apos;s address. Different fields from the
-          online packages above — visits rather than sessions, and travel is part of the deal —
+          online packages above - visits rather than sessions, and travel is part of the deal -
           so they keep their own editor while living on the same screen.
         </p>
         <HomeVisitPackageManager
@@ -2484,7 +2484,7 @@ export default async function AdminDashboardPage({
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Home Visit Purchases</h2>
         <p className="text-xs text-slate-500 mb-4">
           The same thing for visits at the patient&apos;s address. A cash-on-visit purchase sits
-          at &ldquo;unpaid&rdquo; for its whole life by design — check the payment mode before
+          at &ldquo;unpaid&rdquo; for its whole life by design - check the payment mode before
           reading that as money owed.
         </p>
         <HomeVisitPurchasesTable
@@ -2502,7 +2502,7 @@ export default async function AdminDashboardPage({
       <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Service Areas</h2>
       <p className="text-xs text-slate-500 mb-4">
         Which pincodes home visits can be sold in, and the travel fee each one carries. The
-        waitlist below is demand from outside those areas — a request for this list to grow.
+        waitlist below is demand from outside those areas - a request for this list to grow.
       </p>
       <HomeVisitAreaManager
         areas={(homeVisitAreas ?? []).map((a) => ({
@@ -3505,7 +3505,7 @@ export default async function AdminDashboardPage({
           count: manualRefundsPending,
           section: "money",
           tab: "payouts",
-          hint: "Money a patient is owed with no card payment to reverse — hand it over, then confirm it here.",
+          hint: "Money a patient is owed with no card payment to reverse - hand it over, then confirm it here.",
           urgent: true,
         },
         {
@@ -3557,7 +3557,7 @@ export default async function AdminDashboardPage({
           count: googleMeetSyncIssues.length,
           section: "settings",
           tab: "health",
-          hint: "Confirmed sessions with no Meet link — the patient has no way in.",
+          hint: "Confirmed sessions with no Meet link - the patient has no way in.",
           urgent: true,
         },
         {

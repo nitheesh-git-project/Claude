@@ -5,7 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Wipes one side's submitted rating/feedback so they can be prompted to
-// re-rate (e.g. a therapist fat-fingered 5 stars instead of 2). Admin-only —
+// re-rate (e.g. a therapist fat-fingered 5 stars instead of 2). Admin-only -
 // there's no self-service edit once submitted, by design, so a wrong rating
 // can only be corrected through this.
 export async function POST(request: NextRequest) {

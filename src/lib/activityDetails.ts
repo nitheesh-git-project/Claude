@@ -97,7 +97,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z?)?/;
 
 /** A value, formatted for reading rather than for parsing. */
 export function humaniseValue(key: string, value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "boolean") return value ? "Yes" : "No";
 
   if (typeof value === "number") {
@@ -203,5 +203,5 @@ export function readableDetails(
  *  worth saying "was not set" rather than printing a dash that reads as a
  *  missing record. */
 export function isFirstValue(change: ActivityChange): boolean {
-  return change.from === null || change.from === "—";
+  return change.from === null || change.from === "-";
 }

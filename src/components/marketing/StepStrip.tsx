@@ -15,8 +15,8 @@ export type Step = {
  *
  * Replaces the scroll-driven step scroller on /how-it-works. That component
  * showed one step at a time and animated between them, which meant a visitor
- * asking the page's actual question — "how long does this take and what do I
- * have to do?" — could not see the answer at once. Four photographs in a row
+ * asking the page's actual question - "how long does this take and what do I
+ * have to do?" - could not see the answer at once. Four photographs in a row
  * answer it in a glance and still read as four rows on a phone.
  */
 export default function StepStrip({ steps }: { steps: Step[] }) {

@@ -12,7 +12,7 @@ import {
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 
 // The amount is always resolved here, server-side, from the appointment's
-// linked category price (or the flat base fee) — never trust an amount
+// linked category price (or the flat base fee) - never trust an amount
 // sent from the browser, or anyone could pay whatever they want.
 
 export async function POST(request: NextRequest) {
@@ -112,14 +112,14 @@ export async function POST(request: NextRequest) {
   // minting a new one. Without this, "Pay Now" on a retry (e.g. the browser
   // closed before /api/razorpay/verify fired for an order the patient
   // actually paid) would create a second Razorpay order and overwrite
-  // razorpay_order_id — orphaning the first, already-successful payment
+  // razorpay_order_id - orphaning the first, already-successful payment
   // with no link back to it, and risking a genuine double-charge if the
   // patient completes checkout again.
   if (appointment.razorpay_order_id) {
     try {
       const priorOrder = await razorpay.orders.fetch(appointment.razorpay_order_id);
       if (priorOrder.status === "paid") {
-        // Razorpay already has a successful payment for this order — our
+        // Razorpay already has a successful payment for this order - our
         // own /verify callback just never landed. Trust Razorpay's own
         // order status (this is a server-to-server lookup, not
         // client-supplied data) and record the payment now rather than
@@ -160,11 +160,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           alreadyPaid: true,
           error:
-            "This booking was already paid for in a previous attempt — no need to pay again. Refreshing your booking status.",
+            "This booking was already paid for in a previous attempt - no need to pay again. Refreshing your booking status.",
         });
       }
       if (priorOrder.status === "created" || priorOrder.status === "attempted") {
-        // Not paid yet, not expired — reuse the same order rather than
+        // Not paid yet, not expired - reuse the same order rather than
         // abandoning it for a fresh one the patient could end up paying
         // twice for.
         return NextResponse.json({
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
       }
     } catch (err) {
       // Prior order lookup failed (e.g. it's old enough Razorpay no longer
-      // has it) — fall through and mint a fresh one below rather than
+      // has it) - fall through and mint a fresh one below rather than
       // blocking the patient from paying at all.
       console.error("Failed to re-check prior Razorpay order", appointment.razorpay_order_id, err);
     }
@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
       {
         free: true,
         totalPaise: quote.totalPaise,
-        error: "This booking is free — confirm it without paying.",
+        error: "This booking is free - confirm it without paying.",
       },
       { status: 409 }
     );
@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
 
   if (updateError) {
     // If this doesn't save, /api/razorpay/verify's order-id match check
-    // would reject an otherwise-legitimate payment later — fail now,
+    // would reject an otherwise-legitimate payment later - fail now,
     // before the patient is sent to checkout, rather than after they pay.
     console.error("Failed to save razorpay_order_id for appointment", appointmentId, updateError);
     return NextResponse.json(

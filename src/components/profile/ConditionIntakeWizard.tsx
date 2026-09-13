@@ -272,7 +272,7 @@ export default function ConditionIntakeWizard({
         // its resting label and said nothing: a clinician was left
         // believing a clinical record had saved when it had not. Never
         // clear the answers here; the person keeps exactly what they typed.
-        setError("Could not reach the clinic — check your connection and try again. Nothing you typed has been lost.");
+        setError("Could not reach the clinic - check your connection and try again. Nothing you typed has been lost.");
       } finally {
         // Released on failure so they can retry. On success the dialog has
         // already closed and unmounted.
@@ -364,8 +364,8 @@ export default function ConditionIntakeWizard({
                     </span>
                     <span>
                       {clinician
-                        ? "One question at a time — record their answer in their own words."
-                        : "One question at a time — answer in your own words, no medical terms needed."}
+                        ? "One question at a time - record their answer in their own words."
+                        : "One question at a time - answer in your own words, no medical terms needed."}
                     </span>
                   </li>
                   <li className="flex gap-2">
@@ -403,8 +403,8 @@ export default function ConditionIntakeWizard({
                   {question.required
                     ? "Needed"
                     : clinician
-                      ? "Optional — leave it if they're not sure"
-                      : "Optional — skip it if you're not sure"}
+                      ? "Optional - leave it if they're not sure"
+                      : "Optional - skip it if you're not sure"}
                 </p>
                 {question.helpText && (
                   <p className="mt-3 rounded-xl bg-teal-50/70 px-3.5 py-3 text-sm leading-relaxed text-teal-900">
@@ -549,8 +549,8 @@ export default function ConditionIntakeWizard({
               <div className="space-y-3">
                 <p className="text-sm text-slate-600">
                   {clinician
-                    ? "Check this over with the patient before you send it. It goes onto their chart straight away — no waiting on a review — and opens their health profile to them."
-                    : "Here's what you told us. Change anything that doesn't look right, then send it in — the clinic checks it before it goes on your record."}
+                    ? "Check this over with the patient before you send it. It goes onto their chart straight away - no waiting on a review - and opens their health profile to them."
+                    : "Here's what you told us. Change anything that doesn't look right, then send it in - the clinic checks it before it goes on your record."}
                 </p>
                 {missingRequiredKeys.length > 0 && (
                   <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-800">
@@ -561,7 +561,7 @@ export default function ConditionIntakeWizard({
                         return (q?.shortLabel ?? q?.label ?? key).toLowerCase();
                       })
                       .join(", ")}
-                    . Tap Edit on those to fill them in — everything else is already saved.
+                    . Tap Edit on those to fill them in - everything else is already saved.
                   </p>
                 )}
                 {questions.map((q, index) => (
@@ -663,7 +663,7 @@ export default function ConditionIntakeWizard({
  *  score and the good end of an independence score. */
 function scaleEnds(question: IntakeQuestion): [string, string] {
   const match = question.label.match(/\(\s*0\s*=\s*([^,]+),\s*10\s*=\s*([^)]+)\)/i);
-  if (match) return [`0 — ${match[1].trim()}`, `10 — ${match[2].trim()}`];
+  if (match) return [`0 - ${match[1].trim()}`, `10 - ${match[2].trim()}`];
   return ["0", "10"];
 }
 
@@ -680,7 +680,7 @@ export function AnswerPreview({ question, value }: { question: IntakeQuestion; v
           .map((a) => {
             const label = PAIN_MAP_REGIONS.find((r) => r.key === a.region)?.label ?? a.region;
             const base = `${label}${a.side !== "na" ? ` (${a.side})` : ""}: ${a.pain}/10`;
-            return a.note ? `${base} — "${a.note}"` : base;
+            return a.note ? `${base} - "${a.note}"` : base;
           })
           .join(", ")}
       </>

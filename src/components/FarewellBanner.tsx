@@ -17,7 +17,7 @@ export default function FarewellBanner({
   const router = useRouter();
   const pathname = usePathname();
   // Read straight from the URL on first render instead of via an effect +
-  // setState — avoids the extra cascading render, and this only ever needs
+  // setState - avoids the extra cascading render, and this only ever needs
   // to reflect whatever query param the page loaded with.
   //
   // window.location, not just useSearchParams: the pages this banner lands
@@ -60,7 +60,7 @@ export default function FarewellBanner({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-3 text-xs">
         <span>
           <i className="fa-solid fa-heart mr-1.5"></i>
-          Sad to see you go! You&apos;ve been signed out — we hope to see you back
+          Sad to see you go! You&apos;ve been signed out - we hope to see you back
           soon.
         </span>
         <button

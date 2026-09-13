@@ -9,7 +9,7 @@ import TherapistProgrammePatients, {
  * My Patients, by person or by programme.
  *
  * Programmes was its own sidebar entry, but a programme is a package
- * patient's arc of care — the same people, grouped by purchase instead of
+ * patient's arc of care - the same people, grouped by purchase instead of
  * by name. Two entries meant a therapist had to know which of the two
  * lists a given patient lived in before they could look anything up. Same
  * rule as Sessions: one destination, a view switch on top.
@@ -67,7 +67,7 @@ export default function TherapistPatientsView({
       ) : (
         <>
           <p className="mb-3 text-xs text-slate-500">
-            Package purchases locked to you for their whole programme — tap one for the full
+            Package purchases locked to you for their whole programme - tap one for the full
             completed/upcoming/pending picture.
           </p>
           <TherapistProgrammePatients

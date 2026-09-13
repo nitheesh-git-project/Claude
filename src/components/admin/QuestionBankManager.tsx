@@ -12,7 +12,7 @@ import {
 } from "@/lib/conditionSpecialty";
 
 // Global question-bank management for both Patient Care Intake and Pain
-// Map — lives once at the Patient Conditions tab level (not per-patient;
+// Map - lives once at the Patient Conditions tab level (not per-patient;
 // this is config, not patient data), self-fetching like
 // ConditionDetailContent so the tab's own big Promise.all in
 // admin/dashboard/page.tsx doesn't grow for something this page-local.

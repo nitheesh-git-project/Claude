@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   }
   if (body.rows.length > MAX_ROWS) {
     return NextResponse.json(
-      { error: `That's more than ${MAX_ROWS.toLocaleString("en-IN")} rows — narrow the filters, or use the CSV.` },
+      { error: `That's more than ${MAX_ROWS.toLocaleString("en-IN")} rows - narrow the filters, or use the CSV.` },
       { status: 400 }
     );
   }

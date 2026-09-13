@@ -67,7 +67,7 @@ const STEPS: Step[] = [
     title: "Get assessed on camera",
     short: "60 minutes with a licensed specialist",
     detail:
-      "A full movement assessment over HD video — range-of-motion testing, posture screening and pain-response checks, measured in the room where your pain actually happens.",
+      "A full movement assessment over HD video - range-of-motion testing, posture screening and pain-response checks, measured in the room where your pain actually happens.",
     bullets: [
       "Guided range-of-motion testing",
       "Posture and gait screening",
@@ -81,7 +81,7 @@ const STEPS: Step[] = [
     title: "Rehab from your room",
     short: "A plan built for your space",
     detail:
-      "Video-guided exercises prescribed around the chair, bed and floor space you actually have — then reviewed and progressed at every follow-up rather than handed over once.",
+      "Video-guided exercises prescribed around the chair, bed and floor space you actually have - then reviewed and progressed at every follow-up rather than handed over once.",
     bullets: [
       "Video-guided daily exercises",
       "Fitted to your home setup",

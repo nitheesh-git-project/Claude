@@ -166,7 +166,7 @@ export default function HomeVisitPurchasesTable({
                   onClick={() => setOpenPurchaseId(p.id)}
                   className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
                 >
-                  <td className="py-2 pr-3 font-mono text-slate-500">{p.purchaseCode ?? "—"}</td>
+                  <td className="py-2 pr-3 font-mono text-slate-500">{p.purchaseCode ?? "-"}</td>
                   <td className="py-2 pr-3">
                     <p className="font-semibold text-slate-800">{p.patientName}</p>
                     <p className="text-slate-400 font-mono">{p.patientCode ?? ""}</p>
@@ -181,7 +181,7 @@ export default function HomeVisitPurchasesTable({
                   </td>
                   <td className="py-2 pr-3">{p.paymentMode === "cash_on_visit" ? "Cash" : "Prepaid"}</td>
                   <td className="py-2 pr-3 capitalize">{p.status}</td>
-                  <td className="py-2 pr-3">{p.expiresAt ? formatClinicDate(p.expiresAt) : "—"}</td>
+                  <td className="py-2 pr-3">{p.expiresAt ? formatClinicDate(p.expiresAt) : "-"}</td>
                 </tr>
               ))
             )}

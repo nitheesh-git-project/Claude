@@ -180,7 +180,7 @@ export function hasBlockingLeak(findings: LeakFinding[]): boolean {
 export function blockingLeakMessage(findings: LeakFinding[]): string {
   const kinds = [...new Set(findings.filter((f) => f.tier === "block").map((f) => f.kind))];
   const named = kinds.map((k) => LEAK_KIND_LABELS[k].toLowerCase()).join(" and ");
-  return `This message looks like it contains ${named}. Payments for treatment are taken through the platform, so patients are never asked to pay another way — please take that out and send it again.`;
+  return `This message looks like it contains ${named}. Payments for treatment are taken through the platform, so patients are never asked to pay another way - please take that out and send it again.`;
 }
 
 /** Compact summary for a risk row or an audit line. */

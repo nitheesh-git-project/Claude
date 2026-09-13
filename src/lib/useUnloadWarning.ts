@@ -5,7 +5,7 @@ import { useEffect } from "react";
 /**
  * Warns the user before they navigate away/reload while `active` is true.
  * Used by one-shot admin action buttons (assign therapist, approve, etc.)
- * whose request can take a few seconds — a reload mid-request can abort the
+ * whose request can take a few seconds - a reload mid-request can abort the
  * connection before the server even receives it, silently losing the write
  * (confirmed: once a request is genuinely in flight server-side, it
  * completes regardless of the client disconnecting; the real risk window is

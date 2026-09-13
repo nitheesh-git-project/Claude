@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!(await isProfileActiveAndApproved(user.id))) {
-    return NextResponse.json({ error: "Your account is not active — it is either awaiting admin approval or has been suspended." }, { status: 403 });
+    return NextResponse.json({ error: "Your account is not active - it is either awaiting admin approval or has been suspended." }, { status: 403 });
   }
 
   const admin = createAdminClient();
@@ -66,16 +66,16 @@ export async function POST(request: NextRequest) {
   }
   // Same reasoning as submit-patient-feedback: the client hides the form
   // for a no-show, but a page rendered just before the no-show was recorded
-  // could still have it open — reject the write here too.
+  // could still have it open - reject the write here too.
   if (appointment.no_show) {
     return NextResponse.json(
-      { error: "This session was marked as a no-show — there's nothing to rate." },
+      { error: "This session was marked as a no-show - there's nothing to rate." },
       { status: 400 }
     );
   }
 
   // Condition the write itself on therapist_rating still being null, instead
-  // of trusting the read above — closes the race where two near-simultaneous
+  // of trusting the read above - closes the race where two near-simultaneous
   // submissions both pass the read-time check and the second silently
   // clobbers the first's rating.
   const { data: updated, error } = await admin

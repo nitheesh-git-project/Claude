@@ -22,12 +22,12 @@ import {
   type SplashConfig,
 } from "@/lib/splashScreen";
 
-// Inter for body copy — optimized for on-screen reading at small sizes,
+// Inter for body copy - optimized for on-screen reading at small sizes,
 // which matters here given how much clinical/pricing detail patients read.
-// Plus Jakarta Sans for headings/display — geometric and confident without
+// Plus Jakarta Sans for headings/display - geometric and confident without
 // tipping into a cold "tech" register, which suits a healthcare brand.
 //
-// Both are self-hosted at build time by next/font/google — the font files
+// Both are self-hosted at build time by next/font/google - the font files
 // are emitted into this app's own build output, so a page load makes no
 // runtime request to Google. display: "swap" means text paints immediately
 // in the fallback and swaps once the file lands, rather than flashing
@@ -61,7 +61,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // On in every environment while the app is pre-launch — see
+  // On in every environment while the app is pre-launch - see
   // debugNavVisible.ts for why, and for the one kill switch.
   const showDebugNav = isDebugNavVisible();
 
@@ -156,7 +156,7 @@ export default async function RootLayout({
             before the browser paints. It has to be inline and blocking:
             an effect runs after first paint, so the greeting would drop
             on top of a site the visitor can already see. See
-            src/lib/splashScreen.ts — the script, the CSS in globals.css
+            src/lib/splashScreen.ts - the script, the CSS in globals.css
             and the component all read their keys and timings from there.
             Omitted entirely when an admin has switched the splash off, so
             nothing can set the attribute the CSS paints on. */}
@@ -165,7 +165,7 @@ export default async function RootLayout({
         )}
       </head>
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-800 font-sans">
-        {/* Always in the HTML, painted only when the script above says so —
+        {/* Always in the HTML, painted only when the script above says so -
             keeping the markup constant is what stops this being a
             hydration mismatch on every page. */}
         {splash.enabled && <SplashScreen config={splash} />}

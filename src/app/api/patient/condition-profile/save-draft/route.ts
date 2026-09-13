@@ -5,10 +5,10 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { patientIntakeGate, questionKeysForSpecialty } from "@/lib/conditionIntake";
 import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
 
-// Silent autosave while a patient is filling the intake form — not a
+// Silent autosave while a patient is filling the intake form - not a
 // submission, doesn't touch condition_change_requests, doesn't need admin
 // review. Only moves status from not_started to draft (a profile that
-// already has approved data, or is mid-review, keeps its own status —
+// already has approved data, or is mid-review, keeps its own status -
 // draft_data is purely a resume buffer for whatever's currently open in
 // the form).
 export async function POST(request: NextRequest) {

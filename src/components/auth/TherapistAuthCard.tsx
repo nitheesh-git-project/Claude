@@ -313,7 +313,7 @@ export default function TherapistAuthCard() {
               <input
                 type="text"
                 name="credentials"
-                placeholder="e.g. BPT, MPT — Council Reg: PT-XXXXXX"
+                placeholder="e.g. BPT, MPT - Council Reg: PT-XXXXXX"
                 required
                 maxLength={200}
                 className="w-full p-3 rounded-xl border border-slate-300"

@@ -10,7 +10,7 @@ const RESPONSE_TONE: Record<string, string> = {
 };
 
 /**
- * A patient's session notes, newest first — the prep material a therapist
+ * A patient's session notes, newest first - the prep material a therapist
  * reads before the next visit, and what an admin sees when auditing care.
  *
  * Read-only and clinician-only. This component must never be rendered on

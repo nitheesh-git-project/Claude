@@ -27,7 +27,7 @@ export type AuthorableSession = {
   sessionCode: string | null;
   slotTime: string;
   /** The session's own treatment category, used to narrow the programmes
-   *  offered — an admin scanning every programme in the catalog is how the
+   *  offered - an admin scanning every programme in the catalog is how the
    *  wrong one gets picked, the same reason the therapist's dialog narrows. */
   categoryId: string | null;
 };
@@ -710,7 +710,7 @@ function AuthorOnBehalf({
       <EmptyState
         icon="fa-calendar-check"
         title="No session to write against"
-        body="A recommendation follows a completed session the therapist ran. Nothing in the last 60 days qualifies — either every recent patient already has a live recommendation, or no session has been completed yet."
+        body="A recommendation follows a completed session the therapist ran. Nothing in the last 60 days qualifies - either every recent patient already has a live recommendation, or no session has been completed yet."
       />
     ) : offered.length === 0 ? (
       <EmptyState
@@ -746,7 +746,7 @@ function AuthorOnBehalf({
           >
             {sessions.map((s) => (
               <option key={s.appointmentId} value={s.appointmentId}>
-                {s.patientName} with {s.therapistName} —{" "}
+                {s.patientName} with {s.therapistName} -{" "}
                 {formatClinicDate(s.slotTime)}
                 {s.sessionCode ? ` (${s.sessionCode})` : ""}
               </option>

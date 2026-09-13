@@ -165,7 +165,7 @@ export default function LeavePanel({
             </div>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
-            Dates are for everyone&apos;s information — time off starts the moment this is saved and
+            Dates are for everyone&apos;s information - time off starts the moment this is saved and
             ends when it is turned off.
           </p>
           <button

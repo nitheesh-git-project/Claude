@@ -57,7 +57,7 @@ h6 {
    Brand splash (src/components/system/SplashScreen.tsx)
 
    Every state lives here rather than in React, because the overlay has to
-   be painted on the browser's first frame — before any component has run.
+   be painted on the browser's first frame - before any component has run.
    The inline boot script in the root layout sets data-splash="on" on
    <html>, this stylesheet paints it, and the component only moves the
    attribute along to "leaving" and then removes it. Keep the fade duration
@@ -68,7 +68,7 @@ h6 {
 .splash-screen {
   position: fixed;
   inset: 0;
-  /* Above the sticky navbar, the debug bar and every dialog — for its
+  /* Above the sticky navbar, the debug bar and every dialog - for its
      second and a half this is the only thing on screen. */
   z-index: 9999;
   display: flex;

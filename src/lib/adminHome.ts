@@ -258,7 +258,7 @@ function owedCell(scope: AdminScope, counts: AdminHomeCounts): AdminHomeCell {
     // All-time, so it is deliberately not a "this month" figure -- see the
     // balance rule in AGENTS.md. An em dash rather than ₹0 when it could
     // not be computed: zero is an answer, and this is the absence of one.
-    value: owed === null ? "—" : money(owed),
+    value: owed === null ? "-" : money(owed),
     note:
       owed === null
         ? "Not available"

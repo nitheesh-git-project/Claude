@@ -260,7 +260,7 @@ export default function AdminFeatureControlTab({
         <p className="text-xs text-slate-500 mt-1 max-w-md">
           How far ahead an online session must be booked. The booking picker and the
           server-side check both read this one value, so they can&apos;t disagree. Home visits
-          have their own, longer lead time below — a therapist has to physically travel.
+          have their own, longer lead time below - a therapist has to physically travel.
         </p>
         <div className="flex items-center gap-2 mt-3">
           <input
@@ -330,7 +330,7 @@ export default function AdminFeatureControlTab({
           what happened, with a link back to their own login page. Set to 0 to disable.
         </p>
         <p className="text-xs text-slate-400 mt-1 max-w-md">
-          Admin sessions are exempt — this dashboard stays open however long you leave it.
+          Admin sessions are exempt - this dashboard stays open however long you leave it.
         </p>
         <div className="flex items-center gap-2 mt-3">
           <input
@@ -362,7 +362,7 @@ export default function AdminFeatureControlTab({
         <p className="text-xs text-slate-500 mt-1 max-w-md">
           After someone signs out, a banner across the top of the public site tells them the
           sign-out worked. This is how long it stays before clearing itself. Set to 0 to leave
-          it up until they close it — on a shared machine that means the next person reads the
+          it up until they close it - on a shared machine that means the next person reads the
           last person&apos;s goodbye.
         </p>
         <div className="flex items-center gap-2 mt-3">
@@ -400,7 +400,7 @@ export default function AdminFeatureControlTab({
         <h2 className="font-bold text-lg text-slate-900">Google Meet / Calendar</h2>
         <p className="text-xs text-slate-500 mt-1">
           OAuth credentials and the target calendar are configured in server environment
-          variables, not here — these are the operational controls only.
+          variables, not here - these are the operational controls only.
         </p>
       </div>
 
@@ -411,7 +411,7 @@ export default function AdminFeatureControlTab({
             <p className="text-xs text-slate-500 mt-1 max-w-md">
               When off, newly confirmed sessions won&apos;t get a Calendar event or Meet link.
               Existing links, reassignments/reschedules of already-confirmed sessions, and
-              cancellations are unaffected — this only stops <em>new</em> events going forward.
+              cancellations are unaffected - this only stops <em>new</em> events going forward.
             </p>
           </div>
           <button
@@ -435,7 +435,7 @@ export default function AdminFeatureControlTab({
             <h3 className="font-bold text-sm text-slate-800">Join Without Approval</h3>
             <p className="text-xs text-slate-500 mt-1 max-w-md">
               Meet holds anyone it doesn&apos;t recognise in a waiting room until the meeting&apos;s
-              owner admits them — and patients sign in with whatever Google account they have,
+              owner admits them - and patients sign in with whatever Google account they have,
               so that is nearly everyone. On, each new session&apos;s meeting is opened so the
               patient and the therapist walk straight in.{" "}
               <span className="font-semibold">Only turn this off</span> if the Google account
@@ -462,7 +462,7 @@ export default function AdminFeatureControlTab({
         <h3 className="font-bold text-sm text-slate-800">Join Button Window</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
           Controls when the &quot;Tap to Join&quot; button is active for patients and
-          therapists — admin&apos;s own button always stays active regardless of these
+          therapists - admin&apos;s own button always stays active regardless of these
           settings, up to the completed cutoff below, which applies everywhere.
         </p>
         <div className="flex items-center gap-2 mt-3">
@@ -523,7 +523,7 @@ export default function AdminFeatureControlTab({
         <p className="text-xs text-slate-500 mt-1 max-w-md">
           How long after a session&apos;s scheduled start the &quot;Tap to Join&quot; button
           reads <span className="font-semibold">Session Completed</span> instead, on every
-          screen a session appears on — patients, therapists, hospitals and this dashboard
+          screen a session appears on - patients, therapists, hospitals and this dashboard
           alike. Separate from the window above: that one decides how late someone may still
           join, this one decides when the session stops being offered at all.
         </p>

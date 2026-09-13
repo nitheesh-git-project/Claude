@@ -191,7 +191,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     }))
   );
 
-  // Sorted by when payment actually cleared, not booking-creation order —
+  // Sorted by when payment actually cleared, not booking-creation order -
   // a patient can book well before (or after) they pay, so the two orders
   // can diverge; a "payment history" should read newest-payment-first.
   const paidAppointments = (appointments ?? [])
@@ -207,7 +207,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   );
 
   // Profit only exists where the session's therapist has a revenue share
-  // set — without it there's no way to know their cut, so those sessions
+  // set - without it there's no way to know their cut, so those sessions
   // are counted in Total Paid above but excluded from this breakdown
   // (PatientProfitChart surfaces how many were skipped, so it's never a
   // silent gap).
@@ -228,7 +228,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
               month: "short",
               timeZone: "Asia/Kolkata",
             })
-          : "—",
+          : "-",
         paidPaise,
         payoutPaise,
         profitPaise: paidPaise - payoutPaise,
@@ -399,7 +399,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-bold text-sm text-slate-800 mb-1">Admin Notes</h2>
-          <p className="text-[11px] text-slate-400 mb-3">Private — never shown to the patient.</p>
+          <p className="text-[11px] text-slate-400 mb-3">Private - never shown to the patient.</p>
           <PatientNotesForm patientId={patient.id} currentNote={note?.note ?? ""} />
         </div>
       </div>
@@ -411,7 +411,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         excludedCount={ratingAggregate.excludedCount}
       />
       <p className="text-[11px] text-slate-400 -mt-4 mb-6">
-        Admin-only — never shown to the patient or any therapist.
+        Admin-only - never shown to the patient or any therapist.
       </p>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
@@ -423,7 +423,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
           <div>
             <p className="text-slate-400">No-Show Rate</p>
             <p className="font-bold text-slate-900 text-lg">
-              {noShowStats.rate === null ? "—" : `${noShowStats.rate.toFixed(1)}%`}
+              {noShowStats.rate === null ? "-" : `${noShowStats.rate.toFixed(1)}%`}
             </p>
             <p className="text-slate-400">
               {noShowStats.noShowCount} of {noShowStats.completedCount} completed sessions
@@ -432,7 +432,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
           <div>
             <p className="text-slate-400">Cancellation Rate</p>
             <p className="font-bold text-slate-900 text-lg">
-              {cancellationStats.rate === null ? "—" : `${cancellationStats.rate.toFixed(1)}%`}
+              {cancellationStats.rate === null ? "-" : `${cancellationStats.rate.toFixed(1)}%`}
             </p>
             <p className="text-slate-400">
               {cancellationStats.cancelledCount} cancelled ({cancellationStats.refundedCount} refunded,{" "}

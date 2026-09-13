@@ -81,6 +81,6 @@ if (missing.length > 0) {
 
 const unused = [...published].filter((table) => !subscribed.has(table)).sort();
 console.log(
-  `Realtime coverage OK — ${subscribed.size} subscribed table(s), all published.` +
+  `Realtime coverage OK - ${subscribed.size} subscribed table(s), all published.` +
     (unused.length > 0 ? ` (${unused.length} published but unsubscribed: ${unused.join(", ")})` : "")
 );

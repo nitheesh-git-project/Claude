@@ -33,14 +33,14 @@ alter table appointments add column if not exists razorpay_payment_id text;
 alter table appointments add column if not exists payment_status text not null default 'unpaid' check (payment_status in ('unpaid', 'paid', 'failed'));
 
 -- Allow 'admin' and 'hospital' as roles for accounts that already existed
--- before these were added. Neither has a self-signup path — admin is
+-- before these were added. Neither has a self-signup path - admin is
 -- promoted by hand in the Table Editor; hospital accounts are provisioned
 -- by the admin (see the B2B section below).
 --
 -- Hospital accounts carry an org name + a referral code patients can
 -- optionally quote at signup. referred_by_hospital_id is set on the
 -- *patient's* profile, either automatically (invite-link referrals) or by
--- looking up a typed referral code (self-serve referrals) — one field
+-- looking up a typed referral code (self-serve referrals) - one field
 -- answers attribution for both channels.
 alter table profiles drop constraint if exists profiles_role_check;
 alter table profiles add constraint profiles_role_check check (role in ('patient', 'therapist', 'admin', 'hospital'));
@@ -48,12 +48,12 @@ alter table profiles add column if not exists organization_name text;
 alter table profiles add column if not exists referral_code text;
 alter table profiles add column if not exists referred_by_hospital_id uuid references profiles(id);
 -- The hospital's cut of each referred session's fee (e.g. 30 = hospital
--- gets 30%, company keeps 70%). Set once at onboarding by the admin —
+-- gets 30%, company keeps 70%). Set once at onboarding by the admin -
 -- only meaningful on rows where role = 'hospital'.
 --
 -- Also reused for role = 'therapist': the therapist's cut of each session
 -- fee they're assigned to, set by admin on the Manage Therapists page.
--- Same column, same 0-100 meaning, just a different counterparty — no
+-- Same column, same 0-100 meaning, just a different counterparty - no
 -- reason to duplicate the field for a second role.
 alter table profiles add column if not exists revenue_share_percent numeric(5,2);
 do $$
@@ -88,7 +88,7 @@ create policy "b2b_leads_insert_public" on b2b_leads
 grant insert on b2b_leads to anon, authenticated;
 
 -- A hospital's referral of a specific patient, submitted from their own
--- dashboard. No client-side UPDATE — assigning a therapist/slot and
+-- dashboard. No client-side UPDATE - assigning a therapist/slot and
 -- generating the invite link are admin-only actions via the service role.
 create table if not exists patient_referrals (
   id uuid primary key default gen_random_uuid(),
@@ -120,13 +120,13 @@ revoke update on patient_referrals from authenticated;
 
 -- A short admin-set note surfaced to the hospital in place of a blank
 -- status when a pending_review referral genuinely can't be staffed right
--- now ("no capacity right now — will follow up") -- closes the "why is
+-- now ("no capacity right now - will follow up") -- closes the "why is
 -- nothing happening" support loop without building real
 -- specialization/capacity matching.
 alter table patient_referrals add column if not exists capacity_note text;
 
 -- Links a patient's first appointment back to the referral that led to
--- it (white-glove channel only — self-serve code bookings have no
+-- it (white-glove channel only - self-serve code bookings have no
 -- referral row, just the profile-level referred_by_hospital_id).
 alter table appointments add column if not exists referral_id uuid references patient_referrals(id);
 
@@ -144,7 +144,7 @@ create policy "profiles_insert_own" on profiles
 
 -- Auto-create the profile row when a new auth user signs up. This runs as
 -- a database trigger (not client-side) so it works even before the user
--- has an active session — e.g. if "Confirm email" is on in Supabase Auth
+-- has an active session - e.g. if "Confirm email" is on in Supabase Auth
 -- settings, signUp() does not return a session until the email is
 -- confirmed, and a client-side insert would fail the RLS check above.
 create or replace function public.handle_new_user()
@@ -157,14 +157,14 @@ declare
   v_role text;
 begin
   -- raw_user_meta_data is whatever the caller passed as options.data to
-  -- auth.signUp() — for a public signup that's fully client-controlled, so
+  -- auth.signUp() - for a public signup that's fully client-controlled, so
   -- it must NEVER be trusted to grant 'admin' or 'hospital'. 'therapist' is
   -- the only self-serve role beyond the 'patient' default; both of those
   -- start unapproved and gated behind admin approval below. Admin accounts are
   -- promoted by hand in the Table Editor; hospital accounts are created by
   -- the onboard-hospital route, which sets role via a service-role update
   -- *after* this trigger runs, bypassing this restriction entirely (as
-  -- intended — that path never goes through public signUp metadata).
+  -- intended - that path never goes through public signUp metadata).
   v_role := case
     when new.raw_user_meta_data->>'role' = 'therapist' then 'therapist'
     else 'patient'
@@ -214,7 +214,7 @@ create trigger on_auth_user_created
 alter table profiles add column if not exists active boolean not null default true;
 
 -- Independent of `active`: a therapist can be fully active (can log in, get
--- assigned bookings) but still be hidden from the public /team page — on
+-- assigned bookings) but still be hidden from the public /team page - on
 -- leave, fully booked, or not ready to be publicly featured yet. Admin-only,
 -- defaults to visible so nothing changes for existing therapists.
 alter table profiles add column if not exists visible_on_team boolean not null default true;
@@ -228,7 +228,7 @@ alter table profiles add column if not exists visible_on_team boolean not null d
 alter table profiles add column if not exists rating_visible boolean not null default true;
 
 -- Private admin notes about a patient (e.g. "prefers evening slots",
--- "payment dispute resolved 3/15") — deliberately its own table, not a
+-- "payment dispute resolved 3/15") - deliberately its own table, not a
 -- column on profiles, because profiles_select_own lets a patient read
 -- every column of their own row; a note column there would leak straight
 -- back to the person it's about. This table gets no RLS policies at all,
@@ -242,7 +242,7 @@ create table if not exists patient_admin_notes (
 
 alter table patient_admin_notes enable row level security;
 
--- Same idea as patient_admin_notes, for therapists — kept as its own
+-- Same idea as patient_admin_notes, for therapists - kept as its own
 -- table rather than a shared one so it stays a plain one-row-per-user
 -- upsert on each management page without a role column to filter on.
 create table if not exists therapist_admin_notes (
@@ -257,7 +257,7 @@ alter table therapist_admin_notes enable row level security;
 -- The plaintext of the most recent admin-generated password, kept visible
 -- to admins (not just shown once) so they can walk a patient/therapist
 -- through logging in over a support call. Lives on these zero-RLS-policy
--- tables (service role only) for the same reason admin notes do — a plain
+-- tables (service role only) for the same reason admin notes do - a plain
 -- column on profiles would leak straight back to the account owner via
 -- profiles_select_own. Cleared the moment the user sets their own password
 -- through the forgot-password flow (see /api/clear-temp-password), so a
@@ -285,7 +285,7 @@ drop policy if exists "profiles_update_own" on profiles;
 create policy "profiles_update_own" on profiles
   for update using (auth.uid() = id);
 
--- Patient + therapist editable profile fields — added here, before the
+-- Patient + therapist editable profile fields - added here, before the
 -- grant below that references them, since a GRANT UPDATE naming a column
 -- that doesn't exist yet fails outright (this file runs top to bottom).
 -- avatar_url and the fields below are instant-save; full_name and
@@ -303,7 +303,7 @@ alter table profiles add column if not exists bio text;
 alter table profiles add column if not exists languages text;
 
 -- A row-level policy only controls *which rows* a user can touch, not
--- *which columns* — without this, any signed-in user could open their
+-- *which columns* - without this, any signed-in user could open their
 -- browser console and set their own "approved" to true or "role" to
 -- 'therapist', bypassing the entire approval gate. Column-level grants
 -- close that: "role" and "approved" can only be changed by an admin
@@ -311,7 +311,7 @@ alter table profiles add column if not exists languages text;
 -- above, which runs with elevated privileges and isn't subject to grants.
 --
 -- full_name, credentials, and phone are deliberately NOT in this list even
--- though phone was originally included by mistake — all three are
+-- though phone was originally included by mistake - all three are
 -- identity/trust-sensitive (credentials especially, since patients see it
 -- as a therapist's license claim; phone is gated per
 -- src/lib/gatedProfileFields.ts), so changing any of them goes through
@@ -325,7 +325,7 @@ grant update (
 ) on profiles to authenticated;
 
 -- Public-safe subset of approved therapists, for the marketing /team page.
--- A plain RLS policy only controls *which rows* are visible — anon still
+-- A plain RLS policy only controls *which rows* are visible - anon still
 -- has table-level SELECT on profiles, so a broad "therapist rows are
 -- public" policy would let anyone query email/phone/dates directly with
 -- the anon key. This view hard-codes both the row filter and the column
@@ -351,7 +351,7 @@ create policy "appointments_insert_own" on appointments
 -- No client-side UPDATE policy on appointments: booking status, therapist
 -- assignment, and payment fields (razorpay_order_id, razorpay_payment_id,
 -- payment_status) must only ever be written by server-side code using the
--- service role key (see src/lib/supabase/admin.ts) — never by the
+-- service role key (see src/lib/supabase/admin.ts) - never by the
 -- patient's or therapist's own browser session. Without this, a patient
 -- could open devtools and mark their own unpaid booking as "paid" the
 -- same way the profile self-approval hole worked before it was fixed.
@@ -364,13 +364,13 @@ revoke update on appointments from authenticated;
 -- session fee constant happens to be at query time.
 alter table appointments add column if not exists amount_paid_paise integer;
 
--- When the payment actually cleared — distinct from created_at (when the
+-- When the payment actually cleared - distinct from created_at (when the
 -- booking was first made), since a patient can book now and pay days
 -- later. Needed for a real payment history, not just a booking list.
 alter table appointments add column if not exists paid_at timestamptz;
 
 -- Tracks whether *this session's* cut has actually been handed to the
--- therapist yet — separate from whether the patient paid. A session with
+-- therapist yet - separate from whether the patient paid. A session with
 -- payment_status = 'paid' but therapist_payout_paid_at null is money the
 -- clinic owes the therapist and hasn't settled. The amount is snapshotted
 -- at settlement time (same reasoning as amount_paid_paise) so editing a
@@ -381,7 +381,7 @@ alter table appointments add column if not exists therapist_payout_amount_paise 
 alter table appointments add column if not exists therapist_payout_method text check (therapist_payout_method is null or therapist_payout_method in ('cash', 'online'));
 alter table appointments add column if not exists therapist_payout_note text;
 
--- Set alongside status='completed' by the same "Done" action — a no-show is
+-- Set alongside status='completed' by the same "Done" action - a no-show is
 -- still a closed-out session (the therapist held the slot, payout eligibility
 -- is unchanged), this just records that the patient didn't attend. Deliberately
 -- not a new `status` value: everything that already branches on status
@@ -391,11 +391,11 @@ alter table appointments add column if not exists no_show boolean not null defau
 
 -- Post-session ratings/feedback, captured independently from each side once
 -- a session is marked completed (the therapist's "Done" action). Rating is
--- required when submitting, feedback is optional free text — enforced in
+-- required when submitting, feedback is optional free text - enforced in
 -- the submit-*-feedback API routes, not here, since there's no single
 -- "submit" moment at the column level to hang a check constraint off of.
 -- Nothing here is client-writable directly (appointments has no client
--- update policy at all — see below), so these only ever get set by the
+-- update policy at all - see below), so these only ever get set by the
 -- service-role submit-*-feedback routes after verifying the caller is the
 -- patient/therapist on that exact appointment.
 alter table appointments add column if not exists patient_rating integer check (patient_rating is null or (patient_rating >= 1 and patient_rating <= 5));
@@ -416,7 +416,7 @@ alter table appointments add column if not exists therapist_rating_excluded bool
 
 -- Every reassignment (therapist/time/category change) made from the admin
 -- Calendar/Session Story views writes one row here recording what it was
--- before and after — the appointments row itself only ever holds current
+-- before and after - the appointments row itself only ever holds current
 -- state, so without this there'd be no way to answer "when was this
 -- session actually moved, and from what". Service-role only, same as the
 -- rest of the admin surface; nothing here is client-writable.
@@ -451,7 +451,7 @@ alter table b2b_leads add column if not exists email text;
 -- Admin-editable condition categories shown on the public /conditions
 -- page. Each one carries its own real price and session length, which
 -- drives what /api/razorpay/create-order actually charges when a patient
--- books that specific condition — not a single fixed platform-wide fee.
+-- books that specific condition - not a single fixed platform-wide fee.
 create table if not exists treatment_categories (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -470,7 +470,7 @@ alter table treatment_categories enable row level security;
 -- The public Conditions page and the booking wizard's concern picker both
 -- read this with the regular (non-admin) client, so active categories
 -- need to be publicly readable. All writes go through service-role admin
--- API routes only — no client insert/update/delete policy exists.
+-- API routes only - no client insert/update/delete policy exists.
 drop policy if exists "treatment_categories_select_active" on treatment_categories;
 create policy "treatment_categories_select_active" on treatment_categories
   for select using (active = true);
@@ -499,7 +499,7 @@ end $$;
 -- Seed the two categories that existed as hardcoded content before this
 -- table existed, at the platform's original flat fee/duration, so the
 -- Conditions page and booking wizard keep working unchanged the moment
--- this migration runs — only guarded to avoid re-seeding on every re-run.
+-- this migration runs - only guarded to avoid re-seeding on every re-run.
 insert into treatment_categories (title, description, points, price_paise, duration_minutes, cta_label, display_order)
 select * from (values
   (
@@ -533,17 +533,17 @@ alter table appointments add column if not exists category_id uuid references tr
 -- as amount_paid_paise: a category's duration can change later, but a
 -- booking already made shouldn't silently change with it). Surfaced to
 -- the therapist and admin so an appointment's actual length is known
--- past just the marketing page — not only stored for pricing purposes.
+-- past just the marketing page - not only stored for pricing purposes.
 alter table appointments add column if not exists duration_minutes integer;
 
 -- Once categories became admin-curated (rather than a free-text "Other"
 -- option), a patient whose issue doesn't match any listed condition had
--- no way to book at all. Guarantees a standing fallback exists — admin
+-- no way to book at all. Guarantees a standing fallback exists - admin
 -- can edit its title/price/description/order like any other category,
 -- but this keeps re-seeding itself if it's ever deleted entirely, so
 -- booking never silently dead-ends.
 --
--- Identified by a fixed id, not by title — checking "where title =
+-- Identified by a fixed id, not by title - checking "where title =
 -- 'General Consultation'" would re-insert a duplicate the next time this
 -- file is re-run if the admin ever renamed it. The id never changes even
 -- if the title does, so this stays a no-op once the row exists under any
@@ -582,7 +582,7 @@ where not exists (
   select 1 from treatment_categories where id = '00000000-0000-0000-0000-000000000001'::uuid
 );
 
--- Runs both halves of a category-order swap in a single transaction —
+-- Runs both halves of a category-order swap in a single transaction -
 -- called by the admin Move Up/Down controls instead of two independent
 -- UPDATE statements, so a network blip mid-swap can't leave two
 -- categories sharing the same display_order.
@@ -603,7 +603,7 @@ $$;
 
 -- A patient or therapist requesting a change to an identity/trust-sensitive
 -- field (full name, DOB, gender, credentials, specialization, years of
--- experience) doesn't write the profile directly — it lands here pending
+-- experience) doesn't write the profile directly - it lands here pending
 -- admin review. "changes" holds one or more {field: new_value} pairs so a
 -- single review covers everything they edited in one sitting. Approving
 -- applies the change via the service role; declining requires a note so
@@ -625,7 +625,7 @@ drop policy if exists "profile_change_requests_select_own" on profile_change_req
 create policy "profile_change_requests_select_own" on profile_change_requests
   for select using (auth.uid() = user_id);
 
--- status = 'pending' is required here too, not just as a column default —
+-- status = 'pending' is required here too, not just as a column default -
 -- otherwise a client could insert a row with status already 'approved' or
 -- 'declined', faking a reviewed-looking entry in their own history (it
 -- can't actually change profiles, since only the admin routes do that and
@@ -635,14 +635,14 @@ drop policy if exists "profile_change_requests_insert_own" on profile_change_req
 create policy "profile_change_requests_insert_own" on profile_change_requests
   for insert with check (auth.uid() = user_id and status = 'pending');
 
--- No client-side UPDATE policy — approving or declining a request (and
+-- No client-side UPDATE policy - approving or declining a request (and
 -- actually applying an approved change to profiles) only ever happens
 -- through the admin API routes using the service role, same reasoning as
 -- appointments having no client update policy.
 revoke update on profile_change_requests from authenticated;
 
 -- A user can withdraw their own request while it's still pending (changed
--- their mind, made a typo) — but not one already reviewed, so the record
+-- their mind, made a typo) - but not one already reviewed, so the record
 -- of what was approved/declined and why stays intact.
 drop policy if exists "profile_change_requests_delete_own_pending" on profile_change_requests;
 create policy "profile_change_requests_delete_own_pending" on profile_change_requests
@@ -650,7 +650,7 @@ create policy "profile_change_requests_delete_own_pending" on profile_change_req
 
 -- Avatar storage: a public bucket (profile pictures aren't sensitive data
 -- and are simplest to serve as plain public URLs) where each user may only
--- write inside a folder named after their own user id — enforced by the
+-- write inside a folder named after their own user id - enforced by the
 -- policies below, not just convention. Compression happens client-side
 -- before upload (see src/lib/compressImage.ts) to keep files small.
 insert into storage.buckets (id, name, public)
@@ -681,7 +681,7 @@ create policy "avatar_select_public" on storage.objects
 
 -- Admin-curated patient testimonials shown on the public Home page. Same
 -- pattern as treatment_categories: publicly readable when active, but all
--- writes go through admin API routes using the service role — no client
+-- writes go through admin API routes using the service role - no client
 -- insert/update/delete policy exists, same reasoning as that table.
 create table if not exists testimonials (
   id uuid primary key default gen_random_uuid(),
@@ -719,7 +719,7 @@ create policy "faqs_select_active" on faqs
 -- Cancellation + refund. A patient or admin can cancel an upcoming
 -- ('requested'/'confirmed') session; if it was paid, the amount actually
 -- charged is refunded via Razorpay as part of the same action (see
--- src/lib/cancelAppointment.ts) — these columns just record what happened,
+-- src/lib/cancelAppointment.ts) - these columns just record what happened,
 -- same "server records the outcome" pattern as therapist_payout_* above.
 alter table appointments add column if not exists cancelled_at timestamptz;
 alter table appointments add column if not exists cancelled_by uuid references profiles(id);
@@ -751,7 +751,7 @@ alter table appointments add constraint appointments_refund_status_check
 
 -- Lets a patient express "book with the same therapist as before" at
 -- booking time. Purely a hint for the admin's assignment screen (which
--- still runs its normal conflict check) — never auto-assigns, since the
+-- still runs its normal conflict check) - never auto-assigns, since the
 -- preferred therapist might not actually be available for the requested
 -- slot.
 alter table appointments add column if not exists preferred_therapist_id uuid references profiles(id);
@@ -781,7 +781,7 @@ grant select on site_settings to anon, authenticated;
 
 -- Real, aggregated (never per-review) rating data exposed publicly.
 -- Deliberately exposes only numbers, never individual patient names or
--- feedback text — publishing real patient reviews/names without an
+-- feedback text - publishing real patient reviews/names without an
 -- explicit consent step is a separate, bigger decision than this platform
 -- currently has a mechanism for; the existing hand-curated `testimonials`
 -- table (implied consent obtained manually before an admin types a quote
@@ -808,7 +808,7 @@ left join (
   group by therapist_id
 ) r on r.therapist_id = p.id
 -- active = true wasn't checked before this migration either, which meant a
--- suspended therapist still showed up on the public /team page — folded
+-- suspended therapist still showed up on the public /team page - folded
 -- into this same view rewrite since it's the same file/view.
 -- visible_on_team is a separate, admin-only control: a therapist can stay
 -- active (can log in, take bookings) while being hidden from this public
@@ -851,7 +851,7 @@ drop policy if exists "treatment_category_packages_select_active" on treatment_c
 create policy "treatment_category_packages_select_active" on treatment_category_packages
   for select using (active = true);
 
--- What a patient actually bought. No client insert/update policy at all —
+-- What a patient actually bought. No client insert/update policy at all -
 -- unlike appointments (which starts as a real 'requested'/'unpaid' row a
 -- patient legitimately owns before paying), a package purchase only ever
 -- makes sense already-paid, so it's created entirely by
@@ -879,12 +879,12 @@ create policy "package_purchases_select_own" on patient_package_purchases
   for select using (auth.uid() = patient_id);
 
 -- Links a session that was covered by a package instead of paid for
--- individually — set only by /api/appointments/book-with-package (service
+-- individually - set only by /api/appointments/book-with-package (service
 -- role), never by the client-side booking-wizard insert.
 alter table appointments add column if not exists package_purchase_id uuid references patient_package_purchases(id);
 
 -- Security fix: the original insert policy only checked patient_id
--- ownership, not the values being inserted — an authenticated patient
+-- ownership, not the values being inserted - an authenticated patient
 -- could craft a raw insert (bypassing the booking wizard entirely) with
 -- status: 'confirmed' and payment_status: 'paid' and get a free session,
 -- since nothing stopped them from setting those columns themselves at
@@ -3622,15 +3622,15 @@ end $$;
 -- Editing the *intake* is editing the patient's own account of their history,
 -- so a therapist doing that on their behalf still queues for admin approval.
 -- A *Pain Map* row is not that: it is the therapist's own observation from a
--- session they personally ran, exactly like a session note — and session
+-- session they personally ran, exactly like a session note - and session
 -- notes have never needed a grant, for precisely that reason. Requiring one
 -- here meant a therapist could finish an examination and have nowhere to put
 -- it until an admin noticed a request, which is how findings end up in
 -- somebody's private notes instead of the patient's chart.
 --
 -- So this insert policy now matches session_notes' rule rather than the
--- intake's: the therapist must be assigned to the patient — has ever had an
--- appointment with them, or holds a package's locked_therapist_id — which is
+-- intake's: the therapist must be assigned to the patient - has ever had an
+-- appointment with them, or holds a package's locked_therapist_id - which is
 -- the same relationship that already grants automatic *read* access below.
 -- Rows stay append-only, so a bad entry is corrected by adding a truer one
 -- and the original stays on the record.
@@ -3666,7 +3666,7 @@ create policy "pain_assessments_insert_assigned_therapist" on pain_assessments
 --   CREATE UNIQUE INDEX ... ON profiles (patient_code) WHERE patient_code IS NOT NULL
 -- but the resync block far above took its max over `where role = 'patient'`.
 -- Those two disagree the moment a row keeps a patient code while holding a
--- different role — which is the normal life of an admin account here, since
+-- different role - which is the normal life of an admin account here, since
 -- handle_new_user inserts every self-signup as a patient (PT0007, say) and
 -- promoting it to admin in the Table Editor leaves that code in place.
 --
@@ -3680,7 +3680,7 @@ create policy "pain_assessments_insert_assigned_therapist" on pain_assessments
 --
 -- Two fixes, deliberately both:
 --   1. Resync each sequence from the same set of rows the unique index
---      covers — every non-null code, whatever the row's role is now.
+--      covers - every non-null code, whatever the row's role is now.
 --   2. Make the trigger self-healing, so a sequence that drifts again for
 --      any reason (a restore, a manual insert, a truncate that leaves the
 --      sequence behind) skips over taken codes instead of failing a signup.
@@ -6614,7 +6614,7 @@ select * from (values
   (
     'plan_conversion_low',
     'Low recommendation conversion',
-    'A therapist''s recommendations are rarely purchased. Disabled until there is a clinic baseline to compare against — a threshold invented now fires on everyone.',
+    'A therapist''s recommendations are rarely purchased. Disabled until there is a clinic baseline to compare against - a threshold invented now fires on everyone.',
     false,
     '{"windowDays": 30, "minPlans": 5, "minConversion": 0.2}'::jsonb
   ),

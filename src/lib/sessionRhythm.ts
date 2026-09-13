@@ -68,7 +68,7 @@ function weekKeyOf(dateKey: string): string {
 /**
  * The run itself.
  *
- * Returns **at most** `count` slots and may return fewer — a programme whose
+ * Returns **at most** `count` slots and may return fewer - a programme whose
  * validity cannot hold the whole run is a real situation, and proposing
  * dates past the expiry would be proposing sessions the patient would lose.
  * The caller says so rather than padding.

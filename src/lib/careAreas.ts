@@ -10,19 +10,19 @@ import type { PhotoId } from "@/lib/marketingPhotos";
  *
  * These are the standing areas of practice. The *sellable* programmes and
  * packages are admin-controlled rows out of `treatment_categories` and
- * render separately — this band is breadth, that catalog is what you can buy
+ * render separately - this band is breadth, that catalog is what you can buy
  * today, and conflating the two is what made the old page read as one very
  * long list of things.
  *
  * Each area carries more than a card's worth of copy on purpose. They are
  * shown one at a time by `CareAreaShowcase`, so there is room for the answer
- * a visitor actually wants — what we look at, and what happens next — rather
+ * a visitor actually wants - what we look at, and what happens next - rather
  * than the six-word blurb a grid of six cards could fit.
  */
 export type CareArea = {
   key: string;
   title: string;
-  /** Under eight words — the summary in the picker. */
+  /** Under eight words - the summary in the picker. */
   blurb: string;
   /** One sentence, under fifteen words: what this actually involves. */
   detail: string;
@@ -30,7 +30,7 @@ export type CareArea = {
   checks: string[];
   photo: PhotoId;
   /**
-   * Describes the photograph, not the condition — the blurb already says what
+   * Describes the photograph, not the condition - the blurb already says what
    * the area is, and a screen reader announcing it twice tells someone
    * nothing about the image they cannot see.
    */

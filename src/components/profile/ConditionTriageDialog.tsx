@@ -23,7 +23,7 @@ import {
  * pacing of ConditionIntakeWizard on purpose and for the reason
  * PainExamDialog documents: a patient fills their intake once and needs
  * gentleness; a clinician fills this after every assignment and needs
- * speed. Never a wall of fields for either — different treatment for
+ * speed. Never a wall of fields for either - different treatment for
  * different audiences.
  *
  * The suggestion is shown WITH its reason. A suggestion whose reasoning a
@@ -147,7 +147,7 @@ export default function ConditionTriageDialog({
                       Suggested:{" "}
                       {CONDITION_SPECIALTIES.find((s) => s.key === suggestion.suggested)?.label}
                     </span>{" "}
-                    — {suggestion.because} Change it if you disagree.
+                    - {suggestion.because} Change it if you disagree.
                   </span>
                 </p>
               ) : (
@@ -201,7 +201,7 @@ export default function ConditionTriageDialog({
                   actually being made. */}
               <p className="mt-3 text-xs text-slate-500">
                 {currentSpecialty
-                  ? `Their answers to the ${CONDITION_SPECIALTIES.find((s) => s.key === currentSpecialty)?.label.toLowerCase()} questions stay on file — they just stop being shown.`
+                  ? `Their answers to the ${CONDITION_SPECIALTIES.find((s) => s.key === currentSpecialty)?.label.toLowerCase()} questions stay on file - they just stop being shown.`
                   : "You can change this later if the case turns out to be something else; nothing answered is ever lost."}
               </p>
             </div>
@@ -212,7 +212,7 @@ export default function ConditionTriageDialog({
               <p className="text-xs font-semibold text-red-600">{error}</p>
             ) : (
               <span className="text-xs text-slate-400">
-                Your answers save as you go — you can close this and come back.
+                Your answers save as you go - you can close this and come back.
               </span>
             )}
             <div className="flex shrink-0 gap-2">

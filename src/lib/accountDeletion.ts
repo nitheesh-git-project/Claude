@@ -99,7 +99,7 @@ export function describeAccountBlockers(
       : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 
   return {
-    message: `${name} has ${list} on file, so this account cannot be deleted — removing it would take that history with it, and the books and the audit trail are built on it. Suspend instead: they can no longer sign in, and everything they did stays attributable to them.`,
+    message: `${name} has ${list} on file, so this account cannot be deleted - removing it would take that history with it, and the books and the audit trail are built on it. Suspend instead: they can no longer sign in, and everything they did stays attributable to them.`,
     total: countAccountReferences(refs),
   };
 }
@@ -119,4 +119,4 @@ export const ACCOUNT_ALREADY_GONE =
   "That account has already been deleted. Refresh to see the current list.";
 
 export const ACCOUNT_DELETE_REFUSED =
-  "The database refused to delete that account and did not say why. Nothing has changed — something still points at it that this screen did not count. Suspend the account instead.";
+  "The database refused to delete that account and did not say why. Nothing has changed - something still points at it that this screen did not count. Suspend the account instead.";

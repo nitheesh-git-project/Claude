@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Kept visible to admins (not shown just once) so they can walk the
-  // hospital contact through logging in over a support call — matches the
+  // hospital contact through logging in over a support call - matches the
   // patient/therapist reset routes, which this one was missing before.
   await admin.from("hospital_admin_notes").upsert({
     hospital_id: hospitalId,

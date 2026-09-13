@@ -206,7 +206,7 @@ export default function AdminPeopleDirectory({
             <tbody>
               {pageRows.map((p) => (
                 <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                  <td className="py-2 pr-3 text-slate-400 font-mono">{p.code ?? "—"}</td>
+                  <td className="py-2 pr-3 text-slate-400 font-mono">{p.code ?? "-"}</td>
                   <td className="py-2 pr-3">
                     <Link
                       href={`${basePath}/${p.id}`}

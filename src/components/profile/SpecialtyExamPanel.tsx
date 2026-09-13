@@ -88,10 +88,10 @@ function DeferredExamNotice({
         {clinician
           ? (def?.label.toLowerCase() ?? "this condition type")
           : (def?.patientLabel.toLowerCase() ?? "this kind of care")}{" "}
-        — {measures} — is still being built.{" "}
+        - {measures} - is still being built.{" "}
         {clinician
           ? "Until it lands, your session note is where these belong; the Pain Map is an orthopaedic instrument and does not fit this condition type."
-          : "Until it lands there is nothing to show you here — your therapist talks you through what they found at the end of each session instead."}
+          : "Until it lands there is nothing to show you here - your therapist talks you through what they found at the end of each session instead."}
       </p>
     </div>
   );

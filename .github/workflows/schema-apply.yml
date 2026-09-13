@@ -64,9 +64,9 @@ jobs:
               echo "Missing repository secret(s):$missing"
               echo
               echo "Add them under **Settings -> Secrets and variables -> Actions**:"
-              echo "- \`SUPABASE_ACCESS_TOKEN\` — a personal access token from"
+              echo "- \`SUPABASE_ACCESS_TOKEN\` - a personal access token from"
               echo "  https://supabase.com/dashboard/account/tokens (not the service role key)"
-              echo "- \`NEXT_PUBLIC_SUPABASE_URL\` — the project URL"
+              echo "- \`NEXT_PUBLIC_SUPABASE_URL\` - the project URL"
               echo
               echo "Until then every schema change must be applied by hand with"
               echo "\`node scripts/run-schema.mjs\`, and the database will drift from the repo."

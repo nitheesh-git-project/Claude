@@ -62,7 +62,7 @@ export default function AssignReferralForm({
     return (
       <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs space-y-2">
         <p className="font-bold text-teal-900">
-          Invite ready — send this link to the patient:
+          Invite ready - send this link to the patient:
         </p>
         <p className="break-all font-mono bg-white border border-teal-200 rounded-lg p-2">
           {inviteLink}
@@ -90,7 +90,7 @@ export default function AssignReferralForm({
   if (therapists.length === 0) {
     return (
       <p className="text-[11px] text-slate-400">
-        No approved therapists yet — approve one above first.
+        No approved therapists yet - approve one above first.
       </p>
     );
   }

@@ -80,13 +80,13 @@ export default function RatingManager({
       )}
       {excludedCount > 0 && (
         <p className="text-[11px] text-amber-600 mt-1">
-          {excludedCount} rating{excludedCount === 1 ? "" : "s"} excluded from this average —
+          {excludedCount} rating{excludedCount === 1 ? "" : "s"} excluded from this average -
           still visible on its own session below.
         </p>
       )}
       {onToggleVisible && optimisticVisible === false && visible !== undefined && (
         <p className="text-[11px] text-slate-400 mt-1">
-          Hidden from public pages — only visible here to admin.
+          Hidden from public pages - only visible here to admin.
         </p>
       )}
     </div>

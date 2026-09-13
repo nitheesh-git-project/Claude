@@ -41,7 +41,7 @@ function formatDate(value: string) {
 }
 
 /**
- * The clinic's running costs — what turns "clinic share" into an actual
+ * The clinic's running costs - what turns "clinic share" into an actual
  * profit on the Summary screen.
  *
  * Only hand-entered costs live here. The payment-gateway fee is charged per
@@ -64,8 +64,8 @@ export default function AdminCostsTab({
    * a discount means less was collected, so it is already inside gross
    * revenue as a smaller number, and subtracting it again would understate
    * profit by exactly the amount given away. It sits on this screen because
-   * it answers a question no revenue line can — what buying those patients
-   * cost — which is what decides whether an offer continues.
+   * it answers a question no revenue line can - what buying those patients
+   * cost - which is what decides whether an offer continues.
    */
   discountsGiven: {
     totalPaise: number;
@@ -76,7 +76,7 @@ export default function AdminCostsTab({
      *  breakdown going stale is how a reported figure stops being read. */
     bySource: Record<DiscountSource, number>;
   };
-  /** Today in IST, from the server — a fresh Date here would disagree with
+  /** Today in IST, from the server - a fresh Date here would disagree with
    *  the server's HTML at hydration. */
   todayIso: string;
 }) {
@@ -232,13 +232,13 @@ export default function AdminCostsTab({
             note:
               discountsGiven.count === 0
                 ? "No discount has been applied yet"
-                : `${discountsGiven.count} session${discountsGiven.count === 1 ? "" : "s"} — already reflected in revenue, not a cost on top`,
+                : `${discountsGiven.count} session${discountsGiven.count === 1 ? "" : "s"} - already reflected in revenue, not a cost on top`,
             accent: discountsGiven.totalPaise > 0 ? "bg-purple-500" : "bg-slate-400",
             scopeNote: "These dates",
           },
           {
             label: "Biggest category",
-            value: byCategory[0]?.category ?? "—",
+            value: byCategory[0]?.category ?? "-",
             note: byCategory[0] ? formatInr(byCategory[0].amountPaise) : "Nothing recorded yet",
             accent: "bg-teal-500",
           },
@@ -249,7 +249,7 @@ export default function AdminCostsTab({
         <SurfaceCard
           title="What discounting cost"
           icon="fa-tags"
-          subtitle="Money not collected because an offer or an adjustment applied. Already reflected in revenue — this is not a second cost."
+          subtitle="Money not collected because an offer or an adjustment applied. Already reflected in revenue - this is not a second cost."
         >
           <dl className="grid gap-4 sm:grid-cols-2">
             {DISCOUNT_SOURCES.filter((source) => discountsGiven.bySource[source] > 0).map(
@@ -278,7 +278,7 @@ export default function AdminCostsTab({
       <SurfaceCard
         title="Payment processing fee"
         icon="fa-credit-card"
-        subtitle="Charged by the payment gateway on everything collected online. Applied automatically — you never enter it as a cost."
+        subtitle="Charged by the payment gateway on everything collected online. Applied automatically - you never enter it as a cost."
       >
         <form onSubmit={saveFee} className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1 text-xs">
@@ -309,7 +309,7 @@ export default function AdminCostsTab({
           {feeError && <span className="text-xs font-semibold text-red-700">{feeError}</span>}
         </form>
         <p className="mt-3 text-[11px] text-slate-400">
-          Razorpay&apos;s standard domestic rate is around 2%, plus GST — check your own plan.
+          Razorpay&apos;s standard domestic rate is around 2%, plus GST - check your own plan.
           Cash-on-visit collections never touch the gateway and are excluded.
         </p>
       </SurfaceCard>
@@ -349,7 +349,7 @@ export default function AdminCostsTab({
             <input
               type="text"
               maxLength={500}
-              placeholder="Optional — e.g. Physio couch, monthly Zoom plan"
+              placeholder="Optional - e.g. Physio couch, monthly Zoom plan"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="rounded-lg border border-slate-300 px-2.5 py-1.5"
@@ -414,7 +414,7 @@ export default function AdminCostsTab({
           <EmptyState
             icon="fa-receipt"
             title="No costs recorded yet"
-            body="Until the clinic's own costs are in here, Summary can only show what is left after the therapist and partner shares — not what the business actually kept."
+            body="Until the clinic's own costs are in here, Summary can only show what is left after the therapist and partner shares - not what the business actually kept."
           />
         ) : (
           <div className="overflow-x-auto">
@@ -433,7 +433,7 @@ export default function AdminCostsTab({
                   <tr key={e.id} className="border-b border-slate-100">
                     <td className="py-2.5 pr-3 text-slate-700">{formatDate(e.incurred_on)}</td>
                     <td className="py-2.5 pr-3 font-semibold text-slate-800">{e.category}</td>
-                    <td className="py-2.5 pr-3 text-slate-500">{e.description ?? "—"}</td>
+                    <td className="py-2.5 pr-3 text-slate-500">{e.description ?? "-"}</td>
                     <td className="py-2.5 pr-3 text-right font-bold text-slate-900 tabular-nums">
                       {formatInr(e.amount_paise)}
                     </td>

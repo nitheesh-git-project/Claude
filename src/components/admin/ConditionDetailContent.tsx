@@ -89,7 +89,7 @@ function daysSince(iso: string): number {
 }
 
 // Shared body for both the standalone /admin/dashboard/conditions/[id]
-// page and its @modal intercepted overlay — same split as
+// page and its @modal intercepted overlay - same split as
 // PatientDetailContent for the same reason (Bug 10).
 export default async function ConditionDetailContent({ id }: { id: string }) {
   const admin = createAdminClient();
@@ -252,7 +252,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
         {isOutdatedVersion && (
           <p className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
             Answered under an earlier version of this questionnaire (v{profile?.schema_version} vs current v
-            {currentVersion}) — question wording may have changed since.
+            {currentVersion}) - question wording may have changed since.
           </p>
         )}
 
@@ -260,7 +260,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <p className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-2">
               <span>
-                Submitted by {pendingRequest.submitted_by_role} —{" "}
+                Submitted by {pendingRequest.submitted_by_role} -{" "}
                 {formatClinicDateTime(pendingRequest.created_at)}
               </span>
               {pendingDaysOld > 3 && (
@@ -306,7 +306,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
             therapist's re-triage; a dropdown buried in an answers form is
             how it gets changed by accident. */}
         <p className="text-xs font-semibold text-slate-500 mb-2">
-          Live {specialtyLabel(specialty).toLowerCase()} answers — editing here applies straight
+          Live {specialtyLabel(specialty).toLowerCase()} answers - editing here applies straight
           away, without going through the review queue above
         </p>
         <ConditionDirectEditForm
@@ -351,7 +351,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
                   : [];
                 return (
                   <li key={r.id} className="text-xs text-slate-600 border-t border-slate-100 pt-2">
-                    {r.status === "approved" ? "Approved" : "Declined"} — submitted by{" "}
+                    {r.status === "approved" ? "Approved" : "Declined"} - submitted by{" "}
                     {r.submitted_by_role}, {formatClinicDateTime(r.created_at)}
                     {proposed && (
                       <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
@@ -399,7 +399,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
                     {therapistNameById.get(g.therapist_id) ?? g.therapist_id}
                   </p>
                   <p className="text-xs text-slate-400">
-                    {g.status === "requested" ? "Requested" : "Approved"} —{" "}
+                    {g.status === "requested" ? "Requested" : "Approved"} -{" "}
                     {formatClinicDateTime(g.requested_at)}
                   </p>
                 </div>
@@ -425,7 +425,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       <SurfaceCard
         title="Session notes"
         icon="fa-file-lines"
-        subtitle="Written by the treating therapist after each session. Clinician-only — the patient cannot see these, in the app or in their data export."
+        subtitle="Written by the treating therapist after each session. Clinician-only - the patient cannot see these, in the app or in their data export."
       >
         <SessionNoteHistory
           notes={(sessionNoteRows ?? []) as SessionNoteRow[]}
@@ -463,7 +463,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
         />
         {isOrthoProfile && (
           <p className="mt-3 text-xs text-slate-400">
-            Recording here posts live immediately, same as a therapist&apos;s own entry — it adds a
+            Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a
             new reading rather than editing any past one, since Pain Map history is append-only.
           </p>
         )}

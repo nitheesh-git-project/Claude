@@ -5,7 +5,7 @@ import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // Reverts a mistakenly (or prematurely) completed session back to
-// "confirmed" — admin-only, deliberately not self-service for the
+// "confirmed" - admin-only, deliberately not self-service for the
 // therapist, so undoing a Done can't be used to walk back a bad rating.
 // Any ratings/feedback already submitted are cleared, since they were
 // given on the premise that the session actually happened; if it's
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   // Same reasoning as cancelAppointmentAndRefund's guard: this session's
   // cash payout to the therapist has already been settled. Reopening it
   // (without this check) would silently flip status back to "confirmed"
-  // while leaving therapist_payout_paid_at set — so if the session later
+  // while leaving therapist_payout_paid_at set - so if the session later
   // gets marked completed again, settle-therapist-payout's "unsettled"
   // query (status = 'completed' and payout_paid_at is null) would never
   // pick it back up, and the therapist would have genuinely delivered a
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "This session's payout has already been settled — reopening it won't be tracked for a future payout unless you handle that manually.",
+          "This session's payout has already been settled - reopening it won't be tracked for a future payout unless you handle that manually.",
         payoutSettled: true,
       },
       { status: 400 }

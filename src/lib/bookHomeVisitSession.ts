@@ -169,7 +169,7 @@ export async function bookHomeVisitSession(
     return {
       success: false,
       status: 409,
-      error: "Could not reserve a visit on this package — please try again.",
+      error: "Could not reserve a visit on this package - please try again.",
     };
   }
 

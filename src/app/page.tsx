@@ -22,7 +22,7 @@ import ClosingCta from "@/components/marketing/ClosingCta";
 import { homeConnectors } from "@/lib/marketingNav";
 import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
 
-// This page has no per-user content — it can be cached and revalidated
+// This page has no per-user content - it can be cached and revalidated
 // on a timer instead of hitting Supabase on every single visit.
 export const revalidate = 300;
 
@@ -43,7 +43,7 @@ export default async function Home() {
     .order("id", { ascending: true });
 
   // "From ₹X" in the hero should track whatever admins actually configure
-  // in Site Content, not a stale constant — falls back to the flat fee
+  // in Site Content, not a stale constant - falls back to the flat fee
   // only in the unlikely event no categories are active at all.
   const startingPricePaise =
     categories && categories.length > 0
@@ -153,7 +153,7 @@ export default async function Home() {
     avatar_url: avatarById.get(t.id) ?? null,
   }));
 
-  // Real, aggregated patient rating data (never individual reviews/names —
+  // Real, aggregated patient rating data (never individual reviews/names -
   // see the schema comment on public_rating_summary for why) surfaced
   // alongside the hand-curated testimonials above.
   const { data: ratingSummary } = await supabase
@@ -281,7 +281,7 @@ export default async function Home() {
       <Section
         id="our-mission"
         // A connector band, so it takes the same floating-panel treatment as
-        // the explore grid at the foot of the page — and it keeps this from
+        // the explore grid at the foot of the page - and it keeps this from
         // running into the white "what we treat" band directly below.
         tone="panel"
         eyebrow="Our mission"
@@ -316,7 +316,7 @@ export default async function Home() {
         </Reveal>
       </Section>
 
-      {/* CONDITIONS — admin-controlled content, so the layout stays generic
+      {/* CONDITIONS - admin-controlled content, so the layout stays generic
           and simply adapts to whatever categories are configured. */}
       {categories && categories.length > 0 && (
         <Section

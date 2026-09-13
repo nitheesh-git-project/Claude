@@ -15,15 +15,15 @@ export type QuickAction = {
 };
 
 /**
- * The first screen of every dashboard — patient, therapist, hospital and
+ * The first screen of every dashboard - patient, therapist, hospital and
  * admin all render this exact component with their own numbers.
  *
  * The order is the answer to three questions people actually open a
  * dashboard for, in the order they ask them: how am I doing (the strip),
  * what needs me (the feed), what do I do next (the actions). Each role
- * used to answer these differently or not at all — the patient landed on a
+ * used to answer these differently or not at all - the patient landed on a
  * booking form, the therapist on an availability grid, the hospital on a
- * referral form — so nobody could tell at a glance whether anything was
+ * referral form - so nobody could tell at a glance whether anything was
  * waiting on them.
  */
 export default function DashboardOverview({
@@ -43,7 +43,7 @@ export default function DashboardOverview({
    *  under the figures is a warning below the fold on a phone. */
   banner?: ReactNode;
   greeting?: string;
-  /** One sentence naming the single most important fact right now — the
+  /** One sentence naming the single most important fact right now - the
    *  next session, the next payout, the queue that is longest. */
   headline?: ReactNode;
   cells: StatCell[];
@@ -53,7 +53,7 @@ export default function DashboardOverview({
   feedEmptyBody?: string;
   actions: QuickAction[];
   /** Anything role-specific that belongs beside the feed rather than in
-   *  its own section — the admin's queue counts, a patient's next visit. */
+   *  its own section - the admin's queue counts, a patient's next visit. */
   aside?: ReactNode;
 }) {
   return (

@@ -21,7 +21,7 @@ import {
 export const metadata: Metadata = {
   title: "Home Visit Physiotherapy | Dr. Pooja's Physio",
   description:
-    "A licensed physiotherapist comes to your address — the same assessment and recovery plan, without the travel.",
+    "A licensed physiotherapist comes to your address - the same assessment and recovery plan, without the travel.",
 };
 
 // No per-user content, and createPublicClient() never touches cookies(), so
@@ -227,7 +227,7 @@ export default async function HomeVisitPage() {
           <HomeVisitPackages packages={packages} leadCount={leadCount} />
         ) : (
           <p className="text-center text-sm text-slate-500">
-            Home visit packages are being finalised — please check back shortly.
+            Home visit packages are being finalised - please check back shortly.
           </p>
         )}
       </Section>

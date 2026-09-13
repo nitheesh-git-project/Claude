@@ -173,7 +173,7 @@ export default function PackageSettingsForm({
             <h3 className="font-bold text-sm text-slate-800">Therapist Lock (site-wide)</h3>
             <p className="text-xs text-slate-500 mt-1 max-w-md">
               When off, no package locks to a single therapist regardless of each package&apos;s
-              own setting — every session is assigned individually, as before. Turn off only if
+              own setting - every session is assigned individually, as before. Turn off only if
               you no longer want the continuity promise enforced anywhere.
             </p>
           </div>
@@ -201,7 +201,7 @@ export default function PackageSettingsForm({
             </p>
             <p className="text-xs text-slate-500 mt-2 max-w-md">
               Turn this on only once <span className="font-semibold">System Health</span> has
-              reported no accounting mismatches over a real stretch of bookings — and turn it
+              reported no accounting mismatches over a real stretch of bookings - and turn it
               straight back off if anything looks wrong. Both are still written either way, so
               nothing is lost by switching back.
             </p>
@@ -225,8 +225,8 @@ export default function PackageSettingsForm({
             <h3 className="font-bold text-sm text-slate-800">Assign a Therapist Automatically</h3>
             <p className="text-xs text-slate-500 mt-1 max-w-md">
               When a session is paid for and <span className="font-semibold">exactly one</span>{" "}
-              therapist is free for it — approved, not on leave, rostered for that hour and with no
-              clashing session — assign them and confirm the booking straight away, instead of
+              therapist is free for it - approved, not on leave, rostered for that hour and with no
+              clashing session - assign them and confirm the booking straight away, instead of
               leaving it in this queue until someone opens this screen. If the patient asked for a
               specific therapist and that therapist is free, they are the one chosen. If two or more
               are free, or none, nothing happens and the session waits for you exactly as it does
@@ -252,7 +252,7 @@ export default function PackageSettingsForm({
             <h3 className="font-bold text-sm text-slate-800">Therapist-Suggested Sessions</h3>
             <p className="text-xs text-slate-500 mt-1 max-w-md">
               Lets a therapist suggest the next session on a programme locked to them. The patient
-              still confirms — nothing is booked and no session is used until they accept. Turning
+              still confirms - nothing is booked and no session is used until they accept. Turning
               this off hides the control and refuses new suggestions; ones already waiting can
               still be answered.
             </p>

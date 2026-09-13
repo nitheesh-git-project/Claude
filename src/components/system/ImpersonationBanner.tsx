@@ -58,7 +58,7 @@ export default function ImpersonationBanner({
             You are signed in as {marker.targetName}.
           </span>{" "}
           <span className="text-amber-800">
-            Everything you do here is recorded as theirs — a booking, a
+            Everything you do here is recorded as theirs - a booking, a
             cancellation, a payment.
           </span>
           {left !== null && (

@@ -19,7 +19,7 @@ export type PublicTestimonial = {
  * Patient quotes, shown the same way on Home and /mission.
  *
  * One component rather than two copies of the markup, because these two
- * bands make the same claim and a visitor may well see both in one session —
+ * bands make the same claim and a visitor may well see both in one session -
  * the pair drifting apart is exactly the kind of thing nobody notices in
  * review and everybody notices on the site.
  *

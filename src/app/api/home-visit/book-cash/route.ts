@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
   // parsed by parseAdminSettings.
   if (settingsRow?.home_visit_cash_enabled === false) {
     return NextResponse.json(
-      { error: "Paying at the door isn't available right now — please pay online instead." },
+      { error: "Paying at the door isn't available right now - please pay online instead." },
       { status: 403 }
     );
   }

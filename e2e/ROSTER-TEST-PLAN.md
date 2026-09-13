@@ -1,4 +1,4 @@
-# Therapist roster — test plan
+# Therapist roster - test plan
 
 What is tested, at which layer, and why that layer. The roster's UI changed
 completely and its storage model did not, so most of this plan is about
@@ -13,13 +13,13 @@ Four layers, chosen by what each one can actually prove:
 | E2E (`e2e/therapist-roster.spec.ts`, Playwright) | test Supabase + the app | authorization, concurrency, and that booking did not move |
 | Browser (same spec + the checks below) | the app | accessible names, keyboard, save-spam, mobile |
 
-## 1. Unit — the range layer
+## 1. Unit - the range layer
 
 `src/lib/availabilityRanges.test.ts`, `src/lib/availabilityRequest.test.ts`.
 No database, no browser.
 
 - **Round trip.** Any set of hours becomes periods and comes back as
-  exactly the same hours — `[]`, `[6]`, `[23]`, a sparse `[6,7,9,23]`, and
+  exactly the same hours - `[]`, `[6]`, `[23]`, a sparse `[6,7,9,23]`, and
   the full 18. This is the migration guarantee: an existing schedule must
   read back unchanged.
 - **Shape.** Contiguous hours collapse to one period; a lunch break stays
@@ -30,7 +30,7 @@ No database, no browser.
 - **Payload parsing** (server only): not an array, more than seven days,
   a repeated day, day `7`/`-1`/`1.5`, a period that is a string, a period
   missing a field, string hours, more than 18 periods in a day, and an
-  empty week — which is a real state, not an error.
+  empty week - which is a real state, not an error.
 - **Dates.** `parseDateKey` takes `2026-09-12`, refuses `2026-2-3`,
   `12-09-2026`, `2026-02-31`, a number and null; a past date is allowed,
   because correcting last week's roster is a real action.
@@ -55,7 +55,7 @@ No database, no browser.
   gives different weekdays and dates; a bad zone or a bad date returns null
   rather than guessing.
 
-## 2. SQL — the write functions
+## 2. SQL - the write functions
 
 `scripts/roster-sql-checks.sql`, run against a scratch database with
 `schema.sql` applied. These are the cases the API routes cannot produce,
@@ -72,9 +72,9 @@ in front of whoever pressed Save, and is now deduplicated last-mention-wins;
 and the first-ever save for a therapist could race itself into a version
 that never incremented, now an upsert-then-lock loop.
 
-Concurrency is not in this file — it needs more than one session. See §3.
+Concurrency is not in this file - it needs more than one session. See §3.
 
-## 3. E2E — authorization, concurrency, booking
+## 3. E2E - authorization, concurrency, booking
 
 `e2e/therapist-roster.spec.ts`. Needs a test Supabase project.
 
@@ -83,7 +83,7 @@ search, and no hourly grid. A therapist's schedule opens with their timezone
 stated. Hours save as ranges and land as the same hour rows; narrowing,
 widening and two periods with a gap all persist. Copying a day leaves the
 others alone. Turning a day off empties that day only. An exception owns its
-own date: custom hours, unavailable all day, removed — with the weekly
+own date: custom hours, unavailable all day, removed - with the weekly
 schedule untouched throughout and the following week still reading the
 weekly hours. Leave empties every date and gives them all back, with the
 template intact underneath.
@@ -96,10 +96,10 @@ session and never the body.
 
 **Security (R-S01, R-S02).** Signed out, patient, hospital and therapist are
 each refused by all three admin routes, and the probe is checked not to have
-left leave switched on. Eleven malformed payloads — end before start,
+left leave switched on. Eleven malformed payloads - end before start,
 overlap, duplicate, hours outside the day, invalid day, unknown therapist,
 malformed date, impossible date, unknown mode, custom hours with none given,
-leave ending before it starts — are each refused, and the stored schedule is
+leave ending before it starts - are each refused, and the stored schedule is
 compared before and after.
 
 **Concurrency (R-C01…R-C04).** Two identical saves carrying the same version
@@ -111,17 +111,17 @@ Verified locally against Postgres 16 as well: twelve concurrent first-ever
 saves serialise to version 13 with no torn state; twelve concurrent saves
 carrying the same version give exactly one `ok` and eleven `conflict`;
 twenty-four mixed saves, exception writes and clears leave no partial day
-and no deadlock; and the lock is per therapist — a second therapist's save
+and no deadlock; and the lock is per therapist - a second therapist's save
 completes in 38ms while another's row is held for five seconds.
 
 **Booking regression (R-B01, R-B02).** Narrowing hours, closing a date and
 going on leave each leave a booked appointment row byte-identical. The
 patient's time picker offers the same options with the therapist's roster
-wiped and the therapist on leave — because availability is a planning record
+wiped and the therapist on leave - because availability is a planning record
 and the picker is the lead-time rule, and connecting the two would change
 who is bookable on a deploy rather than on somebody's decision.
 
-## 4. Browser — accessibility and interaction
+## 4. Browser - accessibility and interaction
 
 Run against the components with fixture data. 23 of 24 checks pass; the one
 failure is the pre-launch debug bar's unlabelled "Simulate now" input, which
@@ -129,7 +129,7 @@ is not part of this change.
 
 - Every button, input, select and link has an accessible name.
 - A day row announces "Monday, working, 9 AM to 1 PM and 2 PM to 6 PM", and
-  an off day announces "Wednesday, not working" — not a colour.
+  an off day announces "Wednesday, not working" - not a colour.
 - Working/Off is a real `switch` with `aria-checked`, toggles from the
   keyboard, and shows a visible focus state.
 - Every status carries a word as well as a colour.

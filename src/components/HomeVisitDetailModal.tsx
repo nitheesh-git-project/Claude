@@ -243,7 +243,7 @@ export default function HomeVisitDetailModal({
                       {data.completed.map((a) => (
                         <li key={a.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-xs">
                           <span>
-                            {a.slot_time ? formatClinicDate(a.slot_time) : "—"}{" "}
+                            {a.slot_time ? formatClinicDate(a.slot_time) : "-"}{" "}
                             <span className="font-mono text-slate-400">{a.session_code ?? ""}</span>
                           </span>
                           {a.no_show && <span className="font-semibold text-amber-700">No-show</span>}

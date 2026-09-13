@@ -107,8 +107,8 @@ export default function AdminActivityLogTab({
           <h2 className="font-display font-bold text-lg text-slate-800">Activity Log</h2>
           <p className="mt-1 text-xs text-slate-500">
             {scopeNote
-              ? "Every action your desk took from this dashboard. Append-only — nothing here can be edited."
-              : "Every action an admin took from this dashboard. Append-only — nothing here can be edited."}
+              ? "Every action your desk took from this dashboard. Append-only - nothing here can be edited."
+              : "Every action an admin took from this dashboard. Append-only - nothing here can be edited."}
           </p>
           {scopeNote && (
             <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
@@ -218,11 +218,11 @@ export default function AdminActivityLogTab({
                       )}
                     </span>
                   </td>
-                  <td className="py-2 pr-3 text-slate-500">{r.targetLabel ?? "—"}</td>
+                  <td className="py-2 pr-3 text-slate-500">{r.targetLabel ?? "-"}</td>
                   <td className="whitespace-nowrap py-2 pr-3 text-right font-semibold tabular-nums text-slate-800">
                     {r.amountPaise != null
                       ? `₹${(r.amountPaise / 100).toLocaleString("en-IN")}`
-                      : "—"}
+                      : "-"}
                   </td>
                 </tr>
               ))}

@@ -10,7 +10,7 @@ Run them from the repository root, so `node_modules` resolves.
 | Script | What it does |
 | --- | --- |
 | `mkadmin.mjs` | Creates (or re-passwords) `qa.admin@example.test` as a full-scope admin, so the plan's admin fixtures exist without editing the database by hand. |
-| `step0.mjs` | Executes STEP 0 — counts the tables either side of the reset, exercises all four gates, and reports which tables survived. This is what turned F-01 from an inference into a measurement. |
+| `step0.mjs` | Executes STEP 0 - counts the tables either side of the reset, exercises all four gates, and reports which tables survived. This is what turned F-01 from an inference into a measurement. |
 | `webhook-sec.mjs` | The webhook half of §16.3 (signature, raw-body, duplicate delivery, non-capture events) plus the §18.2 anonymous-caller sweep over 25 routes. |
 | `dedup.mjs` | Webhook deduplication on Razorpay's own `x-razorpay-event-id` header, asserting exactly one stored row for two deliveries. |
 | `authorder.mjs` | Calls the routes that once validated a body before checking authentication, with well-formed bodies, and asserts 401/403. The regression guard for F-08. |

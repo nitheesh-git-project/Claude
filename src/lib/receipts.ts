@@ -111,7 +111,7 @@ export type BookingReceipt = {
   slotTimezone: string | null;
   amountPaise: number;
   /**
-   * What it would have cost, and what came off — shown as its own line
+   * What it would have cost, and what came off - shown as its own line
    * rather than folded into the amount.
    *
    * A receipt that silently prints a lower number tells the patient nothing
@@ -193,7 +193,7 @@ export function buildPatientReceipts(
       slotTimezone: a.timezone,
       amountPaise: a.package_purchase_id ? 0 : a.amount_paid_paise ?? 0,
       // Only where something actually came off, and never on a
-      // package-covered session — that row charges nothing, so "₹700 off"
+      // package-covered session - that row charges nothing, so "₹700 off"
       // beside a zero would be nonsense.
       listPricePaise: a.package_purchase_id ? null : a.list_price_paise ?? null,
       discountPaise: a.package_purchase_id ? 0 : a.discount_paise ?? 0,

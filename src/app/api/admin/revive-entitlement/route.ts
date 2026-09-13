@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "This package was refunded — the money has gone back. Grant new sessions instead of reopening it.",
+          "This package was refunded - the money has gone back. Grant new sessions instead of reopening it.",
       },
       { status: 409 }
     );
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
   }
   if (!revived) {
     return NextResponse.json(
-      { error: "This package changed while you were working on it — refresh and try again." },
+      { error: "This package changed while you were working on it - refresh and try again." },
       { status: 409 }
     );
   }

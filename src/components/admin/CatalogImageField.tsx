@@ -137,7 +137,7 @@ export default function CatalogImageField({
               <p className="text-[11px] text-slate-500">
                 {hasCustomFocal({ image_focal_x: focalX, image_focal_y: focalY })
                   ? `Positioned at ${focalX}% ${focalY}%`
-                  : "Centred — not positioned yet"}
+                  : "Centred - not positioned yet"}
               </p>
             </div>
           </div>

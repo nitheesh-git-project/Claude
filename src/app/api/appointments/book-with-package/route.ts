@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!(await isProfileActiveAndApproved(user.id))) {
-    return NextResponse.json({ error: "Your account is not active — it is either awaiting admin approval or has been suspended." }, { status: 403 });
+    return NextResponse.json({ error: "Your account is not active - it is either awaiting admin approval or has been suspended." }, { status: 403 });
   }
 
   const admin = createAdminClient();

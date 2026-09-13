@@ -88,7 +88,7 @@ export default function SubmitReferralForm({
       )}
       {success && (
         <div className="text-teal-800 bg-teal-50 border border-teal-200 rounded-lg p-3">
-          Referral submitted — our team will review and reach out.
+          Referral submitted - our team will review and reach out.
         </div>
       )}
 

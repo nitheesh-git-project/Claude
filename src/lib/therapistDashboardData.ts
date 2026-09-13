@@ -271,7 +271,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
 
   // A therapist can read their own appointment rows via RLS, but not the
   // linked patients' profiles (that policy only allows a user to read
-  // their own row) — so their patients' names/contact info have to be
+  // their own row) - so their patients' names/contact info have to be
   // looked up here via the admin client, scoped to just the columns
   // needed to actually run the session.
   const patientIds = [
@@ -656,7 +656,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       at: s.slot_time ?? new Date(nowMsForOverview).toISOString(),
       icon: "fa-file-pen",
       tone: "warn" as const,
-      title: `Session note needed — ${patientNameById.get(s.patient_id) ?? "a patient"}`,
+      title: `Session note needed - ${patientNameById.get(s.patient_id) ?? "a patient"}`,
       detail: "Write it while it's fresh; it's what you'll read before their next session.",
       href: "/therapist/dashboard/sessions",
       needsYou: true,

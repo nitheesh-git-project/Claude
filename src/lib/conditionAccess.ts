@@ -5,7 +5,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 // condition_access_grants / patient_condition_profiles / pain_assessments
 // in supabase/schema.sql (which encode the same rule at the database
 // level). "Assigned" = has ever had an appointment with this patient, or
-// holds a package's locked_therapist_id — see that schema section's
+// holds a package's locked_therapist_id - see that schema section's
 // comment for why this is intentionally broader than strictly "current".
 export async function isTherapistAssignedToPatient(
   supabase: SupabaseClient,
@@ -28,7 +28,7 @@ export async function isTherapistAssignedToPatient(
 }
 
 /** Whether a therapist currently holds an approved write-access grant for
- *  this patient's **intake** — their own account of their history, which a
+ *  this patient's **intake** - their own account of their history, which a
  *  therapist editing on their behalf needs admin approval for.
  *
  *  Deliberately NOT the gate for a Pain Map exam any more: that records the

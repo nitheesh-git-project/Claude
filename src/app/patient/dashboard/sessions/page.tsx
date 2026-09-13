@@ -33,7 +33,7 @@ export default async function Page() {
     <PatientDashboardShell
       data={d}
       title="Your Sessions"
-      subtitle="Every session you have booked — video consultations and home visits together."
+      subtitle="Every session you have booked - video consultations and home visits together."
     >
       <SurfaceCard
         title="Your Sessions"

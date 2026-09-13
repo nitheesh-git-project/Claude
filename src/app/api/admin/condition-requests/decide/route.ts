@@ -11,7 +11,7 @@ import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
 import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 
-// Approve or decline a Patient Care Intake submission — a patient editing
+// Approve or decline a Patient Care Intake submission - a patient editing
 // their own record, or a therapist editing it on their behalf with an
 // approved access grant. (The therapist's *first* fill does not come
 // through here: it writes live via /api/therapist/condition-profile/onboard

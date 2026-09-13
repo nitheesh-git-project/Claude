@@ -297,7 +297,7 @@ export default function CarePlanOfferCard({
           <div>
             <dt className="text-[11px] text-slate-400">Each session</dt>
             <dd className="text-sm font-bold text-slate-900">
-              {snapshot.sessionDurationMinutes ? `${snapshot.sessionDurationMinutes} min` : "—"}
+              {snapshot.sessionDurationMinutes ? `${snapshot.sessionDurationMinutes} min` : "-"}
             </dd>
           </div>
         </dl>
@@ -346,7 +346,7 @@ export default function CarePlanOfferCard({
                   <span className="text-slate-700">
                     {a.label ? <span className="font-semibold">{a.label} · </span> : null}
                     {a.line1}
-                    {a.city ? `, ${a.city}` : ""} — {a.pincode}
+                    {a.city ? `, ${a.city}` : ""} - {a.pincode}
                   </span>
                 </label>
               ))}
@@ -397,7 +397,7 @@ export default function CarePlanOfferCard({
               <div className="flex justify-between border-t border-slate-100 pt-1">
                 <dt className="font-semibold text-slate-700">Total</dt>
                 <dd className="font-bold text-slate-900">
-                  {chargeablePaise !== null ? formatInr(chargeablePaise) : "—"}
+                  {chargeablePaise !== null ? formatInr(chargeablePaise) : "-"}
                 </dd>
               </div>
             </dl>
@@ -545,7 +545,7 @@ function PaidAndUnscheduled({
         </span>
         <div className="min-w-0">
           <h2 className="font-display text-lg font-bold text-slate-900">
-            Payment received — {sessionCount} {noun}
+            Payment received - {sessionCount} {noun}
             {sessionCount === 1 ? "" : "s"}{" "}
             {sessionCount === 1 ? "is" : "are"} yours
           </h2>

@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 // Marks the one-time welcome modal as seen. Called both on "Skip for now"
 // and on the CTA button, so either way it never shows again for this
-// patient — the persistent health-profile reminder banner is a separate,
+// patient - the persistent health-profile reminder banner is a separate,
 // status-driven thing that keeps nudging independently of this flag.
 export async function POST() {
   const supabase = await createClient();

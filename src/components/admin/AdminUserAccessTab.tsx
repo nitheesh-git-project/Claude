@@ -598,7 +598,7 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
         </div>
       )}
       <p className="text-[11px] text-slate-400">
-        The account is created already approved — you vetted it by creating it — and a
+        The account is created already approved - you vetted it by creating it - and a
         temporary password is generated. It stays readable until they set their own, so
         closing this does not lose it.
       </p>
@@ -677,7 +677,7 @@ export default function AdminUserAccessTab({
             <h2 className="font-display font-bold text-lg text-slate-800">Back office</h2>
             <p className="text-xs text-slate-500">
               {canManage
-                ? "Everyone who can sign in to this dashboard. You can't change your own access, and the last Master Admin can't be narrowed or suspended — otherwise nobody could ever widen it again."
+                ? "Everyone who can sign in to this dashboard. You can't change your own access, and the last Master Admin can't be narrowed or suspended - otherwise nobody could ever widen it again."
                 : "Only a Master Admin can change these."}
             </p>
           </div>
@@ -709,7 +709,7 @@ export default function AdminUserAccessTab({
               <p className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-[11px] text-slate-600">
                 {suspended} suspended {suspended === 1 ? "account is" : "accounts are"} still
                 listed. A suspended admin cannot sign in, and their name stays on everything they
-                did — which is why access is taken away rather than the account deleted.
+                did - which is why access is taken away rather than the account deleted.
               </p>
             )}
             <ul className="space-y-2">

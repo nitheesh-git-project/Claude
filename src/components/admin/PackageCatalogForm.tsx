@@ -191,7 +191,7 @@ export default function PackageCatalogForm({
           </Field>
         )}
         {isEdit && (
-          <Field label="Category" hint="Set once at creation and locked afterward — live purchases reference it.">
+          <Field label="Category" hint="Set once at creation and locked afterward - live purchases reference it.">
             <p className="p-2 rounded-lg border border-slate-200 bg-slate-100 text-slate-500">
               {categories.find((c) => c.id === pkg!.category_id)?.title ?? "Unknown category"}
             </p>
@@ -245,7 +245,7 @@ export default function PackageCatalogForm({
             <input type="number" min={1} step="0.01" value={priceInr} onChange={(e) => setPriceInr(e.target.value)} required className={inputCls()} />
           </Field>
         </div>
-        <Field label="Compare-at Price (₹)" hint="The struck-through 'was' price. Leave blank to compute automatically from the category's per-session price — recommended, so the saving can never contradict real pricing.">
+        <Field label="Compare-at Price (₹)" hint="The struck-through 'was' price. Leave blank to compute automatically from the category's per-session price - recommended, so the saving can never contradict real pricing.">
           <input type="number" min={1} step="0.01" value={compareAtInr} onChange={(e) => setCompareAtInr(e.target.value)} placeholder="Auto" className={inputCls()} />
         </Field>
         {savings.compareAtPaise !== null && (
@@ -308,7 +308,7 @@ export default function PackageCatalogForm({
         </label>
         <label className="flex items-center gap-2 font-semibold">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="w-4 h-4 accent-teal-600" />
-          Active (master switch — off hides it everywhere and blocks purchase; existing purchases are unaffected)
+          Active (master switch - off hides it everywhere and blocks purchase; existing purchases are unaffected)
         </label>
       </fieldset>
 

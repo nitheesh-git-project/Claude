@@ -90,7 +90,7 @@ export default function TestimonialForm({
         <label className="block font-semibold mb-1">
           Patient Name{" "}
           <span className="font-normal text-slate-400">
-            (e.g. &quot;Priya S.&quot; — consider privacy)
+            (e.g. &quot;Priya S.&quot; - consider privacy)
           </span>
         </label>
         <input
