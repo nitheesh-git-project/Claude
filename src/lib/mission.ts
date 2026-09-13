@@ -12,9 +12,27 @@
  * makes a claim that could be checked.
  */
 
-/** One line, under fifteen words. Why the practice exists at all. */
+/**
+ * One line, under fifteen words. Why the practice exists at all.
+ *
+ * Two things in here were wrong before and should not come back. It opened
+ * with "An hour", which is a number the product does not guarantee -- session
+ * length is `session_duration_minutes` per package and `duration_minutes` per
+ * category, both admin-set, so a fixed figure in the one line a visitor reads
+ * as a promise is the same mistake `ClosingCta`'s assurance lines exist to
+ * avoid. And it ended "wherever you live", which reads as somebody travelling
+ * to you: consultations here are video, and a home visit is the exception for
+ * a patient for whom video will not do, gated by `home_visit_areas`.
+ * "Wherever you are" is true of both modes and implies neither.
+ *
+ * The outcome is worded as the return to normal life rather than the absence
+ * of pain. "Painless", "fully recovered" and the like are outcome guarantees
+ * no physiotherapist can make, and they would contradict `COMMITMENTS` a
+ * band below on the same page, where the clinic says it will tell you when
+ * this is not for you.
+ */
 export const MISSION =
-  "An hour with a physiotherapist who watches how you actually move — wherever you live.";
+  "Wherever you are, a qualified physiotherapist gets you moving like you did before.";
 
 /** One line, under fifteen words. What it looks like if we succeed. */
 export const VISION =
