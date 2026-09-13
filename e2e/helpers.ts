@@ -38,8 +38,39 @@ export async function cookieHeaderFor(email: string): Promise<string> {
   const anon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data, error } = await anon.auth.signInWithPassword({ email, password: TEST_PASSWORD });
-  if (error || !data.session) throw new Error(`sign-in failed for ${email}: ${error?.message}`);
+  // Retried, because the suite mints a session per spec and GoTrue rate-limits
+  // its token endpoint under that burst. A throttled sign-in comes back with
+  // an empty body, so the thrown message read `sign-in failed for ...: {}` --
+  // which looks exactly like a missing or mis-seeded fixture and sent the
+  // reader to `npm run seed:qa` for a problem seeding cannot fix.
+  //
+  // The status and error name go in the message for the same reason: the one
+  // thing that tells a 429 apart from a genuinely wrong password is the thing
+  // the old message dropped.
+  let data: Awaited<ReturnType<typeof anon.auth.signInWithPassword>>["data"] | null = null;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const result = await anon.auth.signInWithPassword({ email, password: TEST_PASSWORD });
+    if (!result.error && result.data.session) {
+      data = result.data;
+      break;
+    }
+    lastError = result.error;
+    const status = (result.error as { status?: number } | null)?.status;
+    // 400 with a real message is a wrong password or a missing account, and no
+    // amount of waiting fixes it. Anything else -- 429, 5xx, an empty body --
+    // is worth one more try.
+    const permanent = status === 400 && !!result.error?.message && result.error.message !== "{}";
+    if (permanent) break;
+    await new Promise((r) => setTimeout(r, 400 * 2 ** attempt));
+  }
+  if (!data?.session) {
+    const e = lastError as { message?: string; name?: string; status?: number } | null;
+    throw new Error(
+      `sign-in failed for ${email} after 4 attempts: ` +
+        `status=${e?.status ?? "?"} name=${e?.name ?? "?"} message=${e?.message || "(empty body)"}`
+    );
+  }
 
   const collected: { name: string; value: string }[] = [];
   const ssrClient = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
