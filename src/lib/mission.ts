@@ -38,6 +38,50 @@ export const MISSION =
 export const VISION =
   "Recovery should never depend on living near a good clinic.";
 
+/**
+ * Bounds on the two lines an admin may write in their place.
+ *
+ * Generous next to the fifteen-word rule above rather than equal to it: the
+ * budget is editorial advice the screen gives, and a character cap is a
+ * layout guard. Both lines render as a single display-face paragraph in a
+ * card on the home page and as the mission page's hero sentence, so the real
+ * failure a limit prevents is a paragraph pasted into a slot built for a
+ * sentence. Mirrored by the columns' own CHECK constraints and re-checked in
+ * `/api/admin/update-setting`, which stays the authority.
+ */
+export const MAX_MISSION_LENGTH = 160;
+export const MAX_VISION_LENGTH = 140;
+
+/** The two lines as they render, whatever the database does or does not hold. */
+export type MissionCopy = { mission: string; vision: string };
+
+/**
+ * The stored override, or the line above when there is no override.
+ *
+ * Blank is a value here rather than an error, the same way
+ * `splash_brand_line` blank means "follow the site name": it is how an admin
+ * undoes an edit without having to retype the original out of a code file
+ * they cannot read. So the constants above stay the reviewed default and the
+ * setting is an override on top of them, which also means a database that has
+ * never run the migration renders exactly what it rendered before.
+ *
+ * Kept pure and in this module -- rather than inside the read below, or in
+ * the page -- because it is the half with a rule in it, and a rule about what
+ * a visitor reads on the home page is worth a unit test rather than a click.
+ */
+export function resolveMissionCopy(
+  row: { mission_statement?: string | null; vision_statement?: string | null } | null | undefined
+): MissionCopy {
+  const stored = (value: string | null | undefined, fallback: string) => {
+    const trimmed = typeof value === "string" ? value.trim() : "";
+    return trimmed.length > 0 ? trimmed : fallback;
+  };
+  return {
+    mission: stored(row?.mission_statement, MISSION),
+    vision: stored(row?.vision_statement, VISION),
+  };
+}
+
 export type MissionPrinciple = {
   key: string;
   /** A few words. */

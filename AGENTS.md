@@ -230,6 +230,7 @@ src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
 src/lib/catalogFeatured.ts which few of the catalogue a public page leads with
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
 src/lib/mission.ts       the mission, vision, promises and stated limits
+src/lib/missionCopy.ts   the mission and vision as an admin may have rewritten them
 src/lib/marketingPhotos.ts every photograph the public pages use
 src/lib/careAreas.ts     the six areas of practice, shared by / and /conditions
 src/lib/carePlanAuthoring.ts the one writer of a care plan version, three doors
@@ -3137,10 +3138,37 @@ client is the only writer and the log is append-only from any session.
   they are two sentences, and paraphrasing them into a teaser would leave the
   home page making a weaker version of the same claim — while the four
   promises appear as titles only, each linking to
-  `/mission#what-we-promise`. Both halves read from `src/lib/mission.ts`, so
-  the home page cannot quote a mission the mission page has since reworded.
-  Get that split wrong in either direction and you have a duplicate page or a
-  band that says nothing.
+  `/mission#what-we-promise`. Both halves come from one resolution --
+  `readMissionCopy()` over `resolveMissionCopy()` in `src/lib/mission.ts` --
+  and reach `MissionPreview` as props rather than being fetched inside it, the
+  same rule the Navbar's brand strings follow, so the home page cannot quote a
+  mission the mission page has since reworded. Get that split wrong in either
+  direction and you have a duplicate page or a band that says nothing.
+- **The mission and the vision are an admin setting, and blank is the undo.**
+  `site_settings.mission_statement` / `vision_statement`, written on Settings
+  -> Public Site -> Mission & Vision. They were constants, which made the copy
+  most likely to be argued over the copy only a developer could change. Four
+  rules:
+  1. **The constants in `src/lib/mission.ts` stay, as the default.** A blank
+     or null column resolves to them, which is how an admin undoes an edit
+     without retyping the original out of a file they cannot read -- the same
+     rule `splash_brand_line` follows -- and it is why a database that has not
+     run the migration renders exactly what it rendered before.
+  2. **Read on its own, and deliberately not in `SITE_SETTINGS_SELECT`.**
+     These are the newest columns on that table, and that shared select is the
+     one whose failure takes every other setting down to its default with it.
+     `readMissionCopy()` swallows its own error and falls back to the
+     constants, because an empty mission card reads as a broken page on the
+     one band whose job is to say who this clinic is.
+  3. **Saving invalidates `/` and `/mission`.** Both are ISR-cached, so
+     without it an owner rewords the sentence the site leads with and watches
+     the old one stay up for five minutes -- which reads as a save that
+     failed.
+  4. **The word budget is advice; the character cap is the limit.** The form
+     warns past fifteen words and still saves; `MAX_MISSION_LENGTH` /
+     `MAX_VISION_LENGTH` are mirrored by the columns' CHECK constraints and
+     re-checked in the route, because that pair is about the card these lines
+     render in rather than about the writing.
 - **Testimonials are the one place the site quotes a person, so treat them
   as evidence.** One `Testimonials` component serves Home and `/mission`,
   because the two bands make the same claim and a visitor may see both in one
@@ -3196,7 +3224,8 @@ client is the only writer and the log is append-only from any session.
   and Brand & Contact Details — site name, tagline, description, contact
   email, WhatsApp number, contact phone, footer copyright text — and the
   Home page walkthrough's per-step rotation seconds, where 0 means "don't
-  rotate" — and the opening splash's five settings — on/off, the name above
+  rotate" — and the mission and vision lines on Settings → Public Site, where
+  blank means "use the wording in `src/lib/mission.ts`" — and the opening splash's five settings — on/off, the name above
   the line (blank follows the site name), its one line, the hold in seconds,
   and the minutes a tab must be away to earn a second greeting, where 0
   means "first load only" — and the two contact controls,

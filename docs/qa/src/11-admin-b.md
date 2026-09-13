@@ -39,6 +39,10 @@ Every setting below is read through one shared settings module with defaults. **
 **Accessibility interaction:** a visitor with **reduced motion** requested must not be subjected to auto-rotation.
 **Do not confuse this widget with the care-area showcase**, which **never advances by itself** — a second moving thing while you read the first is worse than either alone. Their `aria-label`s must stay distinct: "How the process works" vs "Areas of practice".
 
+#### `ADM-SET-036` — Mission & Vision · P1
+**Steps.** On Settings → Public Site → **Mission & Vision**, replace the mission with `Seen properly, wherever you are.` and save. Open `/` and `/mission` **immediately** — do not wait five minutes. Then clear the mission box entirely and save again.
+**Expected Result.** Both pages show the new line at once on the first check, in the Mission card on the Home page and in the "The practice, in two sentences" band on `/mission`. After clearing it, both pages go back to the line the site ships with — **blank is the undo, not an error**, and the confirmation says so ("back to the wording the site shipped with") rather than claiming an edit. The same two checks apply to the vision box. A value over the character cap is refused with `Please keep this to 160 characters or fewer.` (140 for the vision); past fifteen words the counter turns amber and the save still works, because that budget is advice.
+
 #### `ADM-SET-006` — The opening splash, all five settings · P1
 
 **Feature.** A teal sheet painted over the site for a beat. It greets a **cold open** — the first load of a browser tab — and a **return to a tab that has been in the background longer than the away threshold**. It deliberately does **not** show on every navigation, every reload or every tab focus, because a patient paying by UPI leaves the tab for their bank's app and comes back mid-checkout, and **splashing over a payment in progress is the one thing this must never do.**
@@ -626,6 +630,7 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 34 | Risk signals on/off + thresholds | Today → Risk | The detector sweep | Sweep stops; thresholds change what fires | `ADM-RISK-003` |
 | 35 | Brand & contact details | Settings → Brand & Contact | Navbar, Footer, page metadata, splash fallback | All update | `ADM-SET-001` |
 | 36 | Walkthrough seconds | Settings → Public Site | The home page walkthrough | Pace changes; 0 = static | `ADM-SET-005` |
+| 36a | Mission & Vision | Settings → Public Site | `/` and `/mission` | Both update at once; blank restores the shipped line | `ADM-SET-036` |
 | 37 | Splash (5 settings) | Settings → Public Site | The opening splash | Each behaves as documented | `ADM-SET-006` |
 | 38 | Testimonials | Settings → Public Site | `/` and `/mission` bands | Both update from one component | `ADM-SET-007` |
 | 39 | FAQ | Settings → Public Site | `/faq` | Accordion updates | `ADM-SET-008` |

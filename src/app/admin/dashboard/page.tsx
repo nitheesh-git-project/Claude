@@ -81,6 +81,7 @@ import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
 import HomePageWalkthroughForm from "@/components/admin/HomePageWalkthroughForm";
 import SplashScreenForm from "@/components/admin/SplashScreenForm";
+import MissionStatementForm from "@/components/admin/MissionStatementForm";
 import BrandContactDetailsForm from "@/components/admin/BrandContactDetailsForm";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
@@ -660,6 +661,7 @@ export default async function AdminDashboardPage({
     adminAccountNotes,
     googleConnection,
     syncModeRows,
+    missionCopyRow,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -793,6 +795,20 @@ export default async function AdminDashboardPage({
     guard(
       async () => (await admin.from("appointments").select("id, visit_mode, google_event_id")).data,
       null as { id: string; visit_mode: string | null; google_event_id: string | null }[] | null
+    ),
+    // The mission and vision an admin may have rewritten. Its own read for
+    // the usual reason -- these are the newest columns on site_settings, and
+    // the helper swallows its own errors, falling back to the lines in
+    // mission.ts rather than to blanks.
+    guard(
+      async () =>
+        (
+          await supabase
+            .from("site_settings")
+            .select("mission_statement, vision_statement")
+            .maybeSingle()
+        ).data,
+      null as { mission_statement: string | null; vision_statement: string | null } | null
     ),
   ]);
 
@@ -2599,6 +2615,11 @@ export default async function AdminDashboardPage({
       <SiteRatingsVisibilityToggle visible={siteSettings?.ratings_visible_publicly ?? true} />
 
       <HomePageWalkthroughForm seconds={adminSettings.journeyStepSeconds} />
+
+      <MissionStatementForm
+        mission={missionCopyRow?.mission_statement ?? ""}
+        vision={missionCopyRow?.vision_statement ?? ""}
+      />
 
       <SplashScreenForm
         enabled={adminSettings.splashEnabled}

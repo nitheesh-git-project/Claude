@@ -1972,6 +1972,18 @@ copy lives in `src/lib/mission.ts` rather than in the page, because the
 mission, the four promises and the three limits are the wording most likely
 to be argued over and should be editable without touching a layout.
 
+**The mission and the vision themselves are an admin setting.** Settings →
+Public Site → **Mission & Vision** writes `site_settings.mission_statement`
+and `vision_statement`, and both this page and the Home band render what is
+stored. Blank is a real value meaning "use the wording in
+`src/lib/mission.ts`", so clearing a box is how an edit is undone rather than
+an error — the same convention the opening splash's name line follows. The two
+lines are read in their own call (`readMissionCopy()`), which falls back to
+that wording if the column is missing or the read fails, and saving
+invalidates both `/` and `/mission` so the new sentence reaches visitors at
+once rather than when the five-minute ISR window happens to lapse. The four
+promises and the three limits are still code, for the reason above.
+
 Two rules shaped it:
 
 - **Every promise is a rule the platform already enforces** — the 24-hour

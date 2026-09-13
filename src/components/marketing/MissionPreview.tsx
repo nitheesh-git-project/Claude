@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
-import { MISSION, VISION, PRINCIPLES } from "@/lib/mission";
+import { PRINCIPLES } from "@/lib/mission";
 
 /**
  * Why the practice exists, on the home page, above "what we treat".
@@ -17,10 +17,18 @@ import { MISSION, VISION, PRINCIPLES } from "@/lib/mission";
  * their bodies stay on `/mission`. That is the split that keeps this a
  * connector rather than a second copy of the page.
  *
- * Both halves read from `src/lib/mission.ts`, so the home page cannot end up
- * quoting a mission the mission page has since reworded.
+ * Both halves arrive as props, resolved once per render by
+ * `readMissionCopy()`, so the home page cannot end up quoting a mission the
+ * mission page has since reworded -- and cannot fetch its own copy either,
+ * the same rule Navbar and Footer follow for the brand strings.
  */
-export default function MissionPreview() {
+export default function MissionPreview({
+  mission,
+  vision,
+}: {
+  mission: string;
+  vision: string;
+}) {
   return (
     <div>
       <div className="mx-auto grid max-w-5xl gap-5 md:grid-cols-2">
@@ -30,7 +38,7 @@ export default function MissionPreview() {
               Mission
             </p>
             <p className="font-display mt-4 text-lg font-semibold leading-relaxed tracking-[-0.01em] text-slate-900 sm:text-xl">
-              {MISSION}
+              {mission}
             </p>
           </div>
         </Reveal>
@@ -40,7 +48,7 @@ export default function MissionPreview() {
               Vision
             </p>
             <p className="font-display mt-4 text-lg font-semibold leading-relaxed tracking-[-0.01em] text-slate-900 sm:text-xl">
-              {VISION}
+              {vision}
             </p>
           </div>
         </Reveal>

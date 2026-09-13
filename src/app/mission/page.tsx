@@ -11,7 +11,8 @@ import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
 import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
-import { MISSION, VISION, PRINCIPLES, COMMITMENTS } from "@/lib/mission";
+import { PRINCIPLES, COMMITMENTS } from "@/lib/mission";
+import { readMissionCopy } from "@/lib/missionCopy";
 
 export const metadata: Metadata = {
   title: "Our Mission | Dr. Pooja's Physio",
@@ -59,6 +60,11 @@ export default async function MissionPage() {
 
   const homeVisitEnabled = await readHomeVisitEnabled();
 
+  // The two lines this page is built around. Read on its own like the flag
+  // above, and falling back to the wording in mission.ts, so a database that
+  // has not run the migration renders exactly what it rendered before.
+  const { mission, vision } = await readMissionCopy();
+
   // Only sections that render: the testimonial band is admin-controlled, so
   // its rail entry is conditional. Order matches the DOM.
   const sectionNavItems: SectionNavItem[] = [
@@ -102,7 +108,7 @@ export default async function MissionPage() {
                 Mission
               </p>
               <p className="font-display mt-4 text-lg font-semibold leading-relaxed tracking-[-0.01em] text-slate-900 sm:text-xl">
-                {MISSION}
+                {mission}
               </p>
             </div>
           </Reveal>
@@ -112,7 +118,7 @@ export default async function MissionPage() {
                 Vision
               </p>
               <p className="font-display mt-4 text-lg font-semibold leading-relaxed tracking-[-0.01em] text-slate-900 sm:text-xl">
-                {VISION}
+                {vision}
               </p>
             </div>
           </Reveal>
