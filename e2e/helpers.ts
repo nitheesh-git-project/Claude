@@ -2,6 +2,7 @@
 // the app's own HTTP API directly (via Node/Playwright's request context,
 // never a browser page) -- this suite is scoped to money-moving server
 // logic, not UI rendering, per the QA plan's "lightweight" scope decision.
+import { test, type Page } from "@playwright/test";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 
@@ -149,4 +150,54 @@ export function wholeHourFromNow(hoursAhead: number): string {
   const d = new Date(Date.now() + hoursAhead * 3_600_000);
   d.setMinutes(0, 0, 0);
   return d.toISOString();
+}
+
+/**
+ * Whether the *browser* can reach Supabase.
+ *
+ * Node can and the browser may not: a sandbox with an egress proxy commonly
+ * allows the server process out and leaves the page with no network at all.
+ * `browserCookiesFor` covers authentication for exactly that reason, but it
+ * cannot cover *data* -- a page that resolves something with the browser-side
+ * client still needs the browser to get out.
+ *
+ * Several specs test screens built on such a read: `WrongAccountForBooking`
+ * only renders once the client has looked up its own profile, and the booking
+ * wizard resolves `?therapist=` against `public_therapist_profiles` from the
+ * browser because `/book` is ISR-cached and cannot do it server-side. With no
+ * egress those screens never render, and the specs fail describing a product
+ * that works.
+ *
+ * Probed once per worker, from inside a real page so it measures what the
+ * page can do rather than what Node can.
+ */
+let browserEgress: boolean | null = null;
+
+export async function browserReachesSupabase(page: Page): Promise<boolean> {
+  if (browserEgress !== null) return browserEgress;
+  try {
+    await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+    browserEgress = await page.evaluate(async (url) => {
+      try {
+        await fetch(url, { mode: "no-cors" });
+        return true;
+      } catch {
+        return false;
+      }
+    }, `${SUPABASE_URL}/rest/v1/`);
+  } catch {
+    browserEgress = false;
+  }
+  return browserEgress;
+}
+
+/** Skips the calling test when the browser has no route to Supabase. */
+export async function skipWithoutBrowserEgress(page: Page): Promise<void> {
+  const ok = await browserReachesSupabase(page);
+  test.skip(
+    !ok,
+    "this browser has no network route to Supabase -- the screen under test " +
+      "renders from a client-side read, so it cannot appear here. Runs " +
+      "normally wherever the browser can reach the project."
+  );
 }

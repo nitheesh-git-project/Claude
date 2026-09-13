@@ -11,7 +11,13 @@
 // valid session cookie can call the purchase routes directly, and the
 // wizard's own insert is guarded only by RLS.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, QA_EMAILS, browserCookiesFor, cookieHeaderFor } from "./helpers";
+import {
+  BASE,
+  QA_EMAILS,
+  browserCookiesFor,
+  cookieHeaderFor,
+  skipWithoutBrowserEgress,
+} from "./helpers";
 
 // A well-formed uuid that does not resolve to anything -- the role check
 // runs before any lookup, so nothing needs to exist behind it.
@@ -24,6 +30,10 @@ async function signInAs(page: Page, email: string) {
 test.describe("Only a patient account can book", () => {
   test.beforeEach(async ({ page }) => {
     test.setTimeout(120_000);
+    // WrongAccountForBooking renders only after the browser has read the
+    // signed-in profile for itself. With no egress from the page that card
+    // never appears, and every assertion below describes a working product.
+    await skipWithoutBrowserEgress(page);
     await page.setViewportSize({ width: 1280, height: 1000 });
   });
 
@@ -141,6 +151,11 @@ test.describe("Back to Home on the dashboards", () => {
   });
 
   test("BH-002: it lands on the public home page with the session intact", async ({ page }) => {
+    // The navbar decides between "Go to Dashboard" and Sign In from a
+    // client-side profile read (useAccountDestination), so this assertion
+    // needs the browser to reach Supabase. BH-001 above does not -- it only
+    // looks for the link -- which is why that one still runs here.
+    await skipWithoutBrowserEgress(page);
     await signInAs(page, QA_EMAILS.patientA);
     await page.goto(`${BASE}/patient/dashboard`);
     await page.locator('nav a[href="/"]', { hasText: "Back to Home" }).first().click();
