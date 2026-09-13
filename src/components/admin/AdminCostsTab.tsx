@@ -12,10 +12,18 @@ import {
   type DiscountSource,
 } from "@/lib/discounts";
 import {
+  COST_CLASSES,
+  COST_CLASS_HINTS,
+  COST_CLASS_LABELS,
+  DEFAULT_COST_CLASS,
+  costClassOf,
+  type CostClass,
+  type FinanceExpenseRow,
+} from "@/lib/financeMetrics";
+import {
   EXPENSE_CATEGORIES,
   expensesByCategory,
   sumExpensesPaise,
-  type ExpenseRow,
 } from "@/lib/operatingCosts";
 
 /** One line each on what this rule is for, in the admin's own words. */
@@ -55,7 +63,10 @@ export default function AdminCostsTab({
   discountsGiven,
   todayIso,
 }: {
-  expenses: ExpenseRow[];
+  /** Widened to FinanceExpenseRow: `cost_class` is newer than the table, so a
+   *  row from an unmigrated database arrives without it and reads as a
+   *  running cost rather than crashing the screen. */
+  expenses: FinanceExpenseRow[];
   gatewayFeePercent: number;
   /**
    * What acquisition discounting has cost, all time.
@@ -83,6 +94,12 @@ export default function AdminCostsTab({
   const router = useRouter();
   const [incurredOn, setIncurredOn] = useState(todayIso);
   const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0]);
+  // What kind of cost this is. It decides where the cost lands on Business
+  // Health -- above or below the gross-profit line, inside break-even's fixed
+  // costs, and whether EBITDA adds it back -- and there is no way to work it
+  // out from the category: marketing is a running cost, a per-session licence
+  // is a delivery cost, and both could be filed under Software.
+  const [costClass, setCostClass] = useState<CostClass>(DEFAULT_COST_CLASS);
   const [description, setDescription] = useState("");
   const [amountRupees, setAmountRupees] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -130,7 +147,7 @@ export default function AdminCostsTab({
       const res = await fetch("/api/admin/expenses/create", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ incurredOn, category, description, amountPaise }),
+        body: JSON.stringify({ incurredOn, category, description, amountPaise, costClass }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -139,6 +156,8 @@ export default function AdminCostsTab({
       }
       setDescription("");
       setAmountRupees("");
+      // The class deliberately survives a save: somebody entering this
+      // month's costs enters several of a kind in a row.
       router.refresh();
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
@@ -319,7 +338,7 @@ export default function AdminCostsTab({
         icon="fa-receipt"
         subtitle="Salaries, rent, software, anything the clinic pays for. These come off the clinic's share on Summary to give the real profit."
       >
-        <form onSubmit={submit} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <form onSubmit={submit} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <label className="flex flex-col gap-1 text-xs">
             <span className="font-semibold text-slate-500">Date incurred</span>
             <input
@@ -340,6 +359,20 @@ export default function AdminCostsTab({
               {EXPENSE_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs">
+            <span className="font-semibold text-slate-500">What kind of cost</span>
+            <select
+              value={costClass}
+              onChange={(e) => setCostClass(e.target.value as CostClass)}
+              className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+            >
+              {COST_CLASSES.map((c) => (
+                <option key={c} value={c}>
+                  {COST_CLASS_LABELS[c]}
                 </option>
               ))}
             </select>
@@ -367,7 +400,13 @@ export default function AdminCostsTab({
               className="rounded-lg border border-slate-300 px-2.5 py-1.5"
             />
           </label>
-          <div className="sm:col-span-2 lg:col-span-5">
+          <div className="sm:col-span-2 lg:col-span-6">
+            <p className="mb-2 rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-600">
+              <span className="font-semibold text-slate-700">
+                {COST_CLASS_LABELS[costClass]}:
+              </span>{" "}
+              {COST_CLASS_HINTS[costClass]}
+            </p>
             {error && (
               <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
                 {error}
@@ -423,6 +462,7 @@ export default function AdminCostsTab({
                 <tr className="border-b border-slate-200 text-left text-slate-400">
                   <th className="pb-2 pr-3 font-semibold">Date</th>
                   <th className="pb-2 pr-3 font-semibold">Category</th>
+                  <th className="pb-2 pr-3 font-semibold">Kind</th>
                   <th className="pb-2 pr-3 font-semibold">What for</th>
                   <th className="pb-2 pr-3 text-right font-semibold">Amount</th>
                   <th className="pb-2 font-semibold"></th>
@@ -433,6 +473,9 @@ export default function AdminCostsTab({
                   <tr key={e.id} className="border-b border-slate-100">
                     <td className="py-2.5 pr-3 text-slate-700">{formatDate(e.incurred_on)}</td>
                     <td className="py-2.5 pr-3 font-semibold text-slate-800">{e.category}</td>
+                    <td className="py-2.5 pr-3 text-[11px] text-slate-500">
+                      {COST_CLASS_LABELS[costClassOf(e)]}
+                    </td>
                     <td className="py-2.5 pr-3 text-slate-500">{e.description ?? "-"}</td>
                     <td className="py-2.5 pr-3 text-right font-bold text-slate-900 tabular-nums">
                       {formatInr(e.amount_paise)}

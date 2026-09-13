@@ -237,6 +237,25 @@ toggle somebody can flip back on is not the rule being gone. The patient
 dashboard's booking hub is the same: one video consultation, or one visit
 at home.
 
+**The books answer the seven standard questions too.** Money -> Business
+Health reports return on investment, return on ad spend, working capital,
+gross and net margin, EBITDA, break-even and revenue run rate, off one
+dependency-free module (`src/lib/financeMetrics.ts`) reading the same revenue
+split Summary does. Every figure carries its formula and where each input
+came from behind its (i), and a figure that cannot be worked out is a
+sentence naming the missing input rather than a zero. Three inputs cannot be
+derived and are typed in on **Money -> Your Numbers**: what was invested
+(with a life in months, which is what produces the depreciation and
+amortization inside EBITDA), advertising spend per campaign, and a dated
+snapshot of what the clinic owns and owes. Interest and tax are ordinary
+costs on Money -> Costs, where every cost now carries a **kind**
+(`cost_class`) deciding whether it sits above or below the gross-profit line,
+inside break-even's fixed costs, and whether EBITDA adds it back. An ad
+campaign's revenue is traced by promo code or not at all -- untraceable spend
+is stated, never divided into -- and working capital counts sessions patients
+have paid for and not had as the liability it is. See the Business Health
+rule in `AGENTS.md`.
+
 Four acquisition discounts exist and no more (`src/lib/discounts.ts`,
 `promoCodes.ts`, `inviteRewards.ts`), recorded as five sources because an
 invite has two halves: a standing **first-session offer**, whose eligibility

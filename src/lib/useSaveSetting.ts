@@ -25,7 +25,10 @@ export function useSaveSetting() {
   const { show } = useToast();
 
   return useCallback(
-    async (key: string, value: boolean | number | string | string[]) => {
+    // `null` is a value, not a missing argument: the two break-even
+    // overrides use it to mean "go back to working it out from my own
+    // sessions", which is the only way back from a figure typed in once.
+    async (key: string, value: boolean | number | string | string[] | null) => {
       try {
         const res = await fetch("/api/admin/update-setting", {
           method: "POST",

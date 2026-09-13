@@ -84,10 +84,12 @@ Every route below is covered by at least one test. The rightmost column names th
 | People | `therapists` | Therapists | `ADM-PEOP-005`, `ADM-PEOP-010` |
 | People | `partners` | Partners | `ADM-PEOP-008`, `ADM-PEOP-010` |
 | Money | `summary` | Summary | `FIN-SUM-001`, `FIN-SUM-004`, `FIN-SUM-005`, `FIN-NAV-001` |
+| Money | `health` | Business Health | `FIN-BH-001` … `FIN-BH-006` |
 | Money | `transactions` | Transactions | `FIN-TXN-001` |
 | Money | `payouts` | Payouts + payout requests + Cash Ledger | `FIN-PAY-001` |
 | Money | `costs` | Costs + promo codes | `FIN-COST-001`, `ADM-PROMO-001` |
 | Money | `breakdown` | Breakdown | `FIN-BRK-001` |
+| Money | `inputs` | Your Numbers (investments, advertising, what you own and owe) | `FIN-BH-002`, `FIN-BH-003`, `FIN-BH-004` |
 | Catalog | `conditions` | Conditions | `ADM-CAT-001`, `ADM-CAT-004` |
 | Catalog | `packages` | Packages | `ADM-CAT-005` |
 | Catalog | `areas` | Service Areas + waitlist | `ADM-CAT-010` |

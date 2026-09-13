@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
 import {
   type MetricsAppointment,
   type MetricsPackagePurchase,
   type Person,
-  type PeriodBucket,
   filterByDimension,
   filterBySlotRange,
   buildBuckets,
@@ -41,24 +40,22 @@ import { usePagedList } from "@/lib/usePagedList";
 import StatStrip from "@/components/dashboard/StatStrip";
 import MoneyFigure, { MoneyTermInfo } from "@/components/admin/MoneyFigure";
 import { MONEY_TERMS } from "@/lib/moneyTerms";
+import {
+  CHART_COLOR,
+  HOSPITAL_CUT_COLOR,
+  PROFIT_COLOR,
+  REVENUE_COLOR,
+  THERAPIST_CUT_COLOR,
+  TrendBarChart,
+  TrendLineChart,
+} from "@/components/admin/TrendCharts";
 
 export type { MetricsAppointment };
 
-// Single sequential hue reused from PatientProfitChart's already-validated
-// pair (teal-600) - these charts are always single-series (one bar color =
-// magnitude only, never identity), so no categorical pair or legend is
-// needed; the card title names the series.
-const CHART_COLOR = "#0d9488";
-
-// Four-series palette for the revenue breakdown line chart, chosen the same
-// way as PatientProfitChart's pair: distinct in lightness/hue, colorblind-
-// separable, and readable against a white card. Profit reuses teal (the
-// same "your take" meaning PatientProfitChart already gives it); therapist
-// cut reuses PatientProfitChart's indigo for the same reason.
-const REVENUE_COLOR = "#0f172a"; // slate-900 - the top-line total
-const THERAPIST_CUT_COLOR = "#4f46e5"; // indigo-600
-const HOSPITAL_CUT_COLOR = "#d97706"; // amber-600
-const PROFIT_COLOR = "#0d9488"; // teal-600
+// The charts these screens draw now live in one place -- see TrendCharts.tsx
+// for why they moved out of this file. The colour constants come with them,
+// so the Business Health screen beside this one cannot pick a different teal
+// for the same meaning.
 
 type Category = { id: string; title: string };
 
@@ -100,189 +97,6 @@ function daysAgo(n: number, fromMs: number) {
 // only ever reached from the onClick below, never during render.
 function nowTimestamp() {
   return Date.now();
-}
-
-// Measures its container's actual rendered width client-side, after mount,
-// so charts can fill exactly the space they're given at any screen size
-// instead of a fixed pixel width. Deliberately NOT done via an SVG
-// viewBox+preserveAspectRatio stretch: that scales text/stroke-width
-// non-uniformly whenever the container's aspect ratio doesn't match the
-// viewBox's, visibly squashing or stretching labels. Measuring real pixels
-// keeps every chart pixel-accurate at any width. The default width is only
-// what server-rendered HTML shows before this runs -- an effect never fires
-// during SSR, so hydration always matches (this is the same "settle to a
-// real value after mount" pattern used for any client-only measurement in
-// an SSR app; it updates in a later commit, never in a mismatched first one).
-function useContainerWidth(defaultWidth: number) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(defaultWidth);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w && w > 0) setWidth(w);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  return { ref, width };
-}
-
-function TrendBarChart({
-  buckets,
-  values,
-  formatValue,
-}: {
-  buckets: PeriodBucket[];
-  values: number[];
-  formatValue: (v: number) => string;
-}) {
-  const { ref, width } = useContainerWidth(640);
-
-  if (buckets.length === 0 || values.every((v) => v === 0)) {
-    return (
-      <EmptyState
-        icon="fa-chart-column"
-        title="No data in this range"
-        body="Widen the date range or clear a filter - nothing was delivered in the window you picked."
-      />
-    );
-  }
-
-  const chartHeight = 150;
-  const labelSpace = 24;
-  const slotWidth = width / buckets.length;
-  const barWidth = Math.max(Math.min(slotWidth * 0.55, 48), 4);
-  const max = Math.max(...values, 1);
-
-  return (
-    <div ref={ref} className="w-full">
-      <svg width={width} height={chartHeight + labelSpace} role="img" aria-label="Trend chart">
-        <line x1={0} y1={chartHeight} x2={width} y2={chartHeight} stroke="#e2e8f0" strokeWidth={1} />
-        {buckets.map((b, i) => {
-          const value = values[i];
-          const h = (value / max) * (chartHeight - 24);
-          const x = i * slotWidth + (slotWidth - barWidth) / 2;
-          const y = chartHeight - h;
-          return (
-            <g key={b.label + i}>
-              {/* One interpolated string, not `{b.label}: {formatValue(value)}`
-                  as three separate children -- with multiple children,
-                  suppressHydrationWarning only silences the console warning
-                  but doesn't stop React from still treating it as a real
-                  mismatch and discarding/re-rendering the subtree client-side
-                  (visibly, as a flash + a thrown hydration error in dev).
-                  A single string child is what suppressHydrationWarning
-                  actually patches over. */}
-              <title suppressHydrationWarning>{`${b.label}: ${formatValue(value)}`}</title>
-              {h > 0 && <rect x={x} y={y} width={barWidth} height={h} fill={CHART_COLOR} rx={3} />}
-              <text
-                x={x + barWidth / 2}
-                y={y - 6}
-                textAnchor="middle"
-                fontSize={11}
-                fontWeight={700}
-                fill="#0f172a"
-              >
-                {value > 0 ? formatValue(value) : ""}
-              </text>
-              <text x={x + barWidth / 2} y={chartHeight + 16} textAnchor="middle" fontSize={10} fill="#94a3b8">
-                {b.label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
-function TrendLineChart({
-  buckets,
-  series,
-  formatValue,
-}: {
-  buckets: PeriodBucket[];
-  series: { label: string; color: string; values: number[] }[];
-  formatValue: (v: number) => string;
-}) {
-  const { ref, width } = useContainerWidth(640);
-
-  if (buckets.length === 0 || series.every((s) => s.values.every((v) => v === 0))) {
-    return (
-      <EmptyState
-        icon="fa-chart-column"
-        title="No data in this range"
-        body="Widen the date range or clear a filter - nothing was delivered in the window you picked."
-      />
-    );
-  }
-
-  const chartHeight = 180;
-  const labelSpace = 24;
-  const padTop = 18;
-  const padBottom = 12;
-  const plotHeight = chartHeight - padTop - padBottom;
-  const slotWidth = width / buckets.length;
-  const max = Math.max(...series.flatMap((s) => s.values), 1);
-
-  const yFor = (v: number) => padTop + (1 - v / max) * plotHeight;
-  const xFor = (i: number) => i * slotWidth + slotWidth / 2;
-
-  return (
-    <div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-3 text-[11px] text-slate-500">
-        {series.map((s) => (
-          <span key={s.label} className="flex items-center gap-1.5">
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-            {s.label}
-          </span>
-        ))}
-      </div>
-      <div ref={ref} className="w-full">
-        <svg width={width} height={chartHeight + labelSpace} role="img" aria-label="Revenue breakdown trend">
-          <line x1={0} y1={chartHeight} x2={width} y2={chartHeight} stroke="#e2e8f0" strokeWidth={1} />
-          {[0.25, 0.5, 0.75].map((f) => (
-            <line
-              key={f}
-              x1={0}
-              y1={padTop + f * plotHeight}
-              x2={width}
-              y2={padTop + f * plotHeight}
-              stroke="#f1f5f9"
-              strokeWidth={1}
-            />
-          ))}
-          {series.map((s) => (
-            <polyline
-              key={s.label}
-              points={s.values.map((v, i) => `${xFor(i)},${yFor(v)}`).join(" ")}
-              fill="none"
-              stroke={s.color}
-              strokeWidth={2}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          ))}
-          {series.map((s) =>
-            s.values.map((v, i) => (
-              <circle key={`${s.label}-${i}`} cx={xFor(i)} cy={yFor(v)} r={3} fill={s.color}>
-                <title suppressHydrationWarning>{`${s.label} - ${buckets[i].label}: ${formatValue(v)}`}</title>
-              </circle>
-            ))
-          )}
-          {buckets.map((b, i) => (
-            <text key={b.label + i} x={xFor(i)} y={chartHeight + 16} textAnchor="middle" fontSize={10} fill="#94a3b8">
-              {b.label}
-            </text>
-          ))}
-        </svg>
-      </div>
-    </div>
-  );
 }
 
 export default function AdminMetricsTab({

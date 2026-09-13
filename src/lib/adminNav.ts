@@ -165,6 +165,18 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "Whether the clinic made money over a stretch of dates, and where each rupee went.",
         example: "See what last month left you after paying therapists and your own costs.",
       },
+      // The seven figures a bank, an investor or an accountant asks for.
+      // Beside Summary rather than at the end of the list because it is read
+      // the same way -- "how is the business doing" -- and differs only in
+      // asking it over the standard ratios rather than over this clinic's own
+      // revenue split.
+      {
+        key: "health",
+        label: "Business Health",
+        blurb:
+          "The standard figures a bank, an investor or your accountant asks for - what you get back, what you keep, and how many sessions cover the costs.",
+        example: "Work out how many sessions a month you need before the clinic is paying for itself.",
+      },
       {
         key: "transactions",
         label: "Transactions",
@@ -191,6 +203,21 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         label: "Breakdown",
         blurb: "Which treatments and therapists the money came from.",
         example: "See which condition earned the most over the last three months.",
+      },
+      // The figures only the owner knows. A screen of its own rather than
+      // panels under Business Health, because that screen is read often and
+      // typed into rarely -- and because every entry here is a row somebody
+      // has to fetch from a bank statement or an ads dashboard, which is a
+      // sitting-down job, not a glance.
+      {
+        key: "inputs",
+        label: "Your Numbers",
+        // Forms, and nothing else: a scope holding Money at `view` would open
+        // an empty page.
+        requiresManage: true,
+        blurb:
+          "The figures only you know: what you have put into the clinic, what you spend on ads, and what you own and owe.",
+        example: "Enter last month's Google Ads spend, or today's bank balance.",
       },
     ],
   },

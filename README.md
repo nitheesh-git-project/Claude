@@ -277,7 +277,7 @@ link points here so no client bundle has to know the four paths; see
 | **Today** | Today · Approvals | What is waiting on me right now |
 | **Sessions** | Schedule · All Sessions · Roster · Delivery · New Booking | What is being delivered, and by whom |
 | **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
-| **Money** | Summary · Transactions · Payouts · Costs · Breakdown | What came in, what goes out, what it costs, what is still owed. Each screen states what it is and gives one example, under its heading. |
+| **Money** | Summary · Business Health · Transactions · Payouts · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
 | **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |
 | **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
@@ -355,6 +355,100 @@ an **i** giving its meaning in one sentence, right beside the number -
 in `src/lib/moneyTerms.ts`; the glossary at the foot of each Money screen
 prints the same sentences for reading the whole set at once, so the two can
 never define one figure twice.
+
+### Business Health (Money → Business Health)
+
+The seven figures a bank, an investor or an accountant asks for, over this
+clinic's own money: **return on investment**, **return on ad spend**,
+**working capital**, the two **profit margins**, **EBITDA**, the
+**break-even point** and the **revenue run rate**. The maths is
+dependency-free in `src/lib/financeMetrics.ts` and unit-tested; the screen
+draws what it returns.
+
+It reads the same arithmetic the Summary screen does — `moneyByBucketFor`
+for the revenue split, `gatewayFeePaise` for the processor's cut — rather
+than deriving revenue a second way, so the two screens cannot disagree about
+what the clinic earned. What it adds is the layer above.
+
+**The profit chain.** Each line comes off the one above it:
+
+```
+net revenue  - cost of delivering sessions = gross profit
+gross profit - running the clinic - D - A  = operating income
+operating income + D + A                   = EBITDA
+operating income - interest - tax          = net profit
+```
+
+**Every cost carries a kind**, chosen on Money → Costs
+(`business_expenses.cost_class`): *cost of delivering a session*, *running
+the clinic*, *interest*, *tax*, or *wearing out over time*. One column,
+because break-even (fixed against variable), gross margin (delivery against
+overhead) and EBITDA (interest, tax and depreciation held out and added back)
+are the same question asked three times. It defaults to **running the
+clinic**, which is what every cost recorded before the column existed already
+was — so no figure anywhere in the app moved when this shipped.
+
+**What you have to supply, and where to get it.** Four things cannot be
+derived, and they live on **Money → Your Numbers**:
+
+| What | Where to find it | What it decides |
+| --- | --- | --- |
+| What you invested (equipment, fit-out, laptops, a website build) | The invoice or receipt, or your accountant's fixed-asset register | Return on investment; depreciation and amortization, from the life in months you give each one |
+| What it is worth now (optional, dated) | Your own judgement | The second return-on-investment formula |
+| Advertising spend, per campaign per stretch of dates | Google Ads → Billing → Summary; Meta Ads Manager → Billing → Transactions; the invoice for anything offline | Return on ad spend |
+| What you own and owe within the year (bank balance, GST due, a loan repayment) | Your bank statement and your accountant | Working capital and its ratio |
+
+Interest and tax are the fifth and are **not** on that screen: they are
+ordinary costs on Money → Costs, filed under their own kind.
+
+**Advertising revenue is traced, never estimated.** A campaign is traced by
+giving it a **promo code** — every booking that claims the code is worth
+exactly its net revenue, from the same lines the profit figures are built
+from. A campaign with no code and no hand-entered figure produces **no**
+return at all, and its spend is held out of the division rather than
+reported as a failure nobody tagged. An ad that makes the phone ring can
+carry a figure the owner enters, which is labelled as theirs everywhere it
+appears. Spend is spread evenly across the campaign's own days, so any date
+range gets the right share of it; an open-ended campaign runs to today rather
+than to the end of the range in view.
+
+**Working capital adds what this app already knows.** On top of the dated
+snapshot the owner enters, and switchable off: what therapists are owed, cash
+they are holding, refunds still to hand back, and — the line most often
+missed — **sessions patients have paid for and not yet had**, valued at what
+they actually paid rather than at the current list price. Money taken for
+treatment not yet delivered is a liability, and a clinic reading its bank
+balance as working capital counts it twice.
+
+**A figure that cannot be worked out is never a zero.** Every card falls back
+to a sentence naming the missing input and a link to the screen that takes
+it: no investment recorded, no campaign traceable, a session that leaves
+nothing towards the fixed costs, a range with no paid session to read a price
+off. A zero is read as a measurement and acted on.
+
+**Seven judgements are the owner's, on Your Numbers**: whether each of the
+therapists' share, the partners' share and the payment fees counts as a cost
+of delivering a session (all three on by default — flipping one moves the
+gross-margin line and never the bottom line), whether the app's own balances
+join the working-capital snapshot, an optional price and delivery cost per
+session for modelling a break-even, and how a period is stretched to a year
+for the run rate. All seven are `site_settings` columns read through
+`readFinanceSettings()`.
+
+**Filters.** Dates plus five quick ranges, chart step (fit to the range /
+weekly / monthly), condition, therapist, patient, delivery mode (video or
+home visit), how it was paid (online or cash at the door), and advertising
+channel. Narrowing by condition, therapist or patient narrows **revenue and
+delivery costs only** — rent is not attributable to a therapist — so while a
+filter is on the profit card says in an amber line that its figures are not
+that slice's profit.
+
+Charts: revenue against costs per period, both margins over time (a gap in a
+line is a period with no revenue, never a month at zero margin), advertising
+spend against traced revenue, what is owned against what is owed, sessions
+delivered against the break-even line, and net revenue per period. The profit
+chain and the campaign table export to CSV and PDF like every other admin
+table.
 
 The visible screen is in the URL (`?section=&tab=`), written with the
 History API rather than a router navigation - this page is one Server
@@ -2099,9 +2193,12 @@ Notable conventions:
   `src/lib/formatIST.ts`, `formatSlotTime.ts`, and `formatSlotRange.ts`.
 - Business math is kept in dependency-free modules under `src/lib/` so it can
   be reasoned about (and tested) without rendering components.
-- Newer, migration-dependent columns (e.g. `session_code`) are queried in
-  isolated calls and merged in, so a missing column can't blank an entire
-  shared query.
+- Newer, migration-dependent columns (e.g. `session_code`,
+  `business_expenses.cost_class`) are queried in isolated calls and merged in,
+  so a missing column can't blank an entire shared query. The three Business
+  Health input tables (`capital_investments`, `marketing_campaigns`,
+  `balance_sheet_entries`) are read the same way, so a database the migration
+  has not reached loses those figures and nothing else.
 
 ## Knowledge graph (optional, one-time)
 
