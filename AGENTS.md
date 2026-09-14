@@ -2330,6 +2330,39 @@ client is the only writer and the log is append-only from any session.
   so the isolation is unchanged and only the waiting is gone. Add a new
   migration-dependent read to that batch rather than as another `await`
   below it.
+  **The same rule caught the page a second time, three blocks lower, and
+  those blocks were the whole of its perceived slowness.** Measured against a
+  production build with a Master Admin's own session: the response took 7.9s,
+  and of that the 56 queries in the two batches above cost **1.2s**. The
+  other 5.4s was seventeen `await`s in a row between them and the return --
+  the Risk block (7 round trips), the Recommendations queue (7), and the
+  authoring panel with `loadRecommendablePackages` inside it (5+3). At ~320ms
+  a round trip that is the entire gap, and the arithmetic matched the trace
+  almost exactly. None of the three chains is as deep as it is long: the risk
+  reads need two waves, the queue's three need one, and the whole authoring
+  chain needs nothing from either of the others. So the reads inside each
+  block go together, and the authoring chain -- the longest -- is **started
+  above the risk block and awaited where it is read**, which is what lets the
+  other two run inside its latency rather than after it. 7.9s to 3.5s, with
+  the rendered markup byte-for-byte identical (555KB, 9,925 lines, diffed
+  both ways) -- this changes only what waits for what.
+  Three details are load-bearing. A promise started early and awaited later
+  has a window with **no handler attached**, so `authoringDataPromise` takes a
+  no-op `.catch()` the moment it is created: without it a rejection during the
+  blocks below is reported as an unhandled rejection, which some runtimes
+  treat as fatal, and the `await` still throws the real error exactly as an
+  inline read did. `canSeeCarePlans` is hoisted above the risk block because
+  that chain needs it -- it is `scopeCanOpen(viewerScope, "sessions")` and
+  depends on nothing else. And every read keeps its **own** guard and its own
+  empty fallback inside the batch (`Promise.resolve({ data: [] })` for a
+  skipped one, a `soften()` wrapper where a `try`/`catch` used to sit), so a
+  new column that a live database has not got still costs one panel rather
+  than the screen.
+  **What this is not.** The dashboard's 1.7MB of HTML is 34 screens rendered
+  at once, and that is *not* where the time goes: rendering only the active
+  screen was measured too, and it cut the response to 135KB while moving the
+  wall-clock by 0.4s. Bytes and latency are separate problems here, and the
+  "every screen stays mounted" design costs the second one almost nothing.
 - **A dashboard refresh is expensive; debounce accordingly.**
   `RealtimeRefresh` turns a `postgres_changes` event into `router.refresh()`,
   which on the admin dashboard re-runs the whole Server Component - ~40

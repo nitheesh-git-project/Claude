@@ -48,104 +48,124 @@ export async function loadRecommendablePackages(
 ): Promise<RecommendablePackage[]> {
   const out: RecommendablePackage[] = [];
 
-  try {
-    let query = admin
-      .from("treatment_category_packages")
-      .select(
-        "id, category_id, title, session_count, price_paise, compare_at_paise, validity_days, session_duration_minutes, min_gap_hours, max_sessions_per_week, therapist_locked, terms, active, recommendable"
-      )
-      .eq("active", true)
-      .eq("recommendable", true)
-      .order("display_order", { ascending: true });
-    // Narrowed to the patient's own condition when we know it: a therapist
-    // scanning every programme in the catalog is how the wrong one gets
-    // picked.
-    if (categoryId) query = query.eq("category_id", categoryId);
-    const { data } = await query;
-    for (const row of data ?? []) {
+  // Each read keeps its own tolerance -- `recommendable` and `specialty` are
+  // both newer than the rows they sit on, so an unknown-column error must
+  // cost one part of the picker rather than the screen it sits on. What
+  // changed is only the waiting: these were five awaits in a row, and only
+  // three of them depend on anything, so the module spent five round trips
+  // of latency where three waves do. It is called from the admin dashboard
+  // and the therapist's, so the chain was paid twice over.
+  const soften = async <T>(run: () => PromiseLike<T>, fallback: T): Promise<T> => {
+    try {
+      return await run();
+    } catch {
+      return fallback;
+    }
+  };
+
+  // The two catalog tables differ in their columns but are read the same way:
+  // an id and a title to show, a category to group by, and the whole row into
+  // `buildOfferSnapshot`, which takes it as a bag on purpose.
+  type CatalogRow = Record<string, unknown> & {
+    id: string;
+    title: string;
+    category_id: string | null;
+  };
+
+  let sessionQuery = admin
+    .from("treatment_category_packages")
+    .select(
+      "id, category_id, title, session_count, price_paise, compare_at_paise, validity_days, session_duration_minutes, min_gap_hours, max_sessions_per_week, therapist_locked, terms, active, recommendable"
+    )
+    .eq("active", true)
+    .eq("recommendable", true)
+    .order("display_order", { ascending: true });
+  // Narrowed to the patient's own condition when we know it: a therapist
+  // scanning every programme in the catalog is how the wrong one gets
+  // picked.
+  if (categoryId) sessionQuery = sessionQuery.eq("category_id", categoryId);
+
+  // The programme catalogue and the home-visit switch need nothing from each
+  // other, so they go together; only the home-visit packages have to wait,
+  // since reading them is what the switch decides.
+  const [sessionPackages, homeVisitEnabled, titleRows, specialtyRows] = await Promise.all([
+    soften(async () => (await sessionQuery).data as CatalogRow[] | null, null),
+    soften(
+      async () =>
+        (await admin.from("site_settings").select("home_visit_enabled").maybeSingle()).data
+          ?.home_visit_enabled === true,
+      false
+    ),
+    // The category names and condition types, unfiltered. They used to be
+    // narrowed with `.in("id", categoryIds)`, which meant waiting for the
+    // package rows first and made them a third wave on their own; this
+    // catalogue is a handful of rows, so reading all of them costs less than
+    // the round trip the filter was buying. They stay two calls rather than
+    // one `select("id, title, specialty")`: `specialty` is the newer column,
+    // and sharing a select would lose the names along with it.
+    soften(
+      async () => (await admin.from("treatment_categories").select("id, title")).data,
+      // Names lost; the picker falls back to the programme's own title.
+      null as { id: string; title: string }[] | null
+    ),
+    soften(
+      async () => (await admin.from("treatment_categories").select("id, specialty")).data,
+      // Untagged database: every condition sits under one heading, which is
+      // exactly how it read before the column existed.
+      null as { id: string; specialty: string | null }[] | null
+    ),
+  ]);
+
+  for (const row of sessionPackages ?? []) {
+    out.push({
+      id: row.id,
+      kind: "session_package",
+      title: row.title,
+      categoryId: row.category_id ?? null,
+      categoryTitle: null,
+      specialty: null,
+      snapshot: buildOfferSnapshot("session_package", row),
+    });
+  }
+
+  if (homeVisitEnabled) {
+    const visitPackages = await soften(
+      async () =>
+        (
+          await admin
+            .from("home_visit_packages")
+            .select(
+              "id, category_id, title, visit_count, price_paise, compare_at_paise, validity_days, visit_duration_minutes, min_gap_hours, max_visits_per_week, therapist_locked, terms, active, recommendable"
+            )
+            .eq("active", true)
+            .eq("recommendable", true)
+            .order("display_order", { ascending: true })
+        ).data as CatalogRow[] | null,
+      null
+    );
+    for (const row of visitPackages ?? []) {
       out.push({
         id: row.id,
-        kind: "session_package",
+        kind: "home_visit_package",
         title: row.title,
         categoryId: row.category_id ?? null,
         categoryTitle: null,
         specialty: null,
-        snapshot: buildOfferSnapshot("session_package", row as Record<string, unknown>),
+        snapshot: buildOfferSnapshot("home_visit_package", row),
       });
     }
-  } catch {
-    // `recommendable` is a new column. An unknown-column error must cost
-    // the recommend control, not the screen it sits on.
   }
 
-  try {
-    const { data: settings } = await admin
-      .from("site_settings")
-      .select("home_visit_enabled")
-      .maybeSingle();
-    if (settings?.home_visit_enabled === true) {
-      const { data } = await admin
-        .from("home_visit_packages")
-        .select(
-          "id, category_id, title, visit_count, price_paise, compare_at_paise, validity_days, visit_duration_minutes, min_gap_hours, max_visits_per_week, therapist_locked, terms, active, recommendable"
-        )
-        .eq("active", true)
-        .eq("recommendable", true)
-        .order("display_order", { ascending: true });
-      for (const row of data ?? []) {
-        out.push({
-          id: row.id,
-          kind: "home_visit_package",
-          title: row.title,
-          categoryId: row.category_id ?? null,
-          categoryTitle: null,
-          specialty: null,
-          snapshot: buildOfferSnapshot("home_visit_package", row as Record<string, unknown>),
-        });
-      }
-    }
-  } catch {
-    // Same tolerance as above.
-  }
-
-  // The category names and condition types, in their own call. `specialty`
-  // is a new column, so an unknown-column error must cost the picker its
-  // grouping rather than every programme in it -- the same reason the
-  // package reads above are each wrapped.
-  const categoryIds = [...new Set(out.map((p) => p.categoryId).filter((id): id is string => !!id))];
-  if (categoryIds.length > 0) {
-    let titleById = new Map<string, string>();
-    let specialtyById = new Map<string, string | null>();
-    try {
-      const { data } = await admin
-        .from("treatment_categories")
-        .select("id, title")
-        .in("id", categoryIds);
-      titleById = new Map((data ?? []).map((c) => [c.id, c.title as string]));
-    } catch {
-      // Names lost; the picker falls back to the programme's own title.
-    }
-    try {
-      const { data } = await admin
-        .from("treatment_categories")
-        .select("id, specialty")
-        .in("id", categoryIds);
-      specialtyById = new Map(
-        (data ?? []).map((c) => [c.id, (c as { specialty: string | null }).specialty ?? null])
-      );
-    } catch {
-      // Untagged database: every condition sits under one heading, which is
-      // exactly how it read before the column existed.
-    }
-    for (const p of out) {
-      if (!p.categoryId) continue;
-      p.categoryTitle = titleById.get(p.categoryId) ?? null;
-      const specialty = specialtyById.get(p.categoryId) ?? null;
-      p.specialty =
-        specialty === "ortho" || specialty === "neuro" || specialty === "pediatrics"
-          ? specialty
-          : null;
-    }
+  const titleById = new Map((titleRows ?? []).map((c) => [c.id, c.title]));
+  const specialtyById = new Map((specialtyRows ?? []).map((c) => [c.id, c.specialty ?? null]));
+  for (const p of out) {
+    if (!p.categoryId) continue;
+    p.categoryTitle = titleById.get(p.categoryId) ?? null;
+    const specialty = specialtyById.get(p.categoryId) ?? null;
+    p.specialty =
+      specialty === "ortho" || specialty === "neuro" || specialty === "pediatrics"
+        ? specialty
+        : null;
   }
 
   return out;

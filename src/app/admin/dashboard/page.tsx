@@ -2852,36 +2852,120 @@ export default async function AdminDashboardPage({
   // Every desk with at least one rule of its own now reads this queue --
   // see RISK_RULE_DOMAIN. A desk with none (nobody, today) still pays
   // nothing: the two queries below are skipped entirely.
+  // Started here rather than where it is read, three blocks further down.
+  // Nothing in the risk or recommendation blocks feeds it -- it needs only
+  // the viewer's scope and the clock -- and it is the longest of the three
+  // chains, so kicking it off first is what lets the other two run inside
+  // its latency instead of after it. Awaited at the point of use, so the
+  // code that consumes it is unchanged.
+  const canSeeCarePlans = scopeCanOpen(viewerScope, "sessions");
+  const authoringDataPromise = (async () => {
+    const [{ data: authorableRows }, recommendablePackages] = await Promise.all([
+      canSeeCarePlans
+        ? admin
+            .from("appointments")
+            .select("id, patient_id, therapist_id, session_code, slot_time, category_id")
+            .eq("status", "completed")
+            .not("therapist_id", "is", null)
+            .gte("slot_time", new Date(nowTimestamp() - 60 * 86_400_000).toISOString())
+            .order("slot_time", { ascending: false })
+            .limit(60)
+        : Promise.resolve({
+            data: [] as {
+              id: string;
+              patient_id: string;
+              therapist_id: string | null;
+              session_code: string | null;
+              slot_time: string;
+              category_id: string | null;
+            }[],
+          }),
+      canSeeCarePlans ? loadRecommendablePackages(admin) : Promise.resolve([]),
+    ]);
+    // The one lookup that has to wait, since it is keyed on ids the query
+    // above returns.
+    const authorableIds = [
+      ...new Set(
+        (authorableRows ?? [])
+          .flatMap((a) => [a.patient_id, a.therapist_id])
+          .filter((id): id is string => !!id)
+      ),
+    ];
+    const { data: authorablePeople } = authorableIds.length
+      ? await admin.from("profiles").select("id, full_name").in("id", authorableIds)
+      : { data: [] as { id: string; full_name: string }[] };
+    return { authorableRows, recommendablePackages, authorablePeople };
+  })();
+  // Starting a promise and awaiting it later leaves a window in which a
+  // rejection has no handler attached, which Node reports as an unhandled
+  // rejection and some runtimes treat as fatal. This marks it handled without
+  // swallowing anything: the await below still throws the real error, exactly
+  // as it did when these reads sat inline.
+  authoringDataPromise.catch(() => {});
+
   const viewerRiskRules = riskRulesForSections(workableSections);
   const viewerCanSeeRisk = viewerScope === "full" || viewerRiskRules.length > 0;
-  const { data: riskSignalRows } = viewerCanSeeRisk
-    ? await admin
-    .from("risk_signals")
-    .select("id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at")
-    .order("detected_at", { ascending: false })
-    .limit(200)
-    : { data: [] as RiskSignalQueryRow[] };
-  const { data: riskRuleRows } = viewerCanSeeRisk
-    ? await admin
-        .from("risk_rules")
-        .select("rule_key, label, description, enabled, config")
-        .order("rule_key")
-    : { data: [] as RiskRuleQueryRow[] };
-
-  const riskSignalIds = (riskSignalRows ?? []).map((r) => r.id);
-  const { data: riskReviewRows } = riskSignalIds.length
-    ? await admin
-        .from("risk_reviews")
-        .select("id, signal_id, reviewer_id, outcome, note, created_at")
-        .in("signal_id", riskSignalIds)
-        .order("created_at", { ascending: true })
-    : { data: [] as { id: string; signal_id: string; reviewer_id: string; outcome: string; note: string; created_at: string }[] };
+  // Four reads that need nothing from each other, so they go together. They
+  // were four awaits in a row, which on this host is four round trips of
+  // latency (~320ms each) inside a page render that already has its data --
+  // the "isolated is not the same as sequential" rule, in the block where it
+  // cost the most. Each one keeps its own guard and its own empty fallback,
+  // so the isolation is unchanged and only the waiting is gone.
+  const [
+    { data: riskSignalRows },
+    { data: riskRuleRows },
+    { data: flagRows },
+    { data: revealRows },
+  ] = await Promise.all([
+    viewerCanSeeRisk
+      ? admin
+          .from("risk_signals")
+          .select(
+            "id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at"
+          )
+          .order("detected_at", { ascending: false })
+          .limit(200)
+      : Promise.resolve({ data: [] as RiskSignalQueryRow[] }),
+    viewerCanSeeRisk
+      ? admin
+          .from("risk_rules")
+          .select("rule_key, label, description, enabled, config")
+          .order("rule_key")
+      : Promise.resolve({ data: [] as RiskRuleQueryRow[] }),
+    // The evidence itself, read only for a scope that can see the queue, on
+    // its own so a database without the tables renders an empty panel rather
+    // than blanking the dashboard.
+    viewerCanSeeRisk
+      ? admin
+          .from("communication_flags")
+          .select(
+            "id, surface, author_id, patient_id, tier, findings, blocked, content, created_at"
+          )
+          .order("created_at", { ascending: false })
+          .limit(200)
+      : Promise.resolve({ data: [] as CommunicationFlagQueryRow[] }),
+    viewerCanSeeRisk
+      ? admin
+          .from("contact_reveal_log")
+          .select("id, therapist_id, patient_id, field, reason, created_at")
+          .order("created_at", { ascending: false })
+          .limit(200)
+      : Promise.resolve({ data: [] as ContactRevealQueryRow[] }),
+  ]);
 
   // A signal names a subject by id and kind. Resolving that to something an
   // admin recognises needs the admin client, since a therapist's or a
   // patient's name is not readable through the caller's own RLS -- the same
   // one lookup every other cross-role surface makes.
   const riskRuleLabels = new Map((riskRuleRows ?? []).map((r) => [r.rule_key, r.label]));
+
+  // Second wave: everything that needs an id out of the first. A signal names
+  // its subject by id and kind, and resolving that to something an admin
+  // recognises needs the admin client, since another person's name is not
+  // readable through the caller's own RLS -- the same one lookup every other
+  // cross-role surface makes. One name query covers the flags and the reveal
+  // log together.
+  const riskSignalIds = (riskSignalRows ?? []).map((r) => r.id);
   const riskPersonIds = [
     ...new Set(
       (riskSignalRows ?? [])
@@ -2896,40 +2980,6 @@ export default async function AdminDashboardPage({
         .map((r) => r.subject_id)
     ),
   ];
-  const [{ data: riskPeople }, { data: riskAppointments }] = await Promise.all([
-    riskPersonIds.length
-      ? admin.from("profiles").select("id, full_name").in("id", riskPersonIds)
-      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
-    riskAppointmentIds.length
-      ? admin.from("appointments").select("id, session_code").in("id", riskAppointmentIds)
-      : Promise.resolve({ data: [] as { id: string; session_code: string | null }[] }),
-  ]);
-  const riskSubjectNames = new Map<string, string>();
-  for (const p of riskPeople ?? []) riskSubjectNames.set(p.id, p.full_name ?? "Unknown");
-  for (const a of riskAppointments ?? [])
-    riskSubjectNames.set(a.id, a.session_code ?? `Session ${a.id.slice(0, 8)}`);
-
-  // The evidence itself, read only for a full admin, on its own so a
-  // database without the tables renders an empty panel rather than blanking
-  // the dashboard.
-  const { data: flagRows } = viewerCanSeeRisk
-    ? await admin
-        .from("communication_flags")
-        .select("id, surface, author_id, patient_id, tier, findings, blocked, content, created_at")
-        .order("created_at", { ascending: false })
-        .limit(200)
-    : { data: [] as CommunicationFlagQueryRow[] };
-  const { data: revealRows } = viewerCanSeeRisk
-    ? await admin
-        .from("contact_reveal_log")
-        .select("id, therapist_id, patient_id, field, reason, created_at")
-        .order("created_at", { ascending: false })
-        .limit(200)
-    : { data: [] as ContactRevealQueryRow[] };
-
-  // One name lookup for both, since RLS gives an admin no route to another
-  // person's name -- the same admin-client lookup every cross-role surface
-  // makes.
   const evidencePersonIds = [
     ...new Set(
       [
@@ -2938,9 +2988,42 @@ export default async function AdminDashboardPage({
       ].filter((id): id is string => !!id)
     ),
   ];
-  const { data: evidencePeople } = evidencePersonIds.length
-    ? await admin.from("profiles").select("id, full_name").in("id", evidencePersonIds)
-    : { data: [] as { id: string; full_name: string }[] };
+  const [
+    { data: riskReviewRows },
+    { data: riskPeople },
+    { data: riskAppointments },
+    { data: evidencePeople },
+  ] = await Promise.all([
+    riskSignalIds.length
+      ? admin
+          .from("risk_reviews")
+          .select("id, signal_id, reviewer_id, outcome, note, created_at")
+          .in("signal_id", riskSignalIds)
+          .order("created_at", { ascending: true })
+      : Promise.resolve({
+          data: [] as {
+            id: string;
+            signal_id: string;
+            reviewer_id: string;
+            outcome: string;
+            note: string;
+            created_at: string;
+          }[],
+        }),
+    riskPersonIds.length
+      ? admin.from("profiles").select("id, full_name").in("id", riskPersonIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    riskAppointmentIds.length
+      ? admin.from("appointments").select("id, session_code").in("id", riskAppointmentIds)
+      : Promise.resolve({ data: [] as { id: string; session_code: string | null }[] }),
+    evidencePersonIds.length
+      ? admin.from("profiles").select("id, full_name").in("id", evidencePersonIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+  ]);
+  const riskSubjectNames = new Map<string, string>();
+  for (const p of riskPeople ?? []) riskSubjectNames.set(p.id, p.full_name ?? "Unknown");
+  for (const a of riskAppointments ?? [])
+    riskSubjectNames.set(a.id, a.session_code ?? `Session ${a.id.slice(0, 8)}`);
   const evidenceNames = new Map(
     (evidencePeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
   );
@@ -3042,7 +3125,6 @@ export default async function AdminDashboardPage({
   // Every recommendation, on its own call for the usual
   // migration-tolerance reason. Sessions scope, matching the withdraw route
   // and the section it sits in.
-  const canSeeCarePlans = scopeCanOpen(viewerScope, "sessions");
   const { data: adminCarePlanRows } = canSeeCarePlans
     ? await admin
         .from("care_plans")
@@ -3056,63 +3138,66 @@ export default async function AdminDashboardPage({
   const adminPlanVersionIds = (adminCarePlanRows ?? [])
     .map((p) => p.current_version_id)
     .filter((id): id is string => !!id);
-  const { data: adminPlanVersions } = adminPlanVersionIds.length
-    ? await admin
-        .from("care_plan_versions")
-        .select(
-          "id, offer_snapshot, offer_kind, session_package_id, home_visit_package_id, clinical_rationale, instructions, hands_on_required, frequency_per_week, expires_at, authored_at"
-        )
-        .in("id", adminPlanVersionIds)
-    : {
-        data: [] as {
-          id: string;
-          offer_snapshot: unknown;
-          offer_kind: string;
-          session_package_id: string | null;
-          home_visit_package_id: string | null;
-          clinical_rationale: string | null;
-          instructions: string | null;
-          hands_on_required: boolean;
-          frequency_per_week: number | null;
-          expires_at: string | null;
-          authored_at: string;
-        }[],
-      };
-  const adminPlanVersionById = new Map((adminPlanVersions ?? []).map((v) => [v.id, v]));
-
   const carePlanPersonIds = [
     ...new Set(
       (adminCarePlanRows ?? []).flatMap((p) => [p.patient_id, p.therapist_id])
     ),
   ];
-  const { data: carePlanPeople } = carePlanPersonIds.length
-    ? await admin.from("profiles").select("id, full_name").in("id", carePlanPersonIds)
-    : { data: [] as { id: string; full_name: string }[] };
+  const carePlanIds = (adminCarePlanRows ?? []).map((p) => p.id);
+
+  // All three need only `adminCarePlanRows`, which the first batch already
+  // resolved, so they need nothing from each other and go together.
+  // `submitted_at` still gets its own guard: it arrived with the review step,
+  // later than the rows it sits on, so an unknown-column error must cost the
+  // queue its ordering rather than cost the screen every recommendation on it.
+  const [{ data: adminPlanVersions }, { data: carePlanPeople }, submittedRowsResult] =
+    await Promise.all([
+      adminPlanVersionIds.length
+        ? admin
+            .from("care_plan_versions")
+            .select(
+              "id, offer_snapshot, offer_kind, session_package_id, home_visit_package_id, clinical_rationale, instructions, hands_on_required, frequency_per_week, expires_at, authored_at"
+            )
+            .in("id", adminPlanVersionIds)
+        : Promise.resolve({
+            data: [] as {
+              id: string;
+              offer_snapshot: unknown;
+              offer_kind: string;
+              session_package_id: string | null;
+              home_visit_package_id: string | null;
+              clinical_rationale: string | null;
+              instructions: string | null;
+              hands_on_required: boolean;
+              frequency_per_week: number | null;
+              expires_at: string | null;
+              authored_at: string;
+            }[],
+          }),
+      carePlanPersonIds.length
+        ? admin.from("profiles").select("id, full_name").in("id", carePlanPersonIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+      carePlanIds.length
+        ? admin
+            .from("care_plans")
+            .select("id, submitted_at")
+            .in("id", carePlanIds)
+            .then(
+              (r) => r,
+              () => ({ data: null as { id: string; submitted_at?: string | null }[] | null })
+            )
+        : Promise.resolve({
+            data: [] as { id: string; submitted_at?: string | null }[],
+          }),
+    ]);
+  const adminPlanVersionById = new Map((adminPlanVersions ?? []).map((v) => [v.id, v]));
   const carePlanNames = new Map(
     (carePlanPeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
   );
-
-  // When each one was sent, read on its own. `submitted_at` arrived with the
-  // review step, later than the rows it sits on, so an unknown-column error
-  // must cost the queue its ordering rather than cost the screen every
-  // recommendation on it.
   const submittedAtByPlan = new Map<string, string>();
-  if ((adminCarePlanRows ?? []).length > 0) {
-    try {
-      const { data: submittedRows } = await admin
-        .from("care_plans")
-        .select("id, submitted_at")
-        .in(
-          "id",
-          (adminCarePlanRows ?? []).map((p) => p.id)
-        );
-      for (const row of submittedRows ?? []) {
-        const at = (row as { submitted_at?: string | null }).submitted_at;
-        if (at) submittedAtByPlan.set(row.id, at);
-      }
-    } catch {
-      // Falls back to created_at below, which sorts a queue sensibly.
-    }
+  for (const row of submittedRowsResult.data ?? []) {
+    const at = (row as { submitted_at?: string | null }).submitted_at;
+    if (at) submittedAtByPlan.set(row.id, at);
   }
 
   // What the patient already owns, for the patients in the queue only.
@@ -3152,14 +3237,14 @@ export default async function AdminDashboardPage({
       // Purchases screen the moment an admin flips the ledger switch --
       // which is the "the list disagrees with the number" bug in the one
       // place it would be read as a reason to refuse someone treatment.
-      const sessionRows = await applyLedgerSessionBalances(
-        admin,
-        openPurchases ?? [],
-        { authoritative: ledgerAuthoritative }
-      );
-      const visitRows = await applyLedgerVisitBalances(admin, openVisits ?? [], {
-        authoritative: ledgerAuthoritative,
-      });
+      const [sessionRows, visitRows] = await Promise.all([
+        applyLedgerSessionBalances(admin, openPurchases ?? [], {
+          authoritative: ledgerAuthoritative,
+        }),
+        applyLedgerVisitBalances(admin, openVisits ?? [], {
+          authoritative: ledgerAuthoritative,
+        }),
+      ]);
 
       const add = (patientId: string, left: number) => {
         if (left <= 0) return;
@@ -3237,36 +3322,9 @@ export default async function AdminDashboardPage({
       .filter((p) => p.status === "active" || p.status === "pending_review")
       .map((p) => p.patient_id)
   );
-  const { data: authorableRows } = canSeeCarePlans
-    ? await admin
-        .from("appointments")
-        .select("id, patient_id, therapist_id, session_code, slot_time, category_id")
-        .eq("status", "completed")
-        .not("therapist_id", "is", null)
-        .gte("slot_time", new Date(nowTimestamp() - 60 * 86_400_000).toISOString())
-        .order("slot_time", { ascending: false })
-        .limit(60)
-    : {
-        data: [] as {
-          id: string;
-          patient_id: string;
-          therapist_id: string | null;
-          session_code: string | null;
-          slot_time: string;
-          category_id: string | null;
-        }[],
-      };
-
-  const authorableIds = [
-    ...new Set(
-      (authorableRows ?? []).flatMap((a) => [a.patient_id, a.therapist_id]).filter(
-        (id): id is string => !!id
-      )
-    ),
-  ];
-  const { data: authorablePeople } = authorableIds.length
-    ? await admin.from("profiles").select("id, full_name").in("id", authorableIds)
-    : { data: [] as { id: string; full_name: string }[] };
+  // Started above the risk block, so by here it has usually already landed.
+  const { authorableRows, recommendablePackages, authorablePeople } =
+    await authoringDataPromise;
   const authorableNames = new Map(
     (authorablePeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
   );
@@ -3283,21 +3341,15 @@ export default async function AdminDashboardPage({
       categoryId: a.category_id ?? null,
     }));
 
-  // Every recommendable package, not the ones for one category: the screen
-  // narrows them per selected session in the browser, because which session
-  // the admin picks decides which category applies and that choice is made
-  // after this render.
-  const adminPackageOptions: RecommendableOption[] = canSeeCarePlans
-    ? (await loadRecommendablePackages(admin)).map((p) => ({
-        id: p.id,
-        kind: p.kind,
-        title: p.title,
-        snapshot: p.snapshot,
-        categoryId: p.categoryId,
-        categoryTitle: p.categoryTitle,
-        specialty: p.specialty,
-      }))
-    : [];
+  const adminPackageOptions: RecommendableOption[] = recommendablePackages.map((p) => ({
+    id: p.id,
+    kind: p.kind,
+    title: p.title,
+    snapshot: p.snapshot,
+    categoryId: p.categoryId,
+    categoryTitle: p.categoryTitle,
+    specialty: p.specialty,
+  }));
 
   const sessionsRecommendationsTab = (
     <AdminCarePlansTab
