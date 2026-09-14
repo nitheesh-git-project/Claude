@@ -149,6 +149,7 @@ export default function AdminCalendarTab({
           type="date"
           value={selectedDate}
           onChange={(e) => handleDatePickerChange(e.target.value)}
+          aria-label="Jump to date"
           className="p-2 rounded-lg border border-slate-300 text-xs"
         />
       </div>
@@ -156,16 +157,18 @@ export default function AdminCalendarTab({
       <div className="flex items-center justify-between mt-4 mb-3">
         <button
           onClick={() => goToMonth(-1)}
+          aria-label="Previous month"
           className="text-slate-500 hover:text-slate-800 px-2 py-1 text-xs font-semibold"
         >
-          <i className="fa-solid fa-chevron-left"></i>
+          <i aria-hidden="true" className="fa-solid fa-chevron-left"></i>
         </button>
         <p className="font-bold text-slate-800 text-sm">{monthLabel}</p>
         <button
           onClick={() => goToMonth(1)}
+          aria-label="Next month"
           className="text-slate-500 hover:text-slate-800 px-2 py-1 text-xs font-semibold"
         >
-          <i className="fa-solid fa-chevron-right"></i>
+          <i aria-hidden="true" className="fa-solid fa-chevron-right"></i>
         </button>
       </div>
 
@@ -204,7 +207,7 @@ export default function AdminCalendarTab({
         Showing sessions for {selectedDateLabel}
         {(viewYear !== Number(selectedDate.split("-")[0]) ||
           viewMonth !== Number(selectedDate.split("-")[1]) - 1) && (
-          <span className="text-slate-400 font-normal"> (not in the month shown above)</span>
+          <span className="text-slate-500 font-normal"> (not in the month shown above)</span>
         )}
       </p>
 
@@ -224,7 +227,7 @@ export default function AdminCalendarTab({
           <tbody>
             {sessionsForSelectedDate.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-6 text-center text-slate-400">
+                <td colSpan={7} className="py-6 text-center text-slate-500">
                   No sessions booked for this date.
                 </td>
               </tr>
@@ -235,7 +238,7 @@ export default function AdminCalendarTab({
                   onClick={() => setSelectedAppointment(a)}
                   className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
                 >
-                  <td className="py-2 pr-3 text-slate-400 font-mono">{a.session_code ?? "-"}</td>
+                  <td className="py-2 pr-3 text-slate-500 font-mono">{a.session_code ?? "-"}</td>
                   <td className="py-2 pr-3 font-bold text-slate-900">
                     {a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : "Unassigned"}
                     {!a.therapist_id && a.status !== "cancelled" && (

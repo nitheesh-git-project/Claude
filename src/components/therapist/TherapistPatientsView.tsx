@@ -52,11 +52,11 @@ export default function TherapistPatientsView({
               aria-pressed={view === key}
               onClick={() => setView(key)}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                view === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                view === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
               }`}
             >
               {label}
-              <span className="ml-1.5 text-[10px] font-bold text-slate-400">{count}</span>
+              <span className="ml-1.5 text-[10px] font-bold text-slate-600">{count}</span>
             </button>
           ))}
         </div>

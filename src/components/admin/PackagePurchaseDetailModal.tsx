@@ -221,21 +221,21 @@ export default function PackagePurchaseDetailModal({
 
           <div className="grid grid-cols-2 gap-3 text-slate-600">
             <p>
-              <span className="text-slate-400">Category:</span> {data.purchase.categoryTitle ?? "-"}
+              <span className="text-slate-500">Category:</span> {data.purchase.categoryTitle ?? "-"}
             </p>
             <p>
-              <span className="text-slate-400">Therapist:</span>{" "}
+              <span className="text-slate-500">Therapist:</span>{" "}
               {data.purchase.therapistName ?? "Not yet locked"}
             </p>
             <p>
-              <span className="text-slate-400">Paid:</span>{" "}
+              <span className="text-slate-500">Paid:</span>{" "}
               {data.purchase.amount_paid_paise
                 ? `₹${(data.purchase.amount_paid_paise / 100).toLocaleString("en-IN")}`
                 : "-"}{" "}
               ({data.purchase.payment_status})
             </p>
             <p>
-              <span className="text-slate-400">Expires:</span>{" "}
+              <span className="text-slate-500">Expires:</span>{" "}
               {data.purchase.expires_at
                 ? `${formatClinicDate(data.purchase.expires_at)}${
                     daysLeft !== null ? ` (${daysLeft}d left)` : ""
@@ -247,14 +247,14 @@ export default function PackagePurchaseDetailModal({
           <section>
             <h4 className="font-bold text-slate-800 mb-2">Upcoming</h4>
             {data.upcoming.length === 0 ? (
-              <p className="text-slate-400">Nothing scheduled yet.</p>
+              <p className="text-slate-500">Nothing scheduled yet.</p>
             ) : (
               <ul className="space-y-1.5">
                 {data.upcoming.map((a) => (
                   <li key={a.id} className="flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2">
                     <span>
                       {a.slot_time ? formatClinicDateTime(a.slot_time) : "Time TBD"}{" "}
-                      <span className="font-mono text-slate-400">{a.session_code ?? ""}</span>
+                      <span className="font-mono text-slate-500">{a.session_code ?? ""}</span>
                     </span>
                     <span className="capitalize text-slate-500">{a.status}</span>
                   </li>
@@ -266,14 +266,14 @@ export default function PackagePurchaseDetailModal({
           <section>
             <h4 className="font-bold text-slate-800 mb-2">Completed</h4>
             {data.completed.length === 0 ? (
-              <p className="text-slate-400">None yet.</p>
+              <p className="text-slate-500">None yet.</p>
             ) : (
               <ul className="space-y-1.5">
                 {data.completed.map((a) => (
                   <li key={a.id} className="flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2">
                     <span>
                       {a.slot_time ? formatClinicDate(a.slot_time) : "-"}{" "}
-                      <span className="font-mono text-slate-400">{a.session_code ?? ""}</span>
+                      <span className="font-mono text-slate-500">{a.session_code ?? ""}</span>
                       {a.no_show && <span className="ml-2 text-amber-700 font-semibold">No-show</span>}
                     </span>
                     {a.no_show && (
@@ -292,7 +292,7 @@ export default function PackagePurchaseDetailModal({
           </section>
 
           {counts.pending > 0 && (
-            <p className="text-slate-400">{counts.pending} session(s) not yet scheduled.</p>
+            <p className="text-slate-500">{counts.pending} session(s) not yet scheduled.</p>
           )}
 
           {data.restorable.length > 0 && (
@@ -369,7 +369,7 @@ export default function PackagePurchaseDetailModal({
           <section className="border-t border-slate-100 pt-4">
             <h4 className="font-bold text-slate-800 mb-2">Timeline</h4>
             {data.events.length === 0 ? (
-              <p className="text-slate-400">No events recorded.</p>
+              <p className="text-slate-500">No events recorded.</p>
             ) : (
               <ul className="space-y-1.5">
                 {data.events.map((e) => (
@@ -407,7 +407,7 @@ function Stat({
 }) {
   return (
     <div className="border border-slate-200 rounded-xl p-3">
-      <p className="text-slate-400">{label}</p>
+      <p className="text-slate-500">{label}</p>
       <p className={`font-bold text-lg ${tone} ${capitalize ? "capitalize" : ""}`}>{value}</p>
     </div>
   );

@@ -33,7 +33,7 @@ export default function PartialRefundForm({
   const remainingPaise = paidPaise - alreadyRefundedPaise;
   if (remainingPaise <= 0) {
     return (
-      <p className="text-[11px] text-slate-400">
+      <p className="text-[11px] text-slate-500">
         Fully refunded - ₹{(alreadyRefundedPaise / 100).toLocaleString("en-IN")} returned.
       </p>
     );

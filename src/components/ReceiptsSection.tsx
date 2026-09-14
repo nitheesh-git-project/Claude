@@ -98,7 +98,7 @@ export default function ReceiptsSection({
               >
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-slate-500">
                       {r.kind === "booking" ? "Payment Date" : "Payment Attempted"}
                     </p>
                     <div className="flex items-center gap-2 flex-wrap mt-0.5">
@@ -123,7 +123,7 @@ export default function ReceiptsSection({
                 <p className="text-xs text-slate-500 mt-3">
                   {r.title}
                   {sessionCode && (
-                    <span className="ml-2 font-mono text-slate-400">{sessionCode}</span>
+                    <span className="ml-2 font-mono text-slate-500">{sessionCode}</span>
                   )}
                 </p>
 
@@ -289,7 +289,7 @@ export default function ReceiptsSection({
                   "The payment didn't go through - this can happen for reasons like a declined card or a bank timeout. You can try again from your session or package above."}
               </p>
               {selected.errorCode && (
-                <p className="text-slate-400">Reference code: {selected.errorCode}</p>
+                <p className="text-slate-500">Reference code: {selected.errorCode}</p>
               )}
             </div>
           )}

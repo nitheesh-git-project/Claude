@@ -36,7 +36,7 @@ export default function MoneyGlossary() {
                     className={`ml-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
                       entry.scope === "now"
                         ? "bg-amber-50 text-amber-700"
-                        : "bg-slate-100 text-slate-500"
+                        : "bg-slate-100 text-slate-600"
                     }`}
                   >
                     {SCOPE_LABEL[entry.scope]}

@@ -120,7 +120,7 @@ export default function BookingStepOne({
         )}
       </AnimatePresence>
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-500">
         This is your preferred time - we&apos;ll confirm the exact slot with you
         before the session.
       </p>

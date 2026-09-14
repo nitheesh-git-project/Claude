@@ -81,7 +81,12 @@ export default function DebugNav() {
         <span className="text-xs text-slate-400 hidden sm:inline">
           Jump to page:
         </span>
+        {/* Named explicitly: the visible "Jump to page:" beside it is a
+            <span> that disappears below sm, so on a phone this control had no
+            accessible name at all. The app-wide sweep ran with the bar
+            switched off and never saw it. */}
         <select
+          aria-label="Jump to page"
           value={pathname}
           onChange={(e) => router.push(e.target.value)}
           className="bg-slate-800 text-teal-300 text-xs font-mono py-1.5 px-2 rounded-lg border border-slate-700 focus:outline-none focus:border-teal-500"
@@ -98,6 +103,7 @@ export default function DebugNav() {
         </span>
         <input
           type="datetime-local"
+          aria-label="Simulate the current date and time"
           value={simInput}
           onChange={(e) => setSimInput(e.target.value)}
           className="bg-slate-800 text-teal-300 text-xs font-mono py-1.5 px-2 rounded-lg border border-slate-700 focus:outline-none focus:border-teal-500"
@@ -123,7 +129,10 @@ export default function DebugNav() {
             it actually works -- see DebugResetButton. */}
         <DebugResetButton />
 
-        <span className="text-[11px] text-slate-500 ml-auto hidden sm:inline">
+        {/* slate-400 on this near-black bar, not slate-500: the contrast rule
+            is by surface, and on the dark chrome -400 is the readable one --
+            slate-500 here is 4.2:1. */}
+        <span className="text-[11px] text-slate-400 ml-auto hidden sm:inline">
           Remove this bar before real launch
         </span>
       </div>

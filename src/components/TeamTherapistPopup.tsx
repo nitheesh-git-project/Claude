@@ -122,7 +122,7 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
 
                 <dl className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-5">
                   <div>
-                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                       Experience
                     </dt>
                     <dd className="font-display mt-0.5 text-sm font-bold text-slate-900">
@@ -130,7 +130,7 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                     </dd>
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                       Languages
                     </dt>
                     <dd className="mt-0.5 truncate text-sm font-medium text-slate-700">
@@ -280,7 +280,7 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                 )}
 
                 {!open.bio && !open.public_display_note && !open.specialization && (
-                  <p className="mt-6 text-xs text-slate-400">
+                  <p className="mt-6 text-xs text-slate-500">
                     No additional details provided yet.
                   </p>
                 )}

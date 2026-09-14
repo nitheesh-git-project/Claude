@@ -51,7 +51,7 @@ export function renderPatientSessionCard(
                   as something to quote. */}
               {a.session_code && (
                 <span
-                  className="ml-2 font-normal text-[11px] text-slate-400"
+                  className="ml-2 font-normal text-[11px] text-slate-500"
                   title="Quote this reference if you contact the clinic about this session."
                 >
                   Ref <span className="font-mono">{a.session_code}</span>
@@ -91,7 +91,7 @@ export function renderPatientSessionCard(
             {a.status === "cancelled" ? (
               a.refund_status === "not_eligible" && (
                 <span
-                  className="font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full"
+                  className="font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full"
                   title={
                     a.therapist_payout_paid_at
                       ? "No refund - this session's payout was already settled (cancelled as an admin correction, not a late cancellation)"
@@ -165,7 +165,7 @@ export function renderPatientSessionCard(
 
         {addressLines.length > 0 && (
           <div className="rounded-lg bg-slate-50 p-3 space-y-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               Your therapist is coming to
             </p>
             {addressLines.map((line: string) => (
@@ -175,7 +175,7 @@ export function renderPatientSessionCard(
             ))}
             {visit?.visit_access_notes && (
               <p className="pt-1 text-slate-600">
-                <span className="font-semibold text-slate-400">Getting in:</span>{" "}
+                <span className="font-semibold text-slate-500">Getting in:</span>{" "}
                 {visit.visit_access_notes}
               </p>
             )}
@@ -190,7 +190,7 @@ export function renderPatientSessionCard(
               </a>
             )}
             {visit?.travel_fee_paise !== null && (visit?.travel_fee_paise ?? 0) > 0 && (
-              <p className="pt-1 text-[11px] text-slate-400">
+              <p className="pt-1 text-[11px] text-slate-500">
                 Includes ₹{((visit?.travel_fee_paise ?? 0) / 100).toLocaleString("en-IN")} travel
               </p>
             )}

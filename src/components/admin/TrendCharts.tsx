@@ -19,16 +19,29 @@ import { EmptyState } from "@/components/dashboard/SurfaceCard";
 /** Single sequential hue for a one-series chart: one bar colour means
  *  magnitude only, never identity, so no legend is needed and the card's own
  *  title names the series. */
-export const CHART_COLOR = "#0d9488"; // teal-600
+export const CHART_COLOR = "#0f766e"; // teal-700
 
 // A four-series palette, distinct in lightness as well as hue so it survives
 // colourblindness and a black-and-white print of an exported table.
+//
+// The teal and the amber are a shade darker than the -600 pair they started
+// as, and that is a contrast rule rather than a taste: both are printed as
+// *text* as well as drawn (the conversion figure on Delivery, the partners'
+// share on Summary), and teal-600 on white is 3.7:1 -- enough for a bar,
+// short of AA for a number somebody has to read. Swapping one back for a
+// brighter line would quietly fail the figure beside it.
 export const REVENUE_COLOR = "#0f172a"; // slate-900 - the top line
 export const THERAPIST_CUT_COLOR = "#4f46e5"; // indigo-600
-export const HOSPITAL_CUT_COLOR = "#d97706"; // amber-600
-export const PROFIT_COLOR = "#0d9488"; // teal-600
-export const COST_COLOR = "#e11d48"; // rose-600 - money going out
-export const NEUTRAL_COLOR = "#64748b"; // slate-500
+export const HOSPITAL_CUT_COLOR = "#b45309"; // amber-700
+export const PROFIT_COLOR = "#0f766e"; // teal-700
+export const COST_COLOR = "#be123c"; // rose-700 - money going out
+export const NEUTRAL_COLOR = "#475569"; // slate-600
+
+/** Axis tick labels. slate-500 rather than the slate-400 these started at:
+ *  they are read, not decoration, and slate-400 on white is 2.63:1 -- the
+ *  same failure the app-wide sweep corrected in every other place a label
+ *  sits on a white card. */
+const AXIS_LABEL_COLOR = "#64748b"; // slate-500
 
 export type ChartBucket = { label: string; startMs: number; endMs: number };
 
@@ -140,7 +153,7 @@ export function TrendBarChart({
                 y={chartHeight + 16}
                 textAnchor="middle"
                 fontSize={10}
-                fill="#94a3b8"
+                fill={AXIS_LABEL_COLOR}
               >
                 {b.label}
               </text>
@@ -265,7 +278,7 @@ export function TrendLineChart({
               y={chartHeight + 16}
               textAnchor="middle"
               fontSize={10}
-              fill="#94a3b8"
+              fill={AXIS_LABEL_COLOR}
             >
               {b.label}
             </text>
@@ -360,7 +373,7 @@ export function GroupedBarChart({
                   y={chartHeight + 16}
                   textAnchor="middle"
                   fontSize={10}
-                  fill="#94a3b8"
+                  fill={AXIS_LABEL_COLOR}
                 >
                   {bucket.label}
                 </text>
@@ -448,7 +461,7 @@ export function CompositionBars({
               {formatValue(row.amountPaise)}
             </span>
           </div>
-          {row.note && <p className="ml-0 mt-1 text-[10px] text-slate-400 sm:ml-43">{row.note}</p>}
+          {row.note && <p className="ml-0 mt-1 text-[10px] text-slate-500 sm:ml-43">{row.note}</p>}
         </li>
       ))}
     </ul>

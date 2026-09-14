@@ -49,7 +49,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <label className="block">
       <span className="text-[11px] font-semibold text-slate-600">{label}</span>
       {children}
-      {hint && <span className="block text-[10px] text-slate-400 mt-1">{hint}</span>}
+      {hint && <span className="block text-[10px] text-slate-500 mt-1">{hint}</span>}
     </label>
   );
 }
@@ -75,7 +75,7 @@ function Check({
       />
       <span>
         <span className="text-[11px] font-semibold text-slate-700">{label}</span>
-        {hint && <span className="block text-[10px] text-slate-400">{hint}</span>}
+        {hint && <span className="block text-[10px] text-slate-500">{hint}</span>}
       </span>
     </label>
   );

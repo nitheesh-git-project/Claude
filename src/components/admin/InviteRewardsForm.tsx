@@ -89,7 +89,7 @@ export default function InviteRewardsForm({ settings }: { settings: InviteSettin
             session, and the patient gets something off their next one - once that friend has
             actually had and paid for a session, never on a signup.
           </p>
-          <p className="text-xs text-slate-400 mt-2 max-w-md">
+          <p className="text-xs text-slate-500 mt-2 max-w-md">
             An amount already promised is honoured even if you switch this off or change the
             figures later. The switch stops new invites being claimed; it does not take back one
             somebody has already earned.

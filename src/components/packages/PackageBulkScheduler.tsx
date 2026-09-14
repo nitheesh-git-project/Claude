@@ -215,7 +215,7 @@ export default function PackageBulkScheduler({
               ref={closeRef}
               onClick={close}
               aria-label="Close"
-              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
             >
               <i aria-hidden="true" className="fa-solid fa-xmark" />
             </button>
@@ -330,7 +330,7 @@ export default function PackageBulkScheduler({
                   <div className="mt-4">
                     <p className="mb-2 text-xs font-semibold text-slate-700">{formatDateKeyLong(activeDateKey)}</p>
                     {activeHours.length === 0 ? (
-                      <p className="text-xs text-slate-400">No bookable times on this date.</p>
+                      <p className="text-xs text-slate-500">No bookable times on this date.</p>
                     ) : (
                       <div className={BOOKING_OPTION_GRID}>
                         {activeHours.map((hour) => {

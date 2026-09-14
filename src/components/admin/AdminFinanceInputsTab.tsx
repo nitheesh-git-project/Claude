@@ -385,7 +385,7 @@ function InvestmentsPanel({
             </p>
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-400">
+                <tr className="border-b border-slate-200 text-left text-slate-500">
                   <th className="pb-2 pr-3 font-semibold">What</th>
                   <th className="pb-2 pr-3 font-semibold">Bought</th>
                   <th className="pb-2 pr-3 text-right font-semibold">Cost</th>
@@ -406,11 +406,11 @@ function InvestmentsPanel({
                     </td>
                     <td className="py-2.5 pr-3 text-right tabular-nums text-slate-600">
                       {investment.present_value_paise === null ? (
-                        <span className="text-slate-400">Not valued</span>
+                        <span className="text-slate-500">Not valued</span>
                       ) : (
                         <>
                           {formatInr(investment.present_value_paise)}
-                          <span className="block text-[10px] text-slate-400">
+                          <span className="block text-[10px] text-slate-500">
                             as of {formatDate(investment.present_value_as_of)}
                           </span>
                         </>
@@ -721,7 +721,7 @@ function CampaignsPanel({
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-400">
+                <tr className="border-b border-slate-200 text-left text-slate-500">
                   <th className="pb-2 pr-3 font-semibold">Campaign</th>
                   <th className="pb-2 pr-3 font-semibold">Where</th>
                   <th className="pb-2 pr-3 font-semibold">Dates</th>
@@ -756,7 +756,7 @@ function CampaignsPanel({
                           Your figure: {formatInr(campaign.attributed_revenue_paise)}
                         </span>
                       ) : (
-                        <span className="text-slate-400">Not traced</span>
+                        <span className="text-slate-500">Not traced</span>
                       )}
                     </td>
                     <td className="py-2.5 text-right">
@@ -995,7 +995,7 @@ function BalancePanel({
             </p>
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-400">
+                <tr className="border-b border-slate-200 text-left text-slate-500">
                   <th className="pb-2 pr-3 font-semibold">As of</th>
                   <th className="pb-2 pr-3 font-semibold">Which</th>
                   <th className="pb-2 pr-3 font-semibold">What</th>
@@ -1005,16 +1005,21 @@ function BalancePanel({
               </thead>
               <tbody>
                 {rows.map((entry) => (
+                  // An older snapshot is marked with a tinted row and the
+                  // words "older snapshot", never with opacity: dimming drags
+                  // every colour in the row under AA at once (slate-500 text
+                  // fell to 2.29:1), so the rows a reader most needs to tell
+                  // apart became the ones hardest to read.
                   <tr
                     key={entry.id}
                     className={`border-b border-slate-100 ${
-                      entry.as_of === latest ? "" : "opacity-60"
+                      entry.as_of === latest ? "" : "bg-slate-50"
                     }`}
                   >
                     <td className="py-2.5 pr-3 text-slate-500">
                       {formatDate(entry.as_of)}
                       {entry.as_of !== latest && (
-                        <span className="block text-[10px] text-slate-400">older snapshot</span>
+                        <span className="block text-[10px] text-slate-500">older snapshot</span>
                       )}
                     </td>
                     <td className="py-2.5 pr-3">
@@ -1176,10 +1181,17 @@ function ReadingsPanel({ settings }: { settings: FinanceSettings }) {
             Enter a figure only when you are modelling a change.
           </p>
           <div className="mt-2 flex items-end gap-2">
+            {/* aria-label rather than a wrapping <label>: the visible heading
+                above is an ordinary paragraph inside a card, so without this
+                the box is announced as nothing at all -- a number field under
+                a heading is exactly the case the naming rule names. The two
+                Save buttons need it too: on their own they are two controls
+                called "Save" in one card. */}
             <input
               type="number"
               min="0"
               step="0.01"
+              aria-label="Break-even: price of a session, in rupees"
               placeholder="From my sessions"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
@@ -1187,6 +1199,7 @@ function ReadingsPanel({ settings }: { settings: FinanceSettings }) {
             />
             <button
               type="button"
+              aria-label="Save the break-even price of a session"
               disabled={busyKey === "finance_break_even_price_paise"}
               onClick={() => saveOverride("finance_break_even_price_paise", price)}
               className="rounded-xl bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-900 disabled:opacity-50"
@@ -1208,6 +1221,7 @@ function ReadingsPanel({ settings }: { settings: FinanceSettings }) {
               type="number"
               min="0"
               step="0.01"
+              aria-label="Break-even: cost of delivering one session, in rupees"
               placeholder="From my sessions"
               value={cost}
               onChange={(e) => setCost(e.target.value)}
@@ -1215,6 +1229,7 @@ function ReadingsPanel({ settings }: { settings: FinanceSettings }) {
             />
             <button
               type="button"
+              aria-label="Save the break-even cost of delivering one session"
               disabled={busyKey === "finance_break_even_variable_cost_paise"}
               onClick={() => saveOverride("finance_break_even_variable_cost_paise", cost)}
               className="rounded-xl bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-900 disabled:opacity-50"
@@ -1232,6 +1247,7 @@ function ReadingsPanel({ settings }: { settings: FinanceSettings }) {
           readings; pick a fixed one when you always look at the same length of period.
         </p>
         <select
+          aria-label="How a period is stretched to a year"
           value={state.runRateBasis}
           disabled={busyKey === "finance_run_rate_basis"}
           onChange={async (e) => {

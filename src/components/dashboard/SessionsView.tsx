@@ -62,7 +62,7 @@ export default function SessionsView({
             aria-pressed={view === key}
             onClick={() => setView(key)}
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-              view === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              view === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <i className={`fa-solid ${icon} mr-1.5`}></i>

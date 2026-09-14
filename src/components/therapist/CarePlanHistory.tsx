@@ -165,7 +165,7 @@ export default function CarePlanHistory({
                             <span className="ml-2 text-teal-700">Current</span>
                           )}
                         </p>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-slate-500">
                           {authorNames.get(version.authoredBy) ?? "Therapist"} ·{" "}
                           {formatClinicDate(version.authoredAt)}
                         </p>

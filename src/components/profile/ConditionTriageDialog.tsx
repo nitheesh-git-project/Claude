@@ -123,7 +123,7 @@ export default function ConditionTriageDialog({
               type="button"
               onClick={onCancel}
               aria-label="Close"
-              className="shrink-0 text-slate-400 transition hover:text-slate-700"
+              className="shrink-0 text-slate-500 transition hover:text-slate-700"
             >
               ✕
             </button>
@@ -146,7 +146,7 @@ export default function ConditionTriageDialog({
             ))}
 
             <div className="border-t border-slate-100 pt-5">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
                 Condition type
               </p>
               {suggestion ? (
@@ -221,7 +221,7 @@ export default function ConditionTriageDialog({
             {error ? (
               <p className="text-xs font-semibold text-red-600">{error}</p>
             ) : (
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-500">
                 Your answers save as you go - you can close this and come back.
               </span>
             )}

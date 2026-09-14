@@ -237,7 +237,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900">{therapist.full_name}</h1>
                 {therapistCodeRow?.therapist_code && (
-                  <span className="text-[10px] font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
                     {therapistCodeRow.therapist_code}
                   </span>
                 )}
@@ -349,7 +349,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           />
           <div className="mt-4 pt-4 border-t border-slate-100">
             <h2 className="font-bold text-sm text-slate-800 mb-1">Admin Notes</h2>
-            <p className="text-[11px] text-slate-400 mb-3">Private - never shown to the therapist.</p>
+            <p className="text-[11px] text-slate-500 mb-3">Private - never shown to the therapist.</p>
             <TherapistNotesForm therapistId={therapist.id} currentNote={note?.note ?? ""} />
           </div>
         </div>
@@ -358,7 +358,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <h2 className="font-bold text-sm text-slate-800 mb-1">Public Display Content</h2>
-        <p className="text-[11px] text-slate-400 mb-3">
+        <p className="text-[11px] text-slate-500 mb-3">
           Shown to visitors in this therapist&apos;s /team profile popup, alongside their own bio.
         </p>
         <TherapistDisplayContentForm
@@ -378,25 +378,25 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <h2 className="font-bold text-sm text-slate-800 mb-3">Session Performance</h2>
-        <p className="text-[11px] text-slate-400 -mt-2 mb-3">
+        <p className="text-[11px] text-slate-500 -mt-2 mb-3">
           All-time, this therapist only. Same math as the fleet-wide rates on the Metrics tab.
         </p>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-slate-400">No-Show Rate</p>
+            <p className="text-slate-500">No-Show Rate</p>
             <p className="font-bold text-slate-900 text-lg">
               {noShowStats.rate === null ? "-" : `${noShowStats.rate.toFixed(1)}%`}
             </p>
-            <p className="text-slate-400">
+            <p className="text-slate-500">
               {noShowStats.noShowCount} of {noShowStats.completedCount} completed sessions
             </p>
           </div>
           <div>
-            <p className="text-slate-400">Cancellation Rate</p>
+            <p className="text-slate-500">Cancellation Rate</p>
             <p className="font-bold text-slate-900 text-lg">
               {cancellationStats.rate === null ? "-" : `${cancellationStats.rate.toFixed(1)}%`}
             </p>
-            <p className="text-slate-400">
+            <p className="text-slate-500">
               {cancellationStats.cancelledCount} cancelled ({cancellationStats.refundedCount} refunded,{" "}
               {cancellationStats.forfeitedCount} forfeited)
             </p>
@@ -406,7 +406,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <h2 className="font-bold text-sm text-slate-800 mb-3">Assigned Sessions</h2>
-        <p className="text-[11px] text-slate-400 -mt-2 mb-3">
+        <p className="text-[11px] text-slate-500 -mt-2 mb-3">
           Click a session to see its full detail, including rating &amp; feedback.
         </p>
         <ProfileSessionList
@@ -472,7 +472,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                       <strong className="text-slate-900">Unknown patient</strong>
                     )}
                     {a.session_code && (
-                      <span className="font-mono text-[11px] text-slate-400">{a.session_code}</span>
+                      <span className="font-mono text-[11px] text-slate-500">{a.session_code}</span>
                     )}
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
@@ -483,7 +483,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                           Paid Out
                         </span>
                       ) : (
-                        <span className="font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                        <span className="font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">
                           Owed
                         </span>
                       )}
@@ -494,7 +494,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                     Paid {a.paid_at ? formatClinicDate(a.paid_at) : "date unknown"}
                   </p>
                   {isSettled && (
-                    <p className="text-slate-400">
+                    <p className="text-slate-500">
                       Settled {formatClinicDate(a.therapist_payout_paid_at as string)}{" "}
                       via {a.therapist_payout_method}
                       {a.therapist_payout_note && <> - &quot;{a.therapist_payout_note}&quot;</>}
@@ -530,14 +530,14 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                     >
                       {r.status}
                     </span>
-                    <span className="text-slate-400">
+                    <span className="text-slate-500">
                       {formatClinicDate(r.created_at)}
                     </span>
                   </div>
                   <ul className="text-slate-600 space-y-0.5">
                     {Object.entries(changes).map(([field, value]) => (
                       <li key={field}>
-                        <span className="text-slate-400">
+                        <span className="text-slate-500">
                           {PROFILE_FIELD_LABELS[field] ?? field}:
                         </span>{" "}
                         <strong>{value === null ? "(cleared)" : String(value)}</strong>

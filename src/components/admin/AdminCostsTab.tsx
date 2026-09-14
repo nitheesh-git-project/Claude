@@ -277,12 +277,17 @@ export default function AdminCostsTab({
                   <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     {DISCOUNT_SOURCE_LABELS[source]}
                   </dt>
-                  <dd className="mt-1 text-lg font-bold text-slate-900">
-                    {formatInr(discountsGiven.bySource[source])}
+                  <dd className="mt-1">
+                    <span className="block text-lg font-bold text-slate-900">
+                      {formatInr(discountsGiven.bySource[source])}
+                    </span>
+                    {/* Inside the <dd> rather than a <p> beside it: a definition
+                        list's groups may hold dt and dd only, and a stray <p>
+                        makes the whole list malformed to a screen reader. */}
+                    <span className="mt-1 block text-[11px] text-slate-500">
+                      {DISCOUNT_SOURCE_NOTES[source]}
+                    </span>
                   </dd>
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    {DISCOUNT_SOURCE_NOTES[source]}
-                  </p>
                 </div>
               )
             )}
@@ -327,7 +332,7 @@ export default function AdminCostsTab({
           )}
           {feeError && <span className="text-xs font-semibold text-red-700">{feeError}</span>}
         </form>
-        <p className="mt-3 text-[11px] text-slate-400">
+        <p className="mt-3 text-[11px] text-slate-500">
           Razorpay&apos;s standard domestic rate is around 2%, plus GST - check your own plan.
           Cash-on-visit collections never touch the gateway and are excluded.
         </p>
@@ -459,7 +464,7 @@ export default function AdminCostsTab({
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-400">
+                <tr className="border-b border-slate-200 text-left text-slate-500">
                   <th className="pb-2 pr-3 font-semibold">Date</th>
                   <th className="pb-2 pr-3 font-semibold">Category</th>
                   <th className="pb-2 pr-3 font-semibold">Kind</th>

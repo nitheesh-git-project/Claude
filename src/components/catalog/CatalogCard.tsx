@@ -180,7 +180,7 @@ export default function CatalogCard({
             {rupees(data.pricePaise)}
           </span>
           {data.compareAtPaise != null && data.compareAtPaise > data.pricePaise && (
-            <span className="text-xs text-slate-400 line-through">
+            <span className="text-xs text-slate-500 line-through">
               {rupees(data.compareAtPaise)}
             </span>
           )}

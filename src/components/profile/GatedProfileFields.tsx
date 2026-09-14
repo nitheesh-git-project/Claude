@@ -254,7 +254,7 @@ export default function GatedProfileFields({
       })}
       {editableFields.length > 0 && (
         <>
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-slate-500">
             Changes to these fields need admin approval before they take effect.
           </p>
           <button

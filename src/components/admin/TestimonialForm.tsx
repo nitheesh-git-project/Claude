@@ -89,7 +89,7 @@ export default function TestimonialForm({
       <label className="block">
         <span className="block font-semibold mb-1">
           Patient Name{" "}
-          <span className="font-normal text-slate-400">
+          <span className="font-normal text-slate-500">
             (e.g. &quot;Priya S.&quot; - consider privacy)
           </span>
         </span>
@@ -113,7 +113,7 @@ export default function TestimonialForm({
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="block font-semibold mb-1">
-            Rating <span className="font-normal text-slate-400">(1-5, optional)</span>
+            Rating <span className="font-normal text-slate-500">(1-5, optional)</span>
           </span>
           <input
             type="number"
@@ -127,7 +127,7 @@ export default function TestimonialForm({
         </label>
         <label className="block">
           <span className="block font-semibold mb-1">
-            Condition <span className="font-normal text-slate-400">(optional)</span>
+            Condition <span className="font-normal text-slate-500">(optional)</span>
           </span>
           <input
             value={conditionLabel}
@@ -139,7 +139,7 @@ export default function TestimonialForm({
       </div>
       <label className="block">
         <span className="block font-semibold mb-1">
-          Photo URL <span className="font-normal text-slate-400">(optional)</span>
+          Photo URL <span className="font-normal text-slate-500">(optional)</span>
         </span>
         <input
           value={avatarUrl}

@@ -183,7 +183,7 @@ export default function SplashScreenForm({
             }}
             className="w-full max-w-sm text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
           />
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-[11px] text-slate-500 mt-1">
             Leave this blank to use the site name from Brand &amp; Contact Details (
             {siteName}), so the greeting and the header always agree. Fill it in only when the
             splash should say something different. It prints in capitals, so keep it short.
@@ -208,7 +208,7 @@ export default function SplashScreenForm({
             }}
             className="w-full max-w-sm text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
           />
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-[11px] text-slate-500 mt-1">
             A few words under the clinic name. It is one line on a phone, so keep it short.
           </p>
         </div>
@@ -237,7 +237,7 @@ export default function SplashScreenForm({
               />
               <span className="text-xs text-slate-500">seconds</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Before it starts fading away.</p>
+            <p className="text-[11px] text-slate-500 mt-1">Before it starts fading away.</p>
           </div>
 
           <div>
@@ -263,7 +263,7 @@ export default function SplashScreenForm({
               />
               <span className="text-xs text-slate-500">minutes away</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">
+            <p className="text-[11px] text-slate-500 mt-1">
               How long a tab must sit in the background before returning to it counts as a fresh
               visit. Set 0 to greet the first load only.
             </p>

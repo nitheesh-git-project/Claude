@@ -209,11 +209,16 @@ export default function JourneySteps({
                 />
               )}
               <div className={compact ? "flex flex-col gap-1" : "flex items-center gap-4"}>
+                {/* The step number is content, not ornament - it is the one
+                    thing on the card that states the order. It was drawn at
+                    slate-200, which is 1.2:1 on white and unreadable rather
+                    than understated; the teal of the selected step carries the
+                    emphasis instead. */}
                 <span
                   className={`font-display font-extrabold transition-colors ${
                     compact ? "text-lg" : "text-2xl"
                   } ${
-                    selected ? "text-teal-700" : "text-slate-200 group-hover:text-slate-300"
+                    selected ? "text-teal-700" : "text-slate-500 group-hover:text-slate-700"
                   }`}
                 >
                   {s.num}

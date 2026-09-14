@@ -237,7 +237,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
             )}
             {status === "active" && (
               <span
-                className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-400"
+                className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500"
                 title="Which version of this condition type's question set the patient answered."
               >
                 Question set v{profile?.schema_version ?? 1}
@@ -398,7 +398,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
                   <p className="text-sm font-semibold text-slate-800">
                     {therapistNameById.get(g.therapist_id) ?? g.therapist_id}
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500">
                     {g.status === "requested" ? "Requested" : "Approved"} -{" "}
                     {formatClinicDateTime(g.requested_at)}
                   </p>
@@ -462,7 +462,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           }
         />
         {isOrthoProfile && (
-          <p className="mt-3 text-xs text-slate-400">
+          <p className="mt-3 text-xs text-slate-500">
             Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a
             new reading rather than editing any past one, since Pain Map history is append-only.
           </p>

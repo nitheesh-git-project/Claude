@@ -17,7 +17,7 @@ import { isAnswered, parseMultiSelect, type IntakeQuestion } from "@/lib/conditi
 function GenericAnswer({ question, value }: { question: IntakeQuestion; value: string }) {
   return (
     <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
         {question.shortLabel ?? question.label}
       </p>
       <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{value}</p>
@@ -71,7 +71,7 @@ export default function PediatricsSummaryCard({
             {concern}
           </p>
         ) : (
-          <p className="mt-1.5 text-sm text-slate-400">Not answered yet</p>
+          <p className="mt-1.5 text-sm text-slate-500">Not answered yet</p>
         )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {birthHistory && (
@@ -79,7 +79,7 @@ export default function PediatricsSummaryCard({
               className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"
               title="How the child was born"
             >
-              <i aria-hidden className="fa-solid fa-baby text-[10px] text-slate-400" />
+              <i aria-hidden className="fa-solid fa-baby text-[10px] text-slate-500" />
               {birthHistory}
             </span>
           )}
@@ -97,7 +97,7 @@ export default function PediatricsSummaryCard({
               className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"
               title="Braces, splints, walkers or special footwear"
             >
-              <i aria-hidden className="fa-solid fa-wheelchair-move text-[10px] text-slate-400" />
+              <i aria-hidden className="fa-solid fa-wheelchair-move text-[10px] text-slate-500" />
               {equipment}
             </span>
           )}
@@ -112,7 +112,7 @@ export default function PediatricsSummaryCard({
 
       <div>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             {byKey.get("peds_milestones")?.shortLabel ?? "Milestones"}
           </p>
           {allMilestones.length > 0 && (
@@ -128,7 +128,7 @@ export default function PediatricsSummaryCard({
             achievements and lose the "what comes next" the caregiver is
             actually looking for. */}
         {allMilestones.length === 0 ? (
-          <p className="mt-1.5 text-sm text-slate-400">Not answered yet</p>
+          <p className="mt-1.5 text-sm text-slate-500">Not answered yet</p>
         ) : (
           <ul className="mt-2 flex flex-wrap gap-2">
             {allMilestones.map((milestone) => {
@@ -139,7 +139,7 @@ export default function PediatricsSummaryCard({
                   className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold ${
                     done
                       ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-dashed border-slate-200 bg-slate-50/60 text-slate-400"
+                      : "border-dashed border-slate-200 bg-slate-50/60 text-slate-500"
                   }`}
                 >
                   <i
@@ -161,7 +161,7 @@ export default function PediatricsSummaryCard({
             {byKey.get("peds_daily_difficulty")?.shortLabel ?? "Hardest day-to-day"}
           </p>
           <p
-            className={`mt-1 whitespace-pre-wrap text-sm ${difficulty ? "text-slate-700" : "text-slate-400"}`}
+            className={`mt-1 whitespace-pre-wrap text-sm ${difficulty ? "text-slate-700" : "text-slate-500"}`}
           >
             {difficulty || "Not answered yet"}
           </p>
@@ -171,7 +171,7 @@ export default function PediatricsSummaryCard({
             <i aria-hidden className="fa-solid fa-flag-checkered text-[10px]" />
             {byKey.get("peds_goal")?.shortLabel ?? "Your goal"}
           </p>
-          <p className={`mt-1 whitespace-pre-wrap text-sm ${goal ? "text-slate-700" : "text-slate-400"}`}>
+          <p className={`mt-1 whitespace-pre-wrap text-sm ${goal ? "text-slate-700" : "text-slate-500"}`}>
             {goal || "Not answered yet"}
           </p>
         </div>

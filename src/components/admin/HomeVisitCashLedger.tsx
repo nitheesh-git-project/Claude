@@ -241,12 +241,12 @@ function TherapistCashCard({
           >
             Holding {formatInr(summary.heldPaise)}
           </span>
-          <span className="text-slate-400">Remitted {formatInr(summary.remittedPaise)}</span>
+          <span className="text-slate-500">Remitted {formatInr(summary.remittedPaise)}</span>
         </div>
       </div>
 
       {ageDays !== null && (
-        <p className={`mt-1 ${ageDays >= 7 ? "font-semibold text-red-600" : "text-slate-400"}`}>
+        <p className={`mt-1 ${ageDays >= 7 ? "font-semibold text-red-600" : "text-slate-500"}`}>
           Oldest uncollected: {ageDays} day{ageDays === 1 ? "" : "s"} ago
           {ageDays >= 7 && " - follow up"}
         </p>

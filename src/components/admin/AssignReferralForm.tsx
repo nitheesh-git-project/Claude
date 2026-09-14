@@ -119,7 +119,7 @@ export default function AssignReferralForm({
 
   if (therapists.length === 0) {
     return (
-      <p className="text-[11px] text-slate-400">
+      <p className="text-[11px] text-slate-500">
         No approved therapists yet - approve one above first.
       </p>
     );

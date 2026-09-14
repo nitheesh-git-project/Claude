@@ -107,7 +107,7 @@ export default function RecommendationSettingsForm({
               in Sessions → Recommendations and the patient is shown nothing until an admin
               decides. With it off, it reaches the patient the moment the therapist saves.
             </p>
-            <p className="text-xs text-slate-400 mt-2 max-w-md">
+            <p className="text-xs text-slate-500 mt-2 max-w-md">
               Leaving it on costs the patient a wait after a session that has just ended.
               Watch that queue.
             </p>

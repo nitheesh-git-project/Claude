@@ -489,7 +489,7 @@ export default function AdminAllSessionsTab({
         <div>
           <h2 className="font-display font-bold text-lg text-slate-800">
             All Sessions
-            <span className="ml-2 text-xs font-normal text-slate-400">
+            <span className="ml-2 text-xs font-normal text-slate-500">
               {rows.length} of {appointments.length}
             </span>
           </h2>
@@ -662,7 +662,7 @@ export default function AdminAllSessionsTab({
             </button>
           )}
         </div>
-        <p className="mt-2 text-[11px] text-slate-400">
+        <p className="mt-2 text-[11px] text-slate-500">
           {filtersActive
             ? "These filters are remembered on this device - clear them to see everything."
             : "Filters are remembered on this device, except the date range."}{" "}
@@ -700,7 +700,7 @@ export default function AdminAllSessionsTab({
           <tbody>
             {visibleRows.length === 0 ? (
               <tr>
-                <td colSpan={13} className="py-6 text-center text-slate-400">
+                <td colSpan={13} className="py-6 text-center text-slate-500">
                   No sessions match these filters.
                 </td>
               </tr>
@@ -711,7 +711,7 @@ export default function AdminAllSessionsTab({
                   onClick={() => setSelectedId(a.id)}
                   className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
                 >
-                  <td className="py-2 pr-3 text-slate-400 font-mono">{a.session_code ?? "-"}</td>
+                  <td className="py-2 pr-3 text-slate-500 font-mono">{a.session_code ?? "-"}</td>
                   <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">
                     {a.slot_time
                       ? new Date(a.slot_time).toLocaleDateString("en-IN", {
@@ -728,7 +728,7 @@ export default function AdminAllSessionsTab({
                   <td className="py-2 pr-3 whitespace-nowrap">
                     <span
                       className={`font-semibold px-2 py-1 rounded-full ${
-                        isVisit ? "text-teal-700 bg-teal-50" : "text-slate-500 bg-slate-100"
+                        isVisit ? "text-teal-700 bg-teal-50" : "text-slate-600 bg-slate-100"
                       }`}
                     >
                       {isVisit ? "Home visit" : "Online"}
@@ -753,7 +753,7 @@ export default function AdminAllSessionsTab({
                   <td className="py-2 pr-3 text-slate-700 font-semibold whitespace-nowrap tabular-nums">
                     ₹{(price / 100).toLocaleString("en-IN")}
                     {a.payment_status !== "paid" && (
-                      <span className="text-slate-400 font-normal"> (est.)</span>
+                      <span className="text-slate-500 font-normal"> (est.)</span>
                     )}
                   </td>
                   <td className="py-2 pr-3">
@@ -770,7 +770,7 @@ export default function AdminAllSessionsTab({
                       className={`capitalize font-semibold px-2 py-1 rounded-full ${
                         a.payment_status === "paid"
                           ? "text-green-700 bg-green-50"
-                          : "text-slate-500 bg-slate-100"
+                          : "text-slate-600 bg-slate-100"
                       }`}
                     >
                       {a.payment_status}

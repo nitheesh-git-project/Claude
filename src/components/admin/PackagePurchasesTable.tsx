@@ -149,7 +149,7 @@ export default function PackagePurchasesTable({
       <div className="overflow-x-auto">
         <table className="w-full text-xs border-collapse">
           <thead>
-            <tr className="text-left text-slate-400 border-b border-slate-200">
+            <tr className="text-left text-slate-500 border-b border-slate-200">
               <th className="py-2 pr-3">Purchase</th>
               <th className="py-2 pr-3">Patient</th>
               <th className="py-2 pr-3">Package</th>
@@ -162,7 +162,7 @@ export default function PackagePurchasesTable({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-6 text-center text-slate-400">
+                <td colSpan={7} className="py-6 text-center text-slate-500">
                   No package purchases match these filters.
                 </td>
               </tr>
@@ -176,15 +176,15 @@ export default function PackagePurchasesTable({
                   <td className="py-2 pr-3 font-mono text-slate-500">{p.purchaseCode ?? "-"}</td>
                   <td className="py-2 pr-3">
                     <p className="font-semibold text-slate-800">{p.patientName}</p>
-                    <p className="text-slate-400 font-mono">{p.patientCode ?? ""}</p>
+                    <p className="text-slate-500 font-mono">{p.patientCode ?? ""}</p>
                   </td>
                   <td className="py-2 pr-3">{p.packageTitle}</td>
-                  <td className="py-2 pr-3">{p.therapistName ?? <span className="text-slate-400">Not locked</span>}</td>
+                  <td className="py-2 pr-3">{p.therapistName ?? <span className="text-slate-500">Not locked</span>}</td>
                   <td className="py-2 pr-3">
                     <span className="font-semibold text-slate-800">
                       {p.completedCount + p.scheduledCount} / {p.sessionCount}
                     </span>
-                    <span className="text-slate-400"> ({p.pendingCount} pending)</span>
+                    <span className="text-slate-500"> ({p.pendingCount} pending)</span>
                   </td>
                   <td className="py-2 pr-3 capitalize">{p.status}</td>
                   <td className="py-2 pr-3">{p.expiresAt ? formatClinicDate(p.expiresAt) : "-"}</td>

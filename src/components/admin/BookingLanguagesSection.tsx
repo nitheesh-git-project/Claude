@@ -75,7 +75,7 @@ export default function BookingLanguagesSection({
 
       <div className="flex flex-wrap gap-2 mt-4">
         {draft.length === 0 ? (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500">
             No languages yet - add at least one before saving.
           </p>
         ) : (
@@ -89,7 +89,7 @@ export default function BookingLanguagesSection({
                 type="button"
                 onClick={() => removeLanguage(language)}
                 aria-label={`Remove ${language}`}
-                className="w-6 h-6 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                className="w-6 h-6 rounded-md text-slate-500 hover:text-red-600 hover:bg-red-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
               >
                 <i className="fa-solid fa-xmark text-[11px]" aria-hidden="true"></i>
               </button>

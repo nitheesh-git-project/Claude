@@ -170,7 +170,7 @@ export default function AdminActivityLogTab({
           />
           Money only
         </label>
-        <span className="ml-auto text-[11px] text-slate-400">
+        <span className="ml-auto text-[11px] text-slate-500">
           {filtered.length} of {rows.length}
         </span>
       </div>

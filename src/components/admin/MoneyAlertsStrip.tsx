@@ -47,7 +47,7 @@ export default function MoneyAlertsStrip({
       <div className="flex items-center gap-2">
         <i
           aria-hidden
-          className={`fa-solid ${anyUrgent ? "fa-triangle-exclamation text-amber-600" : "fa-inbox text-slate-400"} text-sm`}
+          className={`fa-solid ${anyUrgent ? "fa-triangle-exclamation text-amber-600" : "fa-inbox text-slate-500"} text-sm`}
         />
         <h2 className="font-display text-sm font-bold text-slate-800">
           {moneyAlertsHeadline(alerts)}

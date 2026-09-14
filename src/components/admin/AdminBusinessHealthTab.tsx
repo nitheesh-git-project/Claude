@@ -953,7 +953,7 @@ export default function AdminBusinessHealthTab({
             formatValue={(v) => `${v.toFixed(1)}%`}
             ariaLabel="Gross and net margin over time"
           />
-          <p className="mt-2 text-[11px] text-slate-400">
+          <p className="mt-2 text-[11px] text-slate-500">
             A gap in a line is a period with no revenue at all - not a month at zero margin.
           </p>
         </div>
@@ -1103,7 +1103,7 @@ export default function AdminBusinessHealthTab({
             <div className="mt-5 overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 text-left text-slate-400">
+                  <tr className="border-b border-slate-200 text-left text-slate-500">
                     <th className="pb-2 pr-3 font-semibold">Campaign</th>
                     <th className="pb-2 pr-3 font-semibold">Where</th>
                     <th className="pb-2 pr-3 text-right font-semibold">Spend here</th>
@@ -1124,7 +1124,7 @@ export default function AdminBusinessHealthTab({
                       <td className="py-2.5 pr-3 text-right tabular-nums text-slate-700">
                         {formatInr(c.spendPaise)}
                         {c.overlapDays < c.spanDays && (
-                          <span className="block text-[10px] text-slate-400">
+                          <span className="block text-[10px] text-slate-500">
                             {Math.round(c.overlapDays)} of {Math.round(c.spanDays)} days
                           </span>
                         )}
@@ -1146,7 +1146,7 @@ export default function AdminBusinessHealthTab({
                         ) : c.attribution === "entered_by_hand" ? (
                           <span className="text-amber-700">Your own figure</span>
                         ) : (
-                          <span className="text-slate-400">Not traced</span>
+                          <span className="text-slate-500">Not traced</span>
                         )}
                       </td>
                     </tr>
@@ -1275,7 +1275,7 @@ export default function AdminBusinessHealthTab({
           </div>
         )}
 
-        <p className="mt-4 text-[11px] leading-relaxed text-slate-400">
+        <p className="mt-4 text-[11px] leading-relaxed text-slate-500">
           A snapshot, not a period: it is true as of the latest date you entered, whatever dates are
           picked above.{" "}
           {settings.includeAppBalances

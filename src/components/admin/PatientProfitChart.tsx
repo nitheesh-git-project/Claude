@@ -168,7 +168,7 @@ export default function PatientProfitChart({
       </div>
 
       {excludedCount > 0 && (
-        <p className="text-[11px] text-slate-400 mt-3">
+        <p className="text-[11px] text-slate-500 mt-3">
           {excludedCount} paid session{excludedCount > 1 ? "s" : ""} excluded - therapist not
           assigned or their revenue share isn&apos;t set yet.
         </p>

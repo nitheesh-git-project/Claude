@@ -267,6 +267,7 @@ export default function AdminFeatureControlTab({
             type="number"
             min={0}
             step={1}
+            aria-label="Online booking lead time, in hours"
             value={leadTimeInput}
             onChange={(e) => {
               setLeadTimeInput(e.target.value);
@@ -300,6 +301,7 @@ export default function AdminFeatureControlTab({
             type="number"
             min={0}
             step={1}
+            aria-label="Online cancellation refund window, in hours"
             value={refundHoursInput}
             onChange={(e) => {
               setRefundHoursInput(e.target.value);
@@ -329,7 +331,7 @@ export default function AdminFeatureControlTab({
           of no activity (mouse, keyboard, or touch). They&apos;re shown a notice explaining
           what happened, with a link back to their own login page. Set to 0 to disable.
         </p>
-        <p className="text-xs text-slate-400 mt-1 max-w-md">
+        <p className="text-xs text-slate-500 mt-1 max-w-md">
           Admin sessions are exempt - this dashboard stays open however long you leave it.
         </p>
         <div className="flex items-center gap-2 mt-3">
@@ -337,6 +339,7 @@ export default function AdminFeatureControlTab({
             type="number"
             min={0}
             step={1}
+            aria-label="Session timeout of inactivity, in minutes"
             value={timeoutInput}
             onChange={(e) => {
               setTimeoutInput(e.target.value);
@@ -371,6 +374,7 @@ export default function AdminFeatureControlTab({
             min={0}
             max={300}
             step={1}
+            aria-label="Sign-out message duration, in seconds"
             value={farewellInput}
             onChange={(e) => {
               setFarewellInput(e.target.value);
@@ -470,6 +474,7 @@ export default function AdminFeatureControlTab({
             type="number"
             min={0}
             step={1}
+            aria-label="Join button opens this many minutes before slot time"
             value={joinWindowInput}
             onChange={(e) => {
               setJoinWindowInput(e.target.value);
@@ -494,6 +499,7 @@ export default function AdminFeatureControlTab({
             type="number"
             min={0}
             step={1}
+            aria-label="Join button stays active this many minutes after slot time ends"
             value={joinWindowAfterInput}
             onChange={(e) => {
               setJoinWindowAfterInput(e.target.value);
@@ -532,6 +538,7 @@ export default function AdminFeatureControlTab({
             type="number"
             min={1}
             step={1}
+            aria-label="Session Completed cutoff, in minutes after slot time"
             value={completedAfterInput}
             onChange={(e) => {
               setCompletedAfterInput(e.target.value);

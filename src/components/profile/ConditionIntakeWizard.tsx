@@ -331,7 +331,7 @@ export default function ConditionIntakeWizard({
                 type="button"
                 onClick={close}
                 aria-label="Save and close"
-                className="shrink-0 text-2xl leading-none text-slate-400 transition hover:text-slate-700"
+                className="shrink-0 text-2xl leading-none text-slate-500 transition hover:text-slate-700"
               >
                 &times;
               </button>
@@ -399,7 +399,7 @@ export default function ConditionIntakeWizard({
                 >
                   {question.label}
                 </label>
-                <p className="mt-1 text-xs font-semibold text-slate-400">
+                <p className="mt-1 text-xs font-semibold text-slate-500">
                   {question.required
                     ? "Needed"
                     : clinician
@@ -449,7 +449,7 @@ export default function ConditionIntakeWizard({
                           "no pain / worst imaginable" would have told a
                           stroke patient that being independent is the
                           worst outcome. */}
-                      <div className="mt-1.5 flex justify-between text-[11px] font-semibold text-slate-400">
+                      <div className="mt-1.5 flex justify-between text-[11px] font-semibold text-slate-500">
                         <span>{scaleEnds(question)[0]}</span>
                         <span>{scaleEnds(question)[1]}</span>
                       </div>
@@ -567,7 +567,7 @@ export default function ConditionIntakeWizard({
                 {questions.map((q, index) => (
                   <div key={q.key} className="rounded-xl border border-slate-200 p-3.5">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         {q.shortLabel ?? q.label}
                       </p>
                       <button
@@ -603,7 +603,7 @@ export default function ConditionIntakeWizard({
                 <button
                   type="button"
                   onClick={close}
-                  className="text-xs font-semibold text-slate-400 transition hover:text-slate-600"
+                  className="text-xs font-semibold text-slate-500 transition hover:text-slate-600"
                 >
                   Finish later
                 </button>
@@ -615,7 +615,7 @@ export default function ConditionIntakeWizard({
                 // yet: the fear this answers is "will I lose this if I
                 // close it", and that has to be answered before the
                 // patient closes it, not after the first autosave.
-                <span className="hidden text-[11px] text-slate-400 sm:inline">
+                <span className="hidden text-[11px] text-slate-500 sm:inline">
                   {/* The viewer's own clock, deliberately, and the one date in this
                       app that is not clinic time. This is "you just saved",
                       private to the person typing and gone on reload -- not a
@@ -673,7 +673,7 @@ function scaleEnds(question: IntakeQuestion): [string, string] {
 export function AnswerPreview({ question, value }: { question: IntakeQuestion; value: string | undefined }) {
   if (question.inputType === "area_pain_list") {
     const areas = parseAreaPain(value);
-    if (areas.length === 0) return <span className="text-slate-400">Not answered</span>;
+    if (areas.length === 0) return <span className="text-slate-500">Not answered</span>;
     return (
       <>
         {areas
@@ -688,10 +688,10 @@ export function AnswerPreview({ question, value }: { question: IntakeQuestion; v
   }
   if (question.inputType === "multi_select") {
     const picked = parseMultiSelect(value);
-    if (picked.length === 0) return <span className="text-slate-400">Not answered</span>;
+    if (picked.length === 0) return <span className="text-slate-500">Not answered</span>;
     return <>{picked.join(", ")}</>;
   }
-  if (!value || !value.trim()) return <span className="text-slate-400">Not answered</span>;
+  if (!value || !value.trim()) return <span className="text-slate-500">Not answered</span>;
   if (question.inputType === "scale_0_10") return <>{value}/10</>;
   return <span className="whitespace-pre-wrap">{value}</span>;
 }

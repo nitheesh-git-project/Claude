@@ -182,7 +182,7 @@ export default function PatientAuthCard() {
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "login"
                 ? "text-teal-700 border-b-2 border-teal-700"
-                : "text-slate-400"
+                : "text-slate-500"
             }`}
           >
             Sign In
@@ -199,7 +199,7 @@ export default function PatientAuthCard() {
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "register"
                 ? "text-teal-700 border-b-2 border-teal-700"
-                : "text-slate-400"
+                : "text-slate-500"
             }`}
           >
             Register Account
@@ -356,7 +356,7 @@ export default function PatientAuthCard() {
               label={
                 <>
                   Create Password{" "}
-                  <span className="font-normal text-slate-400">(for portal access)</span>
+                  <span className="font-normal text-slate-500">(for portal access)</span>
                 </>
               }
             />
@@ -368,7 +368,7 @@ export default function PatientAuthCard() {
             <label className="block">
               <span className="block font-semibold mb-1">
                 Referral Code{" "}
-                <span className="font-normal text-slate-400">(optional)</span>
+                <span className="font-normal text-slate-500">(optional)</span>
               </span>
               <input
                 type="text"
@@ -380,7 +380,7 @@ export default function PatientAuthCard() {
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
               {referralCheck.status === "checking" && (
-                <p className="text-slate-400 mt-1">Checking code...</p>
+                <p className="text-slate-500 mt-1">Checking code...</p>
               )}
               {referralCheck.status === "valid" && (
                 <p className="text-teal-700 font-semibold mt-1">
@@ -395,7 +395,7 @@ export default function PatientAuthCard() {
                 </p>
               )}
             </label>
-            <p className="text-slate-400 leading-relaxed">
+            <p className="text-slate-500 leading-relaxed">
               New accounts are reviewed by our team - you&apos;ll be able to
               sign in and book sessions once an admin approves yours.
             </p>
