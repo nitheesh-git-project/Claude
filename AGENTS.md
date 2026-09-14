@@ -230,6 +230,8 @@ src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
 src/lib/catalogFeatured.ts which few of the catalogue a public page leads with
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
 src/lib/mission.ts       the mission, vision, promises and stated limits
+src/lib/missionCopy.ts   the mission, vision, promises and limits as an admin
+                         may have rewritten them
 src/lib/marketingPhotos.ts every photograph the public pages use
 src/lib/careAreas.ts     the six areas of practice, shared by / and /conditions
 src/lib/carePlanAuthoring.ts the one writer of a care plan version, three doors
@@ -3229,10 +3231,71 @@ client is the only writer and the log is append-only from any session.
   they are two sentences, and paraphrasing them into a teaser would leave the
   home page making a weaker version of the same claim - while the four
   promises appear as titles only, each linking to
-  `/mission#what-we-promise`. Both halves read from `src/lib/mission.ts`, so
-  the home page cannot quote a mission the mission page has since reworded.
-  Get that split wrong in either direction and you have a duplicate page or a
-  band that says nothing.
+  `/mission#what-we-promise`. Both halves come from one resolution --
+  `readMissionCopy()` over `resolveMissionCopy()` in `src/lib/mission.ts` --
+  and reach `MissionPreview` as props rather than being fetched inside it, the
+  same rule the Navbar's brand strings follow, so the home page cannot quote a
+  mission the mission page has since reworded. Get that split wrong in either
+  direction and you have a duplicate page or a band that says nothing.
+- **The mission and the vision are an admin setting, and blank is the undo.**
+  `site_settings.mission_statement` / `vision_statement`, written on Settings
+  -> Public Site -> Mission & Vision. They were constants, which made the copy
+  most likely to be argued over the copy only a developer could change. Four
+  rules:
+  1. **The constants in `src/lib/mission.ts` stay, as the default.** A blank
+     or null column resolves to them, which is how an admin undoes an edit
+     without retyping the original out of a file they cannot read -- the same
+     rule `splash_brand_line` follows -- and it is why a database that has not
+     run the migration renders exactly what it rendered before.
+  2. **Read on its own, and deliberately not in `SITE_SETTINGS_SELECT`.**
+     These are the newest columns on that table, and that shared select is the
+     one whose failure takes every other setting down to its default with it.
+     `readMissionCopy()` swallows its own error and falls back to the
+     constants, because an empty mission card reads as a broken page on the
+     one band whose job is to say who this clinic is.
+  3. **Saving invalidates `/` and `/mission`.** Both are ISR-cached, so
+     without it an owner rewords the sentence the site leads with and watches
+     the old one stay up for five minutes -- which reads as a save that
+     failed.
+  4. **The word budget is advice; the character cap is the limit.** The form
+     warns past fifteen words and still saves; `MAX_MISSION_LENGTH` /
+     `MAX_VISION_LENGTH` are mirrored by the columns' CHECK constraints and
+     re-checked in the route, because that pair is about the card these lines
+     render in rather than about the writing.
+- **The promises and the limits are rows, and an empty table is not an empty
+  band.** `mission_principles` (`kind` = `promise` | `limit`, title, body,
+  icon, `display_order`, `active`), one table and one manager
+  (`MissionPrincipleManager`, rendered twice) for both bands, on Settings ->
+  Public Site. Same shape as `faqs` and `testimonials`, and five rules:
+  1. **An empty table falls back to `PRINCIPLES` / `COMMITMENTS` in
+     `src/lib/mission.ts`**, per band rather than per table, because writing
+     the promises must not empty the limits. It covers a database that has not
+     run `schema.sql`, one the debug reset has just truncated, and a clinic
+     that has not opened the screen -- and on `/mission` these two bands *are*
+     the page, so a heading with nothing under it is the outcome worth a
+     fallback. Deleting the last row is allowed and the screen says the
+     shipped wording comes back, since otherwise a delete whose visible effect
+     is the original text reappearing reads as a failed delete.
+  2. **Every row switched off is respected, not fallen back on.** That is a
+     decision somebody made, where an empty table is a state nobody chose --
+     so both pages drop the band *and* its section-rail entry, per the
+     "a rail entry must match a section that renders" rule.
+  3. **Ordering is one save of the whole band.** The arrows rearrange in the
+     browser, **Save order** posts every id of that one `kind`, and
+     `set_mission_principle_order(text, uuid[])` renumbers 1..n and refuses a
+     partial list itself -- the same tie bug, and the same reasoning, as
+     `set_treatment_category_order`. A new row is appended at `max + 1`, never
+     0.
+  4. **The icon is a picker over `MISSION_ICONS`**, checked in the route, with
+     `missionIcon()` answering for a retired name. Free text there is a way to
+     put an empty square on the mission page, and a blank box does not say
+     whether the icon or the row failed.
+  5. **A delete or an edit that matched nothing answers 404**, never success:
+     supabase-js reports no error for either, and the screen would refresh
+     into an unchanged list it had just been told was saved.
+  No heading counts the cards. "Four things, every patient" over three cards
+  is the tell-someone-something-untrue rule broken by a number nobody
+  remembered to change, so that title says what the band is instead.
 - **Testimonials are the one place the site quotes a person, so treat them
   as evidence.** One `Testimonials` component serves Home and `/mission`,
   because the two bands make the same claim and a visitor may see both in one
@@ -3288,7 +3351,10 @@ client is the only writer and the log is append-only from any session.
   and Brand & Contact Details - site name, tagline, description, contact
   email, WhatsApp number, contact phone, footer copyright text - and the
   Home page walkthrough's per-step rotation seconds, where 0 means "don't
-  rotate" - and the opening splash's five settings - on/off, the name above
+  rotate" - and the mission and vision lines on Settings -> Public Site, where
+  blank means "use the wording in `src/lib/mission.ts`", and the promises and
+  limits on that same screen, where an empty band means the same - and the
+  opening splash's five settings - on/off, the name above
   the line (blank follows the site name), its one line, the hold in seconds,
   and the minutes a tab must be away to earn a second greeting, where 0
   means "first load only" - and the two contact controls,

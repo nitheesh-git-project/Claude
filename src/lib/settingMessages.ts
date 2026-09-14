@@ -69,6 +69,26 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     describe: () => "The Home Visit page subheading is updated.",
   },
 
+  // --- What the site says about itself ------------------------------------
+  // Blank is a real value for both, so the sentence has to distinguish "you
+  // rewrote it" from "you cleared it and it is back to the wording it
+  // shipped with" -- otherwise clearing the box confirms an edit that is
+  // really an undo.
+  mission_statement: {
+    kind: "text",
+    describe: (value) =>
+      value.trim().length > 0
+        ? "Your mission is updated. It shows on the Home page and Our Mission."
+        : "Your mission is back to the wording the site shipped with.",
+  },
+  vision_statement: {
+    kind: "text",
+    describe: (value) =>
+      value.trim().length > 0
+        ? "Your vision is updated. It shows on the Home page and Our Mission."
+        : "Your vision is back to the wording the site shipped with.",
+  },
+
   // --- Booking a single session -----------------------------------------
   online_booking_lead_time_hours: {
     kind: "number",

@@ -111,6 +111,14 @@ export type AdminActivityAction =
   | "referral.decline"
   // configuration
   | "setting.update"
+  // The promises and the limits on the mission page. Their own actions rather
+  // than setting.update, because these are rows somebody wrote rather than a
+  // column somebody set, and the reader's question is "who changed what this
+  // clinic promises".
+  | "mission_principle.create"
+  | "mission_principle.update"
+  | "mission_principle.delete"
+  | "mission_principle.reorder"
   // Everything below closes a gap the QA re-audit found: the rule above is
   // "every mutating admin route records what happened", and a quarter of them
   // did not. None of these moves money, but each one changes something a
@@ -253,6 +261,10 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "referral.assign": "Assigned referral",
   "referral.decline": "Declined referral",
   "setting.update": "Changed a setting",
+  "mission_principle.create": "Added a promise or limit",
+  "mission_principle.update": "Edited a promise or limit",
+  "mission_principle.delete": "Removed a promise or limit",
+  "mission_principle.reorder": "Reordered the promises or limits",
   "patient.update_contact": "Changed a patient's contact details",
   "patient.update_notes": "Edited notes on a patient",
   "therapist.update_contact": "Changed a therapist's contact details",

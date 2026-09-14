@@ -2066,6 +2066,36 @@ copy lives in `src/lib/mission.ts` rather than in the page, because the
 mission, the four promises and the three limits are the wording most likely
 to be argued over and should be editable without touching a layout.
 
+**The mission and the vision themselves are an admin setting.** Settings →
+Public Site → **Mission & Vision** writes `site_settings.mission_statement`
+and `vision_statement`, and both this page and the Home band render what is
+stored. Blank is a real value meaning "use the wording in
+`src/lib/mission.ts`", so clearing a box is how an edit is undone rather than
+an error - the same convention the opening splash's name line follows. The two
+lines are read in their own call (`readMissionCopy()`), which falls back to
+that wording if the column is missing or the read fails, and saving
+invalidates both `/` and `/mission` so the new sentence reaches visitors at
+once rather than when the five-minute ISR window happens to lapse.
+
+**The four promises and the three limits are editable too**, as rows in
+`mission_principles` - one table for both bands, keyed by `kind`, with a title,
+a line under it, an icon from a fixed picker, an on/off and a hand-set order.
+One manager component serves both, on the same Settings → Public Site screen.
+Three behaviours are worth knowing:
+
+- **An empty band shows the wording this repository ships** (`PRINCIPLES` /
+  `COMMITMENTS` in `src/lib/mission.ts`), resolved per band - so a database that
+  has not applied the schema, a freshly reset one, and a clinic that has not
+  opened the screen all render the original copy rather than a heading with
+  nothing under it. Deleting the last promise is allowed; the shipped four come
+  back, and the screen says so before you confirm.
+- **Switching every row off is different, and is respected.** That is a
+  decision, so the band disappears from both pages along with its entry in the
+  section rail.
+- **Ordering is one save.** The arrows rearrange the list in the browser and
+  **Save order** publishes it; the reorder renumbers the whole band, because a
+  pairwise swap of two rows sharing an order silently does nothing.
+
 Two rules shaped it:
 
 - **Every promise is a rule the platform already enforces** - the 24-hour

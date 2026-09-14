@@ -81,6 +81,10 @@ import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
 import HomePageWalkthroughForm from "@/components/admin/HomePageWalkthroughForm";
 import SplashScreenForm from "@/components/admin/SplashScreenForm";
+import MissionStatementForm from "@/components/admin/MissionStatementForm";
+import MissionPrincipleManager, {
+  type MissionPrincipleRecord,
+} from "@/components/admin/MissionPrincipleManager";
 import BrandContactDetailsForm from "@/components/admin/BrandContactDetailsForm";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
@@ -676,6 +680,8 @@ export default async function AdminDashboardPage({
     balanceSheetEntries,
     appointmentPromoRows,
     financeSettings,
+    missionCopyRow,
+    missionPrincipleRows,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -872,6 +878,35 @@ export default async function AdminDashboardPage({
       null as { id: string; promo_code_id: string | null }[] | null
     ),
     readFinanceSettings(admin),
+    // The mission and vision an admin may have rewritten. Its own read for
+    // the usual reason -- these are the newest columns on site_settings, and
+    // the helper swallows its own errors, falling back to the lines in
+    // mission.ts rather than to blanks.
+    guard(
+      async () =>
+        (
+          await supabase
+            .from("site_settings")
+            .select("mission_statement, vision_statement")
+            .maybeSingle()
+        ).data,
+      null as { mission_statement: string | null; vision_statement: string | null } | null
+    ),
+    // The promises and the limits. Read with the admin client rather than the
+    // page's own, because the public policy shows active rows only and an
+    // admin who hides one has to still be able to find it. Isolated for the
+    // usual reason -- the table is newer than this screen.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("mission_principles")
+            .select("id, kind, title, body, icon, display_order, active")
+            .order("display_order", { ascending: true })
+            .order("title", { ascending: true })
+        ).data,
+      null as MissionPrincipleRecord[] | null
+    ),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -2768,6 +2803,27 @@ export default async function AdminDashboardPage({
       <SiteRatingsVisibilityToggle visible={siteSettings?.ratings_visible_publicly ?? true} />
 
       <HomePageWalkthroughForm seconds={adminSettings.journeyStepSeconds} />
+
+      <MissionStatementForm
+        mission={missionCopyRow?.mission_statement ?? ""}
+        vision={missionCopyRow?.vision_statement ?? ""}
+      />
+
+      <MissionPrincipleManager
+        kind="promise"
+        rows={missionPrincipleRows ?? []}
+        heading="What We Promise"
+        blurb="The four cards under your mission, on the Home page as headlines and in full on Our Mission. Each one should be something a patient could hold you to - a rule the platform actually keeps, not an intention."
+        noun="promise"
+      />
+
+      <MissionPrincipleManager
+        kind="limit"
+        rows={missionPrincipleRows ?? []}
+        heading="What We Will Not Do"
+        blurb="The band at the foot of Our Mission. Saying plainly what the clinic will not do is believed where a page that claims everything is not - so keep these real, and keep them ones you would repeat on the phone."
+        noun="limit"
+      />
 
       <SplashScreenForm
         enabled={adminSettings.splashEnabled}

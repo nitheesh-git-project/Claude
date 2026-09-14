@@ -136,6 +136,10 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
 
   // settings
   "setting.update": "settings",
+  "mission_principle.create": "settings",
+  "mission_principle.update": "settings",
+  "mission_principle.delete": "settings",
+  "mission_principle.reorder": "settings",
   "session.open_meet_access": "settings",
   "session.retry_meet_sync": "settings",
   "clinical_questions.update_intake": "settings",

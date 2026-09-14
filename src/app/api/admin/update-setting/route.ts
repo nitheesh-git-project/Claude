@@ -11,6 +11,7 @@ import {
   MIN_SPLASH_HOLD_SECONDS,
 } from "@/lib/splashScreen";
 import { isContactScanMode } from "@/lib/adminSettings";
+import { MAX_MISSION_LENGTH, MAX_VISION_LENGTH } from "@/lib/mission";
 import { isRunRateBasis } from "@/lib/financeMetrics";
 
 const ALLOWED_COLUMNS = new Set([
@@ -62,6 +63,10 @@ const ALLOWED_COLUMNS = new Set([
   "home_visit_travel_buffer_minutes",
   "home_visit_page_heading",
   "home_visit_page_subheading",
+  // Why the practice exists, and what it looks like if it succeeds. Blank
+  // means "use the line in src/lib/mission.ts" -- see below.
+  "mission_statement",
+  "vision_statement",
   // The online twins of home_visit_lead_time_hours /
   // home_visit_cancellation_refund_hours. Same rule, same level of control:
   // changing the online refund window used to need a deploy.
@@ -136,6 +141,13 @@ const HOME_VISIT_COPY_FIELDS = new Set([
 ]);
 const MAX_HOME_VISIT_HEADING_LENGTH = 120;
 const MAX_HOME_VISIT_SUBHEADING_LENGTH = 300;
+
+// The mission and the vision. Blank is a real value, as it is for
+// splash_brand_line: it means "use the line in src/lib/mission.ts", which is
+// how an admin undoes an edit without retyping the original out of a code
+// file they cannot read. The caps match the columns' own check constraints,
+// so a value the database would reject is refused here with a sentence.
+const MISSION_COPY_FIELDS = new Set(["mission_statement", "vision_statement"]);
 
 // Writes one Feature Control column on the site_settings singleton row --
 // same table/pattern as /api/admin/set-ratings-visible-publicly, just
@@ -505,6 +517,21 @@ export async function POST(request: NextRequest) {
     nextValue = value.trim();
   }
 
+  if (MISSION_COPY_FIELDS.has(key)) {
+    if (typeof value !== "string") {
+      return NextResponse.json({ error: "value must be text" }, { status: 400 });
+    }
+    const maxLength =
+      key === "mission_statement" ? MAX_MISSION_LENGTH : MAX_VISION_LENGTH;
+    if (value.trim().length > maxLength) {
+      return NextResponse.json(
+        { error: `Please keep this to ${maxLength} characters or fewer.` },
+        { status: 400 }
+      );
+    }
+    nextValue = value.trim();
+  }
+
   if (key === "contact_email") {
     if (typeof value !== "string" || !EMAIL_RE.test(value.trim())) {
       return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
@@ -553,6 +580,15 @@ export async function POST(request: NextRequest) {
   // the old one keep running for up to five minutes.
   if (key === "journey_step_seconds") {
     revalidatePath("/");
+  }
+
+  // The mission band on the home page and the whole top of /mission read
+  // these, and both pages are ISR-cached (revalidate = 300). Without this an
+  // owner rewords the sentence the site leads with and watches the old one
+  // stay up for five minutes, which reads as a save that failed.
+  if (MISSION_COPY_FIELDS.has(key)) {
+    revalidatePath("/");
+    revalidatePath("/mission");
   }
 
   // Brand & Contact Details render in the Navbar/Footer, which sit in the
