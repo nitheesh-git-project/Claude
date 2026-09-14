@@ -32,7 +32,7 @@ type AdminClient = ReturnType<typeof createAdminClient>;
  * Isolated from SITE_SETTINGS_SELECT on purpose, per the
  * migration-dependent-column rule: a database that has not run the latest
  * schema.sql should fall back to the default rather than fail the write it
- * is guarding. Failing *open* here is the right direction — refusing every
+ * is guarding. Failing *open* here is the right direction - refusing every
  * therapist's note because a settings column is missing would be a far
  * worse outage than a day of unscanned text.
  */
@@ -103,7 +103,7 @@ export function scanCommunication(
  *
  * Best-effort and never throws, the same posture recordAdminActivity takes:
  * a failure to record a suspicion must not fail the clinical write it was
- * observing. A blocked write still records — that row is the more
+ * observing. A blocked write still records - that row is the more
  * interesting of the two, since it is the only trace a refused message
  * leaves anywhere.
  */
@@ -140,7 +140,7 @@ export async function recordCommunicationFlags(
  * say whether to refuse.
  *
  * Routes use this rather than the three pieces so the recording cannot be
- * forgotten on the blocking path — which is exactly the path where the
+ * forgotten on the blocking path - which is exactly the path where the
  * evidence matters most.
  */
 export async function guardCommunication(

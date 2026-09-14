@@ -63,8 +63,8 @@ function silhouettePath(
 
 // Every measurement below is in the figure's own space: x as an offset
 // from its centerline, y from the top of the head. Both figures are the
-// same anatomy — a back view of a body is the same outline as its front
-// — so one set of parts draws both, and only the surface detail (spine
+// same anatomy - a back view of a body is the same outline as its front
+// - so one set of parts draws both, and only the surface detail (spine
 // and shoulder blades vs. collarbone and midline) differs.
 const HEAD = { cy: 60, rx: 27, ry: 34 };
 
@@ -138,13 +138,13 @@ const REGION_COORDS: Record<PainMapRegionKey, { dx: number; dy: number }> = {
  * the room before any number is.
  *
  * The figure is an anatomical silhouette rather than the stick-and-joint
- * lay figure this started as — patients look at this to find *their own*
+ * lay figure this started as - patients look at this to find *their own*
  * shoulder, and a shape that reads as a body is what makes "tap where it
  * hurts" an obvious instruction instead of a puzzle.
  *
  * interactive=true (therapist filling an assessment, patient picking
  * their own painful areas) makes dots clickable and calls onSelect(region,
- * side) — side is implied by which dot was tapped, so this replaces a
+ * side) - side is implied by which dot was tapped, so this replaces a
  * manual side dropdown entirely. Otherwise (patient/admin viewing) dots
  * are inert except for onSelect being used to drive a read-only detail
  * panel beside the diagram.

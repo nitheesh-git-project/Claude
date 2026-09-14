@@ -28,7 +28,7 @@ const regionLabel = (key: string) => PAIN_MAP_REGIONS.find((r) => r.key === key)
 function GenericAnswer({ question, value }: { question: IntakeQuestion; value: string }) {
   return (
     <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
         {question.shortLabel ?? question.label}
       </p>
       <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{value}</p>
@@ -91,7 +91,7 @@ export default function OrthoSummaryCard({
         {complaint ? (
           <p className="mt-1.5 font-display text-lg font-bold leading-snug text-slate-800">{complaint}</p>
         ) : (
-          <p className="mt-1.5 text-sm text-slate-400">Not answered yet</p>
+          <p className="mt-1.5 text-sm text-slate-500">Not answered yet</p>
         )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {sinceWhen && (
@@ -99,7 +99,7 @@ export default function OrthoSummaryCard({
               className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"
               title="How long this has been going on"
             >
-              <i aria-hidden className="fa-solid fa-clock text-[10px] text-slate-400" />
+              <i aria-hidden className="fa-solid fa-clock text-[10px] text-slate-500" />
               {sinceWhen}
             </span>
           )}
@@ -124,7 +124,7 @@ export default function OrthoSummaryCard({
                 style={{ left: `${(severity / 10) * 100}%` }}
               />
             </div>
-            <div className="mt-1.5 flex justify-between text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            <div className="mt-1.5 flex justify-between text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               <span>No pain</span>
               <span>Worst imaginable</span>
             </div>
@@ -133,11 +133,11 @@ export default function OrthoSummaryCard({
       </div>
 
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           {byKey.get("area_pain")?.shortLabel ?? "Painful areas"}
         </p>
         {areas.length === 0 ? (
-          <p className="mt-1.5 text-sm text-slate-400">No areas marked on the body map yet</p>
+          <p className="mt-1.5 text-sm text-slate-500">No areas marked on the body map yet</p>
         ) : (
           <ul className="mt-2 flex flex-wrap gap-2">
             {areas.map((a) => (
@@ -165,7 +165,7 @@ export default function OrthoSummaryCard({
             <i aria-hidden className="fa-solid fa-arrow-trend-up text-[10px]" />
             {byKey.get("worsens")?.shortLabel ?? "Makes it worse"}
           </p>
-          <p className={`mt-1 text-sm ${worsens ? "text-slate-700" : "text-slate-400"}`}>
+          <p className={`mt-1 text-sm ${worsens ? "text-slate-700" : "text-slate-500"}`}>
             {worsens || "Not answered yet"}
           </p>
         </div>
@@ -174,7 +174,7 @@ export default function OrthoSummaryCard({
             <i aria-hidden className="fa-solid fa-arrow-trend-down text-[10px]" />
             {byKey.get("helps")?.shortLabel ?? "What helps"}
           </p>
-          <p className={`mt-1 text-sm ${helps ? "text-slate-700" : "text-slate-400"}`}>
+          <p className={`mt-1 text-sm ${helps ? "text-slate-700" : "text-slate-500"}`}>
             {helps || "Not answered yet"}
           </p>
         </div>
@@ -182,7 +182,7 @@ export default function OrthoSummaryCard({
 
       {notes && (
         <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             {byKey.get("notes")?.shortLabel ?? "Other notes"}
           </p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{notes}</p>

@@ -9,7 +9,7 @@ import { loadConditionProfileCore, loadMergedIntakeQuestions } from "@/lib/condi
 
 // Therapist EDITS an existing Patient Care Intake on a patient's behalf,
 // after the patient's admin has approved their access grant. Goes through
-// the same admin-review queue as a patient's own submission — the grant
+// the same admin-review queue as a patient's own submission - the grant
 // only gates who may propose a change, not whether it needs review.
 //
 // Note what this route is not: creating the record in the first place is
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   }
   if (!(await isProfileActiveAndApproved(user.id))) {
     return NextResponse.json(
-      { error: "Your account is not active — it is either awaiting admin approval or has been suspended." },
+      { error: "Your account is not active - it is either awaiting admin approval or has been suspended." },
       { status: 403 }
     );
   }

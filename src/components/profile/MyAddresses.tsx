@@ -121,7 +121,7 @@ function AddressForm({
           onChange={(e) => setLandmark(e.target.value)}
           className={inputCls()}
         />
-        <span className="mt-1 block text-[10px] text-slate-400">
+        <span className="mt-1 block text-[10px] text-slate-500">
           This is what actually helps your therapist find you.
         </span>
       </label>
@@ -222,7 +222,7 @@ export default function MyAddresses({ addresses }: { addresses: SavedAddress[] }
       <div>
         <h2 className="font-display font-bold text-lg text-slate-800">My Addresses</h2>
         <p className="mt-1 text-xs text-slate-500">
-          Where a therapist comes for a home visit. You can change these any time — no approval
+          Where a therapist comes for a home visit. You can change these any time - no approval
           needed.
         </p>
       </div>
@@ -259,7 +259,7 @@ export default function MyAddresses({ addresses }: { addresses: SavedAddress[] }
                   ))}
                   {a.access_notes && (
                     <p className="mt-1 text-slate-500">
-                      <span className="font-semibold text-slate-400">Getting in:</span>{" "}
+                      <span className="font-semibold text-slate-500">Getting in:</span>{" "}
                       {a.access_notes}
                     </p>
                   )}

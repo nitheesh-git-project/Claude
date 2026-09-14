@@ -68,7 +68,7 @@ export default function ContactControlsForm({ settings }: { settings: AdminSetti
         <div>
           <p className="text-sm font-bold text-slate-800">Checking what therapists write</p>
           <p className="mt-1 text-xs text-slate-500">
-            Applies to recommendations, proposed times and exam notes — everything a
+            Applies to recommendations, proposed times and exam notes - everything a
             patient reads. Clinical text with numbers in it (doses, repetitions, dates) is
             never affected.
           </p>
@@ -124,8 +124,8 @@ export default function ContactControlsForm({ settings }: { settings: AdminSetti
               </span>
               <span className="mt-1 block text-xs text-slate-500">
                 Session cards show the last three digits. A therapist can reveal the full
-                number for a session they are running — around the time of a video call, or
-                any time on the day of a home visit — and each reveal is recorded. Switch
+                number for a session they are running - around the time of a video call, or
+                any time on the day of a home visit - and each reveal is recorded. Switch
                 this off and every number is shown on every card, as it was before.
               </span>
             </span>

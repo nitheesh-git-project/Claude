@@ -8,7 +8,7 @@ import SessionCalendarTab from "@/components/dashboard/SessionCalendarTab";
  * Sessions as a list or as a month grid, over the same rows.
  *
  * Calendar used to be its own sidebar entry, which made "when is my next
- * session?" a question with two answers in two places — the same mistake
+ * session?" a question with two answers in two places - the same mistake
  * the two-delivery-mode split made before SessionFilterList merged it.
  * A calendar is a *view* of your sessions, not a different set of them, so
  * it lives here as a view switch instead.
@@ -62,7 +62,7 @@ export default function SessionsView({
             aria-pressed={view === key}
             onClick={() => setView(key)}
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-              view === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              view === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <i className={`fa-solid ${icon} mr-1.5`}></i>

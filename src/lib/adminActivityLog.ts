@@ -73,6 +73,18 @@ export type AdminActivityAction =
   | "cash.mark_refund_returned"
   | "expense.create"
   | "expense.delete"
+  // The three figures the Business Health screen cannot derive: what was put
+  // into the business, what was spent on advertising, and what the clinic
+  // owns and owes. Each one moves a headline figure an owner quotes at a bank
+  // -- an investment changes the return on investment, a balance changes
+  // whether the clinic reads as solvent -- so they are audited like any other
+  // money write. See isMoneyAction, which counts all six.
+  | "finance.investment_save"
+  | "finance.investment_delete"
+  | "finance.campaign_save"
+  | "finance.campaign_delete"
+  | "finance.balance_save"
+  | "finance.balance_delete"
   // A campaign an admin sets up decides what every patient who types its
   // name pays, so creating or re-pricing one moves more money than most
   // single refunds do -- see isMoneyAction, which counts all three.
@@ -232,6 +244,12 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "promo.update": "Changed a promo code",
   "promo.delete": "Deleted a promo code",
   "expense.delete": "Removed a cost",
+  "finance.investment_save": "Recorded an investment",
+  "finance.investment_delete": "Removed an investment",
+  "finance.campaign_save": "Recorded advertising spend",
+  "finance.campaign_delete": "Removed an advertising campaign",
+  "finance.balance_save": "Recorded what the clinic owns or owes",
+  "finance.balance_delete": "Removed an entry from what the clinic owns or owes",
   "therapist.set_revenue_share": "Changed therapist revenue share",
   "therapist.set_weekly_schedule": "Changed therapist working hours",
   "therapist.set_schedule_exception": "Set a schedule exception",
@@ -285,6 +303,7 @@ export function isMoneyAction(action: string): boolean {
     action.startsWith("refund") ||
     action.startsWith("cash.") ||
     action.startsWith("expense.") ||
+    action.startsWith("finance.") ||
     action.startsWith("promo.") ||
     action === "session.mark_paid_cash" ||
     action === "hospital.set_revenue_share" ||

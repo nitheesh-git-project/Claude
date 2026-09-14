@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import OverlayPortal from "@/components/system/OverlayPortal";
+import { useDialogChrome } from "@/lib/useDialogChrome";
 import {
   findMissingRequiredKeys,
   parseMultiSelect,
@@ -23,7 +24,7 @@ import {
  * pacing of ConditionIntakeWizard on purpose and for the reason
  * PainExamDialog documents: a patient fills their intake once and needs
  * gentleness; a clinician fills this after every assignment and needs
- * speed. Never a wall of fields for either — different treatment for
+ * speed. Never a wall of fields for either - different treatment for
  * different audiences.
  *
  * The suggestion is shown WITH its reason. A suggestion whose reasoning a
@@ -92,16 +93,25 @@ export default function ConditionTriageDialog({
     onConfirm(effectivePick, triageData);
   }
 
+  const titleId = useId();
+  // Escape, the focus trap and focus restore come from the shared hook
+  // rather than being hand-rolled per dialog -- see useDialogChrome.
+  const { panelRef, dialogProps } = useDialogChrome({ onClose: onCancel, labelledBy: titleId });
+
   return (
     <OverlayPortal>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
-        <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div
+          ref={panelRef}
+          {...dialogProps}
+          className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
+        >
           <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-wide text-teal-700">
                 {currentSpecialty ? "Changing the condition type" : "Patient onboarding"}
               </p>
-              <h2 className="font-display text-lg font-bold text-slate-900">
+              <h2 id={titleId} className="font-display text-lg font-bold text-slate-900">
                 Which condition type is this?
               </h2>
               <p className="mt-1 text-xs text-slate-500">
@@ -113,7 +123,7 @@ export default function ConditionTriageDialog({
               type="button"
               onClick={onCancel}
               aria-label="Close"
-              className="shrink-0 text-slate-400 transition hover:text-slate-700"
+              className="shrink-0 text-slate-500 transition hover:text-slate-700"
             >
               ✕
             </button>
@@ -136,7 +146,7 @@ export default function ConditionTriageDialog({
             ))}
 
             <div className="border-t border-slate-100 pt-5">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
                 Condition type
               </p>
               {suggestion ? (
@@ -147,7 +157,7 @@ export default function ConditionTriageDialog({
                       Suggested:{" "}
                       {CONDITION_SPECIALTIES.find((s) => s.key === suggestion.suggested)?.label}
                     </span>{" "}
-                    — {suggestion.because} Change it if you disagree.
+                    - {suggestion.because} Change it if you disagree.
                   </span>
                 </p>
               ) : (
@@ -201,7 +211,7 @@ export default function ConditionTriageDialog({
                   actually being made. */}
               <p className="mt-3 text-xs text-slate-500">
                 {currentSpecialty
-                  ? `Their answers to the ${CONDITION_SPECIALTIES.find((s) => s.key === currentSpecialty)?.label.toLowerCase()} questions stay on file — they just stop being shown.`
+                  ? `Their answers to the ${CONDITION_SPECIALTIES.find((s) => s.key === currentSpecialty)?.label.toLowerCase()} questions stay on file - they just stop being shown.`
                   : "You can change this later if the case turns out to be something else; nothing answered is ever lost."}
               </p>
             </div>
@@ -211,8 +221,8 @@ export default function ConditionTriageDialog({
             {error ? (
               <p className="text-xs font-semibold text-red-600">{error}</p>
             ) : (
-              <span className="text-xs text-slate-400">
-                Your answers save as you go — you can close this and come back.
+              <span className="text-xs text-slate-500">
+                Your answers save as you go - you can close this and come back.
               </span>
             )}
             <div className="flex shrink-0 gap-2">

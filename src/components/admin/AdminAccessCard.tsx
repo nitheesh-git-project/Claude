@@ -33,25 +33,25 @@ export default function AdminAccessCard({ note }: { note: AdminAccessNote }) {
           means in sections. */}
       <dl className="space-y-2 text-[11px]">
         <div className="flex gap-2">
-          <dt className="w-20 shrink-0 font-semibold uppercase tracking-wide text-slate-400">
+          <dt className="w-20 shrink-0 font-semibold uppercase tracking-wide text-slate-500">
             You open
           </dt>
           <dd className="text-slate-700">{note.sections.join(" · ")}</dd>
         </div>
         {note.readOnly.length > 0 && (
           <div className="flex gap-2">
-            <dt className="w-20 shrink-0 font-semibold uppercase tracking-wide text-slate-400">
+            <dt className="w-20 shrink-0 font-semibold uppercase tracking-wide text-slate-500">
               You read
             </dt>
             <dd className="text-slate-700">
               {note.readOnly.join(" · ")}{" "}
-              <span className="text-slate-400">— nothing to change here</span>
+              <span className="text-slate-500">- nothing to change here</span>
             </dd>
           </div>
         )}
         {note.withheld.length > 0 && (
           <div className="flex gap-2">
-            <dt className="w-20 shrink-0 font-semibold uppercase tracking-wide text-slate-400">
+            <dt className="w-20 shrink-0 font-semibold uppercase tracking-wide text-slate-500">
               You don&apos;t
             </dt>
             <dd className="text-slate-500">{note.withheld.join(" · ")}</dd>

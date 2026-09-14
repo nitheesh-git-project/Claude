@@ -56,7 +56,7 @@ export default function PatientAuthCard() {
     // to replace this page, so resetting it first just flashes the button
     // back to "Sign In" for however long that navigation takes. Hard nav
     // (not router.push) so the fresh cookies set by signInWithPassword are
-    // guaranteed to be sent with the very next request to the proxy — a
+    // guaranteed to be sent with the very next request to the proxy - a
     // client-side soft nav can race the cookie write.
     window.location.href = "/patient/dashboard";
   }
@@ -182,7 +182,7 @@ export default function PatientAuthCard() {
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "login"
                 ? "text-teal-700 border-b-2 border-teal-700"
-                : "text-slate-400"
+                : "text-slate-500"
             }`}
           >
             Sign In
@@ -199,7 +199,7 @@ export default function PatientAuthCard() {
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "register"
                 ? "text-teal-700 border-b-2 border-teal-700"
-                : "text-slate-400"
+                : "text-slate-500"
             }`}
           >
             Register Account
@@ -253,16 +253,17 @@ export default function PatientAuthCard() {
                 Enter your account email and we&apos;ll send you a link to
                 reset your password.
               </p>
-              <div>
-                <label className="block font-semibold mb-1">Email Address</label>
+              <label className="block">
+                <span className="block font-semibold mb-1">Email Address</span>
                 <input
                   type="email"
                   name="email"
+                  autoComplete="email"
                   required
                   maxLength={254}
                   className="w-full p-3 rounded-xl border border-slate-300"
                 />
-              </div>
+              </label>
               <button
                 type="submit"
                 disabled={forgotSubmitting}
@@ -294,25 +295,29 @@ export default function PatientAuthCard() {
           )
         ) : tab === "login" ? (
           <form onSubmit={handleLogin} className="space-y-4 text-xs">
-            <div>
-              <label className="block font-semibold mb-1">Email Address</label>
+            <label className="block">
+              <span className="block font-semibold mb-1">Email Address</span>
               <input
                 type="email"
                 name="email"
+                autoComplete="email"
                 required
                 maxLength={254}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
-            </div>
+            </label>
             <div>
-              <label className="block font-semibold mb-1">Password</label>
-              <input
-                type="password"
-                name="password"
-                required
-                maxLength={72}
-                className="w-full p-3 rounded-xl border border-slate-300"
-              />
+              <label className="block">
+                <span className="block font-semibold mb-1">Password</span>
+                <input
+                  type="password"
+                  name="password"
+                  autoComplete="current-password"
+                  required
+                  maxLength={72}
+                  className="w-full p-3 rounded-xl border border-slate-300"
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => setForgotMode(true)}
@@ -331,25 +336,27 @@ export default function PatientAuthCard() {
           </form>
         ) : (
           <form onSubmit={handleRegister} className="space-y-3 text-xs">
-            <div>
-              <label className="block font-semibold mb-1">Full Name</label>
+            <label className="block">
+              <span className="block font-semibold mb-1">Full Name</span>
               <input
                 type="text"
                 name="fullName"
+                autoComplete="name"
                 required
                 maxLength={120}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
-            </div>
+            </label>
             <EmailField value={registerEmail} onChange={setRegisterEmail} />
             <PhoneNumberField value={registerPhone} onChange={setRegisterPhone} required />
             <PasswordField
+              autoComplete="new-password"
               value={registerPassword}
               onChange={setRegisterPassword}
               label={
                 <>
                   Create Password{" "}
-                  <span className="font-normal text-slate-400">(for portal access)</span>
+                  <span className="font-normal text-slate-500">(for portal access)</span>
                 </>
               }
             />
@@ -358,11 +365,11 @@ export default function PatientAuthCard() {
               value={registerConfirmPassword}
               onChange={setRegisterConfirmPassword}
             />
-            <div>
-              <label className="block font-semibold mb-1">
+            <label className="block">
+              <span className="block font-semibold mb-1">
                 Referral Code{" "}
-                <span className="font-normal text-slate-400">(optional)</span>
-              </label>
+                <span className="font-normal text-slate-500">(optional)</span>
+              </span>
               <input
                 type="text"
                 name="referralCode"
@@ -373,23 +380,23 @@ export default function PatientAuthCard() {
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
               {referralCheck.status === "checking" && (
-                <p className="text-slate-400 mt-1">Checking code...</p>
+                <p className="text-slate-500 mt-1">Checking code...</p>
               )}
               {referralCheck.status === "valid" && (
                 <p className="text-teal-700 font-semibold mt-1">
                   <i className="fa-solid fa-circle-check mr-1"></i>
-                  Valid — referred by {referralCheck.hospitalName ?? "your partner hospital"}
+                  Valid - referred by {referralCheck.hospitalName ?? "your partner hospital"}
                 </p>
               )}
               {referralCheck.status === "invalid" && (
                 <p className="text-red-600 font-semibold mt-1">
                   <i className="fa-solid fa-circle-exclamation mr-1"></i>
-                  Code not recognized — double-check it or leave blank
+                  Code not recognized - double-check it or leave blank
                 </p>
               )}
-            </div>
-            <p className="text-slate-400 leading-relaxed">
-              New accounts are reviewed by our team — you&apos;ll be able to
+            </label>
+            <p className="text-slate-500 leading-relaxed">
+              New accounts are reviewed by our team - you&apos;ll be able to
               sign in and book sessions once an admin approves yours.
             </p>
             <button

@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Therapist not found" }, { status: 404 });
   }
 
-  // profiles.email is a copy for display/lookup — auth.users.email is what
+  // profiles.email is a copy for display/lookup - auth.users.email is what
   // actually gates sign-in, so both have to move together or the therapist
   // ends up locked out (dashboard shows their new email, but they can only
   // still log in with the old one).

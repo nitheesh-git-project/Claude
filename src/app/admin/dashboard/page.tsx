@@ -125,6 +125,16 @@ import type { AdminCarePlanRow, AuthorableSession } from "@/components/admin/Adm
 import type { RecommendableOption } from "@/components/therapist/CarePlanFields";
 import { loadRecommendablePackages } from "@/lib/carePlanServer";
 import { readCarePlanRequiresApproval } from "@/lib/carePlanAuthoring";
+import AdminBusinessHealthTab from "@/components/admin/AdminBusinessHealthTab";
+import AdminFinanceInputsTab from "@/components/admin/AdminFinanceInputsTab";
+import { readFinanceSettings } from "@/lib/financeSettingsServer";
+import {
+  unusedPaidValuePaise,
+  type BalanceSheetEntry,
+  type CapitalInvestment,
+  type FinanceExpenseRow,
+  type MarketingCampaign,
+} from "@/lib/financeMetrics";
 import {
   CARE_PLAN_QUEUE_STALE_HOURS,
   carePlanState,
@@ -284,7 +294,7 @@ export default async function AdminDashboardPage({
       .eq("status", "pending")
       .order("created_at", { ascending: false }),
 
-    // Includes suspended (active: false) therapists deliberately — the
+    // Includes suspended (active: false) therapists deliberately - the
     // reassign-existing-session form (EditBookingForm, used by the Calendar
     // and Session Story tabs) must always be able to show whoever a session
     // is CURRENTLY assigned to, even if they were suspended after the fact,
@@ -664,6 +674,12 @@ export default async function AdminDashboardPage({
     adminAccountNotes,
     googleConnection,
     syncModeRows,
+    expenseClassRows,
+    capitalInvestments,
+    marketingCampaigns,
+    balanceSheetEntries,
+    appointmentPromoRows,
+    financeSettings,
     missionCopyRow,
     missionPrincipleRows,
   ] = await Promise.all([
@@ -800,6 +816,68 @@ export default async function AdminDashboardPage({
       async () => (await admin.from("appointments").select("id, visit_mode, google_event_id")).data,
       null as { id: string; visit_mode: string | null; google_event_id: string | null }[] | null
     ),
+    // Business Health's own reads, every one of them in this batch for the
+    // batch's own reason: three brand-new tables and one brand-new column, on
+    // a page that must keep working against a database the migration has not
+    // reached. Without them that screen says which figure it cannot work out;
+    // without this isolation they would blank the dashboard.
+    //
+    // `cost_class` is read apart from the expense rows themselves so a
+    // database missing the column still lists every cost -- merged back in
+    // below, the same two-query shape `sessionCode.ts` uses.
+    guard(
+      async () => (await admin.from("business_expenses").select("id, cost_class")).data,
+      null as { id: string; cost_class: string | null }[] | null
+    ),
+    guard(
+      async () =>
+        (
+          await admin
+            .from("capital_investments")
+            .select(
+              "id, label, invested_on, amount_paise, present_value_paise, present_value_as_of, useful_life_months, write_off_as, notes"
+            )
+            .order("invested_on", { ascending: false })
+        ).data as CapitalInvestment[] | null,
+      null as CapitalInvestment[] | null
+    ),
+    guard(
+      async () =>
+        (
+          await admin
+            .from("marketing_campaigns")
+            .select(
+              "id, name, channel, starts_on, ends_on, spend_paise, promo_code_id, attributed_revenue_paise, notes"
+            )
+            .order("starts_on", { ascending: false })
+        ).data as MarketingCampaign[] | null,
+      null as MarketingCampaign[] | null
+    ),
+    guard(
+      async () =>
+        (
+          await admin
+            .from("balance_sheet_entries")
+            .select("id, as_of, side, label, amount_paise, notes")
+            .order("as_of", { ascending: false })
+        ).data as BalanceSheetEntry[] | null,
+      null as BalanceSheetEntry[] | null
+    ),
+    // Which booking claimed which promo code -- the whole of the advertising
+    // attribution, and the reason a return on ad spend can be a fact rather
+    // than an estimate. Filtered to the rows that carry one, since every
+    // other booking contributes nothing to it.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("appointments")
+            .select("id, promo_code_id")
+            .not("promo_code_id", "is", null)
+        ).data,
+      null as { id: string; promo_code_id: string | null }[] | null
+    ),
+    readFinanceSettings(admin),
     // The mission and vision an admin may have rewritten. Its own read for
     // the usual reason -- these are the newest columns on site_settings, and
     // the helper swallows its own errors, falling back to the lines in
@@ -1072,7 +1150,7 @@ export default async function AdminDashboardPage({
 
   const onLeaveMap = new Map((onLeaveRows ?? []).map((r) => [r.id, r.on_leave]));
   // This single query feeds Overview, Calendar, Session Story, and Metrics
-  // all at once — if it fails (e.g. a column referenced here doesn't exist
+  // all at once - if it fails (e.g. a column referenced here doesn't exist
   // yet because a schema.sql update wasn't re-run), every one of those tabs
   // would otherwise silently render as "no bookings" with no indication
   // anything is actually wrong. Log it loudly instead of swallowing it.
@@ -1181,7 +1259,7 @@ export default async function AdminDashboardPage({
 
 
   // Revenue rollup per hospital: every paid session belonging to a patient
-  // this hospital referred (either channel — invite-link or self-serve
+  // this hospital referred (either channel - invite-link or self-serve
   // code, both set referred_by_hospital_id) counts toward their payout.
   const hospitalRevenue = new Map<
     string,
@@ -1198,7 +1276,7 @@ export default async function AdminDashboardPage({
     };
     entry.paidSessions += 1;
     // Falls back to the current session fee only for older paid rows from
-    // before amount_paid_paise existed — every payment since then records
+    // before amount_paid_paise existed - every payment since then records
     // exactly what was charged, so this never drifts as pricing changes.
     entry.totalRevenue += (appt.amount_paid_paise ?? SESSION_FEE_PAISE) / 100;
     hospitalRevenue.set(hospitalId, entry);
@@ -1217,7 +1295,7 @@ export default async function AdminDashboardPage({
   }
 
   // Per-category performance: how many bookings each condition category
-  // has gotten, and how much revenue it's actually brought in — useful now
+  // has gotten, and how much revenue it's actually brought in - useful now
   // that price varies by category instead of every booking being worth
   // the same flat fee.
   const categoryStats = new Map<
@@ -1285,7 +1363,7 @@ export default async function AdminDashboardPage({
             here to be allowed to buy their first session. */}
         <p className="-mt-2 mb-4 max-w-2xl text-xs leading-relaxed text-slate-500">
           Therapists here are waiting on a credentials check. Patients here registered without
-          booking — a patient who starts a payment is approved automatically, so approving one
+          booking - a patient who starts a payment is approved automatically, so approving one
           from this list only affects what they can see, never whether they can pay.
         </p>
         {!pendingAccounts || pendingAccounts.length === 0 ? (
@@ -1377,7 +1455,7 @@ export default async function AdminDashboardPage({
                   <div>
                     <p className="font-bold text-slate-900">
                       {requester?.full_name ?? "Unknown user"}{" "}
-                      <span className="font-normal text-slate-400 capitalize">
+                      <span className="font-normal text-slate-500 capitalize">
                         ({requester?.role ?? "unknown"})
                       </span>
                     </p>
@@ -1388,10 +1466,10 @@ export default async function AdminDashboardPage({
                         ];
                         return (
                           <li key={field}>
-                            <span className="text-slate-400">
+                            <span className="text-slate-500">
                               {PROFILE_FIELD_LABELS[field] ?? field}:
                             </span>{" "}
-                            <span className="line-through text-slate-400">
+                            <span className="line-through text-slate-500">
                               {oldValue === null || oldValue === undefined || oldValue === ""
                                 ? "(not set)"
                                 : String(oldValue)}
@@ -1461,7 +1539,7 @@ export default async function AdminDashboardPage({
                   {lead.org_details && (
                     <>
                       {" "}
-                      — <span className="text-slate-500">Details:</span>{" "}
+                      - <span className="text-slate-500">Details:</span>{" "}
                       {lead.org_details}
                     </>
                   )}
@@ -1534,7 +1612,7 @@ export default async function AdminDashboardPage({
                           {h.organization_name}
                         </p>
                         {roleCodeMap.get(h.id)?.hospital_code && (
-                          <span className="text-[10px] font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
                             {roleCodeMap.get(h.id)?.hospital_code}
                           </span>
                         )}
@@ -1557,7 +1635,7 @@ export default async function AdminDashboardPage({
                         TherapistDetailContent hides its own share form. */}
                     {canSeeMoney && (
                       <div>
-                        <p className="text-slate-400">Revenue Share</p>
+                        <p className="text-slate-500">Revenue Share</p>
                         <EditRevenueShareForm
                           hospitalId={h.id}
                           currentPercent={sharePercent}
@@ -1565,17 +1643,17 @@ export default async function AdminDashboardPage({
                       </div>
                     )}
                     <div>
-                      <p className="text-slate-400">Paid Sessions</p>
+                      <p className="text-slate-500">Paid Sessions</p>
                       <p className="font-bold text-slate-900">
                         {revenue.paidSessions}
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-400">Conversion Rate</p>
+                      <p className="text-slate-500">Conversion Rate</p>
                       <p className="font-bold text-slate-900">
-                        {conversionRate === null ? "—" : `${conversionRate.toFixed(0)}%`}
+                        {conversionRate === null ? "-" : `${conversionRate.toFixed(0)}%`}
                       </p>
-                      <p className="text-slate-400">
+                      <p className="text-slate-500">
                         {referralStats.converted}/{referralStats.total} referrals
                       </p>
                     </div>
@@ -1587,16 +1665,16 @@ export default async function AdminDashboardPage({
                     {canSeeMoney && (
                       <>
                         <div>
-                          <p className="text-slate-400">Partner&apos;s share</p>
+                          <p className="text-slate-500">Partner&apos;s share</p>
                           <p className="font-bold text-teal-700">
                             ₹{hospitalCut.toFixed(2)}
                           </p>
                           {isSuspended && (
-                            <p className="text-red-600">Stopped — suspended</p>
+                            <p className="text-red-600">Stopped - suspended</p>
                           )}
                         </div>
                         <div>
-                          <p className="text-slate-400">Clinic&apos;s share</p>
+                          <p className="text-slate-500">Clinic&apos;s share</p>
                           <p className="font-bold text-slate-900">
                             ₹{companyCut.toFixed(2)}
                           </p>
@@ -1719,7 +1797,7 @@ export default async function AdminDashboardPage({
                             {referralPhone}
                           </a>
                         ) : (
-                          <span className="text-slate-400">No phone on file</span>
+                          <span className="text-slate-500">No phone on file</span>
                         )}
                         <span className="text-slate-500">
                           <i
@@ -1747,13 +1825,13 @@ export default async function AdminDashboardPage({
                   </div>
                   <p className="text-slate-600">
                     <strong>{r.medical_issue}</strong>
-                    {r.treatment_needed && <> — {r.treatment_needed}</>}
+                    {r.treatment_needed && <> - {r.treatment_needed}</>}
                   </p>
                   {assignedTherapist ? (
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <p className="text-slate-500 flex items-center gap-2 flex-wrap">
                         Assigned to:{" "}
-                        <strong>{assignedTherapist.full_name}</strong> —{" "}
+                        <strong>{assignedTherapist.full_name}</strong> -{" "}
                         {formatSlotTime(r.assigned_slot_time, "Asia/Kolkata")}
                         {slotHasPassed && (
                           <span className="font-bold uppercase text-red-700 bg-red-100 px-2 py-0.5 rounded-full text-[10px]">
@@ -1846,7 +1924,7 @@ export default async function AdminDashboardPage({
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
         Patients
-        <span className="ml-2 text-xs font-normal text-slate-400">
+        <span className="ml-2 text-xs font-normal text-slate-500">
           {patients.length} total
         </span>
       </h2>
@@ -1936,7 +2014,7 @@ export default async function AdminDashboardPage({
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
         Therapists
-        <span className="ml-2 text-xs font-normal text-slate-400">
+        <span className="ml-2 text-xs font-normal text-slate-500">
           {allTherapists.length} total
         </span>
       </h2>
@@ -2111,6 +2189,97 @@ export default async function AdminDashboardPage({
     if (percent !== null && percent !== undefined) therapistHomeVisitSharePercent[id] = percent;
   }
 
+  // --- Business Health -----------------------------------------------------
+  //
+  // The seven standard finance figures, and the screen that takes the handful
+  // of numbers this app cannot know. Everything else on them is derived from
+  // the same rows the Money summary reads, so the two cannot disagree about
+  // what the clinic earned.
+
+  // `cost_class` arrives from its own query and is merged in here, so a
+  // database that has not applied the column lists every cost and reads each
+  // of them as a running cost -- which is exactly what they all were before
+  // the column existed.
+  const expenseClassById = new Map(
+    (expenseClassRows ?? []).map((row) => [row.id, row.cost_class])
+  );
+  const businessExpensesWithClass: FinanceExpenseRow[] = (businessExpenseRows ?? []).map(
+    (expense) => ({
+      ...expense,
+      cost_class: expenseClassById.get(expense.id) ?? null,
+    })
+  );
+
+  const promoCodeIdByAppointmentId: Record<string, string> = {};
+  for (const row of appointmentPromoRows ?? []) {
+    if (row.promo_code_id) promoCodeIdByAppointmentId[row.id] = row.promo_code_id;
+  }
+  const promoCodeNameById: Record<string, string> = Object.fromEntries(
+    promoCodeRows.map((code) => [code.id, code.code])
+  );
+
+  // Money taken for treatment nobody has had yet -- a real current liability,
+  // and the one an owner reading their bank balance counts twice. Both
+  // catalogues have the same shape (a count bought, a count claimed, what was
+  // paid), so one helper serves them.
+  const unusedPaidSessionsPaise =
+    unusedPaidValuePaise(
+      packagePurchasesForDisplay.map((purchase) => ({
+        paidPaise: purchase.amount_paid_paise ?? 0,
+        total: purchase.session_count ?? 0,
+        used: purchase.sessions_used ?? 0,
+        status: purchase.status ?? "",
+        paymentStatus: purchase.payment_status ?? "",
+      }))
+    ) +
+    unusedPaidValuePaise(
+      homeVisitPurchasesForDisplay.map((purchase) => ({
+        paidPaise: purchase.amount_paid_paise ?? 0,
+        total: purchase.visit_count ?? 0,
+        used: purchase.visits_used ?? 0,
+        status: purchase.status ?? "",
+        paymentStatus: purchase.payment_status ?? "",
+      }))
+    );
+
+  const businessHealthTab = (
+    <AdminBusinessHealthTab
+      /* The payout-enriched array, for the reason the Money summary takes it:
+         without the home-visit columns every travel reimbursement drops out of
+         the therapists' share and reappears as profit. */
+      appointments={appointmentsForPayouts}
+      therapists={allTherapists}
+      categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+      patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+      expenses={businessExpensesWithClass}
+      gatewayFeePercent={adminSettings.paymentGatewayFeePercent}
+      therapistSharePercent={therapistSharePercent}
+      therapistHomeVisitSharePercent={therapistHomeVisitSharePercent}
+      patientHospitalSharePercent={patientHospitalSharePercent}
+      hospitalReferredPatientIds={hospitalReferredPatientIds}
+      investments={capitalInvestments ?? []}
+      campaigns={marketingCampaigns ?? []}
+      balanceEntries={balanceSheetEntries ?? []}
+      promoCodeIdByAppointmentId={promoCodeIdByAppointmentId}
+      promoCodeNameById={promoCodeNameById}
+      unusedPaidSessionsPaise={unusedPaidSessionsPaise}
+      settings={financeSettings}
+      canManageMoney={scopeCanManage(viewerScope, "money")}
+      nowMs={nowTimestamp()}
+    />
+  );
+
+  const financeInputsTab = (
+    <AdminFinanceInputsTab
+      investments={capitalInvestments ?? []}
+      campaigns={marketingCampaigns ?? []}
+      balanceEntries={balanceSheetEntries ?? []}
+      promoCodes={promoCodeRows.map((code) => ({ id: code.id, code: code.code }))}
+      settings={financeSettings}
+      todayIso={istDateKey(new Date(nowTimestamp()).toISOString())}
+    />
+  );
+
   const moneySummaryTab = (
     <>
       <div className="mt-6">
@@ -2198,7 +2367,7 @@ export default async function AdminDashboardPage({
         </h2>
         {!treatmentCategories || treatmentCategories.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">
-            No categories yet — add one in Site Content to start tracking bookings.
+            No categories yet - add one in Site Content to start tracking bookings.
           </p>
         ) : (
           <PagedList
@@ -2220,25 +2389,25 @@ export default async function AdminDashboardPage({
                   <p className="font-bold text-slate-900 mb-2">{c.title}</p>
                   <div className="grid grid-cols-4 gap-3">
                     <div>
-                      <p className="text-slate-400">Bookings</p>
+                      <p className="text-slate-500">Bookings</p>
                       <p className="font-bold text-slate-900">
                         {stats.totalBookings}
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-400">Paid</p>
+                      <p className="text-slate-500">Paid</p>
                       <p className="font-bold text-slate-900">
                         {stats.paidBookings}
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-400">Session revenue</p>
+                      <p className="text-slate-500">Session revenue</p>
                       <p className="font-bold text-teal-700">
                         ₹{stats.totalRevenue.toLocaleString("en-IN")}
                       </p>
                     </div>
                     <div title="Package purchases paid for under this category, collected up front. Session revenue to the left recognises the same money gradually instead, one session at a time as they get scheduled -- so the two are deliberately different figures, not a discrepancy.">
-                      <p className="text-slate-400">Package cash collected</p>
+                      <p className="text-slate-500">Package cash collected</p>
                       <p className="font-bold text-teal-700">
                         ₹{stats.packageCashCollected.toLocaleString("en-IN")}
                       </p>
@@ -2383,7 +2552,7 @@ export default async function AdminDashboardPage({
     packageId: p.package_id,
     packageTitle: packageTitleMap.get(p.package_id) ?? "Session Package",
     categoryId: p.category_id,
-    categoryTitle: categoryTitleMap.get(p.category_id) ?? "—",
+    categoryTitle: categoryTitleMap.get(p.category_id) ?? "-",
     therapistId: p.locked_therapist_id,
     therapistName: p.locked_therapist_id ? profileMap.get(p.locked_therapist_id)?.full_name ?? "Unknown therapist" : null,
     sessionCount: p.session_count,
@@ -2423,7 +2592,7 @@ export default async function AdminDashboardPage({
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Home Visit Packages</h2>
         <p className="text-xs text-slate-500 mb-4">
           Bundles of visits delivered at the patient&apos;s address. Different fields from the
-          online packages above — visits rather than sessions, and travel is part of the deal —
+          online packages above - visits rather than sessions, and travel is part of the deal -
           so they keep their own editor while living on the same screen.
         </p>
         <HomeVisitPackageManager
@@ -2519,7 +2688,7 @@ export default async function AdminDashboardPage({
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Home Visit Purchases</h2>
         <p className="text-xs text-slate-500 mb-4">
           The same thing for visits at the patient&apos;s address. A cash-on-visit purchase sits
-          at &ldquo;unpaid&rdquo; for its whole life by design — check the payment mode before
+          at &ldquo;unpaid&rdquo; for its whole life by design - check the payment mode before
           reading that as money owed.
         </p>
         <HomeVisitPurchasesTable
@@ -2537,7 +2706,7 @@ export default async function AdminDashboardPage({
       <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Service Areas</h2>
       <p className="text-xs text-slate-500 mb-4">
         Which pincodes home visits can be sold in, and the travel fee each one carries. The
-        waitlist below is demand from outside those areas — a request for this list to grow.
+        waitlist below is demand from outside those areas - a request for this list to grow.
       </p>
       <HomeVisitAreaManager
         areas={(homeVisitAreas ?? []).map((a) => ({
@@ -2644,7 +2813,7 @@ export default async function AdminDashboardPage({
         kind="promise"
         rows={missionPrincipleRows ?? []}
         heading="What We Promise"
-        blurb="The four cards under your mission, on the Home page as headlines and in full on Our Mission. Each one should be something a patient could hold you to — a rule the platform actually keeps, not an intention."
+        blurb="The four cards under your mission, on the Home page as headlines and in full on Our Mission. Each one should be something a patient could hold you to - a rule the platform actually keeps, not an intention."
         noun="promise"
       />
 
@@ -2652,7 +2821,7 @@ export default async function AdminDashboardPage({
         kind="limit"
         rows={missionPrincipleRows ?? []}
         heading="What We Will Not Do"
-        blurb="The band at the foot of Our Mission. Saying plainly what the clinic will not do is believed where a page that claims everything is not — so keep these real, and keep them ones you would repeat on the phone."
+        blurb="The band at the foot of Our Mission. Saying plainly what the clinic will not do is believed where a page that claims everything is not - so keep these real, and keep them ones you would repeat on the phone."
         noun="limit"
       />
 
@@ -2908,36 +3077,120 @@ export default async function AdminDashboardPage({
   // Every desk with at least one rule of its own now reads this queue --
   // see RISK_RULE_DOMAIN. A desk with none (nobody, today) still pays
   // nothing: the two queries below are skipped entirely.
+  // Started here rather than where it is read, three blocks further down.
+  // Nothing in the risk or recommendation blocks feeds it -- it needs only
+  // the viewer's scope and the clock -- and it is the longest of the three
+  // chains, so kicking it off first is what lets the other two run inside
+  // its latency instead of after it. Awaited at the point of use, so the
+  // code that consumes it is unchanged.
+  const canSeeCarePlans = scopeCanOpen(viewerScope, "sessions");
+  const authoringDataPromise = (async () => {
+    const [{ data: authorableRows }, recommendablePackages] = await Promise.all([
+      canSeeCarePlans
+        ? admin
+            .from("appointments")
+            .select("id, patient_id, therapist_id, session_code, slot_time, category_id")
+            .eq("status", "completed")
+            .not("therapist_id", "is", null)
+            .gte("slot_time", new Date(nowTimestamp() - 60 * 86_400_000).toISOString())
+            .order("slot_time", { ascending: false })
+            .limit(60)
+        : Promise.resolve({
+            data: [] as {
+              id: string;
+              patient_id: string;
+              therapist_id: string | null;
+              session_code: string | null;
+              slot_time: string;
+              category_id: string | null;
+            }[],
+          }),
+      canSeeCarePlans ? loadRecommendablePackages(admin) : Promise.resolve([]),
+    ]);
+    // The one lookup that has to wait, since it is keyed on ids the query
+    // above returns.
+    const authorableIds = [
+      ...new Set(
+        (authorableRows ?? [])
+          .flatMap((a) => [a.patient_id, a.therapist_id])
+          .filter((id): id is string => !!id)
+      ),
+    ];
+    const { data: authorablePeople } = authorableIds.length
+      ? await admin.from("profiles").select("id, full_name").in("id", authorableIds)
+      : { data: [] as { id: string; full_name: string }[] };
+    return { authorableRows, recommendablePackages, authorablePeople };
+  })();
+  // Starting a promise and awaiting it later leaves a window in which a
+  // rejection has no handler attached, which Node reports as an unhandled
+  // rejection and some runtimes treat as fatal. This marks it handled without
+  // swallowing anything: the await below still throws the real error, exactly
+  // as it did when these reads sat inline.
+  authoringDataPromise.catch(() => {});
+
   const viewerRiskRules = riskRulesForSections(workableSections);
   const viewerCanSeeRisk = viewerScope === "full" || viewerRiskRules.length > 0;
-  const { data: riskSignalRows } = viewerCanSeeRisk
-    ? await admin
-    .from("risk_signals")
-    .select("id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at")
-    .order("detected_at", { ascending: false })
-    .limit(200)
-    : { data: [] as RiskSignalQueryRow[] };
-  const { data: riskRuleRows } = viewerCanSeeRisk
-    ? await admin
-        .from("risk_rules")
-        .select("rule_key, label, description, enabled, config")
-        .order("rule_key")
-    : { data: [] as RiskRuleQueryRow[] };
-
-  const riskSignalIds = (riskSignalRows ?? []).map((r) => r.id);
-  const { data: riskReviewRows } = riskSignalIds.length
-    ? await admin
-        .from("risk_reviews")
-        .select("id, signal_id, reviewer_id, outcome, note, created_at")
-        .in("signal_id", riskSignalIds)
-        .order("created_at", { ascending: true })
-    : { data: [] as { id: string; signal_id: string; reviewer_id: string; outcome: string; note: string; created_at: string }[] };
+  // Four reads that need nothing from each other, so they go together. They
+  // were four awaits in a row, which on this host is four round trips of
+  // latency (~320ms each) inside a page render that already has its data --
+  // the "isolated is not the same as sequential" rule, in the block where it
+  // cost the most. Each one keeps its own guard and its own empty fallback,
+  // so the isolation is unchanged and only the waiting is gone.
+  const [
+    { data: riskSignalRows },
+    { data: riskRuleRows },
+    { data: flagRows },
+    { data: revealRows },
+  ] = await Promise.all([
+    viewerCanSeeRisk
+      ? admin
+          .from("risk_signals")
+          .select(
+            "id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at"
+          )
+          .order("detected_at", { ascending: false })
+          .limit(200)
+      : Promise.resolve({ data: [] as RiskSignalQueryRow[] }),
+    viewerCanSeeRisk
+      ? admin
+          .from("risk_rules")
+          .select("rule_key, label, description, enabled, config")
+          .order("rule_key")
+      : Promise.resolve({ data: [] as RiskRuleQueryRow[] }),
+    // The evidence itself, read only for a scope that can see the queue, on
+    // its own so a database without the tables renders an empty panel rather
+    // than blanking the dashboard.
+    viewerCanSeeRisk
+      ? admin
+          .from("communication_flags")
+          .select(
+            "id, surface, author_id, patient_id, tier, findings, blocked, content, created_at"
+          )
+          .order("created_at", { ascending: false })
+          .limit(200)
+      : Promise.resolve({ data: [] as CommunicationFlagQueryRow[] }),
+    viewerCanSeeRisk
+      ? admin
+          .from("contact_reveal_log")
+          .select("id, therapist_id, patient_id, field, reason, created_at")
+          .order("created_at", { ascending: false })
+          .limit(200)
+      : Promise.resolve({ data: [] as ContactRevealQueryRow[] }),
+  ]);
 
   // A signal names a subject by id and kind. Resolving that to something an
   // admin recognises needs the admin client, since a therapist's or a
   // patient's name is not readable through the caller's own RLS -- the same
   // one lookup every other cross-role surface makes.
   const riskRuleLabels = new Map((riskRuleRows ?? []).map((r) => [r.rule_key, r.label]));
+
+  // Second wave: everything that needs an id out of the first. A signal names
+  // its subject by id and kind, and resolving that to something an admin
+  // recognises needs the admin client, since another person's name is not
+  // readable through the caller's own RLS -- the same one lookup every other
+  // cross-role surface makes. One name query covers the flags and the reveal
+  // log together.
+  const riskSignalIds = (riskSignalRows ?? []).map((r) => r.id);
   const riskPersonIds = [
     ...new Set(
       (riskSignalRows ?? [])
@@ -2952,40 +3205,6 @@ export default async function AdminDashboardPage({
         .map((r) => r.subject_id)
     ),
   ];
-  const [{ data: riskPeople }, { data: riskAppointments }] = await Promise.all([
-    riskPersonIds.length
-      ? admin.from("profiles").select("id, full_name").in("id", riskPersonIds)
-      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
-    riskAppointmentIds.length
-      ? admin.from("appointments").select("id, session_code").in("id", riskAppointmentIds)
-      : Promise.resolve({ data: [] as { id: string; session_code: string | null }[] }),
-  ]);
-  const riskSubjectNames = new Map<string, string>();
-  for (const p of riskPeople ?? []) riskSubjectNames.set(p.id, p.full_name ?? "Unknown");
-  for (const a of riskAppointments ?? [])
-    riskSubjectNames.set(a.id, a.session_code ?? `Session ${a.id.slice(0, 8)}`);
-
-  // The evidence itself, read only for a full admin, on its own so a
-  // database without the tables renders an empty panel rather than blanking
-  // the dashboard.
-  const { data: flagRows } = viewerCanSeeRisk
-    ? await admin
-        .from("communication_flags")
-        .select("id, surface, author_id, patient_id, tier, findings, blocked, content, created_at")
-        .order("created_at", { ascending: false })
-        .limit(200)
-    : { data: [] as CommunicationFlagQueryRow[] };
-  const { data: revealRows } = viewerCanSeeRisk
-    ? await admin
-        .from("contact_reveal_log")
-        .select("id, therapist_id, patient_id, field, reason, created_at")
-        .order("created_at", { ascending: false })
-        .limit(200)
-    : { data: [] as ContactRevealQueryRow[] };
-
-  // One name lookup for both, since RLS gives an admin no route to another
-  // person's name -- the same admin-client lookup every cross-role surface
-  // makes.
   const evidencePersonIds = [
     ...new Set(
       [
@@ -2994,9 +3213,42 @@ export default async function AdminDashboardPage({
       ].filter((id): id is string => !!id)
     ),
   ];
-  const { data: evidencePeople } = evidencePersonIds.length
-    ? await admin.from("profiles").select("id, full_name").in("id", evidencePersonIds)
-    : { data: [] as { id: string; full_name: string }[] };
+  const [
+    { data: riskReviewRows },
+    { data: riskPeople },
+    { data: riskAppointments },
+    { data: evidencePeople },
+  ] = await Promise.all([
+    riskSignalIds.length
+      ? admin
+          .from("risk_reviews")
+          .select("id, signal_id, reviewer_id, outcome, note, created_at")
+          .in("signal_id", riskSignalIds)
+          .order("created_at", { ascending: true })
+      : Promise.resolve({
+          data: [] as {
+            id: string;
+            signal_id: string;
+            reviewer_id: string;
+            outcome: string;
+            note: string;
+            created_at: string;
+          }[],
+        }),
+    riskPersonIds.length
+      ? admin.from("profiles").select("id, full_name").in("id", riskPersonIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    riskAppointmentIds.length
+      ? admin.from("appointments").select("id, session_code").in("id", riskAppointmentIds)
+      : Promise.resolve({ data: [] as { id: string; session_code: string | null }[] }),
+    evidencePersonIds.length
+      ? admin.from("profiles").select("id, full_name").in("id", evidencePersonIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+  ]);
+  const riskSubjectNames = new Map<string, string>();
+  for (const p of riskPeople ?? []) riskSubjectNames.set(p.id, p.full_name ?? "Unknown");
+  for (const a of riskAppointments ?? [])
+    riskSubjectNames.set(a.id, a.session_code ?? `Session ${a.id.slice(0, 8)}`);
   const evidenceNames = new Map(
     (evidencePeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
   );
@@ -3098,7 +3350,6 @@ export default async function AdminDashboardPage({
   // Every recommendation, on its own call for the usual
   // migration-tolerance reason. Sessions scope, matching the withdraw route
   // and the section it sits in.
-  const canSeeCarePlans = scopeCanOpen(viewerScope, "sessions");
   const { data: adminCarePlanRows } = canSeeCarePlans
     ? await admin
         .from("care_plans")
@@ -3112,63 +3363,66 @@ export default async function AdminDashboardPage({
   const adminPlanVersionIds = (adminCarePlanRows ?? [])
     .map((p) => p.current_version_id)
     .filter((id): id is string => !!id);
-  const { data: adminPlanVersions } = adminPlanVersionIds.length
-    ? await admin
-        .from("care_plan_versions")
-        .select(
-          "id, offer_snapshot, offer_kind, session_package_id, home_visit_package_id, clinical_rationale, instructions, hands_on_required, frequency_per_week, expires_at, authored_at"
-        )
-        .in("id", adminPlanVersionIds)
-    : {
-        data: [] as {
-          id: string;
-          offer_snapshot: unknown;
-          offer_kind: string;
-          session_package_id: string | null;
-          home_visit_package_id: string | null;
-          clinical_rationale: string | null;
-          instructions: string | null;
-          hands_on_required: boolean;
-          frequency_per_week: number | null;
-          expires_at: string | null;
-          authored_at: string;
-        }[],
-      };
-  const adminPlanVersionById = new Map((adminPlanVersions ?? []).map((v) => [v.id, v]));
-
   const carePlanPersonIds = [
     ...new Set(
       (adminCarePlanRows ?? []).flatMap((p) => [p.patient_id, p.therapist_id])
     ),
   ];
-  const { data: carePlanPeople } = carePlanPersonIds.length
-    ? await admin.from("profiles").select("id, full_name").in("id", carePlanPersonIds)
-    : { data: [] as { id: string; full_name: string }[] };
+  const carePlanIds = (adminCarePlanRows ?? []).map((p) => p.id);
+
+  // All three need only `adminCarePlanRows`, which the first batch already
+  // resolved, so they need nothing from each other and go together.
+  // `submitted_at` still gets its own guard: it arrived with the review step,
+  // later than the rows it sits on, so an unknown-column error must cost the
+  // queue its ordering rather than cost the screen every recommendation on it.
+  const [{ data: adminPlanVersions }, { data: carePlanPeople }, submittedRowsResult] =
+    await Promise.all([
+      adminPlanVersionIds.length
+        ? admin
+            .from("care_plan_versions")
+            .select(
+              "id, offer_snapshot, offer_kind, session_package_id, home_visit_package_id, clinical_rationale, instructions, hands_on_required, frequency_per_week, expires_at, authored_at"
+            )
+            .in("id", adminPlanVersionIds)
+        : Promise.resolve({
+            data: [] as {
+              id: string;
+              offer_snapshot: unknown;
+              offer_kind: string;
+              session_package_id: string | null;
+              home_visit_package_id: string | null;
+              clinical_rationale: string | null;
+              instructions: string | null;
+              hands_on_required: boolean;
+              frequency_per_week: number | null;
+              expires_at: string | null;
+              authored_at: string;
+            }[],
+          }),
+      carePlanPersonIds.length
+        ? admin.from("profiles").select("id, full_name").in("id", carePlanPersonIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+      carePlanIds.length
+        ? admin
+            .from("care_plans")
+            .select("id, submitted_at")
+            .in("id", carePlanIds)
+            .then(
+              (r) => r,
+              () => ({ data: null as { id: string; submitted_at?: string | null }[] | null })
+            )
+        : Promise.resolve({
+            data: [] as { id: string; submitted_at?: string | null }[],
+          }),
+    ]);
+  const adminPlanVersionById = new Map((adminPlanVersions ?? []).map((v) => [v.id, v]));
   const carePlanNames = new Map(
     (carePlanPeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
   );
-
-  // When each one was sent, read on its own. `submitted_at` arrived with the
-  // review step, later than the rows it sits on, so an unknown-column error
-  // must cost the queue its ordering rather than cost the screen every
-  // recommendation on it.
   const submittedAtByPlan = new Map<string, string>();
-  if ((adminCarePlanRows ?? []).length > 0) {
-    try {
-      const { data: submittedRows } = await admin
-        .from("care_plans")
-        .select("id, submitted_at")
-        .in(
-          "id",
-          (adminCarePlanRows ?? []).map((p) => p.id)
-        );
-      for (const row of submittedRows ?? []) {
-        const at = (row as { submitted_at?: string | null }).submitted_at;
-        if (at) submittedAtByPlan.set(row.id, at);
-      }
-    } catch {
-      // Falls back to created_at below, which sorts a queue sensibly.
-    }
+  for (const row of submittedRowsResult.data ?? []) {
+    const at = (row as { submitted_at?: string | null }).submitted_at;
+    if (at) submittedAtByPlan.set(row.id, at);
   }
 
   // What the patient already owns, for the patients in the queue only.
@@ -3208,14 +3462,14 @@ export default async function AdminDashboardPage({
       // Purchases screen the moment an admin flips the ledger switch --
       // which is the "the list disagrees with the number" bug in the one
       // place it would be read as a reason to refuse someone treatment.
-      const sessionRows = await applyLedgerSessionBalances(
-        admin,
-        openPurchases ?? [],
-        { authoritative: ledgerAuthoritative }
-      );
-      const visitRows = await applyLedgerVisitBalances(admin, openVisits ?? [], {
-        authoritative: ledgerAuthoritative,
-      });
+      const [sessionRows, visitRows] = await Promise.all([
+        applyLedgerSessionBalances(admin, openPurchases ?? [], {
+          authoritative: ledgerAuthoritative,
+        }),
+        applyLedgerVisitBalances(admin, openVisits ?? [], {
+          authoritative: ledgerAuthoritative,
+        }),
+      ]);
 
       const add = (patientId: string, left: number) => {
         if (left <= 0) return;
@@ -3293,36 +3547,9 @@ export default async function AdminDashboardPage({
       .filter((p) => p.status === "active" || p.status === "pending_review")
       .map((p) => p.patient_id)
   );
-  const { data: authorableRows } = canSeeCarePlans
-    ? await admin
-        .from("appointments")
-        .select("id, patient_id, therapist_id, session_code, slot_time, category_id")
-        .eq("status", "completed")
-        .not("therapist_id", "is", null)
-        .gte("slot_time", new Date(nowTimestamp() - 60 * 86_400_000).toISOString())
-        .order("slot_time", { ascending: false })
-        .limit(60)
-    : {
-        data: [] as {
-          id: string;
-          patient_id: string;
-          therapist_id: string | null;
-          session_code: string | null;
-          slot_time: string;
-          category_id: string | null;
-        }[],
-      };
-
-  const authorableIds = [
-    ...new Set(
-      (authorableRows ?? []).flatMap((a) => [a.patient_id, a.therapist_id]).filter(
-        (id): id is string => !!id
-      )
-    ),
-  ];
-  const { data: authorablePeople } = authorableIds.length
-    ? await admin.from("profiles").select("id, full_name").in("id", authorableIds)
-    : { data: [] as { id: string; full_name: string }[] };
+  // Started above the risk block, so by here it has usually already landed.
+  const { authorableRows, recommendablePackages, authorablePeople } =
+    await authoringDataPromise;
   const authorableNames = new Map(
     (authorablePeople ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
   );
@@ -3339,21 +3566,15 @@ export default async function AdminDashboardPage({
       categoryId: a.category_id ?? null,
     }));
 
-  // Every recommendable package, not the ones for one category: the screen
-  // narrows them per selected session in the browser, because which session
-  // the admin picks decides which category applies and that choice is made
-  // after this render.
-  const adminPackageOptions: RecommendableOption[] = canSeeCarePlans
-    ? (await loadRecommendablePackages(admin)).map((p) => ({
-        id: p.id,
-        kind: p.kind,
-        title: p.title,
-        snapshot: p.snapshot,
-        categoryId: p.categoryId,
-        categoryTitle: p.categoryTitle,
-        specialty: p.specialty,
-      }))
-    : [];
+  const adminPackageOptions: RecommendableOption[] = recommendablePackages.map((p) => ({
+    id: p.id,
+    kind: p.kind,
+    title: p.title,
+    snapshot: p.snapshot,
+    categoryId: p.categoryId,
+    categoryTitle: p.categoryTitle,
+    specialty: p.specialty,
+  }));
 
   const sessionsRecommendationsTab = (
     <AdminCarePlansTab
@@ -3561,7 +3782,7 @@ export default async function AdminDashboardPage({
           count: manualRefundsPending,
           section: "money",
           tab: "payouts",
-          hint: "Money a patient is owed with no card payment to reverse — hand it over, then confirm it here.",
+          hint: "Money a patient is owed with no card payment to reverse - hand it over, then confirm it here.",
           urgent: true,
         },
         {
@@ -3613,7 +3834,7 @@ export default async function AdminDashboardPage({
           count: googleMeetSyncIssues.length,
           section: "settings",
           tab: "health",
-          hint: "Confirmed sessions with no Meet link — the patient has no way in.",
+          hint: "Confirmed sessions with no Meet link - the patient has no way in.",
           urgent: true,
         },
         {
@@ -3920,7 +4141,7 @@ export default async function AdminDashboardPage({
             count: discountsGivenTotals.count,
             bySource: discountsGivenTotals.bySource,
           }}
-          expenses={businessExpenseRows ?? []}
+          expenses={businessExpensesWithClass}
           gatewayFeePercent={adminSettings.paymentGatewayFeePercent}
           todayIso={istDateKey(new Date(nowTimestamp()).toISOString())}
         />
@@ -3929,6 +4150,16 @@ export default async function AdminDashboardPage({
         </div>
       </>
     ),
+    "money:health": (
+      <>
+        {moneyAlerts}
+        {businessHealthTab}
+        <div className="mt-8">
+          <MoneyGlossary />
+        </div>
+      </>
+    ),
+    "money:inputs": financeInputsTab,
     "money:breakdown": (
       <>
         {moneyAlerts}

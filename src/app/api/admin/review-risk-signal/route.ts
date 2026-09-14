@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   if (note.length < MIN_REVIEW_NOTE_LENGTH) {
     return NextResponse.json(
       {
-        error: `Say what you concluded — at least ${MIN_REVIEW_NOTE_LENGTH} characters. "Dismissed" with no reason reads the same as "not read".`,
+        error: `Say what you concluded - at least ${MIN_REVIEW_NOTE_LENGTH} characters. "Dismissed" with no reason reads the same as "not read".`,
       },
       { status: 400 }
     );

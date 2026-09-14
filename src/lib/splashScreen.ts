@@ -1,9 +1,9 @@
 /**
  * The brand splash the site paints over itself on a cold open.
  *
- * Everything about it is defined here — the wording, the timings, the
+ * Everything about it is defined here - the wording, the timings, the
  * bounds the admin form and the API route both enforce, the storage keys
- * and the inline boot script — because four separate places have to agree
+ * and the inline boot script - because four separate places have to agree
  * on those values and none of them can import from the others at the
  * moment they run: an inline <script> in the document head, a stylesheet,
  * a React effect, and a Postgres check constraint. A key spelled
@@ -20,12 +20,12 @@
 /** The line the splash exists to say. One claim, in a patient's words. */
 export const DEFAULT_SPLASH_PHRASE = "Movement Is Medicine";
 
-/** Longest phrase an admin may save — this is one line on a phone. */
+/** Longest phrase an admin may save - this is one line on a phone. */
 export const MAX_SPLASH_PHRASE_LENGTH = 48;
 
 /**
  * The small line above the phrase. Stored blank by default, which means
- * "use the site name from Brand & Contact Details" — the greeting and the
+ * "use the site name from Brand & Contact Details" - the greeting and the
  * navbar then cannot drift apart on their own. An admin who wants the
  * splash to say something the header does not fills this in.
  *
@@ -48,7 +48,7 @@ export const MAX_SPLASH_HOLD_SECONDS = 6;
  *
  * It is deliberately not "any time the tab regains focus", and 0 means
  * "never replay, greet the first load only" rather than "replay every
- * time" — there is no setting for the latter, on purpose. A patient paying
+ * time" - there is no setting for the latter, on purpose. A patient paying
  * by UPI leaves this tab for their bank's app and comes back mid-checkout;
  * so does anyone copying an OTP. Splashing over a payment in progress is
  * the one thing this must never do, so the configuration cannot express
@@ -64,7 +64,7 @@ export const MAX_SPLASH_REVISIT_MINUTES = 1440;
  * written twice, here and as the transition in globals.css, and this timer
  * is what removes the overlay from the flow. An admin able to change one
  * of the two would either cut the fade short or leave an invisible sheet
- * swallowing clicks — a fade length is a design decision, not a policy.
+ * swallowing clicks - a fade length is a design decision, not a policy.
  */
 export const SPLASH_FADE_MS = 550;
 
@@ -78,7 +78,7 @@ export const SPLASH_HIDDEN_AT_KEY = "dpp.splash.hiddenAt";
  * The attribute on <html> that drives the whole thing. "on" is holding,
  * "leaving" is fading out, absent is gone. Kept in CSS rather than React
  * state so the markup the server sends and the markup React hydrates are
- * identical — the overlay is in the HTML from the first byte, and only
+ * identical - the overlay is in the HTML from the first byte, and only
  * this attribute decides whether it is painted.
  */
 export const SPLASH_ATTR = "data-splash";
@@ -116,7 +116,7 @@ export const DEFAULT_SPLASH_CONFIG: SplashConfig = {
  * answer to "don't animate" is not to show it at all.
  *
  * Only the away threshold is interpolated, and it goes through Number() on
- * the way in — the phrase is rendered by React as text and never reaches
+ * the way in - the phrase is rendered by React as text and never reaches
  * this script, so nothing admin-typed is ever spliced into executable
  * source.
  */

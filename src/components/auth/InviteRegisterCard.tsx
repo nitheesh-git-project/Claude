@@ -147,7 +147,7 @@ export default function InviteRegisterCard() {
     });
     if (signInError) {
       setLoading(false);
-      setError("Account created — please sign in from the Patient Login page.");
+      setError("Account created - please sign in from the Patient Login page.");
       return;
     }
 
@@ -184,7 +184,7 @@ export default function InviteRegisterCard() {
           Complete Your Registration
         </h1>
         <p className="text-xs text-slate-500 text-center mt-1">
-          You&apos;ve been referred for a virtual physical therapy session —
+          You&apos;ve been referred for a virtual physical therapy session -
           set up your account and complete payment to confirm it.
         </p>
 
@@ -216,7 +216,7 @@ export default function InviteRegisterCard() {
 
         {preview && preview.valid && preview.isPastSlot && (
           <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
-            This scheduled time has already passed — you can still register and
+            This scheduled time has already passed - you can still register and
             pay below, and the clinic will follow up to reschedule your session.
           </div>
         )}
@@ -230,7 +230,7 @@ export default function InviteRegisterCard() {
         {appointmentId ? (
           <div className="mt-6 text-center">
             <p className="text-xs text-slate-500 mb-4">
-              Your account is ready — complete payment to confirm your
+              Your account is ready - complete payment to confirm your
               session.
             </p>
             <button
@@ -245,8 +245,8 @@ export default function InviteRegisterCard() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 text-xs mt-6">
-            <div>
-              <label className="block font-semibold mb-1">Full Name</label>
+            <label className="block">
+              <span className="block font-semibold mb-1">Full Name</span>
               <input
                 type="text"
                 required
@@ -255,15 +255,16 @@ export default function InviteRegisterCard() {
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
-            </div>
+            </label>
             <EmailField value={email} onChange={setEmail} />
             <PasswordField
+              autoComplete="new-password"
               value={password}
               onChange={setPassword}
               label={
                 <>
                   Create Password{" "}
-                  <span className="font-normal text-slate-400">(for portal access)</span>
+                  <span className="font-normal text-slate-500">(for portal access)</span>
                 </>
               }
             />

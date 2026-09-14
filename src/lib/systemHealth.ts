@@ -131,7 +131,7 @@ function googleCheck(google: GoogleConnectionStatus | undefined): HealthCheck {
     icon: "fa-plug",
     what: "Every video session gets a calendar invite and a Meet link from one Google account this app signs in as. That sign-in is a saved permission, and it can expire or be withdrawn without anybody touching the app.",
     example:
-      "If the permission dies on a Tuesday, every session booked from then on has no link at all — and each one looks like its own unlucky failure until you read this panel.",
+      "If the permission dies on a Tuesday, every session booked from then on has no link at all - and each one looks like its own unlucky failure until you read this panel.",
   };
 
   if (!google) {
@@ -165,7 +165,7 @@ function googleCheck(google: GoogleConnectionStatus | undefined): HealthCheck {
       status: google.meetScope ? "healthy" : "attention",
       headline: google.meetScope
         ? "Connected. Invites and video links are being created, and nobody waits to be let in."
-        : "Connected, but this account cannot open meetings up — so you have to admit each patient and therapist by hand.",
+        : "Connected, but this account cannot open meetings up - so you have to admit each patient and therapist by hand.",
       fix: google.meetScope
         ? []
         : [
@@ -182,15 +182,15 @@ function googleCheck(google: GoogleConnectionStatus | undefined): HealthCheck {
     status: "broken",
     headline: google.deadToken
       ? "The Google account is no longer connected. Every new session will fail to get a video link until this is fixed."
-      : `Google could not be reached. This may be temporary — the check runs again every minute. (${google.detail})`,
+      : `Google could not be reached. This may be temporary - the check runs again every minute. (${google.detail})`,
     fix: google.deadToken
       ? [
-          "In the Google Cloud console, set the OAuth consent screen to In production. Left on Testing, Google expires the permission every seven days — this is nearly always the cause.",
+          "In the Google Cloud console, set the OAuth consent screen to In production. Left on Testing, Google expires the permission every seven days - this is nearly always the cause.",
           "Run scripts/get-google-refresh-token.mjs and save the new GOOGLE_CALENDAR_REFRESH_TOKEN in the server environment.",
           "Redeploy, then press Retry on the sessions listed under Session Links below.",
         ]
       : [
-          "Wait a minute and reload — this check re-runs on its own.",
+          "Wait a minute and reload - this check re-runs on its own.",
           "If it stays red, check that the server can reach the internet.",
         ],
     count: 1,
@@ -230,7 +230,7 @@ function syncCheck(
       status: "broken",
       headline: `${plural(issues.length, "session has", "sessions have")} no link, and none of them can be fixed while the Google connection is down.`,
       fix: [
-        "Fix Google Connection above first — Retry cannot work until it is green.",
+        "Fix Google Connection above first - Retry cannot work until it is green.",
         "Then press Retry on each session here.",
       ],
       count: issues.length,
@@ -248,9 +248,9 @@ function syncCheck(
       stuck > 0
         ? [
             "Press Retry on each session marked Stopped retrying.",
-            "If Retry keeps failing with the same message, the cause is the Google connection rather than the session — check the panel above.",
+            "If Retry keeps failing with the same message, the cause is the Google connection rather than the session - check the panel above.",
           ]
-        : ["Nothing to do yet — come back in a few minutes and check they cleared."],
+        : ["Nothing to do yet - come back in a few minutes and check they cleared."],
     count: issues.length,
   };
 }
@@ -264,7 +264,7 @@ function waitingRoomCheck(
     id: "waiting_room" as const,
     label: "Waiting Room",
     icon: "fa-door-open",
-    what: "Google Meet holds anyone it does not recognise at the door until somebody lets them in. This app opens each new session's meeting so the patient and the therapist walk straight in. These are the meetings where that did not work — the link and the invite are fine, only the door is.",
+    what: "Google Meet holds anyone it does not recognise at the door until somebody lets them in. This app opens each new session's meeting so the patient and the therapist walk straight in. These are the meetings where that did not work - the link and the invite are fine, only the door is.",
     example:
       "A patient clicks her link at 6 PM and sits on a 'Asking to be let in' screen, while the therapist sits on another one. Nobody joins unless your clinic's own Google account is watching.",
   };
@@ -303,7 +303,7 @@ function waitingRoomCheck(
             "Then press Open on each session listed here.",
           ]
         : [
-            "Press Open on each session here, or wait — the app is still retrying these on its own.",
+            "Press Open on each session here, or wait - the app is still retrying these on its own.",
           ],
     count: issues.length,
   };
@@ -323,7 +323,7 @@ function accountingCheck(health: AccountingHealth): HealthCheck {
     return {
       ...base,
       status: "unknown",
-      headline: "Cannot be checked — this database has not had the latest tables applied yet.",
+      headline: "Cannot be checked - this database has not had the latest tables applied yet.",
       fix: [
         "Run scripts/run-schema.mjs against this database, or push to main, which applies it for you.",
         "Reload this page. The check starts reporting straight away.",
@@ -341,7 +341,7 @@ function accountingCheck(health: AccountingHealth): HealthCheck {
     return {
       ...base,
       status: "healthy",
-      headline: `All clear across ${plural(health.entitlementCount, "programme", "programmes")} — balances, payments and delivered sessions all agree.`,
+      headline: `All clear across ${plural(health.entitlementCount, "programme", "programmes")} - balances, payments and delivered sessions all agree.`,
       fix: [],
       count: 0,
     };
@@ -360,7 +360,7 @@ function accountingCheck(health: AccountingHealth): HealthCheck {
   }
   if (payments > 0) {
     fix.push(
-      "Payments: find each one in your Razorpay dashboard. It is usually a checkout that died halfway — either attach it to the booking it was for, or refund it."
+      "Payments: find each one in your Razorpay dashboard. It is usually a checkout that died halfway - either attach it to the booking it was for, or refund it."
     );
   }
   if (sessions > 0) {
@@ -374,7 +374,7 @@ function accountingCheck(health: AccountingHealth): HealthCheck {
     // A balance that disagrees with its own history is the one finding that
     // makes a number in the product wrong, rather than merely untidy.
     status: balance > 0 ? "broken" : "attention",
-    headline: `${parts.join(", ")} — something here does not add up.`,
+    headline: `${parts.join(", ")} - something here does not add up.`,
     fix,
     count: total,
   };
@@ -419,11 +419,11 @@ export function summarizeHealth(checks: HealthCheck[]): HealthSummary {
     headline = `${plural(attention.length, "check needs", "checks need")} you`;
     blurb =
       attention.length === checks.length
-        ? "Start at the top — the ones below often clear on their own once it is fixed."
+        ? "Start at the top - the ones below often clear on their own once it is fixed."
         : "Everything else is running normally.";
   } else if (notChecked.length > 0) {
     headline = "Nothing is broken";
-    blurb = `${plural(notChecked.length, "check is", "checks are")} switched off or could not be checked. That is not a fault — open it to see why.`;
+    blurb = `${plural(notChecked.length, "check is", "checks are")} switched off or could not be checked. That is not a fault - open it to see why.`;
   } else {
     headline = `All ${checks.length} checks healthy`;
     blurb = "Bookings, payments, video links and the books are all behaving.";
@@ -499,7 +499,7 @@ export function formatCheckedAgo(ageMs: number): string {
  *  arrives wrong. */
 export function copyTextFor(check: HealthCheck): string {
   const lines = [
-    `${check.label} — ${STATUS_LABEL[check.status]}`,
+    `${check.label} - ${STATUS_LABEL[check.status]}`,
     "",
     check.headline,
   ];

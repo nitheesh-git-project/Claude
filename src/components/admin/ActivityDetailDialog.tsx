@@ -68,7 +68,7 @@ export default function ActivityDetailDialog({
           <div>
             <dt className="text-[11px] font-semibold text-slate-500">Subject</dt>
             <dd className="mt-0.5 break-words text-xs font-semibold text-slate-800">
-              {row.targetLabel ?? "—"}
+              {row.targetLabel ?? "-"}
             </dd>
             {/* Keyed on the id, so a subject the route never named has no
                 history to trace and is not offered one. */}
@@ -88,7 +88,7 @@ export default function ActivityDetailDialog({
             value={
               row.amountPaise != null
                 ? `₹${(row.amountPaise / 100).toLocaleString("en-IN")}`
-                : "—"
+                : "-"
             }
           />
         </dl>
@@ -107,7 +107,7 @@ export default function ActivityDetailDialog({
                   <p className="text-[11px] font-semibold text-slate-500">{change.label}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                     {isFirstValue(change) ? (
-                      <span className="text-slate-400">Not set before</span>
+                      <span className="text-slate-500">Not set before</span>
                     ) : (
                       <span className="rounded-md bg-red-50 px-2 py-1 font-medium text-red-700 line-through decoration-red-300">
                         {change.from}
@@ -145,7 +145,7 @@ export default function ActivityDetailDialog({
 
         {!hasDetails && (
           <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
-            This action recorded no further detail — who, what and when is the
+            This action recorded no further detail - who, what and when is the
             whole entry. A plain approval is the usual case: its evidence is
             the name and the timestamp above.
           </p>
@@ -166,7 +166,7 @@ export default function ActivityDetailDialog({
               {JSON.stringify(row.details, null, 2)}
             </pre>
           )}
-          <p className="mt-2 text-[11px] text-slate-400">
+          <p className="mt-2 text-[11px] text-slate-500">
             {/* Said on the screen rather than only in the schema: a reader
                 weighing an entry needs to know it cannot have been edited.
                 The second sentence is the honest half -- entries older than

@@ -102,7 +102,7 @@ export async function updateSession(request: NextRequest) {
 
     // The signup trigger guarantees a profiles row exists for every
     // authenticated user, so a null result here right after sign-in is a
-    // transient read (not a real "no such profile") — worth one retry
+    // transient read (not a real "no such profile") - worth one retry
     // before treating it as a genuine role mismatch and bouncing an
     // already-valid user out to /get-started.
     if (!profile) {

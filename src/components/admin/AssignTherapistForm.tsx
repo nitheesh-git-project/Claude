@@ -48,8 +48,8 @@ export default function AssignTherapistForm({
 
   if (therapists.length === 0) {
     return (
-      <p className="text-[11px] text-slate-400">
-        No approved, active therapist to assign — approve or unsuspend one under
+      <p className="text-[11px] text-slate-500">
+        No approved, active therapist to assign - approve or unsuspend one under
         People → Therapists first.
       </p>
     );
@@ -63,6 +63,7 @@ export default function AssignTherapistForm({
         </span>
       )}
       <select
+        aria-label="Therapist to assign"
         value={therapistId}
         onChange={(e) => setTherapistId(e.target.value)}
         className="text-xs p-2 rounded-lg border border-slate-300"

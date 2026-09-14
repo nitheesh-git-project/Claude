@@ -215,7 +215,7 @@ export default function PackageBulkScheduler({
               ref={closeRef}
               onClick={close}
               aria-label="Close"
-              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
             >
               <i aria-hidden="true" className="fa-solid fa-xmark" />
             </button>
@@ -230,7 +230,7 @@ export default function PackageBulkScheduler({
                 {failedCount > 0 && (
                   <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                     {failedCount === 1 ? "One time" : `${failedCount} times`} didn&apos;t work. Your other
-                    sessions are booked and nothing was charged again — pick another time for{" "}
+                    sessions are booked and nothing was charged again - pick another time for{" "}
                     {failedCount === 1 ? "it" : "them"} below.
                   </p>
                 )}
@@ -290,7 +290,7 @@ export default function PackageBulkScheduler({
                       {frequencyPerWeek
                         ? `Spaced ${frequencyPerWeek} a week, the way your therapist recommended.`
                         : "Spaced a week apart."}{" "}
-                      Change any of them below — nothing is booked until you confirm.
+                      Change any of them below - nothing is booked until you confirm.
                     </p>
                     {!isProposal && (
                       <button
@@ -330,7 +330,7 @@ export default function PackageBulkScheduler({
                   <div className="mt-4">
                     <p className="mb-2 text-xs font-semibold text-slate-700">{formatDateKeyLong(activeDateKey)}</p>
                     {activeHours.length === 0 ? (
-                      <p className="text-xs text-slate-400">No bookable times on this date.</p>
+                      <p className="text-xs text-slate-500">No bookable times on this date.</p>
                     ) : (
                       <div className={BOOKING_OPTION_GRID}>
                         {activeHours.map((hour) => {
@@ -376,17 +376,17 @@ export default function PackageBulkScheduler({
                   </div>
                 )}
 
-                <div className="mt-5">
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-900">
+                <label className="mt-5 block">
+                  <span className="mb-1.5 block text-xs font-semibold text-slate-900">
                     Notes for these sessions <span className="font-normal text-slate-500">(optional)</span>
-                  </label>
+                  </span>
                   <textarea
                     rows={2}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 p-3 text-xs"
                   />
-                </div>
+                </label>
 
                 <button
                   onClick={handleSubmit}

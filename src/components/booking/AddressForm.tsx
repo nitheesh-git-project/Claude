@@ -58,7 +58,7 @@ export default function AddressForm({
 
       <label className="block">
         <span className="text-xs font-semibold text-slate-700">
-          Area / locality <span className="font-normal text-slate-400">(optional)</span>
+          Area / locality <span className="font-normal text-slate-500">(optional)</span>
         </span>
         <input
           value={value.line2 ?? ""}
@@ -77,7 +77,7 @@ export default function AddressForm({
           className={inputCls()}
           placeholder="Opposite the SBI branch"
         />
-        <span className="mt-1 block text-[11px] text-slate-400">
+        <span className="mt-1 block text-[11px] text-slate-500">
           This is what actually helps your therapist find you.
         </span>
       </label>
@@ -113,7 +113,7 @@ export default function AddressForm({
         </p>
         <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
           Soon you&apos;ll be able to drop a pin on the exact spot. For now, the
-          landmark above is what your therapist will navigate by — please make
+          landmark above is what your therapist will navigate by - please make
           it as specific as you can.
         </p>
       </div>
@@ -121,7 +121,7 @@ export default function AddressForm({
       <label className="block">
         <span className="text-xs font-semibold text-slate-700">
           Phone to call on arrival{" "}
-          <span className="font-normal text-slate-400">(optional)</span>
+          <span className="font-normal text-slate-500">(optional)</span>
         </span>
         <input
           value={value.contactPhone ?? ""}
@@ -144,8 +144,8 @@ export default function AddressForm({
           className={inputCls()}
           placeholder="2nd floor, no lift. Ring the bell twice. Friendly dog in the yard."
         />
-        <span className="mt-1 block text-[11px] text-slate-400">
-          Floor, lift, gate code, parking, pets — anything that saves a phone
+        <span className="mt-1 block text-[11px] text-slate-500">
+          Floor, lift, gate code, parking, pets - anything that saves a phone
           call at your door.
         </span>
       </label>

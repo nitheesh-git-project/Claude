@@ -14,7 +14,7 @@ export function toWinAnsi(value: string): string {
   const replaced = value
     .replace(/[‘’‛]/g, "'")
     .replace(/[“”]/g, '"')
-    .replace(/[–—]/g, "-")
+    .replace(/[–-]/g, "-")
     .replace(/…/g, "...")
     .replace(/₹/g, "Rs. ");
   // Keep only what the WinAnsi tables can actually encode.

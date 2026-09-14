@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   }
   if (reason.length < MIN_REASON_LENGTH) {
     return NextResponse.json(
-      { error: `Say why this is being withdrawn — at least ${MIN_REASON_LENGTH} characters.` },
+      { error: `Say why this is being withdrawn - at least ${MIN_REASON_LENGTH} characters.` },
       { status: 400 }
     );
   }
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "This recommendation has already been paid for. Refund the purchase or adjust the sessions instead — withdrawing it would leave the record disagreeing with the money.",
+          "This recommendation has already been paid for. Refund the purchase or adjust the sessions instead - withdrawing it would leave the record disagreeing with the money.",
       },
       { status: 409 }
     );

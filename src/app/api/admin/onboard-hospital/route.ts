@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // role is set here, not trusted from signUp's user_metadata — the
+  // role is set here, not trusted from signUp's user_metadata - the
   // handle_new_user trigger deliberately ignores anything but 'therapist'
   // there (self-serve signups can't grant themselves 'hospital'), so this
   // service-role update is what actually promotes the new account.

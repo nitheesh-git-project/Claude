@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
   }
   if (!claimed) {
     return NextResponse.json(
-      { error: "This session's status changed — please refresh and try again." },
+      { error: "This session's status changed - please refresh and try again." },
       { status: 409 }
     );
   }

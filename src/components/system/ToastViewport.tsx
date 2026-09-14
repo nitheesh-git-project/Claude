@@ -39,7 +39,7 @@ export default function ToastViewport() {
               toast.tone === "error"
                 ? "fa-circle-exclamation text-red-600"
                 : toast.tone === "info"
-                  ? "fa-circle-info text-slate-400"
+                  ? "fa-circle-info text-slate-500"
                   : "fa-circle-check text-teal-600"
             }`}
           />

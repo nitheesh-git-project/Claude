@@ -9,7 +9,7 @@ import { countNeedsYou, type FeedItem } from "@/lib/dashboardFeed";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
 
 const TONE_DOT: Record<string, string> = {
-  neutral: "bg-slate-100 text-slate-500",
+  neutral: "bg-slate-100 text-slate-600",
   info: "bg-blue-50 text-blue-600",
   good: "bg-emerald-50 text-emerald-600",
   warn: "bg-amber-50 text-amber-600",
@@ -113,7 +113,7 @@ export default function ActivityFeed({ items, emptyBody }: { items: FeedItem[]; 
                 <p className="text-sm font-semibold leading-snug text-slate-800">{item.title}</p>
                 {item.detail && <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{item.detail}</p>}
               </div>
-              <span suppressHydrationWarning className="shrink-0 text-[11px] text-slate-400">
+              <span suppressHydrationWarning className="shrink-0 text-[11px] text-slate-500">
                 {when(item.at)}
               </span>
             </div>

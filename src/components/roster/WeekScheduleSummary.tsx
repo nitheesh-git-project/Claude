@@ -26,7 +26,7 @@ export default function WeekScheduleSummary({
       {lines.map((line) => (
         <div key={line.days} className="contents">
           <dt className="font-semibold text-slate-500">{line.days}</dt>
-          <dd className={line.working ? "font-semibold text-slate-800" : "text-slate-400"}>
+          <dd className={line.working ? "font-semibold text-slate-800" : "text-slate-500"}>
             {line.hours}
           </dd>
         </div>

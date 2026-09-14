@@ -67,7 +67,7 @@ const STEPS: Step[] = [
     title: "Get assessed on camera",
     short: "60 minutes with a licensed specialist",
     detail:
-      "A full movement assessment over HD video — range-of-motion testing, posture screening and pain-response checks, measured in the room where your pain actually happens.",
+      "A full movement assessment over HD video - range-of-motion testing, posture screening and pain-response checks, measured in the room where your pain actually happens.",
     bullets: [
       "Guided range-of-motion testing",
       "Posture and gait screening",
@@ -81,7 +81,7 @@ const STEPS: Step[] = [
     title: "Rehab from your room",
     short: "A plan built for your space",
     detail:
-      "Video-guided exercises prescribed around the chair, bed and floor space you actually have — then reviewed and progressed at every follow-up rather than handed over once.",
+      "Video-guided exercises prescribed around the chair, bed and floor space you actually have - then reviewed and progressed at every follow-up rather than handed over once.",
     bullets: [
       "Video-guided daily exercises",
       "Fitted to your home setup",
@@ -209,11 +209,16 @@ export default function JourneySteps({
                 />
               )}
               <div className={compact ? "flex flex-col gap-1" : "flex items-center gap-4"}>
+                {/* The step number is content, not ornament - it is the one
+                    thing on the card that states the order. It was drawn at
+                    slate-200, which is 1.2:1 on white and unreadable rather
+                    than understated; the teal of the selected step carries the
+                    emphasis instead. */}
                 <span
                   className={`font-display font-extrabold transition-colors ${
                     compact ? "text-lg" : "text-2xl"
                   } ${
-                    selected ? "text-teal-700" : "text-slate-200 group-hover:text-slate-300"
+                    selected ? "text-teal-700" : "text-slate-500 group-hover:text-slate-700"
                   }`}
                 >
                   {s.num}

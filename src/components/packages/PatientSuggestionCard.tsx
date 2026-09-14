@@ -127,7 +127,7 @@ export default function PatientSuggestionCard({
       ) : (
         <>
           <p className="mt-3 text-[11px] text-slate-500">
-            Already paid for as part of your package — accepting just books the time.
+            Already paid for as part of your package - accepting just books the time.
           </p>
           {error && (
             <p className="mt-3 rounded-lg bg-rose-50 p-2.5 text-xs font-semibold text-rose-700">

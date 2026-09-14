@@ -2,6 +2,7 @@
 // the app's own HTTP API directly (via Node/Playwright's request context,
 // never a browser page) -- this suite is scoped to money-moving server
 // logic, not UI rendering, per the QA plan's "lightweight" scope decision.
+import { test, type Page } from "@playwright/test";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 
@@ -38,8 +39,39 @@ export async function cookieHeaderFor(email: string): Promise<string> {
   const anon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data, error } = await anon.auth.signInWithPassword({ email, password: TEST_PASSWORD });
-  if (error || !data.session) throw new Error(`sign-in failed for ${email}: ${error?.message}`);
+  // Retried, because the suite mints a session per spec and GoTrue rate-limits
+  // its token endpoint under that burst. A throttled sign-in comes back with
+  // an empty body, so the thrown message read `sign-in failed for ...: {}` --
+  // which looks exactly like a missing or mis-seeded fixture and sent the
+  // reader to `npm run seed:qa` for a problem seeding cannot fix.
+  //
+  // The status and error name go in the message for the same reason: the one
+  // thing that tells a 429 apart from a genuinely wrong password is the thing
+  // the old message dropped.
+  let data: Awaited<ReturnType<typeof anon.auth.signInWithPassword>>["data"] | null = null;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const result = await anon.auth.signInWithPassword({ email, password: TEST_PASSWORD });
+    if (!result.error && result.data.session) {
+      data = result.data;
+      break;
+    }
+    lastError = result.error;
+    const status = (result.error as { status?: number } | null)?.status;
+    // 400 with a real message is a wrong password or a missing account, and no
+    // amount of waiting fixes it. Anything else -- 429, 5xx, an empty body --
+    // is worth one more try.
+    const permanent = status === 400 && !!result.error?.message && result.error.message !== "{}";
+    if (permanent) break;
+    await new Promise((r) => setTimeout(r, 400 * 2 ** attempt));
+  }
+  if (!data?.session) {
+    const e = lastError as { message?: string; name?: string; status?: number } | null;
+    throw new Error(
+      `sign-in failed for ${email} after 4 attempts: ` +
+        `status=${e?.status ?? "?"} name=${e?.name ?? "?"} message=${e?.message || "(empty body)"}`
+    );
+  }
 
   const collected: { name: string; value: string }[] = [];
   const ssrClient = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -118,4 +150,54 @@ export function wholeHourFromNow(hoursAhead: number): string {
   const d = new Date(Date.now() + hoursAhead * 3_600_000);
   d.setMinutes(0, 0, 0);
   return d.toISOString();
+}
+
+/**
+ * Whether the *browser* can reach Supabase.
+ *
+ * Node can and the browser may not: a sandbox with an egress proxy commonly
+ * allows the server process out and leaves the page with no network at all.
+ * `browserCookiesFor` covers authentication for exactly that reason, but it
+ * cannot cover *data* -- a page that resolves something with the browser-side
+ * client still needs the browser to get out.
+ *
+ * Several specs test screens built on such a read: `WrongAccountForBooking`
+ * only renders once the client has looked up its own profile, and the booking
+ * wizard resolves `?therapist=` against `public_therapist_profiles` from the
+ * browser because `/book` is ISR-cached and cannot do it server-side. With no
+ * egress those screens never render, and the specs fail describing a product
+ * that works.
+ *
+ * Probed once per worker, from inside a real page so it measures what the
+ * page can do rather than what Node can.
+ */
+let browserEgress: boolean | null = null;
+
+export async function browserReachesSupabase(page: Page): Promise<boolean> {
+  if (browserEgress !== null) return browserEgress;
+  try {
+    await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+    browserEgress = await page.evaluate(async (url) => {
+      try {
+        await fetch(url, { mode: "no-cors" });
+        return true;
+      } catch {
+        return false;
+      }
+    }, `${SUPABASE_URL}/rest/v1/`);
+  } catch {
+    browserEgress = false;
+  }
+  return browserEgress;
+}
+
+/** Skips the calling test when the browser has no route to Supabase. */
+export async function skipWithoutBrowserEgress(page: Page): Promise<void> {
+  const ok = await browserReachesSupabase(page);
+  test.skip(
+    !ok,
+    "this browser has no network route to Supabase -- the screen under test " +
+      "renders from a client-side read, so it cannot appear here. Runs " +
+      "normally wherever the browser can reach the project."
+  );
 }

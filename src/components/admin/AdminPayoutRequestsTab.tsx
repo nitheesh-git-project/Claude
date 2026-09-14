@@ -47,9 +47,9 @@ export default function AdminPayoutRequestsTab({ requests }: { requests: PayoutR
             </span>
           )}
         </h2>
-        <p className="text-[11px] text-slate-400 -mt-2 mb-4">
+        <p className="text-[11px] text-slate-500 -mt-2 mb-4">
           Start Review to let the therapist know you&apos;re on it, pay them via the Payouts tab,
-          then mark the request completed here — that notifies the therapist.
+          then mark the request completed here - that notifies the therapist.
         </p>
         {open.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">No open requests.</p>
@@ -78,7 +78,7 @@ export default function AdminPayoutRequestsTab({ requests }: { requests: PayoutR
                       {r.therapistName}
                     </Link>
                     {r.therapistCode && (
-                      <span className="font-mono font-normal text-[11px] text-slate-400">
+                      <span className="font-mono font-normal text-[11px] text-slate-500">
                         {r.therapistCode}
                       </span>
                     )}
@@ -91,7 +91,7 @@ export default function AdminPayoutRequestsTab({ requests }: { requests: PayoutR
                   <p className="text-slate-500 mt-1">
                     Requested {formatInr(r.requestedAmountPaise)} on {formatDateTime(r.requestedAt)}
                   </p>
-                  <p className="text-slate-400 mt-0.5">
+                  <p className="text-slate-500 mt-0.5">
                     Currently owed (Payouts tab): {formatInr(r.currentlyOwedPaise)}
                   </p>
                 </div>
@@ -131,7 +131,7 @@ export default function AdminPayoutRequestsTab({ requests }: { requests: PayoutR
                     {r.therapistName}
                   </Link>
                   {r.therapistCode && (
-                    <span className="ml-2 font-mono font-normal text-[11px] text-slate-400">
+                    <span className="ml-2 font-mono font-normal text-[11px] text-slate-500">
                       {r.therapistCode}
                     </span>
                   )}

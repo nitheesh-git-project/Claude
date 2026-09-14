@@ -22,7 +22,7 @@ const SEVERITY_STYLE: Record<string, string> = {
 const STATUS_STYLE: Record<RiskStatus, string> = {
   open: "bg-amber-50 text-amber-700",
   reviewing: "bg-sky-50 text-sky-700",
-  dismissed: "bg-slate-100 text-slate-500",
+  dismissed: "bg-slate-100 text-slate-600",
   actioned: "bg-teal-50 text-teal-700",
 };
 
@@ -131,7 +131,7 @@ export default function RiskSignalsTab({
       <SurfaceCard
         title="Risk signals"
         icon="fa-triangle-exclamation"
-        subtitle="Patterns worth a person's attention. Nothing here changes anything on its own — no account is suspended, no payout is held, and no therapist is hidden because a rule fired."
+        subtitle="Patterns worth a person's attention. Nothing here changes anything on its own - no account is suspended, no payout is held, and no therapist is hidden because a rule fired."
       >
         {scopeNote && (
           <p className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
@@ -236,7 +236,7 @@ function SignalCard({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-bold text-slate-900">{signal.subjectName}</p>
-          <p className="text-[11px] text-slate-400">{signal.ruleLabel}</p>
+          <p className="text-[11px] text-slate-500">{signal.ruleLabel}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span
@@ -255,7 +255,7 @@ function SignalCard({
       </div>
 
       <p className="mt-2 text-slate-700">{signal.summary}</p>
-      <p className="mt-1 text-[11px] text-slate-400">
+      <p className="mt-1 text-[11px] text-slate-500">
         Noticed {formatClinicDateTime(signal.detectedAt)}
       </p>
 
@@ -274,7 +274,7 @@ function SignalCard({
             <li key={r.id} className="text-[11px] text-slate-500">
               <span className="font-semibold text-slate-700">{r.reviewerName}</span>{" "}
               {RISK_STATUS_LABELS[r.outcome as RiskStatus] ?? r.outcome} ·{" "}
-              {formatClinicDate(r.createdAt)} — {r.note}
+              {formatClinicDate(r.createdAt)} - {r.note}
             </li>
           ))}
         </ul>
@@ -509,8 +509,8 @@ function ConfigField({
 
 const SURFACE_LABELS: Record<string, string> = {
   session_suggestion_note: "Note on a proposed time",
-  care_plan_rationale: "Recommendation — reasoning",
-  care_plan_instructions: "Recommendation — instructions",
+  care_plan_rationale: "Recommendation - reasoning",
+  care_plan_instructions: "Recommendation - instructions",
   pain_assessment_answer: "Pain Map exam answer",
   appointment_notes: "Patient's booking note",
   condition_answer: "Health Profile answer",
@@ -592,7 +592,7 @@ function FlagCard({ flag }: { flag: CommunicationFlagRow }) {
             <span className="font-normal text-slate-500"> → {flag.patientName}</span>
           )}
         </p>
-        <span className="text-[11px] text-slate-400">
+        <span className="text-[11px] text-slate-500">
           {SURFACE_LABELS[flag.surface] ?? flag.surface} ·{" "}
           {formatClinicDate(flag.createdAt)}
         </span>
@@ -620,7 +620,7 @@ function RevealTrail({ reveals }: { reveals: ContactRevealRow[] }) {
     <SurfaceCard
       title="Contact details shown"
       icon="fa-address-book"
-      subtitle="Every time a therapist unmasked a patient's number. Revealing is allowed and expected — this is the record that it happened."
+      subtitle="Every time a therapist unmasked a patient's number. Revealing is allowed and expected - this is the record that it happened."
     >
       {reveals.length === 0 ? (
         <EmptyState
@@ -638,7 +638,7 @@ function RevealTrail({ reveals }: { reveals: ContactRevealRow[] }) {
                   <span className="font-semibold">{r.therapistName}</span> saw{" "}
                   {r.patientName}&apos;s {r.field}
                 </span>
-                <span className="text-[11px] text-slate-400">
+                <span className="text-[11px] text-slate-500">
                   {r.reason ? `${r.reason} · ` : ""}
                   {formatClinicDateTime(r.createdAt)}
                 </span>

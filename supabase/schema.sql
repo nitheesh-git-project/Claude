@@ -33,14 +33,14 @@ alter table appointments add column if not exists razorpay_payment_id text;
 alter table appointments add column if not exists payment_status text not null default 'unpaid' check (payment_status in ('unpaid', 'paid', 'failed'));
 
 -- Allow 'admin' and 'hospital' as roles for accounts that already existed
--- before these were added. Neither has a self-signup path — admin is
+-- before these were added. Neither has a self-signup path - admin is
 -- promoted by hand in the Table Editor; hospital accounts are provisioned
 -- by the admin (see the B2B section below).
 --
 -- Hospital accounts carry an org name + a referral code patients can
 -- optionally quote at signup. referred_by_hospital_id is set on the
 -- *patient's* profile, either automatically (invite-link referrals) or by
--- looking up a typed referral code (self-serve referrals) — one field
+-- looking up a typed referral code (self-serve referrals) - one field
 -- answers attribution for both channels.
 alter table profiles drop constraint if exists profiles_role_check;
 alter table profiles add constraint profiles_role_check check (role in ('patient', 'therapist', 'admin', 'hospital'));
@@ -48,12 +48,12 @@ alter table profiles add column if not exists organization_name text;
 alter table profiles add column if not exists referral_code text;
 alter table profiles add column if not exists referred_by_hospital_id uuid references profiles(id);
 -- The hospital's cut of each referred session's fee (e.g. 30 = hospital
--- gets 30%, company keeps 70%). Set once at onboarding by the admin —
+-- gets 30%, company keeps 70%). Set once at onboarding by the admin -
 -- only meaningful on rows where role = 'hospital'.
 --
 -- Also reused for role = 'therapist': the therapist's cut of each session
 -- fee they're assigned to, set by admin on the Manage Therapists page.
--- Same column, same 0-100 meaning, just a different counterparty — no
+-- Same column, same 0-100 meaning, just a different counterparty - no
 -- reason to duplicate the field for a second role.
 alter table profiles add column if not exists revenue_share_percent numeric(5,2);
 do $$
@@ -88,7 +88,7 @@ create policy "b2b_leads_insert_public" on b2b_leads
 grant insert on b2b_leads to anon, authenticated;
 
 -- A hospital's referral of a specific patient, submitted from their own
--- dashboard. No client-side UPDATE — assigning a therapist/slot and
+-- dashboard. No client-side UPDATE - assigning a therapist/slot and
 -- generating the invite link are admin-only actions via the service role.
 create table if not exists patient_referrals (
   id uuid primary key default gen_random_uuid(),
@@ -120,13 +120,13 @@ revoke update on patient_referrals from authenticated;
 
 -- A short admin-set note surfaced to the hospital in place of a blank
 -- status when a pending_review referral genuinely can't be staffed right
--- now ("no capacity right now — will follow up") -- closes the "why is
+-- now ("no capacity right now - will follow up") -- closes the "why is
 -- nothing happening" support loop without building real
 -- specialization/capacity matching.
 alter table patient_referrals add column if not exists capacity_note text;
 
 -- Links a patient's first appointment back to the referral that led to
--- it (white-glove channel only — self-serve code bookings have no
+-- it (white-glove channel only - self-serve code bookings have no
 -- referral row, just the profile-level referred_by_hospital_id).
 alter table appointments add column if not exists referral_id uuid references patient_referrals(id);
 
@@ -144,7 +144,7 @@ create policy "profiles_insert_own" on profiles
 
 -- Auto-create the profile row when a new auth user signs up. This runs as
 -- a database trigger (not client-side) so it works even before the user
--- has an active session — e.g. if "Confirm email" is on in Supabase Auth
+-- has an active session - e.g. if "Confirm email" is on in Supabase Auth
 -- settings, signUp() does not return a session until the email is
 -- confirmed, and a client-side insert would fail the RLS check above.
 create or replace function public.handle_new_user()
@@ -157,14 +157,14 @@ declare
   v_role text;
 begin
   -- raw_user_meta_data is whatever the caller passed as options.data to
-  -- auth.signUp() — for a public signup that's fully client-controlled, so
+  -- auth.signUp() - for a public signup that's fully client-controlled, so
   -- it must NEVER be trusted to grant 'admin' or 'hospital'. 'therapist' is
   -- the only self-serve role beyond the 'patient' default; both of those
   -- start unapproved and gated behind admin approval below. Admin accounts are
   -- promoted by hand in the Table Editor; hospital accounts are created by
   -- the onboard-hospital route, which sets role via a service-role update
   -- *after* this trigger runs, bypassing this restriction entirely (as
-  -- intended — that path never goes through public signUp metadata).
+  -- intended - that path never goes through public signUp metadata).
   v_role := case
     when new.raw_user_meta_data->>'role' = 'therapist' then 'therapist'
     else 'patient'
@@ -214,7 +214,7 @@ create trigger on_auth_user_created
 alter table profiles add column if not exists active boolean not null default true;
 
 -- Independent of `active`: a therapist can be fully active (can log in, get
--- assigned bookings) but still be hidden from the public /team page — on
+-- assigned bookings) but still be hidden from the public /team page - on
 -- leave, fully booked, or not ready to be publicly featured yet. Admin-only,
 -- defaults to visible so nothing changes for existing therapists.
 alter table profiles add column if not exists visible_on_team boolean not null default true;
@@ -228,7 +228,7 @@ alter table profiles add column if not exists visible_on_team boolean not null d
 alter table profiles add column if not exists rating_visible boolean not null default true;
 
 -- Private admin notes about a patient (e.g. "prefers evening slots",
--- "payment dispute resolved 3/15") — deliberately its own table, not a
+-- "payment dispute resolved 3/15") - deliberately its own table, not a
 -- column on profiles, because profiles_select_own lets a patient read
 -- every column of their own row; a note column there would leak straight
 -- back to the person it's about. This table gets no RLS policies at all,
@@ -242,7 +242,7 @@ create table if not exists patient_admin_notes (
 
 alter table patient_admin_notes enable row level security;
 
--- Same idea as patient_admin_notes, for therapists — kept as its own
+-- Same idea as patient_admin_notes, for therapists - kept as its own
 -- table rather than a shared one so it stays a plain one-row-per-user
 -- upsert on each management page without a role column to filter on.
 create table if not exists therapist_admin_notes (
@@ -257,7 +257,7 @@ alter table therapist_admin_notes enable row level security;
 -- The plaintext of the most recent admin-generated password, kept visible
 -- to admins (not just shown once) so they can walk a patient/therapist
 -- through logging in over a support call. Lives on these zero-RLS-policy
--- tables (service role only) for the same reason admin notes do — a plain
+-- tables (service role only) for the same reason admin notes do - a plain
 -- column on profiles would leak straight back to the account owner via
 -- profiles_select_own. Cleared the moment the user sets their own password
 -- through the forgot-password flow (see /api/clear-temp-password), so a
@@ -285,7 +285,7 @@ drop policy if exists "profiles_update_own" on profiles;
 create policy "profiles_update_own" on profiles
   for update using (auth.uid() = id);
 
--- Patient + therapist editable profile fields — added here, before the
+-- Patient + therapist editable profile fields - added here, before the
 -- grant below that references them, since a GRANT UPDATE naming a column
 -- that doesn't exist yet fails outright (this file runs top to bottom).
 -- avatar_url and the fields below are instant-save; full_name and
@@ -303,7 +303,7 @@ alter table profiles add column if not exists bio text;
 alter table profiles add column if not exists languages text;
 
 -- A row-level policy only controls *which rows* a user can touch, not
--- *which columns* — without this, any signed-in user could open their
+-- *which columns* - without this, any signed-in user could open their
 -- browser console and set their own "approved" to true or "role" to
 -- 'therapist', bypassing the entire approval gate. Column-level grants
 -- close that: "role" and "approved" can only be changed by an admin
@@ -311,7 +311,7 @@ alter table profiles add column if not exists languages text;
 -- above, which runs with elevated privileges and isn't subject to grants.
 --
 -- full_name, credentials, and phone are deliberately NOT in this list even
--- though phone was originally included by mistake — all three are
+-- though phone was originally included by mistake - all three are
 -- identity/trust-sensitive (credentials especially, since patients see it
 -- as a therapist's license claim; phone is gated per
 -- src/lib/gatedProfileFields.ts), so changing any of them goes through
@@ -325,7 +325,7 @@ grant update (
 ) on profiles to authenticated;
 
 -- Public-safe subset of approved therapists, for the marketing /team page.
--- A plain RLS policy only controls *which rows* are visible — anon still
+-- A plain RLS policy only controls *which rows* are visible - anon still
 -- has table-level SELECT on profiles, so a broad "therapist rows are
 -- public" policy would let anyone query email/phone/dates directly with
 -- the anon key. This view hard-codes both the row filter and the column
@@ -351,7 +351,7 @@ create policy "appointments_insert_own" on appointments
 -- No client-side UPDATE policy on appointments: booking status, therapist
 -- assignment, and payment fields (razorpay_order_id, razorpay_payment_id,
 -- payment_status) must only ever be written by server-side code using the
--- service role key (see src/lib/supabase/admin.ts) — never by the
+-- service role key (see src/lib/supabase/admin.ts) - never by the
 -- patient's or therapist's own browser session. Without this, a patient
 -- could open devtools and mark their own unpaid booking as "paid" the
 -- same way the profile self-approval hole worked before it was fixed.
@@ -364,13 +364,13 @@ revoke update on appointments from authenticated;
 -- session fee constant happens to be at query time.
 alter table appointments add column if not exists amount_paid_paise integer;
 
--- When the payment actually cleared — distinct from created_at (when the
+-- When the payment actually cleared - distinct from created_at (when the
 -- booking was first made), since a patient can book now and pay days
 -- later. Needed for a real payment history, not just a booking list.
 alter table appointments add column if not exists paid_at timestamptz;
 
 -- Tracks whether *this session's* cut has actually been handed to the
--- therapist yet — separate from whether the patient paid. A session with
+-- therapist yet - separate from whether the patient paid. A session with
 -- payment_status = 'paid' but therapist_payout_paid_at null is money the
 -- clinic owes the therapist and hasn't settled. The amount is snapshotted
 -- at settlement time (same reasoning as amount_paid_paise) so editing a
@@ -381,7 +381,7 @@ alter table appointments add column if not exists therapist_payout_amount_paise 
 alter table appointments add column if not exists therapist_payout_method text check (therapist_payout_method is null or therapist_payout_method in ('cash', 'online'));
 alter table appointments add column if not exists therapist_payout_note text;
 
--- Set alongside status='completed' by the same "Done" action — a no-show is
+-- Set alongside status='completed' by the same "Done" action - a no-show is
 -- still a closed-out session (the therapist held the slot, payout eligibility
 -- is unchanged), this just records that the patient didn't attend. Deliberately
 -- not a new `status` value: everything that already branches on status
@@ -391,11 +391,11 @@ alter table appointments add column if not exists no_show boolean not null defau
 
 -- Post-session ratings/feedback, captured independently from each side once
 -- a session is marked completed (the therapist's "Done" action). Rating is
--- required when submitting, feedback is optional free text — enforced in
+-- required when submitting, feedback is optional free text - enforced in
 -- the submit-*-feedback API routes, not here, since there's no single
 -- "submit" moment at the column level to hang a check constraint off of.
 -- Nothing here is client-writable directly (appointments has no client
--- update policy at all — see below), so these only ever get set by the
+-- update policy at all - see below), so these only ever get set by the
 -- service-role submit-*-feedback routes after verifying the caller is the
 -- patient/therapist on that exact appointment.
 alter table appointments add column if not exists patient_rating integer check (patient_rating is null or (patient_rating >= 1 and patient_rating <= 5));
@@ -416,7 +416,7 @@ alter table appointments add column if not exists therapist_rating_excluded bool
 
 -- Every reassignment (therapist/time/category change) made from the admin
 -- Calendar/Session Story views writes one row here recording what it was
--- before and after — the appointments row itself only ever holds current
+-- before and after - the appointments row itself only ever holds current
 -- state, so without this there'd be no way to answer "when was this
 -- session actually moved, and from what". Service-role only, same as the
 -- rest of the admin surface; nothing here is client-writable.
@@ -451,7 +451,7 @@ alter table b2b_leads add column if not exists email text;
 -- Admin-editable condition categories shown on the public /conditions
 -- page. Each one carries its own real price and session length, which
 -- drives what /api/razorpay/create-order actually charges when a patient
--- books that specific condition — not a single fixed platform-wide fee.
+-- books that specific condition - not a single fixed platform-wide fee.
 create table if not exists treatment_categories (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -470,7 +470,7 @@ alter table treatment_categories enable row level security;
 -- The public Conditions page and the booking wizard's concern picker both
 -- read this with the regular (non-admin) client, so active categories
 -- need to be publicly readable. All writes go through service-role admin
--- API routes only — no client insert/update/delete policy exists.
+-- API routes only - no client insert/update/delete policy exists.
 drop policy if exists "treatment_categories_select_active" on treatment_categories;
 create policy "treatment_categories_select_active" on treatment_categories
   for select using (active = true);
@@ -499,7 +499,7 @@ end $$;
 -- Seed the two categories that existed as hardcoded content before this
 -- table existed, at the platform's original flat fee/duration, so the
 -- Conditions page and booking wizard keep working unchanged the moment
--- this migration runs — only guarded to avoid re-seeding on every re-run.
+-- this migration runs - only guarded to avoid re-seeding on every re-run.
 insert into treatment_categories (title, description, points, price_paise, duration_minutes, cta_label, display_order)
 select * from (values
   (
@@ -533,17 +533,17 @@ alter table appointments add column if not exists category_id uuid references tr
 -- as amount_paid_paise: a category's duration can change later, but a
 -- booking already made shouldn't silently change with it). Surfaced to
 -- the therapist and admin so an appointment's actual length is known
--- past just the marketing page — not only stored for pricing purposes.
+-- past just the marketing page - not only stored for pricing purposes.
 alter table appointments add column if not exists duration_minutes integer;
 
 -- Once categories became admin-curated (rather than a free-text "Other"
 -- option), a patient whose issue doesn't match any listed condition had
--- no way to book at all. Guarantees a standing fallback exists — admin
+-- no way to book at all. Guarantees a standing fallback exists - admin
 -- can edit its title/price/description/order like any other category,
 -- but this keeps re-seeding itself if it's ever deleted entirely, so
 -- booking never silently dead-ends.
 --
--- Identified by a fixed id, not by title — checking "where title =
+-- Identified by a fixed id, not by title - checking "where title =
 -- 'General Consultation'" would re-insert a duplicate the next time this
 -- file is re-run if the admin ever renamed it. The id never changes even
 -- if the title does, so this stays a no-op once the row exists under any
@@ -582,7 +582,7 @@ where not exists (
   select 1 from treatment_categories where id = '00000000-0000-0000-0000-000000000001'::uuid
 );
 
--- Runs both halves of a category-order swap in a single transaction —
+-- Runs both halves of a category-order swap in a single transaction -
 -- called by the admin Move Up/Down controls instead of two independent
 -- UPDATE statements, so a network blip mid-swap can't leave two
 -- categories sharing the same display_order.
@@ -603,7 +603,7 @@ $$;
 
 -- A patient or therapist requesting a change to an identity/trust-sensitive
 -- field (full name, DOB, gender, credentials, specialization, years of
--- experience) doesn't write the profile directly — it lands here pending
+-- experience) doesn't write the profile directly - it lands here pending
 -- admin review. "changes" holds one or more {field: new_value} pairs so a
 -- single review covers everything they edited in one sitting. Approving
 -- applies the change via the service role; declining requires a note so
@@ -625,7 +625,7 @@ drop policy if exists "profile_change_requests_select_own" on profile_change_req
 create policy "profile_change_requests_select_own" on profile_change_requests
   for select using (auth.uid() = user_id);
 
--- status = 'pending' is required here too, not just as a column default —
+-- status = 'pending' is required here too, not just as a column default -
 -- otherwise a client could insert a row with status already 'approved' or
 -- 'declined', faking a reviewed-looking entry in their own history (it
 -- can't actually change profiles, since only the admin routes do that and
@@ -635,14 +635,14 @@ drop policy if exists "profile_change_requests_insert_own" on profile_change_req
 create policy "profile_change_requests_insert_own" on profile_change_requests
   for insert with check (auth.uid() = user_id and status = 'pending');
 
--- No client-side UPDATE policy — approving or declining a request (and
+-- No client-side UPDATE policy - approving or declining a request (and
 -- actually applying an approved change to profiles) only ever happens
 -- through the admin API routes using the service role, same reasoning as
 -- appointments having no client update policy.
 revoke update on profile_change_requests from authenticated;
 
 -- A user can withdraw their own request while it's still pending (changed
--- their mind, made a typo) — but not one already reviewed, so the record
+-- their mind, made a typo) - but not one already reviewed, so the record
 -- of what was approved/declined and why stays intact.
 drop policy if exists "profile_change_requests_delete_own_pending" on profile_change_requests;
 create policy "profile_change_requests_delete_own_pending" on profile_change_requests
@@ -650,7 +650,7 @@ create policy "profile_change_requests_delete_own_pending" on profile_change_req
 
 -- Avatar storage: a public bucket (profile pictures aren't sensitive data
 -- and are simplest to serve as plain public URLs) where each user may only
--- write inside a folder named after their own user id — enforced by the
+-- write inside a folder named after their own user id - enforced by the
 -- policies below, not just convention. Compression happens client-side
 -- before upload (see src/lib/compressImage.ts) to keep files small.
 insert into storage.buckets (id, name, public)
@@ -681,7 +681,7 @@ create policy "avatar_select_public" on storage.objects
 
 -- Admin-curated patient testimonials shown on the public Home page. Same
 -- pattern as treatment_categories: publicly readable when active, but all
--- writes go through admin API routes using the service role — no client
+-- writes go through admin API routes using the service role - no client
 -- insert/update/delete policy exists, same reasoning as that table.
 create table if not exists testimonials (
   id uuid primary key default gen_random_uuid(),
@@ -719,7 +719,7 @@ create policy "faqs_select_active" on faqs
 -- Cancellation + refund. A patient or admin can cancel an upcoming
 -- ('requested'/'confirmed') session; if it was paid, the amount actually
 -- charged is refunded via Razorpay as part of the same action (see
--- src/lib/cancelAppointment.ts) — these columns just record what happened,
+-- src/lib/cancelAppointment.ts) - these columns just record what happened,
 -- same "server records the outcome" pattern as therapist_payout_* above.
 alter table appointments add column if not exists cancelled_at timestamptz;
 alter table appointments add column if not exists cancelled_by uuid references profiles(id);
@@ -751,7 +751,7 @@ alter table appointments add constraint appointments_refund_status_check
 
 -- Lets a patient express "book with the same therapist as before" at
 -- booking time. Purely a hint for the admin's assignment screen (which
--- still runs its normal conflict check) — never auto-assigns, since the
+-- still runs its normal conflict check) - never auto-assigns, since the
 -- preferred therapist might not actually be available for the requested
 -- slot.
 alter table appointments add column if not exists preferred_therapist_id uuid references profiles(id);
@@ -781,7 +781,7 @@ grant select on site_settings to anon, authenticated;
 
 -- Real, aggregated (never per-review) rating data exposed publicly.
 -- Deliberately exposes only numbers, never individual patient names or
--- feedback text — publishing real patient reviews/names without an
+-- feedback text - publishing real patient reviews/names without an
 -- explicit consent step is a separate, bigger decision than this platform
 -- currently has a mechanism for; the existing hand-curated `testimonials`
 -- table (implied consent obtained manually before an admin types a quote
@@ -808,7 +808,7 @@ left join (
   group by therapist_id
 ) r on r.therapist_id = p.id
 -- active = true wasn't checked before this migration either, which meant a
--- suspended therapist still showed up on the public /team page — folded
+-- suspended therapist still showed up on the public /team page - folded
 -- into this same view rewrite since it's the same file/view.
 -- visible_on_team is a separate, admin-only control: a therapist can stay
 -- active (can log in, take bookings) while being hidden from this public
@@ -851,7 +851,7 @@ drop policy if exists "treatment_category_packages_select_active" on treatment_c
 create policy "treatment_category_packages_select_active" on treatment_category_packages
   for select using (active = true);
 
--- What a patient actually bought. No client insert/update policy at all —
+-- What a patient actually bought. No client insert/update policy at all -
 -- unlike appointments (which starts as a real 'requested'/'unpaid' row a
 -- patient legitimately owns before paying), a package purchase only ever
 -- makes sense already-paid, so it's created entirely by
@@ -879,12 +879,12 @@ create policy "package_purchases_select_own" on patient_package_purchases
   for select using (auth.uid() = patient_id);
 
 -- Links a session that was covered by a package instead of paid for
--- individually — set only by /api/appointments/book-with-package (service
+-- individually - set only by /api/appointments/book-with-package (service
 -- role), never by the client-side booking-wizard insert.
 alter table appointments add column if not exists package_purchase_id uuid references patient_package_purchases(id);
 
 -- Security fix: the original insert policy only checked patient_id
--- ownership, not the values being inserted — an authenticated patient
+-- ownership, not the values being inserted - an authenticated patient
 -- could craft a raw insert (bypassing the booking wizard entirely) with
 -- status: 'confirmed' and payment_status: 'paid' and get a free session,
 -- since nothing stopped them from setting those columns themselves at
@@ -3622,15 +3622,15 @@ end $$;
 -- Editing the *intake* is editing the patient's own account of their history,
 -- so a therapist doing that on their behalf still queues for admin approval.
 -- A *Pain Map* row is not that: it is the therapist's own observation from a
--- session they personally ran, exactly like a session note — and session
+-- session they personally ran, exactly like a session note - and session
 -- notes have never needed a grant, for precisely that reason. Requiring one
 -- here meant a therapist could finish an examination and have nowhere to put
 -- it until an admin noticed a request, which is how findings end up in
 -- somebody's private notes instead of the patient's chart.
 --
 -- So this insert policy now matches session_notes' rule rather than the
--- intake's: the therapist must be assigned to the patient — has ever had an
--- appointment with them, or holds a package's locked_therapist_id — which is
+-- intake's: the therapist must be assigned to the patient - has ever had an
+-- appointment with them, or holds a package's locked_therapist_id - which is
 -- the same relationship that already grants automatic *read* access below.
 -- Rows stay append-only, so a bad entry is corrected by adding a truer one
 -- and the original stays on the record.
@@ -3666,7 +3666,7 @@ create policy "pain_assessments_insert_assigned_therapist" on pain_assessments
 --   CREATE UNIQUE INDEX ... ON profiles (patient_code) WHERE patient_code IS NOT NULL
 -- but the resync block far above took its max over `where role = 'patient'`.
 -- Those two disagree the moment a row keeps a patient code while holding a
--- different role — which is the normal life of an admin account here, since
+-- different role - which is the normal life of an admin account here, since
 -- handle_new_user inserts every self-signup as a patient (PT0007, say) and
 -- promoting it to admin in the Table Editor leaves that code in place.
 --
@@ -3680,7 +3680,7 @@ create policy "pain_assessments_insert_assigned_therapist" on pain_assessments
 --
 -- Two fixes, deliberately both:
 --   1. Resync each sequence from the same set of rows the unique index
---      covers — every non-null code, whatever the row's role is now.
+--      covers - every non-null code, whatever the row's role is now.
 --   2. Make the trigger self-healing, so a sequence that drifts again for
 --      any reason (a restore, a manual insert, a truncate that leaves the
 --      sequence behind) skips over taken codes instead of failing a signup.
@@ -6614,7 +6614,7 @@ select * from (values
   (
     'plan_conversion_low',
     'Low recommendation conversion',
-    'A therapist''s recommendations are rarely purchased. Disabled until there is a clinic baseline to compare against — a threshold invented now fires on everyone.',
+    'A therapist''s recommendations are rarely purchased. Disabled until there is a clinic baseline to compare against - a threshold invented now fires on everyone.',
     false,
     '{"windowDays": 30, "minPlans": 5, "minConversion": 0.2}'::jsonb
   ),
@@ -9476,44 +9476,347 @@ create index if not exists home_visit_packages_featured_idx
   on home_visit_packages (display_order, id) where featured and active;
 
 -- ---------------------------------------------------------------------------
--- The mission and the vision, as an admin setting
+-- The back office can never be left with nobody who can open it
 -- ---------------------------------------------------------------------------
 --
--- These two lines were constants in `src/lib/mission.ts`, so rewording the
--- one sentence on the site that says why this practice exists needed a
--- developer and a deploy -- on the copy most likely to be argued over, and
--- the copy an owner is most entitled to own.
+-- Two routes guard this in TypeScript -- set-admin-scope refuses to narrow the
+-- last Master Admin, set-admin-active refuses to suspend them -- and both do
+-- it by counting and then updating. That is correct only for as long as those
+-- two statements are the only thing happening, which is the same
+-- read-then-write shape the CHECK constraints on sessions_used replaced for
+-- the same reason.
 --
--- Null and blank both mean "use the line in `src/lib/mission.ts`", the same
--- way a blank `splash_brand_line` means "use the site name". That is what
--- lets an admin undo an edit without retyping the original out of a code
--- file they cannot read, and it is why a database that has not yet run this
--- migration renders exactly what it rendered before.
+-- Three ways past the route checks, all of them reachable:
+--   1. Two Master Admins acted at the same moment. Each count sees the other
+--      and both writes land, leaving zero.
+--   2. One route narrows a scope while the other suspends an account. They
+--      count different things and neither sees the other's write.
+--   3. Somebody runs an UPDATE by hand in the SQL editor, where no route
+--      check runs at all.
 --
--- The lengths are layout guards rather than the editorial budget: both lines
--- render as one display-face paragraph in a card on the home page and as the
--- mission page's hero sentence, so what a cap prevents is a pasted
--- paragraph, not a fifteenth word. `MAX_MISSION_LENGTH` / `MAX_VISION_LENGTH`
--- in that module carry the same two numbers, and
--- `/api/admin/update-setting` refuses a longer value with a sentence rather
--- than letting this constraint answer with a 500.
+-- What that state costs is why it is worth a trigger rather than a comment:
+-- an admin whose scope is not `full` cannot widen anyone, and a suspended one
+-- cannot sign in, so a database with no active Master Admin cannot be
+-- repaired from inside the product. Undoing it needs direct database access,
+-- which the people locked out are the least likely to have.
+--
+-- Two things about the shape are load-bearing. It is **statement**-level over
+-- a transition table rather than row-level, so one UPDATE narrowing two
+-- admins is judged once against the table as that statement left it -- a
+-- row-level trigger would check each row against a table the other row had
+-- not been written to yet, and pass. And it only looks at all when the
+-- statement actually touched a Master Admin who could sign in: a patient
+-- editing their own profile must not pay for this count, and more to the
+-- point a database that has no admins yet (a freshly applied schema, before
+-- anybody is promoted by hand) would otherwise refuse **every** profile
+-- update -- a guard that bricks a new deployment to protect an old one.
+--
+-- Transition tables may not be attached to a trigger covering more than one
+-- event, so UPDATE and DELETE get one each over the same function.
+create or replace function public.profiles_keep_one_master_admin()
+returns trigger
+language plpgsql
+as $$
+declare
+  remaining integer;
+  touched boolean;
+begin
+  select exists (
+    select 1 from removed
+    where role = 'admin'
+      and coalesce(admin_scope, 'full') = 'full'
+      and active is not false
+  ) into touched;
+
+  if not touched then
+    return null;
+  end if;
+
+  -- Serialise the check against any other statement doing the same one.
+  --
+  -- Without this the guard passes both halves of a real race and still ends
+  -- at zero: under READ COMMITTED each transaction's count runs on its own
+  -- snapshot, so two sessions suspending two different Master Admins each
+  -- see the other as still active, each counts one remaining, and both
+  -- commit. Verified -- two concurrent psql sessions left zero active
+  -- Master Admins with the count alone in place.
+  --
+  -- The advisory lock is transaction-scoped, so it is released on commit or
+  -- rollback with nothing to clean up. Taking it makes the second statement
+  -- wait for the first to finish; the count below is then a *new* statement
+  -- taking a fresh snapshot, which is what lets it see the change it was
+  -- racing and refuse. Taken after the `touched` test, so an ordinary
+  -- profile update -- a patient editing their own name -- never queues on
+  -- it.
+  perform pg_advisory_xact_lock(hashtext('profiles_keep_one_master_admin'));
+
+  select count(*) into remaining
+  from profiles
+  where role = 'admin'
+    and coalesce(admin_scope, 'full') = 'full'
+    and active is not false;
+
+  if remaining = 0 then
+    raise exception
+      'at least one Master Admin must be able to sign in: this would leave the back office with nobody who can restore anyone';
+  end if;
+
+  return null;
+end;
+$$;
+
+drop trigger if exists trg_profiles_keep_one_master_admin on profiles;
+drop trigger if exists trg_profiles_keep_one_master_admin_update on profiles;
+create trigger trg_profiles_keep_one_master_admin_update
+  after update on profiles
+  referencing old table as removed
+  for each statement execute function public.profiles_keep_one_master_admin();
+
+drop trigger if exists trg_profiles_keep_one_master_admin_delete on profiles;
+create trigger trg_profiles_keep_one_master_admin_delete
+  after delete on profiles
+  referencing old table as removed
+  for each statement execute function public.profiles_keep_one_master_admin();
+
+-- ---------------------------------------------------------------------------
+-- Business Health: the seven standard finance figures
+-- ---------------------------------------------------------------------------
+--
+-- The Money screens could answer "what came in and what is left", and stopped
+-- there. The figures a bank, an investor or an accountant actually asks for --
+-- return on investment, return on ad spend, working capital, the two margins,
+-- EBITDA, break-even and run rate -- each need one or two numbers this app has
+-- no way to know: what was put into the business, what was spent on ads, and
+-- what the clinic owns and owes outside its own booking table.
+--
+-- Three tables and one column carry exactly those, and nothing else. Every
+-- other input on that screen is derived from rows this app already holds, so
+-- the amount of typing an owner does stays as small as the arithmetic allows.
+--
+-- The one column first: an expense's *class*. Break-even needs fixed costs
+-- told apart from variable ones, gross margin needs the cost of delivering a
+-- session told apart from the cost of running the clinic, and EBITDA needs
+-- interest, tax and depreciation kept out of operating income and added back
+-- by name. All four questions are the same question -- what kind of cost is
+-- this -- so it is one column rather than four screens.
+--
+-- 'fixed' is the default deliberately: every row recorded before this column
+-- existed was a running cost, and defaulting them to 'fixed' means no figure
+-- anywhere in the app moves the day this lands. An owner reclassifies the
+-- handful that are really direct costs when they get to it.
+alter table business_expenses
+  add column if not exists cost_class text not null default 'fixed'
+  check (cost_class in ('direct', 'fixed', 'interest', 'tax', 'depreciation'));
+
+-- What the owner put into the business: the couch, the laptops, the fit-out,
+-- the website build. Two figures on the same row rather than two tables,
+-- because they answer the two halves of the same question: `amount_paise` is
+-- what it cost (the denominator of both ROI formulas) and
+-- `present_value_paise` is what it is worth now (the numerator of the second).
+--
+-- `present_value_paise` is nullable and `present_value_as_of` beside it says
+-- when it was last judged, because a present value is an opinion with a date
+-- on it -- an undated one read a year later is worse than none. With it unset
+-- the screen shows the first ROI formula and says plainly that the second
+-- needs a valuation, rather than quietly substituting the purchase price and
+-- reporting a return of zero.
+--
+-- `useful_life_months` is what turns a purchase into a depreciation line: a
+-- straight line, amount / life, charged per month it was owned. Straight-line
+-- because it is the only method an owner can check by hand, and a figure in
+-- EBITDA that nobody can check is a figure nobody will trust.
+create table if not exists capital_investments (
+  id uuid primary key default gen_random_uuid(),
+  label text not null,
+  invested_on date not null,
+  amount_paise bigint not null check (amount_paise > 0),
+  present_value_paise bigint check (present_value_paise is null or present_value_paise >= 0),
+  present_value_as_of date,
+  useful_life_months integer
+    check (useful_life_months is null or useful_life_months between 1 and 600),
+  -- Which word the write-off goes under. Named rather than inferred from the
+  -- label, because the two are the D and the A of EBITDA and an owner reading
+  -- that figure is entitled to know which of their rows landed in which half.
+  write_off_as text not null default 'depreciation'
+    check (write_off_as in ('depreciation', 'amortization')),
+  notes text,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  -- A valuation with no value, or a value with no date, is half a fact.
+  constraint capital_investments_valuation_paired check (
+    (present_value_paise is null and present_value_as_of is null)
+    or (present_value_paise is not null and present_value_as_of is not null)
+  )
+);
+
+create index if not exists capital_investments_invested_on_idx
+  on capital_investments (invested_on desc);
+
+-- What was spent on advertising, and -- where it can honestly be established
+-- -- what came back. Spend is per campaign per span rather than one running
+-- total, so "the last 30 days" can be answered by the days that overlap it.
+--
+-- `promo_code_id` is how revenue is attributed without anybody guessing: a
+-- campaign carrying a code is worth exactly the net revenue of the bookings
+-- that claimed it, which this app already records on the appointment. A
+-- campaign with no code and no hand-entered figure produces **no** ROAS at
+-- all, and the screen says so -- inventing an attribution is the one thing a
+-- return-on-spend figure must never do, because it is read as evidence for
+-- spending more.
+--
+-- `attributed_revenue_paise` is the escape hatch for a funnel this app cannot
+-- see (an ad that makes the phone ring). It is labelled as the owner's own
+-- figure wherever it is shown, never blended silently into a derived one.
+create table if not exists marketing_campaigns (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  channel text not null default 'other'
+    check (channel in ('google', 'meta', 'instagram', 'youtube', 'offline', 'other')),
+  starts_on date not null,
+  -- Null means it is still running, so its spend is spread up to today.
+  ends_on date,
+  spend_paise bigint not null check (spend_paise >= 0),
+  promo_code_id uuid references promo_codes(id) on delete set null,
+  attributed_revenue_paise bigint
+    check (attributed_revenue_paise is null or attributed_revenue_paise >= 0),
+  notes text,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint marketing_campaigns_window_ordered check (
+    ends_on is null or ends_on >= starts_on
+  )
+);
+
+create index if not exists marketing_campaigns_starts_on_idx
+  on marketing_campaigns (starts_on desc);
+
+-- What the clinic owns and owes outside its own tables: the bank balance, the
+-- GST due, a loan repayment falling within the year. Entered as a dated
+-- snapshot rather than a running balance, because that is what a balance sheet
+-- is -- every row sharing one `as_of` date is one snapshot, and working
+-- capital reads the most recent snapshot at or before the dates in view.
+--
+-- Deliberately only the *current* half. Working capital is current assets less
+-- current liabilities, so a building and a ten-year loan have no place here,
+-- and a table that accepted them would produce a working-capital figure that
+-- was quietly a net-worth figure.
+create table if not exists balance_sheet_entries (
+  id uuid primary key default gen_random_uuid(),
+  as_of date not null,
+  side text not null check (side in ('asset', 'liability')),
+  label text not null,
+  amount_paise bigint not null check (amount_paise >= 0),
+  notes text,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists balance_sheet_entries_as_of_idx
+  on balance_sheet_entries (as_of desc);
+
+-- Same posture as business_expenses, and for the same reason: these three
+-- tables decide what the business reports as its return, its margin and its
+-- solvency, so admins read and the service-role client behind the routes is
+-- the only writer. A stolen session cookie cannot invent an investment and
+-- change the ROI the owner reads.
+alter table capital_investments enable row level security;
+alter table marketing_campaigns enable row level security;
+alter table balance_sheet_entries enable row level security;
+
+drop policy if exists "capital_investments_select_admin" on capital_investments;
+create policy "capital_investments_select_admin" on capital_investments
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+drop policy if exists "marketing_campaigns_select_admin" on marketing_campaigns;
+create policy "marketing_campaigns_select_admin" on marketing_campaigns
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+drop policy if exists "balance_sheet_entries_select_admin" on balance_sheet_entries;
+create policy "balance_sheet_entries_select_admin" on balance_sheet_entries
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+revoke insert, update, delete on capital_investments from authenticated;
+revoke insert, update, delete on marketing_campaigns from authenticated;
+revoke insert, update, delete on balance_sheet_entries from authenticated;
+
+do $$
+begin
+  alter publication supabase_realtime add table capital_investments;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table marketing_campaigns;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table balance_sheet_entries;
+exception when duplicate_object then null;
+end $$;
+
+-- The Business Health screen's own settings. Every one of them is a judgement
+-- an owner is entitled to make differently, which is why none of them is a
+-- constant in the maths:
+--
+--   * which cost lines count as the cost of delivering a session (the three
+--     `finance_cogs_*` switches). A clinic that thinks of its gateway fee as
+--     an overhead rather than a cost of sale gets a different -- and equally
+--     defensible -- gross margin, and this is where they say so.
+--   * what a session sells for and what it costs to deliver, for break-even.
+--     Null means "work it out from the sessions in view", which is right for
+--     a clinic with a settled price list and wrong for one planning a change,
+--     so both can be overridden with a figure the owner is modelling.
+--   * how a period is annualised for run rate. 'auto' reads it off the length
+--     of the range in view, which is what makes the figure move sensibly when
+--     somebody changes the dates.
+--   * whether the balances this app already knows (what therapists are owed,
+--     cash they are holding, refunds still to hand back, sessions patients
+--     have paid for and not used) join the working-capital snapshot. On by
+--     default: they are real, current, and the owner would otherwise be
+--     typing them in from another screen of this same dashboard.
 alter table site_settings
-  add column if not exists mission_statement text
-    check (mission_statement is null or char_length(mission_statement) <= 160);
-
+  add column if not exists finance_cogs_therapist_share boolean not null default true;
 alter table site_settings
-  add column if not exists vision_statement text
-    check (vision_statement is null or char_length(vision_statement) <= 140);
+  add column if not exists finance_cogs_partner_share boolean not null default true;
+alter table site_settings
+  add column if not exists finance_cogs_payment_fees boolean not null default true;
+alter table site_settings
+  add column if not exists finance_include_app_balances boolean not null default true;
+alter table site_settings
+  add column if not exists finance_break_even_price_paise bigint
+  check (finance_break_even_price_paise is null or finance_break_even_price_paise >= 0);
+alter table site_settings
+  add column if not exists finance_break_even_variable_cost_paise bigint
+  check (
+    finance_break_even_variable_cost_paise is null
+    or finance_break_even_variable_cost_paise >= 0
+  );
+alter table site_settings
+  add column if not exists finance_run_rate_basis text not null default 'auto'
+  check (finance_run_rate_basis in ('auto', 'weekly', 'monthly', 'quarterly'));
 
 -- ---------------------------------------------------------------------------
--- debug_reset_all_data: put the mission and vision back to the code defaults
+-- debug_reset_all_data: clear the three finance-input tables too
 -- ---------------------------------------------------------------------------
 --
--- Re-appended in full rather than edited in place, the way every earlier
--- revision of this function was, so the file stays re-runnable top to bottom.
--- Nulled rather than `default` for the same reason the two home-visit page
--- copy columns are: the default is a line in `mission.ts`, not in the column.
-
+-- Adding a table means adding it to this TRUNCATE list, or a reset silently
+-- leaves its rows behind -- and an investment, an ad campaign and a bank
+-- balance are exactly the rows that would then describe a clinic whose entire
+-- booking history had just been deleted. Re-appended in full rather than
+-- edited in place, the way every earlier revision of this function was, so
+-- the file stays re-runnable top to bottom.
 create or replace function public.debug_reset_all_data()
 returns jsonb
 language plpgsql
@@ -9535,6 +9838,9 @@ begin
     payment_webhook_events,
     payments,
     business_expenses,
+    capital_investments,
+    marketing_campaigns,
+    balance_sheet_entries,
     admin_activity_log,
     admin_impersonation_sessions,
     session_suggestions,
@@ -9571,31 +9877,18 @@ begin
     faqs,
     intake_question_templates,
     pain_map_question_templates,
-    -- The four the previous definition missed. care_plans and
-    -- care_plan_versions were already reached by CASCADE; naming them is
-    -- belt and braces, and means a future change to their foreign keys
-    -- cannot quietly take them back out of the reset.
     care_plan_versions,
     care_plans,
     communication_flags,
     contact_reveal_log,
     risk_reviews,
     risk_signals,
-    -- Added with the review step. A reset that left the clinic's decisions
-    -- behind would leave a record of approvals for recommendations that no
-    -- longer exist.
     care_plan_reviews,
-    -- Adding a table means adding it here, or a reset silently leaves its
-    -- rows behind. patient_invites first: it references appointments, and
-    -- a reset that kept it would leave rewards pointing at bookings that no
-    -- longer exist. promo_codes after, since appointments reference it.
+    -- marketing_campaigns references promo_codes, so it is truncated above
+    -- rather than left to CASCADE reach it: a campaign pointing at a code
+    -- that no longer exists could not say what it was attributed by.
     patient_invites,
-    promo_codes,
-    -- The promises and the limits. Truncated rather than left alone, and the
-    -- pages then fall back to the arrays in src/lib/mission.ts -- so a reset
-    -- restores the shipped wording instead of leaving one clinic's edits on a
-    -- database that has had everything else cleared out from under them.
-    mission_principles
+    promo_codes
   cascade;
 
   with removed as (
@@ -9605,9 +9898,6 @@ begin
   )
   select count(*) into deleted_accounts from removed;
 
-  -- Detector thresholds back to what the seed set. Not truncated, because
-  -- an empty risk_rules would silently disable every detector rather than
-  -- restoring it -- risk_signals.rule_key references this table.
   update risk_rules set
     enabled = default,
     config = default,
@@ -9624,8 +9914,6 @@ begin
     footer_copyright_text = default,
     home_visit_page_heading = null,
     home_visit_page_subheading = null,
-    mission_statement = null,
-    vision_statement = null,
     ratings_visible_publicly = default,
     session_packages_visible = default,
     session_timeout_minutes = default,
@@ -9672,7 +9960,14 @@ begin
     invite_rewards_enabled = default,
     invite_reward_paise = default,
     invite_welcome_paise = default,
-    invite_max_rewards_per_patient = default
+    invite_max_rewards_per_patient = default,
+    finance_cogs_therapist_share = default,
+    finance_cogs_partner_share = default,
+    finance_cogs_payment_fees = default,
+    finance_include_app_balances = default,
+    finance_break_even_price_paise = null,
+    finance_break_even_variable_cost_paise = null,
+    finance_run_rate_basis = default
   where id;
 
   return jsonb_build_object(
@@ -9682,9 +9977,40 @@ begin
 end;
 $$;
 
-revoke all on function public.debug_reset_all_data() from public;
-revoke all on function public.debug_reset_all_data() from anon;
-revoke all on function public.debug_reset_all_data() from authenticated;
+revoke execute on function public.debug_reset_all_data() from anon, authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- The mission and the vision, as an admin setting
+-- ---------------------------------------------------------------------------
+--
+-- These two lines were constants in `src/lib/mission.ts`, so rewording the
+-- one sentence on the site that says why this practice exists needed a
+-- developer and a deploy -- on the copy most likely to be argued over, and
+-- the copy an owner is most entitled to own.
+--
+-- Null and blank both mean "use the line in `src/lib/mission.ts`", the same
+-- way a blank `splash_brand_line` means "use the site name". That is what
+-- lets an admin undo an edit without retyping the original out of a code
+-- file they cannot read, and it is why a database that has not yet run this
+-- migration renders exactly what it rendered before.
+--
+-- The lengths are layout guards rather than the editorial budget: both lines
+-- render as one display-face paragraph in a card on the home page and as the
+-- mission page's hero sentence, so what a cap prevents is a pasted
+-- paragraph, not a fifteenth word. `MAX_MISSION_LENGTH` / `MAX_VISION_LENGTH`
+-- in that module carry the same two numbers, and
+-- `/api/admin/update-setting` refuses a longer value with a sentence rather
+-- than letting this constraint answer with a 500.
+alter table site_settings
+  add column if not exists mission_statement text
+    check (mission_statement is null or char_length(mission_statement) <= 160);
+
+alter table site_settings
+  add column if not exists vision_statement text
+    check (vision_statement is null or char_length(vision_statement) <= 140);
+
+
 
 -- ---------------------------------------------------------------------------
 -- The four promises and the three limits, as rows
@@ -9826,3 +10152,185 @@ begin
   alter publication supabase_realtime add table mission_principles;
 exception when duplicate_object then null;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- debug_reset_all_data: the mission copy and the promises too
+-- ---------------------------------------------------------------------------
+--
+-- Re-appended in full rather than edited in place, the way every earlier
+-- revision of this function was, so the file stays re-runnable top to bottom.
+-- `mission_principles` joins the TRUNCATE list; the mission and vision are
+-- nulled rather than set to `default`, for the same reason the two home-visit
+-- page copy columns are -- their default is a line in `mission.ts`, not in the
+-- column, and nulling is what hands the band back to it.
+
+create or replace function public.debug_reset_all_data()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  deleted_accounts integer;
+  admin_count integer;
+begin
+  select count(*) into admin_count from profiles where role = 'admin';
+  if admin_count = 0 then
+    raise exception 'refusing to reset: no admin account would be left behind';
+  end if;
+
+  truncate table
+    session_credit_ledger,
+    session_entitlements,
+    payment_webhook_events,
+    payments,
+    business_expenses,
+    capital_investments,
+    marketing_campaigns,
+    balance_sheet_entries,
+    admin_activity_log,
+    admin_impersonation_sessions,
+    session_suggestions,
+    appointment_reassignment_log,
+    payment_failure_log,
+    package_purchase_events,
+    home_visit_purchase_events,
+    appointments,
+    patient_package_purchases,
+    home_visit_package_purchases,
+    therapist_payout_requests,
+    therapist_payout_batches,
+    session_note_revisions,
+    session_notes,
+    patient_medical_documents,
+    pain_assessments,
+    condition_change_requests,
+    condition_access_grants,
+    patient_condition_profiles,
+    patient_addresses,
+    patient_admin_notes,
+    therapist_admin_notes,
+    hospital_admin_notes,
+    profile_change_requests,
+    therapist_availability_override,
+    therapist_availability_template,
+    therapist_schedule_state,
+    patient_referrals,
+    b2b_leads,
+    home_visit_waitlist,
+    home_visit_areas,
+    home_visit_packages,
+    testimonials,
+    faqs,
+    intake_question_templates,
+    pain_map_question_templates,
+    care_plan_versions,
+    care_plans,
+    communication_flags,
+    contact_reveal_log,
+    risk_reviews,
+    risk_signals,
+    care_plan_reviews,
+    -- marketing_campaigns references promo_codes, so it is truncated above
+    -- rather than left to CASCADE reach it: a campaign pointing at a code
+    -- that no longer exists could not say what it was attributed by.
+    patient_invites,
+    promo_codes,
+    -- The promises and the limits. Truncated rather than left alone, and the
+    -- pages then fall back to the arrays in src/lib/mission.ts -- so a reset
+    -- restores the shipped wording instead of leaving one clinic's edits on a
+    -- database that has had everything else cleared out from under them.
+    mission_principles
+  cascade;
+
+  with removed as (
+    delete from auth.users
+    where id not in (select id from profiles where role = 'admin')
+    returning 1
+  )
+  select count(*) into deleted_accounts from removed;
+
+  update risk_rules set
+    enabled = default,
+    config = default,
+    updated_at = now()
+  where rule_key is not null;
+
+  update site_settings set
+    site_name = default,
+    site_tagline = default,
+    site_description = default,
+    contact_email = default,
+    whatsapp_number = default,
+    contact_phone = default,
+    footer_copyright_text = default,
+    home_visit_page_heading = null,
+    home_visit_page_subheading = null,
+    mission_statement = null,
+    vision_statement = null,
+    ratings_visible_publicly = default,
+    session_packages_visible = default,
+    session_timeout_minutes = default,
+    google_meet_enabled = default,
+    join_window_minutes = default,
+    join_window_after_minutes = default,
+    session_completed_after_minutes = default,
+    booking_languages = default,
+    package_default_validity_days = default,
+    package_therapist_lock_enabled = default,
+    package_bulk_schedule_max = default,
+    package_expiry_reminder_days = default,
+    home_visit_enabled = default,
+    home_visit_cash_enabled = default,
+    home_visit_lead_time_hours = default,
+    home_visit_cancellation_refund_hours = default,
+    home_visit_default_validity_days = default,
+    home_visit_bulk_schedule_max = default,
+    home_visit_travel_buffer_minutes = default,
+    online_booking_lead_time_hours = default,
+    online_cancellation_refund_hours = default,
+    payment_gateway_fee_percent = default,
+    farewell_banner_seconds = default,
+    journey_step_seconds = default,
+    splash_enabled = default,
+    splash_brand_line = default,
+    splash_phrase = default,
+    splash_hold_seconds = default,
+    splash_revisit_minutes = default,
+    enabled_intake_specialties = default,
+    entitlement_ledger_authoritative = default,
+    care_plan_default_expiry_days = default,
+    care_plan_max_frequency_per_week = default,
+    contact_scan_mode = default,
+    contact_masking_enabled = default,
+    risk_signals_enabled = default,
+    therapist_suggestions_enabled = default,
+    auto_assign_therapist_enabled = default,
+    care_plan_requires_approval = default,
+    first_session_offer_enabled = default,
+    first_session_offer_type = default,
+    first_session_offer_value = default,
+    promo_codes_enabled = default,
+    invite_rewards_enabled = default,
+    invite_reward_paise = default,
+    invite_welcome_paise = default,
+    invite_max_rewards_per_patient = default,
+    finance_cogs_therapist_share = default,
+    finance_cogs_partner_share = default,
+    finance_cogs_payment_fees = default,
+    finance_include_app_balances = default,
+    finance_break_even_price_paise = null,
+    finance_break_even_variable_cost_paise = null,
+    finance_run_rate_basis = default
+  where id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'deleted_accounts', deleted_accounts
+  );
+end;
+$$;
+
+revoke all on function public.debug_reset_all_data() from public;
+revoke all on function public.debug_reset_all_data() from anon;
+revoke all on function public.debug_reset_all_data() from authenticated;

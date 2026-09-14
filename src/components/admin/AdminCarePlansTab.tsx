@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -27,7 +27,7 @@ export type AuthorableSession = {
   sessionCode: string | null;
   slotTime: string;
   /** The session's own treatment category, used to narrow the programmes
-   *  offered — an admin scanning every programme in the catalog is how the
+   *  offered - an admin scanning every programme in the catalog is how the
    *  wrong one gets picked, the same reason the therapist's dialog narrows. */
   categoryId: string | null;
 };
@@ -67,11 +67,11 @@ const STATE_STYLE: Record<CarePlanState, string> = {
   pending_review: "bg-indigo-50 text-indigo-700",
   rejected: "bg-rose-50 text-rose-700",
   awaiting_patient: "bg-amber-50 text-amber-700",
-  lapsed: "bg-slate-100 text-slate-500",
+  lapsed: "bg-slate-100 text-slate-600",
   accepted: "bg-teal-50 text-teal-700",
-  declined: "bg-slate-100 text-slate-500",
-  withdrawn: "bg-slate-100 text-slate-500",
-  superseded: "bg-slate-100 text-slate-500",
+  declined: "bg-slate-100 text-slate-600",
+  withdrawn: "bg-slate-100 text-slate-600",
+  superseded: "bg-slate-100 text-slate-600",
 };
 
 /** Matches MIN_REASON_LENGTH in /api/admin/author-care-plan. A reason the
@@ -217,6 +217,7 @@ export default function AdminCarePlansTab({
 
 function PlanCard({ plan, canWithdraw }: { plan: AdminCarePlanRow; canWithdraw: boolean }) {
   const [open, setOpen] = useState(false);
+  const withdrawReasonId = useId();
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -245,7 +246,7 @@ function PlanCard({ plan, canWithdraw }: { plan: AdminCarePlanRow; canWithdraw: 
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-bold text-slate-900">{plan.patientName}</p>
-          <p className="text-[11px] text-slate-400">Recommended by {plan.therapistName}</p>
+          <p className="text-[11px] text-slate-500">Recommended by {plan.therapistName}</p>
         </div>
         <span
           className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATE_STYLE[plan.state]}`}
@@ -272,10 +273,11 @@ function PlanCard({ plan, canWithdraw }: { plan: AdminCarePlanRow; canWithdraw: 
       {canWithdraw &&
         (open ? (
           <div className="mt-3 rounded-lg border border-slate-200 p-3">
-            <label className="block text-[11px] font-semibold text-slate-700">
+            <label htmlFor={withdrawReasonId} className="block text-[11px] font-semibold text-slate-700">
               Why is the clinic withdrawing this?
             </label>
             <textarea
+              id={withdrawReasonId}
               rows={2}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -355,6 +357,7 @@ function ReviewCard({
   nowMs: number;
 }) {
   const [mode, setMode] = useState<"idle" | "reject" | "edit">("idle");
+  const reviewReasonId = useId();
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -554,12 +557,16 @@ function ReviewCard({
             </div>
           )}
 
-          <label className="block text-[11px] font-semibold text-slate-700">
+          <label
+            htmlFor={reviewReasonId}
+            className="block text-[11px] font-semibold text-slate-700"
+          >
             {mode === "reject"
               ? `Why is this being turned down? ${plan.therapistName} reads this and rewrites from it.`
               : "What is the clinic changing, and why?"}
           </label>
           <textarea
+            id={reviewReasonId}
             rows={2}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -710,7 +717,7 @@ function AuthorOnBehalf({
       <EmptyState
         icon="fa-calendar-check"
         title="No session to write against"
-        body="A recommendation follows a completed session the therapist ran. Nothing in the last 60 days qualifies — either every recent patient already has a live recommendation, or no session has been completed yet."
+        body="A recommendation follows a completed session the therapist ran. Nothing in the last 60 days qualifies - either every recent patient already has a live recommendation, or no session has been completed yet."
       />
     ) : offered.length === 0 ? (
       <EmptyState
@@ -746,7 +753,7 @@ function AuthorOnBehalf({
           >
             {sessions.map((s) => (
               <option key={s.appointmentId} value={s.appointmentId}>
-                {s.patientName} with {s.therapistName} —{" "}
+                {s.patientName} with {s.therapistName} -{" "}
                 {formatClinicDate(s.slotTime)}
                 {s.sessionCode ? ` (${s.sessionCode})` : ""}
               </option>

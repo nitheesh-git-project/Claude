@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
   }
   if (!claimed) {
     return NextResponse.json(
-      { error: "This package changed concurrently — please try again." },
+      { error: "This package changed concurrently - please try again." },
       { status: 409 }
     );
   }

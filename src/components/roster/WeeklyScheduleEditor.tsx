@@ -342,7 +342,7 @@ export default function WeeklyScheduleEditor({
                     className={`rounded-full px-3 py-1 text-[11px] font-bold transition ${
                       working
                         ? "bg-teal-700 text-white hover:bg-teal-800"
-                        : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
                     {working ? "Working" : "Off"}
@@ -351,7 +351,7 @@ export default function WeeklyScheduleEditor({
 
                 <div className="min-w-0 flex-1">
                   {!working ? (
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-500">
                       Not working. Turn on to add hours.
                     </p>
                   ) : (
@@ -375,7 +375,7 @@ export default function WeeklyScheduleEditor({
                               </option>
                             ))}
                           </select>
-                          <span aria-hidden className="text-xs text-slate-400">
+                          <span aria-hidden className="text-xs text-slate-500">
                             to
                           </span>
                           <label className="sr-only" htmlFor={`end-${day}-${index}`}>
@@ -448,7 +448,7 @@ export default function WeeklyScheduleEditor({
                       <button
                         type="button"
                         onClick={() => mutate(day, [])}
-                        className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                       >
                         Clear day
                       </button>
@@ -488,7 +488,7 @@ export default function WeeklyScheduleEditor({
             ))}
           </ul>
           <p className="mt-2 text-[11px] text-amber-800">
-            Changing hours will not cancel these sessions — they stay exactly as booked.
+            Changing hours will not cancel these sessions - they stay exactly as booked.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button

@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     "Why this practice exists, the four things we promise every patient, and the three things we will not do.",
 };
 
-// No per-user content — cache and revalidate on a timer like the rest of the
+// No per-user content - cache and revalidate on a timer like the rest of the
 // public site.
 export const revalidate = 300;
 
@@ -48,7 +48,7 @@ export default async function MissionPage() {
     avatar_url: avatarById.get(t.id) ?? null,
   }));
 
-  // Real, aggregated rating data — never individual reviews or names, see the
+  // Real, aggregated rating data - never individual reviews or names, see the
   // schema comment on public_rating_summary. It sits under the mission
   // because a promise is worth more next to a number nobody curated.
   const { data: ratingSummary } = await supabase

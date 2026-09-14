@@ -58,7 +58,7 @@ export default function AreaPainPicker({
         onSelect={toggle}
       />
       {entries.length === 0 ? (
-        <p className="text-xs text-slate-400 mt-2">Tap a point above for each area that hurts.</p>
+        <p className="text-xs text-slate-500 mt-2">Tap a point above for each area that hurts.</p>
       ) : (
         <div className="mt-4 space-y-3">
           {entries.map((e) => (
@@ -82,7 +82,7 @@ export default function AreaPainPicker({
                   <button
                     type="button"
                     onClick={() => remove(e.region, e.side)}
-                    className="shrink-0 text-xs text-slate-400 hover:text-red-600"
+                    className="shrink-0 text-xs text-slate-500 hover:text-red-600"
                     aria-label={`Remove ${regionLabel(e.region)}`}
                   >
                     ✕
@@ -94,7 +94,7 @@ export default function AreaPainPicker({
                 value={e.note ?? ""}
                 disabled={disabled}
                 onChange={(ev) => updateNote(e.region, e.side, ev.target.value)}
-                placeholder="Add a note (optional) — e.g. started after a fall"
+                placeholder="Add a note (optional) - e.g. started after a fall"
                 className="mt-2 w-full p-1.5 rounded-md border border-slate-200 text-xs disabled:bg-slate-50"
               />
             </div>

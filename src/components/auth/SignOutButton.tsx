@@ -10,7 +10,7 @@ export default function SignOutButton() {
       onClick={async () => {
         await supabase.auth.signOut();
         // A hard navigation (not router.push) so the browser sends a fresh
-        // request that's guaranteed to carry the now-cleared auth cookies —
+        // request that's guaranteed to carry the now-cleared auth cookies -
         // a client-side soft nav can race the cookie write and briefly show
         // stale logged-in state.
         window.location.href = "/?farewell=1";

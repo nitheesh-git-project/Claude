@@ -45,13 +45,13 @@ export async function POST(request: NextRequest) {
   }
   if (!appointment.meet_link) {
     return NextResponse.json(
-      { error: "This session has no Meet link yet — retry the Calendar sync first" },
+      { error: "This session has no Meet link yet - retry the Calendar sync first" },
       { status: 400 }
     );
   }
   if (appointment.status === "cancelled") {
     return NextResponse.json(
-      { error: "This session is cancelled — its Meet space is gone" },
+      { error: "This session is cancelled - its Meet space is gone" },
       { status: 400 }
     );
   }

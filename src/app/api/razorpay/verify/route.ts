@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (outcome.error) {
-    // The payment itself succeeded with Razorpay at this point — never tell
+    // The payment itself succeeded with Razorpay at this point - never tell
     // the patient it failed. Surface it as a verification failure instead so
     // the existing "contact us with payment ID X" fallback UI kicks in,
     // rather than silently showing a false "Payment Confirmed" screen while
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
 
   if (!outcome.claimed) {
     // The appointment's status changed between checkout and this callback
-    // (almost certainly: it was cancelled) — but Razorpay has genuinely
+    // (almost certainly: it was cancelled) - but Razorpay has genuinely
     // already charged the patient by this point, so the payment must not
     // simply vanish even though the booking itself can't be resurrected.
     // Record the charge without touching status, so it's visible on the
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(
       {
-        error: `This booking is no longer active (it may have been cancelled) — we've recorded your payment for manual review and will follow up. Please also contact us with payment ID ${razorpay_payment_id}.`,
+        error: `This booking is no longer active (it may have been cancelled) - we've recorded your payment for manual review and will follow up. Please also contact us with payment ID ${razorpay_payment_id}.`,
       },
       { status: 409 }
     );

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Kept visible to admins (not shown just once) so they can walk the
-  // therapist through logging in over a support call — cleared
+  // therapist through logging in over a support call - cleared
   // automatically once they set their own password via forgot-password.
   await admin.from("therapist_admin_notes").upsert({
     therapist_id: therapistId,

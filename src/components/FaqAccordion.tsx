@@ -21,7 +21,7 @@ export default function FaqAccordion({ faqs }: { faqs: Faq[] }) {
   return (
     <div>
       <div className="relative mb-6">
-        <i className="fa-solid fa-magnifying-glass pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400" />
+        <i className="fa-solid fa-magnifying-glass pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-500" />
         <input
           type="search"
           value={query}

@@ -46,8 +46,8 @@ export default function DeclineAccountButton({
 
   const confirmMessage =
     role === "therapist"
-      ? "Decline this application? Their account will be deleted — this can't be undone, and they'd need to apply again from scratch."
-      : "Decline this registration? Their account will be deleted — this can't be undone, and they'd need to register again from scratch.";
+      ? "Decline this application? Their account will be deleted - this can't be undone, and they'd need to apply again from scratch."
+      : "Decline this registration? Their account will be deleted - this can't be undone, and they'd need to register again from scratch.";
 
   return (
     <div className="flex flex-col items-end gap-1">

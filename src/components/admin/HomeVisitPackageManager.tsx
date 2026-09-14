@@ -81,11 +81,11 @@ export default function HomeVisitPackageManager({
           ? "None are ticked, so it shows the first four in this order."
           : featuredCount <= FEATURED_LIMIT
             ? `${featuredCount} ticked.`
-            : `${featuredCount} ticked — the first ${FEATURED_LIMIT} in this order are the ones shown.`}
+            : `${featuredCount} ticked - the first ${FEATURED_LIMIT} in this order are the ones shown.`}
       </p>
       {packages.length === 0 && !addingNew ? (
         <p className="text-xs text-slate-500 py-4 text-center">
-          No home visit packages yet — add one below. A single one-off visit is just a package with
+          No home visit packages yet - add one below. A single one-off visit is just a package with
           1 visit.
         </p>
       ) : (
@@ -122,13 +122,13 @@ export default function HomeVisitPackageManager({
                       )}
                     </p>
                     <p className="text-slate-500 mt-0.5">
-                      <span className="font-mono">{pkg.package_code ?? "—"}</span>
+                      <span className="font-mono">{pkg.package_code ?? "-"}</span>
                       {pkg.visit_count === 1 && <span> · Single visit</span>}
                     </p>
                   </div>
                   <span
                     className={`font-semibold px-2.5 py-1 rounded-full ${
-                      pkg.active ? "text-teal-700 bg-teal-50" : "text-slate-500 bg-slate-100"
+                      pkg.active ? "text-teal-700 bg-teal-50" : "text-slate-600 bg-slate-100"
                     }`}
                   >
                     {pkg.active ? "Active" : "Inactive"}
@@ -145,13 +145,13 @@ export default function HomeVisitPackageManager({
                         · Save {savings.savingsPercent}%
                       </span>
                     )}
-                    <span className="text-slate-400"> · {pkg.visit_duration_minutes} min</span>
+                    <span className="text-slate-500"> · {pkg.visit_duration_minutes} min</span>
                     {pkg.travel_fee_included && (
-                      <span className="text-slate-400"> · Travel included</span>
+                      <span className="text-slate-500"> · Travel included</span>
                     )}
-                    {pkg.therapist_locked && <span className="text-slate-400"> · Therapist locked</span>}
+                    {pkg.therapist_locked && <span className="text-slate-500"> · Therapist locked</span>}
                     {pkg.validity_days && (
-                      <span className="text-slate-400"> · {pkg.validity_days}d validity</span>
+                      <span className="text-slate-500"> · {pkg.validity_days}d validity</span>
                     )}
                   </p>
                   <div className="flex items-center gap-3">

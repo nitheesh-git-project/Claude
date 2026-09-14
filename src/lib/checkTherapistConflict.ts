@@ -15,7 +15,7 @@ function overlaps(
  * True if assigning this therapist to [slotTime, slotTime + durationMinutes)
  * would overlap another of their non-cancelled bookings, OR another hospital
  * referral already assigned to them that hasn't been converted into a real
- * booking yet ("invite_sent" — the patient hasn't completed registration,
+ * booking yet ("invite_sent" - the patient hasn't completed registration,
  * so there's no appointments row for it, but the slot is still effectively
  * reserved). Without checking both, two different referrals could each get
  * assigned to the same therapist at overlapping times, since neither would
@@ -23,21 +23,21 @@ function overlaps(
  *
  * Session lengths vary by category now, so two bookings starting at the
  * same nominal time can no longer be assumed to both be a uniform 60
- * minutes — this is what actually catches an overlap instead of just a
+ * minutes - this is what actually catches an overlap instead of just a
  * same-timestamp collision.
  *
  * `bufferMinutes` pads the window being claimed on both sides. It exists for
  * home visits: an online session ends the moment the call does, but a
  * therapist who has just finished at one address cannot be at another one
  * minutes later. Without it, two home visits on opposite sides of a city
- * booked fifteen minutes apart both pass this check — a time overlap is the
+ * booked fifteen minutes apart both pass this check - a time overlap is the
  * only thing the app can see, since it holds no distance data. Defaults to 0
  * so every existing online caller behaves exactly as before.
  *
  * The padding is applied to the *new* booking's window only, not to each
  * existing one. Widening one side of the comparison is enough to catch a
  * near-miss in either direction, and padding both sides would double-count
- * the gap — two visits an hour apart would collide under a 45-minute buffer,
+ * the gap - two visits an hour apart would collide under a 45-minute buffer,
  * which is not what "45 minutes of travel" means.
  */
 async function findConflictingAppointment(

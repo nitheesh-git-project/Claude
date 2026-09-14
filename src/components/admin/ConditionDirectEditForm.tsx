@@ -71,7 +71,7 @@ export default function ConditionDirectEditForm({
               onChange={(e) => setValues((v) => ({ ...v, [q.key]: e.target.value }))}
               rows={2}
               disabled={disabled}
-              className="w-full p-2 rounded-lg border border-slate-300 text-sm disabled:bg-slate-50 disabled:text-slate-400"
+              className="w-full p-2 rounded-lg border border-slate-300 text-sm disabled:bg-slate-50 disabled:text-slate-500"
             />
           ) : (
             <input
@@ -81,7 +81,7 @@ export default function ConditionDirectEditForm({
               value={values[q.key]}
               onChange={(e) => setValues((v) => ({ ...v, [q.key]: e.target.value }))}
               disabled={disabled}
-              className="w-full p-2 rounded-lg border border-slate-300 text-sm disabled:bg-slate-50 disabled:text-slate-400"
+              className="w-full p-2 rounded-lg border border-slate-300 text-sm disabled:bg-slate-50 disabled:text-slate-500"
             />
           )}
         </div>

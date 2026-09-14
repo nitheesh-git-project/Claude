@@ -13,7 +13,7 @@ import type { CareIllustrationId } from "@/components/visuals/CareIllustration";
  *
  * Neither happens here. **Nothing sits on the picture.** The photograph gets
  * the full 16:9 uncovered, and the heading goes on its own band underneath
- * where it can be ordinary dark-on-white type — which means a bright
+ * where it can be ordinary dark-on-white type - which means a bright
  * photograph and a dark one are equally safe, and an admin can upload
  * whatever they have.
  *
@@ -38,7 +38,7 @@ export default function CatalogDialogHeader({
   /** The id `Modal`'s `labelledBy` points at. */
   titleId: string;
   title: string;
-  /** Small teal label above the title — a condition type, usually. */
+  /** Small teal label above the title - a condition type, usually. */
   eyebrow?: string | null;
   /** Admin-set badge. Rendered instead of the eyebrow when both exist, since
    *  two labels stacked over one heading is noise. */

@@ -23,7 +23,7 @@ export default function CompleteSessionButton({
     const isBeforeScheduledTime = slotTime ? new Date(slotTime).getTime() > Date.now() : false;
     setConfirmMessage(
       isBeforeScheduledTime
-        ? "This session's scheduled time hasn't passed yet — mark it done anyway? You'll be asked to rate it next."
+        ? "This session's scheduled time hasn't passed yet - mark it done anyway? You'll be asked to rate it next."
         : "Mark this session as done? You'll be asked to rate it next."
     );
   }
@@ -43,7 +43,7 @@ export default function CompleteSessionButton({
       setError(data.error ?? "Could not update. Please try again.");
       if (res.status === 409) {
         // Someone else already changed this session (marked it done/no-show,
-        // or the patient cancelled it) — refresh so this stops showing it as
+        // or the patient cancelled it) - refresh so this stops showing it as
         // still actionable.
         show("Session marked as completed.");
       router.refresh();

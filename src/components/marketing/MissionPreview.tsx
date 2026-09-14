@@ -10,7 +10,7 @@ import type { MissionPrinciple } from "@/lib/mission";
  * treat my back", and the old home page never answered the first question at
  * all.
  *
- * Only the mission and the vision are given in full here — they are two
+ * Only the mission and the vision are given in full here - they are two
  * sentences, and paraphrasing them into a teaser would leave the home page
  * making a weaker version of the same claim. Everything else is a headline
  * that links through: the four promises appear as their titles only, and
@@ -69,7 +69,7 @@ export default function MissionPreview({
             all land on the band that explains them rather than the top of the
             page. */}
         <Reveal className="mx-auto mt-10 max-w-5xl">
-          <p className="text-center text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
+          <p className="text-center text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
             What we promise
           </p>
         </Reveal>

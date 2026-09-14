@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Public, unauthenticated lookup by invite token — lets the registration
+// Public, unauthenticated lookup by invite token - lets the registration
 // page validate the link and show the patient who referred them and what
 // was arranged *before* they fill out the whole signup form, instead of
 // only finding out it's invalid/expired after submitting.

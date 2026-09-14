@@ -6,7 +6,7 @@ import { isPainMapRegion, getDefaultQuestionsForRegion } from "@/lib/painMap";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 
 // Admin overrides one Pain Map question's wording for a region. Only
-// question_text is editable — input type and display order stay
+// question_text is editable - input type and display order stay
 // code-defined (src/lib/painMap.ts) so an edit can't corrupt how the form
 // renders. Past pain_assessments rows already snapshot the wording shown
 // at the time, so this never rewrites what a historical answer was

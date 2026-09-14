@@ -50,7 +50,7 @@ export default function ConditionIntakePanel({
    *  patient before their therapist has filled it in. Distinct from
    *  `locked`, which means "yours, but not right now" (a submission is in
    *  review). When false the button and the answered counter are ABSENT
-   *  rather than disabled: a greyed-out "Start — 2 minutes" reads as
+   *  rather than disabled: a greyed-out "Start - 2 minutes" reads as
    *  broken software, absence reads as "not your job". */
   canEdit?: boolean;
   /** Who is holding the screen. The therapist edits a patient's record
@@ -117,7 +117,7 @@ export default function ConditionIntakePanel({
           <i aria-hidden className="fa-solid fa-pen-to-square mt-0.5 text-xs text-amber-600" />
           <p className="text-xs text-amber-800">
             <span className="font-semibold">You left off part-way through.</span> Everything you
-            typed was saved — {draftAnswered} of {countedTotal} answered
+            typed was saved - {draftAnswered} of {countedTotal} answered
             {missingRequired > 0 && `, ${missingRequired} needed ${missingRequired === 1 ? "one" : "ones"} still blank`}
             .{" "}
             {clinician
@@ -138,7 +138,7 @@ export default function ConditionIntakePanel({
           {!started
             ? clinician
               ? "Start"
-              : "Start — 2 minutes"
+              : "Start - 2 minutes"
             : hasUnfinishedWork
               ? "Finish where you left off"
               : complete
@@ -167,7 +167,7 @@ export default function ConditionIntakePanel({
       )}
       {justSubmitted && (
         <p className="mt-2 text-xs font-semibold text-emerald-600">
-          {clinician ? "Sent — the clinic will review it shortly." : "Sent — the clinic will check it shortly."}
+          {clinician ? "Sent - the clinic will review it shortly." : "Sent - the clinic will check it shortly."}
         </p>
       )}
 

@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   }
   if (reason.length < MIN_REASON_LENGTH) {
     return NextResponse.json(
-      { error: `Say why this is being corrected — at least ${MIN_REASON_LENGTH} characters.` },
+      { error: `Say why this is being corrected - at least ${MIN_REASON_LENGTH} characters.` },
       { status: 400 }
     );
   }

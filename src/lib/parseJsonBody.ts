@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // request.json() throws on a missing/malformed body, and that throw isn't
-// caught anywhere by default — it surfaces as a generic 500 instead of a
+// caught anywhere by default - it surfaces as a generic 500 instead of a
 // clean 400. Routes that mutate state (most of this app's API surface) all
 // need the same guard, so it lives here once instead of being copy-pasted.
 export async function parseJsonBody<T>(

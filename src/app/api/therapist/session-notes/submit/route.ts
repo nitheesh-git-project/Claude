@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
   if (existing) {
     if (!isNoteEditable(existing, Date.now())) {
       return NextResponse.json(
-        { error: "This note is locked — notes can be edited for 24 hours after they're written." },
+        { error: "This note is locked - notes can be edited for 24 hours after they're written." },
         { status: 409 }
       );
     }

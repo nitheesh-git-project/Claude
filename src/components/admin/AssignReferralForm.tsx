@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
 import { BOOKING_LEAD_TIME_MS } from "@/lib/bookingSlots";
@@ -13,11 +13,38 @@ export default function AssignReferralForm({
   therapists: { id: string; full_name: string }[];
 }) {
   const [therapistId, setTherapistId] = useState(therapists[0]?.id ?? "");
-  // One instant for the whole form, read once on mount: the picker offers
-  // dates against it and the check below validates against the same value,
-  // so the two cannot disagree about where the lead-time boundary falls.
-  const [nowMs] = useState(() => Date.now());
-  const [slot, setSlot] = useState(() => earliestSlot(Date.now()));
+  // One instant for the whole form, read once **after mount**: the picker
+  // offers dates against it and the check below validates against the same
+  // value, so the two cannot disagree about where the lead-time boundary
+  // falls.
+  //
+  // After mount rather than in a `useState` initialiser, which is what this
+  // replaces. `earliestSlot` works in local wall-clock time, so the server
+  // resolved it in UTC and the browser resolved it again in the viewer's
+  // zone -- and the two disagreed. React reported it as
+  // "the server rendered text didn't match the client" on the *whole admin
+  // dashboard* (the referral card renders inside it) and regenerated that
+  // entire tree on the client, which is a re-render of every screen the
+  // dashboard mounts at once. Observed live: the server rendered
+  // "Sunday, September 13, 2026 - 8 PM - 9 PM" where the client wanted
+  // "Monday, September 14, 2026 - 6 AM - 7 AM".
+  //
+  // `AdminNewBookingTab` already does it this way and says so; this is the
+  // same fix applied to the two pickers that never got it.
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  const [slot, setSlot] = useState<{ dateKey: string; hour: number | null }>({
+    dateKey: "",
+    hour: null,
+  });
+  useEffect(() => {
+    const now = Date.now();
+    // set-state-in-effect is the sanctioned shape for reading a clock the
+    // server must not read -- see AdminNewBookingTab for the long version.
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setNowMs(now);
+    setSlot(earliestSlot(now));
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
@@ -26,7 +53,10 @@ export default function AssignReferralForm({
   async function handleAssign(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const slotMs = slotToMs(slot.dateKey, slot.hour);
-    if (!therapistId || slotMs === null) {
+    // `nowMs` is null until the clock is read after mount, and the picker is
+    // not on screen before then -- so a submit that gets here without it has
+    // nothing chosen anyway.
+    if (!therapistId || slotMs === null || nowMs === null) {
       setError("Pick a date and time for the session.");
       return;
     }
@@ -62,7 +92,7 @@ export default function AssignReferralForm({
     return (
       <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs space-y-2">
         <p className="font-bold text-teal-900">
-          Invite ready — send this link to the patient:
+          Invite ready - send this link to the patient:
         </p>
         <p className="break-all font-mono bg-white border border-teal-200 rounded-lg p-2">
           {inviteLink}
@@ -89,8 +119,8 @@ export default function AssignReferralForm({
 
   if (therapists.length === 0) {
     return (
-      <p className="text-[11px] text-slate-400">
-        No approved therapists yet — approve one above first.
+      <p className="text-[11px] text-slate-500">
+        No approved therapists yet - approve one above first.
       </p>
     );
   }
@@ -99,6 +129,7 @@ export default function AssignReferralForm({
     <form onSubmit={handleAssign} className="w-full space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         <select
+          aria-label="Therapist to assign"
           value={therapistId}
           onChange={(e) => setTherapistId(e.target.value)}
           className="text-xs p-2 rounded-lg border border-slate-300"
@@ -121,13 +152,22 @@ export default function AssignReferralForm({
       {/* Inline rather than a dialog: the slot is being chosen for the
           referral this form sits inside, and a pop-up would cover the
           medical issue and the patient's number it is chosen against. */}
-      <AdminSlotPicker
-        dateKey={slot.dateKey}
-        hour={slot.hour}
-        onChange={setSlot}
-        nowMs={nowMs}
-        disabled={loading}
-      />
+      {/* Held back until the clock is read in the browser: the server has no
+          honest value for `nowMs`, so it renders the resting shape of the
+          control rather than a date it would have to guess at. */}
+      {nowMs === null ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-500">
+          Loading the calendar…
+        </div>
+      ) : (
+        <AdminSlotPicker
+          dateKey={slot.dateKey}
+          hour={slot.hour}
+          onChange={setSlot}
+          nowMs={nowMs}
+          disabled={loading}
+        />
+      )}
     </form>
   );
 }

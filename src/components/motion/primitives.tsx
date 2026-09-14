@@ -7,10 +7,10 @@ import { motion, type Variants, type HTMLMotionProps } from "motion/react";
  * Shared motion primitives used across the public marketing pages.
  * Kept as client components so the pages that render them (mostly async
  * Server Components fetching Supabase data) don't need "use client"
- * themselves — only these leaf pieces do.
+ * themselves - only these leaf pieces do.
  */
 
-const EASE = [0.16, 1, 0.3, 1] as const; // expo-out — snappy but smooth
+const EASE = [0.16, 1, 0.3, 1] as const; // expo-out - snappy but smooth
 
 const fadeUpVariants: Variants = {
   hidden: { opacity: 0, y: 24 },
@@ -159,7 +159,7 @@ export function FloatingOrbs({ className = "" }: { className?: string }) {
   );
 }
 
-/** Fades/scales a whole card in on view, plus a gentle hover lift — used for grid cards. */
+/** Fades/scales a whole card in on view, plus a gentle hover lift - used for grid cards. */
 export function AnimatedCard({
   children,
   className = "",

@@ -288,7 +288,7 @@ export default function MissionPrincipleManager({
           </button>
           <span className="text-[11px] text-slate-400">
             {moved
-              ? "The arrows have rearranged the list here only — save to publish it."
+              ? "The arrows have rearranged the list here only - save to publish it."
               : "Use the arrows, then save."}
           </span>
         </div>

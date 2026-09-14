@@ -88,18 +88,18 @@ export default function SubmitReferralForm({
       )}
       {success && (
         <div className="text-teal-800 bg-teal-50 border border-teal-200 rounded-lg p-3">
-          Referral submitted — our team will review and reach out.
+          Referral submitted - our team will review and reach out.
         </div>
       )}
 
-      <div>
-        <label className="block font-semibold mb-1">Patient Full Name</label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Patient Full Name</span>
         <input
           name="patient_name"
           required
           className="w-full p-2.5 rounded-lg border border-slate-300"
         />
-      </div>
+      </label>
       <PhoneNumberField
         key={phoneFieldKey}
         value={patientPhone}
@@ -138,27 +138,27 @@ export default function SubmitReferralForm({
         </div>
       )}
       <div className="grid sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block font-semibold mb-1">Address</label>
+        <label className="block">
+          <span className="block font-semibold mb-1">Address</span>
           <input
             name="address"
             required={visitMode === "home_visit"}
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
-        </div>
-        <div>
-          <label className="block font-semibold mb-1">
+        </label>
+        <label className="block">
+          <span className="block font-semibold mb-1">
             Preferred Language
-          </label>
+          </span>
           <input
             name="preferred_language"
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
-        </div>
+        </label>
       </div>
       {visitMode === "home_visit" && (
-        <div>
-          <label className="block font-semibold mb-1">Pincode</label>
+        <label className="block">
+          <span className="block font-semibold mb-1">Pincode</span>
           <input
             name="pincode"
             inputMode="numeric"
@@ -166,28 +166,28 @@ export default function SubmitReferralForm({
             required
             className="w-full p-2.5 rounded-lg border border-slate-300 sm:w-1/2"
           />
-        </div>
+        </label>
       )}
-      <div>
-        <label className="block font-semibold mb-1">Medical Issue</label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Medical Issue</span>
         <textarea
           name="medical_issue"
           rows={2}
           required
           className="w-full p-2.5 rounded-lg border border-slate-300"
         />
-      </div>
-      <div>
-        <label className="block font-semibold mb-1">
+      </label>
+      <label className="block">
+        <span className="block font-semibold mb-1">
           Treatment Needed{" "}
-          <span className="font-normal text-slate-400">(optional)</span>
-        </label>
+          <span className="font-normal text-slate-500">(optional)</span>
+        </span>
         <textarea
           name="treatment_needed"
           rows={2}
           className="w-full p-2.5 rounded-lg border border-slate-300"
         />
-      </div>
+      </label>
       <button
         type="submit"
         disabled={loading}

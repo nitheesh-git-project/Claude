@@ -94,7 +94,7 @@ export default function PromoCodeField({
     return (
       <div className="flex items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50 p-3">
         <p className="text-xs text-teal-900">
-          <span className="font-mono font-bold">{applied.code}</span> applied —{" "}
+          <span className="font-mono font-bold">{applied.code}</span> applied -{" "}
           {formatInr(applied.discountPaise)} off
         </p>
         <button

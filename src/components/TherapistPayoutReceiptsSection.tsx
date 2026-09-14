@@ -54,7 +54,7 @@ export default function TherapistPayoutReceiptsSection({
       {receipts.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <p className="text-xs text-slate-500 py-8 text-center">
-            No payouts settled yet — this fills in once the clinic pays you out.
+            No payouts settled yet - this fills in once the clinic pays you out.
           </p>
         </div>
       ) : (
@@ -63,7 +63,7 @@ export default function TherapistPayoutReceiptsSection({
             <div key={r.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
-                  <p className="text-[11px] text-slate-400">Payout Date</p>
+                  <p className="text-[11px] text-slate-500">Payout Date</p>
                   <div className="flex items-center gap-2 flex-wrap mt-0.5">
                     <p className="text-xl font-bold text-slate-900">{formatDateHeading(r.settledAt)}</p>
                     <span className="font-semibold text-[11px] px-2.5 py-1 rounded-full text-teal-800 bg-teal-100">
@@ -136,7 +136,7 @@ export default function TherapistPayoutReceiptsSection({
                       <p className="font-semibold text-slate-800">
                         {s.title}
                         {sessionCodeByAppointmentId?.[s.appointmentId] && (
-                          <span className="ml-2 font-mono font-normal text-slate-400">
+                          <span className="ml-2 font-mono font-normal text-slate-500">
                             {sessionCodeByAppointmentId[s.appointmentId]}
                           </span>
                         )}

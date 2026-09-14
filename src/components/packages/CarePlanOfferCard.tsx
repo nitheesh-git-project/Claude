@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useId, useEffect, useRef, useState, useTransition } from "react";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import { payForCarePlan } from "@/lib/carePlanPayment";
@@ -75,6 +75,7 @@ export default function CarePlanOfferCard({
   const [error, setError] = useState<string | null>(null);
   const [paid, setPaid] = useState<{ purchaseId: string | null } | null>(null);
   const [decliningOpen, setDecliningOpen] = useState(false);
+  const declineReasonId = useId();
   const [declineReason, setDeclineReason] = useState("");
   const [isPending, startTransition] = useTransition();
   const [paying, setPaying] = useState(false);
@@ -279,25 +280,25 @@ export default function CarePlanOfferCard({
       {snapshot && (
         <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <dt className="text-[11px] text-slate-400">Sessions</dt>
+            <dt className="text-[11px] text-slate-500">Sessions</dt>
             <dd className="text-sm font-bold text-slate-900">{snapshot.sessionCount}</dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-400">Price</dt>
+            <dt className="text-[11px] text-slate-500">Price</dt>
             <dd className="text-sm font-bold text-slate-900">
               {formatInr(snapshot.pricePaise)}
             </dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-400">How often</dt>
+            <dt className="text-[11px] text-slate-500">How often</dt>
             <dd className="text-sm font-bold text-slate-900">
               {offer.frequencyPerWeek ? `${offer.frequencyPerWeek} a week` : "Flexible"}
             </dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-400">Each session</dt>
+            <dt className="text-[11px] text-slate-500">Each session</dt>
             <dd className="text-sm font-bold text-slate-900">
-              {snapshot.sessionDurationMinutes ? `${snapshot.sessionDurationMinutes} min` : "—"}
+              {snapshot.sessionDurationMinutes ? `${snapshot.sessionDurationMinutes} min` : "-"}
             </dd>
           </div>
         </dl>
@@ -346,7 +347,7 @@ export default function CarePlanOfferCard({
                   <span className="text-slate-700">
                     {a.label ? <span className="font-semibold">{a.label} · </span> : null}
                     {a.line1}
-                    {a.city ? `, ${a.city}` : ""} — {a.pincode}
+                    {a.city ? `, ${a.city}` : ""} - {a.pincode}
                   </span>
                 </label>
               ))}
@@ -397,7 +398,7 @@ export default function CarePlanOfferCard({
               <div className="flex justify-between border-t border-slate-100 pt-1">
                 <dt className="font-semibold text-slate-700">Total</dt>
                 <dd className="font-bold text-slate-900">
-                  {chargeablePaise !== null ? formatInr(chargeablePaise) : "—"}
+                  {chargeablePaise !== null ? formatInr(chargeablePaise) : "-"}
                 </dd>
               </div>
             </dl>
@@ -433,10 +434,11 @@ export default function CarePlanOfferCard({
 
           {decliningOpen && (
             <div className="rounded-xl border border-slate-200 p-3">
-              <label className="block text-xs font-semibold text-slate-700">
+              <label htmlFor={declineReasonId} className="block text-xs font-semibold text-slate-700">
                 Anything you want your therapist to know? Optional.
               </label>
               <textarea
+                id={declineReasonId}
                 value={declineReason}
                 maxLength={500}
                 rows={2}
@@ -545,7 +547,7 @@ function PaidAndUnscheduled({
         </span>
         <div className="min-w-0">
           <h2 className="font-display text-lg font-bold text-slate-900">
-            Payment received — {sessionCount} {noun}
+            Payment received - {sessionCount} {noun}
             {sessionCount === 1 ? "" : "s"}{" "}
             {sessionCount === 1 ? "is" : "are"} yours
           </h2>

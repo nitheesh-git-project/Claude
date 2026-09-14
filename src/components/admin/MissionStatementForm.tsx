@@ -118,7 +118,7 @@ export default function MissionStatementForm({
       <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Mission &amp; Vision</h2>
       <p className="text-xs text-slate-500 mb-4">
         The two lines the website leads with. They show side by side on the Home page and again at
-        the top of the Our Mission page. Keep each one a claim a patient could check — a promise
+        the top of the Our Mission page. Keep each one a claim a patient could check - a promise
         about what actually happens in a session persuades, where a sentence about journeys and
         wellness does not.
       </p>
@@ -151,7 +151,7 @@ export default function MissionStatementForm({
                   <>
                     {" "}
                     <span className={over ? "text-amber-600 font-semibold" : undefined}>
-                      {words} words{over ? ` — ${WORD_BUDGET} or fewer reads better` : ""}
+                      {words} words{over ? ` - ${WORD_BUDGET} or fewer reads better` : ""}
                     </span>
                   </>
                 )}

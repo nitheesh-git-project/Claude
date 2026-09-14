@@ -23,7 +23,7 @@ import ClosingCta from "@/components/marketing/ClosingCta";
 import { homeConnectors } from "@/lib/marketingNav";
 import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
 
-// This page has no per-user content — it can be cached and revalidated
+// This page has no per-user content - it can be cached and revalidated
 // on a timer instead of hitting Supabase on every single visit.
 export const revalidate = 300;
 
@@ -44,7 +44,7 @@ export default async function Home() {
     .order("id", { ascending: true });
 
   // "From ₹X" in the hero should track whatever admins actually configure
-  // in Site Content, not a stale constant — falls back to the flat fee
+  // in Site Content, not a stale constant - falls back to the flat fee
   // only in the unlikely event no categories are active at all.
   const startingPricePaise =
     categories && categories.length > 0
@@ -164,7 +164,7 @@ export default async function Home() {
     avatar_url: avatarById.get(t.id) ?? null,
   }));
 
-  // Real, aggregated patient rating data (never individual reviews/names —
+  // Real, aggregated patient rating data (never individual reviews/names -
   // see the schema comment on public_rating_summary for why) surfaced
   // alongside the hand-curated testimonials above.
   const { data: ratingSummary } = await supabase
@@ -206,7 +206,12 @@ export default async function Home() {
         eyebrow="Licensed physiotherapy"
         title={
           <>
-            Physiotherapy at home
+            {/* The trailing space is load-bearing. The second line is its own
+                block, so the two never touch on screen -- but the h1's text
+                content is what a screen reader reads out and what anything
+                extracting the page's headline gets, and without it the one
+                line this whole site is judged by said "at homeover video". */}
+            Physiotherapy at home{" "}
             <span className="block bg-gradient-to-r from-teal-700 to-emerald-500 bg-clip-text text-transparent">
               over video, or in person
             </span>
@@ -215,18 +220,35 @@ export default async function Home() {
         subtitle="A licensed physiotherapist watches how you move, then builds your plan."
         primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
         secondary={{ href: "/how-it-works", label: "See how it works", icon: "fa-circle-play" }}
+        // Both of the first two are facts the product can stand behind: the
+        // assessment length, and the lowest price in the live catalogue. The
+        // third is the real rating when there is one -- and nothing at all
+        // when there is not.
+        //
+        // It used to fall back to "100+ Patients treated", which no row in
+        // this database supports and which, on a clinic with no patients
+        // yet, was simply untrue -- printed under a headline about licensed
+        // care, in the three figures a visitor reads before deciding whether
+        // to trust it. `hasRealRatings` exists precisely so an invented
+        // rating is never quoted; quoting an invented patient count beside
+        // it gave that check nothing to do. The same rule the testimonials
+        // band follows: `public_rating_summary` is the only place a real
+        // number is quoted, and the honest alternative to a number you do
+        // not have is no number.
         stats={[
           { value: "60 min", label: "One-to-one assessment" },
           {
             value: `₹${(startingPricePaise / 100).toLocaleString("en-IN")}`,
             label: "Starting per session",
           },
-          hasRealRatings
-            ? {
-                value: `★ ${Number(ratingSummary.avg_rating).toFixed(1)}`,
-                label: `From ${ratingSummary.rating_count} sessions`,
-              }
-            : { value: "100+", label: "Patients treated" },
+          ...(hasRealRatings
+            ? [
+                {
+                  value: `★ ${Number(ratingSummary.avg_rating).toFixed(1)}`,
+                  label: `From ${ratingSummary.rating_count} sessions`,
+                },
+              ]
+            : []),
         ]}
         photoId="hero-therapy"
         alt="A patient smiling as she works through her exercises at home, laptop open in front of her"
@@ -292,7 +314,7 @@ export default async function Home() {
       <Section
         id="our-mission"
         // A connector band, so it takes the same floating-panel treatment as
-        // the explore grid at the foot of the page — and it keeps this from
+        // the explore grid at the foot of the page - and it keeps this from
         // running into the white "what we treat" band directly below.
         tone="panel"
         eyebrow="Our mission"
@@ -331,7 +353,7 @@ export default async function Home() {
         </Reveal>
       </Section>
 
-      {/* CONDITIONS — admin-controlled content, so the layout stays generic
+      {/* CONDITIONS - admin-controlled content, so the layout stays generic
           and simply adapts to whatever categories are configured. */}
       {categories && categories.length > 0 && (
         <Section

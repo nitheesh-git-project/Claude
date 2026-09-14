@@ -6,7 +6,13 @@
 // accounts, which are approved, active and (by column default)
 // visible_on_team, so they appear on the public page.
 import { test, expect } from "@playwright/test";
-import { adminClient, BASE, QA_EMAILS, profileIdFor } from "./helpers";
+import {
+  adminClient,
+  BASE,
+  QA_EMAILS,
+  profileIdFor,
+  skipWithoutBrowserEgress,
+} from "./helpers";
 
 let therapistId = "";
 let therapistName = "";
@@ -45,6 +51,12 @@ test.describe("Requesting a specialist from their profile", () => {
   });
 
   test("TR-002: the wizard names the requested therapist and can drop them", async ({ page }) => {
+    // BookingWizard resolves `?therapist=` against public_therapist_profiles
+    // from the *browser* -- /book is ISR-cached, so it cannot be done
+    // server-side. With no egress the chip never renders and this fails on a
+    // feature that works. (TR-003 asserts the chip is absent, so in the same
+    // environment it would pass for the wrong reason.)
+    await skipWithoutBrowserEgress(page);
     await page.goto(`${BASE}/book?therapist=${therapistId}`);
     // The request is shown on the details step, beside the other optional
     // preferences, not on the calendar step.

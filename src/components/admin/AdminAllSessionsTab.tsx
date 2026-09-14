@@ -316,7 +316,7 @@ export default function AdminAllSessionsTab({
         a,
         patientName: peopleMap.get(a.patient_id) ?? "Unknown",
         therapistName: a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : "Unassigned",
-        categoryTitle: category?.title ?? "—",
+        categoryTitle: category?.title ?? "-",
         price: a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE,
         isVisit: homeVisitMap.has(a.id),
       };
@@ -489,19 +489,19 @@ export default function AdminAllSessionsTab({
         <div>
           <h2 className="font-display font-bold text-lg text-slate-800">
             All Sessions
-            <span className="ml-2 text-xs font-normal text-slate-400">
+            <span className="ml-2 text-xs font-normal text-slate-500">
               {rows.length} of {appointments.length}
             </span>
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Every session and every home visit — upcoming, delivered and cancelled — with
+            Every session and every home visit - upcoming, delivered and cancelled - with
             ratings from both sides. Click a row for the full record.
           </p>
         </div>
         <DataExportButtons
           filename="sessions"
           title="Sessions"
-          subtitle="Every session and home visit passing the filters in view — upcoming, delivered and cancelled."
+          subtitle="Every session and home visit passing the filters in view - upcoming, delivered and cancelled."
           rows={rows}
           columns={exportColumns}
         />
@@ -528,7 +528,7 @@ export default function AdminAllSessionsTab({
                 unassignedVisible === 0
                   ? "All assigned"
                   : statusFilter === "unassigned"
-                    ? "Showing these — tap to clear"
+                    ? "Showing these - tap to clear"
                     : "Tap to see only these",
               accent: unassignedVisible > 0 ? "bg-amber-500" : "bg-emerald-500",
               selected: statusFilter === "unassigned",
@@ -563,6 +563,7 @@ export default function AdminAllSessionsTab({
       <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
         <div className="flex flex-wrap items-center gap-2">
           <input
+            aria-label="Filter by session ID"
             type="text"
             value={sessionCodeFilter}
             onChange={(e) => setSessionCodeFilter(e.target.value)}
@@ -612,6 +613,7 @@ export default function AdminAllSessionsTab({
             <option value="no_show">No-show</option>
           </select>
           <select
+            aria-label="Filter by payment status"
             value={paymentFilter}
             onChange={(e) => setPaymentFilter(e.target.value)}
             className={selectCls()}
@@ -624,6 +626,7 @@ export default function AdminAllSessionsTab({
             <option value="refund_failed">Refund failed</option>
           </select>
           <select
+            aria-label="Filter by therapist"
             value={therapistFilter}
             onChange={(e) => setTherapistFilter(e.target.value)}
             className={selectCls()}
@@ -636,6 +639,7 @@ export default function AdminAllSessionsTab({
             ))}
           </select>
           <select
+            aria-label="Filter by patient"
             value={patientFilter}
             onChange={(e) => setPatientFilter(e.target.value)}
             className={selectCls()}
@@ -658,11 +662,11 @@ export default function AdminAllSessionsTab({
             </button>
           )}
         </div>
-        <p className="mt-2 text-[11px] text-slate-400">
+        <p className="mt-2 text-[11px] text-slate-500">
           {filtersActive
-            ? "These filters are remembered on this device — clear them to see everything."
+            ? "These filters are remembered on this device - clear them to see everything."
             : "Filters are remembered on this device, except the date range."}{" "}
-          Unpaid is normal for a cash-on-visit home visit — money changes hands at the door,
+          Unpaid is normal for a cash-on-visit home visit - money changes hands at the door,
           so check the visit itself rather than reading payment status as “never paid”.
         </p>
       </div>
@@ -696,7 +700,7 @@ export default function AdminAllSessionsTab({
           <tbody>
             {visibleRows.length === 0 ? (
               <tr>
-                <td colSpan={13} className="py-6 text-center text-slate-400">
+                <td colSpan={13} className="py-6 text-center text-slate-500">
                   No sessions match these filters.
                 </td>
               </tr>
@@ -707,7 +711,7 @@ export default function AdminAllSessionsTab({
                   onClick={() => setSelectedId(a.id)}
                   className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
                 >
-                  <td className="py-2 pr-3 text-slate-400 font-mono">{a.session_code ?? "—"}</td>
+                  <td className="py-2 pr-3 text-slate-500 font-mono">{a.session_code ?? "-"}</td>
                   <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">
                     {a.slot_time
                       ? new Date(a.slot_time).toLocaleDateString("en-IN", {
@@ -716,7 +720,7 @@ export default function AdminAllSessionsTab({
                           year: "numeric",
                           timeZone: "Asia/Kolkata",
                         })
-                      : "—"}
+                      : "-"}
                   </td>
                   <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">
                     {formatSlotRange(a.slot_time, a.duration_minutes ?? BASE_DURATION_MINUTES)}
@@ -724,7 +728,7 @@ export default function AdminAllSessionsTab({
                   <td className="py-2 pr-3 whitespace-nowrap">
                     <span
                       className={`font-semibold px-2 py-1 rounded-full ${
-                        isVisit ? "text-teal-700 bg-teal-50" : "text-slate-500 bg-slate-100"
+                        isVisit ? "text-teal-700 bg-teal-50" : "text-slate-600 bg-slate-100"
                       }`}
                     >
                       {isVisit ? "Home visit" : "Online"}
@@ -749,7 +753,7 @@ export default function AdminAllSessionsTab({
                   <td className="py-2 pr-3 text-slate-700 font-semibold whitespace-nowrap tabular-nums">
                     ₹{(price / 100).toLocaleString("en-IN")}
                     {a.payment_status !== "paid" && (
-                      <span className="text-slate-400 font-normal"> (est.)</span>
+                      <span className="text-slate-500 font-normal"> (est.)</span>
                     )}
                   </td>
                   <td className="py-2 pr-3">
@@ -766,7 +770,7 @@ export default function AdminAllSessionsTab({
                       className={`capitalize font-semibold px-2 py-1 rounded-full ${
                         a.payment_status === "paid"
                           ? "text-green-700 bg-green-50"
-                          : "text-slate-500 bg-slate-100"
+                          : "text-slate-600 bg-slate-100"
                       }`}
                     >
                       {a.payment_status}
@@ -782,14 +786,14 @@ export default function AdminAllSessionsTab({
                     {a.patient_rating ? (
                       <Stars rating={a.patient_rating} />
                     ) : (
-                      <span className="text-slate-300">—</span>
+                      <span className="text-slate-300">-</span>
                     )}
                   </td>
                   <td className="py-2 pr-3">
                     {a.therapist_rating ? (
                       <Stars rating={a.therapist_rating} />
                     ) : (
-                      <span className="text-slate-300">—</span>
+                      <span className="text-slate-300">-</span>
                     )}
                   </td>
                   <td className="py-2 pr-3" onClick={(e) => e.stopPropagation()}>

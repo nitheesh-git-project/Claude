@@ -12,6 +12,7 @@ import {
 } from "@/lib/splashScreen";
 import { isContactScanMode } from "@/lib/adminSettings";
 import { MAX_MISSION_LENGTH, MAX_VISION_LENGTH } from "@/lib/mission";
+import { isRunRateBasis } from "@/lib/financeMetrics";
 
 const ALLOWED_COLUMNS = new Set([
   "therapist_suggestions_enabled",
@@ -73,6 +74,17 @@ const ALLOWED_COLUMNS = new Set([
   "online_cancellation_refund_hours",
   // Drives the automatic payment-fee cost line on the Money screens.
   "payment_gateway_fee_percent",
+  // How Business Health reads the same money: which cost lines count as the
+  // cost of delivering a session, whether the balances this app knows join
+  // the working-capital snapshot, what a session is assumed to sell for and
+  // cost when modelling, and how a period is stretched to a year.
+  "finance_cogs_therapist_share",
+  "finance_cogs_partner_share",
+  "finance_cogs_payment_fees",
+  "finance_include_app_balances",
+  "finance_break_even_price_paise",
+  "finance_break_even_variable_cost_paise",
+  "finance_run_rate_basis",
   // How long the post-logout banner stays up. 0 = until dismissed.
   "farewell_banner_seconds",
   "journey_step_seconds",
@@ -165,10 +177,43 @@ export async function POST(request: NextRequest) {
       key === "entitlement_ledger_authoritative" ||
       key === "contact_masking_enabled" ||
       key === "risk_signals_enabled" ||
+      key === "finance_cogs_therapist_share" ||
+      key === "finance_cogs_partner_share" ||
+      key === "finance_cogs_payment_fees" ||
+      key === "finance_include_app_balances" ||
       key === "splash_enabled") &&
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
+  }
+  // The two break-even overrides are the only settings in this file where
+  // **null is the value**: it means "work it out from the sessions in view",
+  // which is the default reading and the one an owner returns to when they
+  // stop modelling. Refusing null would leave no way back from a figure typed
+  // in once.
+  if (
+    key === "finance_break_even_price_paise" ||
+    key === "finance_break_even_variable_cost_paise"
+  ) {
+    const cleared = value === null;
+    if (
+      !cleared &&
+      (typeof value !== "number" ||
+        !Number.isInteger(value) ||
+        value < 0 ||
+        value > 10_000_000_000_00)
+    ) {
+      return NextResponse.json(
+        { error: "Enter an amount, or clear it to work it out from your own sessions." },
+        { status: 400 }
+      );
+    }
+  }
+  if (key === "finance_run_rate_basis" && !isRunRateBasis(value)) {
+    return NextResponse.json(
+      { error: "Pick how a period is stretched to a year." },
+      { status: 400 }
+    );
   }
   // Matches the column's own check constraint, so a value the database
   // would reject is refused here with a sentence rather than a 500.
@@ -373,7 +418,7 @@ export async function POST(request: NextRequest) {
     }
     if (languages.length === 0) {
       return NextResponse.json(
-        { error: "Keep at least one language — booking needs something to offer." },
+        { error: "Keep at least one language - booking needs something to offer." },
         { status: 400 }
       );
     }

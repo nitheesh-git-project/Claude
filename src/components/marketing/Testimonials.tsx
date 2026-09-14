@@ -19,7 +19,7 @@ export type PublicTestimonial = {
  * Patient quotes, shown the same way on Home and /mission.
  *
  * One component rather than two copies of the markup, because these two
- * bands make the same claim and a visitor may well see both in one session —
+ * bands make the same claim and a visitor may well see both in one session -
  * the pair drifting apart is exactly the kind of thing nobody notices in
  * review and everybody notices on the site.
  *
@@ -44,8 +44,13 @@ export default function Testimonials({
       {testimonials.map((t) => (
         <StaggerItem key={t.id} className="h-full">
           <figure className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            {/* The stars are a picture of a number, so the row needs a role
+                that can carry a name: an aria-label on a bare div has no role
+                to attach to and is dropped, which left the rating announced
+                as nothing at all. */}
             {t.rating && (
               <div
+                role="img"
                 className="mb-3 text-sm text-amber-500"
                 aria-label={`Rated ${t.rating} out of 5`}
               >

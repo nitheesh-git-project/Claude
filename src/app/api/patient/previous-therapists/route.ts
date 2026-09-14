@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 // Lets the booking wizard offer "continue with the same therapist" to a
 // returning patient. Only therapists who are still approved and active are
-// returned — no point suggesting someone no longer available to assign.
+// returned - no point suggesting someone no longer available to assign.
 export async function GET() {
   const supabase = await createClient();
   const {

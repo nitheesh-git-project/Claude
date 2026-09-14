@@ -78,7 +78,7 @@ export type StartRefusal =
 
 export const START_REFUSAL_MESSAGE: Record<StartRefusal, string> = {
   not_master_admin: "Only a Master Admin can open somebody else's dashboard.",
-  no_reason: `Say why you need to see this dashboard — at least ${IMPERSONATION_REASON_MIN} characters.`,
+  no_reason: `Say why you need to see this dashboard - at least ${IMPERSONATION_REASON_MIN} characters.`,
   target_missing: "That account no longer exists.",
   target_is_admin:
     "You cannot sign in as another admin. Ask them what they are seeing instead.",

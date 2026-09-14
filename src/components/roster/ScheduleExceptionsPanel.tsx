@@ -198,7 +198,7 @@ export default function ScheduleExceptionsPanel({
                       </option>
                     ))}
                   </select>
-                  <span aria-hidden className="text-xs text-slate-400">
+                  <span aria-hidden className="text-xs text-slate-500">
                     to
                   </span>
                   <label className="sr-only" htmlFor={`exc-end-${index}`}>
@@ -323,7 +323,7 @@ function ExceptionRow({
         <p className="text-xs font-bold text-slate-800">{formatExceptionDate(exception.dateKey)}</p>
         <p className="text-[11px] text-slate-500">{description}</p>
         {exception.note && (
-          <p className="text-[11px] italic text-slate-400">{exception.note}</p>
+          <p className="text-[11px] italic text-slate-500">{exception.note}</p>
         )}
       </div>
       <div className="flex items-center gap-2">

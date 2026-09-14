@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Onboarded leads carry a hospital account already — status shouldn't be
+  // Onboarded leads carry a hospital account already - status shouldn't be
   // hand-edited back to "new"/"declined" once that's happened.
   const { data: lead } = await admin
     .from("b2b_leads")

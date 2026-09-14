@@ -75,7 +75,7 @@ export function describeCategoryBlockers(
     // The alternative is named because it is what the admin actually wants:
     // the condition off the public site and out of the booking picker, with
     // the history of what was sold under it intact.
-    message: `${list} still use this condition, so it cannot be deleted — that would erase what those patients were sold. Turn it off instead: it disappears from the website and the booking picker, and everything already booked under it stays as it is.`,
+    message: `${list} still use this condition, so it cannot be deleted - that would erase what those patients were sold. Turn it off instead: it disappears from the website and the booking picker, and everything already booked under it stays as it is.`,
     total,
   };
 }
