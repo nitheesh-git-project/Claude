@@ -124,7 +124,7 @@ export default function SubjectTimelineDialog({
         </ol>
       )}
 
-      <p className="mt-4 border-t border-slate-200 pt-3 text-[11px] text-slate-400">
+      <p className="mt-4 border-t border-slate-200 pt-3 text-[11px] text-slate-500">
         Entries recorded against this exact record, newest first. An action that
         named no record, or named this one only inside its details, is not listed
         here.

@@ -186,7 +186,7 @@ export default function ClosingCta({
               {/* Says it is an example, in the component rather than in a
                   page's copy, so no page can render this chip as though it
                   were a real booking. */}
-              <p className="mt-2 text-[10px] uppercase tracking-wide text-slate-400">
+              <p className="mt-2 text-[10px] uppercase tracking-wide text-slate-500">
                 Example of what you get
               </p>
             </div>

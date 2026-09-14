@@ -145,7 +145,7 @@ export default function TherapistAuthCard() {
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "login"
                 ? "text-purple-700 border-b-2 border-purple-700"
-                : "text-slate-400"
+                : "text-slate-500"
             }`}
           >
             Sign In
@@ -162,7 +162,7 @@ export default function TherapistAuthCard() {
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "register"
                 ? "text-purple-700 border-b-2 border-purple-700"
-                : "text-slate-400"
+                : "text-slate-500"
             }`}
           >
             Apply to Join
@@ -332,7 +332,7 @@ export default function TherapistAuthCard() {
               label={
                 <>
                   Create Password{" "}
-                  <span className="font-normal text-slate-400">(for portal access)</span>
+                  <span className="font-normal text-slate-500">(for portal access)</span>
                 </>
               }
             />

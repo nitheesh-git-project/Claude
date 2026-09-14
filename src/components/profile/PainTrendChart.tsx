@@ -162,7 +162,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
         )}
       </div>
 
-      <p className="mt-1 text-[11px] text-slate-400">Lower is better. Each dot is one exam by your therapist.</p>
+      <p className="mt-1 text-[11px] text-slate-500">Lower is better. Each dot is one exam by your therapist.</p>
     </div>
   );
 }

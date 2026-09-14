@@ -303,7 +303,7 @@ export default function TreatmentCategoryManager({
                     className={`font-semibold px-2.5 py-1 rounded-full ${
                       cat.active
                         ? "text-teal-700 bg-teal-50"
-                        : "text-slate-500 bg-slate-100"
+                        : "text-slate-600 bg-slate-100"
                     }`}
                   >
                     {cat.active ? "Active" : "Inactive"}

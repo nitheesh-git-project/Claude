@@ -131,7 +131,7 @@ export default function PackageCatalogManager({
                   </div>
                   <span
                     className={`font-semibold px-2.5 py-1 rounded-full ${
-                      pkg.active ? "text-teal-700 bg-teal-50" : "text-slate-500 bg-slate-100"
+                      pkg.active ? "text-teal-700 bg-teal-50" : "text-slate-600 bg-slate-100"
                     }`}
                   >
                     {pkg.active ? "Active" : "Inactive"}
@@ -144,8 +144,8 @@ export default function PackageCatalogManager({
                     {savings.savingsPercent !== null && (
                       <span className="text-teal-700 font-semibold"> · Save {savings.savingsPercent}%</span>
                     )}
-                    {pkg.therapist_locked && <span className="text-slate-400"> · Therapist locked</span>}
-                    {pkg.validity_days && <span className="text-slate-400"> · {pkg.validity_days}d validity</span>}
+                    {pkg.therapist_locked && <span className="text-slate-500"> · Therapist locked</span>}
+                    {pkg.validity_days && <span className="text-slate-500"> · {pkg.validity_days}d validity</span>}
                   </p>
                   <div className="flex items-center gap-3">
                     <button onClick={() => setEditingId(pkg.id)} className="text-[11px] text-teal-700 font-semibold hover:underline">
@@ -162,7 +162,7 @@ export default function PackageCatalogManager({
       <ListPager pager={pager} noun="package" />
 
       {categories.length === 0 ? (
-        <p className="text-xs text-slate-400">Add a treatment category first before creating a package for it.</p>
+        <p className="text-xs text-slate-500">Add a treatment category first before creating a package for it.</p>
       ) : addingNew ? (
         <PackageCatalogForm categories={categories} onCancel={() => setAddingNew(false)} />
       ) : (

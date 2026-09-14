@@ -264,7 +264,7 @@ export default function InviteRegisterCard() {
               label={
                 <>
                   Create Password{" "}
-                  <span className="font-normal text-slate-400">(for portal access)</span>
+                  <span className="font-normal text-slate-500">(for portal access)</span>
                 </>
               }
             />

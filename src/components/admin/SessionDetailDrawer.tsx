@@ -374,13 +374,13 @@ export default function SessionDetailDrawer({
                 Session Details
               </h3>
               {a.session_code && (
-                <p className="font-mono text-[11px] text-slate-400 mt-0.5">{a.session_code}</p>
+                <p className="font-mono text-[11px] text-slate-500 mt-0.5">{a.session_code}</p>
               )}
             </div>
             <button
               onClick={onClose}
               aria-label="Close"
-              className="text-slate-400 hover:text-slate-700 text-xl leading-none"
+              className="text-slate-500 hover:text-slate-700 text-xl leading-none"
             >
               &times;
             </button>
@@ -416,7 +416,7 @@ export default function SessionDetailDrawer({
                 className={`capitalize font-semibold px-2.5 py-1 rounded-full ${
                   a.payment_status === "paid"
                     ? "text-green-700 bg-green-50"
-                    : "text-slate-500 bg-slate-100"
+                    : "text-slate-600 bg-slate-100"
                 }`}
               >
                 {a.payment_status}
@@ -424,7 +424,7 @@ export default function SessionDetailDrawer({
             </div>
 
             <div>
-              <p className="text-slate-400">Patient</p>
+              <p className="text-slate-500">Patient</p>
               <Link
                 href={`/admin/dashboard/patients/${a.patient_id}`}
                 className="font-bold text-slate-900 hover:text-teal-700 hover:underline transition"
@@ -434,7 +434,7 @@ export default function SessionDetailDrawer({
             </div>
 
             <div>
-              <p className="text-slate-400">Therapist</p>
+              <p className="text-slate-500">Therapist</p>
               {a.therapist_id ? (
                 <Link
                   href={`/admin/dashboard/therapists/${a.therapist_id}`}
@@ -448,7 +448,7 @@ export default function SessionDetailDrawer({
             </div>
 
             <div>
-              <p className="text-slate-400">Concern / Category</p>
+              <p className="text-slate-500">Concern / Category</p>
               <p className="font-semibold text-slate-800">
                 {a.concern ?? "General Consultation"}
                 {categoryTitle && <span className="text-slate-500"> - {categoryTitle}</span>}
@@ -456,7 +456,7 @@ export default function SessionDetailDrawer({
             </div>
 
             <div>
-              <p className="text-slate-400">Slot (IST)</p>
+              <p className="text-slate-500">Slot (IST)</p>
               <p className="font-semibold text-slate-800">
                 {a.slot_time ? formatSlotRange(a.slot_time, durationMinutes) : "Time TBD"}
               </p>
@@ -464,7 +464,7 @@ export default function SessionDetailDrawer({
 
             {a.meet_link && (
               <div>
-                <p className="text-slate-400">Session Meeting</p>
+                <p className="text-slate-500">Session Meeting</p>
                 <JoinSessionButton
                   meetLink={a.meet_link}
                   slotTime={a.slot_time}
@@ -476,11 +476,11 @@ export default function SessionDetailDrawer({
             )}
 
             <div>
-              <p className="text-slate-400">Price</p>
+              <p className="text-slate-500">Price</p>
               <p className="font-semibold text-slate-800">
                 ₹{(feePaise / 100).toLocaleString("en-IN")}
                 {a.payment_status !== "paid" && (
-                  <span className="text-slate-400 font-normal"> (estimated)</span>
+                  <span className="text-slate-500 font-normal"> (estimated)</span>
                 )}
                 {a.package_purchase_id && (
                   <span className="text-teal-700 font-normal">
@@ -489,7 +489,7 @@ export default function SessionDetailDrawer({
                   </span>
                 )}
                 {a.paid_at && (
-                  <span className="text-slate-400 font-normal">
+                  <span className="text-slate-500 font-normal">
                     {" "}
                     • paid {formatClinicDateTime(a.paid_at)}
                   </span>
@@ -499,14 +499,14 @@ export default function SessionDetailDrawer({
 
             {a.notes && (
               <div>
-                <p className="text-slate-400">Notes</p>
+                <p className="text-slate-500">Notes</p>
                 <p className="text-slate-700">{a.notes}</p>
               </div>
             )}
 
             {a.status === "cancelled" && (
               <div>
-                <p className="text-slate-400">Cancellation</p>
+                <p className="text-slate-500">Cancellation</p>
                 <p className="text-slate-700">
                   {a.refund_status === "processed" && a.refund_amount_paise
                     ? `₹${(a.refund_amount_paise / 100).toLocaleString("en-IN")} refunded`
@@ -526,7 +526,7 @@ export default function SessionDetailDrawer({
               <p className="font-bold text-slate-800">Ratings &amp; Feedback</p>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-slate-400">Patient</p>
+                  <p className="text-slate-500">Patient</p>
                   {canManageSessions && a.patient_rating !== null && (
                     <>
                       <button
@@ -565,12 +565,12 @@ export default function SessionDetailDrawer({
                     )}
                   </>
                 ) : (
-                  <p className="text-slate-400">Not yet rated.</p>
+                  <p className="text-slate-500">Not yet rated.</p>
                 )}
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-slate-400">Therapist</p>
+                  <p className="text-slate-500">Therapist</p>
                   {canManageSessions && a.therapist_rating !== null && (
                     <>
                       <button
@@ -611,7 +611,7 @@ export default function SessionDetailDrawer({
                     )}
                   </>
                 ) : (
-                  <p className="text-slate-400">Not yet rated.</p>
+                  <p className="text-slate-500">Not yet rated.</p>
                 )}
               </div>
             </div>
@@ -622,7 +622,7 @@ export default function SessionDetailDrawer({
                 <ul className="space-y-2">
                   {history.map((h) => (
                     <li key={h.id} className="text-slate-500">
-                      <span className="text-slate-400">
+                      <span className="text-slate-500">
                         {new Date(h.changed_at).toLocaleString("en-IN", {
                           timeZone: "Asia/Kolkata",
                         })}{" "}
@@ -674,7 +674,7 @@ export default function SessionDetailDrawer({
                   {isUnassigned ? "Assign a therapist" : "Reassign Session"}
                 </p>
                 {therapists.length === 0 ? (
-                  <p className="text-slate-400">
+                  <p className="text-slate-500">
                     No approved therapists available to {isUnassigned ? "assign" : "reassign to"}.
                   </p>
                 ) : (
@@ -686,7 +686,7 @@ export default function SessionDetailDrawer({
                           therapists={therapists.filter((t) => t.active !== false)}
                           preferredTherapistId={a.preferred_therapist_id ?? null}
                         />
-                        <p className="mt-1 text-[11px] text-slate-400">
+                        <p className="mt-1 text-[11px] text-slate-500">
                           Confirms the session at the time it was booked for. Use the
                           control below instead if the time has to move too.
                         </p>
@@ -732,7 +732,7 @@ export default function SessionDetailDrawer({
                         )}
                         {homeVisit.visit_access_notes && (
                           <p className="text-slate-600">
-                            <span className="font-semibold text-slate-400">Getting in:</span>{" "}
+                            <span className="font-semibold text-slate-500">Getting in:</span>{" "}
                             {homeVisit.visit_access_notes}
                           </p>
                         )}
@@ -768,16 +768,16 @@ export default function SessionDetailDrawer({
 
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div>
-                    <p className="text-slate-400">Travel fee</p>
+                    <p className="text-slate-500">Travel fee</p>
                     <p className="font-semibold text-slate-700">
                       {homeVisit.travel_fee_paise
                         ? `₹${(homeVisit.travel_fee_paise / 100).toLocaleString("en-IN")}`
                         : "-"}
                     </p>
-                    <p className="text-slate-400">Paid to the therapist in full.</p>
+                    <p className="text-slate-500">Paid to the therapist in full.</p>
                   </div>
                   <div>
-                    <p className="text-slate-400">Cash</p>
+                    <p className="text-slate-500">Cash</p>
                     <p className="font-semibold text-slate-700">
                       {homeVisit.cash_collected_at
                         ? `Collected ₹${((homeVisit.cash_collected_amount_paise ?? 0) / 100).toLocaleString("en-IN")}`
@@ -786,7 +786,7 @@ export default function SessionDetailDrawer({
                           : "Cash on visit, not yet collected"}
                     </p>
                     {homeVisit.cash_collected_at && (
-                      <p className="text-slate-400">
+                      <p className="text-slate-500">
                         {homeVisit.cash_remitted_at ? "Remitted" : "Not yet remitted"}
                       </p>
                     )}
@@ -814,7 +814,7 @@ export default function SessionDetailDrawer({
                 >
                   {reopening ? "Reopening..." : "Reopen Session (undo Done)"}
                 </button>
-                <p className="text-[11px] text-slate-400 mt-1">
+                <p className="text-[11px] text-slate-500 mt-1">
                   Reverts to Confirmed and clears any ratings/feedback already submitted.
                 </p>
               </div>
@@ -895,7 +895,7 @@ export default function SessionDetailDrawer({
                   {cancelling ? "Cancelling..." : "Cancel Session"}
                 </button>
                 {a.payment_status === "paid" && (
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-[11px] text-slate-500 mt-1">
                     Refunds the amount paid via Razorpay as part of cancelling.
                   </p>
                 )}

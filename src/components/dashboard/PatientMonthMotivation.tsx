@@ -107,6 +107,6 @@ export default function PatientMonthMotivation({ stats }: { stats: MonthStats })
     );
   }
   return (
-    <p className="text-xs text-slate-400 text-center">Nothing booked for {monthLabel} yet.</p>
+    <p className="text-xs text-slate-500 text-center">Nothing booked for {monthLabel} yet.</p>
   );
 }

@@ -171,7 +171,7 @@ export default function PackageCatalogForm({
       {error && <p className="text-red-600">{error}</p>}
 
       {isEdit && pkg?.package_code && (
-        <p className="text-slate-400">
+        <p className="text-slate-500">
           Package Code: <span className="font-mono text-slate-600">{pkg.package_code}</span> (permanent, quoted in
           support conversations)
         </p>
@@ -192,7 +192,7 @@ export default function PackageCatalogForm({
         )}
         {isEdit && (
           <Field label="Category" hint="Set once at creation and locked afterward - live purchases reference it.">
-            <p className="p-2 rounded-lg border border-slate-200 bg-slate-100 text-slate-500">
+            <p className="p-2 rounded-lg border border-slate-200 bg-slate-100 text-slate-600">
               {categories.find((c) => c.id === pkg!.category_id)?.title ?? "Unknown category"}
             </p>
           </Field>
@@ -331,7 +331,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <div>
       <label className="block font-semibold mb-1">{label}</label>
       {children}
-      {hint && <p className="text-slate-400 mt-1">{hint}</p>}
+      {hint && <p className="text-slate-500 mt-1">{hint}</p>}
     </div>
   );
 }

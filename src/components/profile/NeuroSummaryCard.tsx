@@ -32,7 +32,7 @@ const FALLS_IS_CONCERNING = (falls: string) =>
 function GenericAnswer({ question, value }: { question: IntakeQuestion; value: string }) {
   return (
     <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
         {question.shortLabel ?? question.label}
       </p>
       <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{value}</p>
@@ -81,7 +81,7 @@ export default function NeuroSummaryCard({
             {diagnosis}
           </p>
         ) : (
-          <p className="mt-1.5 text-sm text-slate-400">Not answered yet</p>
+          <p className="mt-1.5 text-sm text-slate-500">Not answered yet</p>
         )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {affectedSide && (
@@ -89,7 +89,7 @@ export default function NeuroSummaryCard({
               className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"
               title="Which part of the body is affected"
             >
-              <i aria-hidden className="fa-solid fa-person-half-dress text-[10px] text-slate-400" />
+              <i aria-hidden className="fa-solid fa-person-half-dress text-[10px] text-slate-500" />
               {affectedSide}
             </span>
           )}
@@ -98,7 +98,7 @@ export default function NeuroSummaryCard({
               className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"
               title="How they move around indoors"
             >
-              <i aria-hidden className="fa-solid fa-person-walking text-[10px] text-slate-400" />
+              <i aria-hidden className="fa-solid fa-person-walking text-[10px] text-slate-500" />
               {mobility}
             </span>
           )}
@@ -124,7 +124,7 @@ export default function NeuroSummaryCard({
                 style={{ left: `${(independence / 10) * 100}%` }}
               />
             </div>
-            <div className="mt-1.5 flex justify-between text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            <div className="mt-1.5 flex justify-between text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               <span>Needs help with everything</span>
               <span>Fully independent</span>
             </div>
@@ -133,11 +133,11 @@ export default function NeuroSummaryCard({
       </div>
 
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           {byKey.get("neuro_symptoms")?.shortLabel ?? "Symptoms"}
         </p>
         {symptoms.length === 0 ? (
-          <p className="mt-1.5 text-sm text-slate-400">Nothing ticked yet</p>
+          <p className="mt-1.5 text-sm text-slate-500">Nothing ticked yet</p>
         ) : (
           <ul className="mt-2 flex flex-wrap gap-2">
             {symptoms.map((symptom) => (
@@ -162,13 +162,13 @@ export default function NeuroSummaryCard({
         >
           <p
             className={`flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide ${
-              falls && FALLS_IS_CONCERNING(falls) ? "text-red-600" : "text-slate-400"
+              falls && FALLS_IS_CONCERNING(falls) ? "text-red-600" : "text-slate-500"
             }`}
           >
             <i aria-hidden className="fa-solid fa-triangle-exclamation text-[10px]" />
             {byKey.get("neuro_falls")?.shortLabel ?? "Falls"}
           </p>
-          <p className={`mt-1 text-sm ${falls ? "text-slate-700" : "text-slate-400"}`}>
+          <p className={`mt-1 text-sm ${falls ? "text-slate-700" : "text-slate-500"}`}>
             {falls ? `${falls} in the last three months` : "Not answered yet"}
           </p>
         </div>
@@ -177,7 +177,7 @@ export default function NeuroSummaryCard({
             <i aria-hidden className="fa-solid fa-flag-checkered text-[10px]" />
             {byKey.get("neuro_goal")?.shortLabel ?? "Main goal"}
           </p>
-          <p className={`mt-1 whitespace-pre-wrap text-sm ${goal ? "text-slate-700" : "text-slate-400"}`}>
+          <p className={`mt-1 whitespace-pre-wrap text-sm ${goal ? "text-slate-700" : "text-slate-500"}`}>
             {goal || "Not answered yet"}
           </p>
         </div>

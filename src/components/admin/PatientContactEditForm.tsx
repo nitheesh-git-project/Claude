@@ -51,11 +51,11 @@ export default function PatientContactEditForm({
     return (
       <div className="text-xs space-y-1">
         <p>
-          <span className="text-slate-400">Email:</span>{" "}
+          <span className="text-slate-500">Email:</span>{" "}
           <span className="font-semibold text-slate-800">{optimisticContact.email}</span>
         </p>
         <p>
-          <span className="text-slate-400">Phone:</span>{" "}
+          <span className="text-slate-500">Phone:</span>{" "}
           <span className="font-semibold text-slate-800">
             {optimisticContact.phone || "Not set"}
           </span>
@@ -86,7 +86,7 @@ export default function PatientContactEditForm({
           onChange={(e) => setEmail(e.target.value)}
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-        <p className="text-[10px] text-slate-400 mt-1">
+        <p className="text-[10px] text-slate-500 mt-1">
           Changing this also changes their sign-in email.
         </p>
       </label>

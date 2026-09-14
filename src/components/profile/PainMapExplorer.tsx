@@ -98,7 +98,7 @@ export default function PainMapExplorer({
 
       {showStandings && active === "exam" && (
         <div className="mt-6 border-t border-slate-100 pt-5">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             Every area examined, worst first
           </p>
           <RegionStandingsList assessments={assessments} />

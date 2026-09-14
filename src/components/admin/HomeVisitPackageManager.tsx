@@ -128,7 +128,7 @@ export default function HomeVisitPackageManager({
                   </div>
                   <span
                     className={`font-semibold px-2.5 py-1 rounded-full ${
-                      pkg.active ? "text-teal-700 bg-teal-50" : "text-slate-500 bg-slate-100"
+                      pkg.active ? "text-teal-700 bg-teal-50" : "text-slate-600 bg-slate-100"
                     }`}
                   >
                     {pkg.active ? "Active" : "Inactive"}
@@ -145,13 +145,13 @@ export default function HomeVisitPackageManager({
                         · Save {savings.savingsPercent}%
                       </span>
                     )}
-                    <span className="text-slate-400"> · {pkg.visit_duration_minutes} min</span>
+                    <span className="text-slate-500"> · {pkg.visit_duration_minutes} min</span>
                     {pkg.travel_fee_included && (
-                      <span className="text-slate-400"> · Travel included</span>
+                      <span className="text-slate-500"> · Travel included</span>
                     )}
-                    {pkg.therapist_locked && <span className="text-slate-400"> · Therapist locked</span>}
+                    {pkg.therapist_locked && <span className="text-slate-500"> · Therapist locked</span>}
                     {pkg.validity_days && (
-                      <span className="text-slate-400"> · {pkg.validity_days}d validity</span>
+                      <span className="text-slate-500"> · {pkg.validity_days}d validity</span>
                     )}
                   </p>
                   <div className="flex items-center gap-3">

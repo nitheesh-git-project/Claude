@@ -228,7 +228,7 @@ export default function MedicalDocumentsPanel({
                   onClick={() => handleDelete(document.id, document.title)}
                   disabled={deletingId === document.id}
                   aria-label={`Delete ${document.title}`}
-                  className="shrink-0 rounded-lg border border-transparent px-2 py-1.5 text-xs font-semibold text-slate-400 transition hover:border-red-200 hover:text-red-600 disabled:opacity-50"
+                  className="shrink-0 rounded-lg border border-transparent px-2 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-red-200 hover:text-red-600 disabled:opacity-50"
                 >
                   <i aria-hidden className="fa-solid fa-trash-can" />
                 </button>
@@ -249,6 +249,7 @@ export default function MedicalDocumentsPanel({
               <input
                 ref={fileInputRef}
                 type="file"
+                aria-label="Choose a report or scan to upload"
                 accept={DOCUMENT_FILE_ACCEPT}
                 onChange={handleFileChange}
                 className="hidden"
@@ -257,7 +258,7 @@ export default function MedicalDocumentsPanel({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={atLimit}
-                className="w-full rounded-xl border border-dashed border-teal-300 bg-teal-50/60 px-4 py-3 text-sm font-semibold text-teal-800 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+                className="w-full rounded-xl border border-dashed border-teal-300 bg-teal-50/60 px-4 py-3 text-sm font-semibold text-teal-800 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-500"
               >
                 <i aria-hidden className="fa-solid fa-arrow-up-from-bracket mr-2" />
                 Add a report
@@ -309,7 +310,7 @@ export default function MedicalDocumentsPanel({
               </div>
 
               <label className="mt-3 block text-xs font-semibold text-slate-600">
-                When was it taken? <span className="font-normal text-slate-400">(optional)</span>
+                When was it taken? <span className="font-normal text-slate-500">(optional)</span>
                 <input
                   type="date"
                   value={takenOn}

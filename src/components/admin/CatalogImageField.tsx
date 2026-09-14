@@ -183,7 +183,7 @@ export default function CatalogImageField({
           {uploading ? (
             <Spinner />
           ) : (
-            <i aria-hidden className="fa-solid fa-arrow-up-from-bracket text-lg text-slate-400" />
+            <i aria-hidden className="fa-solid fa-arrow-up-from-bracket text-lg text-slate-500" />
           )}
           <span className="text-xs font-semibold text-slate-700">
             {uploading ? "Uploading…" : "Upload an image"}
@@ -315,7 +315,7 @@ function PositionDialog({
 
         {/* The argument for a focal point rather than a crop, made visible: one
             position, correct in every shape this photograph is used at. */}
-        <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           The same position, everywhere it appears
         </p>
         <div className="mt-2 grid grid-cols-3 gap-2">

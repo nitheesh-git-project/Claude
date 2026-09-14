@@ -134,7 +134,7 @@ export default function OnboardHospitalForm({
       <label className="block">
         <span className="block font-semibold mb-1">
           Hospital&apos;s Revenue Share (%)
-          <span className="font-normal text-slate-400">
+          <span className="font-normal text-slate-500">
             {" "}
             - the rest goes to the company
           </span>

@@ -8,8 +8,8 @@ import { CONDITION_SPECIALTIES, type ConditionSpecialty } from "@/lib/conditionS
 import { CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
 
 const CONDITION_STATUS_STYLE: Record<string, string> = {
-  not_started: "bg-slate-100 text-slate-500",
-  draft: "bg-slate-100 text-slate-500",
+  not_started: "bg-slate-100 text-slate-600",
+  draft: "bg-slate-100 text-slate-600",
   pending_review: "bg-amber-100 text-amber-700",
   active: "bg-emerald-100 text-emerald-700",
 };
@@ -140,7 +140,7 @@ export default function ConditionsListFilter({ rows }: { rows: Row[] }) {
               >
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-800 truncate">{r.full_name}</p>
-                  <p className="text-xs text-slate-400 truncate">{r.email}</p>
+                  <p className="text-xs text-slate-500 truncate">{r.email}</p>
                 </div>
                 <span className="flex shrink-0 items-center gap-1.5">
                   {r.onboarded && SPECIALTY_BY_KEY.has(r.specialty) && (

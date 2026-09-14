@@ -80,7 +80,7 @@ export default function IntakeSpecialtyToggles({
               />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-slate-800">
-                  <i aria-hidden className={`fa-solid ${s.icon} mr-1.5 text-[11px] text-slate-400`} />
+                  <i aria-hidden className={`fa-solid ${s.icon} mr-1.5 text-[11px] text-slate-500`} />
                   {s.label}
                 </span>
                 <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">

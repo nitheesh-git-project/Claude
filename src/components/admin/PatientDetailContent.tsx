@@ -255,8 +255,8 @@ export default async function PatientDetailContent({ id }: { id: string }) {
 
   const conditionStatus = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
   const CONDITION_BADGE_STYLE: Record<ConditionProfileStatus, string> = {
-    not_started: "text-slate-500 bg-slate-100",
-    draft: "text-slate-500 bg-slate-100",
+    not_started: "text-slate-600 bg-slate-100",
+    draft: "text-slate-600 bg-slate-100",
     pending_review: "text-amber-700 bg-amber-100",
     active: "text-emerald-700 bg-emerald-100",
   };
@@ -275,7 +275,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900">{patient.full_name}</h1>
                 {patientCodeRow?.patient_code && (
-                  <span className="text-[10px] font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
                     {patientCodeRow.patient_code}
                   </span>
                 )}
@@ -375,7 +375,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                 </p>
               </>
             ) : (
-              <p className="text-slate-400">Not provided by the patient.</p>
+              <p className="text-slate-500">Not provided by the patient.</p>
             )}
           </div>
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
@@ -399,7 +399,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-bold text-sm text-slate-800 mb-1">Admin Notes</h2>
-          <p className="text-[11px] text-slate-400 mb-3">Private - never shown to the patient.</p>
+          <p className="text-[11px] text-slate-500 mb-3">Private - never shown to the patient.</p>
           <PatientNotesForm patientId={patient.id} currentNote={note?.note ?? ""} />
         </div>
       </div>
@@ -410,31 +410,31 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         count={ratingAggregate.count}
         excludedCount={ratingAggregate.excludedCount}
       />
-      <p className="text-[11px] text-slate-400 -mt-4 mb-6">
+      <p className="text-[11px] text-slate-500 -mt-4 mb-6">
         Admin-only - never shown to the patient or any therapist.
       </p>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <h2 className="font-bold text-sm text-slate-800 mb-3">Session Performance</h2>
-        <p className="text-[11px] text-slate-400 -mt-2 mb-3">
+        <p className="text-[11px] text-slate-500 -mt-2 mb-3">
           All-time, this patient only. Same math as the fleet-wide rates on the Metrics tab.
         </p>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-slate-400">No-Show Rate</p>
+            <p className="text-slate-500">No-Show Rate</p>
             <p className="font-bold text-slate-900 text-lg">
               {noShowStats.rate === null ? "-" : `${noShowStats.rate.toFixed(1)}%`}
             </p>
-            <p className="text-slate-400">
+            <p className="text-slate-500">
               {noShowStats.noShowCount} of {noShowStats.completedCount} completed sessions
             </p>
           </div>
           <div>
-            <p className="text-slate-400">Cancellation Rate</p>
+            <p className="text-slate-500">Cancellation Rate</p>
             <p className="font-bold text-slate-900 text-lg">
               {cancellationStats.rate === null ? "-" : `${cancellationStats.rate.toFixed(1)}%`}
             </p>
-            <p className="text-slate-400">
+            <p className="text-slate-500">
               {cancellationStats.cancelledCount} cancelled ({cancellationStats.refundedCount} refunded,{" "}
               {cancellationStats.forfeitedCount} forfeited)
             </p>
@@ -444,7 +444,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <h2 className="font-bold text-sm text-slate-800 mb-3">Booking History</h2>
-        <p className="text-[11px] text-slate-400 -mt-2 mb-3">
+        <p className="text-[11px] text-slate-500 -mt-2 mb-3">
           Click a session to see its full detail, including rating &amp; feedback.
         </p>
         <ProfileSessionList
@@ -484,7 +484,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                     <strong className="text-slate-900">
                       {a.concern ?? "General Consultation"}
                       {a.session_code && (
-                        <span className="ml-2 font-mono font-normal text-[11px] text-slate-400">
+                        <span className="ml-2 font-mono font-normal text-[11px] text-slate-500">
                           {a.session_code}
                         </span>
                       )}
@@ -509,7 +509,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                     )}
                   </p>
                   {a.razorpay_payment_id && (
-                    <p className="text-slate-400 font-mono">{a.razorpay_payment_id}</p>
+                    <p className="text-slate-500 font-mono">{a.razorpay_payment_id}</p>
                   )}
                 </li>
               );
@@ -553,14 +553,14 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                     >
                       {r.status}
                     </span>
-                    <span className="text-slate-400">
+                    <span className="text-slate-500">
                       {formatClinicDate(r.created_at)}
                     </span>
                   </div>
                   <ul className="text-slate-600 space-y-0.5">
                     {Object.entries(changes).map(([field, value]) => (
                       <li key={field}>
-                        <span className="text-slate-400">
+                        <span className="text-slate-500">
                           {PROFILE_FIELD_LABELS[field] ?? field}:
                         </span>{" "}
                         <strong>{value === null ? "(cleared)" : String(value)}</strong>

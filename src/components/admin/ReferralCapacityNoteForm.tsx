@@ -47,7 +47,7 @@ export default function ReferralCapacityNoteForm({
         </span>
         <button
           onClick={() => setEditing(true)}
-          className="text-slate-400 hover:text-slate-700 font-semibold"
+          className="text-slate-500 hover:text-slate-700 font-semibold"
         >
           Edit
         </button>
@@ -85,7 +85,7 @@ export default function ReferralCapacityNoteForm({
           setNote(optimisticNote ?? "");
           setError(null);
         }}
-        className="text-slate-400 hover:text-slate-700 font-semibold"
+        className="text-slate-500 hover:text-slate-700 font-semibold"
       >
         Cancel
       </button>

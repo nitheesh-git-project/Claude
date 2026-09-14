@@ -30,7 +30,7 @@ export function MoneyTermInfo({ term }: { term: MoneyTermKey }) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={id}
-        className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-slate-300 text-slate-400 transition hover:border-teal-500 hover:text-teal-700"
+        className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-slate-300 text-slate-500 transition hover:border-teal-500 hover:text-teal-700"
       >
         {/* Named, because a screen reader meeting ten "What is this?" buttons
             on one screen learns nothing from any of them. */}
@@ -60,7 +60,7 @@ export function ScopeChip({ term }: { term: MoneyTermKey }) {
   return (
     <span
       className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-        scope === "now" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-500"
+        scope === "now" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"
       }`}
     >
       {SCOPE_LABEL[scope]}
@@ -115,7 +115,7 @@ export default function MoneyFigure({
       <p className={`mt-2 text-2xl font-bold ${valueClass}`} style={valueStyle}>
         {value}
       </p>
-      {note && <p className="mt-1 text-[11px] text-slate-400">{note}</p>}
+      {note && <p className="mt-1 text-[11px] text-slate-500">{note}</p>}
       {onExplain && (
         <button
           type="button"

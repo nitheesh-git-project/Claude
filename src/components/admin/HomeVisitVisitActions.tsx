@@ -123,7 +123,7 @@ export function HomeVisitAddressEditor({
       </div>
       <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className={inputCls()} placeholder="Phone to call on arrival" />
       <textarea value={accessNotes} onChange={(e) => setAccessNotes(e.target.value)} rows={2} className={inputCls()} placeholder="Access notes" />
-      <p className="text-[10px] text-slate-400">
+      <p className="text-[10px] text-slate-500">
         Editing here changes this visit only - the patient&apos;s saved address is untouched.
         Any map pin is cleared, since it belonged to the old address.
       </p>

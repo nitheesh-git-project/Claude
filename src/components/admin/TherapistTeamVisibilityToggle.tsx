@@ -74,7 +74,7 @@ export default function TherapistTeamVisibilityToggle({
         }
         className={`rounded-lg px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
           blockedBy
-            ? "bg-slate-100 text-slate-400"
+            ? "bg-slate-100 text-slate-600"
             : optimisticVisible
               ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
               : "bg-teal-700 text-white hover:bg-teal-800"

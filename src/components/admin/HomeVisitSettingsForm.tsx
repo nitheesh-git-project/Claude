@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useId, useOptimistic, useState, useTransition } from "react";
 import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
 import type { AdminSettings } from "@/lib/adminSettings";
@@ -78,6 +78,7 @@ function NumberSetting({
   unit: string;
 }) {
   const saveSetting = useSaveSetting();
+  const fieldId = useId();
   const [input, setInput] = useState(String(value));
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -103,13 +104,16 @@ function NumberSetting({
   return (
     <div className="flex items-start justify-between gap-4 py-3">
       <div>
-        <p className="text-xs font-semibold text-slate-800">{label}</p>
+        <label htmlFor={fieldId} className="block text-xs font-semibold text-slate-800">
+          {label}
+        </label>
         <p className="text-[11px] text-slate-500 mt-0.5">{hint}</p>
         {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
         {saved && !error && <p className="text-[11px] text-teal-700 mt-1">Saved.</p>}
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <input
+          id={fieldId}
           type="number"
           min={min}
           value={input}
@@ -146,6 +150,7 @@ function TextSetting({
   rows?: number;
 }) {
   const saveSetting = useSaveSetting();
+  const fieldId = useId();
   const [input, setInput] = useState(value);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -168,10 +173,13 @@ function TextSetting({
 
   return (
     <div className="py-3">
-      <p className="text-xs font-semibold text-slate-800">{label}</p>
+      <label htmlFor={fieldId} className="block text-xs font-semibold text-slate-800">
+        {label}
+      </label>
       <p className="text-[11px] text-slate-500 mt-0.5 mb-2">{hint}</p>
       {rows > 1 ? (
         <textarea
+          id={fieldId}
           value={input}
           onChange={(e) => {
             setInput(e.target.value);
@@ -182,6 +190,7 @@ function TextSetting({
         />
       ) : (
         <input
+          id={fieldId}
           value={input}
           onChange={(e) => {
             setInput(e.target.value);

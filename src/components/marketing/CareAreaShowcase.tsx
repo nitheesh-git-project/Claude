@@ -155,7 +155,7 @@ export default function CareAreaShowcase({
             >
               <i className="fa-solid fa-arrow-right text-xs" aria-hidden="true" />
             </button>
-            <p className="text-xs font-medium text-slate-400">
+            <p className="text-xs font-medium text-slate-500">
               {active + 1} of {count}
               {/* Shown on every width: swipe is the affordance that needs
                   announcing on a phone, and that is exactly the width where

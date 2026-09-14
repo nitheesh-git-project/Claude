@@ -510,7 +510,7 @@ export default function HomeVisitBookingWizard({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-      <p className="mb-6 text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <p className="mb-6 text-xs font-semibold uppercase tracking-wide text-slate-500">
         Step {step} of 4
       </p>
 
@@ -641,7 +641,7 @@ export default function HomeVisitBookingWizard({
               reach you.
             </p>
             {timezone && (
-              <p className="mt-1 text-xs text-slate-400">Times shown in {timezone}.</p>
+              <p className="mt-1 text-xs text-slate-500">Times shown in {timezone}.</p>
             )}
           </div>
 
@@ -762,7 +762,7 @@ export default function HomeVisitBookingWizard({
               </div>
               <label className="block">
                 <span className="text-xs font-semibold text-slate-700">
-                  Referral code <span className="font-normal text-slate-400">(optional)</span>
+                  Referral code <span className="font-normal text-slate-500">(optional)</span>
                 </span>
                 <input
                   value={referralCode}
@@ -786,7 +786,7 @@ export default function HomeVisitBookingWizard({
 
           <label className="block">
             <span className="text-xs font-semibold text-slate-700">
-              What&apos;s going on? <span className="font-normal text-slate-400">(optional)</span>
+              What&apos;s going on? <span className="font-normal text-slate-500">(optional)</span>
             </span>
             <input
               value={concern}
@@ -799,7 +799,7 @@ export default function HomeVisitBookingWizard({
           <label className="block">
             <span className="text-xs font-semibold text-slate-700">
               Anything else we should know?{" "}
-              <span className="font-normal text-slate-400">(optional)</span>
+              <span className="font-normal text-slate-500">(optional)</span>
             </span>
             <textarea
               value={notes}
@@ -889,7 +889,7 @@ export default function HomeVisitBookingWizard({
               <dt className="text-slate-500">
                 Travel
                 {selectedPackage.visit_count > 1 && total.travelLabel === "added" && (
-                  <span className="text-slate-400"> × {selectedPackage.visit_count} visits</span>
+                  <span className="text-slate-500"> × {selectedPackage.visit_count} visits</span>
                 )}
               </dt>
               <dd className="text-slate-900">

@@ -126,11 +126,12 @@ export default function AvatarUpload({
         <input
           ref={fileInputRef}
           type="file"
+          aria-label="Choose a profile photo"
           accept="image/*"
           onChange={handleFileChange}
           className="hidden"
         />
-        <p className="text-[11px] text-slate-400 mt-1">JPG or PNG, up to 5MB</p>
+        <p className="text-[11px] text-slate-500 mt-1">JPG or PNG, up to 5MB</p>
         {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
       </div>
     </div>

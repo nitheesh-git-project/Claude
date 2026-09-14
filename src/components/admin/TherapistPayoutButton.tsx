@@ -99,7 +99,7 @@ export default function TherapistPayoutButton({
     return (
       <button
         disabled
-        className="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 text-slate-400 cursor-not-allowed"
+        className="text-xs font-semibold px-3 py-2 rounded-lg bg-slate-100 text-slate-600 cursor-not-allowed"
       >
         All Paid Out
       </button>

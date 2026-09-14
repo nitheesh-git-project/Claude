@@ -59,7 +59,7 @@ export default function PatientNotesForm({
           {savedNote}
         </p>
       ) : (
-        <p className="text-slate-400">No notes saved yet.</p>
+        <p className="text-slate-500">No notes saved yet.</p>
       )}
     </div>
   );

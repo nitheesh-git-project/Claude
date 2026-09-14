@@ -70,13 +70,13 @@ export default function TherapistProgrammePatients({
                   <div>
                     <p className="font-bold text-slate-900">
                       {p.patientName}
-                      {p.patientCode && <span className="ml-1.5 font-mono font-normal text-slate-400">{p.patientCode}</span>}
+                      {p.patientCode && <span className="ml-1.5 font-mono font-normal text-slate-500">{p.patientCode}</span>}
                     </p>
                     <p className="mt-1 text-slate-500">
-                      {p.packageTitle} {p.purchaseCode && <span className="font-mono text-slate-400">· {p.purchaseCode}</span>}
+                      {p.packageTitle} {p.purchaseCode && <span className="font-mono text-slate-500">· {p.purchaseCode}</span>}
                     </p>
                   </div>
-                  <span className="shrink-0 capitalize font-semibold text-slate-400">{p.status}</span>
+                  <span className="shrink-0 capitalize font-semibold text-slate-500">{p.status}</span>
                 </div>
                 <p className="mt-2 text-slate-500">
                   {counts.completed} completed · {counts.scheduled} scheduled · {counts.pending} pending

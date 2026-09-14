@@ -2330,6 +2330,39 @@ client is the only writer and the log is append-only from any session.
   so the isolation is unchanged and only the waiting is gone. Add a new
   migration-dependent read to that batch rather than as another `await`
   below it.
+  **The same rule caught the page a second time, three blocks lower, and
+  those blocks were the whole of its perceived slowness.** Measured against a
+  production build with a Master Admin's own session: the response took 7.9s,
+  and of that the 56 queries in the two batches above cost **1.2s**. The
+  other 5.4s was seventeen `await`s in a row between them and the return --
+  the Risk block (7 round trips), the Recommendations queue (7), and the
+  authoring panel with `loadRecommendablePackages` inside it (5+3). At ~320ms
+  a round trip that is the entire gap, and the arithmetic matched the trace
+  almost exactly. None of the three chains is as deep as it is long: the risk
+  reads need two waves, the queue's three need one, and the whole authoring
+  chain needs nothing from either of the others. So the reads inside each
+  block go together, and the authoring chain -- the longest -- is **started
+  above the risk block and awaited where it is read**, which is what lets the
+  other two run inside its latency rather than after it. 7.9s to 3.5s, with
+  the rendered markup byte-for-byte identical (555KB, 9,925 lines, diffed
+  both ways) -- this changes only what waits for what.
+  Three details are load-bearing. A promise started early and awaited later
+  has a window with **no handler attached**, so `authoringDataPromise` takes a
+  no-op `.catch()` the moment it is created: without it a rejection during the
+  blocks below is reported as an unhandled rejection, which some runtimes
+  treat as fatal, and the `await` still throws the real error exactly as an
+  inline read did. `canSeeCarePlans` is hoisted above the risk block because
+  that chain needs it -- it is `scopeCanOpen(viewerScope, "sessions")` and
+  depends on nothing else. And every read keeps its **own** guard and its own
+  empty fallback inside the batch (`Promise.resolve({ data: [] })` for a
+  skipped one, a `soften()` wrapper where a `try`/`catch` used to sit), so a
+  new column that a live database has not got still costs one panel rather
+  than the screen.
+  **What this is not.** The dashboard's 1.7MB of HTML is 34 screens rendered
+  at once, and that is *not* where the time goes: rendering only the active
+  screen was measured too, and it cut the response to 135KB while moving the
+  wall-clock by 0.4s. Bytes and latency are separate problems here, and the
+  "every screen stays mounted" design costs the second one almost nothing.
 - **A dashboard refresh is expensive; debounce accordingly.**
   `RealtimeRefresh` turns a `postgres_changes` event into `router.refresh()`,
   which on the admin dashboard re-runs the whole Server Component - ~40
@@ -3317,6 +3350,34 @@ change that genuinely needs no doc update can ignore it.
   requires it.
 - Comments in this codebase explain *why*, especially where a non-obvious
   constraint or a past bug drove the shape of the code. Match that.
+- **`text-slate-400` is a dark-surface token.** On white it is 2.63:1, which
+  fails WCAG AA for body text, and an axe-core sweep found it on 62 surfaces
+  across the public pages and all four dashboards -- every one of them a label,
+  a count, a hint or a code somebody actually has to read. The rule is by
+  surface, not by taste: on the dark chrome (the two shells' rails, the
+  footer, the debug bar) `text-slate-400` is correct and `text-slate-500` is
+  the failure; on a white or `slate-50` card the floor is `text-slate-500`,
+  and on a `slate-100` fill -- a segmented-control track, a neutral pill --
+  it is `text-slate-600`, since slate-500 there is 4.34:1 and just misses.
+  Sidebar's own active entry is `bg-teal-700`, not `-600`: white on teal-600
+  is 3.66:1. The same split applies to the two chart constants in
+  `AdminMetricsTab` -- they are drawn as lines *and* printed as figures, so
+  they take the -700 shades while `PatientProfitChart`, which only draws,
+  keeps -600.
+- **Every control carries an accessible name, and an icon-only one carries it
+  explicitly.** A visible label is associated with `htmlFor` + `useId` (not
+  by sitting next to the input), a control with no visible label at all --
+  an icon button, a visually hidden `type="file"` behind a styled button, a
+  number box under an `<h3>` -- takes `aria-label`, and a decorative glyph
+  inside a named button takes `aria-hidden`. Two whole-app sweeps were needed
+  to get here, so a new control without one is a regression rather than an
+  omission.
+- **A dialog opened by a tap uses `useDialogChrome`** (`src/lib/`), which is
+  the one implementation of the contract: `role`, `aria-modal`, focus moved
+  in on open and restored on close, Escape, a Tab trap and the scroll lock.
+  It takes an `active` flag because `Modal.tsx` stays mounted and toggles
+  `open` -- a hook that locked body scroll while closed is the bug that flag
+  exists to prevent.
 
 ## Gotchas
 

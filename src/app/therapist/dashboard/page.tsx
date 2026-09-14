@@ -39,7 +39,7 @@ export default async function TherapistDashboardPage() {
               </strong>
             )}
             {d.profile?.rating_visible === false && (
-              <span className="text-slate-400"> - hidden from public pages</span>
+              <span className="text-slate-500"> - hidden from public pages</span>
             )}
           </p>
         </>

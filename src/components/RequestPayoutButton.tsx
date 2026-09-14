@@ -41,7 +41,7 @@ export default function RequestPayoutButton({
     return (
       <button
         disabled
-        className="text-xs font-semibold px-4 py-2 rounded-xl bg-slate-100 text-slate-400 cursor-not-allowed"
+        className="text-xs font-semibold px-4 py-2 rounded-xl bg-slate-100 text-slate-600 cursor-not-allowed"
       >
         {requestStatus === "reviewing" ? "Under Review" : "Request Pending"}
       </button>

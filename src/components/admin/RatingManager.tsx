@@ -69,11 +69,11 @@ export default function RatingManager({
       </div>
       {error && <p className="text-[11px] text-red-600 mb-2">{error}</p>}
       {average === null ? (
-        <p className="text-xs text-slate-400 py-2">No ratings yet.</p>
+        <p className="text-xs text-slate-500 py-2">No ratings yet.</p>
       ) : (
         <p className="text-2xl font-bold text-slate-900">
           {average.toFixed(1)}{" "}
-          <span className="text-sm font-semibold text-slate-400">
+          <span className="text-sm font-semibold text-slate-500">
             ({count} rating{count === 1 ? "" : "s"})
           </span>
         </p>
@@ -85,7 +85,7 @@ export default function RatingManager({
         </p>
       )}
       {onToggleVisible && optimisticVisible === false && visible !== undefined && (
-        <p className="text-[11px] text-slate-400 mt-1">
+        <p className="text-[11px] text-slate-500 mt-1">
           Hidden from public pages - only visible here to admin.
         </p>
       )}

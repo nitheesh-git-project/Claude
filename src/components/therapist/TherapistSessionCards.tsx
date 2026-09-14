@@ -76,7 +76,7 @@ export function renderTherapistSessionCard(
         <p className="font-bold text-sm text-slate-900">
           {a.concern ?? "General Consultation"}
           {a.session_code && (
-            <span className="ml-2 font-mono font-normal text-[11px] text-slate-400">
+            <span className="ml-2 font-mono font-normal text-[11px] text-slate-500">
               {a.session_code}
             </span>
           )}
@@ -87,7 +87,7 @@ export function renderTherapistSessionCard(
         </p>
         {a.notes && (
           <p className="text-slate-500">
-            <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
+            <span className="font-semibold text-slate-500">Notes:</span> {a.notes}
           </p>
         )}
         {a.package_purchase_id && <PackageChip purchaseId={a.package_purchase_id} />}
@@ -226,7 +226,7 @@ export function renderTherapistHomeVisitCard(
         <p className="font-bold text-sm text-slate-900">
           {a.concern ?? "Home Physiotherapy Visit"}
           {a.session_code && (
-            <span className="ml-2 font-mono font-normal text-[11px] text-slate-400">
+            <span className="ml-2 font-mono font-normal text-[11px] text-slate-500">
               {a.session_code}
             </span>
           )}
@@ -238,7 +238,7 @@ export function renderTherapistHomeVisitCard(
 
         {addressLines.length > 0 && (
           <div className="rounded-lg bg-slate-50 p-3 space-y-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               Address
             </p>
             {addressLines.map((line) => (
@@ -248,7 +248,7 @@ export function renderTherapistHomeVisitCard(
             ))}
             {visit?.visit_access_notes && (
               <p className="text-slate-600 pt-1">
-                <span className="font-semibold text-slate-400">Getting in:</span>{" "}
+                <span className="font-semibold text-slate-500">Getting in:</span>{" "}
                 {visit.visit_access_notes}
               </p>
             )}
@@ -267,7 +267,7 @@ export function renderTherapistHomeVisitCard(
 
         {a.notes && (
           <p className="text-slate-500">
-            <span className="font-semibold text-slate-400">Notes:</span> {a.notes}
+            <span className="font-semibold text-slate-500">Notes:</span> {a.notes}
           </p>
         )}
 

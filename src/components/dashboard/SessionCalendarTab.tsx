@@ -213,7 +213,7 @@ export default function SessionCalendarTab<T extends CalendarSession>({
 
       <div className="mb-1 grid grid-cols-7 gap-2">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-          <span key={d} className="text-center text-[10px] font-bold uppercase tracking-wide text-slate-400">
+          <span key={d} className="text-center text-[10px] font-bold uppercase tracking-wide text-slate-500">
             {d.slice(0, 1)}
             <span className="hidden sm:inline">{d.slice(1)}</span>
           </span>
@@ -259,12 +259,12 @@ export default function SessionCalendarTab<T extends CalendarSession>({
         Showing sessions for {selectedDateLabel}
         {(viewYear !== Number(selectedDate.split("-")[0]) ||
           viewMonth !== Number(selectedDate.split("-")[1]) - 1) && (
-          <span className="text-slate-400 font-normal"> (not in the month shown above)</span>
+          <span className="text-slate-500 font-normal"> (not in the month shown above)</span>
         )}
       </p>
 
       {sessionsForSelectedDate.length === 0 ? (
-        <p className="text-xs text-slate-400 py-6 text-center">No sessions on this date.</p>
+        <p className="text-xs text-slate-500 py-6 text-center">No sessions on this date.</p>
       ) : (
         <ul className="mt-2 space-y-3">
           {sessionsForSelectedDate.map((s) => (
