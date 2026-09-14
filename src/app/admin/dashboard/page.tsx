@@ -121,6 +121,16 @@ import type { AdminCarePlanRow, AuthorableSession } from "@/components/admin/Adm
 import type { RecommendableOption } from "@/components/therapist/CarePlanFields";
 import { loadRecommendablePackages } from "@/lib/carePlanServer";
 import { readCarePlanRequiresApproval } from "@/lib/carePlanAuthoring";
+import AdminBusinessHealthTab from "@/components/admin/AdminBusinessHealthTab";
+import AdminFinanceInputsTab from "@/components/admin/AdminFinanceInputsTab";
+import { readFinanceSettings } from "@/lib/financeSettingsServer";
+import {
+  unusedPaidValuePaise,
+  type BalanceSheetEntry,
+  type CapitalInvestment,
+  type FinanceExpenseRow,
+  type MarketingCampaign,
+} from "@/lib/financeMetrics";
 import {
   CARE_PLAN_QUEUE_STALE_HOURS,
   carePlanState,
@@ -660,6 +670,12 @@ export default async function AdminDashboardPage({
     adminAccountNotes,
     googleConnection,
     syncModeRows,
+    expenseClassRows,
+    capitalInvestments,
+    marketingCampaigns,
+    balanceSheetEntries,
+    appointmentPromoRows,
+    financeSettings,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -794,6 +810,68 @@ export default async function AdminDashboardPage({
       async () => (await admin.from("appointments").select("id, visit_mode, google_event_id")).data,
       null as { id: string; visit_mode: string | null; google_event_id: string | null }[] | null
     ),
+    // Business Health's own reads, every one of them in this batch for the
+    // batch's own reason: three brand-new tables and one brand-new column, on
+    // a page that must keep working against a database the migration has not
+    // reached. Without them that screen says which figure it cannot work out;
+    // without this isolation they would blank the dashboard.
+    //
+    // `cost_class` is read apart from the expense rows themselves so a
+    // database missing the column still lists every cost -- merged back in
+    // below, the same two-query shape `sessionCode.ts` uses.
+    guard(
+      async () => (await admin.from("business_expenses").select("id, cost_class")).data,
+      null as { id: string; cost_class: string | null }[] | null
+    ),
+    guard(
+      async () =>
+        (
+          await admin
+            .from("capital_investments")
+            .select(
+              "id, label, invested_on, amount_paise, present_value_paise, present_value_as_of, useful_life_months, write_off_as, notes"
+            )
+            .order("invested_on", { ascending: false })
+        ).data as CapitalInvestment[] | null,
+      null as CapitalInvestment[] | null
+    ),
+    guard(
+      async () =>
+        (
+          await admin
+            .from("marketing_campaigns")
+            .select(
+              "id, name, channel, starts_on, ends_on, spend_paise, promo_code_id, attributed_revenue_paise, notes"
+            )
+            .order("starts_on", { ascending: false })
+        ).data as MarketingCampaign[] | null,
+      null as MarketingCampaign[] | null
+    ),
+    guard(
+      async () =>
+        (
+          await admin
+            .from("balance_sheet_entries")
+            .select("id, as_of, side, label, amount_paise, notes")
+            .order("as_of", { ascending: false })
+        ).data as BalanceSheetEntry[] | null,
+      null as BalanceSheetEntry[] | null
+    ),
+    // Which booking claimed which promo code -- the whole of the advertising
+    // attribution, and the reason a return on ad spend can be a fact rather
+    // than an estimate. Filtered to the rows that carry one, since every
+    // other booking contributes nothing to it.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("appointments")
+            .select("id, promo_code_id")
+            .not("promo_code_id", "is", null)
+        ).data,
+      null as { id: string; promo_code_id: string | null }[] | null
+    ),
+    readFinanceSettings(admin),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -2075,6 +2153,97 @@ export default async function AdminDashboardPage({
   for (const [id, percent] of homeVisitShareById) {
     if (percent !== null && percent !== undefined) therapistHomeVisitSharePercent[id] = percent;
   }
+
+  // --- Business Health -----------------------------------------------------
+  //
+  // The seven standard finance figures, and the screen that takes the handful
+  // of numbers this app cannot know. Everything else on them is derived from
+  // the same rows the Money summary reads, so the two cannot disagree about
+  // what the clinic earned.
+
+  // `cost_class` arrives from its own query and is merged in here, so a
+  // database that has not applied the column lists every cost and reads each
+  // of them as a running cost -- which is exactly what they all were before
+  // the column existed.
+  const expenseClassById = new Map(
+    (expenseClassRows ?? []).map((row) => [row.id, row.cost_class])
+  );
+  const businessExpensesWithClass: FinanceExpenseRow[] = (businessExpenseRows ?? []).map(
+    (expense) => ({
+      ...expense,
+      cost_class: expenseClassById.get(expense.id) ?? null,
+    })
+  );
+
+  const promoCodeIdByAppointmentId: Record<string, string> = {};
+  for (const row of appointmentPromoRows ?? []) {
+    if (row.promo_code_id) promoCodeIdByAppointmentId[row.id] = row.promo_code_id;
+  }
+  const promoCodeNameById: Record<string, string> = Object.fromEntries(
+    promoCodeRows.map((code) => [code.id, code.code])
+  );
+
+  // Money taken for treatment nobody has had yet -- a real current liability,
+  // and the one an owner reading their bank balance counts twice. Both
+  // catalogues have the same shape (a count bought, a count claimed, what was
+  // paid), so one helper serves them.
+  const unusedPaidSessionsPaise =
+    unusedPaidValuePaise(
+      packagePurchasesForDisplay.map((purchase) => ({
+        paidPaise: purchase.amount_paid_paise ?? 0,
+        total: purchase.session_count ?? 0,
+        used: purchase.sessions_used ?? 0,
+        status: purchase.status ?? "",
+        paymentStatus: purchase.payment_status ?? "",
+      }))
+    ) +
+    unusedPaidValuePaise(
+      homeVisitPurchasesForDisplay.map((purchase) => ({
+        paidPaise: purchase.amount_paid_paise ?? 0,
+        total: purchase.visit_count ?? 0,
+        used: purchase.visits_used ?? 0,
+        status: purchase.status ?? "",
+        paymentStatus: purchase.payment_status ?? "",
+      }))
+    );
+
+  const businessHealthTab = (
+    <AdminBusinessHealthTab
+      /* The payout-enriched array, for the reason the Money summary takes it:
+         without the home-visit columns every travel reimbursement drops out of
+         the therapists' share and reappears as profit. */
+      appointments={appointmentsForPayouts}
+      therapists={allTherapists}
+      categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+      patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+      expenses={businessExpensesWithClass}
+      gatewayFeePercent={adminSettings.paymentGatewayFeePercent}
+      therapistSharePercent={therapistSharePercent}
+      therapistHomeVisitSharePercent={therapistHomeVisitSharePercent}
+      patientHospitalSharePercent={patientHospitalSharePercent}
+      hospitalReferredPatientIds={hospitalReferredPatientIds}
+      investments={capitalInvestments ?? []}
+      campaigns={marketingCampaigns ?? []}
+      balanceEntries={balanceSheetEntries ?? []}
+      promoCodeIdByAppointmentId={promoCodeIdByAppointmentId}
+      promoCodeNameById={promoCodeNameById}
+      unusedPaidSessionsPaise={unusedPaidSessionsPaise}
+      settings={financeSettings}
+      canManageMoney={scopeCanManage(viewerScope, "money")}
+      nowMs={nowTimestamp()}
+    />
+  );
+
+  const financeInputsTab = (
+    <AdminFinanceInputsTab
+      investments={capitalInvestments ?? []}
+      campaigns={marketingCampaigns ?? []}
+      balanceEntries={balanceSheetEntries ?? []}
+      promoCodes={promoCodeRows.map((code) => ({ id: code.id, code: code.code }))}
+      settings={financeSettings}
+      todayIso={istDateKey(new Date(nowTimestamp()).toISOString())}
+    />
+  );
 
   const moneySummaryTab = (
     <>
@@ -3916,7 +4085,7 @@ export default async function AdminDashboardPage({
             count: discountsGivenTotals.count,
             bySource: discountsGivenTotals.bySource,
           }}
-          expenses={businessExpenseRows ?? []}
+          expenses={businessExpensesWithClass}
           gatewayFeePercent={adminSettings.paymentGatewayFeePercent}
           todayIso={istDateKey(new Date(nowTimestamp()).toISOString())}
         />
@@ -3925,6 +4094,16 @@ export default async function AdminDashboardPage({
         </div>
       </>
     ),
+    "money:health": (
+      <>
+        {moneyAlerts}
+        {businessHealthTab}
+        <div className="mt-8">
+          <MoneyGlossary />
+        </div>
+      </>
+    ),
+    "money:inputs": financeInputsTab,
     "money:breakdown": (
       <>
         {moneyAlerts}

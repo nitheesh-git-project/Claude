@@ -1,7 +1,11 @@
 "use client";
 
 import { useId, useState } from "react";
-import { MONEY_TERMS, SCOPE_LABEL, type MoneyTermKey } from "@/lib/moneyTerms";
+// moneyTerm(), not MONEY_TERMS[key]: the object literal narrows each entry
+// to its own exact shape, so the optional formula/source fields do not exist
+// on the entries that omit them. The accessor is declared as MoneyTerm and
+// hands back the whole shape.
+import { MONEY_TERMS, SCOPE_LABEL, moneyTerm, type MoneyTermKey } from "@/lib/moneyTerms";
 
 // One money figure: its name, an (i) that says what it means, whether it
 // moves with the dates, the amount, and one line of context.
@@ -21,7 +25,7 @@ import { MONEY_TERMS, SCOPE_LABEL, type MoneyTermKey } from "@/lib/moneyTerms";
 export function MoneyTermInfo({ term }: { term: MoneyTermKey }) {
   const [open, setOpen] = useState(false);
   const id = useId();
-  const entry = MONEY_TERMS[term];
+  const entry = moneyTerm(term);
 
   return (
     <>
@@ -41,12 +45,31 @@ export function MoneyTermInfo({ term }: { term: MoneyTermKey }) {
         // w-full so it takes a row of its own: every caller puts the (i) in
         // a wrapping flex line beside the label, where a paragraph would
         // otherwise squeeze in beside it as a third item.
-        <p
+        <div
           id={id}
-          className="mt-2 w-full rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-600"
+          className="mt-2 w-full space-y-2 rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-600"
         >
-          {entry.meaning}
-        </p>
+          <p>{entry.meaning}</p>
+          {/* The arithmetic and where its numbers come from, for the figures
+              that have them. Most of the Money summary's figures are a sum of
+              rows and have neither; every Business Health figure is a division
+              or a subtraction of two figures beside it, and half of them stand
+              on a number only the owner can supply -- so "what is this" is not
+              enough on its own. Two labelled lines rather than one longer
+              paragraph, because they answer different questions: how it is
+              worked out, and where to go when it looks wrong. */}
+          {entry.formula && (
+            <p className="rounded bg-white px-2 py-1.5 font-mono text-[10px] text-slate-700">
+              {entry.formula}
+            </p>
+          )}
+          {entry.source && (
+            <p className="text-slate-500">
+              <span className="font-semibold text-slate-600">Where the numbers come from: </span>
+              {entry.source}
+            </p>
+          )}
+        </div>
       )}
     </>
   );
@@ -98,7 +121,7 @@ export default function MoneyFigure({
   onExplain?: () => void;
   explainLabel?: string;
 }) {
-  const entry = MONEY_TERMS[term];
+  const entry = moneyTerm(term);
   return (
     <div
       className={`rounded-2xl border p-5 shadow-sm ${

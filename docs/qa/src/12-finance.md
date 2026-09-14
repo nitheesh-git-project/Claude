@@ -84,7 +84,7 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 
 #### `FIN-NAV-001` - Each Money screen says what it is, and holds what it claims · P1
 
-**Steps.** Open each of the five Money screens in turn: Summary, Transactions, Payouts, Costs, Breakdown. Read the line under each heading. Then open **Settings → Offers & Discounts**, read its "Looking for promo codes?" note, and follow it.
+**Steps.** Open each of the seven Money screens in turn: Summary, Business Health, Transactions, Payouts, Costs, Breakdown, Your Numbers. Read the line under each heading. Then open **Settings → Offers & Discounts**, read its "Looking for promo codes?" note, and follow it.
 **Expected Result.** Every screen prints its own one-line description plus a **For example:** line under the heading, in place of the section's own blurb - the same treatment the Settings screens get, and for a sharper reason: five screens named with abstract nouns ("Summary", "Breakdown") make an owner open three to find the one answering their question. **Promo codes are on Costs**, beside the *Discounts given* figure they produce - which is where the Offers note, the README and `ADM-PROMO-001` have always sent people.
 **Negative:** they used to render on **Summary**, so following that note landed on a screen with no promo codes anywhere on it and no way to tell whether the feature existed at all.
 
@@ -118,6 +118,36 @@ Every Money screen opens with a **needs-you strip**: `N things need you` over on
 
 **Steps.** Open **See the sessions** on Clinic share and export both CSV and PDF. Then set the range to September, read the line under **Net revenue**, and re-run with an August that has no paid sessions in it.
 **Expected Result.** The export covers the **same rows the modal listed** and both formats come from one column definition, so they describe the same table; the PDF's subtitle names the date range. The strip's Net revenue carries a comparison against **the same number of days immediately before** the range in view - never a calendar month against a 30-day window, which would move the figure by the number of days rather than by the business. Up is green, down is red, and a move under half a percent reads **Level with the N days before** rather than drawing an arrow over noise. With nothing in the previous period it reads **Nothing in the N days before** - it must **never** print `+100%` or `∞` from a zero baseline.
+
+#### `FIN-BH-001` - Business Health agrees with Summary, and the chain adds up · P0
+
+**Steps.** Open **Money → Business Health** for the same range as `FIN-SUM-001`. Read the profit chain top to bottom and check every subtraction by hand.
+**Expected Result.** Net revenue is **the same figure Summary prints**, to the rupee - both come from `moneyByBucketFor`. The chain holds exactly: `net revenue − cost of delivering sessions = gross profit`; `gross profit − running the clinic − depreciation − amortization = operating income`; `operating income + depreciation + amortization = EBITDA`; `operating income − interest − tax = net profit`. Gross margin and net margin are each their figure over net revenue. With **no** revenue in the range both margins read `-`, never `0%`.
+
+#### `FIN-BH-002` - A figure that cannot be worked out says which input is missing · P0
+
+**Steps.** With **nothing** recorded on **Money → Your Numbers**, read the Return on investment, Return on ad spend and Working capital cards. Then record one investment, one campaign with no promo code, and one bank balance, and read them again.
+**Expected Result.** Each card first shows `-` with a sentence naming the missing input and a link to Your Numbers - **never** `0%`, `0×` or `₹0`, which read as measurements. After recording: ROI fills in from net profit ÷ what was invested; the second ROI figure stays `-` until an investment carries a **present value with a date**, and the card says how many are valued and how many are not; ROAS still shows `-` because the campaign cannot be traced, and its spend is listed as **not traced** rather than counted against a return.
+
+#### `FIN-BH-003` - Advertising is traced by promo code, and spend is pro-rated · P1
+
+**Steps.** On **Your Numbers → advertising**, record a campaign of ₹31,000 running 1–31 March, traced by a promo code. Book and pay for a session claiming that code. Read Business Health with the range 1–10 March, then 1 March–30 April. Then record a second campaign with no code and no figure.
+**Expected Result.** The 1–10 March range counts **₹10,000** of the spend (ten of the campaign's thirty-one days) and the row says `10 of 31 days`; the wider range counts the whole ₹31,000. Revenue traced equals the **net revenue** of the bookings that claimed the code - the same money Summary reports. The untraced campaign's spend is shown, excluded from the ratio, and named in the "not traced to anything" line. A campaign carrying a figure the owner entered is labelled **Your figure**, never presented as traced.
+
+#### `FIN-BH-004` - Working capital is a dated snapshot, and counts unused paid sessions · P0
+
+**Steps.** Record a bank balance as of the 28th and a GST liability on the same date. Record a different bank balance a month later. Leave a patient holding unused sessions on a paid, active programme, a therapist holding cash, and a payout unsettled. Read the card with the range ending between the two snapshot dates, then after both.
+**Expected Result.** Only the **most recent snapshot at or before the range end** is read; the older rows are listed and marked as older. On top of it, four app-known lines appear: what therapists are owed, cash they are holding, refunds still to hand back, and **sessions paid for and not used** - valued at what the patient actually paid, pro-rated over the sessions bought, never at the current catalogue price. Switching *Include the balances this app already knows* off on Your Numbers removes all four and leaves only the entered figures. With nothing owed, the ratio reads `-`, never `∞`.
+
+#### `FIN-BH-005` - Break-even, and the reading switches · P1
+
+**Steps.** Read the Break-even card. Then on **Your Numbers**, switch *Payment fees are a cost of delivering a session* off and read the whole chain again. Then enter a break-even price and delivery cost by hand.
+**Expected Result.** Break-even is `costs that do not move ÷ left over per session`, **rounded up** - three-and-a-bit sessions reads as four. The bar shows sessions delivered against the line, and says how many past or short. Flipping the payment-fees switch moves the figure between *cost of delivering sessions* and *running the clinic*, changes gross profit and gross margin, and leaves **operating income and net profit identical** - a switch that moved the bottom line would be a way to report a different profit. With a price and cost entered by hand, the card says it is using your figures rather than what the sessions did. Where a session leaves nothing towards the fixed costs, the card refuses a number and says the price or the delivery cost has to move.
+
+#### `FIN-BH-006` - Filters narrow revenue, not costs · P1
+
+**Steps.** Filter Business Health to one therapist. Read the profit card. Then set the chart step to Weekly and to Monthly, and filter by delivery mode and by how it was paid.
+**Expected Result.** An **amber line** on the profit card says a filter is on, that rent and every other running cost belongs to the whole clinic and is shown in full, and that the profit figures are therefore not that slice's profit. Revenue, the therapists' share and the delivery costs do narrow. Every chart redraws at the chosen step. A period with no revenue leaves a **gap** in the margin lines rather than a point at zero.
 
 #### `FIN-BRK-001` - Breakdown agrees with Summary · P0
 **Steps.** Open **Money → Breakdown** for the same range.

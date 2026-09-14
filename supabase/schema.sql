@@ -9577,3 +9577,404 @@ create trigger trg_profiles_keep_one_master_admin_delete
   after delete on profiles
   referencing old table as removed
   for each statement execute function public.profiles_keep_one_master_admin();
+
+-- ---------------------------------------------------------------------------
+-- Business Health: the seven standard finance figures
+-- ---------------------------------------------------------------------------
+--
+-- The Money screens could answer "what came in and what is left", and stopped
+-- there. The figures a bank, an investor or an accountant actually asks for --
+-- return on investment, return on ad spend, working capital, the two margins,
+-- EBITDA, break-even and run rate -- each need one or two numbers this app has
+-- no way to know: what was put into the business, what was spent on ads, and
+-- what the clinic owns and owes outside its own booking table.
+--
+-- Three tables and one column carry exactly those, and nothing else. Every
+-- other input on that screen is derived from rows this app already holds, so
+-- the amount of typing an owner does stays as small as the arithmetic allows.
+--
+-- The one column first: an expense's *class*. Break-even needs fixed costs
+-- told apart from variable ones, gross margin needs the cost of delivering a
+-- session told apart from the cost of running the clinic, and EBITDA needs
+-- interest, tax and depreciation kept out of operating income and added back
+-- by name. All four questions are the same question -- what kind of cost is
+-- this -- so it is one column rather than four screens.
+--
+-- 'fixed' is the default deliberately: every row recorded before this column
+-- existed was a running cost, and defaulting them to 'fixed' means no figure
+-- anywhere in the app moves the day this lands. An owner reclassifies the
+-- handful that are really direct costs when they get to it.
+alter table business_expenses
+  add column if not exists cost_class text not null default 'fixed'
+  check (cost_class in ('direct', 'fixed', 'interest', 'tax', 'depreciation'));
+
+-- What the owner put into the business: the couch, the laptops, the fit-out,
+-- the website build. Two figures on the same row rather than two tables,
+-- because they answer the two halves of the same question: `amount_paise` is
+-- what it cost (the denominator of both ROI formulas) and
+-- `present_value_paise` is what it is worth now (the numerator of the second).
+--
+-- `present_value_paise` is nullable and `present_value_as_of` beside it says
+-- when it was last judged, because a present value is an opinion with a date
+-- on it -- an undated one read a year later is worse than none. With it unset
+-- the screen shows the first ROI formula and says plainly that the second
+-- needs a valuation, rather than quietly substituting the purchase price and
+-- reporting a return of zero.
+--
+-- `useful_life_months` is what turns a purchase into a depreciation line: a
+-- straight line, amount / life, charged per month it was owned. Straight-line
+-- because it is the only method an owner can check by hand, and a figure in
+-- EBITDA that nobody can check is a figure nobody will trust.
+create table if not exists capital_investments (
+  id uuid primary key default gen_random_uuid(),
+  label text not null,
+  invested_on date not null,
+  amount_paise bigint not null check (amount_paise > 0),
+  present_value_paise bigint check (present_value_paise is null or present_value_paise >= 0),
+  present_value_as_of date,
+  useful_life_months integer
+    check (useful_life_months is null or useful_life_months between 1 and 600),
+  -- Which word the write-off goes under. Named rather than inferred from the
+  -- label, because the two are the D and the A of EBITDA and an owner reading
+  -- that figure is entitled to know which of their rows landed in which half.
+  write_off_as text not null default 'depreciation'
+    check (write_off_as in ('depreciation', 'amortization')),
+  notes text,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  -- A valuation with no value, or a value with no date, is half a fact.
+  constraint capital_investments_valuation_paired check (
+    (present_value_paise is null and present_value_as_of is null)
+    or (present_value_paise is not null and present_value_as_of is not null)
+  )
+);
+
+create index if not exists capital_investments_invested_on_idx
+  on capital_investments (invested_on desc);
+
+-- What was spent on advertising, and -- where it can honestly be established
+-- -- what came back. Spend is per campaign per span rather than one running
+-- total, so "the last 30 days" can be answered by the days that overlap it.
+--
+-- `promo_code_id` is how revenue is attributed without anybody guessing: a
+-- campaign carrying a code is worth exactly the net revenue of the bookings
+-- that claimed it, which this app already records on the appointment. A
+-- campaign with no code and no hand-entered figure produces **no** ROAS at
+-- all, and the screen says so -- inventing an attribution is the one thing a
+-- return-on-spend figure must never do, because it is read as evidence for
+-- spending more.
+--
+-- `attributed_revenue_paise` is the escape hatch for a funnel this app cannot
+-- see (an ad that makes the phone ring). It is labelled as the owner's own
+-- figure wherever it is shown, never blended silently into a derived one.
+create table if not exists marketing_campaigns (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  channel text not null default 'other'
+    check (channel in ('google', 'meta', 'instagram', 'youtube', 'offline', 'other')),
+  starts_on date not null,
+  -- Null means it is still running, so its spend is spread up to today.
+  ends_on date,
+  spend_paise bigint not null check (spend_paise >= 0),
+  promo_code_id uuid references promo_codes(id) on delete set null,
+  attributed_revenue_paise bigint
+    check (attributed_revenue_paise is null or attributed_revenue_paise >= 0),
+  notes text,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint marketing_campaigns_window_ordered check (
+    ends_on is null or ends_on >= starts_on
+  )
+);
+
+create index if not exists marketing_campaigns_starts_on_idx
+  on marketing_campaigns (starts_on desc);
+
+-- What the clinic owns and owes outside its own tables: the bank balance, the
+-- GST due, a loan repayment falling within the year. Entered as a dated
+-- snapshot rather than a running balance, because that is what a balance sheet
+-- is -- every row sharing one `as_of` date is one snapshot, and working
+-- capital reads the most recent snapshot at or before the dates in view.
+--
+-- Deliberately only the *current* half. Working capital is current assets less
+-- current liabilities, so a building and a ten-year loan have no place here,
+-- and a table that accepted them would produce a working-capital figure that
+-- was quietly a net-worth figure.
+create table if not exists balance_sheet_entries (
+  id uuid primary key default gen_random_uuid(),
+  as_of date not null,
+  side text not null check (side in ('asset', 'liability')),
+  label text not null,
+  amount_paise bigint not null check (amount_paise >= 0),
+  notes text,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists balance_sheet_entries_as_of_idx
+  on balance_sheet_entries (as_of desc);
+
+-- Same posture as business_expenses, and for the same reason: these three
+-- tables decide what the business reports as its return, its margin and its
+-- solvency, so admins read and the service-role client behind the routes is
+-- the only writer. A stolen session cookie cannot invent an investment and
+-- change the ROI the owner reads.
+alter table capital_investments enable row level security;
+alter table marketing_campaigns enable row level security;
+alter table balance_sheet_entries enable row level security;
+
+drop policy if exists "capital_investments_select_admin" on capital_investments;
+create policy "capital_investments_select_admin" on capital_investments
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+drop policy if exists "marketing_campaigns_select_admin" on marketing_campaigns;
+create policy "marketing_campaigns_select_admin" on marketing_campaigns
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+drop policy if exists "balance_sheet_entries_select_admin" on balance_sheet_entries;
+create policy "balance_sheet_entries_select_admin" on balance_sheet_entries
+  for select using (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+revoke insert, update, delete on capital_investments from authenticated;
+revoke insert, update, delete on marketing_campaigns from authenticated;
+revoke insert, update, delete on balance_sheet_entries from authenticated;
+
+do $$
+begin
+  alter publication supabase_realtime add table capital_investments;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table marketing_campaigns;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table balance_sheet_entries;
+exception when duplicate_object then null;
+end $$;
+
+-- The Business Health screen's own settings. Every one of them is a judgement
+-- an owner is entitled to make differently, which is why none of them is a
+-- constant in the maths:
+--
+--   * which cost lines count as the cost of delivering a session (the three
+--     `finance_cogs_*` switches). A clinic that thinks of its gateway fee as
+--     an overhead rather than a cost of sale gets a different -- and equally
+--     defensible -- gross margin, and this is where they say so.
+--   * what a session sells for and what it costs to deliver, for break-even.
+--     Null means "work it out from the sessions in view", which is right for
+--     a clinic with a settled price list and wrong for one planning a change,
+--     so both can be overridden with a figure the owner is modelling.
+--   * how a period is annualised for run rate. 'auto' reads it off the length
+--     of the range in view, which is what makes the figure move sensibly when
+--     somebody changes the dates.
+--   * whether the balances this app already knows (what therapists are owed,
+--     cash they are holding, refunds still to hand back, sessions patients
+--     have paid for and not used) join the working-capital snapshot. On by
+--     default: they are real, current, and the owner would otherwise be
+--     typing them in from another screen of this same dashboard.
+alter table site_settings
+  add column if not exists finance_cogs_therapist_share boolean not null default true;
+alter table site_settings
+  add column if not exists finance_cogs_partner_share boolean not null default true;
+alter table site_settings
+  add column if not exists finance_cogs_payment_fees boolean not null default true;
+alter table site_settings
+  add column if not exists finance_include_app_balances boolean not null default true;
+alter table site_settings
+  add column if not exists finance_break_even_price_paise bigint
+  check (finance_break_even_price_paise is null or finance_break_even_price_paise >= 0);
+alter table site_settings
+  add column if not exists finance_break_even_variable_cost_paise bigint
+  check (
+    finance_break_even_variable_cost_paise is null
+    or finance_break_even_variable_cost_paise >= 0
+  );
+alter table site_settings
+  add column if not exists finance_run_rate_basis text not null default 'auto'
+  check (finance_run_rate_basis in ('auto', 'weekly', 'monthly', 'quarterly'));
+
+-- ---------------------------------------------------------------------------
+-- debug_reset_all_data: clear the three finance-input tables too
+-- ---------------------------------------------------------------------------
+--
+-- Adding a table means adding it to this TRUNCATE list, or a reset silently
+-- leaves its rows behind -- and an investment, an ad campaign and a bank
+-- balance are exactly the rows that would then describe a clinic whose entire
+-- booking history had just been deleted. Re-appended in full rather than
+-- edited in place, the way every earlier revision of this function was, so
+-- the file stays re-runnable top to bottom.
+create or replace function public.debug_reset_all_data()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  deleted_accounts integer;
+  admin_count integer;
+begin
+  select count(*) into admin_count from profiles where role = 'admin';
+  if admin_count = 0 then
+    raise exception 'refusing to reset: no admin account would be left behind';
+  end if;
+
+  truncate table
+    session_credit_ledger,
+    session_entitlements,
+    payment_webhook_events,
+    payments,
+    business_expenses,
+    capital_investments,
+    marketing_campaigns,
+    balance_sheet_entries,
+    admin_activity_log,
+    admin_impersonation_sessions,
+    session_suggestions,
+    appointment_reassignment_log,
+    payment_failure_log,
+    package_purchase_events,
+    home_visit_purchase_events,
+    appointments,
+    patient_package_purchases,
+    home_visit_package_purchases,
+    therapist_payout_requests,
+    therapist_payout_batches,
+    session_note_revisions,
+    session_notes,
+    patient_medical_documents,
+    pain_assessments,
+    condition_change_requests,
+    condition_access_grants,
+    patient_condition_profiles,
+    patient_addresses,
+    patient_admin_notes,
+    therapist_admin_notes,
+    hospital_admin_notes,
+    profile_change_requests,
+    therapist_availability_override,
+    therapist_availability_template,
+    therapist_schedule_state,
+    patient_referrals,
+    b2b_leads,
+    home_visit_waitlist,
+    home_visit_areas,
+    home_visit_packages,
+    testimonials,
+    faqs,
+    intake_question_templates,
+    pain_map_question_templates,
+    care_plan_versions,
+    care_plans,
+    communication_flags,
+    contact_reveal_log,
+    risk_reviews,
+    risk_signals,
+    care_plan_reviews,
+    -- marketing_campaigns references promo_codes, so it is truncated above
+    -- rather than left to CASCADE reach it: a campaign pointing at a code
+    -- that no longer exists could not say what it was attributed by.
+    patient_invites,
+    promo_codes
+  cascade;
+
+  with removed as (
+    delete from auth.users
+    where id not in (select id from profiles where role = 'admin')
+    returning 1
+  )
+  select count(*) into deleted_accounts from removed;
+
+  update risk_rules set
+    enabled = default,
+    config = default,
+    updated_at = now()
+  where rule_key is not null;
+
+  update site_settings set
+    site_name = default,
+    site_tagline = default,
+    site_description = default,
+    contact_email = default,
+    whatsapp_number = default,
+    contact_phone = default,
+    footer_copyright_text = default,
+    home_visit_page_heading = null,
+    home_visit_page_subheading = null,
+    ratings_visible_publicly = default,
+    session_packages_visible = default,
+    session_timeout_minutes = default,
+    google_meet_enabled = default,
+    join_window_minutes = default,
+    join_window_after_minutes = default,
+    session_completed_after_minutes = default,
+    booking_languages = default,
+    package_default_validity_days = default,
+    package_therapist_lock_enabled = default,
+    package_bulk_schedule_max = default,
+    package_expiry_reminder_days = default,
+    home_visit_enabled = default,
+    home_visit_cash_enabled = default,
+    home_visit_lead_time_hours = default,
+    home_visit_cancellation_refund_hours = default,
+    home_visit_default_validity_days = default,
+    home_visit_bulk_schedule_max = default,
+    home_visit_travel_buffer_minutes = default,
+    online_booking_lead_time_hours = default,
+    online_cancellation_refund_hours = default,
+    payment_gateway_fee_percent = default,
+    farewell_banner_seconds = default,
+    journey_step_seconds = default,
+    splash_enabled = default,
+    splash_brand_line = default,
+    splash_phrase = default,
+    splash_hold_seconds = default,
+    splash_revisit_minutes = default,
+    enabled_intake_specialties = default,
+    entitlement_ledger_authoritative = default,
+    care_plan_default_expiry_days = default,
+    care_plan_max_frequency_per_week = default,
+    contact_scan_mode = default,
+    contact_masking_enabled = default,
+    risk_signals_enabled = default,
+    therapist_suggestions_enabled = default,
+    auto_assign_therapist_enabled = default,
+    care_plan_requires_approval = default,
+    first_session_offer_enabled = default,
+    first_session_offer_type = default,
+    first_session_offer_value = default,
+    promo_codes_enabled = default,
+    invite_rewards_enabled = default,
+    invite_reward_paise = default,
+    invite_welcome_paise = default,
+    invite_max_rewards_per_patient = default,
+    finance_cogs_therapist_share = default,
+    finance_cogs_partner_share = default,
+    finance_cogs_payment_fees = default,
+    finance_include_app_balances = default,
+    finance_break_even_price_paise = null,
+    finance_break_even_variable_cost_paise = null,
+    finance_run_rate_basis = default
+  where id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'deleted_accounts', deleted_accounts
+  );
+end;
+$$;
+
+revoke execute on function public.debug_reset_all_data() from anon, authenticated;

@@ -240,6 +240,9 @@ src/lib/promoCodes.ts    a campaign's maths and whether this patient may claim i
 src/lib/inviteRewards.ts one patient inviting another, and both halves of it
 src/lib/checkoutQuote.ts what a booking costs, resolved once for three callers
 src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
+src/lib/financeMetrics.ts the seven standard finance figures and their inputs
+src/lib/financeInputs.ts validation for the three things an owner types in
+src/lib/financeSettingsServer.ts how Business Health reads the same money
 src/lib/adminScope.ts    admin scopes and which sections each one may open
 src/lib/accountDeletion.ts what blocks deleting an account, and what to say
 src/lib/listOrdering.ts  moving a row up or down a hand-ordered admin list
@@ -2555,6 +2558,62 @@ client is the only writer and the log is append-only from any session.
   (no therapist share set, or a partner with no share configured) is
   excluded from the split alone and surfaced as a named count. Never guess
   a percentage to make the numbers tie.
+- **The seven standard finance figures are a screen, and three of them stand
+  on numbers this app cannot know.** Money -> Business Health reports return
+  on investment, return on ad spend, working capital, both profit margins,
+  EBITDA, break-even and revenue run rate. The maths is dependency-free in
+  `src/lib/financeMetrics.ts`; the screen draws what it returns and derives
+  nothing of its own. Revenue and the split come from `moneyByBucketFor` and
+  `gatewayFeePaise` -- the same functions Summary reads -- so the two screens
+  cannot disagree about what the clinic earned. Six rules hold it:
+  1. **A figure that cannot be worked out is null, never zero**, and the card
+     says which input is missing and links to the screen that takes it. ROI
+     with nothing invested, ROAS with nothing traceable, a break-even where a
+     session leaves nothing towards the fixed costs: each is a refusal with a
+     sentence. A zero is read as a measurement and acted on -- the same
+     reasoning `comparePeriod` refuses a percentage off a zero baseline.
+  2. **Nothing is inferred from a label.** What kind of cost something is
+     (`business_expenses.cost_class`), whether a write-off is depreciation or
+     amortization, which campaign a booking came from -- all recorded columns,
+     never guessed from wording somebody will reword. `cost_class` defaults to
+     `fixed`, which is what every row predating the column already was, so no
+     figure moved when it shipped; it is read in its own query and merged, so
+     an unmigrated database still lists every cost.
+  3. **Advertising revenue is traced or it does not exist.** A campaign is
+     traced by a promo code, and is then worth exactly the net revenue of the
+     bookings that claimed it -- read off the same `MoneyLine`s the profit
+     figures are built from. Untraceable spend is held **out** of the
+     division and stated separately, because leaving it in the denominator
+     reports a campaign as a failure for the sole reason that nobody tagged
+     it. A hand-entered figure is allowed (an ad that makes the phone ring is
+     real and invisible here) and is labelled as the owner's own wherever it
+     shows. Spend is pro-rated across the campaign's own days; an open-ended
+     one runs to today, never to the end of the range in view, or one row
+     would read as a different daily budget every time somebody moved the
+     dates.
+  4. **Working capital counts what the clinic already owes as care.** Money
+     taken for sessions not yet delivered is a current liability
+     (`unusedPaidValuePaise`, valued at what was actually paid, never at the
+     live catalogue price), alongside what therapists are owed, cash they are
+     holding and refunds still to hand back. It is a dated snapshot, not a
+     period: every hand-entered row sharing an `as_of` is one snapshot and the
+     most recent at or before the range end is the one read, so entering this
+     month's bank balance does not erase last month's.
+  5. **The three `finance_cogs_*` switches change a reading, never a total.**
+     Moving the therapists' share, the partners' share or the payment fees
+     between cost of delivery and overhead moves the gross-margin line and
+     leaves operating income and net profit untouched -- asserted in
+     `financeMetrics.test.ts`, because a switch that moved the bottom line
+     would be a way to report a different profit.
+  6. **A dimension filter narrows revenue, not costs.** Rent is not
+     attributable to a therapist, so a filtered profit figure compares one
+     slice's revenue with the whole clinic's costs. The screen says so in an
+     amber line while any filter is on rather than leaving somebody to read it
+     by accident.
+  Adding a figure means a `financeMetrics` function with its own test, a
+  `MONEY_TERMS` entry carrying `formula` and `source` as well as `meaning`,
+  and a card on the screen -- never arithmetic inside the component.
+
 - **Only one figure may be called profit, and only because costs exist.**
   `clinic share` is what net revenue leaves after the therapist and partner
   splits - a gross figure. **Operating profit** is that less the two cost
@@ -3360,10 +3419,17 @@ change that genuinely needs no doc update can ignore it.
   and on a `slate-100` fill -- a segmented-control track, a neutral pill --
   it is `text-slate-600`, since slate-500 there is 4.34:1 and just misses.
   Sidebar's own active entry is `bg-teal-700`, not `-600`: white on teal-600
-  is 3.66:1. The same split applies to the two chart constants in
-  `AdminMetricsTab` -- they are drawn as lines *and* printed as figures, so
-  they take the -700 shades while `PatientProfitChart`, which only draws,
-  keeps -600.
+  is 3.66:1. The same split applies to the chart constants in
+  `src/components/admin/TrendCharts.tsx` (where the Money and Business Health
+  screens both read them from) -- they are drawn as lines *and* printed as
+  figures, so they take the -700 shades while `PatientProfitChart`, which only
+  draws, keeps -600. Axis tick labels there are slate-500 for the same reason:
+  they are read, not decoration.
+  **The debug bar is the one surface the app-wide sweep could not see**, since
+  it was run with `NEXT_PUBLIC_SHOW_DEBUG_NAV=false`. Its page picker and its
+  simulate-time box carry `aria-label`s of their own -- the visible words
+  beside them are spans that vanish below `sm`, so on a phone both controls
+  were announced as nothing.
 - **Every control carries an accessible name, and an icon-only one carries it
   explicitly.** A visible label is associated with `htmlFor` + `useId` (not
   by sitting next to the input), a control with no visible label at all --

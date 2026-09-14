@@ -85,6 +85,14 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   // sees their own change via router.refresh(), so the long cooldown is
   // right and the short operational one would be wasted rebuilds.
   "business_expenses",
+  // Business Health's three input tables, on the same reasoning as costs
+  // above: an owner types into them on Your Numbers a few times a month and
+  // sees their own change immediately, so what the long cooldown buys is a
+  // second admin's screen catching up -- not a live feed worth a full
+  // dashboard rebuild each keystroke's worth of work.
+  "capital_investments",
+  "marketing_campaigns",
+  "balance_sheet_entries",
   // Detector thresholds, edited on the Risk tab itself.
   "risk_rules",
   // The three records the Risk tab reads. Deliberately on the long cooldown

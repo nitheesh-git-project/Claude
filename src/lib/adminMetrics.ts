@@ -96,7 +96,19 @@ export function filterBySlotRange(
 // Weekly buckets for a short range, monthly for a longer one - matches how
 // someone actually reads a trend at each zoom level (a year of weekly bars
 // is unreadable, a month of monthly bars is meaningless).
-export function buildBuckets(fromMs: number, toMs: number): PeriodBucket[] {
+export type BucketGranularity = "auto" | "weekly" | "monthly";
+
+export function buildBuckets(
+  fromMs: number,
+  toMs: number,
+  // Which size of bucket to draw. 'auto' is the rule above -- weekly for a
+  // short range, monthly for a long one -- and stays the default, so every
+  // existing caller is unchanged. The override exists because "auto" is a
+  // guess at what somebody wants to see: an owner comparing this March with
+  // last March wants twelve monthly bars over a year, and one comparing two
+  // campaign weeks inside one month wants weekly ones.
+  granularity: BucketGranularity = "auto"
+): PeriodBucket[] {
   const spanDays = (toMs - fromMs) / 86_400_000;
   const buckets: PeriodBucket[] = [];
   // Bucket boundaries and their display labels are both pinned to UTC.
@@ -105,7 +117,8 @@ export function buildBuckets(fromMs: number, toMs: number): PeriodBucket[] {
   // would otherwise snap to whatever timezone is reading them, which
   // differs between server (SSR) and the admin's browser (hydration) and
   // can shift a bucket's calendar date depending on which one rendered.
-  if (spanDays > 45) {
+  const monthly = granularity === "monthly" || (granularity === "auto" && spanDays > 45);
+  if (monthly) {
     const cursor = new Date(fromMs);
     cursor.setUTCDate(1);
     cursor.setUTCHours(0, 0, 0, 0);

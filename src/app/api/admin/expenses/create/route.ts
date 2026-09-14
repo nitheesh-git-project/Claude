@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { EXPENSE_CATEGORIES } from "@/lib/operatingCosts";
+import { DEFAULT_COST_CLASS, isCostClass } from "@/lib/financeMetrics";
 
 // Recording a running cost -- the other half of what the Money screens need
 // before they can show a profit rather than stopping at the clinic's share.
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
     category?: string;
     description?: string;
     amountPaise?: number;
+    costClass?: string;
   }>(request);
   if (parseError) return parseError;
 
@@ -65,18 +67,44 @@ export async function POST(request: NextRequest) {
 
   const trimmedDescription = (description ?? "").trim().slice(0, 500) || null;
 
+  // What kind of cost this is -- which decides whether it sits above or below
+  // the gross-profit line, whether break-even has to cover it, and whether
+  // EBITDA adds it back. An unrecognised value falls back to a running cost
+  // rather than being refused: that is what every row recorded before this
+  // column existed already reads as, so the fallback is the status quo rather
+  // than a guess.
+  const costClass = isCostClass(body.costClass) ? body.costClass : DEFAULT_COST_CLASS;
+
   const admin = createAdminClient();
-  const { data: created, error } = await admin
+  const base = {
+    incurred_on: incurredOn,
+    category,
+    description: trimmedDescription,
+    amount_paise: amountPaise,
+    created_by: context.id,
+  };
+
+  let { data: created, error } = await admin
     .from("business_expenses")
-    .insert({
-      incurred_on: incurredOn,
-      category,
-      description: trimmedDescription,
-      amount_paise: amountPaise,
-      created_by: context.id,
-    })
+    .insert({ ...base, cost_class: costClass })
     .select("id")
     .single();
+
+  // `cost_class` is newer than the table, so a database that has not had the
+  // migration applied refuses the whole insert over one column. Recording the
+  // cost matters more than classifying it -- an owner typing in this month's
+  // rent must not be told the clinic cannot record costs -- so the second
+  // attempt drops the column and the row lands as a running cost, which is
+  // exactly what every row predating the column already reads as. Retried
+  // only on an unknown-column error: anything else is a real failure and is
+  // reported as one.
+  if (error && /cost_class/i.test(error.message ?? "")) {
+    ({ data: created, error } = await admin
+      .from("business_expenses")
+      .insert(base)
+      .select("id")
+      .single());
+  }
 
   if (error || !created) {
     return NextResponse.json(
@@ -90,7 +118,7 @@ export async function POST(request: NextRequest) {
     targetId: created.id,
     targetLabel: `${category}${trimmedDescription ? ` - ${trimmedDescription}` : ""}`,
     amountPaise,
-    details: { incurredOn },
+    details: { incurredOn, costClass },
   });
 
   return NextResponse.json({ success: true, id: created.id });
