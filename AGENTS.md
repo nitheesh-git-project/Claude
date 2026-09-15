@@ -167,11 +167,20 @@ Settings -> System Health, permanently red, none of them describing anything
 wrong with the product. The specs register and delete their own rows in an
 `afterAll` now (an afterAll rather than the end of each test, so a failed
 assertion still cleans up); this script clears what earlier runs already
-left. It is dry-run until `--apply`, matches only the literal marker strings
-in `E2E_MARKERS` (`e2e/helpers.ts`), and deletes the fixture `payments` rows
-along with their purchase -- that foreign key is ON DELETE SET NULL, so
-leaving them would trade one red check for another, a captured payment
-attached to nothing.
+left, and matches only the literal marker strings in `E2E_MARKERS`
+(`e2e/helpers.ts`). It is dry-run until one of two flags, and the **ledger is
+why there are two**. `--reconcile` does what that table's own append-only
+trigger tells a caller to do -- releases each fixture appointment's reserved
+credit through `release_session_credit()` and cancels the appointment -- so
+the balances agree again and the row leaves the Session Links backlog, which
+counts confirmed sessions only. Nothing is destroyed, nothing is rewritten,
+and the service-role key is all it needs. `--apply` removes the rows outright
+instead, which cascades into `session_credit_ledger` and is therefore refused
+over REST: it runs as one SQL transaction over the Management API, needs
+`SUPABASE_ACCESS_TOKEN`, and lifts the trigger for those statements alone.
+Either way the fixture `payments` rows go with their purchase -- that foreign
+key is ON DELETE SET NULL, so leaving them would trade one red check for
+another, a captured payment attached to nothing.
 
 `scripts/care-plan-review-sql-checks.sql` is the review step's
 storage-layer check -- the one-open-plan index covering a queued plan, the

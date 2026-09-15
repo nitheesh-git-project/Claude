@@ -18,20 +18,29 @@
 // to re-run: it selects by the same literal markers and touches nothing
 // else.
 //
-// Usage:
-//   node scripts/clean-e2e-residue.mjs           # say what it would delete
-//   node scripts/clean-e2e-residue.mjs --apply   # delete it
+// Two ways to clear it, because the ledger will not simply be deleted:
 //
-// Counting needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
-// Deleting additionally needs SUPABASE_ACCESS_TOKEN, because it runs as one
-// SQL transaction over the Management API rather than as a series of REST
-// calls -- see the comment above the statement itself for why the REST path
-// cannot finish the job. Same token `scripts/run-schema.mjs` uses:
-// https://supabase.com/dashboard/account/tokens
+//   node scripts/clean-e2e-residue.mjs             # say what it would do
+//   node scripts/clean-e2e-residue.mjs --reconcile # neutralise it, keep history
+//   node scripts/clean-e2e-residue.mjs --apply     # delete the rows outright
 //
-// It writes with full privilege and deletes money records. Never point it at
-// a database with real patients; nothing it matches can exist in one, since
-// every marker is a literal string only the e2e suite writes.
+// `--reconcile` is the one to reach for. It does exactly what the ledger's
+// own append-only trigger tells a caller to do: releases each fixture
+// appointment's reserved credit through `release_session_credit()` and
+// cancels the appointment, so the balances agree again and the session drops
+// out of the Session Links backlog (which counts confirmed sessions only).
+// Nothing is destroyed and no history is rewritten. It needs only
+// NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
+//
+// `--apply` removes the rows entirely. It needs SUPABASE_ACCESS_TOKEN as
+// well, because deleting a purchase cascades into `session_credit_ledger`,
+// which refuses a DELETE by trigger -- so it runs as one SQL transaction
+// over the Management API rather than as REST calls. Same token
+// `scripts/run-schema.mjs` uses: https://supabase.com/dashboard/account/tokens
+//
+// Both write with full privilege. Never point either at a database with real
+// patients; nothing they match can exist in one, since every marker is a
+// literal string only the e2e suite writes.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -58,6 +67,7 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
 const apply = process.argv.includes("--apply");
+const reconcile = process.argv.includes("--reconcile");
 
 if (!url || !serviceKey) {
   console.error(
@@ -91,7 +101,7 @@ function die(what, error) {
 async function survey() {
   const { data: appointments, error: apptError } = await admin
     .from("appointments")
-    .select("id, session_code, home_visit_purchase_id")
+    .select("id, session_code, status, home_visit_purchase_id")
     .eq("visit_address_line1", MARKERS.visitAddressLine1);
   if (apptError) die("appointments", apptError);
 
@@ -222,6 +232,67 @@ begin
 end $$;
 `;
 
+/**
+ * Neutralises the residue without deleting anything.
+ *
+ * The ledger's append-only trigger says, in its own error message, to correct
+ * a balance with a new entry rather than by editing or deleting history. That
+ * is exactly what is wanted here: the fixture appointment really did reserve
+ * a credit (the backfill saw it and recorded one), and the honest correction
+ * is to give the credit back and cancel the appointment -- not to pretend the
+ * reserve never happened.
+ *
+ * Both halves matter. The release is what makes the three balances agree
+ * again. The cancel is what drops the session out of the Session Links
+ * backlog, which counts confirmed sessions only -- a fixture appointment
+ * inserted directly never asked Google for a calendar event, so while it
+ * stays confirmed it reads as a real session that failed to get one.
+ *
+ * `release_session_credit` is keyed `release:<appointment_id>`, so running
+ * this twice releases once.
+ */
+async function runReconcile(appointments) {
+  let released = 0;
+  let cancelled = 0;
+
+  for (const appointment of appointments) {
+    const { data, error } = await admin.rpc("release_session_credit", {
+      p_appointment_id: appointment.id,
+      p_actor_id: null,
+      p_actor_role: "system",
+      p_reason: "e2e fixture appointment withdrawn by scripts/clean-e2e-residue.mjs",
+    });
+    if (error) {
+      console.error(`  release failed for ${appointment.session_code ?? appointment.id}: ${error.message}`);
+      process.exit(1);
+    }
+    // "no reservation" is the ordinary answer for a fixture that predates the
+    // ledger backfill, and "already released" for a re-run. Neither is a
+    // failure; only a refusal the ledger itself raised would be.
+    if (data?.applied) released += 1;
+
+    if (appointment.status === "cancelled") continue;
+    const { data: updated, error: cancelError } = await admin
+      .from("appointments")
+      .update({
+        status: "cancelled",
+        cancelled_at: new Date().toISOString(),
+        cancellation_reason: "Test fixture, withdrawn during clean-up. Never a real visit.",
+      })
+      .eq("id", appointment.id)
+      .neq("status", "cancelled")
+      .select("id");
+    if (cancelError) {
+      console.error(`  cancel failed for ${appointment.session_code ?? appointment.id}: ${cancelError.message}`);
+      process.exit(1);
+    }
+    cancelled += (updated ?? []).length;
+  }
+
+  console.log(`\n  credits released: ${released}`);
+  console.log(`  appointments cancelled: ${cancelled}`);
+}
+
 async function runDelete() {
   const projectRef = new URL(url).hostname.split(".")[0];
   const res = await fetch(
@@ -255,35 +326,52 @@ async function main() {
     ["patient_addresses", found.addressIds.length],
   ];
 
-  console.log(apply ? "Deleting:" : "Would delete (re-run with --apply):");
-  for (const [what, count] of plan) console.log(`  ${String(count).padStart(4)}  ${what}`);
+  const live = found.appointments.filter((a) => a.status !== "cancelled");
+  const nothing =
+    found.purchaseIds.length === 0 &&
+    found.referralIds.length === 0 &&
+    found.addressIds.length === 0 &&
+    found.appointments.length === 0;
+
+  if (apply) {
+    console.log("Deleting:");
+    for (const [what, count] of plan) console.log(`  ${String(count).padStart(4)}  ${what}`);
+  } else if (reconcile) {
+    console.log("Reconciling (nothing is deleted):");
+    console.log(`  ${String(found.appointments.length).padStart(4)}  reserved credits to release`);
+    console.log(`  ${String(live.length).padStart(4)}  fixture appointments to cancel`);
+  } else {
+    console.log("Found (re-run with --reconcile, or --apply to delete outright):");
+    for (const [what, count] of plan) console.log(`  ${String(count).padStart(4)}  ${what}`);
+    console.log(`\n  of those appointments, ${live.length} still confirmed`);
+  }
+
   if (found.appointments.length > 0) {
     console.log(
       `\n  session codes: ${found.appointments.map((a) => a.session_code ?? a.id).join(", ")}`
     );
   }
 
-  const nothing =
-    found.purchaseIds.length === 0 &&
-    found.referralIds.length === 0 &&
-    found.addressIds.length === 0 &&
-    found.appointments.length === 0;
   if (nothing) {
     console.log("\nNothing to clean.");
     return;
   }
-  if (!apply) return;
+  if (!apply && !reconcile) return;
 
-  if (!accessToken) {
-    console.error(
-      "\nMissing SUPABASE_ACCESS_TOKEN, which the delete needs (the counting above did not).\n" +
-        "Generate one at https://supabase.com/dashboard/account/tokens and set it in .env.local.\n" +
-        "Nothing has been deleted."
-    );
-    process.exit(1);
+  if (reconcile) {
+    await runReconcile(found.appointments);
+  } else {
+    if (!accessToken) {
+      console.error(
+        "\nMissing SUPABASE_ACCESS_TOKEN, which the delete needs (the counting above did not).\n" +
+          "Generate one at https://supabase.com/dashboard/account/tokens and set it in .env.local,\n" +
+          "or use --reconcile, which needs no token and destroys nothing.\n" +
+          "Nothing has been deleted."
+      );
+      process.exit(1);
+    }
+    await runDelete();
   }
-
-  await runDelete();
 
   // Report the thing this was run for, rather than asking anyone to go and
   // reload a dashboard to find out whether it worked.

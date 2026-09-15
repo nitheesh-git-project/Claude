@@ -38,11 +38,21 @@ video link" row to Settings -> System Health, describing a test rather than
 the clinic.
 
 The specs clean up after themselves now; this clears what earlier runs left.
-It prints what it would delete and changes nothing until you pass `--apply`,
-selects only by those literal fixture strings, and re-runs the balance check
-afterwards so the result is on screen rather than on a dashboard you have to
-reload. It writes with the service role - never point it at a database with
-real patients.
+It prints what it found and changes nothing until you pass a flag, and it
+re-runs the balance check afterwards so the result is on screen rather than on
+a dashboard you have to reload.
+
+- `--reconcile` releases each fixture appointment's reserved credit and
+  cancels the appointment. The balances agree again and the session leaves the
+  Session Links list, with nothing deleted and no history rewritten - which is
+  what the credit ledger's append-only rule asks for. Needs only the service
+  role key.
+- `--apply` deletes the rows outright. That cascades into the credit ledger,
+  so it runs as one SQL transaction over the Supabase Management API and needs
+  `SUPABASE_ACCESS_TOKEN` as well.
+
+Both write with full privilege - never point either at a database with real
+patients.
 
 ### Seeding the QA accounts
 

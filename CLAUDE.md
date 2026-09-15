@@ -373,10 +373,12 @@ build), `npm run lint` (which also
 runs `npm run check:realtime`, the Supabase Realtime publication coverage
 check), `npm run seed:qa`, which recreates every account the manual test
 plan names after a data reset has deleted them, and `npm run clean:e2e`,
-which deletes the fixture rows earlier e2e runs left in the database -- a
+which clears the fixture rows earlier e2e runs left in the database -- a
 direct-insert purchase or appointment never claims `visits_used` and never
 gets a calendar event, so each one left behind is a permanent red row on
-Settings -> System Health. A Playwright
+Settings -> System Health. Its `--reconcile` mode is the one to reach for: it
+releases the credit and cancels the appointment rather than deleting
+anything, which is what the ledger's own append-only trigger asks for. A Playwright
 e2e suite covers the money-critical paths, the public pages' section
 navigation, the catalog detail dialogs, the specialist booking handoff and
 the patient-only booking rule, therapist-suggested sessions, the Home
