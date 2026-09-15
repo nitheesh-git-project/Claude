@@ -1403,6 +1403,18 @@ and re-run `node scripts/get-google-refresh-token.mjs`. While the connection
 is down the automatic retry sweep stands down rather than spending each
 session's capped attempts on a credential that cannot succeed.
 
+**The card also states what the server is actually holding**, because
+`invalid_grant` covers two different problems with two different fixes: a
+permission that has died, and a deployment still running the value you
+replaced. It prints the length and an eight-character fingerprint of the
+saved token (a hash - none of the token itself), so reloading after a
+redeploy answers "did the new value reach the server?" without guessing; it
+says outright when that value has a space or a line break around it, which
+most hosting dashboards add on paste and Google refuses every time; and it
+names the Google app the token is being presented to, since a permission only
+works with the client that issued it and a deployment carrying a different
+client id is refused identically.
+
 A failure here never invalidates anything: the event and the link are
 already created and usable, the meeting simply keeps its waiting room. The
 outcome is recorded per session on `appointments.meet_access_open` /

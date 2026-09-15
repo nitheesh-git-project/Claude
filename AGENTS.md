@@ -870,7 +870,25 @@ client is the only writer and the log is append-only from any session.
   an owner to re-authorize over a network hiccup teaches them to ignore the
   panel. And a failure is **re-checked far sooner than a success is**
   (60s against 10 minutes), so an owner who has just re-run the token script
-  watches the panel go green instead of waiting out a cache. `retryDueMeetSyncs`
+  watches the panel go green instead of waiting out a cache. **It reports the shape of
+  the credential, never the credential.** `invalid_grant` is Google's answer
+  both for a permission that has died and for a server still holding the value
+  somebody just replaced -- and the card's numbered steps fix only the first,
+  so an owner meeting the second re-pastes the same token and meets the same
+  red card. `describeCredential()` gives `HealthCheck.evidence` three facts
+  that settle it: the length, an 8-hex SHA-256 prefix (which changes when the
+  saved value changes, so one reload after a redeploy answers "did it land?"),
+  and whether the stored value carries surrounding whitespace -- that last one
+  needs nothing to compare against, since a trailing newline survives a paste
+  into most hosting dashboards and Google refuses it outright. It hashes the
+  **raw** value rather than a trimmed one, or two values Google treats
+  differently would print one fingerprint, which is the confusion the field
+  exists to end. The broken status also carries `clientId`, because a refresh
+  token is bound to the client that minted it and a deployment carrying a
+  different one is refused with the same error and a completely different fix.
+  `evidence` is facts and never advice -- it renders above the steps precisely
+  because it is what decides whether those steps apply -- and it goes into the
+  Copy for my developer text for the same reason. `retryDueMeetSyncs`
   reads the same verdict and returns early while the credential is down:
   retrying cannot fix it, and each attempt spends one of that appointment's
   five capped tries, so without the check the sessions that most needed the

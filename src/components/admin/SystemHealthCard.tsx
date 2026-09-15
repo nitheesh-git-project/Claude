@@ -112,6 +112,19 @@ export default function SystemHealthCard({
           <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-slate-600">
             {check.headline}
           </p>
+          {/* Facts the failure itself withholds, above the steps rather than
+              below them: where these exist at all, they are what decides
+              whether those steps are the right ones. */}
+          {check.evidence.length > 0 && (
+            <ul className="mt-2 max-w-xl space-y-1">
+              {check.evidence.map((line, i) => (
+                <li key={i} className="flex gap-2 text-[11px] leading-relaxed text-slate-600">
+                  <i aria-hidden className="fa-solid fa-magnifying-glass mt-0.5 text-[9px] text-slate-500" />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <button
           type="button"
