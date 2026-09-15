@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   checkGoogleConnection,
+  describeCredential,
   googleCredentialsUsable,
   resetGoogleConnectionCache,
 } from "./googleConnectionHealth";
@@ -14,6 +15,11 @@ const ENV = [
 function setEnv() {
   for (const key of ENV) process.env[key] = "x";
 }
+
+// What describeCredential makes of the "x" setEnv writes. Hardcoded rather
+// than computed from the module under test, which would assert it against
+// itself.
+const SHAPE_OF_X = { length: 1, fingerprint: "2d711642", padded: false };
 function clearEnv() {
   for (const key of ENV) delete process.env[key];
 }
@@ -65,6 +71,10 @@ describe("checkGoogleConnection", () => {
       state: "broken",
       deadToken: true,
       detail: "Bad Request",
+      // Reported alongside the refusal, because `invalid_grant` is also what
+      // a server still holding the previous token is answered with.
+      credential: SHAPE_OF_X,
+      clientId: "x",
     });
   });
 
@@ -75,7 +85,15 @@ describe("checkGoogleConnection", () => {
 
     const status = await checkGoogleConnection();
 
-    expect(status).toEqual({ state: "broken", deadToken: false, detail: "fetch failed" });
+    expect(status).toEqual({
+      state: "broken",
+      deadToken: false,
+      detail: "fetch failed",
+      // A timeout says nothing about the stored value either way, so the
+      // shape is still reported: it is the same environment.
+      credential: SHAPE_OF_X,
+      clientId: "x",
+    });
   });
 
   it("reads the granted scopes off the same round trip", async () => {
@@ -141,5 +159,60 @@ describe("googleCredentialsUsable", () => {
   it("is true when the token is accepted", async () => {
     vi.stubGlobal("fetch", respond(200, { access_token: "t", scope: CALENDAR }));
     await expect(googleCredentialsUsable()).resolves.toBe(true);
+  });
+});
+
+// Three facts that let an owner tell "the permission died" from "this server
+// never received the value I saved" -- two causes Google reports with the
+// identical `invalid_grant`, and only one of which the card's steps fix.
+describe("describeCredential", () => {
+  it("says nothing at all when the value is absent", () => {
+    expect(describeCredential(undefined)).toBeNull();
+    expect(describeCredential(null)).toBeNull();
+    // An empty string is an unset variable as far as an owner is concerned,
+    // and "0 characters, fingerprint e3b0c442" would read as a value that
+    // exists.
+    expect(describeCredential("")).toBeNull();
+  });
+
+  it("reports the length of the raw value", () => {
+    expect(describeCredential("1//abcdef")?.length).toBe(9);
+  });
+
+  it("fingerprints the same value the same way, every time", () => {
+    const a = describeCredential("1//04-a-real-looking-token");
+    const b = describeCredential("1//04-a-real-looking-token");
+    expect(a?.fingerprint).toBe(b?.fingerprint);
+    expect(a?.fingerprint).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it("fingerprints two different values differently", () => {
+    expect(describeCredential("token-one")?.fingerprint).not.toBe(
+      describeCredential("token-two")?.fingerprint
+    );
+  });
+
+  it("reveals none of the value", () => {
+    const secret = "1//04mxqzxdkHnStCgYIARAAGAQSNwF";
+    const shape = describeCredential(secret);
+    expect(secret).not.toContain(shape!.fingerprint);
+    expect(shape!.fingerprint).not.toContain(secret.slice(0, 4));
+  });
+
+  it("hashes the raw value, not a trimmed one", () => {
+    // Trimming first would print one fingerprint for two values Google
+    // treats differently, which is the exact confusion this exists to end.
+    expect(describeCredential("token")?.fingerprint).not.toBe(
+      describeCredential("token\n")?.fingerprint
+    );
+  });
+
+  it("flags whitespace around the value, which needs nothing to compare against", () => {
+    expect(describeCredential("token")?.padded).toBe(false);
+    expect(describeCredential("token\n")?.padded).toBe(true);
+    expect(describeCredential(" token")?.padded).toBe(true);
+    // Whitespace *inside* is not padding, and a real token has none --
+    // flagging it would put a wrong finding on the card.
+    expect(describeCredential("to ken")?.padded).toBe(false);
   });
 });

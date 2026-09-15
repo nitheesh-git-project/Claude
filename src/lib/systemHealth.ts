@@ -58,6 +58,16 @@ export type HealthCheck = {
   example: string;
   /** Rows behind a non-healthy status, so a count can link to its own list. */
   count: number;
+  /**
+   * What the app can state about this failure that the failure itself does
+   * not say -- facts, never advice, and never a secret.
+   *
+   * It exists for the case where one error message covers two different
+   * problems with two different fixes, and the steps above are therefore
+   * right for only one of them. Empty for every healthy check, and for every
+   * check whose error already names its own cause.
+   */
+  evidence: string[];
 };
 
 export type SystemHealthInput = {
@@ -121,6 +131,7 @@ function paymentsCheck(configured: boolean): HealthCheck {
     example:
       "A patient pays ₹1,200 on her phone and the call drops before the page reloads. With the safety net on, the booking is confirmed anyway. Without it, the money is in your Razorpay account and the session still reads as unpaid.",
     count: configured ? 0 : 1,
+    evidence: [],
   };
 }
 
@@ -141,6 +152,7 @@ function googleCheck(google: GoogleConnectionStatus | undefined): HealthCheck {
       headline: "Not checked on this page load.",
       fix: [],
       count: 0,
+      evidence: [],
     };
   }
 
@@ -156,6 +168,7 @@ function googleCheck(google: GoogleConnectionStatus | undefined): HealthCheck {
         "Redeploy. This panel turns green once the app can sign in.",
       ],
       count: 0,
+      evidence: [],
     };
   }
 
@@ -174,6 +187,7 @@ function googleCheck(google: GoogleConnectionStatus | undefined): HealthCheck {
             "Come back here and press Open on anything listed under Waiting Room.",
           ],
       count: 0,
+      evidence: [],
     };
   }
 
@@ -185,7 +199,8 @@ function googleCheck(google: GoogleConnectionStatus | undefined): HealthCheck {
       : `Google could not be reached. This may be temporary - the check runs again every minute. (${google.detail})`,
     fix: google.deadToken
       ? [
-          "In the Google Cloud console, set the OAuth consent screen to In production. Left on Testing, Google expires the permission every seven days - this is nearly always the cause.",
+          "Check the permission this server is using is the one you last saved - the line under this card says which. If it did not change after your last deploy, the server is still on the old value and the steps below will not help.",
+          "In the Google Cloud console, set the OAuth consent screen to In production. Left on Testing, Google expires the permission every seven days.",
           "Run scripts/get-google-refresh-token.mjs and save the new GOOGLE_CALENDAR_REFRESH_TOKEN in the server environment.",
           "Redeploy, then press Retry on the sessions listed under Session Links below.",
         ]
@@ -194,7 +209,47 @@ function googleCheck(google: GoogleConnectionStatus | undefined): HealthCheck {
           "If it stays red, check that the server can reach the internet.",
         ],
     count: 1,
+    evidence: googleEvidence(google),
   };
+}
+
+/**
+ * The facts the refusal itself withholds.
+ *
+ * Google answers `invalid_grant` both for a permission that has genuinely
+ * died and for a server still holding the value you replaced -- and the
+ * numbered steps above are the fix for only the first. An owner who pastes a
+ * new token, redeploys and meets the same red card has no way to tell which
+ * of the two they are looking at, so they paste it again. These lines end
+ * that loop: the fingerprint changes when the stored value changes, so one
+ * reload answers "did this deploy pick it up?", and the client id is the
+ * other cause entirely -- a token is bound to the client that minted it, and
+ * a deployment carrying a different one is refused identically.
+ *
+ * Facts only. No secret, and no advice: the advice is the `fix` list, and
+ * the whole point here is that it may be the wrong list.
+ */
+function googleEvidence(google: Extract<GoogleConnectionStatus, { state: "broken" }>): string[] {
+  const lines: string[] = [];
+  if (google.credential) {
+    lines.push(
+      `The permission this server is using: ${plural(google.credential.length, "character", "characters")} long, fingerprint ${google.credential.fingerprint}. That fingerprint changes whenever the saved value does, so if it is the same after a redeploy, the new value never reached the server.`
+    );
+    if (google.credential.padded) {
+      // Stated on its own because, unlike the fingerprint, it needs nothing
+      // to compare against: a stray newline survives a paste into most
+      // hosting dashboards and Google refuses it every single time.
+      lines.push(
+        "That saved value has a space or a line break around it. Google refuses it for that alone - paste it again with nothing either side."
+      );
+    }
+  }
+  if (google.clientId) {
+    lines.push(
+      `It is being presented to Google app ${google.clientId}. A permission only works with the app that issued it, so if that is not the app you got the permission from, that is the reason rather than anything above.`
+    );
+  }
+  return lines;
 }
 
 function syncCheck(
@@ -218,6 +273,7 @@ function syncCheck(
       headline: "Every confirmed session has its link.",
       fix: [],
       count: 0,
+      evidence: [],
     };
   }
 
@@ -234,6 +290,7 @@ function syncCheck(
         "Then press Retry on each session here.",
       ],
       count: issues.length,
+      evidence: [],
     };
   }
 
@@ -252,6 +309,7 @@ function syncCheck(
           ]
         : ["Nothing to do yet - come back in a few minutes and check they cleared."],
     count: issues.length,
+    evidence: [],
   };
 }
 
@@ -279,6 +337,7 @@ function waitingRoomCheck(
         "Turn Join Without Approval back on under Settings → Booking Rules to stop the knocking.",
       ],
       count: 0,
+      evidence: [],
     };
   }
 
@@ -289,6 +348,7 @@ function waitingRoomCheck(
       headline: "Nobody is being held at the door.",
       fix: [],
       count: 0,
+      evidence: [],
     };
   }
 
@@ -306,6 +366,7 @@ function waitingRoomCheck(
             "Press Open on each session here, or wait - the app is still retrying these on its own.",
           ],
     count: issues.length,
+    evidence: [],
   };
 }
 
@@ -329,6 +390,7 @@ function accountingCheck(health: AccountingHealth): HealthCheck {
         "Reload this page. The check starts reporting straight away.",
       ],
       count: 0,
+      evidence: [],
     };
   }
 
@@ -344,6 +406,7 @@ function accountingCheck(health: AccountingHealth): HealthCheck {
       headline: `All clear across ${plural(health.entitlementCount, "programme", "programmes")} - balances, payments and delivered sessions all agree.`,
       fix: [],
       count: 0,
+      evidence: [],
     };
   }
 
@@ -377,6 +440,7 @@ function accountingCheck(health: AccountingHealth): HealthCheck {
     headline: `${parts.join(", ")} - something here does not add up.`,
     fix,
     count: total,
+    evidence: [],
   };
 }
 
@@ -503,6 +567,12 @@ export function copyTextFor(check: HealthCheck): string {
     "",
     check.headline,
   ];
+  // Before the steps, deliberately: where evidence exists it is the thing
+  // that decides whether those steps are the right ones at all.
+  if (check.evidence.length > 0) {
+    lines.push("", "What the app can see:");
+    check.evidence.forEach((line) => lines.push(`- ${line}`));
+  }
   if (check.fix.length > 0) {
     lines.push("", "Steps:");
     check.fix.forEach((step, i) => lines.push(`${i + 1}. ${step}`));
