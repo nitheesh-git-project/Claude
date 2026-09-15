@@ -9,6 +9,7 @@
     "lint": "npm run check:realtime && eslint",
     "check:realtime": "node scripts/check-realtime-coverage.mjs",
     "seed:qa": "node scripts/seed-qa-accounts.mjs",
+    "clean:e2e": "node scripts/clean-e2e-residue.mjs",
     "test:e2e": "playwright test",
     "test": "vitest run",
     "test:watch": "vitest",

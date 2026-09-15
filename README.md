@@ -21,9 +21,28 @@ Open http://localhost:3000.
 
 Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
 `npm run test`, `npm run check:realtime`, `npm run test:e2e`,
-`npm run seed:qa`, and
+`npm run seed:qa`, `npm run clean:e2e`, and
 `npm run verify` (lint, then unit tests, then build - the one to run before
 pushing).
+
+### Clearing e2e fixture residue
+
+`npm run clean:e2e` (`scripts/clean-e2e-residue.mjs`) deletes the rows the
+e2e suite writes straight into the database - a home-visit purchase, an
+appointment at "E2E Race Test Road", a saved address, a pair of referrals.
+Three concurrency specs insert those directly rather than through the booking
+routes, which is the point of them, and a direct insert never claims
+`visits_used` or asks Google for a calendar event. Left behind, each run adds
+one permanent "balances disagree" row and one permanent "session with no
+video link" row to Settings -> System Health, describing a test rather than
+the clinic.
+
+The specs clean up after themselves now; this clears what earlier runs left.
+It prints what it would delete and changes nothing until you pass `--apply`,
+selects only by those literal fixture strings, and re-runs the balance check
+afterwards so the result is on screen rather than on a dashboard you have to
+reload. It writes with the service role - never point it at a database with
+real patients.
 
 ### Seeding the QA accounts
 
