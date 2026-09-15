@@ -1,4 +1,4 @@
-# Graph Report - Claude  (2026-09-05)
+# Graph Report - Claude  (2026-09-15)
 
 ## Corpus Check
 - cluster-only mode — file stats not available
@@ -1181,11 +1181,11 @@ Nodes (3): Professional UI Rules & Checklist, UI/UX Quick Reference Rule Set, UI
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `useRouter()` connect `useRouter` to `painMap.ts`, `normalizePincode`, `[patientId]/page.tsx`, `SessionDetailDrawer.tsx`, `conditionIntake.ts`, `createClient`, `PackageSettingsForm`, `ScheduleExceptionsPanel.tsx`, `RiskSignalsTab.tsx`, `useRouter.ts`, `DetailOverlayModal.tsx`, `HomeVisitSettingsForm.tsx`, `patient/dashboard/health-profile/page.tsx`, `AdminSlotPicker.tsx`, `useConfirm`, `FaqManager.tsx`, `HomeVisitPurchaseDetailModal.tsx`, `AdminPayoutRequestsTab.tsx`, `TestimonialManager.tsx`, `AdminFeatureControlTab.tsx`, `carePlans.ts`, `BrandContactDetailsForm.tsx`, `PackagePurchaseDetailModal`, `HomeVisitPackages.tsx`, `inviteRewards.ts`, `RecommendationSettingsForm.tsx`, `AdminUserAccessTab.tsx`, `PackagePurchaseDetailModal.tsx`, `formatSlotTime`, `CarePlanOfferCard.tsx`, `sessionNotes.ts`, `FirstSessionOfferForm.tsx`, `AdminRosterTab.tsx`, `adminSettings.ts`, `carePlanServer.ts`, `WeeklyScheduleEditor.tsx`, `update-setting/route.ts`, `SplashScreenForm`, `TreatmentCategoryManager.tsx`, `debugNow`, `leadTimeMsFromHours`, `AdminCostsTab.tsx`, `SessionDetailDrawer`, `PromoCodeManager.tsx`, `bookableHoursForDate`, `app/layout.tsx`, `TherapistEarningsTab.tsx`, `AdminFeatureControlTab`, `PackageCatalogManager.tsx`, `OnboardingTour`?**
-  _High betweenness centrality (0.095) - this node is a cross-community bridge._
+  _High betweenness centrality (0.088) - this node is a cross-community bridge._
 - **Why does `createAdminClient()` connect `createAdminClient` to `admin.ts`, `painMap.ts`, `normalizePincode`, `[patientId]/page.tsx`, `recordAdminActivity`, `sessionCreditMirror.ts`, `RiskSignalsTab.tsx`, `therapistDashboardData.ts`, `useRouter.ts`, `PatientDetailContent.tsx`, `patient/dashboard/health-profile/page.tsx`, `save-therapist-availability/route.ts`, `admin/dashboard/page.tsx`, `patientDashboardData.ts`, `set-therapist-on-leave/route.ts`, `availabilityRequest.ts`, `inviteRewardsServer.ts`, `therapist/dashboard/health-profile/page.tsx`, `carePlanServer.ts`, `update-setting/route.ts`, `onboard-hospital/route.ts`, `save-promo-code/route.ts`, `communicationFlags.ts`, `carePlanReview.ts`, `accountingHealth.ts`, `create-package/route.ts`?**
-  _High betweenness centrality (0.072) - this node is a cross-community bridge._
+  _High betweenness centrality (0.068) - this node is a cross-community bridge._
 - **Why does `createClient()` connect `createClient` to `AdminShell.tsx`, `bookableHoursForDate`, `HospitalLoginCard`, `dashboardShellRoutes.ts`, `phoneNumber.ts`, `HomeVisitBookingWizard.tsx`, `therapist/dashboard/health-profile/page.tsx`, `PatientAuthCard.tsx`?**
-  _High betweenness centrality (0.015) - this node is a cross-community bridge._
+  _High betweenness centrality (0.018) - this node is a cross-community bridge._
 - **What connects `Body`, `Body`, `Body` to the rest of the system?**
   _910 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `createAdminClient` be split into smaller, more focused modules?**
