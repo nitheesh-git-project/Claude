@@ -201,3 +201,90 @@ export async function skipWithoutBrowserEgress(page: Page): Promise<void> {
       "normally wherever the browser can reach the project."
   );
 }
+
+// --------------------------------------------------------------------------
+// Fixture cleanup
+// --------------------------------------------------------------------------
+// A spec that inserts a purchase or an appointment straight into the
+// database -- rather than going through the booking routes -- must delete it
+// again, and the reason is not tidiness.
+//
+// `bookHomeVisitSession` claims a visit on `visits_used` before it inserts
+// the appointment; a direct insert does not. So a leftover fixture
+// appointment is a visit the ledger has reserved and the legacy counter has
+// never heard of, which is exactly what `verify_entitlement_balances()`
+// reports -- and it reports it for ever, because nothing sweeps it. One
+// abandoned fixture per run turned Settings -> System Health permanently red
+// for the clinic owner: nine "balances that disagree" and eight "sessions
+// with no video link" (a direct insert never asks Google for an event
+// either), none of which described anything wrong with the product.
+//
+// The markers below are what a one-off clean-up can still find residue by,
+// so keep the spec and the script using the same strings.
+export const E2E_MARKERS = {
+  /** Appointments inserted directly by the concurrency specs. */
+  visitAddressLine1: "E2E Race Test Road",
+  /** Saved addresses inserted by the bulk-limit spec. */
+  savedAddressLine1: "E2E Bulk Limit Test Address",
+  /** Referrals inserted by the assign-referral race spec. */
+  referralNamePrefix: "E2E Race Referral",
+  /** Razorpay payment ids the refund race spec mints for uncapturable orders. */
+  fakePaymentIdPrefix: "pay_e2erace",
+} as const;
+
+/**
+ * Removes home-visit fixture purchases and everything hanging off them, in
+ * the order the foreign keys allow.
+ *
+ * `payments.target_home_visit_purchase_id` is ON DELETE SET NULL, so a
+ * fixture payment left behind does not vanish with its purchase -- it
+ * becomes a captured payment attached to nothing, which is its own finding
+ * on the same System Health screen. Deleting the purchase without it trades
+ * one red check for another.
+ */
+export async function deleteHomeVisitFixturePurchases(
+  admin: SupabaseClient,
+  purchaseIds: string[]
+): Promise<void> {
+  const ids = purchaseIds.filter(Boolean);
+  if (ids.length === 0) return;
+  // No ON DELETE behaviour on appointments.home_visit_purchase_id, so these
+  // go first or the purchase delete is refused outright.
+  await warnOnFailure("appointments", admin.from("appointments").delete().in("home_visit_purchase_id", ids));
+  await warnOnFailure("payments", admin.from("payments").delete().in("target_home_visit_purchase_id", ids));
+  await warnOnFailure(
+    "home_visit_package_purchases",
+    admin.from("home_visit_package_purchases").delete().in("id", ids)
+  );
+}
+
+/**
+ * Says so when a cleanup delete is refused, rather than swallowing it.
+ *
+ * The one refusal worth expecting: a purchase whose entitlement already
+ * exists cascades into `session_credit_ledger`, which is append-only by
+ * trigger. That happens only when `schema.sql` was applied while the run was
+ * in flight, and `npm run clean:e2e` is what clears the result -- but a
+ * silent failure here is how the residue accumulated unnoticed in the first
+ * place.
+ */
+async function warnOnFailure(
+  what: string,
+  query: PromiseLike<{ error: { message: string } | null }>
+): Promise<void> {
+  const { error } = await query;
+  if (error) {
+    console.warn(`[e2e cleanup] could not delete ${what}: ${error.message} -- run \`npm run clean:e2e\``);
+  }
+}
+
+/** Removes referral fixtures and any appointment pointing back at them. */
+export async function deleteReferralFixtures(
+  admin: SupabaseClient,
+  referralIds: string[]
+): Promise<void> {
+  const ids = referralIds.filter(Boolean);
+  if (ids.length === 0) return;
+  await warnOnFailure("appointments", admin.from("appointments").delete().in("referral_id", ids));
+  await warnOnFailure("patient_referrals", admin.from("patient_referrals").delete().in("id", ids));
+}

@@ -21,9 +21,38 @@ Open http://localhost:3000.
 
 Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
 `npm run test`, `npm run check:realtime`, `npm run test:e2e`,
-`npm run seed:qa`, and
+`npm run seed:qa`, `npm run clean:e2e`, and
 `npm run verify` (lint, then unit tests, then build - the one to run before
 pushing).
+
+### Clearing e2e fixture residue
+
+`npm run clean:e2e` (`scripts/clean-e2e-residue.mjs`) deletes the rows the
+e2e suite writes straight into the database - a home-visit purchase, an
+appointment at "E2E Race Test Road", a saved address, a pair of referrals.
+Three concurrency specs insert those directly rather than through the booking
+routes, which is the point of them, and a direct insert never claims
+`visits_used` or asks Google for a calendar event. Left behind, each run adds
+one permanent "balances disagree" row and one permanent "session with no
+video link" row to Settings -> System Health, describing a test rather than
+the clinic.
+
+The specs clean up after themselves now; this clears what earlier runs left.
+It prints what it found and changes nothing until you pass a flag, and it
+re-runs the balance check afterwards so the result is on screen rather than on
+a dashboard you have to reload.
+
+- `--reconcile` releases each fixture appointment's reserved credit and
+  cancels the appointment. The balances agree again and the session leaves the
+  Session Links list, with nothing deleted and no history rewritten - which is
+  what the credit ledger's append-only rule asks for. Needs only the service
+  role key.
+- `--apply` deletes the rows outright. That cascades into the credit ledger,
+  so it runs as one SQL transaction over the Supabase Management API and needs
+  `SUPABASE_ACCESS_TOKEN` as well.
+
+Both write with full privilege - never point either at a database with real
+patients.
 
 ### Seeding the QA accounts
 

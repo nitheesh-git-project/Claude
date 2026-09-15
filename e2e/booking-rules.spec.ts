@@ -5,7 +5,16 @@ import {
   leadTimeMsFromHours,
   BOOKING_LEAD_TIME_MS,
 } from "../src/lib/bookingSlots";
-import { adminClient, cookieHeaderFor, profileIdFor, QA_EMAILS, BASE, wholeHourFromNow } from "./helpers";
+import {
+  adminClient,
+  cookieHeaderFor,
+  profileIdFor,
+  QA_EMAILS,
+  BASE,
+  wholeHourFromNow,
+  E2E_MARKERS,
+  deleteHomeVisitFixturePurchases,
+} from "./helpers";
 
 test.describe("home-visit lead time (regression for the bulk scheduler bug)", () => {
   // HomeVisitBulkScheduler.tsx used to call these helpers with no
@@ -84,6 +93,24 @@ test.describe("home-visit area gating", () => {
 });
 
 test.describe("home-visit bulk scheduling limits", () => {
+  // Registered as they are created and removed when this file finishes, so
+  // a failed assertion still cleans up. A purchase written straight into the
+  // database outlives the run otherwise, and Settings -> System Health reads
+  // it as a real programme for ever. See E2E_MARKERS in helpers.ts.
+  const fixturePurchaseIds: string[] = [];
+  const fixtureAddressIds: string[] = [];
+
+  test.afterAll(async () => {
+    const admin = adminClient();
+    await deleteHomeVisitFixturePurchases(admin, fixturePurchaseIds.splice(0));
+    // Addresses go last: the purchase's default_address_id points at one and
+    // carries no ON DELETE behaviour.
+    const addressIds = fixtureAddressIds.splice(0);
+    if (addressIds.length > 0) {
+      await admin.from("patient_addresses").delete().in("id", addressIds);
+    }
+  });
+
   test("a batch larger than the admin-configured max is rejected outright, not partially fulfilled", async () => {
     const admin = adminClient();
     const patientId = await profileIdFor(admin, QA_EMAILS.patientB);
@@ -109,13 +136,14 @@ test.describe("home-visit bulk scheduling limits", () => {
       .from("patient_addresses")
       .insert({
         patient_id: patientId,
-        line1: "E2E Bulk Limit Test Address",
+        line1: E2E_MARKERS.savedAddressLine1,
         pincode: "600017",
         area_id: area!.id,
         is_default: false,
       })
       .select("id")
       .single();
+    fixtureAddressIds.push(address!.id);
 
     const { data: purchase } = await admin
       .from("home_visit_package_purchases")
@@ -133,6 +161,7 @@ test.describe("home-visit bulk scheduling limits", () => {
       })
       .select("id")
       .single();
+    fixturePurchaseIds.push(purchase!.id);
 
     // One more slot than allowed -- every slot spaced a week apart so the
     // package's own min-gap/max-per-week rules (if configured) can't be

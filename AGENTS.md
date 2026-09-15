@@ -22,8 +22,9 @@ patient's health profile and the admin's table exports).
 
 Commands: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
 `npm run test`, `npm run check:realtime`, `npm run test:e2e`,
-`npm run seed:qa` (recreate the QA fixture accounts after a data reset), and
-`npm run verify` (lint + test + build, the one to run before pushing).
+`npm run seed:qa` (recreate the QA fixture accounts after a data reset),
+`npm run clean:e2e` (delete the fixture rows earlier e2e runs left behind),
+and `npm run verify` (lint + test + build, the one to run before pushing).
 `npm run test` is Vitest over `src/**/*.test.ts` - the dependency-free
 modules in `src/lib`, which is why the business maths lives there rather
 than inside components. It needs no database and no browser; anything that
@@ -151,6 +152,35 @@ service role, and must never be pointed at a database with real patients.
 Rosters, service areas, home-visit packages and saved addresses are
 deliberately **not** seeded: a test creates each of them, and a fixture that
 arrived already correct would make that test pass without running.
+
+`scripts/clean-e2e-residue.mjs` (`npm run clean:e2e`) deletes the fixture
+rows the suite writes straight into the database. Three concurrency specs
+insert a home-visit purchase, an appointment and a pair of referrals
+directly rather than through the booking routes -- which is the point of
+them, since each is racing a route that has to be *given* something to race
+over -- and a direct insert never claims `visits_used` and never asks Google
+for a calendar event. So a leftover fixture appointment is a credit the
+ledger has reserved and the legacy counter has never heard of, which
+`verify_entitlement_balances()` reports for ever because nothing sweeps it,
+and it is also a session with no video link. Nine runs put nine of each on
+Settings -> System Health, permanently red, none of them describing anything
+wrong with the product. The specs register and delete their own rows in an
+`afterAll` now (an afterAll rather than the end of each test, so a failed
+assertion still cleans up); this script clears what earlier runs already
+left, and matches only the literal marker strings in `E2E_MARKERS`
+(`e2e/helpers.ts`). It is dry-run until one of two flags, and the **ledger is
+why there are two**. `--reconcile` does what that table's own append-only
+trigger tells a caller to do -- releases each fixture appointment's reserved
+credit through `release_session_credit()` and cancels the appointment -- so
+the balances agree again and the row leaves the Session Links backlog, which
+counts confirmed sessions only. Nothing is destroyed, nothing is rewritten,
+and the service-role key is all it needs. `--apply` removes the rows outright
+instead, which cascades into `session_credit_ledger` and is therefore refused
+over REST: it runs as one SQL transaction over the Management API, needs
+`SUPABASE_ACCESS_TOKEN`, and lifts the trigger for those statements alone.
+Either way the fixture `payments` rows go with their purchase -- that foreign
+key is ON DELETE SET NULL, so leaving them would trade one red check for
+another, a captured payment attached to nothing.
 
 `scripts/care-plan-review-sql-checks.sql` is the review step's
 storage-layer check -- the one-open-plan index covering a queued plan, the

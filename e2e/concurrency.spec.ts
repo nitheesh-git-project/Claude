@@ -5,9 +5,38 @@
 // -- a sequential re-run would pass even against the unguarded code.
 import { test, expect } from "@playwright/test";
 import Razorpay from "razorpay";
-import { adminClient, cookieHeaderFor, profileIdFor, QA_EMAILS, BASE, wholeHourFromNow } from "./helpers";
+import {
+  adminClient,
+  cookieHeaderFor,
+  profileIdFor,
+  QA_EMAILS,
+  BASE,
+  wholeHourFromNow,
+  E2E_MARKERS,
+  deleteHomeVisitFixturePurchases,
+  deleteReferralFixtures,
+} from "./helpers";
 
 test.describe.configure({ mode: "serial" });
+
+// Every fixture this file inserts straight into the database is registered
+// here and removed when the file finishes -- in an afterAll rather than at
+// the end of each test, so a failed assertion still cleans up after itself.
+//
+// These purchases and appointments are written directly rather than through
+// the booking routes, which is the point of the tests but also means
+// `visits_used` is never claimed for them. Left behind, each run adds one
+// permanent "balances disagree" row and one permanent "session with no video
+// link" row to Settings -> System Health, describing nothing that is wrong
+// with the product. See the note above E2E_MARKERS in helpers.ts.
+const fixturePurchaseIds: string[] = [];
+const fixtureReferralIds: string[] = [];
+
+test.afterAll(async () => {
+  const admin = adminClient();
+  await deleteHomeVisitFixturePurchases(admin, fixturePurchaseIds.splice(0));
+  await deleteReferralFixtures(admin, fixtureReferralIds.splice(0));
+});
 
 test("refund-home-visit-package: at most one concurrent request reaches Razorpay", async () => {
   const admin = adminClient();
@@ -36,7 +65,7 @@ test("refund-home-visit-package: at most one concurrent request reaches Razorpay
   });
   const totalPaise = pkg!.price_paise + area!.travel_fee_paise * pkg!.visit_count;
   const order = await razorpay.orders.create({ amount: totalPaise, currency: "INR", receipt: `e2e-race-${Date.now()}` });
-  const fakePaymentId = `pay_e2erace${Date.now()}`;
+  const fakePaymentId = `${E2E_MARKERS.fakePaymentIdPrefix}${Date.now()}`;
 
   const { data: purchase } = await admin
     .from("home_visit_package_purchases")
@@ -56,6 +85,7 @@ test("refund-home-visit-package: at most one concurrent request reaches Razorpay
     })
     .select("id")
     .single();
+  fixturePurchaseIds.push(purchase!.id);
 
   const fire = () =>
     fetch(`${BASE}/api/admin/refund-home-visit-package`, {
@@ -111,7 +141,7 @@ test("reassign-home-visit-therapist: concurrent reassigns to different therapist
 
   // Clean up leftover appointments from a prior failed run so they can't
   // masquerade as real scheduling conflicts for therapists B/C.
-  await admin.from("appointments").delete().eq("visit_address_line1", "E2E Race Test Road");
+  await admin.from("appointments").delete().eq("visit_address_line1", E2E_MARKERS.visitAddressLine1);
 
   const { data: purchase } = await admin
     .from("home_visit_package_purchases")
@@ -128,6 +158,7 @@ test("reassign-home-visit-therapist: concurrent reassigns to different therapist
     })
     .select("id")
     .single();
+  fixturePurchaseIds.push(purchase!.id);
 
   const slot = wholeHourFromNow(96 + Math.floor(Math.random() * 200));
   await admin.from("appointments").insert({
@@ -138,7 +169,7 @@ test("reassign-home-visit-therapist: concurrent reassigns to different therapist
     visit_mode: "home_visit",
     home_visit_purchase_id: purchase!.id,
     duration_minutes: 60,
-    visit_address_line1: "E2E Race Test Road",
+    visit_address_line1: E2E_MARKERS.visitAddressLine1,
     visit_pincode: "600017",
     travel_fee_paise: area!.travel_fee_paise,
   });
@@ -177,7 +208,7 @@ test("assign-referral: concurrent assignment of two referrals to the same therap
       .from("patient_referrals")
       .insert({
         hospital_id: hospitalId,
-        patient_name: `E2E Race Referral ${i}`,
+        patient_name: `${E2E_MARKERS.referralNamePrefix} ${i}`,
         medical_issue: "e2e concurrency edge case",
         visit_mode: "online",
         status: "pending_review",
@@ -185,6 +216,7 @@ test("assign-referral: concurrent assignment of two referrals to the same therap
       .select("id")
       .single();
     referralIds.push(data!.id);
+    fixtureReferralIds.push(data!.id);
   }
 
   const assign = (referralId: string) =>
