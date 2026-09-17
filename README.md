@@ -563,7 +563,10 @@ recorded in `payment_failure_log`.
 A browser callback is not the only way a payment is confirmed.
 `/api/razorpay/webhook` receives Razorpay's own server-to-server
 notification, verifies the HMAC over the **raw** request body with
-`RAZORPAY_WEBHOOK_SECRET`, and applies the capture. Whichever arrives first
+`RAZORPAY_WEBHOOK_SECRET`, and applies the capture. `payment.captured` is
+the only event that applies anything: an authorization is a hold Razorpay
+voids if it is never captured, so `payment.authorized` is recorded for the
+trail and does nothing else. Whichever arrives first
 - the patient's browser or the webhook - does the work; the second changes
 nothing. That is what covers the patient who pays and closes the tab, or
 whose phone loses signal on the way back from their UPI app: before this

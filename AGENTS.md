@@ -722,6 +722,33 @@ client is the only writer and the log is append-only from any session.
   insert colliding on `razorpay_event_id` is the deduplication; processing
   first and recording after would let a retry arriving mid-flight do the
   work twice.
+  **`payment.captured` is the only event that applies anything, and
+  `payment.authorized` is not a capture.** An authorization is a hold, not
+  money taken: Razorpay voids one that is never captured and auto-refunds
+  it a few days later. The webhook used to treat the two alike, so an
+  authorization marked the booking paid, confirmed the session, created the
+  Calendar event and settled an invite half against money that could still
+  evaporate -- and nothing in the app walks any of that back. Under
+  auto-capture, which is what this account runs, `payment.captured` follows
+  within seconds and does all of it correctly; under manual capture the
+  authorization genuinely is not a payment yet. The event is still recorded
+  in `payment_webhook_events` either way, so the trail keeps it. Both events
+  stay subscribed in the Razorpay dashboard on purpose -- the trail is worth
+  more than the one saved delivery.
+  **The amount is passed to `record_payment_capture`, not inferred.** Left
+  out, the function falls back to `appointments.amount_paid_paise`, which is
+  the service line alone -- travel is deliberately off that column -- so a
+  home visit's `payments` row recorded less than the gateway took, and only
+  on the browser-callback path, since the webhook carries Razorpay's own
+  figure. One booking recorded two different ways depending on which arrived
+  first is the kind of disagreement this table exists to settle.
+  `/api/razorpay/verify` passes the figure `create-order` built the order
+  from. The two purchase verify routes still rely on the fallback: their
+  travel is per-visit and gated by the package's own `travel_fee_included`,
+  so reconstructing it there would be a second implementation of
+  `computeHomeVisitTotal` to drift from the first, and `payments.amount_paise`
+  is read only by the unmatched-payment check on System Health, never by the
+  revenue maths.
   **`payments` has unique indexes on `razorpay_order_id` and
   `razorpay_payment_id`, and they are the point of the table.** Nothing in
   this database previously stopped one payment id being recorded against
