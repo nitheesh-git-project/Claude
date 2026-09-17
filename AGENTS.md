@@ -956,6 +956,23 @@ client is the only writer and the log is append-only from any session.
   should never have been made. And a new surface answering "is this session
   synced" reads that module rather than testing a column, or it grows a fourth
   disagreeing opinion.
+  **And which kind of event to make is read off the row, never defaulted.**
+  `createMeetEventForConfirmedAppointment`'s `visitMode` used to default to
+  `"online"`, which was true of the six callers that had the address in hand
+  and passed it, and false of the three that did not: `confirmPaidAppointment`
+  (a hospital home-visit referral is an ordinary appointment the patient pays
+  for, so it reaches the Razorpay path like any other), the webhook that
+  stands in for it when the browser never comes back, and
+  `/api/admin/mark-paid-by-cash`. All three produced the same wrong event for
+  a home visit -- a Meet link for a session nobody joins, and **no street
+  address and no access notes** on an invite that is the only outbound
+  message this platform sends, so the therapist was handed a video call
+  instead of somewhere to drive to. The helper resolves it from
+  `appointments.visit_mode` and the `visit_*` columns when the caller says
+  nothing, in its own isolated call falling back to online -- same place and
+  same reasoning as the duplicate-event guard above: every door gets it. An
+  explicit `visitMode` is still never second-guessed, because some callers
+  read the address from the patient's own address book rather than the row.
 
 - **Google Calendar/Meet sync must never block a booking.** Failures are
   recorded on the appointment (`google_calendar_sync_error`), re-attempted
@@ -1046,7 +1063,14 @@ client is the only writer and the log is append-only from any session.
   rule of its own fetches nothing and is told so, rather than being shown a
   locked screen for a queue holding nothing for them.
   `appointments.completed_at` was added for the `early_completion` detector
-  and is stamped only by `complete-session`; a row closed before that column
+  and is stamped only by `complete-session` and cleared only by
+  `/api/admin/reopen-session`, which also claims the row on
+  `status = 'completed'` rather than writing unconditionally -- reopening
+  destroys both sides' ratings, so two admins passing the status check
+  together must not both do it. Before that a reopened session kept the
+  time of the completion that had just been undone, which is a row reading
+  `confirmed` with a completion on it and exactly the evidence the detector
+  should no longer see. A row closed before that column
   existed carries null and is skipped rather than guessed at.
 
 - **A therapist asserts that money changed hands; the system owns the
@@ -1076,6 +1100,19 @@ client is the only writer and the log is append-only from any session.
   before the join window in which it could have been started. The route
   previously refused neither, and a therapist could mark a session done
   before its slot and be owed for it.
+  **The admin half of it is a Sessions write, and asks for `manage`.** This
+  is the one route shared between a therapist and an admin, so it cannot
+  call `requireAdminScope("sessions")` outright -- it has to tell "an admin
+  who may not" from "not an admin at all", and only the second falls through
+  to the owning-therapist check. It reads `getAdminContext()` and applies
+  `scopeCanManage(scope, "sessions")` itself, which is the same answer
+  `requireAdminScope` gives. It used to take `getAdminUser()`, meaning any
+  desk at all: Finance holds Sessions at `view` precisely so the person
+  reconciling the books cannot change what they are reconciling, and this
+  route let them close a session -- creating the payout obligation, exempt
+  from both gates above. `ProfileSessionList` hides the two buttons on the
+  same test, per the "a control an admin's scope cannot call must not
+  render" rule.
 
 - **A paid session assigns itself when the answer is unambiguous, and
   otherwise waits exactly as it did.** `src/lib/autoAssignTherapist.ts`,
@@ -1233,6 +1270,14 @@ client is the only writer and the log is append-only from any session.
      `payment.goodwill_discount` audit row. Only **before** payment: a
      discount on something already paid for is a refund, and refunds have
      their own route, their own Razorpay call and their own audit.
+     **Every route that later collects reads it.** `create-order` always
+     did, through `checkoutQuote`; `/api/admin/mark-paid-by-cash` did not,
+     and wrote the full category price as the cash taken -- so a goodwill
+     adjustment given and then collected at the door overstated the cash
+     ledger and gross revenue by exactly the amount given away, with the
+     discount facts on the row describing a reduction the recorded amount
+     did not reflect. It subtracts `discount_paise` now and records the
+     list price beside it, like every other collecting path.
   3. **The promo code** (`src/lib/promoCodes.ts`, `promoCodesServer.ts`,
      `promo_codes`, `promo_codes_enabled` off by default) is a campaign an
      admin sets up on Money → Costs, beside the figure it produces -
@@ -1314,6 +1359,17 @@ client is the only writer and the log is append-only from any session.
     to the therapist in full, so discounting it makes them fund their own
     transport to subsidise the clinic's marketing. Discounts apply to the
     service line; every caller adds travel back afterwards.
+    **It is refunded, though, and `amount_paid_paise` is the wrong figure to
+    refund.** Travel is deliberately kept out of that column (it is not
+    revenue -- see `bookHomeVisitSession`), while
+    `/api/razorpay/create-order` charges the service line *plus* travel. So
+    a directly-paid home visit -- which is only ever a hospital home-visit
+    referral, since every other one is paid on its purchase -- was refunded
+    the service line alone and the patient went on paying for a journey
+    nobody made. `cancelAppointmentAndRefund` and
+    `/api/admin/refund-session-partial` both add the travel back now, the
+    second as the ceiling on what an admin may hand over, so the automatic
+    and the typed refund agree about what the gateway is still holding.
   - **All four facts are recorded** - `list_price_paise`, `discount_paise`,
     `discount_source`, `discount_reason` - because a discount implemented by
     simply charging less leaves the books unable to tell "we sold this

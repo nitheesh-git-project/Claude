@@ -167,7 +167,12 @@ export default function ProfileSessionList({
                   durationMinutes={durationMinutes}
                   alwaysActive
                 />
-                {a.status === "confirmed" && (
+                {/* Completing a session is what makes a therapist's share
+                    payable, so it is a Sessions write like any other and the
+                    route now refuses a scope that only reads them. A control
+                    an admin's scope cannot call must not render, or Finance
+                    gets a 403 with nothing on screen to explain it. */}
+                {canManageSessions && a.status === "confirmed" && (
                   <>
                     <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
                     <MarkNoShowButton appointmentId={a.id} />

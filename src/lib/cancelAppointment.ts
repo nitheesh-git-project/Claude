@@ -41,7 +41,7 @@ export async function cancelAppointmentAndRefund(
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "id, status, slot_time, payment_status, amount_paid_paise, razorpay_payment_id, therapist_payout_paid_at, package_purchase_id, google_event_id, visit_mode, home_visit_purchase_id, payment_method, cash_collected_at, cash_collected_amount_paise"
+      "id, status, slot_time, payment_status, amount_paid_paise, travel_fee_paise, razorpay_payment_id, therapist_payout_paid_at, package_purchase_id, google_event_id, visit_mode, home_visit_purchase_id, payment_method, cash_collected_at, cash_collected_amount_paise"
     )
     .eq("id", appointmentId)
     .single();
@@ -268,6 +268,22 @@ export async function cancelAppointmentAndRefund(
     });
   }
 
+  // What Razorpay actually took, which is not what `amount_paid_paise`
+  // holds. Travel is deliberately kept out of that column (see
+  // bookHomeVisitSession) because it is a pass-through to the therapist
+  // rather than revenue -- but `/api/razorpay/create-order` charges the
+  // service line *plus* travel, so refunding the column alone leaves a
+  // patient paying the travel on a visit nobody travelled to. The only
+  // appointment this can be true of is a home visit paid on the appointment
+  // itself, which is the hospital home-visit referral; every other home
+  // visit is paid on its purchase and can never be `isDirectPayment`.
+  const travelChargedPaise =
+    isHomeVisit ? Math.max(0, appointment.travel_fee_paise ?? 0) : 0;
+  const refundablePaise =
+    appointment.amount_paid_paise === null || appointment.amount_paid_paise === undefined
+      ? null
+      : appointment.amount_paid_paise + travelChargedPaise;
+
   let refundId: string | null = null;
   let refundFailed = false;
 
@@ -278,7 +294,7 @@ export async function cancelAppointmentAndRefund(
         key_secret: process.env.RAZORPAY_KEY_SECRET!,
       });
       const refund = await razorpay.payments.refund(appointment.razorpay_payment_id!, {
-        amount: appointment.amount_paid_paise ?? undefined,
+        amount: refundablePaise ?? undefined,
       });
       refundId = refund.id;
     } catch (err) {
@@ -329,7 +345,7 @@ export async function cancelAppointmentAndRefund(
         ? {
             refund_id: refundId,
             refund_status: "processed",
-            refund_amount_paise: appointment.amount_paid_paise,
+            refund_amount_paise: refundablePaise,
             refunded_at: decidedAt,
             refund_reason: refundReasonFor("Cancelled outside the refund window"),
           }

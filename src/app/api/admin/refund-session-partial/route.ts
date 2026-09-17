@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "id, session_code, payment_status, amount_paid_paise, razorpay_payment_id, refund_amount_paise, refund_status"
+      "id, session_code, payment_status, amount_paid_paise, travel_fee_paise, visit_mode, razorpay_payment_id, refund_amount_paise, refund_status"
     )
     .eq("id", appointmentId)
     .maybeSingle();
@@ -82,7 +82,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const paid = appointment.amount_paid_paise ?? 0;
+  // Travel is kept out of `amount_paid_paise` on purpose -- it is a
+  // pass-through to the therapist rather than revenue -- but the gateway
+  // took the service line *and* the travel, so the ceiling on what can be
+  // handed back is both. Without this a home visit's travel fee was money
+  // Razorpay was holding that no screen in the back office could return.
+  // Same arithmetic cancelAppointmentAndRefund uses, so the automatic and
+  // the hand-typed refund cannot disagree about what is left.
+  const travelChargedPaise =
+    appointment.visit_mode === "home_visit" ? Math.max(0, appointment.travel_fee_paise ?? 0) : 0;
+  const paid = (appointment.amount_paid_paise ?? 0) + travelChargedPaise;
   const alreadyRefunded = appointment.refund_amount_paise ?? 0;
   const remaining = paid - alreadyRefunded;
 
