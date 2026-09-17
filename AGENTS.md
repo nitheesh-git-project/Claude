@@ -21,19 +21,28 @@ Calendar/Meet (`googleapis`) · `motion` for animation · Font Awesome ·
 patient's health profile and the admin's table exports).
 
 Commands: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
-`npm run test`, `npm run check:realtime`, `npm run test:e2e`,
+`npm run test`, `npm run check:realtime`, `npm run check:grants`,
+`npm run test:e2e`,
 `npm run seed:qa` (recreate the QA fixture accounts after a data reset),
 `npm run clean:e2e` (delete the fixture rows earlier e2e runs left behind),
 and `npm run verify` (lint + test + build, the one to run before pushing).
 `npm run test` is Vitest over `src/**/*.test.ts` - the dependency-free
 modules in `src/lib`, which is why the business maths lives there rather
 than inside components. It needs no database and no browser; anything that
-does belongs in `e2e/`. `npm run lint` runs
-`check:realtime` first: `scripts/check-realtime-coverage.mjs` fails the lint
+does belongs in `e2e/`. `npm run lint` runs two schema checks first.
+`check:realtime` (`scripts/check-realtime-coverage.mjs`) fails the lint
 when a table the UI subscribes to was never added to the `supabase_realtime`
 publication in `schema.sql`. That mismatch has no runtime symptom - the
 subscription succeeds and simply never fires - so the check is the only
-thing that catches it. The e2e suite (Playwright, `e2e/`) covers the
+thing that catches it. `check:grants`
+(`scripts/check-function-grants.mjs`) fails the lint when a `security
+definer` function in `schema.sql` is not revoked from **all three** of
+`public`, `anon` and `authenticated` - see the function-grant rule below,
+which is the same shape of failure: the statement succeeds, the ACL
+changes, and nothing is protected. `scripts/check-live-grants.mjs` is its
+runtime counterpart and is run by hand against a real project after
+applying a schema change, because the file and the database can disagree
+in both directions. The e2e suite (Playwright, `e2e/`) covers the
 money-critical paths and the admin back office - booking + payment,
 concurrency/CAS guards, bulk limits, admin route authorization for every
 role, input validation, payout/refund maths, the dashboard's own
@@ -316,6 +325,17 @@ They are enforced in **two** places and both must stay in place:
 2. `src/lib/supabase/requireActiveProfile.ts` inside self-service API routes,
    because a valid session cookie can call the API directly around the UI.
 
+An audit found eight routes with only the first - `acknowledge-payout-request`,
+`withdraw-suggestion`, `hospital/withdraw-referral`, `home-visit/verify`,
+`medical-documents/delete`, `dismiss-onboarding`, `log-payment-failure` and
+`clear-temp-password`. All eight are ownership-scoped, so the reach was "a
+suspended account keeps acting as itself" rather than anything cross-account,
+but that is exactly what this rule exists to stop and the routes read as
+though they had it. They call the helper now. Use the helper rather than an
+inline `profile.active === false` even when the route already loads the row
+(`reveal-contact` does, correctly, and is why the other eight were missed):
+a grep for the helper name is how the next audit finds the gap.
+
 Admin routes go through `src/lib/supabase/requireAdmin.ts`. Never trust a
 role, an id, or an amount sent from the client - re-derive it server-side.
 
@@ -595,6 +615,66 @@ client is the only writer and the log is append-only from any session.
   fails against a live database, that failure is the finding: reconcile the
   rows, don't weaken the check.
 - Any new table needs RLS policies written alongside it in the same file.
+- **A function is revoked from `public`, `anon` AND `authenticated` - all
+  three, every time.** Postgres grants EXECUTE on a new function to
+  `PUBLIC`, and Supabase's `pg_default_acl` for `postgres` in schema
+  `public` grants it to `anon` and `authenticated` explicitly on top. So
+  each of the two obvious short forms is wrong in a different case, and
+  both were:
+  1. `revoke execute on function f(...) from anon, authenticated` removes a
+     grant those roles never held directly and leaves PUBLIC's in place.
+     Eleven functions were written that way - `record_payment_capture`
+     (mark a booking paid), `grant_session_credits` (mint sessions),
+     `adjust_session_credits`, `void_session_credits` and the rest of the
+     ledger - and every one of them was callable over PostgREST by anybody
+     holding the publishable anon key, no account needed. The statement
+     succeeded. The ACL changed. Nothing was protected.
+  2. `revoke ... from public` alone is correct on a database where those
+     functions predate the default, and wrong on a fresh one: applying
+     `schema.sql` to an empty project creates them anew, so they arrive
+     carrying explicit `anon=X` and `authenticated=X`, which a revoke
+     naming only PUBLIC does not touch. The hole returns on the first
+     rebuild, in the file that appears to have fixed it.
+  Name all three. Revoking a privilege that was never granted is a no-op,
+  so the long form is safe on either shape of database.
+  `alter default privileges in schema public revoke execute on functions
+  from public/anon/authenticated` is at the end of the file so the next
+  function is closed on arrival; a function genuinely meant for a signed-in
+  caller then needs an explicit `grant execute ... to authenticated`, which
+  is the right way round. `is_admin()` is the one deliberate exception -
+  RLS policies invoke it as the querying role, so revoking it breaks all 23
+  of them. `npm run lint` fails on a violation; `scripts/check-live-grants.mjs`
+  checks the running database, since only that catches a revoke that was
+  never applied.
+- **Every admin policy calls `is_admin()`; none inlines it.** Eighteen
+  policies carried a hand-written copy of the same `exists (select 1 from
+  profiles where id = auth.uid() and role = 'admin')` instead of the call.
+  That cost nothing while the copies agreed with the function - and the
+  moment `is_admin()` learned to refuse a suspended admin, the eighteen did
+  not. The tables involved were the worst possible list: the audit log, the
+  impersonation record, the flagged-message and contact-reveal evidence
+  trails, session notes, the risk queue and all four finance tables. A
+  suspended admin was refused `appointments` and still read
+  `admin_activity_log` with the same token. Two policies are compound
+  ("the treating therapist OR an admin") and only the admin disjunct is the
+  call. A new admin policy uses the function.
+- **Suspending an account ends its sessions.** `profiles.active` is read by
+  `src/proxy.ts` and `requireActiveProfile`, and both are this application;
+  a session cookie reaches PostgREST without passing either, and Supabase
+  keeps rotating that account's refresh token, so a flipped column alone had
+  no end date on it. Two halves, both required: `is_admin()` refuses a
+  suspended admin at the policy layer, and all four `set-*-active` routes
+  call `revokeAllSessions()` (`src/lib/supabase/revokeSessions.ts`) over
+  `revoke_user_sessions(uuid)`. It is a database function rather than
+  `auth.admin.signOut`, which takes the suspended person's own JWT - which
+  an admin route does not have - and the GoTrue admin endpoints that would
+  do it by id answer 404 on this project's version; both were tested before
+  this shape was settled on. It stops renewal rather than killing a token
+  mid-flight, so remaining exposure is one JWT lifetime, during which the
+  policy layer and each route's own `active` check already refuse them. A
+  failed revoke never un-suspends the account - it returns a warning the
+  route passes on, because "the door is locked but they are still inside"
+  is worth saying out loud.
 - A change to `schema.sql` only reaches the live database once it's applied
   - either by hand with `node scripts/run-schema.mjs`, or automatically via
   `.github/workflows/schema-apply.yml`, which runs that same script against
@@ -3512,6 +3592,18 @@ without checking. Anything in this list means the docs need a look:
 `src/`, `supabase/`, `scripts/`, `package.json`, `next.config.ts`, or
 `.env.example` without touching a doc. It is a reminder, not a gate - a
 change that genuinely needs no doc update can ignore it.
+
+**Security headers ship from `next.config.ts`.** `X-Frame-Options: DENY`,
+`X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`,
+`Permissions-Policy` and HSTS, on every response. There were none, so the
+admin dashboard and the patient's health profile were both framable by any
+site, and a referral token or an appointment id in a URL travelled as a full
+referrer to third parties. CSP is **report-only** on purpose and must not be
+promoted without reading the reports first: Razorpay's checkout injects its
+own script and iframe, the splash boot script is inline by necessity (it has
+to run before first paint), and Next inlines hydration data - a policy
+written blind takes down checkout, which is the one failure a payment screen
+must not have.
 
 ## Style
 
