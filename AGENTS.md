@@ -70,7 +70,11 @@ Logs section refusing all three limited desks at the screen *and* at both of
 its routes while the retention floor refuses a cutoff inside the protected
 window (`admin-scoped-dashboard.spec.ts` -- whose console-error assertion splits
 failed requests by host, since this sandbox blocks the *browser* from
-reaching Supabase and RealtimeRefresh's socket dies on every run),
+reaching Supabase and RealtimeRefresh's socket dies on every run; that split
+covers the **console** channel as well as `requestfailed`, because a
+WebSocket that never opens is reported only on the console and so slipped
+past the host rule entirely, taking S-005 red on every run for a reason that
+had nothing to do with the app),
 and the therapist roster end to end
 (`therapist-roster.spec.ts`: ranges saving as the same hour rows, exceptions
 owning only their own date, leave leaving the schedule intact, role and
@@ -1715,6 +1719,25 @@ client is the only writer and the log is append-only from any session.
   already-`approved` `condition_change_requests` row, the pattern
   `ConditionDirectEditForm` already uses, so it appears in the ordinary
   Review History with no new concept and no queue.
+
+  **And it writes exactly one, which took two goes to get right.** The claim
+  is a compare-and-swap so only the caller whose write lands writes the
+  history entry -- that took ten taps down from ten entries to **two**, not
+  to one, and the audit found the remainder. The route has two paths, an
+  INSERT when no record exists and an UPDATE when one does, and they guard
+  different races: a burst splits across both, so one caller wins the insert
+  and another wins the first update, and each believes it was first. Both are
+  right from their own view, which is why guarding the paths harder cannot
+  fix it. The honest test is whether the request changed anything clinical,
+  so an identical resubmission now writes **nothing at all** -- no record
+  update, no history entry (`isSameIntakeSubmission`, keyed on the thing that
+  happened rather than on who got there first, the same rule the credit
+  ledger's idempotency keys follow). It compares the answers, the triage
+  answers and the condition type, and deliberately not `updated_at` or
+  `last_submitted_by`, which are bookkeeping and identical on a double-tap
+  anyway. `e2e/health-profile.spec.ts` SPAM-001 is the guard; a record that
+  is not yet `active` is never a no-op, since a draft going live is exactly
+  what onboarding does.
 
   **The line is create versus edit.** Deciding what kind of patient this
   is, and writing down what they told you in a session you ran, is the
