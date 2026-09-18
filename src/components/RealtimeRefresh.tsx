@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { createClient } from "@/lib/supabase/client";
+import { lastLocalRefreshAtMs } from "@/lib/refreshSignal";
 
 // Keeps an already-open dashboard in sync with other users' actions (a
 // therapist requesting a payout, a hospital submitting a referral, a new
@@ -50,6 +51,10 @@ export default function RealtimeRefresh({
   const tablesKey = tables.join(",");
   const trailingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastRefreshRef = useRef(0);
+  // When the newest change waiting to be covered arrived. Newest rather than
+  // oldest: a burst whose last event landed after this browser's own refresh
+  // still holds something that refresh did not read.
+  const lastEventAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     const list = tablesKey.split(",").filter(Boolean);
@@ -58,22 +63,41 @@ export default function RealtimeRefresh({
     const supabase = createClient();
     const channel = supabase.channel(`realtime-refresh:${tablesKey}`);
 
+    // Fires unless this browser has already re-fetched since the change
+    // landed. Most events on the admin dashboard are its own work coming
+    // back -- the row a control just changed, and the admin_activity_log
+    // entry describing it -- and the control called router.refresh() itself,
+    // so rebuilding again reads nothing new (see src/lib/refreshSignal.ts).
+    // The suppression is one-way: an event arriving *during* an in-flight
+    // refresh is newer than that refresh's start, so it still fires.
+    const fire = () => {
+      const newestEventAt = lastEventAtRef.current;
+      lastEventAtRef.current = null;
+      if (newestEventAt !== null && lastLocalRefreshAtMs() > newestEventAt) return;
+      // Only a refresh that actually happens starts a cooldown. Counting a
+      // skipped one would hold the next genuine change off for up to
+      // cooldownMs -- 30 seconds on the catalog channel -- for a rebuild
+      // that never took place.
+      lastRefreshRef.current = Date.now();
+      router.refresh();
+    };
+
     const handleChange = () => {
+      lastEventAtRef.current = Date.now();
+
       // Already waiting to fire at the end of the current cooldown -- this
       // event is part of the burst that trailing refresh will cover.
       if (trailingRef.current) return;
 
       const sinceLast = Date.now() - lastRefreshRef.current;
       if (sinceLast >= cooldownMs) {
-        lastRefreshRef.current = Date.now();
-        router.refresh();
+        fire();
         return;
       }
 
       trailingRef.current = setTimeout(() => {
         trailingRef.current = null;
-        lastRefreshRef.current = Date.now();
-        router.refresh();
+        fire();
       }, cooldownMs - sinceLast);
     };
 

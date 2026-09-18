@@ -1367,7 +1367,8 @@ the error is stored in `appointments.google_calendar_sync_error`, and the
 session is re-attempted automatically: `src/lib/retryDueMeetSyncs.ts` sweeps
 a few failed syncs at the top of each admin dashboard render (there is no
 cron in this deployment), bounded by a per-attempt timeout, a per-sweep row
-limit, and `appointments.google_calendar_sync_attempts`, which stops retrying
+limit, a minute's minimum gap between sweeps that find work, and
+`appointments.google_calendar_sync_attempts`, which stops retrying
 a session that has failed too many times rather than calling Google forever.
 Those exhausted sessions stay in the admin's Session Links panel marked as
 needing attention, where a manual retry (`/api/admin/retry-meet-sync`) both

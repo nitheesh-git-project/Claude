@@ -1193,9 +1193,12 @@ client is the only writer and the log is append-only from any session.
   automatically by `src/lib/retryDueMeetSyncs.ts` (a lazy sweep at the top of
   the admin dashboard render - see the no-cron rule below), and retried by
   hand by the admin (`/api/admin/retry-meet-sync`). The automatic sweep is
-  capped three ways because, unlike the expiry sweeps, it makes outbound
+  capped four ways because, unlike the expiry sweeps, it makes outbound
   Google API calls from inside a page render: a wall-clock timeout per
-  attempt, a few appointments per sweep, and
+  attempt, a few appointments per sweep, a minute's minimum gap between
+  sweeps that do work - without which each attempt's own write to
+  `appointments` refreshed the dashboard that had just swept, and the row's
+  five attempts were gone inside a minute - and
   `appointments.google_calendar_sync_attempts` capping attempts per
   appointment so a permanently broken row (revoked credentials, deleted
   calendar) is not retried forever. Both the sweep and the manual Retry
@@ -2682,6 +2685,39 @@ client is the only writer and the log is append-only from any session.
   `*_REALTIME_TABLES` arrays rather than inlining a third list - the coverage
   check reads them by that name - and add the matching `alter publication`
   to `schema.sql` in the same change.
+  **A browser does not rebuild for its own work.** Most events reaching an
+  open admin dashboard are that dashboard's own writes coming back: a
+  control's route changes its row *and* writes an `admin_activity_log`
+  entry, and the control has already called `router.refresh()`. Those two
+  events then cost two more full rebuilds, the second of them up to the
+  catalog channel's 30 seconds later - by which time the admin has forgotten
+  the tap and reads it as the page reloading on its own. `useRouter().refresh()`
+  stamps `src/lib/refreshSignal.ts` before it starts, and `RealtimeRefresh`
+  drops a change that arrived **before** that stamp, since the fetch already
+  read it. Three details are load-bearing. It compares timestamps rather than
+  tagging events, which is what makes it work across both channels and across
+  every control in the app - none of which knows which rows its route
+  touched. It tests the **newest** waiting event, not the oldest, so a burst
+  whose tail landed after the local refresh still fires. And a *skipped* fire
+  does not start a cooldown: counting one would hold the next genuine change
+  off for up to 30 seconds for a rebuild that never happened. The suppression
+  is one-way - an event arriving *during* an in-flight refresh is newer than
+  its start and still fires - so what it can cost is a change by somebody
+  else landing in the moment before this browser refreshed for its own
+  reason, which that refresh read anyway.
+  **And a lazy sweep must not be able to refresh the render that started
+  it.** Anything running in the dashboard's `after()` that *writes* a table
+  on one of these channels closes a circle: render, write, realtime event,
+  render. Every such sweep therefore carries a minimum interval remembered
+  per server instance - `runRiskSweep`'s five minutes, and
+  `retryDueMeetSyncs` / `retryDueMeetAccess`'s one, claimed only once the
+  sweep has found work so an empty backlog never holds off the next one.
+  Without it the circle is bounded only by each row's attempt cap, which
+  bounds it by spending all five of an appointment's automatic retries inside
+  a minute and retiring it to "needs a person" before the transient failure
+  it was retrying could clear. `risk_signals` moved to the catalog channel in
+  the same change, for the same reason: it is written by that sweep and read
+  by a queue an admin opens deliberately.
 - **Every admin export offers CSV and PDF, from one column definition.**
   A call site passes `DataExportButtons` the rows it is already rendering
   plus `CsvColumn[]` - never a pre-built string - so the spreadsheet and

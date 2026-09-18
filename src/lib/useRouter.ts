@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useTransition } from "react";
 import { useRouter as useNextRouter } from "next/navigation";
 import { usePendingWork } from "@/lib/pendingWork";
+import { markLocalRefresh } from "@/lib/refreshSignal";
 
 /**
  * `next/navigation`'s router, with the waiting made visible.
@@ -57,7 +58,14 @@ export function useRouter() {
   return useMemo(() => {
     return {
       ...router,
-      refresh: () => startTransition(() => router.refresh()),
+      refresh: () => {
+        // Recorded before the fetch starts, not after it lands: an event
+        // that arrived before this moment is one this refresh will read, so
+        // RealtimeRefresh can drop it rather than rebuilding the page a
+        // second time for the row this browser just changed.
+        markLocalRefresh();
+        startTransition(() => router.refresh());
+      },
       push: ((href: string, options?: Parameters<typeof router.push>[1]) =>
         startTransition(() => router.push(href, options))) as typeof router.push,
       replace: ((href: string, options?: Parameters<typeof router.replace>[1]) =>

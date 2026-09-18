@@ -64,7 +64,6 @@ const ADMIN_REALTIME_TABLES = [
   "home_visit_waitlist",
   "patient_addresses",
   "hospital_admin_notes",
-  "risk_signals",
   // A therapist writing a recommendation is operational traffic: the
   // clinic's Recommendations screen should show it without a reload.
   "care_plans",
@@ -96,6 +95,12 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   "balance_sheet_entries",
   // Detector thresholds, edited on the Risk tab itself.
   "risk_rules",
+  // The signals themselves, moved off the operational channel: they are
+  // written by the lazy detector sweep that runs after this very page's
+  // render, so on a 2s cooldown the page's own sweep rebuilt the page. The
+  // sweep's five-minute interval bounded that, and 30s is instant enough for
+  // a queue an admin opens deliberately.
+  "risk_signals",
   // The three records the Risk tab reads. Deliberately on the long cooldown
   // rather than the operational one: a reveal happens every time any
   // therapist taps "Show number", and a full ~40-query dashboard rebuild per
