@@ -11,6 +11,7 @@ import {
   NOT_WHOLE_HOUR_ERROR,
 } from "@/lib/bookingSlots";
 import { guardCommunication } from "@/lib/communicationFlags";
+import { enforceRateLimit } from "@/lib/rateLimitServer";
 
 // Creates the pre-payment appointment row for a single online session --
 // the row /api/razorpay/create-order then mints a Razorpay order against.
@@ -53,6 +54,19 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Keyed on the account, which is the one identifier the person being
+  // limited cannot change -- an IP can be rotated, and this is the limit
+  // standing in front of money. It falls back to the IP for an anonymous
+  // caller, which `/api/appointments/quote` and the promo preview both
+  // answer on purpose (a self-signup patient has no account at step 3).
+  // Placed after the session is read rather than at the top of the handler
+  // for that reason, and still before the body is parsed.
+  const limited = await enforceRateLimit(request, "checkout", {
+    identifier: user?.id ?? null,
+  });
+  if (limited) return limited;
+
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }

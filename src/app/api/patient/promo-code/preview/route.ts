@@ -7,6 +7,7 @@ import { readAppointmentServicePrice } from "@/lib/appointmentPriceServer";
 import { previewPromoCode } from "@/lib/promoCodesServer";
 import { readPromoCodesEnabled } from "@/lib/acquisitionSettings";
 import { isWellFormedPromoCode } from "@/lib/promoCodes";
+import { enforceRateLimit } from "@/lib/rateLimitServer";
 
 // What a code would do, before the patient commits to paying.
 //
@@ -29,6 +30,19 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Keyed on the account, which is the one identifier the person being
+  // limited cannot change -- an IP can be rotated, and this is the limit
+  // standing in front of money. It falls back to the IP for an anonymous
+  // caller, which `/api/appointments/quote` and the promo preview both
+  // answer on purpose (a self-signup patient has no account at step 3).
+  // Placed after the session is read rather than at the top of the handler
+  // for that reason, and still before the body is parsed.
+  const limited = await enforceRateLimit(request, "checkout", {
+    identifier: user?.id ?? null,
+  });
+  if (limited) return limited;
+
 
   // Open to a signed-out visitor for a **category-only** preview, the same
   // reason /api/appointments/quote is: at step 3 of the wizard a self-signup

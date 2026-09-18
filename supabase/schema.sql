@@ -10676,3 +10676,135 @@ grant execute on function public.revoke_user_sessions(uuid) to service_role;
 alter default privileges in schema public revoke execute on functions from public;
 alter default privileges in schema public revoke execute on functions from anon;
 alter default privileges in schema public revoke execute on functions from authenticated;
+
+-- ---------------------------------------------------------------------
+-- Rate limiting.
+--
+-- 173 route handlers and nothing throttled: an unauthenticated lookup that
+-- returns a referred patient's name and medical issue, hospital referral
+-- code enumeration, a public insert with no ceiling on it, and unlimited
+-- attempts at everything else.
+--
+-- Postgres rather than Redis, deliberately. This deployment has no cron and
+-- no worker (see the no-cron rule in AGENTS.md), and adding Upstash would
+-- mean a dependency, an account and two more secrets before a single
+-- request could be refused. The database is already the one piece of state
+-- every serverless instance shares, so an in-memory counter would reset on
+-- each cold start and disagree between concurrent instances, which is the
+-- same as not having one.
+--
+-- A fixed window, not a sliding one. The window is derived from the clock
+-- rather than stored as an expiry, for the reason a pending session
+-- suggestion writes no "expired" status: a row recording the passage of
+-- time needs a sweep, and there is nothing here to run one. A counter for a
+-- window that has passed is simply never read again -- and is deleted by
+-- the next call for its own bucket, which is what keeps this table at one
+-- row per *active* bucket instead of growing for ever. That per-bucket
+-- delete is the whole of the cleanup; there is no global sweep to forget to
+-- schedule.
+-- ---------------------------------------------------------------------
+create table if not exists rate_limit_counters (
+  bucket text not null,
+  window_start timestamptz not null,
+  count integer not null default 0,
+  primary key (bucket, window_start)
+);
+
+alter table rate_limit_counters enable row level security;
+
+-- No policies at all, the same shape as the four *_admin_notes tables: the
+-- service role is the only caller and a browser has no business reading
+-- what anybody's remaining allowance is.
+revoke all on rate_limit_counters from anon, authenticated;
+
+/**
+ * Counts one hit against a bucket and says whether it is allowed.
+ *
+ * The insert-on-conflict is what makes this safe under concurrency: the
+ * unique index serialises two simultaneous calls for the same bucket, so the
+ * count cannot be read-then-written by both and land at one. That is the
+ * same reasoning as `claim_promo_code` taking a row lock rather than
+ * counting a moment earlier -- a cap of 5 has to mean 5 while five requests
+ * are in flight.
+ *
+ * It counts the hit even when the hit is refused. A limiter that stops
+ * counting at the cap lets a caller who keeps trying reset their own window
+ * by never letting it close, and the `retry_after_seconds` it reports would
+ * then be wrong in the caller's favour.
+ */
+create or replace function public.check_rate_limit(
+  p_bucket text,
+  p_limit integer,
+  p_window_seconds integer
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_window_start timestamptz;
+  v_count integer;
+begin
+  if p_bucket is null or p_bucket = '' then
+    raise exception 'check_rate_limit: p_bucket is required';
+  end if;
+  if p_limit is null or p_limit < 1 then
+    raise exception 'check_rate_limit: p_limit must be at least 1';
+  end if;
+  if p_window_seconds is null or p_window_seconds < 1 then
+    raise exception 'check_rate_limit: p_window_seconds must be at least 1';
+  end if;
+
+  -- The window the clock is currently in, floored to a multiple of its own
+  -- length so every caller in the same window agrees on which row is theirs.
+  v_window_start := to_timestamp(
+    floor(extract(epoch from clock_timestamp()) / p_window_seconds) * p_window_seconds
+  );
+
+  insert into rate_limit_counters (bucket, window_start, count)
+  values (p_bucket, v_window_start, 1)
+  on conflict (bucket, window_start)
+    do update set count = rate_limit_counters.count + 1
+  returning count into v_count;
+
+  -- This bucket's older windows are dead the moment a newer one exists, and
+  -- deleting them here is what bounds the table without a sweep.
+  delete from rate_limit_counters
+  where bucket = p_bucket and window_start < v_window_start;
+
+  return jsonb_build_object(
+    'allowed', v_count <= p_limit,
+    'count', v_count,
+    'limit', p_limit,
+    -- Whole seconds, rounded up: a Retry-After of 0 invites an immediate
+    -- retry that is certain to be refused again.
+    'retry_after_seconds',
+      greatest(1, ceil(extract(epoch from (v_window_start + make_interval(secs => p_window_seconds)) - clock_timestamp()))::integer)
+  );
+end;
+$$;
+
+revoke all on function public.check_rate_limit(text, integer, integer) from public, anon, authenticated;
+grant execute on function public.check_rate_limit(text, integer, integer) to service_role;
+
+-- ---------------------------------------------------------------------
+-- b2b_leads is no longer writable from a browser.
+--
+-- The Hospitals page's partnership form inserted straight into this table
+-- with the publishable anon key, under `for insert with check (true)`. That
+-- made it the one public write in the app with no server-side door -- so no
+-- validation beyond the form's own JavaScript, no audit, and nothing that
+-- could rate limit it, since a limiter needs a route to sit in. Nothing in
+-- this deployment sweeps the table either, so a script could grow it
+-- without bound.
+--
+-- `/api/hospitals/inquiry` is that door now, rate limited on the same
+-- `publicWrite` allowance as the home-visit waitlist, and this is the same
+-- move `appointments_insert_own` got when the booking insert moved
+-- server-side: drop the policy and the grant at the end of the file rather
+-- than editing the original statements, so the file stays re-runnable and
+-- still reads as a history.
+-- ---------------------------------------------------------------------
+drop policy if exists "b2b_leads_insert_public" on b2b_leads;
+revoke insert on b2b_leads from anon, authenticated;

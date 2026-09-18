@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { enforceRateLimit } from "@/lib/rateLimitServer";
 
 // Public, unauthenticated lookup by invite token - lets the registration
 // page validate the link and show the patient who referred them and what
 // was arranged *before* they fill out the whole signup form, instead of
 // only finding out it's invalid/expired after submitting.
 export async function GET(request: NextRequest) {
+  // Counted before the body is parsed, so a refused caller never gets
+  // to drive this route's work.
+  const limited = await enforceRateLimit(request, "referralPreview");
+  if (limited) return limited;
+
   const token = request.nextUrl.searchParams.get("token");
   if (!token) {
     return NextResponse.json({ error: "Missing token" }, { status: 400 });

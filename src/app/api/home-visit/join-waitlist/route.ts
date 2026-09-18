@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
+import { enforceRateLimit } from "@/lib/rateLimitServer";
 
 const MAX_NAME_LENGTH = 120;
 const MAX_NOTE_LENGTH = 500;
@@ -12,6 +13,11 @@ const MAX_NOTE_LENGTH = 500;
 // reason to have an account. Losing that signal because we asked them to
 // register first would throw away the only data that says where to expand.
 export async function POST(request: NextRequest) {
+  // Counted before the body is parsed, so a refused caller never gets
+  // to drive this route's work.
+  const limited = await enforceRateLimit(request, "publicWrite");
+  if (limited) return limited;
+
   const { data: body, error: parseError } = await parseJsonBody<{
     name?: string;
     phone?: string;

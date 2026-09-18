@@ -6,6 +6,7 @@ import {
   findAreaForPincode,
   type ServiceArea,
 } from "@/lib/homeVisitAreas";
+import { enforceRateLimit } from "@/lib/rateLimitServer";
 
 // Deliberately public and unauthenticated. Someone who has never used the
 // platform has to be able to ask "do you come to my area?" before deciding
@@ -14,6 +15,11 @@ import {
 // home_visit_areas is publicly readable by RLS for exactly this reason, so
 // the anon client is enough; no service role needed.
 export async function GET(request: NextRequest) {
+  // Counted before the body is parsed, so a refused caller never gets
+  // to drive this route's work.
+  const limited = await enforceRateLimit(request, "publicLookup");
+  if (limited) return limited;
+
   const raw = request.nextUrl.searchParams.get("pincode");
   const pincode = normalizePincode(raw);
 

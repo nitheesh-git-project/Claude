@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
 
@@ -12,7 +11,6 @@ export default function HospitalInquiryForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
-  const supabase = createClient();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -26,18 +24,35 @@ export default function HospitalInquiryForm() {
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const { error } = await supabase.from("b2b_leads").insert({
-      name: formData.get("name") as string,
-      phone: formData.get("phone") as string,
-      email: formData.get("email") as string,
-      source: formData.get("source") as string,
-      org_details: (formData.get("org_details") as string) || null,
-    });
 
-    setLoading(false);
-    if (error) {
-      setError("Could not submit your inquiry. Please try again.");
+    // Posts to a route rather than inserting straight into b2b_leads. The
+    // table's public insert policy is gone: a browser-side insert cannot be
+    // rate limited, and this form is the one on the site with no account
+    // behind it.
+    try {
+      const res = await fetch("/api/hospitals/inquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.get("name"),
+          phone: formData.get("phone"),
+          email: formData.get("email"),
+          source: formData.get("source"),
+          orgDetails: formData.get("org_details") || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Could not submit your inquiry. Please try again.");
+        return;
+      }
+    } catch {
+      // A request that dies on a bad connection has to say so -- left
+      // unhandled it put nothing on screen and read as a dead button.
+      setError("Could not reach us just now. Please check your connection and try again.");
       return;
+    } finally {
+      setLoading(false);
     }
     setSubmitted(true);
   }

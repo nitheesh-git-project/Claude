@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { findAreaForPincode } from "@/lib/homeVisitAreas";
+import { enforceRateLimit } from "@/lib/rateLimitServer";
 
 export async function POST(request: NextRequest) {
+  // Counted before the body is parsed, so a refused caller never gets
+  // to drive this route's work.
+  const limited = await enforceRateLimit(request, "registration");
+  if (limited) return limited;
+
   const { token, fullName, email, password } = await request.json();
   if (!token || !fullName || !email || !password) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });

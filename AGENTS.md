@@ -209,6 +209,16 @@ leaves nothing behind and can be re-run against the same database. Applying
 `schema.sql` twice against a scratch Postgres and then running this is what a
 schema change to these tables should be verified with.
 
+`scripts/rate-limit-sql-checks.sql` is the rate limiter's storage-layer
+check -- the cap holding, a refused hit still being counted, Retry-After
+staying inside its window, one bucket not spending another's allowance, the
+per-bucket cleanup keeping the table at one row, and a new window starting
+clean. It runs inside one transaction and ends in ROLLBACK. Concurrency is
+deliberately not in it: one psql session cannot race itself, so that property
+is checked by firing parallel requests at the RPC instead (12 against a cap of
+5 allowed exactly 5, with twelve distinct counts handed out and no lost
+update).
+
 `scripts/roster-sql-checks.sql` is the roster's storage-layer check: the
 malformed and out-of-range payloads the API routes cannot produce, asserted
 against a scratch Postgres with `schema.sql` applied
@@ -279,6 +289,8 @@ src/lib/sessionRhythm.ts the proposed run of dates a paid programme opens on
 src/lib/discounts.ts     the acquisition discounts and what they record
 src/lib/promoCodes.ts    a campaign's maths and whether this patient may claim it
 src/lib/inviteRewards.ts one patient inviting another, and both halves of it
+src/lib/rateLimit.ts     the named limits, and who a request counts against
+src/lib/rateLimitServer.ts the one call that counts a hit and refuses
 src/lib/checkoutQuote.ts what a booking costs, resolved once for three callers
 src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
 src/lib/financeMetrics.ts the seven standard finance figures and their inputs
@@ -741,6 +753,59 @@ client is the only writer and the log is append-only from any session.
   History, Earnings, the Calendar tab's day) have no hours and no lead time,
   and a control whose disabled state means "too soon to book" would be
   lying on all of them.
+- **Rate limiting is Postgres, not Redis, and it fails open.** 173 route
+  handlers had nothing throttled. `src/lib/rateLimit.ts` holds the named
+  limits and the pure judgements (which caller a request counts against, how
+  long they are held off, what they are told); `rateLimitServer.ts` is the
+  one enforcement call; `check_rate_limit()` in `schema.sql` is the counter.
+  Five things decide the shape:
+  1. **The database is the store**, because this deployment has no worker and
+     no Redis, and an in-memory counter resets on every cold start and
+     disagrees between concurrent serverless instances -- which is the same as
+     not having one. Adding Upstash would mean a dependency, an account and
+     two more secrets before a single request could be refused.
+  2. **A fixed window derived from the clock, with no expiry column.** Same
+     reason a pending session suggestion writes no "expired" status: a row
+     recording the passage of time needs a sweep. A counter for a window that
+     has passed is never read again, and is deleted by the next call for its
+     own bucket -- that per-bucket delete is the whole of the cleanup and is
+     what keeps the table at one row per *active* bucket.
+  3. **The count is an insert-on-conflict, not a read then a write.** The
+     unique index serialises two simultaneous calls, so a cap of 5 means 5
+     while five requests are in flight -- the same reasoning as
+     `claim_promo_code` taking a row lock. It counts the hit even when it
+     refuses it, or a caller who keeps trying holds their own window open.
+  4. **It fails open.** A limiter whose own query fails and then refuses the
+     request has turned a blip into a checkout outage, which is worse than
+     the burst it would have stopped -- the direction `contact_scan_mode`
+     fails, and the opposite of `contact_masking_enabled`, because the safe
+     answer differs by what is at stake. Logged, never silent. **No
+     identifier is the same case**: with neither `x-real-ip` nor
+     `x-forwarded-for` (local dev, or any host that does not set them) the
+     request is allowed rather than filed under an invented key, which would
+     put every visitor in one bucket and let the first thirty lock out the
+     thirty-first.
+  5. **Keyed on the account where there is one.** An IP can be rotated and a
+     user id cannot, so the checkout limit sits *below* `auth.getUser()` and
+     passes `user.id`, falling back to the IP for the anonymous quote and
+     promo preview that `checkoutQuote` deliberately answers. `x-real-ip` is
+     preferred over `x-forwarded-for` because the forwarded header is a list
+     a client can pad from the left, and reading the leftmost entry of a
+     padded list means counting a value the caller chose.
+  A new limit is an entry in `RATE_LIMITS` with its own scope -- never a
+  number inlined at a route, and never a per-route limit, since the question
+  is what is being protected rather than what one handler can take. Its
+  message must not quote its own numbers: it reaches a patient mid-booking,
+  and `rateLimit.test.ts` fails a message containing a digit.
+  **A public write needs a route to put a limit in.** The Hospitals page
+  inserted straight into `b2b_leads` from the browser under
+  `for insert with check (true)`, so it had no server-side door to limit, no
+  validation beyond its own JavaScript, and nothing bounding a table nothing
+  sweeps. `/api/hospitals/inquiry` is that door and the policy and grant are
+  dropped at the end of `schema.sql` -- the same move
+  `appointments_insert_own` got. Sign-up and sign-in are **not** covered here:
+  both call Supabase Auth directly from the browser rather than a route of
+  ours, so their limits are the ones set in the Supabase dashboard.
 - **Availability** = weekly template + per-date exceptions + leave flag, then
   a conflict check (`src/lib/therapistAvailability.ts`,
   `src/lib/checkTherapistConflict.ts`). It is the clinic's planning record -

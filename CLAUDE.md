@@ -29,6 +29,22 @@ phrase, and it records itself. Nothing here can be edited, and there is still
 no update path. Operations, Finance and Clinical cannot open Logs; they read
 their own desk's work on Today → Activity. See the log rule in `AGENTS.md`.
 
+**Every public door is rate limited, in Postgres.** Nothing was throttled
+across 173 routes -- an unauthenticated lookup returning a referred patient's
+name and medical issue, hospital code enumeration, and two public inserts with
+no ceiling. `src/lib/rateLimit.ts` names the limits, `rateLimitServer.ts`
+enforces them and `check_rate_limit()` counts, in the database because this
+deployment has no worker and an in-memory counter would reset on every cold
+start. It is a fixed window with no expiry column (a row recording the passage
+of time would need a sweep), counted by insert-on-conflict so a cap holds under
+concurrent requests, keyed on the account where there is one because an IP can
+be rotated, and it **fails open** -- a limiter that refuses a booking because
+its own query hiccupped is worse than the burst. The Hospitals page's lead form
+moved behind `/api/hospitals/inquiry` for the same reason: a browser-side
+insert has no door to put a limit in. Sign-up and sign-in go straight to
+Supabase Auth, so their limits live in the Supabase dashboard. See the rate
+limit rule in `AGENTS.md`.
+
 **Suspension reaches the database, not only the app.** `profiles.active` is
 read by `src/proxy.ts` and `requireActiveProfile`, and both are this
 application -- a session cookie reaches PostgREST without passing either, and
