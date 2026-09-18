@@ -4,6 +4,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { isMissionPrincipleKind } from "@/lib/mission";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 /**
  * Saves the order of one band, as the whole band.
@@ -25,7 +26,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { kind, ids } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    kind?: string;
+    ids?: unknown;
+  }>(request);
+  if (parseError) return parseError;
+  const { kind, ids } = body;
   if (!isMissionPrincipleKind(kind)) {
     return NextResponse.json({ error: "Unknown kind." }, { status: 400 });
   }

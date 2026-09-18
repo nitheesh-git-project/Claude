@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 function generatePassword() {
   return crypto.randomBytes(9).toString("base64url");
@@ -18,8 +19,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { leadId, email, organizationName, fullName, revenueSharePercent } =
-    await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    leadId?: string;
+    email?: string;
+    organizationName?: string;
+    fullName?: string;
+    revenueSharePercent?: number;
+  }>(request);
+  if (parseError) return parseError;
+  const { leadId, email, organizationName, fullName, revenueSharePercent } = body;
   if (!email || !organizationName || !fullName || revenueSharePercent === undefined) {
     return NextResponse.json(
       {

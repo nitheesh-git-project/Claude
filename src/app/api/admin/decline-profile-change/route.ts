@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -9,7 +10,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { requestId, notes } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    requestId?: string;
+    notes?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { requestId, notes } = body;
   if (!requestId || !notes || !notes.trim()) {
     return NextResponse.json(
       { error: "Missing requestId or a reason for declining" },

@@ -70,7 +70,11 @@ Logs section refusing all three limited desks at the screen *and* at both of
 its routes while the retention floor refuses a cutoff inside the protected
 window (`admin-scoped-dashboard.spec.ts` -- whose console-error assertion splits
 failed requests by host, since this sandbox blocks the *browser* from
-reaching Supabase and RealtimeRefresh's socket dies on every run),
+reaching Supabase and RealtimeRefresh's socket dies on every run; that split
+covers the **console** channel as well as `requestfailed`, because a
+WebSocket that never opens is reported only on the console and so slipped
+past the host rule entirely, taking S-005 red on every run for a reason that
+had nothing to do with the app),
 and the therapist roster end to end
 (`therapist-roster.spec.ts`: ranges saving as the same hour rows, exceptions
 owning only their own date, leave leaving the schedule intact, role and
@@ -209,6 +213,29 @@ leaves nothing behind and can be re-run against the same database. Applying
 `schema.sql` twice against a scratch Postgres and then running this is what a
 schema change to these tables should be verified with.
 
+`scripts/rate-limit-sql-checks.sql` is the rate limiter's storage-layer
+check -- the cap holding, a refused hit still being counted, Retry-After
+staying inside its window, one bucket not spending another's allowance, the
+per-bucket cleanup keeping the table at one row, and a new window starting
+clean. It runs inside one transaction and ends in ROLLBACK. Concurrency is
+deliberately not in it: one psql session cannot race itself, so that property
+is checked by firing parallel requests at the RPC instead (12 against a cap of
+5 allowed exactly 5, with twelve distinct counts handed out and no lost
+update).
+
+`scripts/append-only-sql-checks.sql` is the append-only guards' check, and
+it asserts **both** halves of each one: the single mutation the table
+legitimately needs still lands, and every other one raises. Checking only the
+refusals would pass just as well on a trigger that had broken the feature --
+so it proves `admin_activity_log` still deletes for the retention purge,
+`payment_webhook_events` still takes its `processed_at` update, and `payments`
+still makes the created -> captured transition, alongside the nine refusals.
+It runs inside one transaction and ends in ROLLBACK, and it **builds its own
+session note** rather than finding one, since a database with no session notes
+would otherwise skip that table silently. A negative control was run before
+the file was trusted: a failed assertion has to reach the caller as an error,
+or a green run means nothing.
+
 `scripts/roster-sql-checks.sql` is the roster's storage-layer check: the
 malformed and out-of-range payloads the API routes cannot produce, asserted
 against a scratch Postgres with `schema.sql` applied
@@ -279,6 +306,8 @@ src/lib/sessionRhythm.ts the proposed run of dates a paid programme opens on
 src/lib/discounts.ts     the acquisition discounts and what they record
 src/lib/promoCodes.ts    a campaign's maths and whether this patient may claim it
 src/lib/inviteRewards.ts one patient inviting another, and both halves of it
+src/lib/rateLimit.ts     the named limits, and who a request counts against
+src/lib/rateLimitServer.ts the one call that counts a hit and refuses
 src/lib/checkoutQuote.ts what a booking costs, resolved once for three callers
 src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
 src/lib/financeMetrics.ts the seven standard finance figures and their inputs
@@ -338,6 +367,23 @@ a grep for the helper name is how the next audit finds the gap.
 
 Admin routes go through `src/lib/supabase/requireAdmin.ts`. Never trust a
 role, an id, or an amount sent from the client - re-derive it server-side.
+
+**A body is parsed through `parseJsonBody`, never `await request.json()`.**
+`request.json()` throws on a malformed or absent body and nothing catches it,
+so the caller gets a 500 where the honest answer is a 400 -- the request was
+theirs to get right. A sweep of every POST handler found 45 still parsing
+directly, among them `/api/razorpay/create-order`, `/api/razorpay/verify` and
+the one public door in the list, `/api/patient/register-via-referral`. The
+helper also refuses a body that is valid JSON but not an object (`null`, an
+array, a bare string), because every call site destructures the result and
+those arrive as an uncaught TypeError further down instead. Type the generic
+with the shape the route expects rather than leaving the fields implicitly
+`any`: doing that is what showed the admin forms post `""` for a blank number
+box, so `displayOrder` and `rating` are `number | string` and the routes were
+right to compare against `""`. Where a route already narrows a value itself
+(`Array.isArray`, a `typeof` check, a literal comparison), the field is
+`unknown` -- typing it concretely would claim a guarantee the request does not
+carry.
 
 **A check that could not be run is not a check that came back negative.**
 `getAdminUser` collapsed three different outcomes into `null`, and the routes
@@ -546,6 +592,24 @@ client is the only writer and the log is append-only from any session.
      service-role client, which bypasses RLS entirely. For a table whose
      whole value is that it cannot be rewritten, "no route updates it" is
      not the same guarantee as "an update raises".
+
+     **That reasoning applies to every evidence table, and four did not have
+     it.** An audit found the gap by simply issuing the UPDATE:
+     `admin_activity_log` -- the trail the whole Logs section is built on, the
+     record of who impersonated whom, who settled which payout and who cleared
+     the log -- accepted a rewrite and changed a row. `payments`,
+     `payment_webhook_events` and `session_note_revisions` were the other
+     three. Each now permits exactly the one mutation it needs and refuses the
+     rest: `admin_activity_log` keeps DELETE (the retention purge is the only
+     path a row has ever left by) and never takes an UPDATE;
+     `payment_webhook_events` may have `processed_at` and `processing_error`
+     set after the work and nothing else, and is never deletable, because the
+     row **is** the deduplication; `payments` still makes the created ->
+     captured transition, and a captured payment's two Razorpay ids are frozen
+     and its row is never deletable, since that is the record money moved;
+     `session_note_revisions` takes neither. Verified with
+     `scripts/append-only-sql-checks.sql`. A new table whose value is that it
+     cannot be rewritten gets its guard in the same change.
   4. **`sessions_granted` and `package_snapshot` are frozen by trigger.**
      A purchase's definition never moves; its balance moves through the
      ledger. Never resolve a purchased entitlement by joining the live
@@ -741,6 +805,93 @@ client is the only writer and the log is append-only from any session.
   History, Earnings, the Calendar tab's day) have no hours and no lead time,
   and a control whose disabled state means "too soon to book" would be
   lying on all of them.
+- **Rate limiting is Postgres, not Redis, and it fails open.** 173 route
+  handlers had nothing throttled. `src/lib/rateLimit.ts` holds the named
+  limits and the pure judgements (which caller a request counts against, how
+  long they are held off, what they are told); `rateLimitServer.ts` is the
+  one enforcement call; `check_rate_limit()` in `schema.sql` is the counter.
+  Five things decide the shape:
+  1. **The database is the store**, because this deployment has no worker and
+     no Redis, and an in-memory counter resets on every cold start and
+     disagrees between concurrent serverless instances -- which is the same as
+     not having one. Adding Upstash would mean a dependency, an account and
+     two more secrets before a single request could be refused.
+  2. **A fixed window derived from the clock, with no expiry column.** Same
+     reason a pending session suggestion writes no "expired" status: a row
+     recording the passage of time needs a sweep. A counter for a window that
+     has passed is never read again, and is deleted by the next call for its
+     own bucket -- that per-bucket delete is the whole of the cleanup and is
+     what keeps the table at one row per *active* bucket.
+  2b. **It is counted AFTER the request's shape is checked, not before.**
+     This reverses where a limiter usually goes, and the reason is that the
+     limiter is the expensive half: it costs a database round trip where the
+     validation above it is a trim and a regex. Counting first meant every
+     malformed request bought a write -- so the app absorbed junk *worse*
+     than validating first does -- and it meant a person correcting a phone
+     number spent an allowance meant for abuse, then met a refusal worded for
+     somebody who had already succeeded. Nothing is read or written before the
+     count either way, so a refusal still costs the caller nothing.
+  3. **The count is an insert-on-conflict, not a read then a write.** The
+     unique index serialises two simultaneous calls, so a cap of 5 means 5
+     while five requests are in flight -- the same reasoning as
+     `claim_promo_code` taking a row lock. It counts the hit even when it
+     refuses it, or a caller who keeps trying holds their own window open.
+  4. **It fails open.** A limiter whose own query fails and then refuses the
+     request has turned a blip into a checkout outage, which is worse than
+     the burst it would have stopped -- the direction `contact_scan_mode`
+     fails, and the opposite of `contact_masking_enabled`, because the safe
+     answer differs by what is at stake. Logged, never silent. **No
+     identifier is the same case**: with neither `x-real-ip` nor
+     `x-forwarded-for` (local dev, or any host that does not set them) the
+     request is allowed rather than filed under an invented key, which would
+     put every visitor in one bucket and let the first thirty lock out the
+     thirty-first.
+  5. **Keyed on the account where there is one.** An IP can be rotated and a
+     user id cannot, so the checkout limit sits *below* `auth.getUser()` and
+     passes `user.id`, falling back to the IP for the anonymous quote and
+     promo preview that `checkoutQuote` deliberately answers. `x-real-ip` is
+     preferred over `x-forwarded-for` because the forwarded header is a list
+     a client can pad from the left, and reading the leftmost entry of a
+     padded list means counting a value the caller chose.
+  6. **A 429 is not a "no".** This is the rule at the top of this file --
+     *a check that could not be run is not a check that came back negative* --
+     and adding the limiter reintroduced it one layer up, in the two callers
+     whose success payload is a negative-capable boolean. `InviteRegisterCard`
+     read `valid` off a 429 and told a referred patient holding a good
+     registration link that it had **expired**, sending them to ring the
+     hospital; `CarePlanOfferCard` read `serviceable` off one and told a
+     patient the clinic does **not visit their address**, disabling the pay
+     button on a programme their own clinician had recommended. Both now
+     resolve three or four outcomes rather than a boolean, gate on `res.ok`
+     before reading a field, and on "we could not ask" say exactly that. A
+     route whose 200 body carries a boolean cannot be consumed without
+     checking the status first -- and the honest state is a third value, not
+     a falsy one.
+  A new limit is an entry in `RATE_LIMITS` with its own scope -- never a
+  number inlined at a route, and never a per-route limit, since the question
+  is what is being protected rather than what one handler can take. **One
+  scope per flow**, too: `areaLookup` and `referralCodeLookup` were a single
+  `publicLookup`, which let a partner hospital checking codes spend the
+  allowance a patient needed to find out whether we visit their street.
+  Its message carries **no numbers** (the cap and window are configuration,
+  and `rateLimit.test.ts` fails a digit) and **no blame** -- a limit is
+  reached by a shared office address, a connection retrying or somebody
+  correcting a form far more often than by anybody doing anything wrong, and
+  "Too many attempts" reads as an accusation to all three. It also says only
+  *what happened*: the concrete wait is composed by the caller from
+  `retryAfterSeconds` through `rateLimitNotice()`, which is the half that can
+  be specific because it is measured. A message that also said "please wait
+  and try again" produced "…and try again. You can try again in about 9
+  minutes."
+  **A public write needs a route to put a limit in.** The Hospitals page
+  inserted straight into `b2b_leads` from the browser under
+  `for insert with check (true)`, so it had no server-side door to limit, no
+  validation beyond its own JavaScript, and nothing bounding a table nothing
+  sweeps. `/api/hospitals/inquiry` is that door and the policy and grant are
+  dropped at the end of `schema.sql` -- the same move
+  `appointments_insert_own` got. Sign-up and sign-in are **not** covered here:
+  both call Supabase Auth directly from the browser rather than a route of
+  ours, so their limits are the ones set in the Supabase dashboard.
 - **Availability** = weekly template + per-date exceptions + leave flag, then
   a conflict check (`src/lib/therapistAvailability.ts`,
   `src/lib/checkTherapistConflict.ts`). It is the clinic's planning record -
@@ -1651,6 +1802,25 @@ client is the only writer and the log is append-only from any session.
   already-`approved` `condition_change_requests` row, the pattern
   `ConditionDirectEditForm` already uses, so it appears in the ordinary
   Review History with no new concept and no queue.
+
+  **And it writes exactly one, which took two goes to get right.** The claim
+  is a compare-and-swap so only the caller whose write lands writes the
+  history entry -- that took ten taps down from ten entries to **two**, not
+  to one, and the audit found the remainder. The route has two paths, an
+  INSERT when no record exists and an UPDATE when one does, and they guard
+  different races: a burst splits across both, so one caller wins the insert
+  and another wins the first update, and each believes it was first. Both are
+  right from their own view, which is why guarding the paths harder cannot
+  fix it. The honest test is whether the request changed anything clinical,
+  so an identical resubmission now writes **nothing at all** -- no record
+  update, no history entry (`isSameIntakeSubmission`, keyed on the thing that
+  happened rather than on who got there first, the same rule the credit
+  ledger's idempotency keys follow). It compares the answers, the triage
+  answers and the condition type, and deliberately not `updated_at` or
+  `last_submitted_by`, which are bookkeeping and identical on a double-tap
+  anyway. `e2e/health-profile.spec.ts` SPAM-001 is the guard; a record that
+  is not yet `active` is never a no-op, since a draft going live is exactly
+  what onboarding does.
 
   **The line is create versus edit.** Deciding what kind of patient this
   is, and writing down what they told you in a session you ran, is the
@@ -2883,6 +3053,18 @@ client is the only writer and the log is append-only from any session.
   the wizard inserted the row itself; the policy is dropped now and the
   check moved with the insert. Don't add a fifth booking entry point without
   all three.
+  **The rule is wider than booking: a patient-dashboard route answers a
+  patient.** An audit found three that did not check --
+  `/api/patient/dismiss-onboarding`, `previous-therapists` and
+  `condition-profile/export` -- each answering a therapist or hospital
+  session with a 200. All three act on the caller's **own** row, so nothing
+  cross-account leaked, and that is exactly why it survived: the reach was
+  "the wrong role got an empty answer" rather than anything alarming. The
+  export was the sharpest, handing a non-patient a typeset PDF of an empty
+  health record named after them. They call `isPatientProfile` now.
+  `previous-therapists` had no `active` check either, which is the same gap
+  the eight-route sweep closed elsewhere -- a grep for the helper name is how
+  the next audit finds the next one.
 
 - **An admin can sign in as somebody, and that is a session swap rather than
   a preview.** A Master Admin opens a patient's, therapist's or partner hospital's
@@ -2946,6 +3128,20 @@ client is the only writer and the log is append-only from any session.
   `/dashboard` rather than adding a fifth role map. The debug bar is the
   deliberate exception -- it still lists the admin routes, and is switched
   off before release.
+  **A response body names the back office too.**
+  `/api/admin/stop-impersonation` answered `{"redirectTo":
+  "/admin/dashboard"}` to an **anonymous** caller: it runs no admin check by
+  design (the caller is signed in as the patient at that point, so
+  `getAdminContext()` would refuse the one person entitled to call it), so
+  the no-marker branch was reachable by anybody and told them where the back
+  office is. Its other exit did the same with `/admin/login` for anyone who
+  sent a forged marker, which is trivial since the marker is unsigned JSON.
+  Both answer `/dashboard` now unless the caller has been **shown** to be the
+  admin -- a restore token that actually exchanged, or a marker matching its
+  own `admin_impersonation_sessions` row, which is a row the admin it names
+  cannot write. `/dashboard` resolves the role server-side and sends a
+  stranger to `/get-started`, which is the whole reason that route exists.
+  Check what a route *says* as well as what it lets you do.
 
 - **The way back in is one rule, not one per surface.**
   `useAccountDestination()` (`src/lib/useAccountDestination.ts`) answers

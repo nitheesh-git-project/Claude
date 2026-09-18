@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActive, isPatientProfile } from "@/lib/supabase/requireActiveProfile";
 import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
 import { isGatewayPayable } from "@/lib/discounts";
+import { enforceRateLimit } from "@/lib/rateLimitServer";
 
 // What this booking costs, as the payment screen will say it.
 //
@@ -22,6 +23,19 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Keyed on the account, which is the one identifier the person being
+  // limited cannot change -- an IP can be rotated, and this is the limit
+  // standing in front of money. It falls back to the IP for an anonymous
+  // caller, which `/api/appointments/quote` and the promo preview both
+  // answer on purpose (a self-signup patient has no account at step 3).
+  // Placed after the session is read rather than at the top of the handler
+  // for that reason, and still before the body is parsed.
+  const limited = await enforceRateLimit(request, "checkout", {
+    identifier: user?.id ?? null,
+  });
+  if (limited) return limited;
+
 
   // Deliberately open to a signed-out visitor, for a **category-only** quote
   // and nothing else.

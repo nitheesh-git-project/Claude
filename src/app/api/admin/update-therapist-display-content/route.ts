@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // Writes profiles.public_display_note -- the admin-curated blurb shown in
 // the /team popup (Feature 38), distinct from therapist_admin_notes
@@ -13,7 +14,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { therapistId, displayNote } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    therapistId?: string;
+    displayNote?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { therapistId, displayNote } = body;
   if (!therapistId || typeof displayNote !== "string") {
     return NextResponse.json(
       { error: "Missing therapistId or displayNote" },

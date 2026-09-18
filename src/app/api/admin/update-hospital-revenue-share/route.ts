@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("money");
@@ -9,7 +10,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { hospitalId, revenueSharePercent } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    hospitalId?: string;
+    revenueSharePercent?: number;
+  }>(request);
+  if (parseError) return parseError;
+  const { hospitalId, revenueSharePercent } = body;
   // Explicitly reject "" (and other non-numeric-looking input) before the
   // Number() conversion below - Number("") is 0, not NaN, so an emptied
   // input would otherwise silently save as a real, meaningful 0% instead

@@ -13,6 +13,7 @@ import {
 import { isContactScanMode } from "@/lib/adminSettings";
 import { MAX_MISSION_LENGTH, MAX_VISION_LENGTH } from "@/lib/mission";
 import { isRunRateBasis } from "@/lib/financeMetrics";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 const ALLOWED_COLUMNS = new Set([
   "therapist_suggestions_enabled",
@@ -159,7 +160,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { key, value } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    key?: string;
+    value?: unknown;
+  }>(request);
+  if (parseError) return parseError;
+  const { key, value } = body;
   if (typeof key !== "string" || !ALLOWED_COLUMNS.has(key)) {
     return NextResponse.json({ error: "Unknown setting key" }, { status: 400 });
   }
