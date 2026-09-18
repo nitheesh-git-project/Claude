@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revokeAllSessions, SESSION_REVOKE_WARNING } from "@/lib/supabase/revokeSessions";
 import { revalidatePath } from "next/cache";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -11,7 +12,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { therapistId, active } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    therapistId?: string;
+    active?: boolean;
+  }>(request);
+  if (parseError) return parseError;
+  const { therapistId, active } = body;
   if (!therapistId || typeof active !== "boolean") {
     return NextResponse.json(
       { error: "Missing therapistId or active" },

@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -10,7 +11,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { question, answer, displayOrder } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    question?: string;
+    answer?: string;
+    // The admin form posts an empty string for a blank number box.
+    displayOrder?: number | string;
+  }>(request);
+  if (parseError) return parseError;
+  const { question, answer, displayOrder } = body;
   if (!question || !answer) {
     return NextResponse.json({ error: "Missing question or answer" }, { status: 400 });
   }

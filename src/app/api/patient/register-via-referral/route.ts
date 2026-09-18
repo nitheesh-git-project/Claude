@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { findAreaForPincode } from "@/lib/homeVisitAreas";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   // Counted before the body is parsed, so a refused caller never gets
@@ -10,7 +11,14 @@ export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(request, "registration");
   if (limited) return limited;
 
-  const { token, fullName, email, password } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    token?: string;
+    fullName?: string;
+    email?: string;
+    password?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { token, fullName, email, password } = body;
   if (!token || !fullName || !email || !password) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }

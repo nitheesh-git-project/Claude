@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 import {
   MAX_PRINCIPLE_BODY_LENGTH,
   MAX_PRINCIPLE_TITLE_LENGTH,
@@ -29,7 +30,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id, kind, title, body, icon, active } = await request.json();
+  const { data: payload, error: parseError } = await parseJsonBody<{
+    id?: string;
+    kind?: string;
+    title?: string;
+    body?: string;
+    icon?: string;
+    active?: boolean;
+  }>(request);
+  if (parseError) return parseError;
+  const { id, kind, title, body, icon, active } = payload;
 
   if (!isMissionPrincipleKind(kind)) {
     return NextResponse.json({ error: "Unknown kind." }, { status: 400 });
@@ -52,7 +62,7 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  if (icon != null && !MISSION_ICONS.includes(icon)) {
+  if (icon != null && !(MISSION_ICONS as readonly string[]).includes(icon)) {
     return NextResponse.json({ error: "Pick one of the icons offered." }, { status: 400 });
   }
   if (active != null && typeof active !== "boolean") {

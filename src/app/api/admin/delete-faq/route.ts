@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -10,7 +11,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    id?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { id } = body;
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }

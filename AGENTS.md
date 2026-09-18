@@ -219,6 +219,19 @@ is checked by firing parallel requests at the RPC instead (12 against a cap of
 5 allowed exactly 5, with twelve distinct counts handed out and no lost
 update).
 
+`scripts/append-only-sql-checks.sql` is the append-only guards' check, and
+it asserts **both** halves of each one: the single mutation the table
+legitimately needs still lands, and every other one raises. Checking only the
+refusals would pass just as well on a trigger that had broken the feature --
+so it proves `admin_activity_log` still deletes for the retention purge,
+`payment_webhook_events` still takes its `processed_at` update, and `payments`
+still makes the created -> captured transition, alongside the nine refusals.
+It runs inside one transaction and ends in ROLLBACK, and it **builds its own
+session note** rather than finding one, since a database with no session notes
+would otherwise skip that table silently. A negative control was run before
+the file was trusted: a failed assertion has to reach the caller as an error,
+or a green run means nothing.
+
 `scripts/roster-sql-checks.sql` is the roster's storage-layer check: the
 malformed and out-of-range payloads the API routes cannot produce, asserted
 against a scratch Postgres with `schema.sql` applied
@@ -350,6 +363,23 @@ a grep for the helper name is how the next audit finds the gap.
 
 Admin routes go through `src/lib/supabase/requireAdmin.ts`. Never trust a
 role, an id, or an amount sent from the client - re-derive it server-side.
+
+**A body is parsed through `parseJsonBody`, never `await request.json()`.**
+`request.json()` throws on a malformed or absent body and nothing catches it,
+so the caller gets a 500 where the honest answer is a 400 -- the request was
+theirs to get right. A sweep of every POST handler found 45 still parsing
+directly, among them `/api/razorpay/create-order`, `/api/razorpay/verify` and
+the one public door in the list, `/api/patient/register-via-referral`. The
+helper also refuses a body that is valid JSON but not an object (`null`, an
+array, a bare string), because every call site destructures the result and
+those arrive as an uncaught TypeError further down instead. Type the generic
+with the shape the route expects rather than leaving the fields implicitly
+`any`: doing that is what showed the admin forms post `""` for a blank number
+box, so `displayOrder` and `rating` are `number | string` and the routes were
+right to compare against `""`. Where a route already narrows a value itself
+(`Array.isArray`, a `typeof` check, a literal comparison), the field is
+`unknown` -- typing it concretely would claim a guarantee the request does not
+carry.
 
 **A check that could not be run is not a check that came back negative.**
 `getAdminUser` collapsed three different outcomes into `null`, and the routes
@@ -558,6 +588,24 @@ client is the only writer and the log is append-only from any session.
      service-role client, which bypasses RLS entirely. For a table whose
      whole value is that it cannot be rewritten, "no route updates it" is
      not the same guarantee as "an update raises".
+
+     **That reasoning applies to every evidence table, and four did not have
+     it.** An audit found the gap by simply issuing the UPDATE:
+     `admin_activity_log` -- the trail the whole Logs section is built on, the
+     record of who impersonated whom, who settled which payout and who cleared
+     the log -- accepted a rewrite and changed a row. `payments`,
+     `payment_webhook_events` and `session_note_revisions` were the other
+     three. Each now permits exactly the one mutation it needs and refuses the
+     rest: `admin_activity_log` keeps DELETE (the retention purge is the only
+     path a row has ever left by) and never takes an UPDATE;
+     `payment_webhook_events` may have `processed_at` and `processing_error`
+     set after the work and nothing else, and is never deletable, because the
+     row **is** the deduplication; `payments` still makes the created ->
+     captured transition, and a captured payment's two Razorpay ids are frozen
+     and its row is never deletable, since that is the record money moved;
+     `session_note_revisions` takes neither. Verified with
+     `scripts/append-only-sql-checks.sql`. A new table whose value is that it
+     cannot be rewritten gets its guard in the same change.
   4. **`sessions_granted` and `package_snapshot` are frozen by trigger.**
      A purchase's definition never moves; its balance moves through the
      ledger. Never resolve a purchased entitlement by joining the live

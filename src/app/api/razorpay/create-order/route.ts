@@ -13,6 +13,7 @@ import { confirmPaidAppointment } from "@/lib/confirmPaidAppointment";
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
 import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // The amount is always resolved here, server-side, from the appointment's
 // linked category price (or the flat base fee) - never trust an amount
@@ -44,7 +45,12 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
-  const { appointmentId, promoCode } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    appointmentId?: string;
+    promoCode?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { appointmentId, promoCode } = body;
   if (!appointmentId) {
     return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
   }

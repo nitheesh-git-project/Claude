@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // The global kill-switch: off means no rating numbers show on /team or the
 // homepage for ANY therapist, regardless of that therapist's own
@@ -15,7 +16,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { visible } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    visible?: boolean;
+  }>(request);
+  if (parseError) return parseError;
+  const { visible } = body;
   if (typeof visible !== "boolean") {
     return NextResponse.json({ error: "Missing visible" }, { status: 400 });
   }

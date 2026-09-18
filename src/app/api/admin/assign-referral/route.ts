@@ -10,6 +10,7 @@ import {
 } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 import {
   BOOKING_LEAD_TIME_HOURS, BOOKING_LEAD_TIME_MS,
   isWholeHourSlot,
@@ -22,7 +23,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { referralId, therapistId, slotDateTime } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    referralId?: string;
+    therapistId?: string;
+    slotDateTime?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { referralId, therapistId, slotDateTime } = body;
   if (!referralId || !therapistId || !slotDateTime) {
     return NextResponse.json(
       { error: "Missing referralId, therapistId, or slotDateTime" },

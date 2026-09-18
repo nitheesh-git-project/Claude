@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeNetPayout } from "@/lib/therapistCashLedger";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // "online" here means the admin already sent the money themselves (UPI,
 // bank transfer) outside the platform and is logging it after the fact --
@@ -18,7 +19,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { therapistId, method, note } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    therapistId?: string;
+    method?: string;
+    note?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { therapistId, method, note } = body;
   if (!therapistId || !method) {
     return NextResponse.json(
       { error: "Missing therapistId or method" },

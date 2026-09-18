@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // Declines a pending self-serve signup -- therapist application or patient
 // registration. Same role filter as approve-account: only an account that is
@@ -14,7 +15,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { userId } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    userId?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { userId } = body;
   if (!userId) {
     return NextResponse.json({ error: "Missing userId" }, { status: 400 });
   }

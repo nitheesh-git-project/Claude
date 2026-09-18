@@ -26,7 +26,13 @@ it cannot reach the last `MIN_RETENTION_DAYS` - 30 - at any setting, checked
 in `src/lib/activityLog.ts`, in the route, and inside
 `purge_admin_activity_log()`. It demands a downloaded copy first, a typed
 phrase, and it records itself. Nothing here can be edited, and there is still
-no update path. Operations, Finance and Clinical cannot open Logs; they read
+no update path -- and that is now a trigger rather than a habit: an audit
+issued the UPDATE and the row changed, because "no route updates it" was the
+whole of the guarantee. `admin_activity_log` keeps DELETE for the purge and
+raises on UPDATE; `payments`, `payment_webhook_events` and
+`session_note_revisions` got the same treatment in the same change, each
+permitting only the one mutation it legitimately needs
+(`scripts/append-only-sql-checks.sql`). Operations, Finance and Clinical cannot open Logs; they read
 their own desk's work on Today → Activity. See the log rule in `AGENTS.md`.
 
 **Every public door is rate limited, in Postgres.** Nothing was throttled
@@ -46,7 +52,9 @@ told a patient their good registration link had expired and that the clinic
 does not visit their address, so both resolve a third "could not ask" state
 now. The Hospitals page's lead form
 moved behind `/api/hospitals/inquiry` for the same reason: a browser-side
-insert has no door to put a limit in. Sign-up and sign-in go straight to
+insert has no door to put a limit in. Every POST body is read through
+`parseJsonBody`, so a malformed one is a 400 rather than the 500 that 45
+routes -- both Razorpay routes among them -- were answering with. Sign-up and sign-in go straight to
 Supabase Auth, so their limits live in the Supabase dashboard. See the rate
 limit rule in `AGENTS.md`.
 

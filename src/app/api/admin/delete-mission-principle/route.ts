@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 /**
  * Removes one promise or limit.
@@ -24,7 +25,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    id?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { id } = body;
   if (typeof id !== "string" || id.length === 0) {
     return NextResponse.json({ error: "Which one?" }, { status: 400 });
   }
