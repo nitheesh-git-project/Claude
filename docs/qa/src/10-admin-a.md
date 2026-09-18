@@ -10,7 +10,7 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 2. **A deep link server-renders its screen.** `/admin/dashboard?section=money&tab=payouts` must paint Payouts directly - not paint Today first and jump.
 3. **An unknown tab key falls back to the section's first screen.** So a stale link *looks* like it works while quietly landing somewhere else. Build links with the typed helper; never hand-write one.
 
-**Realtime.** The dashboard subscribes to two channels: operational tables (bookings, payouts, profiles, care records) on a **short** cooldown, and catalog/settings tables on a **much longer** one. It fires on the **leading edge** - the first change lands immediately and only the burst behind it is collapsed. A refresh re-runs every query on every screen, which is why the cooldowns exist.
+**Realtime.** The dashboard subscribes to two channels: operational tables (bookings, payouts, profiles, care records) on a **short** cooldown, and catalog/settings tables on a **much longer** one. It fires on the **leading edge** - the first change is registered immediately and only the burst behind it is collapsed. On this dashboard alone the channels **count rather than rebuild**: a rebuild here re-runs every query on every screen, and almost nothing arriving is a change the admin reading it is waiting on, so the **Refresh** button in the header turns teal and carries the number waiting, and the screen changes when the admin taps it. The other three dashboards still refresh themselves. Two things never raise the count: a change this browser itself made (the row **and** its audit-log entry, both already covered by the refresh the control fired), and the lazy sweeps this page's own render starts.
 
 **Every mutating admin route writes an `admin_activity_log` row**, after the route's compare-and-swap claim, so the log cannot record a settlement or cancellation that lost its race. The write is **best-effort and never throws** - an audit failure must not block the action it describes. The log has a select policy and **deliberately no insert policy**: the service role is the only writer, so it is append-only from any session. **A generated password never appears in `details`.**
 
@@ -51,7 +51,7 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 **Steps**
 1. Create a patient signup and leave it unapproved. Note the real time.
 2. Wait a few minutes, then open **Today** (or **Today → Activity** on a scoped desk) and read the time under *"1 signup waiting for approval"*.
-3. Press **Refresh**. Read it again. Then have a second admin act so a realtime refresh fires, and read it a third time.
+3. Press **Refresh**. Read it again. Then have a second admin act, press the now-teal **Refresh**, and read it a third time.
 4. Leave a second signup unapproved a day later, so two are waiting, and read the time again.
 5. Approve them all and let a **change request** and a **failed Meet sync** be the waiting items instead; check both the same way.
 6. Leave the tab open for ten minutes and watch the item.
@@ -63,9 +63,9 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 * Step 5: both behave identically. The sync queue is dated by the **session's slot time**, since a session without a link is urgent by when it is due.
 * Step 6: it ages normally (`5m ago` → `15m ago`), which is the one way this number is allowed to move.
 
-#### `ADM-TODAY-002` - Inbox counts are live · P1
-**Steps.** In a second browser, have a patient book a session. Watch the admin's Today screen without reloading.
-**Expected Result.** The unassigned count and the badge update within the operational channel's cooldown. The **first** change appears immediately (leading edge); a burst of ten bookings collapses into one refresh.
+#### `ADM-TODAY-002` - Waiting changes are counted, and the admin decides when the screen moves · P1
+**Steps.** In a second browser, have a patient book a session. Watch the admin's Today screen without reloading. Then have ten bookings land at once. Then, in the admin's own browser, approve a signup and watch the Refresh button for thirty seconds.
+**Expected Result.** The header's **Refresh** turns teal and reads **1** within the operational channel's cooldown - the first change registers immediately (leading edge) - while the screen itself does **not** move. Tapping it fetches everything waiting and clears the count. The burst of ten collapses to a small number, not ten. The admin's **own** approval never raises the count, and nothing appears thirty seconds later either: the audit-log entry it wrote is the delayed phantom this behaviour exists to remove.
 
 #### `ADM-APPR-001` - Approve a pending patient · P0
 

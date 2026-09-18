@@ -24,10 +24,25 @@
  * four shells and every control that refreshes.
  */
 let lastRefreshStartedAtMs = 0;
+const listeners = new Set<() => void>();
 
 /** Called by `useRouter().refresh()` -- every deliberate refresh in the app. */
 export function markLocalRefresh(): void {
   lastRefreshStartedAtMs = Date.now();
+  // Whatever was waiting to be read has now been asked for, wherever the
+  // refresh came from -- the Refresh button, or any control that mutates and
+  // refreshes. The badge that counts waiting changes listens here rather
+  // than being cleared by its own button, or a control's own refresh would
+  // leave a count standing for changes it had just fetched.
+  for (const listener of listeners) listener();
+}
+
+/** Subscribe to every deliberate refresh. Returns the unsubscribe. */
+export function onLocalRefresh(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 export function lastLocalRefreshAtMs(): number {

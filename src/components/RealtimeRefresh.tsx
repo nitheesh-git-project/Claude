@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { createClient } from "@/lib/supabase/client";
 import { lastLocalRefreshAtMs } from "@/lib/refreshSignal";
+import { useLiveUpdates } from "@/lib/liveUpdates";
 
 // Keeps an already-open dashboard in sync with other users' actions (a
 // therapist requesting a payout, a hospital submitting a referral, a new
@@ -39,6 +40,7 @@ const DEFAULT_COOLDOWN_MS = 2000;
 export default function RealtimeRefresh({
   tables,
   cooldownMs = DEFAULT_COOLDOWN_MS,
+  mode = "refresh",
 }: {
   tables: string[];
   // Worth tuning per caller: the cooldown never delays the first change, it
@@ -46,8 +48,17 @@ export default function RealtimeRefresh({
   // data changes rarely and no one is watching for it (catalog, settings), a
   // long cooldown costs nothing.
   cooldownMs?: number;
+  // "refresh" re-runs the Server Component, which is right where a rebuild
+  // is cheap and the reader is usually waiting for the row (a patient
+  // watching for a therapist's suggested time). "notify" only counts, for
+  // the admin dashboard: a rebuild there is ~41 queries and every screen's
+  // markup, and almost none of its traffic is a change the admin reading it
+  // is waiting on -- so the count goes on the Refresh button and the admin
+  // decides when the page moves. See src/lib/liveUpdates.tsx.
+  mode?: "refresh" | "notify";
 }) {
   const router = useRouter();
+  const { noteUpdate } = useLiveUpdates();
   const tablesKey = tables.join(",");
   const trailingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastRefreshRef = useRef(0);
@@ -79,6 +90,10 @@ export default function RealtimeRefresh({
       // cooldownMs -- 30 seconds on the catalog channel -- for a rebuild
       // that never took place.
       lastRefreshRef.current = Date.now();
+      if (mode === "notify") {
+        noteUpdate();
+        return;
+      }
       router.refresh();
     };
 
@@ -112,7 +127,7 @@ export default function RealtimeRefresh({
       trailingRef.current = null;
       supabase.removeChannel(channel);
     };
-  }, [tablesKey, cooldownMs, router]);
+  }, [tablesKey, cooldownMs, router, mode, noteUpdate]);
 
   return null;
 }

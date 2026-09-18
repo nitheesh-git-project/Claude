@@ -2621,7 +2621,13 @@ client is the only writer and the log is append-only from any session.
   refresh *is* the work, so releasing the button early would leave it looking
   idle while what it was asked for was still running. It is disabled while
   pending, because stacking refreshes on the admin dashboard stacks ~40
-  queries a tap for no new answer.
+  queries a tap for no new answer. Where the shell counts changes rather than
+  rebuilding for them (the admin dashboard -- see the realtime rule below) it
+  also **says how many are waiting**: without that the button asks somebody
+  to guess whether there is anything to fetch. Its accessible name stays
+  "Refresh this screen" whatever the count, so a screen reader does not meet
+  a different control mid-action; the count is announced once by its own
+  `role="status"` region.
   `Spinner` (`src/components/system/Spinner.tsx`) is the app's only spinner,
   inheriting `currentColor` so one component works on the filled, outlined
   and text buttons alike. Before it, every busy state was a text swap, which
@@ -2685,6 +2691,23 @@ client is the only writer and the log is append-only from any session.
   `*_REALTIME_TABLES` arrays rather than inlining a third list - the coverage
   check reads them by that name - and add the matching `alter publication`
   to `schema.sql` in the same change.
+  **On the admin dashboard the channels count instead of rebuilding.** Both
+  are passed `mode="notify"`, `AdminShell` wraps itself in
+  `LiveUpdatesProvider` (`src/lib/liveUpdates.tsx`), and the header's Refresh
+  button turns teal and carries the number waiting. Two controls were
+  answering the same question and only one of them was asked: a rebuild here
+  is ~41 queries and every screen's markup, almost nothing arriving is a
+  change the reader is waiting on, and the page moved the list they were
+  reading while they read it. The other three dashboards keep
+  `mode="refresh"` -- a rebuild there is cheap and the reader usually *is*
+  waiting for that row (a patient watching for a therapist's suggested
+  time). What it costs is stated rather than hidden: a Today figure can be
+  minutes old, and the badge is the sentence saying so. The count clears on
+  **any** deliberate refresh, through `onLocalRefresh`, never on the button's
+  own click -- a control that mutates and refreshes would otherwise leave a
+  count standing for rows it had just fetched. `useLiveUpdates` answers 0
+  outside a provider rather than throwing, same posture as `useToast`, so
+  `RefreshButton` renders unchanged where nothing counts.
   **A browser does not rebuild for its own work.** Most events reaching an
   open admin dashboard are that dashboard's own writes coming back: a
   control's route changes its row *and* writes an `admin_activity_log`
