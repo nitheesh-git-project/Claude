@@ -770,6 +770,15 @@ client is the only writer and the log is append-only from any session.
      has passed is never read again, and is deleted by the next call for its
      own bucket -- that per-bucket delete is the whole of the cleanup and is
      what keeps the table at one row per *active* bucket.
+  2b. **It is counted AFTER the request's shape is checked, not before.**
+     This reverses where a limiter usually goes, and the reason is that the
+     limiter is the expensive half: it costs a database round trip where the
+     validation above it is a trim and a regex. Counting first meant every
+     malformed request bought a write -- so the app absorbed junk *worse*
+     than validating first does -- and it meant a person correcting a phone
+     number spent an allowance meant for abuse, then met a refusal worded for
+     somebody who had already succeeded. Nothing is read or written before the
+     count either way, so a refusal still costs the caller nothing.
   3. **The count is an insert-on-conflict, not a read then a write.** The
      unique index serialises two simultaneous calls, so a cap of 5 means 5
      while five requests are in flight -- the same reasoning as
@@ -792,11 +801,36 @@ client is the only writer and the log is append-only from any session.
      preferred over `x-forwarded-for` because the forwarded header is a list
      a client can pad from the left, and reading the leftmost entry of a
      padded list means counting a value the caller chose.
+  6. **A 429 is not a "no".** This is the rule at the top of this file --
+     *a check that could not be run is not a check that came back negative* --
+     and adding the limiter reintroduced it one layer up, in the two callers
+     whose success payload is a negative-capable boolean. `InviteRegisterCard`
+     read `valid` off a 429 and told a referred patient holding a good
+     registration link that it had **expired**, sending them to ring the
+     hospital; `CarePlanOfferCard` read `serviceable` off one and told a
+     patient the clinic does **not visit their address**, disabling the pay
+     button on a programme their own clinician had recommended. Both now
+     resolve three or four outcomes rather than a boolean, gate on `res.ok`
+     before reading a field, and on "we could not ask" say exactly that. A
+     route whose 200 body carries a boolean cannot be consumed without
+     checking the status first -- and the honest state is a third value, not
+     a falsy one.
   A new limit is an entry in `RATE_LIMITS` with its own scope -- never a
   number inlined at a route, and never a per-route limit, since the question
-  is what is being protected rather than what one handler can take. Its
-  message must not quote its own numbers: it reaches a patient mid-booking,
-  and `rateLimit.test.ts` fails a message containing a digit.
+  is what is being protected rather than what one handler can take. **One
+  scope per flow**, too: `areaLookup` and `referralCodeLookup` were a single
+  `publicLookup`, which let a partner hospital checking codes spend the
+  allowance a patient needed to find out whether we visit their street.
+  Its message carries **no numbers** (the cap and window are configuration,
+  and `rateLimit.test.ts` fails a digit) and **no blame** -- a limit is
+  reached by a shared office address, a connection retrying or somebody
+  correcting a form far more often than by anybody doing anything wrong, and
+  "Too many attempts" reads as an accusation to all three. It also says only
+  *what happened*: the concrete wait is composed by the caller from
+  `retryAfterSeconds` through `rateLimitNotice()`, which is the half that can
+  be specific because it is measured. A message that also said "please wait
+  and try again" produced "…and try again. You can try again in about 9
+  minutes."
   **A public write needs a route to put a limit in.** The Hospitals page
   inserted straight into `b2b_leads` from the browser under
   `for insert with check (true)`, so it had no server-side door to limit, no

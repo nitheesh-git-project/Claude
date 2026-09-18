@@ -38,8 +38,13 @@ deployment has no worker and an in-memory counter would reset on every cold
 start. It is a fixed window with no expiry column (a row recording the passage
 of time would need a sweep), counted by insert-on-conflict so a cap holds under
 concurrent requests, keyed on the account where there is one because an IP can
-be rotated, and it **fails open** -- a limiter that refuses a booking because
-its own query hiccupped is worse than the burst. The Hospitals page's lead form
+be rotated, counted **after** the request's shape is checked (the count costs
+a round trip; the validation costs a regex), and it **fails open** -- a limiter
+that refuses a booking because its own query hiccupped is worse than the burst.
+A 429 is never a "no": two callers read `valid` and `serviceable` off one and
+told a patient their good registration link had expired and that the clinic
+does not visit their address, so both resolve a third "could not ask" state
+now. The Hospitals page's lead form
 moved behind `/api/hospitals/inquiry` for the same reason: a browser-side
 insert has no door to put a limit in. Sign-up and sign-in go straight to
 Supabase Auth, so their limits live in the Supabase dashboard. See the rate

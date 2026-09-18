@@ -115,25 +115,43 @@ export default function CarePlanOfferCard({
   // "no quote yet" instead of an effect writing state synchronously to
   // clear it -- which is a cascading render, and would also blink the total
   // away for a frame while the same answer was refetched.
-  type QuoteResult = { travelFeePaise: number } | "unserviceable";
+  // "unknown" is the fourth state and it is not a formality. The `.then`
+  // below treated any body without a `serviceable` field as a *negative*, so
+  // a rate-limited or failed lookup told the patient "We don't visit that
+  // pincode yet" and disabled the pay button -- a refused sale on a
+  // programme their own clinician recommended, over a lookup that never
+  // answered. The `.catch` beside it already had this right ("a failed quote
+  // must not block the purchase"); only the HTTP-error path did not.
+  type QuoteResult = { travelFeePaise: number } | "unserviceable" | "unknown";
   const [quoted, setQuoted] = useState<{ pincode: string; result: QuoteResult } | null>(null);
   const pincodeReady = /^\d{6}$/.test(pincode);
-  const quote: { state: "idle" | "loading" } | { state: "unserviceable" } | { state: "ready"; travelFeePaise: number } =
+  const quote:
+    | { state: "idle" | "loading" | "unserviceable" | "unknown" }
+    | { state: "ready"; travelFeePaise: number } =
     !offer.isHomeVisit || !pincodeReady
       ? { state: "idle" }
       : quoted?.pincode !== pincode
         ? { state: "loading" }
         : quoted.result === "unserviceable"
           ? { state: "unserviceable" }
-          : { state: "ready", travelFeePaise: quoted.result.travelFeePaise };
+          : quoted.result === "unknown"
+            ? { state: "unknown" }
+            : { state: "ready", travelFeePaise: quoted.result.travelFeePaise };
 
   useEffect(() => {
     if (!offer.isHomeVisit || !pincodeReady) return;
     let cancelled = false;
-    fetch(`/api/home-visit/check-area?pincode=${pincode}`)
-      .then((r) => r.json())
-      .then((data) => {
+    (async () => {
+      try {
+        const r = await fetch(`/api/home-visit/check-area?pincode=${pincode}`);
+        const data = await r.json().catch(() => null);
         if (cancelled) return;
+        // Only a 200 carries an answer. A 429 or a 500 means we did not find
+        // out, which is a different thing from finding out we do not go there.
+        if (!r.ok) {
+          setQuoted({ pincode, result: "unknown" });
+          return;
+        }
         setQuoted({
           pincode,
           result:
@@ -141,12 +159,13 @@ export default function CarePlanOfferCard({
               ? { travelFeePaise: data.travelFeePaise }
               : "unserviceable",
         });
-      })
-      .catch(() => {
+      } catch {
         // A failed quote must not block the purchase: the server resolves
         // the real figure at checkout regardless. The button falls back to
         // saying "Accept & pay" with no number rather than the wrong one.
-      });
+        if (!cancelled) setQuoted({ pincode, result: "unknown" });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -373,6 +392,14 @@ export default function CarePlanOfferCard({
             <p className="mt-3 text-xs font-semibold text-amber-700">
               We don&apos;t visit that pincode yet. Try another address, or get in touch and
               we&apos;ll tell you when we do.
+            </p>
+          )}
+
+          {quote.state === "unknown" && (
+            <p className="mt-3 text-xs text-slate-500">
+              We couldn&apos;t work out the travel fee for this address just now, so
+              it isn&apos;t in the total below. You&apos;ll see the full figure before
+              you pay.
             </p>
           )}
 

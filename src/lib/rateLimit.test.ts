@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   RATE_LIMITS,
   clientIdentifier,
+  describeRetryAfter,
   rateLimitBucket,
+  rateLimitNotice,
   retryAfterSeconds,
 } from "./rateLimit";
 
@@ -96,12 +98,77 @@ describe("RATE_LIMITS", () => {
     expect(new Set(scopes).size).toBe(scopes.length);
   });
 
-  // The message reaches a patient mid-booking, so it must not read as a
-  // fault in the app or quote a number that would change with the config.
+  // The cap and the window are configuration; a sentence quoting them goes
+  // stale the moment either moves. The concrete wait is composed from
+  // retryAfterSeconds instead, which is measured.
   it("states a wait without naming the limit's own numbers", () => {
     for (const [name, rule] of Object.entries(RATE_LIMITS)) {
       expect(rule.message, name).not.toMatch(/\d/);
       expect(rule.message.length, name).toBeGreaterThan(20);
     }
+  });
+
+  // A limit is reached by a shared office address, a connection retrying, or
+  // somebody correcting a form far more often than by anybody doing anything
+  // wrong -- and all three read an accusation as one. This is the check that
+  // would have caught "Too many attempts."
+  it("does not blame the person reading it", () => {
+    const accusing = /too many|abuse|suspicious|blocked|violat|excessive|spam/i;
+    for (const [name, rule] of Object.entries(RATE_LIMITS)) {
+      expect(rule.message, `${name}: "${rule.message}"`).not.toMatch(accusing);
+    }
+  });
+
+  // Two flows sharing one scope means one can starve the other -- a partner
+  // hospital checking referral codes spending the allowance a patient needs
+  // to find out whether we visit their street.
+  it("keeps the two public lookups in separate buckets", () => {
+    expect(RATE_LIMITS.areaLookup.scope).not.toBe(RATE_LIMITS.referralCodeLookup.scope);
+  });
+});
+
+describe("describeRetryAfter", () => {
+  it("rounds up, so the advice is never earlier than the door opens", () => {
+    // 90s is "2 minutes", not "1": telling somebody a minute earns a second
+    // refusal and teaches them the number is a guess.
+    expect(describeRetryAfter(90)).toBe("in about 2 minutes");
+    expect(describeRetryAfter(61)).toBe("in about 2 minutes");
+  });
+
+  it("does not print a bare minute count under a minute", () => {
+    expect(describeRetryAfter(1)).toBe("in under a minute");
+    expect(describeRetryAfter(59)).toBe("in under a minute");
+  });
+
+  it("reads as words at a minute and at an hour", () => {
+    expect(describeRetryAfter(60)).toBe("in about a minute");
+    expect(describeRetryAfter(3600)).toBe("in about an hour");
+    expect(describeRetryAfter(5400)).toBe("in about 2 hours");
+  });
+
+  it("degrades rather than printing NaN or a negative wait", () => {
+    expect(describeRetryAfter(0)).toBe("in a moment");
+    expect(describeRetryAfter(-30)).toBe("in a moment");
+    expect(describeRetryAfter(NaN)).toBe("in a moment");
+    expect(describeRetryAfter(Infinity)).toBe("in a moment");
+  });
+});
+
+describe("rateLimitNotice", () => {
+  it("adds the wait as its own sentence", () => {
+    expect(rateLimitNotice("Please hold on.", 120)).toBe(
+      "Please hold on. You can try again in about 2 minutes."
+    );
+  });
+
+  // Every form that shows a limiter message also shows ordinary failures
+  // through the same call, and those must read exactly as they did.
+  it("returns an ordinary error untouched when there is no wait", () => {
+    expect(rateLimitNotice("Could not save that. Please try again.")).toBe(
+      "Could not save that. Please try again."
+    );
+    expect(rateLimitNotice("Enter a valid 6-digit pincode.", undefined)).toBe(
+      "Enter a valid 6-digit pincode."
+    );
   });
 });

@@ -15,7 +15,22 @@ export type RateLimit = {
   readonly limit: number;
   /** Window length in seconds. */
   readonly windowSeconds: number;
-  /** What the refused caller is told. Never mentions the limit's numbers. */
+  /**
+   * What the refused caller is told.
+   *
+   * Two rules, both enforced by `rateLimit.test.ts`. It carries **no
+   * numbers**: the cap and the window are configuration, and a sentence
+   * quoting them goes stale the moment either moves -- the concrete wait is
+   * composed by the caller from `retryAfterSeconds` instead, which is
+   * measured rather than configured. So a message says **what happened** and
+   * stops: one that also said "please wait and try again" produced "Please
+   * wait a few minutes and try again. You can try again in about 9 minutes",
+   * the two halves talking over each other. And it does not **blame** the person
+   * reading it: a limit is reached by a shared office address, a flaky
+   * connection retrying, or somebody correcting a form, far more often than
+   * by anybody doing anything wrong. "Too many attempts" reads as an
+   * accusation to all three.
+   */
   readonly message: string;
 };
 
@@ -41,32 +56,55 @@ export const RATE_LIMITS = {
     scope: "referral-preview",
     limit: 10,
     windowSeconds: 600,
-    message: "Too many attempts. Please wait a few minutes and try again.",
+    message: "We couldn't check your link just now.",
   },
 
   /**
-   * Hospital referral codes and pincode serviceability. Both answer a
-   * yes/no about data somebody else owns, so both are enumerable; both are
-   * also typed into a form by a real visitor who may well correct a typo
-   * several times.
+   * Pincode serviceability, typed into the home-visit wizard and read again
+   * by the care-plan offer card.
+   *
+   * Its own bucket rather than sharing one with the referral-code lookup:
+   * they belong to different flows, and one scope for both means a partner
+   * hospital checking codes can spend the allowance a patient needs to find
+   * out whether we come to their street. Two cheap counters beat one shared
+   * one whose exhaustion is somebody else's fault.
    */
-  publicLookup: {
-    scope: "public-lookup",
-    limit: 30,
+  areaLookup: {
+    scope: "area-lookup",
+    limit: 40,
     windowSeconds: 300,
-    message: "Too many attempts. Please wait a few minutes and try again.",
+    message: "We couldn't check that pincode just now.",
+  },
+
+  /**
+   * A hospital referral code, typed on the signup form. Enumerable, so it is
+   * limited -- but a whole hospital sits behind one office address, and every
+   * one of those staff shares this bucket, which is why the cap is well above
+   * what one person types.
+   */
+  referralCodeLookup: {
+    scope: "referral-code-lookup",
+    limit: 40,
+    windowSeconds: 300,
+    message: "We couldn't check that code just now.",
   },
 
   /**
    * A public INSERT with no account behind it -- the waitlist and the
-   * hospital lead form. The ceiling exists as much to bound the table as to
-   * stop abuse: nothing in this deployment sweeps it.
+   * hospital partnership form. The ceiling exists as much to bound the table
+   * as to stop abuse: nothing in this deployment sweeps it.
+   *
+   * Ten rather than five because these are the two forms where being refused
+   * costs the clinic the enquiry, and because a caller only reaches this
+   * counter once their submission is *valid* -- see the ordering note in
+   * `rateLimitServer.ts`. Five was a number that a person correcting a phone
+   * number could reach.
    */
   publicWrite: {
     scope: "public-write",
-    limit: 5,
+    limit: 10,
     windowSeconds: 3600,
-    message: "We have your details. Please contact us directly if you need to reach us again.",
+    message: "We already have your details from a moment ago.",
   },
 
   /** Creating an account from a referral link. */
@@ -74,7 +112,7 @@ export const RATE_LIMITS = {
     scope: "registration",
     limit: 5,
     windowSeconds: 3600,
-    message: "Too many attempts. Please wait a while and try again.",
+    message: "We couldn't finish setting up your account just now.",
   },
 
   /**
@@ -87,7 +125,7 @@ export const RATE_LIMITS = {
     scope: "checkout",
     limit: 40,
     windowSeconds: 600,
-    message: "Too many attempts in a row. Please wait a moment and try again.",
+    message: "We couldn't start that payment just now.",
   },
 } as const satisfies Record<string, RateLimit>;
 
@@ -153,4 +191,40 @@ export function retryAfterSeconds(value: unknown, windowSeconds: number): number
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n) || n < 1) return windowSeconds;
   return Math.ceil(n);
+}
+
+
+/**
+ * The wait, in words a person can act on.
+ *
+ * `retryAfterSeconds` was being returned by every refusal and read by
+ * nothing, so "please wait a few minutes" was the whole of what anybody was
+ * told -- vaguer than the answer we already had. The message stays
+ * number-free because it describes a policy; this describes a measurement,
+ * which is exactly the half that can be specific.
+ *
+ * Rounds **up** to the next whole unit, so the advice is never earlier than
+ * the door actually opens: telling somebody "1 minute" when 90 seconds
+ * remain earns a second refusal and teaches them the number is a guess.
+ */
+export function describeRetryAfter(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "in a moment";
+  if (seconds < 60) return "in under a minute";
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes === 1) return "in about a minute";
+  if (minutes < 60) return `in about ${minutes} minutes`;
+  const hours = Math.ceil(minutes / 60);
+  return hours === 1 ? "in about an hour" : `in about ${hours} hours`;
+}
+
+/**
+ * The whole sentence a refused caller reads: what happened, then when to
+ * come back. Built here so five forms cannot word it five ways.
+ */
+export function rateLimitNotice(message: string, retryAfterSeconds?: number): string {
+  const wait = typeof retryAfterSeconds === "number" ? describeRetryAfter(retryAfterSeconds) : null;
+  if (!wait) return message;
+  // The message already ends in a full stop, so this reads as a second
+  // sentence rather than a clause bolted on.
+  return `${message} You can try again ${wait}.`;
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
+import { rateLimitNotice } from "@/lib/rateLimit";
 
 const SOURCES = ["Ads", "Friends", "Hospitals", "Other"];
 
@@ -43,7 +44,12 @@ export default function HospitalInquiryForm() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error ?? "Could not submit your inquiry. Please try again.");
+        setError(
+          rateLimitNotice(
+            data.error ?? "Could not submit your inquiry. Please try again.",
+            data.retryAfterSeconds
+          )
+        );
         return;
       }
     } catch {

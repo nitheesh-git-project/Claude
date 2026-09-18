@@ -13,11 +13,6 @@ const MAX_NOTE_LENGTH = 500;
 // reason to have an account. Losing that signal because we asked them to
 // register first would throw away the only data that says where to expand.
 export async function POST(request: NextRequest) {
-  // Counted before the body is parsed, so a refused caller never gets
-  // to drive this route's work.
-  const limited = await enforceRateLimit(request, "publicWrite");
-  if (limited) return limited;
-
   const { data: body, error: parseError } = await parseJsonBody<{
     name?: string;
     phone?: string;
@@ -45,6 +40,21 @@ export async function POST(request: NextRequest) {
   const note = typeof body.note === "string" ? body.note.trim().slice(0, MAX_NOTE_LENGTH) : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const city = typeof body.city === "string" ? body.city.trim() : "";
+
+  // Counted after the request's shape is checked, not before.
+  //
+  // This is the reverse of where a limiter usually goes, and the reason is
+  // that the limiter is the expensive half: it costs a database round trip,
+  // where the checks above it are a trim and a regex. Counting first meant
+  // every malformed request bought a write, and made the app *less* able to
+  // absorb junk than validating first does. It also meant a person
+  // correcting a typo spent an allowance meant for abuse, and then met a
+  // refusal written for somebody who had already succeeded.
+  //
+  // Nothing has been read or written at this point, so a refusal here still
+  // costs a caller nothing beyond what they sent.
+  const limited = await enforceRateLimit(request, "publicWrite");
+  if (limited) return limited;
 
   // Service role rather than the anon client: home_visit_waitlist allows a
   // public INSERT but no SELECT, and supabase-js issues an insert with a

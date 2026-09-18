@@ -32,6 +32,7 @@ import {
   type HomeVisitPaymentResult,
 } from "@/lib/homeVisitPayment";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
+import { rateLimitNotice } from "@/lib/rateLimit";
 
 export type WizardPackage = {
   id: string;
@@ -214,7 +215,13 @@ export default function HomeVisitBookingWizard({
       if (!res.ok) {
         setAreaCheck({
           state: "error",
-          message: data.error ?? "Could not check that pincode. Please try again.",
+          // `rateLimitNotice` adds the concrete wait when there is one, and
+          // returns the sentence untouched when there is not -- so an
+          // ordinary failure reads exactly as it did.
+          message: rateLimitNotice(
+            data.error ?? "Could not check that pincode. Please try again.",
+            data.retryAfterSeconds
+          ),
         });
         return;
       }
@@ -257,7 +264,12 @@ export default function HomeVisitBookingWizard({
     if (res.ok) {
       setWaitlistJoined(true);
     } else {
-      setWaitlistError(data.error ?? "Could not save that. Please try again.");
+      setWaitlistError(
+        rateLimitNotice(
+          data.error ?? "Could not save that. Please try again.",
+          data.retryAfterSeconds
+        )
+      );
     }
   }
 

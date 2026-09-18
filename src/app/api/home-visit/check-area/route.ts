@@ -15,11 +15,6 @@ import { enforceRateLimit } from "@/lib/rateLimitServer";
 // home_visit_areas is publicly readable by RLS for exactly this reason, so
 // the anon client is enough; no service role needed.
 export async function GET(request: NextRequest) {
-  // Counted before the body is parsed, so a refused caller never gets
-  // to drive this route's work.
-  const limited = await enforceRateLimit(request, "publicLookup");
-  if (limited) return limited;
-
   const raw = request.nextUrl.searchParams.get("pincode");
   const pincode = normalizePincode(raw);
 
@@ -29,6 +24,21 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  // Counted after the request's shape is checked, not before.
+  //
+  // This is the reverse of where a limiter usually goes, and the reason is
+  // that the limiter is the expensive half: it costs a database round trip,
+  // where the checks above it are a trim and a regex. Counting first meant
+  // every malformed request bought a write, and made the app *less* able to
+  // absorb junk than validating first does. It also meant a person
+  // correcting a typo spent an allowance meant for abuse, and then met a
+  // refusal written for somebody who had already succeeded.
+  //
+  // Nothing has been read or written at this point, so a refusal here still
+  // costs a caller nothing beyond what they sent.
+  const limited = await enforceRateLimit(request, "areaLookup");
+  if (limited) return limited;
 
   const supabase = createPublicClient();
 

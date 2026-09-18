@@ -7,15 +7,25 @@ import { enforceRateLimit } from "@/lib/rateLimitServer";
 // was arranged *before* they fill out the whole signup form, instead of
 // only finding out it's invalid/expired after submitting.
 export async function GET(request: NextRequest) {
-  // Counted before the body is parsed, so a refused caller never gets
-  // to drive this route's work.
-  const limited = await enforceRateLimit(request, "referralPreview");
-  if (limited) return limited;
-
   const token = request.nextUrl.searchParams.get("token");
   if (!token) {
     return NextResponse.json({ error: "Missing token" }, { status: 400 });
   }
+
+  // Counted after the request's shape is checked, not before.
+  //
+  // This is the reverse of where a limiter usually goes, and the reason is
+  // that the limiter is the expensive half: it costs a database round trip,
+  // where the checks above it are a trim and a regex. Counting first meant
+  // every malformed request bought a write, and made the app *less* able to
+  // absorb junk than validating first does. It also meant a person
+  // correcting a typo spent an allowance meant for abuse, and then met a
+  // refusal written for somebody who had already succeeded.
+  //
+  // Nothing has been read or written at this point, so a refusal here still
+  // costs a caller nothing beyond what they sent.
+  const limited = await enforceRateLimit(request, "referralPreview");
+  if (limited) return limited;
 
   const admin = createAdminClient();
   const { data: referral } = await admin

@@ -1470,8 +1470,13 @@ every cold start. Ten routes are covered: the referral preview and referral
 code lookups, pincode serviceability, the home-visit waitlist, the hospital
 inquiry, registration via referral, and the four quote/checkout routes, which
 key on the signed-in account rather than an IP. A refused caller gets `429`
-with `Retry-After`. It fails open if its own query fails, so a database blip
-cannot take down checkout. Sign-up and sign-in call Supabase Auth directly
+with `Retry-After`, and the screen tells them roughly when they can try again
+rather than "a few minutes". The count happens after the request's shape is
+checked, so a corrected typo does not spend an allowance meant for abuse. It
+fails open if its own query fails, so a database blip cannot take down
+checkout, and a `429` is never read as a negative answer — a throttled
+serviceability or link check says "we couldn't check", never "you aren't
+served" or "that link has expired". Sign-up and sign-in call Supabase Auth directly
 from the browser, so their limits are configured in the Supabase dashboard
 rather than here.
 

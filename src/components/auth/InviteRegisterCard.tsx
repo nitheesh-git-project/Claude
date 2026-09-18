@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { rateLimitNotice } from "@/lib/rateLimit";
 import { payForAppointment } from "@/lib/razorpay";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_INR } from "@/lib/pricing";
@@ -22,11 +23,29 @@ type Preview = {
   therapistName?: string | null;
 };
 
+/**
+ * Whether the link is good, bad, or **not yet known**.
+ *
+ * The third value is the whole point. `Preview.valid` is a boolean, so a
+ * request that could not be answered -- a 429, a dropped connection, a 500 --
+ * arrived as `valid: undefined`, read as falsy, and rendered
+ * "Link Invalid or Already Used": a patient holding a perfectly good
+ * registration link was told it had expired and sent to ring the hospital.
+ *
+ * That is the "a check that could not be run is not a check that came back
+ * negative" rule, which this codebase already learned once with
+ * `getAdminUser` collapsing three outcomes into `null`. A boolean cannot
+ * carry three answers, so this does.
+ */
+type LinkState = "checking" | "valid" | "invalid" | "unknown";
+
 export default function InviteRegisterCard() {
   const searchParams = useSearchParams();
   const token = searchParams.get("ref");
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [checkingToken, setCheckingToken] = useState(!!token);
+  const [linkState, setLinkState] = useState<LinkState>(token ? "checking" : "invalid");
+  const [retryNotice, setRetryNotice] = useState<string | null>(null);
+  const [recheckCount, setRecheckCount] = useState(0);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,19 +59,81 @@ export default function InviteRegisterCard() {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`/api/patient/referral-preview?token=${encodeURIComponent(token)}`)
-      .then((res) => res.json())
-      .then((data: Preview) => {
-        setPreview(data);
-        if (data.valid && data.patientName) {
-          setFullName(data.patientName);
-        }
-      })
-      .catch(() => setPreview({ valid: false }))
-      .finally(() => setCheckingToken(false));
-  }, [token]);
+    let cancelled = false;
 
-  if (!token || checkingToken) {
+    // Deliberately no synchronous setState here: the initial state is already
+    // "checking" when a token is present, and the Try again button puts it
+    // back before bumping the counter that re-runs this. Setting it at the
+    // top of an effect is the cascading render the lint rule catches.
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/patient/referral-preview?token=${encodeURIComponent(token)}`
+        );
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+
+        // `res.ok` decides whether there is an answer at all; only then does
+        // `valid` get to mean anything. Reading `valid` off a 429 is exactly
+        // how a good link came to be called expired.
+        if (!res.ok) {
+          setLinkState("unknown");
+          setRetryNotice(
+            typeof data?.error === "string"
+              ? rateLimitNotice(data.error, data?.retryAfterSeconds)
+              : null
+          );
+          return;
+        }
+
+        const preview = (data ?? { valid: false }) as Preview;
+        setPreview(preview);
+        setLinkState(preview.valid ? "valid" : "invalid");
+        if (preview.valid && preview.patientName) {
+          setFullName(preview.patientName);
+        }
+      } catch {
+        // A dropped connection says nothing about the link either.
+        if (!cancelled) setLinkState("unknown");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, recheckCount]);
+
+  // We could not ask. Never the invalid-link copy: that sentence tells
+  // somebody their link is dead and sends them to the hospital that referred
+  // them, which is an expensive thing to be wrong about.
+  if (linkState === "unknown") {
+    return (
+      <section className="py-16 max-w-md mx-auto px-4 text-center">
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
+          <h1 className="text-xl font-bold text-slate-900">
+            We couldn&apos;t check your link
+          </h1>
+          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+            {retryNotice ??
+              "Something went wrong at our end, not with your link. Please try again."}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setLinkState("checking");
+              setRetryNotice(null);
+              setRecheckCount((n) => n + 1);
+            }}
+            className="mt-5 text-xs font-semibold px-4 py-2 rounded-lg bg-teal-700 hover:bg-teal-800 text-white transition"
+          >
+            Try again
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  if (!token || linkState === "checking") {
     return (
       <section className="py-16 max-w-md mx-auto px-4 text-center">
         <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
@@ -72,7 +153,7 @@ export default function InviteRegisterCard() {
     );
   }
 
-  if (preview && !preview.valid) {
+  if (linkState === "invalid") {
     return (
       <section className="py-16 max-w-md mx-auto px-4 text-center">
         <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
