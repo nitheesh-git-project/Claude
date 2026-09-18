@@ -563,7 +563,10 @@ recorded in `payment_failure_log`.
 A browser callback is not the only way a payment is confirmed.
 `/api/razorpay/webhook` receives Razorpay's own server-to-server
 notification, verifies the HMAC over the **raw** request body with
-`RAZORPAY_WEBHOOK_SECRET`, and applies the capture. Whichever arrives first
+`RAZORPAY_WEBHOOK_SECRET`, and applies the capture. `payment.captured` is
+the only event that applies anything: an authorization is a hold Razorpay
+voids if it is never captured, so `payment.authorized` is recorded for the
+trail and does nothing else. Whichever arrives first
 - the patient's browser or the webhook - does the work; the second changes
 nothing. That is what covers the patient who pays and closes the tab, or
 whose phone loses signal on the way back from their UPI app: before this
@@ -1325,7 +1328,14 @@ only appear once a patient actually has that kind of session.
   payment to reverse; if cash was already collected and the cancellation is
   still eligible, `refund_status` is set to `'manual_pending'` and surfaced
   on the admin **Cash Ledger** as an action queue until the cash is
-  physically handed back (`/api/admin/mark-cash-refund-returned`). Admin can
+  physically handed back (`/api/admin/mark-cash-refund-returned`). A home
+  visit paid on the appointment itself - which is only ever a hospital
+  home-visit referral, since every other one is paid on its purchase - is
+  refunded the service line **plus** its travel fee, in both the automatic
+  cancellation refund and the admin's partial one: `amount_paid_paise`
+  deliberately excludes travel while the Razorpay order charged it, so
+  refunding that column alone left the patient paying for a journey nobody
+  made. Admin can
   also reassign a whole programme to a new therapist, extend its expiry,
   restore a forfeited visit, or pro-rata refund a prepaid programme's unused
   balance (sourced from the actual Razorpay order total, since
@@ -1338,7 +1348,12 @@ only appear once a patient actually has that kind of session.
   calendar event is still created (`location` set to the address, no Meet
   conferencing) since Google's invite email is the only outbound
   notification this platform sends; `google_meet_enabled` only gates
-  conferencing, never event creation. Cash collection
+  conferencing, never event creation. Which of the two events a session gets
+  is read off `appointments.visit_mode` inside
+  `createMeetEventForConfirmedAppointment`, not assumed by the caller - the
+  three confirmation paths that never said (payment confirmation, the
+  Razorpay webhook, and marking a visit paid by cash) were putting a Meet
+  link and no address on a home visit. Cash collection
   (`/api/therapist/record-cash-collection`) and remittance
   (`/api/admin/mark-cash-remitted`) are tracked as two separate timestamps
   on the appointment, reconciled on the admin **Cash Ledger**; a therapist's
@@ -1367,7 +1382,8 @@ the error is stored in `appointments.google_calendar_sync_error`, and the
 session is re-attempted automatically: `src/lib/retryDueMeetSyncs.ts` sweeps
 a few failed syncs at the top of each admin dashboard render (there is no
 cron in this deployment), bounded by a per-attempt timeout, a per-sweep row
-limit, and `appointments.google_calendar_sync_attempts`, which stops retrying
+limit, a minute's minimum gap between sweeps that find work, and
+`appointments.google_calendar_sync_attempts`, which stops retrying
 a session that has failed too many times rather than calling Google forever.
 Those exhausted sessions stay in the admin's Session Links panel marked as
 needing attention, where a manual retry (`/api/admin/retry-meet-sync`) both

@@ -5,8 +5,80 @@ import {
   deleteSessionMeetEvent,
   openMeetAccessForLink,
 } from "@/lib/googleCalendar";
+import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
+
+type ResolvedVisitDetails = {
+  visitMode: "online" | "home_visit";
+  location: string | null;
+  description: string | null;
+};
+
+/**
+ * What kind of event this session needs, when the caller did not say.
+ *
+ * Six call sites pass `visitMode` explicitly because they already had the
+ * address in hand; three did not, and every one of those three can be handed
+ * a home visit: `confirmPaidAppointment` (a hospital home-visit referral is
+ * an ordinary appointment the patient pays for), the Razorpay webhook that
+ * stands in for it when the browser never comes back, and an admin marking a
+ * visit paid by cash. All three took the old `visitMode = "online"` default,
+ * which put a Meet link on a session nobody joins and left the street
+ * address off the Calendar invite -- and that invite is the only outbound
+ * message this platform sends, so the therapist was given a video call
+ * instead of somewhere to drive to.
+ *
+ * Read in its own isolated call, and failing back to what the caller asked
+ * for (or to online), because these are the columns a database mid-migration
+ * may not have and an unreadable answer must cost the address rather than
+ * the event.
+ */
+async function resolveVisitDetails(
+  admin: AdminClient,
+  appointmentId: string,
+  given: {
+    visitMode?: "online" | "home_visit";
+    location: string | null;
+    description: string | null;
+  }
+): Promise<ResolvedVisitDetails> {
+  // An explicit answer is never second-guessed: the callers that pass one
+  // have loaded the address already, sometimes from the patient's own
+  // address book rather than from these columns.
+  if (given.visitMode) {
+    return {
+      visitMode: given.visitMode,
+      location: given.location,
+      description: given.description,
+    };
+  }
+
+  try {
+    const { data } = await admin
+      .from("appointments")
+      .select(
+        "visit_mode, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_access_notes"
+      )
+      .eq("id", appointmentId)
+      .maybeSingle();
+
+    if (data?.visit_mode !== "home_visit") {
+      return { visitMode: "online", location: null, description: null };
+    }
+
+    const oneLine = formatAddressOneLine(visitAddressFromAppointment(data));
+    return {
+      visitMode: "home_visit",
+      location: given.location ?? (oneLine.length > 0 ? oneLine : null),
+      description:
+        given.description ??
+        (data.visit_access_notes ? `Access notes: ${data.visit_access_notes}` : null),
+    };
+  } catch {
+    return { visitMode: "online", location: given.location, description: given.description };
+  }
+}
 
 /**
  * Shared by every write site that can newly confirm an appointment
@@ -28,7 +100,7 @@ export async function createMeetEventForConfirmedAppointment(
     durationMinutes,
     timezone,
     bypassMasterToggle = false,
-    visitMode = "online",
+    visitMode,
     location = null,
     description = null,
   }: {
@@ -44,14 +116,31 @@ export async function createMeetEventForConfirmedAppointment(
     // meant to gate.
     bypassMasterToggle?: boolean;
     // A home visit gets a calendar event with a street address and no Meet
-    // conference. Defaults to 'online' so every existing call site keeps its
-    // current behaviour without passing anything.
+    // conference. Omitted, it is read off the appointment row below rather
+    // than assumed to be online -- see resolveVisitDetails for why that
+    // default was the wrong one.
     visitMode?: "online" | "home_visit";
     location?: string | null;
     description?: string | null;
   }
 ) {
-  const isHomeVisit = visitMode === "home_visit";
+  // Where the caller said nothing, the row is asked. Three doors used to say
+  // nothing and take the old "online" default -- confirmPaidAppointment (so
+  // every hospital home-visit referral, which is paid for as an ordinary
+  // appointment), the Razorpay webhook behind it, and mark-paid-by-cash --
+  // and each produced the same wrong event for a home visit: a Meet link
+  // for a session nobody joins, and no street address on the one outbound
+  // message this platform sends, so the therapist had nowhere to drive to.
+  // Deriving it here rather than at each call site is the same reasoning the
+  // duplicate-event guard below follows: every door gets it.
+  const resolved = await resolveVisitDetails(admin, appointmentId, {
+    visitMode,
+    location,
+    description,
+  });
+  const isHomeVisit = resolved.visitMode === "home_visit";
+  const resolvedLocation = resolved.location;
+  const resolvedDescription = resolved.description;
   // Never let anything here throw -- this runs after a payment/booking/
   // assignment write has already succeeded, and an unexpected error (e.g. a
   // transient network blip on the follow-up DB write) must not turn into a
@@ -143,8 +232,8 @@ export async function createMeetEventForConfirmedAppointment(
       withMeet: !isHomeVisit,
       openAccess,
       summary: isHomeVisit ? "Home Physiotherapy Visit" : "Physiotherapy Session",
-      location: isHomeVisit ? location : null,
-      description: isHomeVisit ? description : null,
+      location: isHomeVisit ? resolvedLocation : null,
+      description: isHomeVisit ? resolvedDescription : null,
     });
 
     if ("error" in result) {

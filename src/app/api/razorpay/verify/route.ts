@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   const { data: appointment } = await supabase
     .from("appointments")
     .select(
-      "id, patient_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone, visit_mode, preferred_therapist_id"
+      "id, patient_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone, visit_mode, preferred_therapist_id, amount_paid_paise, travel_fee_paise"
     )
     .eq("id", appointmentId)
     .eq("patient_id", user.id)
@@ -109,7 +109,14 @@ export async function POST(request: NextRequest) {
         razorpay_payment_id,
         paid_at: new Date().toISOString(),
       })
-      .eq("id", appointmentId);
+      .eq("id", appointmentId)
+      // Guarded the way create-order's own recovery path is: this is the
+      // only write in the route with no claim on it, and without the
+      // predicate a resubmitted callback re-stamps `paid_at` on a booking
+      // already recorded paid -- moving the one column that answers "when
+      // did this money arrive" to the time somebody pressed the button
+      // again.
+      .eq("payment_status", "unpaid");
     if (recordError) {
       console.error(
         "Failed to record a payment against a no-longer-active appointment",
@@ -131,9 +138,24 @@ export async function POST(request: NextRequest) {
   // Best-effort and after the write above -- the patient has already been
   // charged by this point, so a failure here is a server-log problem, not
   // something to report back as a failed payment.
+  // The amount is passed, not left for the function to infer. Without it
+  // `record_payment_capture` falls back to `appointments.amount_paid_paise`,
+  // which is the service line only -- travel is deliberately kept off that
+  // column -- so a home visit's `payments` row understated what Razorpay had
+  // actually taken by the travel fee, and did so only on the browser-callback
+  // path: the webhook carries Razorpay's own figure, so the same booking was
+  // recorded two different ways depending on which arrived first. This is the
+  // figure `/api/razorpay/create-order` built the order from.
+  const chargedPaise =
+    (appointment.amount_paid_paise ?? 0) +
+    (appointment.visit_mode === "home_visit"
+      ? Math.max(0, appointment.travel_fee_paise ?? 0)
+      : 0);
+
   await recordPaymentCapture(admin, {
     orderId: razorpay_order_id,
     paymentId: razorpay_payment_id,
+    amountPaise: chargedPaise > 0 ? chargedPaise : null,
   });
 
   // An invite's two halves settle here: whichever one paid for this booking

@@ -144,11 +144,23 @@ export async function POST(request: NextRequest) {
     }
   };
 
-  // Only captures create or repair anything. The others are recorded above
+  // Only a capture creates or repairs anything. The others are recorded above
   // for the audit trail and deliberately do nothing else: a 'payment.failed'
   // needs no repair, and an 'order.paid' carries the same capture this
   // already handles via payment.captured.
-  if (eventType !== "payment.captured" && eventType !== "payment.authorized") {
+  //
+  // `payment.authorized` used to be treated as a capture too, and it is not
+  // one: an authorized payment is money the gateway has put a hold on and
+  // not taken. Razorpay voids an authorization that is never captured
+  // (auto-refunding it after a few days), so applying it here marked a
+  // booking paid, confirmed the session, created the Calendar event and
+  // settled an invite half against money that could still evaporate -- and
+  // nothing in the app would ever walk that back. Under auto-capture,
+  // which is what this account runs, `payment.captured` follows an
+  // authorization within seconds and does all of it correctly; under manual
+  // capture the authorization genuinely is not a payment yet. Either way the
+  // event is still recorded above, so the trail keeps it.
+  if (eventType !== "payment.captured") {
     await markProcessed();
     return NextResponse.json({ received: true, processed: false, eventType });
   }

@@ -32,6 +32,26 @@ const ATTEMPT_TIMEOUT_MS = 8000;
 // simply drains a few rows per render.
 const MAX_PER_SWEEP = 3;
 
+// Minimum gap between sweeps that do work, remembered per server instance --
+// the same shape as runRiskSweep's own interval, and here it closes a
+// feedback loop rather than merely pacing the work. Every attempt writes the
+// appointment (google_calendar_sync_attempts, ..._claimed_at), `appointments`
+// is on the admin dashboard's realtime channel, and a realtime change re-runs
+// that render -- which swept again, wrote again and refreshed again. Each
+// appointment's attempt cap bounded the circle, but it bounded it by spending
+// a row's five automatic attempts inside a minute and retiring it to "needs a
+// person" long before the transient failure being retried had any chance to
+// clear. So the cap stopped reading as "no amount of retrying fixes this".
+//
+// Claimed only once a sweep has actually found work: a render meeting an
+// empty backlog costs nothing and must not hold off the sweep that a failure
+// arriving a second later deserves.
+const MIN_SWEEP_INTERVAL_MS = 60_000;
+
+/** Both remembered per server instance. A restart simply sweeps once more. */
+let lastSyncSweepAtMs = 0;
+let lastAccessSweepAtMs = 0;
+
 // Per appointment, across all sweeps. Some failures no amount of retrying
 // fixes -- revoked credentials, a deleted calendar, an attendee address
 // Google refuses. Without a cap those rows would be retried on every admin
@@ -85,6 +105,8 @@ async function withTimeout(work: Promise<void>, appointmentId: string): Promise<
 }
 
 export async function retryDueMeetSyncs(admin: AdminClient): Promise<void> {
+  if (Date.now() - lastSyncSweepAtMs < MIN_SWEEP_INTERVAL_MS) return;
+
   // google_calendar_sync_attempts is migration-dependent, and this whole
   // query filters on it, so a database without the column yet fails this
   // select outright. That is the intended outcome: no column means no way to
@@ -131,6 +153,10 @@ export async function retryDueMeetSyncs(admin: AdminClient): Promise<void> {
   // for the batch, after the query rather than before it, so an empty backlog
   // (the ordinary case) still costs no outbound call at all.
   if (!(await googleCredentialsUsable())) return;
+
+  // Claimed here rather than at the top: everything above this line is a
+  // read, and the writes that feed the loop start below it.
+  lastSyncSweepAtMs = Date.now();
 
   for (const appointment of due) {
     const isHomeVisit = appointment.visit_mode === "home_visit";
@@ -252,6 +278,8 @@ const MAX_ACCESS_PER_SWEEP = 2;
  * the same space set to OPEN twice.
  */
 export async function retryDueMeetAccess(admin: AdminClient): Promise<void> {
+  if (Date.now() - lastAccessSweepAtMs < MIN_SWEEP_INTERVAL_MS) return;
+
   // meet_access_attempts is migration-dependent and this query filters on
   // it, so a database without the column fails the select outright -- the
   // intended outcome, exactly as above: no column means no cap, and an
@@ -281,6 +309,10 @@ export async function retryDueMeetAccess(admin: AdminClient): Promise<void> {
   // and each one then needs an admin's Open click by hand once the credential
   // is back.
   if (!(await googleCredentialsUsable())) return;
+
+  // Claimed here for the same reason as the sync sweep's: the writes that
+  // would feed the realtime loop start below this line.
+  lastAccessSweepAtMs = Date.now();
 
   for (const appointment of due) {
     if (!appointment.meet_link) continue;

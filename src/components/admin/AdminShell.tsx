@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
+import { LiveUpdatesProvider } from "@/lib/liveUpdates";
 import AdminGlobalSearch, { type SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import RefreshButton from "@/components/dashboard/RefreshButton";
 import { useLeavingPage } from "@/lib/useLeavingPage";
@@ -64,7 +65,6 @@ const ADMIN_REALTIME_TABLES = [
   "home_visit_waitlist",
   "patient_addresses",
   "hospital_admin_notes",
-  "risk_signals",
   // A therapist writing a recommendation is operational traffic: the
   // clinic's Recommendations screen should show it without a reload.
   "care_plans",
@@ -96,6 +96,12 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   "balance_sheet_entries",
   // Detector thresholds, edited on the Risk tab itself.
   "risk_rules",
+  // The signals themselves, moved off the operational channel: they are
+  // written by the lazy detector sweep that runs after this very page's
+  // render, so on a 2s cooldown the page's own sweep rebuilt the page. The
+  // sweep's five-minute interval bounded that, and 30s is instant enough for
+  // a queue an admin opens deliberately.
+  "risk_signals",
   // The three records the Risk tab reads. Deliberately on the long cooldown
   // rather than the operational one: a reveal happens every time any
   // therapist taps "Show number", and a full ~40-query dashboard rebuild per
@@ -500,11 +506,26 @@ export default function AdminShell({
     // pane), not a card sitting inside the site's normal centered page
     // column -- Navbar/Footer are hidden on this exact route (see their own
     // pathname checks) so this component owns the entire viewport.
+    //
+    // Both channels notify rather than refresh, and the provider is what
+    // carries the count from them to the Refresh button in the header. This
+    // dashboard is the one place where a rebuild is ~41 queries and every
+    // screen's markup, and where most of what arrives -- a patient booking,
+    // another admin's edit, a therapist revealing a number -- is not what
+    // the person reading is waiting on. The other three dashboards still
+    // refresh themselves: there a rebuild is cheap and the reader usually
+    // is waiting for that row.
+    <LiveUpdatesProvider>
     <div className="min-h-screen bg-slate-50">
-      <RealtimeRefresh tables={ADMIN_REALTIME_TABLES} cooldownMs={ADMIN_REALTIME_COOLDOWN_MS} />
+      <RealtimeRefresh
+        tables={ADMIN_REALTIME_TABLES}
+        cooldownMs={ADMIN_REALTIME_COOLDOWN_MS}
+        mode="notify"
+      />
       <RealtimeRefresh
         tables={ADMIN_CATALOG_REALTIME_TABLES}
         cooldownMs={ADMIN_CATALOG_REALTIME_COOLDOWN_MS}
+        mode="notify"
       />
       {/* Narrow screens: a compact dark top bar that opens an off-canvas
           drawer -- a fixed-width sidebar doesn't leave enough room for
@@ -683,5 +704,6 @@ export default function AdminShell({
         </div>
       </div>
     </div>
+    </LiveUpdatesProvider>
   );
 }
