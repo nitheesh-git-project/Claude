@@ -74,7 +74,13 @@ reaching Supabase and RealtimeRefresh's socket dies on every run; that split
 covers the **console** channel as well as `requestfailed`, because a
 WebSocket that never opens is reported only on the console and so slipped
 past the host rule entirely, taking S-005 red on every run for a reason that
-had nothing to do with the app),
+had nothing to do with the app. A **cancelled** request is not a failed one
+either: `requestfailed` fires for both, and Next prefetches an RSC payload
+for every Link entering the viewport, then aborts the ones a screen swap
+supersedes -- which is precisely what S-005's two dozen unsettled sidebar
+clicks produce, so an app-origin `ERR_ABORTED` on a `_rsc=` prefetch is the
+test's own premise rather than a fault. Every other app-origin failure, and
+an abort that is not a prefetch, still fails it),
 and the therapist roster end to end
 (`therapist-roster.spec.ts`: ranges saving as the same hour rows, exceptions
 owning only their own date, leave leaving the schedule intact, role and
