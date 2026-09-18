@@ -29,8 +29,16 @@ export async function POST() {
   jar.delete(IMPERSONATION_COOKIE);
   jar.delete(ADMIN_RESTORE_COOKIE);
 
+  // No marker: nothing to close, and nothing here has shown this caller to
+  // be an admin -- the route runs no admin check by design, so anonymous
+  // reaches this line. Naming `/admin/dashboard` in the body breaks the
+  // "don't name the back office to anyone outside it" rule at the one door
+  // that cannot check who is knocking. `/dashboard` resolves the role
+  // server-side and sends a stranger to /get-started, which is what that
+  // route exists for; an admin whose marker had already lapsed still lands
+  // in the back office, one hop later.
   if (!marker) {
-    return NextResponse.json({ ok: true, redirectTo: "/admin/dashboard" });
+    return NextResponse.json({ ok: true, redirectTo: "/dashboard" });
   }
 
   const admin = createAdminClient();
@@ -90,9 +98,15 @@ export async function POST() {
   }
 
   await supabase.auth.signOut();
+  // Same rule, and `genuine` is what separates the two cases. The marker is
+  // unsigned JSON, so anyone can send a well-formed one and reach this line
+  // -- but only a marker that matches its own `admin_impersonation_sessions`
+  // row is evidence the caller really was impersonating, and that row is one
+  // the admin it names cannot write. Proven: name the door they need. Not
+  // proven: `/dashboard`, same as above.
   return NextResponse.json({
     ok: true,
-    redirectTo: "/admin/login",
+    redirectTo: genuine ? "/admin/login" : "/dashboard",
     note: "Your own session could not be restored - please sign in again.",
   });
 }

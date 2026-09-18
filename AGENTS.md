@@ -2947,6 +2947,18 @@ client is the only writer and the log is append-only from any session.
   the wizard inserted the row itself; the policy is dropped now and the
   check moved with the insert. Don't add a fifth booking entry point without
   all three.
+  **The rule is wider than booking: a patient-dashboard route answers a
+  patient.** An audit found three that did not check --
+  `/api/patient/dismiss-onboarding`, `previous-therapists` and
+  `condition-profile/export` -- each answering a therapist or hospital
+  session with a 200. All three act on the caller's **own** row, so nothing
+  cross-account leaked, and that is exactly why it survived: the reach was
+  "the wrong role got an empty answer" rather than anything alarming. The
+  export was the sharpest, handing a non-patient a typeset PDF of an empty
+  health record named after them. They call `isPatientProfile` now.
+  `previous-therapists` had no `active` check either, which is the same gap
+  the eight-route sweep closed elsewhere -- a grep for the helper name is how
+  the next audit finds the next one.
 
 - **An admin can sign in as somebody, and that is a session swap rather than
   a preview.** A Master Admin opens a patient's, therapist's or partner hospital's
@@ -3010,6 +3022,20 @@ client is the only writer and the log is append-only from any session.
   `/dashboard` rather than adding a fifth role map. The debug bar is the
   deliberate exception -- it still lists the admin routes, and is switched
   off before release.
+  **A response body names the back office too.**
+  `/api/admin/stop-impersonation` answered `{"redirectTo":
+  "/admin/dashboard"}` to an **anonymous** caller: it runs no admin check by
+  design (the caller is signed in as the patient at that point, so
+  `getAdminContext()` would refuse the one person entitled to call it), so
+  the no-marker branch was reachable by anybody and told them where the back
+  office is. Its other exit did the same with `/admin/login` for anyone who
+  sent a forged marker, which is trivial since the marker is unsigned JSON.
+  Both answer `/dashboard` now unless the caller has been **shown** to be the
+  admin -- a restore token that actually exchanged, or a marker matching its
+  own `admin_impersonation_sessions` row, which is a row the admin it names
+  cannot write. `/dashboard` resolves the role server-side and sends a
+  stranger to `/get-started`, which is the whole reason that route exists.
+  Check what a route *says* as well as what it lets you do.
 
 - **The way back in is one rule, not one per surface.**
   `useAccountDestination()` (`src/lib/useAccountDestination.ts`) answers

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isPatientProfile } from "@/lib/supabase/requireActiveProfile";
 import { buildHealthProfilePdf, healthProfilePdfFilename } from "@/lib/healthProfilePdf";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
@@ -49,6 +50,13 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // One account carries one role, and this is the sharpest case of it: a
+  // therapist or hospital session got a typeset PDF of an empty health
+  // record, named after them, rather than being told it was not theirs.
+  if (!(await isPatientProfile(user.id))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

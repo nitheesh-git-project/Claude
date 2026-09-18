@@ -13,11 +13,20 @@ export type ServiceArea = {
 };
 
 // Patients type pincodes with spaces ("600 020"), and Google Places
-// sometimes returns them that way too. Compare on digits only so a
-// serviceable area is never missed over whitespace.
+// sometimes returns them that way too, so a serviceable area must never be
+// missed over separators.
+//
+// Only separators are stripped, though -- not every non-digit. Stripping
+// `\D` outright meant any string with six digits buried in it normalised to
+// a pincode: an audit probe sent `560001'; drop table profiles; --` and the
+// route answered a confident "yes, we visit that area". Nothing was injected
+// (supabase-js parameterises, and the table was still there afterwards), but
+// answering a question the caller did not ask is the "never tell someone
+// something untrue" rule, and it is the one place this app promises to send
+// a therapist to an address. Junk now fails `isValidPincodeShape` instead.
 export function normalizePincode(raw: string | null | undefined): string {
   if (typeof raw !== "string") return "";
-  return raw.replace(/\D/g, "");
+  return raw.replace(/[\s\-\u2010-\u2015]/g, "");
 }
 
 export function findAreaForPincode(
